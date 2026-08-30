@@ -81,3 +81,19 @@ promote them.
   Built on v2 as planned.
 - **Windows cross-compile (plan §8):** `wails build -platform windows/amd64`
   from macOS — see README for the result and any recorded gap.
+
+## D-007 — 2026-08-30: `make check` builds the frontend first; CI added
+
+**What:** The `check` target ran `lint test frontend`, but `go vet ./...`,
+`go test ./...` and `go build ./...` all fail on a fresh tree because
+`main.go` embeds `frontend/dist` (no matching files found). It now runs
+`frontend lint test`, and the `frontend` target additionally emits the
+bundle (`npx vite build`) after the type-check. Alongside this, the repo
+gains `.github/workflows/ci.yaml` (check + govulncheck).
+**Why:** A check that only passes when a previous build left `dist/` behind
+is a trap for fresh clones and CI runners; the previous README note
+("there is no Actions pipeline in this repo") aged into the same class of
+overclaim the main repo's audit catalogued.
+**Impact:** `make check` passes from a clean checkout (verified by deleting
+`frontend/dist` and re-running). `wails build` packaging is untouched — it
+still builds its own bundle.
