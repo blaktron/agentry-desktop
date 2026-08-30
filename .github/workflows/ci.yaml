@@ -30,6 +30,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # main.go embeds frontend/dist, so every Go tool — including the lint
+      # typecheck below — needs the bundle built first on a fresh tree.
+      - name: Build the embedded frontend bundle
+        run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
