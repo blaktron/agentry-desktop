@@ -1,0 +1,108 @@
+import { useCallback, useEffect, useState } from "react";
+import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
+import { main } from "../../wailsjs/go/models";
+import { ErrorBox, KindBadge, QuarantineBadge, Spinner } from "../ui";
+
+const KINDS = ["", "skill", "mcp-server", "prompt-agent"];
+const CAPABILITIES = ["", "network", "filesystem", "exec", "secrets", "dataAccess"];
+const SORTS = ["relevance", "installs", "newest", "updated"];
+
+export default function Browse({
+  registry,
+  onOpenAgent,
+}: {
+  registry: string;
+  onOpenAgent: (ns: string, name: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [kind, setKind] = useState("");
+  const [capability, setCapability] = useState("");
+  const [sort, setSort] = useState("relevance");
+  const [results, setResults] = useState<main.SearchView | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const search = useCallback(async () => {
+    if (!registry) {
+      setError("No registry configured — add one in Settings.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const query = new main.SearchQuery({ q, kind, capability, sort, limit: 30, offset: 0 });
+      setResults(await BrowseAPI.Search(registry, query));
+    } catch (e) {
+      setResults(null);
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [registry, q, kind, capability, sort]);
+
+  // First render and registry/facet changes trigger a search; typing wants
+  // the button or Enter.
+  useEffect(() => {
+    if (registry) void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registry, kind, capability, sort]);
+
+  return (
+    <div>
+      <h1>Browse</h1>
+      <p className="page-sub selectable">
+        Agents on {registry || "(no registry)"} — every published version is scanned and the report is public.
+      </p>
+
+      <div className="row">
+        <input
+          type="search"
+          className="grow"
+          placeholder="Search agents…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && search()}
+        />
+        <select value={kind} onChange={(e) => setKind(e.target.value)} title="Kind">
+          {KINDS.map((k) => (
+            <option key={k} value={k}>{k === "" ? "all kinds" : k}</option>
+          ))}
+        </select>
+        <select value={capability} onChange={(e) => setCapability(e.target.value)} title="Declared capability">
+          {CAPABILITIES.map((c) => (
+            <option key={c} value={c}>{c === "" ? "any capability" : `asks for ${c}`}</option>
+          ))}
+        </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value)} title="Sort">
+          {SORTS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <button className="primary" onClick={search}>Search</button>
+      </div>
+
+      <ErrorBox error={error} />
+      {loading && <Spinner label="Searching…" />}
+
+      {!loading && results && (
+        <div>
+          <p className="muted small">{results.total} result{results.total === 1 ? "" : "s"}</p>
+          {results.results.length === 0 && <div className="empty">Nothing matched.</div>}
+          {results.results.map((hit) => (
+            <button key={`${hit.namespace}/${hit.name}`} className="result" onClick={() => onOpenAgent(hit.namespace, hit.name)}>
+              <div className="spread">
+                <span className="name">{hit.namespace}/{hit.name}</span>
+                <span className="row">
+                  <QuarantineBadge state={hit.quarantine} />
+                  <KindBadge kind={hit.kind} />
+                </span>
+              </div>
+              <div className="muted">{hit.summary}</div>
+              {hit.installs30d > 0 && <div className="muted small">{hit.installs30d} installs in 30 days</div>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,110 @@
+# SecureAgentry Desktop
+
+A cross-platform desktop client (macOS, Windows, Linux) for
+[SecureAgentry](https://secureagentry.net) registries — browse scanned and
+signed agents, install them with **digest and DSSE-signature verification on
+this machine**, track what this machine has accepted, and validate local
+agent folders with the same scanners the registry runs.
+
+The product never claims an agent is "safe". The language is always:
+*scanned, N findings, signed.*
+
+## Surfaces
+
+- **Browse** — search the connected registry (kind / capability / license /
+  sort facets); agent pages show the summary, capability badges, the public
+  security report card (findings by severity, ruleset version, scan date),
+  version history, and provenance (archive digest, signing key id, DSSE
+  verification state). READMEs are rendered from the API's server-sanitized
+  HTML — the client never parses registry markdown itself.
+- **Install** — pick a target (`claude-skill` / `mcp` / `agents-md`) and
+  directory, then: resolve → download → **sha256 digest check → DSSE
+  signature verification against TOFU-pinned keys** → review the declared
+  capability contract (diffed against what this machine previously accepted,
+  with explicit confirmation on any widening) → export → record. An unsigned
+  release requires an explicit checkbox, mirroring the CLI's
+  `--allow-unsigned`. A signature that fails to verify aborts — there is no
+  override for that.
+- **Installed** — the shared install state
+  (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
+  writes), per-item capabilities, update checks, uninstall (client-managed
+  directories only; a directory you picked is never deleted).
+- **Validate** — an author drop-zone: point at a local agent folder and run
+  manifest rules V1–V8, the S1 inventory (content-sniffed binaries, nested
+  archives, encoding), and the S3/S4 hidden-content + injection-signature
+  scanners — the same Go packages the publication pipeline runs (D-12
+  local/remote parity by construction), with the rule bundle embedded in
+  the binary.
+
+## Architecture
+
+Wails v2 (Go + native webview) with a React + TypeScript + Vite frontend
+sharing the web app's design tokens.
+
+Go is the whole point: verification and scanning run **in-process** through
+the same libraries the server and CLI use —
+
+| concern | package |
+|---|---|
+| REST client | `github.com/blaktron/agentry/pkg/apiclient` |
+| manifest rules, refs | `github.com/blaktron/agentry/pkg/manifest` |
+| S3/S4 scanners + embedded bundle | `…/pkg/rules`, `…/pkg/ruleset` |
+| hardened extract, content sniffers | `…/pkg/archive` |
+| DSSE / in-toto verification | `…/pkg/attest` |
+| install-target exporters | `github.com/blaktron/agentry-cli/pkg/export` |
+| shared install state + capability diff | `…/pkg/installed` |
+| TOFU key pins + attestation flow | `…/pkg/trust` |
+
+Bound services (`services.go`) expose flat view models to the frontend;
+engines live in `internal/{registry,install,validate,settings}`.
+
+Credentials are stored in the OS keychain under the same service/account
+convention as the CLI, so signing in from either client signs in both.
+Install records and pinned signing keys are shared files under
+`~/.config/agentry/` (relocatable with `AGENTRY_CONFIG_DIR`).
+
+## Building
+
+Prereqs: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
+(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`), and access to
+the private `blaktron` modules:
+
+```bash
+export GOPRIVATE='github.com/blaktron/*'
+# plus a PAT for github.com/blaktron via credential helper or insteadOf
+```
+
+| task | command |
+|---|---|
+| dev shell (live reload) | `make dev` |
+| host-platform build | `make build` → `build/bin/` |
+| lint + tests + tsc | `make check` |
+| regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
+| macOS universal .app (zipped) | `make package-darwin` |
+| Windows amd64 (cross-compiled) | `make package-windows` |
+
+**Linux** builds on a Linux host (webkit2gtk links natively):
+
+```bash
+# Debian/Ubuntu build deps
+apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev npm golang
+wails build -platform linux/amd64
+```
+
+(The dev stack's Fedora server builds it inside an Ubuntu container — see
+`scripts/build-linux.sh`.)
+
+Artifacts are not committed; they attach to GitHub releases (currently a
+manual step — the deploy PAT lacks the `workflow` scope, so there is no
+Actions pipeline in this repo).
+
+## First run against a dev stack
+
+Settings → Add a registry → `http://agentry:8080` → Use. Anonymous browsing
+works; sign in with a PAT (web app → Settings → Tokens, or `agentry login`)
+to see private agents and to pin signing keys deliberately at login.
+
+## Conventions
+
+Conventional commits; `make check` green before every push; every
+deliberate departure gets a dated entry in [DEVIATIONS.md](DEVIATIONS.md).
