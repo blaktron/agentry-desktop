@@ -30,11 +30,14 @@ lint:
 test:
 	$(GO) test ./...
 
-# Frontend type-check (no emit; vite builds inside `wails build`).
+# Frontend type-check plus the dist bundle main.go embeds. `go build ./...`,
+# `go vet ./...` and `go test ./...` all fail on a fresh tree without
+# frontend/dist, so `check` runs this target first; wails builds its own
+# bundle at packaging time.
 frontend:
-	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit
+	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx vite build
 
-check: lint test frontend
+check: frontend lint test
 	$(GO) build ./...
 
 # --- packaging -------------------------------------------------------------
