@@ -1,3 +1,74 @@
+export namespace build {
+	
+	export class Model {
+	    name: string;
+	    namespace: string;
+	    kind: string;
+	    version: string;
+	    summary: string;
+	    license: string;
+	    homepage?: string;
+	    tags: string[];
+	    instructions: string;
+	    egressMode: string;
+	    egressHosts: string[];
+	    fsRead: string;
+	    fsReadPaths: string[];
+	    fsWrite: string;
+	    fsWritePaths: string[];
+	    execCommands: string[];
+	    secrets: string[];
+	    dataAccess: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Model(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.namespace = source["namespace"];
+	        this.kind = source["kind"];
+	        this.version = source["version"];
+	        this.summary = source["summary"];
+	        this.license = source["license"];
+	        this.homepage = source["homepage"];
+	        this.tags = source["tags"];
+	        this.instructions = source["instructions"];
+	        this.egressMode = source["egressMode"];
+	        this.egressHosts = source["egressHosts"];
+	        this.fsRead = source["fsRead"];
+	        this.fsReadPaths = source["fsReadPaths"];
+	        this.fsWrite = source["fsWrite"];
+	        this.fsWritePaths = source["fsWritePaths"];
+	        this.execCommands = source["execCommands"];
+	        this.secrets = source["secrets"];
+	        this.dataAccess = source["dataAccess"];
+	    }
+	}
+	export class PublishResult {
+	    version: string;
+	    status: string;
+	    digest: string;
+	    detail?: string;
+	    findingCounts?: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublishResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.status = source["status"];
+	        this.digest = source["digest"];
+	        this.detail = source["detail"];
+	        this.findingCounts = source["findingCounts"];
+	    }
+	}
+
+}
+
 export namespace install {
 	
 	export class Paths {
@@ -456,6 +527,32 @@ export namespace main {
 	        this.apiVersion = source["apiVersion"];
 	        this.minCliVersion = source["minCliVersion"];
 	        this.features = source["features"];
+	    }
+	}
+	export class PrereqView {
+	    dockerOk: boolean;
+	    dockerErr?: string;
+	    os: string;
+	    distro?: string;
+	    canInstall: boolean;
+	    command?: string;
+	    downloadUrl: string;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PrereqView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dockerOk = source["dockerOk"];
+	        this.dockerErr = source["dockerErr"];
+	        this.os = source["os"];
+	        this.distro = source["distro"];
+	        this.canInstall = source["canInstall"];
+	        this.command = source["command"];
+	        this.downloadUrl = source["downloadUrl"];
+	        this.note = source["note"];
 	    }
 	}
 	export class ProfileStatusView {

@@ -376,3 +376,5 @@ table.plain th { color: var(--color-muted); font-weight: 600; font-size: 12px; }
 
 .kv { margin: 2px 0; user-select: text; }
 .kv .k { color: var(--color-muted); display: inline-block; min-width: 130px; }
+
+.clickable { cursor: pointer; }

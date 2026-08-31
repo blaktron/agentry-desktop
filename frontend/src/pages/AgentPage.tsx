@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main, trust } from "../../wailsjs/go/models";
+import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
+import { installed, main, trust } from "../../wailsjs/go/models";
 import {
   CapabilityBadges, ErrorBox, Excerpt, KindBadge, QuarantineBadge, Sev,
   SignedBadge, Spinner, fmtDate, shortDigest,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
+import ToolsPanel from "./ToolsPanel";
 
 type Tab = "readme" | "mcp" | "report" | "versions" | "provenance";
 
@@ -20,12 +22,13 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack,
+  registry, ns, name, onBack, backLabel = "← back to search",
 }: {
   registry: string;
   ns: string;
   name: string;
   onBack: () => void;
+  backLabel?: string;
 }) {
   const [detail, setDetail] = useState<main.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +39,32 @@ export default function AgentPage({
   const [prov, setProv] = useState<trust.AttestationResult | null>(null);
   const [installing, setInstalling] = useState(false);
   const [runOpen, setRunOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+
+  // What THIS machine has accepted for this agent (shared install state) —
+  // the installed strip below, with uninstall in place.
+  const [installs, setInstalls] = useState<installed.Record[]>([]);
+  const [confirmRemove, setConfirmRemove] = useState<installed.Record | null>(null);
+  const [removeMsg, setRemoveMsg] = useState<string | null>(null);
+  const refreshInstalls = useCallback(() => {
+    InstallAPI.ListInstalled()
+      .then((all) => setInstalls(all.filter((r) => r.namespace === ns && r.name === name)))
+      .catch(() => setInstalls([]));
+  }, [ns, name]);
+  useEffect(refreshInstalls, [refreshInstalls]);
+
+  async function uninstall(rec: installed.Record) {
+    setConfirmRemove(null);
+    try {
+      const msg = await InstallAPI.Uninstall(
+        new installed.Key({ registry: rec.registry, namespace: rec.namespace, name: rec.name, target: rec.target, dir: rec.dir }),
+      );
+      setRemoveMsg(msg);
+      refreshInstalls();
+    } catch (e) {
+      setRemoveMsg(String(e));
+    }
+  }
 
   useEffect(() => {
     setDetail(null);
@@ -56,7 +85,7 @@ export default function AgentPage({
   if (error) {
     return (
       <div>
-        <button className="link" onClick={onBack}>← back to search</button>
+        <button className="link" onClick={onBack}>{backLabel}</button>
         <ErrorBox error={error} />
       </div>
     );
@@ -69,7 +98,7 @@ export default function AgentPage({
 
   return (
     <div>
-      <button className="link" onClick={onBack}>← back to search</button>
+      <button className="link" onClick={onBack}>{backLabel}</button>
       <div className="spread" style={{ marginTop: 10 }}>
         <h1 className="selectable">{a.namespace}/{a.name}</h1>
         <div className="row">
@@ -79,6 +108,7 @@ export default function AgentPage({
             ? (
               <>
                 <button className="primary" onClick={() => setRunOpen(true)}>Run</button>
+                <button onClick={() => setToolsOpen(true)}>Set up tools</button>
                 <button className="primary" onClick={() => setInstalling(true)}>Install {detail.latest}</button>
               </>
             )
@@ -90,6 +120,40 @@ export default function AgentPage({
         <CapabilityBadges caps={detail.latestCapabilities} />
         <SignedBadge att={prov} />
       </div>
+
+      {removeMsg && <div className="notice selectable">{removeMsg}</div>}
+      {installs.length > 0 && (
+        <div className="card">
+          <strong>Installed on this machine</strong>
+          {installs.map((rec) => (
+            <div key={`${rec.target} ${rec.dir}`} className="spread" style={{ marginTop: 6 }}>
+              <div className="grow">
+                <span className="mono">v{rec.version}</span>{" "}
+                <span className="badge">{rec.target}</span>{" "}
+                <span className="muted small mono selectable">{rec.dir}</span>
+              </div>
+              <button className="danger" onClick={() => setConfirmRemove(rec)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {confirmRemove && (
+        <div className="modal-backdrop" onClick={() => setConfirmRemove(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginTop: 0 }}>Remove {confirmRemove.namespace}/{confirmRemove.name}?</h2>
+            <p>
+              {confirmRemove.managed
+                ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
+                : <>The directory was chosen by you, so its files are <strong>left in place</strong>; only the install record is removed.</>}
+            </p>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmRemove(null)}>Cancel</button>
+              <button className="danger" onClick={() => uninstall(confirmRemove)}>Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="tabs">
         {(["readme", "mcp", "report", "versions", "provenance"] as Tab[]).map((t) => (
@@ -173,6 +237,17 @@ export default function AgentPage({
           agentRef={`${ns}/${name}@${detail.latest}`}
           kind={a.kind}
           onClose={() => setInstalling(false)}
+          onInstalled={refreshInstalls}
+        />
+      )}
+
+      {toolsOpen && detail.latest && (
+        <ToolsPanel
+          registry={registry}
+          ns={ns}
+          name={name}
+          version={detail.latest}
+          onClose={() => setToolsOpen(false)}
         />
       )}
 

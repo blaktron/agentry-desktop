@@ -26,6 +26,10 @@ export function SignIn(arg1, arg2) {
   return window['go']['main']['SettingsAPI']['SignIn'](arg1, arg2);
 }
 
+export function SignInViaBrowser(arg1) {
+  return window['go']['main']['SettingsAPI']['SignInViaBrowser'](arg1);
+}
+
 export function SignOut(arg1) {
   return window['go']['main']['SettingsAPI']['SignOut'](arg1);
 }

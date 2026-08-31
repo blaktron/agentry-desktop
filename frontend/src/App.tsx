@@ -6,13 +6,17 @@ import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
 import Validate from "./pages/Validate";
+import Build from "./pages/Build";
 import Settings from "./pages/Settings";
 
 export type Route =
   | { page: "browse" }
-  | { page: "agent"; ns: string; name: string }
+  // registry: an installed record's own registry may differ from the active
+  // one; back: where the ← link returns to.
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "installed" }
   | { page: "installed" }
   | { page: "validate" }
+  | { page: "build" }
   | { page: "settings" };
 
 export default function App() {
@@ -55,6 +59,7 @@ export default function App() {
         </div>
         {navItem("Browse", "browse")}
         {navItem("Installed", "installed")}
+        {navItem("Build", "build")}
         {navItem("Validate", "validate")}
         {navItem("Settings", "settings")}
         <div className="foot">
@@ -68,13 +73,20 @@ export default function App() {
         )}
         {route.page === "agent" && (
           <AgentPage
-            registry={registry}
+            registry={route.registry ?? registry}
             ns={route.ns}
             name={route.name}
-            onBack={() => nav({ page: "browse" })}
+            backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
+            onBack={() => nav({ page: route.back ?? "browse" })}
           />
         )}
-        {route.page === "installed" && <Installed onBrowse={() => nav({ page: "browse" })} />}
+        {route.page === "installed" && (
+          <Installed
+            onBrowse={() => nav({ page: "browse" })}
+            onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
+          />
+        )}
+        {route.page === "build" && <Build registry={registry} />}
         {route.page === "validate" && <Validate />}
         {route.page === "settings" && (
           <Settings
