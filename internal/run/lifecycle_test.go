@@ -214,7 +214,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	surviving := func() bool { _, err := os.Stat(canary); return err == nil }
 
 	var log strings.Builder
-	plan, gotDir, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName)
+	plan, gotDir, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	var log strings.Builder
-	_, _, err = ensurePlan(&log, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName)
+	_, _, err = ensurePlan(&log, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") {
 		t.Fatalf("err = %v, want a policy refusal", err)
 	}
