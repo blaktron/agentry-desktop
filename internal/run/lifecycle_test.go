@@ -224,7 +224,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Reuse: same digest + policy + adapter, files untouched.
 	plant()
-	if _, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName); err != nil {
+	if _, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !surviving() {
@@ -233,7 +233,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Policy change: the fingerprint participates in the reuse key (§R9).
 	plant()
-	plan2, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName)
+	plan2, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	plant()
 	changed := *meta
 	changed.Digest = "sha256:0ther"
-	plan3, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName)
+	plan3, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatal(err)
 	}
 	log.Reset()
-	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName); err != nil {
+	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil); err != nil {
 		t.Fatal(err)
 	}
 	if surviving() {
@@ -279,7 +279,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte("not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName); err != nil {
+	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil); err != nil {
 		t.Fatal(err)
 	}
 }
