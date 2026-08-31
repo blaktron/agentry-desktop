@@ -4,8 +4,8 @@ go 1.27.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.0.0-20260830190008-0fd2ba6a72ce
-	github.com/blaktron/agentry-cli v0.0.0-20260831113740-626f209fccf6
+	github.com/blaktron/agentry v0.0.0-20260831213228-63e1af07e585
+	github.com/blaktron/agentry-cli v0.0.0-20260831213313-3563abd7db4d
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8
 	gopkg.in/yaml.v3 v3.0.1
