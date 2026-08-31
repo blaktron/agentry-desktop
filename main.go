@@ -24,6 +24,7 @@ func main() {
 	browseAPI := &BrowseAPI{app: app}
 	installAPI := &InstallAPI{app: app, engine: install.NewEngine()}
 	validateAPI := &ValidateAPI{app: app}
+	runAPI := &RunAPI{app: app}
 
 	err := wails.Run(&options.App{
 		Title:     "SecureAgentry Desktop",
@@ -41,6 +42,7 @@ func main() {
 			browseAPI,
 			installAPI,
 			validateAPI,
+			runAPI,
 		},
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{

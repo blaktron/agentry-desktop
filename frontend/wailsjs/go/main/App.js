@@ -10,6 +10,10 @@ export function ChooseDirectory(arg1) {
   return window['go']['main']['App']['ChooseDirectory'](arg1);
 }
 
+export function ChooseFiles(arg1) {
+  return window['go']['main']['App']['ChooseFiles'](arg1);
+}
+
 export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }

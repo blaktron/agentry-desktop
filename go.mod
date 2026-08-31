@@ -47,3 +47,8 @@ require (
 )
 
 // replace github.com/wailsapp/wails/v2 v2.15.0 => /Users/chrisdupres/go/pkg/mod
+
+// TEMPORARY (RUNNER-PLAN-2 §P6): the run surface builds against the local
+// agentry-cli working tree until the runner-v2 packages merge; the parent
+// session swaps this for a real version pin before pushing.
+replace github.com/blaktron/agentry-cli => ../agentry-cli

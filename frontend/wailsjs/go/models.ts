@@ -382,6 +382,64 @@ export namespace main {
 	        this.verdictReason = source["verdictReason"];
 	    }
 	}
+	export class MCPToolRow {
+	    tool: string;
+	    grantedBy: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MCPToolRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tool = source["tool"];
+	        this.grantedBy = source["grantedBy"];
+	    }
+	}
+	export class MCPView {
+	    ref: string;
+	    version: string;
+	    toolRows: MCPToolRow[];
+	    servers: string[];
+	    secretNames: string[];
+	    dataAccess: string[];
+	    embeddedTools: string[];
+	    capabilityLines: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MCPView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.version = source["version"];
+	        this.toolRows = this.convertValues(source["toolRows"], MCPToolRow);
+	        this.servers = source["servers"];
+	        this.secretNames = source["secretNames"];
+	        this.dataAccess = source["dataAccess"];
+	        this.embeddedTools = source["embeddedTools"];
+	        this.capabilityLines = source["capabilityLines"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class MetaView {
 	    version: string;
 	    apiVersion: string;
@@ -398,6 +456,30 @@ export namespace main {
 	        this.apiVersion = source["apiVersion"];
 	        this.minCliVersion = source["minCliVersion"];
 	        this.features = source["features"];
+	    }
+	}
+	export class ProfileStatusView {
+	    ref: string;
+	    digest: string;
+	    declaredSecrets: string[];
+	    exists: boolean;
+	    keep: boolean;
+	    storedSecretNames: string[];
+	    capabilityLines: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.digest = source["digest"];
+	        this.declaredSecrets = source["declaredSecrets"];
+	        this.exists = source["exists"];
+	        this.keep = source["keep"];
+	        this.storedSecretNames = source["storedSecretNames"];
+	        this.capabilityLines = source["capabilityLines"];
 	    }
 	}
 	export class RegistryView {
@@ -459,6 +541,48 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class RunResultView {
+	    status: string;
+	    exitCode: number;
+	    error?: string;
+	    runId: string;
+	    ref: string;
+	    digest: string;
+	    resultJson: string;
+	    outDir: string;
+	    receiptsDir: string;
+	    runPlanSha: string;
+	    inputTokens: number;
+	    outputTokens: number;
+	    costUsd: number;
+	    wallMs: number;
+	    turns: number;
+	    attestationState: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunResultView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.exitCode = source["exitCode"];
+	        this.error = source["error"];
+	        this.runId = source["runId"];
+	        this.ref = source["ref"];
+	        this.digest = source["digest"];
+	        this.resultJson = source["resultJson"];
+	        this.outDir = source["outDir"];
+	        this.receiptsDir = source["receiptsDir"];
+	        this.runPlanSha = source["runPlanSha"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.costUsd = source["costUsd"];
+	        this.wallMs = source["wallMs"];
+	        this.turns = source["turns"];
+	        this.attestationState = source["attestationState"];
+	    }
 	}
 	export class SearchHitView {
 	    namespace: string;
@@ -573,6 +697,40 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class SetupStatusView {
+	    dockerOk: boolean;
+	    dockerErr?: string;
+	    policyPath: string;
+	    policyExists: boolean;
+	    provider: string;
+	    model: string;
+	    apiKeyEnv: string;
+	    baseUrl?: string;
+	    imagesReady: boolean;
+	    timeoutSeconds: number;
+	    maxTurns: number;
+	    keepProfilesByDefault: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SetupStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dockerOk = source["dockerOk"];
+	        this.dockerErr = source["dockerErr"];
+	        this.policyPath = source["policyPath"];
+	        this.policyExists = source["policyExists"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.apiKeyEnv = source["apiKeyEnv"];
+	        this.baseUrl = source["baseUrl"];
+	        this.imagesReady = source["imagesReady"];
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.maxTurns = source["maxTurns"];
+	        this.keepProfilesByDefault = source["keepProfilesByDefault"];
+	    }
 	}
 	export class UserView {
 	    handle: string;
