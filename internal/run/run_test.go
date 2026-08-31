@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 )
 
@@ -30,6 +32,25 @@ func withRunnerHome(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("AGENTRY_RUNNER_HOME", home)
 	return home
+}
+
+// TestHome pins the CLI's exact derivation: $AGENTRY_RUNNER_HOME wins,
+// otherwise ~/.agentry/runner — one cache for both clients.
+func TestHome(t *testing.T) {
+	t.Setenv("AGENTRY_RUNNER_HOME", "/custom/runner")
+	if got, err := Home(); err != nil || got != "/custom/runner" {
+		t.Fatalf("Home = %q %v", got, err)
+	}
+	t.Setenv("AGENTRY_RUNNER_HOME", "")
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	if got, err := Home(); err != nil || got != filepath.Join(tmp, ".agentry", "runner") {
+		t.Fatalf("Home = %q %v, want the CLI default under $HOME", got, err)
+	}
+	t.Setenv("HOME", "")
+	if _, err := Home(); err == nil || !strings.Contains(err.Error(), "AGENTRY_RUNNER_HOME") {
+		t.Fatalf("err = %v, want a hint naming the override", err)
+	}
 }
 
 func TestDigestSuffix(t *testing.T) {
@@ -177,17 +198,159 @@ func TestInstallMetaRoundTrip(t *testing.T) {
 
 // TestResolveOutDirDefault pins the desktop default output location.
 func TestResolveOutDirDefault(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // never touch the real ~/Downloads
 	sig := testSig(t, nil)
 	got, err := resolveOutDir("", sig, "cafe0123")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = os.RemoveAll(got) }()
 	if !strings.HasSuffix(got, filepath.Join("Downloads", "agentry-out", "acme-reporter-cafe0123")) {
 		t.Fatalf("default out dir = %q", got)
 	}
 	if fi, err := os.Stat(got); err != nil || !fi.IsDir() {
 		t.Fatalf("out dir not created: %v", err)
+	}
+}
+
+// TestResolveOutDirExplicit: a picked folder is absolutized and created.
+func TestResolveOutDirExplicit(t *testing.T) {
+	sig := testSig(t, nil)
+	dir := filepath.Join(t.TempDir(), "picked", "out")
+	got, err := resolveOutDir(dir, sig, "cafe0123")
+	if err != nil || got != dir {
+		t.Fatalf("resolveOutDir = %q %v, want %q", got, err, dir)
+	}
+	if fi, err := os.Stat(got); err != nil || !fi.IsDir() {
+		t.Fatalf("out dir not created: %v", err)
+	}
+}
+
+// TestResolveOutDirNoHome: without a home directory the default cannot be
+// derived and the error tells the user to pick a folder.
+func TestResolveOutDirNoHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	sig := testSig(t, nil)
+	if _, err := resolveOutDir("", sig, "cafe0123"); err == nil || !strings.Contains(err.Error(), "output folder") {
+		t.Fatalf("err = %v, want the pick-a-folder hint", err)
+	}
+}
+
+// TestManifestFromWorkspace covers the verified-tree parse and both
+// refusals (missing and unparsable agent.yaml).
+func TestManifestFromWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := manifestFromWorkspace(dir); err == nil || !strings.Contains(err.Error(), "read agent.yaml") {
+		t.Fatalf("err = %v, want the missing-file refusal", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(":\tnot yaml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manifestFromWorkspace(dir); err == nil || !strings.Contains(err.Error(), "parse agent.yaml") {
+		t.Fatalf("err = %v, want the parse refusal", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(runManifestYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := manifestFromWorkspace(dir)
+	if err != nil || m.Name != "reporter" {
+		t.Fatalf("manifest = %+v %v", m, err)
+	}
+}
+
+// TestProfileInfoReportsPolicyDefaultKeep: with no profile on disk the
+// keep toggle starts where the operator policy says (§P2
+// profiles.keepByDefault), read WITHOUT creating the policy file.
+func TestProfileInfoReportsPolicyDefaultKeep(t *testing.T) {
+	isolateRunEnv(t)
+	sig := testSig(t, []string{"EXAMPLE_TOKEN"})
+
+	// No policy file: the shipped default (true) applies.
+	info, err := profileInfo(sig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Exists || !info.Keep {
+		t.Fatalf("info = %+v, want no profile + shipped keep default", info)
+	}
+	if len(info.DeclaredSecrets) != 1 || info.DeclaredSecrets[0] != "EXAMPLE_TOKEN" {
+		t.Fatalf("declared secrets = %v", info.DeclaredSecrets)
+	}
+	if len(info.CapabilityLines) == 0 {
+		t.Fatal("capability lines missing")
+	}
+
+	// An operator policy with keepByDefault=false seeds the toggle false.
+	path, err := policy.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pol := policy.Default()
+	no := false
+	pol.Profiles.KeepByDefault = &no
+	if err := policy.Save(path, pol); err != nil {
+		t.Fatal(err)
+	}
+	info, err = profileInfo(sig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Keep {
+		t.Fatal("keep toggle must start at the policy default (false)")
+	}
+
+	// A broken policy file must not break status surfaces: the read-only
+	// loader falls back to the shipped defaults.
+	if err := os.WriteFile(path, []byte("not: [valid"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err = profileInfo(sig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Keep {
+		t.Fatal("a broken policy must fall back to the shipped keep default")
+	}
+}
+
+// TestProfileStatusAndSaveProfile drives the exported §P3 wrappers against
+// the fake registry: status without a profile, the guided form's save, and
+// status reflecting the stored names afterwards.
+func TestProfileStatusAndSaveProfile(t *testing.T) {
+	isolateRunEnv(t)
+	regURL := startRunRegistry(t, &fakeRunRegistry{})
+	ctx := context.Background()
+
+	before, err := ProfileStatus(ctx, regURL, "acme/reporter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Exists || before.Ref != "acme/reporter@1.0.0" {
+		t.Fatalf("before = %+v", before)
+	}
+	if len(before.DeclaredSecrets) != 1 || before.DeclaredSecrets[0] != "RUN_TEST_TOKEN" {
+		t.Fatalf("declared secrets = %v", before.DeclaredSecrets)
+	}
+
+	saved, err := SaveProfile(ctx, regURL, "acme/reporter", map[string]string{"RUN_TEST_TOKEN": "v"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !saved.Exists || saved.Keep {
+		t.Fatalf("saved = %+v, want exists with keep=false", saved)
+	}
+
+	after, err := ProfileStatus(ctx, regURL, "acme/reporter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.Exists || len(after.StoredSecretNames) != 1 || after.StoredSecretNames[0] != "RUN_TEST_TOKEN" {
+		t.Fatalf("after = %+v", after)
+	}
+
+	// The guided form refuses names outside the declared contract through
+	// the exported path too.
+	if _, err := SaveProfile(ctx, regURL, "acme/reporter", map[string]string{"UNDECLARED": "v"}, true); err == nil {
+		t.Fatal("undeclared secret name must be refused")
 	}
 }
 

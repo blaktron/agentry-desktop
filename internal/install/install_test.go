@@ -49,10 +49,14 @@ type fakeRegistry struct {
 	envelopeSigner *ecdsa.PrivateKey
 	// unsigned makes the attestation endpoint 404.
 	unsigned bool
+	// omitAttURL makes the resolve result carry no attestationUrl, so the
+	// client must fall back to the canonical attestation path.
+	omitAttURL bool
 	// corruptArchive flips one byte of the served archive bytes.
 	corruptArchive bool
 }
 
+// newKey generates a P-256 signing key for the fake registry.
 func newKey(t *testing.T) *ecdsa.PrivateKey {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -62,6 +66,7 @@ func newKey(t *testing.T) *ecdsa.PrivateKey {
 	return key
 }
 
+// pubPEM renders a key's public half as the PEM the key set advertises.
 func pubPEM(t *testing.T, key *ecdsa.PrivateKey) string {
 	t.Helper()
 	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
@@ -90,6 +95,8 @@ func buildTestArchive(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
+// startRegistry fills defaults, starts the fake server, and returns its
+// URL; the server dies with the test.
 func startRegistry(t *testing.T, f *fakeRegistry) string {
 	t.Helper()
 	f.t = t
@@ -125,6 +132,9 @@ func startRegistry(t *testing.T, f *fakeRegistry) string {
 	})
 	mux.HandleFunc("/api/v1/resolve", func(w http.ResponseWriter, _ *http.Request) {
 		att := "/att"
+		if f.omitAttURL {
+			att = ""
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": att,
@@ -169,6 +179,7 @@ func startRegistry(t *testing.T, f *fakeRegistry) string {
 	return f.srv.URL
 }
 
+// hexEncode is a dependency-free hex encoder for the digest fixture.
 func hexEncode(b []byte) string {
 	const hextable = "0123456789abcdef"
 	out := make([]byte, len(b)*2)

@@ -39,6 +39,13 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
+// newDockerClient builds the docker client every run/setup surface talks
+// to. A package variable purely as a test seam: tests substitute
+// dockerx.Fake (the CLI engine tests' technique, RUNNER-DEVIATIONS DR-7)
+// so the whole lifecycle runs without a docker daemon. Production code
+// never reassigns it.
+var newDockerClient = func() dockerx.Client { return dockerx.New() }
+
 // Home is ~/.agentry/runner, or $AGENTRY_RUNNER_HOME — the CLI's exact
 // derivation (cmd_run.go runnerHome), so both clients share one cache.
 func Home() (string, error) {
@@ -309,7 +316,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		return nil, err
 	}
 
-	docker := dockerx.New()
+	docker := newDockerClient()
 	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}

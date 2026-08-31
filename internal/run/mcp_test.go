@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,6 +22,7 @@ func fullCaps() manifest.Capabilities {
 	}
 }
 
+// toolNames projects rows to their tool names for order assertions.
 func toolNames(rows []ToolRow) []string {
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
@@ -96,6 +98,39 @@ func TestEmbeddedMatchesExporter(t *testing.T) {
 	want := []string{"Read", "Grep", "Glob", "Write", "Edit", "Bash(git:*)", "Bash(jq:*)", "WebFetch(domain:api.example.com)"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("HostToolGrants = %v, want %v (the exporter mapping changed — update the section copy)", got, want)
+	}
+}
+
+// TestRequirementsFromRegistry pins the §P6 req-3/4 section end to end:
+// the resolved release's declared contract drives every field, and the
+// embedded list is the exporter's own mapping.
+func TestRequirementsFromRegistry(t *testing.T) {
+	isolateRunEnv(t)
+	fr := &fakeRunRegistry{}
+	regURL := startRunRegistry(t, fr)
+
+	info, err := Requirements(context.Background(), regURL, "acme", "reporter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Ref != "acme/reporter@1.0.0" || info.Version != "1.0.0" {
+		t.Fatalf("identity = %+v", info)
+	}
+	want := []string{"write_report", "list_inputs", "read_input", "fs_read", "fs_list", "fs_write", "fetch", "run_command"}
+	if got := toolNames(info.ToolRows); !reflect.DeepEqual(got, want) {
+		t.Fatalf("tool rows = %v, want %v", got, want)
+	}
+	if len(info.Servers) != 1 || !strings.Contains(info.Servers[0], "BriefAgent Tools") {
+		t.Errorf("servers = %v", info.Servers)
+	}
+	if !reflect.DeepEqual(info.SecretNames, []string{"RUN_TEST_TOKEN"}) {
+		t.Errorf("secret names = %v", info.SecretNames)
+	}
+	if !reflect.DeepEqual(info.DataAccess, []string{"code"}) {
+		t.Errorf("dataAccess = %v", info.DataAccess)
+	}
+	if len(info.EmbeddedTools) == 0 || len(info.CapabilityLines) != 6 {
+		t.Errorf("embedded/capability sections = %v / %v", info.EmbeddedTools, info.CapabilityLines)
 	}
 }
 
