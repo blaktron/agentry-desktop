@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.0.0-20260830190008-0fd2ba6a72ce
-	github.com/blaktron/agentry-cli v0.0.0-20260830140212-0d85a09a0514
+	github.com/blaktron/agentry-cli v0.0.0-20260831113740-626f209fccf6
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8
 	gopkg.in/yaml.v3 v3.0.1
@@ -47,8 +47,3 @@ require (
 )
 
 // replace github.com/wailsapp/wails/v2 v2.15.0 => /Users/chrisdupres/go/pkg/mod
-
-// TEMPORARY (RUNNER-PLAN-2 §P6): the run surface builds against the local
-// agentry-cli working tree until the runner-v2 packages merge; the parent
-// session swaps this for a real version pin before pushing.
-replace github.com/blaktron/agentry-cli => ../agentry-cli
