@@ -36,6 +36,20 @@ func (a *App) ChooseDirectory(title string) (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
 }
 
+// ChooseFiles opens the native multi-file picker and returns the chosen
+// paths (empty when the user cancelled) — the run surface's input-files
+// channel (RUNNER-PLAN-2 §P4) is fed from here.
+func (a *App) ChooseFiles(title string) ([]string, error) {
+	files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
+	if err != nil {
+		return nil, err
+	}
+	if files == nil {
+		files = []string{}
+	}
+	return files, nil
+}
+
 // OpenExternal opens an http(s) URL in the system browser. Anything else is
 // refused — the frontend renders registry-supplied content, and a scheme
 // like file: or javascript: coming out of it must not reach the OS.

@@ -1,0 +1,713 @@
+// Package run is the desktop run engine (RUNNER-PLAN-2 §P6): the same
+// lifecycle `agentry run` executes — resolve → verify → materialize →
+// compile → enforce → run → receipt — driven through the public
+// agentry-cli/pkg/runner packages, never a parallel implementation (§P8).
+// The install cache, plan layout, and MCP profiles under ~/.agentry/runner
+// are byte-compatible with the CLI's, so either client can pick up where
+// the other left off.
+package run
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/blaktron/agentry/pkg/apiclient"
+	pkgarchive "github.com/blaktron/agentry/pkg/archive"
+	"github.com/blaktron/agentry/pkg/manifest"
+
+	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
+	"github.com/blaktron/agentry-cli/pkg/runner/compile"
+	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
+	"github.com/blaktron/agentry-cli/pkg/trust"
+
+	"github.com/blaktron/agentry-desktop/internal/registry"
+	"github.com/blaktron/agentry-desktop/internal/settings"
+	"github.com/blaktron/agentry-desktop/internal/version"
+)
+
+// Home is ~/.agentry/runner, or $AGENTRY_RUNNER_HOME — the CLI's exact
+// derivation (cmd_run.go runnerHome), so both clients share one cache.
+func Home() (string, error) {
+	if h := os.Getenv("AGENTRY_RUNNER_HOME"); h != "" {
+		return h, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate home directory (set AGENTRY_RUNNER_HOME): %w", err)
+	}
+	return filepath.Join(home, ".agentry", "runner"), nil
+}
+
+// runnerImageTag derives the local runner image tag from this app's
+// build-stamped version, the same derivation the CLI applies to its own
+// (policy.RunnerImageTag sanitizes; a policy `images.runner` pin wins in
+// both clients and is the way to share one image across them — D-009).
+func runnerImageTag(pol *policy.Policy) string {
+	return pol.RunnerImageTag(version.Version)
+}
+
+// installMeta is <installDir>/install.json — field-for-field the CLI's
+// struct (cmd_run.go), because both clients read each other's installs.
+type installMeta struct {
+	Ref         string              `json:"ref"`
+	Namespace   string              `json:"namespace"`
+	Name        string              `json:"name"`
+	Version     string              `json:"version"`
+	Digest      string              `json:"digest"`
+	Source      string              `json:"source"`
+	Attestation receipt.Attestation `json:"attestation"`
+}
+
+// Signature is one resolved release: the identity (ns/name@version +
+// digest) the install cache and MCP profiles are keyed by (§P2).
+type Signature struct {
+	Registry  string
+	Ref       string // canonical ns/name@version
+	Namespace string
+	Name      string
+	Version   string
+	Digest    string
+	Yanked    bool
+	Manifest  *manifest.Manifest
+	resolve   *apiclient.ResolveResult
+}
+
+// DigestSuffix is the 12-char digest form used in directory names.
+func (s *Signature) DigestSuffix() string { return digestSuffix(s.Digest) }
+
+// ResolveSignature resolves a ref against a registry and decodes the
+// manifest the resolve result carries. installIntent adds the CLI's
+// X-Agentry-Install hint (a run is an install, §R5).
+func ResolveSignature(ctx context.Context, regURL, ref string, installIntent bool) (*Signature, error) {
+	if _, err := manifest.ParseRef(ref); err != nil {
+		return nil, err
+	}
+	regURL = settings.Normalize(regURL)
+	client, err := registry.New(regURL, settings.TokenFor(regURL))
+	if err != nil {
+		return nil, err
+	}
+	res, err := registry.Resolve(ctx, client, ref, installIntent)
+	if err != nil {
+		return nil, err
+	}
+	m, err := registry.ManifestFromResolve(res)
+	if err != nil {
+		return nil, err
+	}
+	return &Signature{
+		Registry:  regURL,
+		Ref:       fmt.Sprintf("%s/%s@%s", res.Namespace, res.Name, res.Version),
+		Namespace: res.Namespace,
+		Name:      res.Name,
+		Version:   res.Version,
+		Digest:    res.Digest,
+		Yanked:    res.Yanked,
+		Manifest:  m,
+		resolve:   res,
+	}, nil
+}
+
+// ProfileInfo is a BriefAgent signature's MCP-profile state (§P2/§P3).
+// Secret VALUES never appear here — names only.
+type ProfileInfo struct {
+	Ref               string
+	Digest            string
+	DeclaredSecrets   []string
+	Exists            bool
+	Keep              bool
+	StoredSecretNames []string
+	CapabilityLines   []string
+}
+
+// ProfileStatus resolves a ref and reports its profile state. Keep on a
+// non-existent profile is the policy default, so the form's toggle starts
+// where guided setup would.
+func ProfileStatus(ctx context.Context, regURL, ref string) (*ProfileInfo, error) {
+	sig, err := ResolveSignature(ctx, regURL, ref, false)
+	if err != nil {
+		return nil, err
+	}
+	return profileInfo(sig)
+}
+
+func profileInfo(sig *Signature) (*ProfileInfo, error) {
+	home, err := Home()
+	if err != nil {
+		return nil, err
+	}
+	dir := profile.Dir(home, sig.Namespace, sig.Name, sig.Version, sig.DigestSuffix())
+	prof, err := profile.Load(dir)
+	if err != nil {
+		return nil, err
+	}
+	info := &ProfileInfo{
+		Ref:             sig.Ref,
+		Digest:          sig.Digest,
+		DeclaredSecrets: append([]string(nil), sig.Manifest.Capabilities.Secrets...),
+		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
+		CapabilityLines: capabilityLines(sig.Manifest.Capabilities),
+	}
+	if prof != nil {
+		info.Exists = true
+		info.Keep = prof.Keep
+		info.StoredSecretNames = prof.SecretNames()
+	}
+	return info, nil
+}
+
+// SaveProfile writes (or replaces) the signature's MCP profile from the
+// guided form (§P3 as a form). Empty-string values mean "resolve from the
+// environment at run time" and are recorded as absent, not empty; an
+// existing profile's CreatedAt survives reconfiguration.
+func SaveProfile(ctx context.Context, regURL, ref string, secrets map[string]string, keep bool) (*ProfileInfo, error) {
+	sig, err := ResolveSignature(ctx, regURL, ref, false)
+	if err != nil {
+		return nil, err
+	}
+	return saveProfileForSig(sig, secrets, keep)
+}
+
+// saveProfileForSig is SaveProfile past the resolve — separated so the
+// persistence semantics are unit-testable without a registry.
+func saveProfileForSig(sig *Signature, secrets map[string]string, keep bool) (*ProfileInfo, error) {
+	home, err := Home()
+	if err != nil {
+		return nil, err
+	}
+	dir := profile.Dir(home, sig.Namespace, sig.Name, sig.Version, sig.DigestSuffix())
+	existing, err := profile.Load(dir)
+	if err != nil {
+		return nil, err
+	}
+	declared := map[string]bool{}
+	for _, n := range sig.Manifest.Capabilities.Secrets {
+		declared[n] = true
+	}
+	values := map[string]string{}
+	for name, v := range secrets {
+		if v == "" {
+			continue // absent = resolve from the environment at run time
+		}
+		if !declared[name] {
+			return nil, fmt.Errorf("%q is not a secret this release declares (declared: %s)",
+				name, strings.Join(sig.Manifest.Capabilities.Secrets, ", "))
+		}
+		values[name] = v
+	}
+	prof := profile.New(sig.Ref, sig.Digest, keep, values)
+	if existing != nil {
+		prof.CreatedAt = existing.CreatedAt
+	}
+	if err := prof.Save(dir); err != nil {
+		return nil, err
+	}
+	return profileInfo(sig)
+}
+
+// Request parameterizes one run.
+type Request struct {
+	Registry string
+	Ref      string
+	Task     string
+	// InputPaths feed the read-only /inputs channel (§P4).
+	InputPaths []string
+	// OutDir is where reports/receipts land ("" = ~/Downloads/agentry-out/
+	// <ns>-<name>-<runid>).
+	OutDir string
+	// KeepProfile overrides the completion choice (nil = stored profile,
+	// else the policy default).
+	KeepProfile *bool
+	// TimeoutSeconds overrides the policy timeout when > 0; MaxTurns
+	// overrides the tool-call budget when >= 0 (0 = unlimited).
+	TimeoutSeconds int
+	MaxTurns       int
+}
+
+// Result is the envelope-derived outcome. It is populated on failure too:
+// the §R8 envelope always exists once the engine starts, and earlier
+// failures are returned as errors instead.
+type Result struct {
+	Status           string
+	ExitCode         int
+	Error            string
+	RunID            string
+	Ref              string
+	Digest           string
+	ResultJSON       string
+	OutDir           string
+	ReceiptsDir      string
+	RunPlanSHA       string
+	InputTokens      int64
+	OutputTokens     int64
+	CostUSD          float64
+	WallMS           int64
+	Turns            int
+	AttestationState string
+}
+
+// Run executes the whole §R6 lifecycle for one registry release. Progress
+// and diagnostics stream to logw (the Wails event channel upstairs).
+func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
+	home, err := Home()
+	if err != nil {
+		return nil, err
+	}
+	policyPath, err := policy.DefaultPath()
+	if err != nil {
+		return nil, err
+	}
+	pol, polSHA, err := policy.EnsureDefault(policyPath)
+	if err != nil {
+		return nil, fmt.Errorf("operator policy: %w", err)
+	}
+
+	sig, err := ResolveSignature(ctx, req.Registry, req.Ref, true)
+	if err != nil {
+		return nil, err
+	}
+	if sig.Yanked {
+		_, _ = fmt.Fprintf(logw, "warning: %s is YANKED — running only because the version was pinned exactly\n", sig.Ref)
+	}
+
+	meta, installDir, err := materialize(ctx, sig, home, logw)
+	if err != nil {
+		return nil, err
+	}
+	workspaceDir := filepath.Join(installDir, "workspace")
+	m, err := manifestFromWorkspace(workspaceDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// The §R5 capability record: the app showed the declared contract on
+	// the page and in the run panel, and the Run click is the acceptance
+	// the CLI collects as a prompt; record it under the same key so CLI
+	// and desktop runs share one consent history (D-010).
+	recordCapabilities(m, meta, installDir, logw)
+
+	ad, err := adapter.Get(adapter.DefaultName)
+	if err != nil {
+		return nil, err
+	}
+	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName)
+	if err != nil {
+		return nil, err
+	}
+
+	docker := dockerx.New()
+	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
+		return nil, fmt.Errorf("gateway/docker environment: %w", err)
+	}
+
+	// The MCP profile (§P2): the desktop never prompts here — the guided
+	// form (SaveProfile) runs before this, and a missing secret still
+	// refuses inside the engine with the variable named (v1 exit-11
+	// semantics, nothing degrades silently).
+	profDir := profile.Dir(home, sig.Namespace, sig.Name, sig.Version, sig.DigestSuffix())
+	prof, err := profile.Load(profDir)
+	if err != nil {
+		return nil, err
+	}
+	keep := pol.KeepProfilesByDefault()
+	if prof != nil {
+		keep = prof.Keep
+	}
+	if req.KeepProfile != nil {
+		keep = *req.KeepProfile
+	}
+
+	runID, err := engine.NewRunID()
+	if err != nil {
+		return nil, err
+	}
+	outDir, err := resolveOutDir(req.OutDir, sig, runID)
+	if err != nil {
+		return nil, err
+	}
+
+	budgets := plan.Budgets
+	if req.TimeoutSeconds > 0 {
+		budgets.TimeoutSeconds = req.TimeoutSeconds
+	}
+	if req.MaxTurns >= 0 {
+		budgets.MaxTurns = req.MaxTurns
+	}
+
+	var overrides map[string]string
+	if prof != nil {
+		overrides = prof.Secrets
+	}
+	var task io.Reader
+	if req.Task != "" {
+		task = strings.NewReader(req.Task)
+	}
+
+	env, runErr := engine.Run(ctx, docker, engine.Params{
+		Plan:            plan,
+		PlanDir:         planDir,
+		WorkspaceSrc:    workspaceDir,
+		RunRoot:         installDir,
+		OutDir:          outDir,
+		Task:            task,
+		InputPaths:      req.InputPaths,
+		Adapter:         ad,
+		Policy:          pol,
+		SecretOverrides: overrides,
+		Budgets:         budgets,
+		Attestation:     meta.Attestation,
+		RunID:           runID,
+		Stderr:          logw,
+	})
+	// The run completed its lifecycle (success or failure): apply the
+	// profile's keep/remove choice exactly like the CLI (§P2).
+	finishProfile(logw, prof, profDir, keep)
+
+	if env == nil {
+		return nil, runErr
+	}
+	return resultFromEnvelope(env), nil
+}
+
+// resultFromEnvelope flattens the §R8 envelope; the failure classes ride
+// in Status/ExitCode/Error so the frontend renders them instead of a
+// rejected promise losing the receipt paths.
+func resultFromEnvelope(env *receipt.Envelope) *Result {
+	return &Result{
+		Status:           env.Status,
+		ExitCode:         env.ExitCode,
+		Error:            env.Error,
+		RunID:            env.RunID,
+		Ref:              env.Ref,
+		Digest:           env.Digest,
+		ResultJSON:       string(env.Result),
+		OutDir:           env.OutDir,
+		ReceiptsDir:      env.Receipts.Dir,
+		RunPlanSHA:       env.Receipts.RunPlanSHA256,
+		InputTokens:      env.Usage.InputTokens,
+		OutputTokens:     env.Usage.OutputTokens,
+		CostUSD:          env.Usage.CostUSD,
+		WallMS:           env.Usage.WallMS,
+		Turns:            env.Usage.Turns,
+		AttestationState: env.Attestation.State,
+	}
+}
+
+// materialize resolves the verified install for a signature, reusing the
+// CLI's cache when the digest matches and creating it (download → digest
+// check → DSSE verify → hardened extract) when not — the same gate
+// `agentry install` and `agentry run` apply (§R1).
+func materialize(ctx context.Context, sig *Signature, home string, logw io.Writer) (*installMeta, string, error) {
+	installDir := filepath.Join(home, "agents", sig.Namespace, sig.Name,
+		fmt.Sprintf("%s-%s", sig.Version, sig.DigestSuffix()))
+	if meta, ok := loadInstallMeta(installDir, sig.Digest); ok {
+		_, _ = fmt.Fprintf(logw, "using verified install %s\n", installDir)
+		return meta, installDir, nil
+	}
+
+	_, _ = fmt.Fprintf(logw, "downloading %s (%s)\n", sig.Ref, sig.DigestSuffix())
+	token := settings.TokenFor(sig.Registry)
+	archive, err := registry.Download(ctx, sig.Registry, token, sig.resolve)
+	if err != nil {
+		return nil, "", err
+	}
+	computed := registry.Digest(archive)
+	if computed != sig.Digest {
+		return nil, "", fmt.Errorf("digest mismatch: registry says %s, archive is %s — refusing to run", sig.Digest, computed)
+	}
+	att, err := verifyRunAttestation(ctx, sig, computed, logw)
+	if err != nil {
+		return nil, "", err
+	}
+
+	staging, err := os.MkdirTemp("", "agentry-run-*")
+	if err != nil {
+		return nil, "", fmt.Errorf("create staging dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(staging) }()
+	// The hardened extractor with the client caps every install uses:
+	// traversal, symlink escapes, and bombs refused rather than written.
+	if err := pkgarchive.Extract(bytes.NewReader(archive), staging, int64(len(archive)), extractLimits()); err != nil {
+		return nil, "", fmt.Errorf("extract archive: %w", err)
+	}
+
+	meta := &installMeta{
+		Ref:       sig.Ref,
+		Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version,
+		Digest: sig.Digest, Source: "registry", Attestation: att,
+	}
+	if err := writeInstall(installDir, staging, meta); err != nil {
+		return nil, "", err
+	}
+	return meta, installDir, nil
+}
+
+// verifyRunAttestation mirrors the CLI's run gate: verified proceeds,
+// unsigned proceeds MARKED (the run panel showed the provenance state and
+// collected the same explicit acceptance the install wizard does, D-011),
+// mismatch/unverifiable always refuses — there is no override for a
+// signature that fails to verify.
+func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest string, logw io.Writer) (receipt.Attestation, error) {
+	attURL := ""
+	if sig.resolve.AttestationUrl != nil {
+		attURL = *sig.resolve.AttestationUrl
+	}
+	if attURL == "" {
+		attURL = fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", sig.Namespace, sig.Name, sig.Version)
+	}
+	att := trust.VerifyAttestation(ctx, registry.HTTPClient, sig.Registry, settings.TokenFor(sig.Registry), attURL, archiveDigest)
+	switch att.State {
+	case trust.StateVerified:
+		_, _ = fmt.Fprintf(logw, "attestation: verified (key %s)\n", att.KeyID)
+		return receipt.Attestation{State: "verified", KeyID: att.KeyID, Verified: true}, nil
+	case trust.StateUnsigned:
+		_, _ = fmt.Fprintf(logw, "warning: unsigned — the registry offers no attestation for %s; the run is marked unsigned in its receipts\n", sig.Ref)
+		return receipt.Attestation{State: "unsigned"}, nil
+	default:
+		hint := ""
+		if att.KeyRotated {
+			hint = " (the registry advertises signing key ids you have not pinned — re-pin deliberately if this rotation is expected)"
+		}
+		return receipt.Attestation{}, fmt.Errorf("attestation %s for %s: %s%s — refusing to run",
+			att.State, sig.Ref, att.Detail, hint)
+	}
+}
+
+// writeInstall lands workspace + install.json under installDir — build
+// aside, then rename, so a half-written install never looks installed
+// (the CLI's exact procedure).
+func writeInstall(installDir, srcTree string, meta *installMeta) error {
+	if err := os.RemoveAll(installDir); err != nil {
+		return fmt.Errorf("clear install dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(installDir), 0o755); err != nil {
+		return fmt.Errorf("create install dir: %w", err)
+	}
+	tmp := installDir + ".partial"
+	if err := os.RemoveAll(tmp); err != nil {
+		return fmt.Errorf("clear partial install: %w", err)
+	}
+	if err := copyTree(srcTree, filepath.Join(tmp, "workspace")); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal install metadata: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "install.json"), append(b, '\n'), 0o644); err != nil { //nolint:gosec // metadata, not secret
+		return fmt.Errorf("write install metadata: %w", err)
+	}
+	if err := os.Rename(tmp, installDir); err != nil {
+		return fmt.Errorf("finalize install dir: %w", err)
+	}
+	return nil
+}
+
+// loadInstallMeta reuses a cached verified install iff its recorded digest
+// matches what the registry says now (the CLI's reuse rule).
+func loadInstallMeta(installDir, wantDigest string) (*installMeta, bool) {
+	b, err := os.ReadFile(filepath.Join(installDir, "install.json")) //nolint:gosec // our install layout
+	if err != nil {
+		return nil, false
+	}
+	var meta installMeta
+	if err := json.Unmarshal(b, &meta); err != nil || meta.Digest != wantDigest {
+		return nil, false
+	}
+	if _, err := os.Stat(filepath.Join(installDir, "workspace")); err != nil {
+		return nil, false
+	}
+	return &meta, true
+}
+
+// ensurePlan reuses the installed plan when nothing it depends on changed
+// (§R6/§R9), otherwise recompiles — the CLI's exact reuse rule: digest,
+// policy fingerprint, adapter, and file integrity all must hold.
+func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, installDir, workspaceDir string,
+	pol *policy.Policy, polSHA, adapterName string,
+) (*spec.Plan, string, error) {
+	planDir := filepath.Join(installDir, "plan")
+	if b, err := os.ReadFile(filepath.Join(planDir, "plan.json")); err == nil { //nolint:gosec // our install layout
+		if plan, perr := spec.ParsePlan(b); perr == nil &&
+			plan.Digest == meta.Digest &&
+			plan.PolicySHA256 == polSHA &&
+			plan.Harness.Adapter == adapterName {
+			if verr := compile.VerifyFiles(plan, planDir); verr == nil {
+				return plan, planDir, nil
+			}
+			_, _ = fmt.Fprintln(logw, "installed plan failed integrity check — recompiling")
+		}
+	}
+	if err := os.RemoveAll(planDir); err != nil {
+		return nil, "", fmt.Errorf("clear stale plan: %w", err)
+	}
+	plan, err := compile.Compile(compile.Inputs{
+		Manifest:     m,
+		Digest:       meta.Digest,
+		Source:       meta.Source,
+		WorkspaceDir: workspaceDir,
+		Policy:       pol,
+		PolicySHA:    polSHA,
+		AdapterName:  adapterName,
+		RunnerImage:  runnerImageTag(pol),
+	}, planDir)
+	if err != nil {
+		var refusal *compile.PolicyRefusal
+		if errors.As(err, &refusal) {
+			return nil, "", err
+		}
+		return nil, "", fmt.Errorf("compile run plan: %w", err)
+	}
+	return plan, planDir, nil
+}
+
+// recordCapabilities upserts the accepted contract under the same
+// installed-state key the CLI's run consent uses, so neither client
+// re-asks for a contract the operator already accepted on this machine.
+func recordCapabilities(m *manifest.Manifest, meta *installMeta, installDir string, logw io.Writer) {
+	key := installed.Key{
+		Registry: "runner", Namespace: meta.Namespace, Name: meta.Name,
+		Target: "runner", Dir: filepath.Dir(installDir),
+	}
+	state, err := installed.Load()
+	if err != nil {
+		state = installed.State{}
+	}
+	state.Upsert(key, meta.Version, installed.Snapshot(m.Capabilities), false)
+	if err := installed.Save(state); err != nil {
+		_, _ = fmt.Fprintf(logw, "warning: %v — the accepted capability contract could not be recorded\n", err)
+	}
+}
+
+// finishProfile applies the completion choice after the run's lifecycle
+// finished, success or failure (§P2): keep → persist + stamp lastUsedAt;
+// remove → the profile dies with the run.
+func finishProfile(logw io.Writer, prof *profile.Profile, dir string, keep bool) {
+	if prof == nil {
+		return
+	}
+	if keep {
+		prof.Keep = true
+		if err := prof.Touch(dir); err != nil {
+			_, _ = fmt.Fprintf(logw, "warning: %v\n", err)
+		}
+		return
+	}
+	if err := profile.Remove(dir); err != nil {
+		_, _ = fmt.Fprintf(logw, "warning: %v\n", err)
+		return
+	}
+	_, _ = fmt.Fprintln(logw, "MCP profile removed (run completed with keep-profile=false)")
+}
+
+// resolveOutDir picks and creates the output folder. The desktop default
+// is ~/Downloads/agentry-out/<ns>-<name>-<runid> — a GUI has no meaningful
+// cwd for the CLI's ./agentry-out (same reasoning as D-002).
+func resolveOutDir(dir string, sig *Signature, runID string) (string, error) {
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("locate home directory (pick an output folder instead): %w", err)
+		}
+		dir = filepath.Join(home, "Downloads", "agentry-out",
+			fmt.Sprintf("%s-%s-%s", sig.Namespace, sig.Name, runID))
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve output dir: %w", err)
+	}
+	if err := os.MkdirAll(abs, 0o755); err != nil {
+		return "", fmt.Errorf("create output dir: %w", err)
+	}
+	return abs, nil
+}
+
+// manifestFromWorkspace parses agent.yaml at a tree root (the verified
+// extracted archive — the manifest that gets compiled is the one that was
+// verified, not the resolve response).
+func manifestFromWorkspace(dir string) (*manifest.Manifest, error) {
+	b, err := os.ReadFile(filepath.Join(dir, "agent.yaml")) //nolint:gosec // package root
+	if err != nil {
+		return nil, fmt.Errorf("read agent.yaml: %w", err)
+	}
+	m, err := manifest.Parse(b)
+	if err != nil {
+		return nil, fmt.Errorf("parse agent.yaml: %w", err)
+	}
+	return m, nil
+}
+
+// extractLimits bounds what the app unpacks — identical to the install
+// engine's (and the CLI's): the client's job is only to refuse a bomb.
+func extractLimits() pkgarchive.ExtractLimits {
+	return pkgarchive.ExtractLimits{
+		MaxFileBytes:  registry.ExtractMaxFileBytes,
+		MaxTotalBytes: registry.ExtractMaxTotalBytes,
+		MaxFiles:      20000,
+		MaxRatio:      500,
+	}
+}
+
+// loadPolicyForRead loads the operator policy without creating it: status
+// surfaces must not write files as a side effect of looking.
+func loadPolicyForRead() *policy.Policy {
+	path, err := policy.DefaultPath()
+	if err != nil {
+		return policy.Default()
+	}
+	pol, _, err := policy.Load(path)
+	if err != nil {
+		return policy.Default()
+	}
+	return pol
+}
+
+// digestSuffix shortens sha256:… for directory names (CLI parity).
+func digestSuffix(digest string) string {
+	s := strings.TrimPrefix(digest, "sha256:")
+	if len(s) > 12 {
+		s = s[:12]
+	}
+	return s
+}
+
+// copyTree copies src into dest preserving permission bits. Replicated
+// from internal/install rather than shared — the D-006 call, same reasons.
+func copyTree(src, dest string) error {
+	err := filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, rerr := filepath.Rel(src, p)
+		if rerr != nil {
+			return rerr
+		}
+		target := filepath.Join(dest, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, rerr := os.ReadFile(p) //nolint:gosec // reading our own staging dir
+		if rerr != nil {
+			return rerr
+		}
+		return os.WriteFile(target, data, info.Mode().Perm())
+	})
+	if err != nil {
+		return fmt.Errorf("copy files to %s: %w", dest, err)
+	}
+	return nil
+}

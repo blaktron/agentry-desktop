@@ -25,6 +25,19 @@ The product never claims an agent is "safe". The language is always:
   release requires an explicit checkbox, mirroring the CLI's
   `--allow-unsigned`. A signature that fails to verify aborts — there is no
   override for that.
+- **Run** — run a BriefAgent from the app (RUNNER-PLAN-2 §P6) with the same
+  lifecycle `agentry run` executes: verify (digest + DSSE, the install
+  gate) → materialize into the shared `~/.agentry/runner` cache → compile
+  the capability contract into a run plan → execute in an isolated
+  container topology where tools come only from a per-run Docker MCP
+  Gateway. Agent pages gain an **MCP servers & tools** section (the tools
+  the contract grants, the servers involved, declared key NAMES, and the
+  embedded-install equivalent); a guided form collects a BriefAgent's keys
+  once per release into its MCP profile (values 0600 on disk, never shown,
+  never logged); Settings → **Agent runs** writes the LLM provider into the
+  same operator policy the CLI reads and can prepare the gateway images
+  up front. Runs stream their log live and finish with the §R8 result
+  envelope — status, usage, receipts, and the output folder.
 - **Installed** — the shared install state
   (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
   writes), per-item capabilities, update checks, uninstall (client-managed
@@ -54,9 +67,11 @@ the same libraries the server and CLI use —
 | install-target exporters | `github.com/blaktron/agentry-cli/pkg/export` |
 | shared install state + capability diff | `…/pkg/installed` |
 | TOFU key pins + attestation flow | `…/pkg/trust` |
+| run lifecycle (policy, compile, engine, gateway, profiles, setup) | `…/pkg/runner/*` |
 
-Bound services (`services.go`) expose flat view models to the frontend;
-engines live in `internal/{registry,install,validate,settings}`.
+Bound services (`services.go`, `services_run.go`) expose flat view models
+to the frontend; engines live in
+`internal/{registry,install,validate,settings,run}`.
 
 Credentials are stored in the OS keychain under the same service/account
 convention as the CLI, so signing in from either client signs in both.

@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
+import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main, trust } from "../../wailsjs/go/models";
 import {
   CapabilityBadges, ErrorBox, Excerpt, KindBadge, QuarantineBadge, Sev,
   SignedBadge, Spinner, fmtDate, shortDigest,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
+import RunPanel from "./RunPanel";
 
-type Tab = "readme" | "report" | "versions" | "provenance";
+type Tab = "readme" | "mcp" | "report" | "versions" | "provenance";
+
+const TAB_LABELS: Record<Tab, string> = {
+  readme: "readme",
+  mcp: "MCP servers & tools",
+  report: "security report",
+  versions: "versions",
+  provenance: "provenance",
+};
 
 export default function AgentPage({
   registry, ns, name, onBack,
@@ -25,6 +35,7 @@ export default function AgentPage({
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [prov, setProv] = useState<trust.AttestationResult | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [runOpen, setRunOpen] = useState(false);
 
   useEffect(() => {
     setDetail(null);
@@ -65,7 +76,12 @@ export default function AgentPage({
           <QuarantineBadge state={a.quarantine} />
           <KindBadge kind={a.kind} />
           {detail.latest
-            ? <button className="primary" onClick={() => setInstalling(true)}>Install {detail.latest}</button>
+            ? (
+              <>
+                <button className="primary" onClick={() => setRunOpen(true)}>Run</button>
+                <button className="primary" onClick={() => setInstalling(true)}>Install {detail.latest}</button>
+              </>
+            )
             : <span className="badge">no published version</span>}
         </div>
       </div>
@@ -76,9 +92,9 @@ export default function AgentPage({
       </div>
 
       <div className="tabs">
-        {(["readme", "report", "versions", "provenance"] as Tab[]).map((t) => (
+        {(["readme", "mcp", "report", "versions", "provenance"] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "report" ? `security report${report ? ` (${totalFindings})` : ""}` : t}
+            {t === "report" ? `security report${report ? ` (${totalFindings})` : ""}` : TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -91,6 +107,12 @@ export default function AgentPage({
               and marks invisible characters; the client never parses raw
               markdown from the archive. */}
           {readme && <div className="readme selectable" dangerouslySetInnerHTML={{ __html: readme }} />}
+        </div>
+      )}
+
+      {tab === "mcp" && (
+        <div className="card">
+          <MCPSection registry={registry} ns={ns} name={name} hasPublished={!!detail.latest} />
         </div>
       )}
 
@@ -153,6 +175,103 @@ export default function AgentPage({
           onClose={() => setInstalling(false)}
         />
       )}
+
+      {runOpen && detail.latest && (
+        <RunPanel
+          registry={registry}
+          ns={ns}
+          name={name}
+          version={detail.latest}
+          attestation={prov}
+          onClose={() => setRunOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The "MCP servers & tools" section (RUNNER-PLAN-2 §P6, req 3/4): the
+ * tool surface the latest version's declared contract becomes — through
+ * the runner's per-run gateway, and as host built-ins in an embedded
+ * install. Same information as the site's section. */
+function MCPSection({
+  registry, ns, name, hasPublished,
+}: {
+  registry: string;
+  ns: string;
+  name: string;
+  hasPublished: boolean;
+}) {
+  const [info, setInfo] = useState<main.MCPView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!hasPublished) return;
+    setInfo(null);
+    setError(null);
+    RunAPI.GatewayRequirements(registry, ns, name).then(setInfo).catch((e) => setError(String(e)));
+  }, [registry, ns, name, hasPublished]);
+
+  if (!hasPublished) return <div className="empty">No published version.</div>;
+  if (error) return <ErrorBox error={error} />;
+  if (!info) return <Spinner label="Deriving the tool surface…" />;
+
+  return (
+    <div className="selectable">
+      <p className="muted small" style={{ marginTop: 0 }}>
+        <span className="mono">agentry run</span> (and Run here) serves exactly the tools this
+        contract declares, through a per-run MCP gateway. An undeclared capability is a tool
+        that does not exist at run time.
+      </p>
+
+      <h3>Tools the runner grants</h3>
+      <table className="plain">
+        <thead>
+          <tr><th>tool</th><th>granted by</th></tr>
+        </thead>
+        <tbody>
+          {info.toolRows.map((r) => (
+            <tr key={r.tool}>
+              <td className="mono">{r.tool}</td>
+              <td>{r.grantedBy}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h3>MCP servers involved</h3>
+      {info.servers.map((s) => (
+        <p key={s} style={{ margin: "4px 0" }}>{s}</p>
+      ))}
+      {info.dataAccess.length > 0 && (
+        <p className="muted small">
+          Operator-cataloged MCP servers may be attached for the declared dataAccess{" "}
+          {info.dataAccess.length > 1 ? "categories" : "category"} (
+          <span className="mono">{info.dataAccess.join(", ")}</span>); undeclared categories are
+          never wired in.
+        </p>
+      )}
+
+      {info.secretNames.length > 0 && (
+        <>
+          <h3>Keys &amp; identities</h3>
+          <p className="mono">{info.secretNames.join(", ")}</p>
+          <p className="muted small">
+            The runner&apos;s guided setup collects these once into the BriefAgent&apos;s MCP
+            profile, kept or removed per your choice. Values are never published or shown.
+          </p>
+        </>
+      )}
+
+      <h3>In an embedded install</h3>
+      <p className="muted small">
+        Installed into an existing coding agent, the same contract maps to the host&apos;s
+        built-in tools — enforcement there is the host&apos;s. Allowed tools:{" "}
+        {info.embeddedTools.length > 0
+          ? <span className="mono">{info.embeddedTools.join(", ")}</span>
+          : <span>none declared (host defaults apply)</span>}
+        .
+      </p>
     </div>
   );
 }

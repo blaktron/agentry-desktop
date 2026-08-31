@@ -5,4 +5,6 @@ export function AppVersion():Promise<string>;
 
 export function ChooseDirectory(arg1:string):Promise<string>;
 
+export function ChooseFiles(arg1:string):Promise<Array<string>>;
+
 export function OpenExternal(arg1:string):Promise<void>;
