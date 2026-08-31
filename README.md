@@ -122,4 +122,4 @@ to see private agents and to pin signing keys deliberately at login.
 ## Conventions
 
 Conventional commits; `make check` green before every push; every
-deliberate departure gets a dated entry in [DEVIATIONS.md](DEVIATIONS.md).
+deliberate departure gets a dated entry in [the deviations register](https://github.com/blaktron/agentry-notes/blob/main/agentry-desktop/DEVIATIONS.md).
