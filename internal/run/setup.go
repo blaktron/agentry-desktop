@@ -66,7 +66,7 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.MaxTurns = pol.Budgets.MaxTurns
 	st.KeepProfilesByDefault = pol.KeepProfilesByDefault()
 
-	docker := dockerx.New()
+	docker := newDockerClient()
 	if err := docker.Available(ctx); err != nil {
 		st.DockerErr = err.Error()
 		return st, nil
@@ -133,7 +133,7 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	if !opts.PullImages {
 		return nil
 	}
-	docker := dockerx.New()
+	docker := newDockerClient()
 	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
 		return fmt.Errorf("gateway/docker environment: %w", err)
 	}

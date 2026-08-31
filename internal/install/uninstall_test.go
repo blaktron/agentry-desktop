@@ -135,6 +135,138 @@ Keep me.
 	}
 }
 
+// TestUninstallNoRecordRefuses: uninstalling something never recorded is
+// an error naming the key, not a silent no-op.
+func TestUninstallNoRecordRefuses(t *testing.T) {
+	isolate(t)
+	_, err := Uninstall(installed.Key{Registry: "https://reg.example", Namespace: "acme", Name: "ghost", Target: "claude-skill", Dir: "/nowhere"})
+	if err == nil || !strings.Contains(err.Error(), "no install record") {
+		t.Fatalf("err = %v, want the no-record refusal", err)
+	}
+}
+
+// TestUninstallManagedAgentsMDDemerges: a managed agents-md uninstall
+// removes the extraction dir AND drops the AGENTS.md section, leaving the
+// rest of the document alone.
+func TestUninstallManagedAgentsMDDemerges(t *testing.T) {
+	isolate(t)
+	project := t.TempDir()
+	dest := filepath.Join(project, "agents", "demo")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	doc := "# Agents\n\n## acme/demo (v1.0.0)\n\nDemo.\n\n## other/agent (v2.0.0)\n\nKeep.\n"
+	if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	key := installed.Key{Registry: "https://reg.example", Namespace: "acme", Name: "demo", Target: "agents-md", Dir: dest}
+	var st installed.State
+	st.Upsert(key, "1.0.0", installed.CapSnapshot{}, true)
+	if err := installed.Save(st); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := Uninstall(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg, "removed the acme/demo section") {
+		t.Errorf("message = %q", msg)
+	}
+	got, err := os.ReadFile(filepath.Join(project, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "acme/demo") || !strings.Contains(string(got), "## other/agent (v2.0.0)") {
+		t.Errorf("demerge wrong:\n%s", got)
+	}
+	if _, err := os.Stat(dest); !os.IsNotExist(err) {
+		t.Error("managed dir survived")
+	}
+}
+
+// TestDemergeReportsFailureAsNote: a .mcp.json that is not valid JSON is
+// reported as a note (the user's project config is never an error to keep).
+func TestDemergeReportsFailureAsNote(t *testing.T) {
+	project := t.TempDir()
+	dest := filepath.Join(project, "agents", "demo")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".mcp.json"), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	note := demerge(installed.Record{Namespace: "acme", Name: "demo", Target: "mcp", Dir: dest})
+	if !strings.Contains(note, "could not remove") {
+		t.Errorf("note = %q", note)
+	}
+	// A target with nothing to demerge reports nothing.
+	if note := demerge(installed.Record{Namespace: "acme", Name: "demo", Target: "claude-skill", Dir: dest}); note != "" {
+		t.Errorf("claude-skill demerge note = %q", note)
+	}
+}
+
+// TestRemoveMCPEntryEdgeCases pins the tolerant edges: a missing file, a
+// document without the section, and an absent name are all no-ops, and
+// invalid JSON refuses without touching the file.
+func TestRemoveMCPEntryEdgeCases(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "absent.json")
+	if err := removeMCPEntry(missing, "demo"); err != nil {
+		t.Errorf("missing file must be a no-op: %v", err)
+	}
+
+	noServers := filepath.Join(dir, "noservers.json")
+	if err := os.WriteFile(noServers, []byte(`{"other":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeMCPEntry(noServers, "demo"); err != nil {
+		t.Errorf("no mcpServers key must be a no-op: %v", err)
+	}
+	if raw, _ := os.ReadFile(noServers); string(raw) != `{"other":1}` {
+		t.Errorf("no-op rewrote the file: %s", raw)
+	}
+
+	absent := filepath.Join(dir, "absententry.json")
+	if err := os.WriteFile(absent, []byte(`{"mcpServers":{"other":{}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeMCPEntry(absent, "demo"); err != nil {
+		t.Errorf("absent entry must be a no-op: %v", err)
+	}
+
+	invalid := filepath.Join(dir, "invalid.json")
+	if err := os.WriteFile(invalid, []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeMCPEntry(invalid, "demo"); err == nil || !strings.Contains(err.Error(), "left untouched") {
+		t.Errorf("err = %v, want the refuse-to-touch error", err)
+	}
+	if raw, _ := os.ReadFile(invalid); string(raw) != "{broken" {
+		t.Errorf("invalid JSON was rewritten: %s", raw)
+	}
+}
+
+// TestRemoveAgentsMDSectionEdgeCases: a missing document and a document
+// without the section are no-ops that never rewrite the file.
+func TestRemoveAgentsMDSectionEdgeCases(t *testing.T) {
+	dir := t.TempDir()
+	if err := removeAgentsMDSection(filepath.Join(dir, "absent.md"), "acme", "demo"); err != nil {
+		t.Errorf("missing doc must be a no-op: %v", err)
+	}
+	doc := filepath.Join(dir, "AGENTS.md")
+	content := "# Agents\n\n## other/agent (v1.0.0)\n\nKeep.\n"
+	if err := os.WriteFile(doc, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeAgentsMDSection(doc, "acme", "demo"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(doc); string(got) != content {
+		t.Errorf("no-match removal rewrote the doc:\n%s", got)
+	}
+}
+
 func TestResolvePathsRules(t *testing.T) {
 	// claude-skill: default is managed, picked dir is not.
 	def, err := ResolvePaths("claude-skill", "", "demo")
