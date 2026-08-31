@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
 import { ErrorBox, Spinner } from "../ui";
@@ -90,9 +91,26 @@ export default function Settings({
                   Sign out
                 </button>
               ) : (
-                <button className="primary" disabled={busy} onClick={() => setSignIn({ url: r.url, token: "" })}>
-                  Sign in
-                </button>
+                <>
+                  <button
+                    className="primary"
+                    disabled={busy}
+                    title="Opens the registry in your browser — sign in there (the directory service, MFA included) and approve the app"
+                    onClick={() => wrap(async () => {
+                      setNotice("Complete the sign-in in your browser, then approve the desktop app…");
+                      const res = await SettingsAPI.SignInViaBrowser(r.url);
+                      setNotice(
+                        `Signed in to ${r.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600)"}. Signing keys: ${res.pinNote}`,
+                      );
+                      await onChanged();
+                    })}
+                  >
+                    Sign in via browser
+                  </button>
+                  <button disabled={busy} onClick={() => setSignIn({ url: r.url, token: "" })}>
+                    Paste token
+                  </button>
+                </>
               )}
               <button className="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
                 Remove
@@ -242,6 +260,14 @@ function AgentRunSettings() {
       <ErrorBox error={error} />
       {notice && <div className="notice selectable">{notice}</div>}
 
+      {status && !status.dockerOk && (
+        <PrereqCard
+          onDone={async () => {
+            try { setStatus(await RunAPI.SetupStatus()); } catch { /* badge stays */ }
+          }}
+        />
+      )}
+
       {status && (
         <div className="row" style={{ marginBottom: 10 }}>
           {status.dockerOk
@@ -311,6 +337,69 @@ function AgentRunSettings() {
           <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Prerequisites (D-014): BriefAgent runs need a docker engine. On Linux
+ * with a recognized package manager the app installs it through pkexec —
+ * the OS shows its own elevation dialog and the exact command is shown
+ * before consent. Elsewhere, a hand-off to the official installer. Install
+ * output streams into the Agent-runs log (runner:setup-progress). */
+function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
+  const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => RunAPI.PrereqStatus().then(setPrereq).catch((e) => setError(String(e)));
+  useEffect(() => { refresh(); }, []);
+
+  async function install() {
+    setBusy(true);
+    setError(null);
+    try {
+      const p = await RunAPI.InstallDocker();
+      setPrereq(p);
+      await onDone();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!prereq) return null;
+  return (
+    <div className="card">
+      <strong>Install prerequisites</strong>
+      <p className="muted small">
+        BriefAgent runs need a docker engine; the MCP gateway and harness images follow
+        automatically once it answers (&quot;Prepare images now&quot; below).
+      </p>
+      <ErrorBox error={error} />
+      {prereq.canInstall ? (
+        <>
+          <p className="small">
+            This will run, with the system&apos;s own elevation prompt:
+          </p>
+          <pre className="run-log selectable">pkexec sh -c &apos;{prereq.command}&apos;</pre>
+          {prereq.note && <p className="muted small">{prereq.note}</p>}
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button className="primary" disabled={busy} onClick={install}>
+              {busy ? "Installing…" : "Install the docker engine"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="small">
+          Automatic installation is not available on this system ({prereq.os}
+          {prereq.distro ? `/${prereq.distro}` : ""}). Install docker with the official
+          instructions, then come back:{" "}
+          <button className="link" onClick={() => OpenExternal(prereq.downloadUrl)}>
+            {prereq.downloadUrl}
+          </button>
+        </p>
+      )}
     </div>
   );
 }

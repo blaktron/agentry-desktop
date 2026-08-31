@@ -14,6 +14,8 @@ export function SetDefault(arg1:string):Promise<main.SettingsView>;
 
 export function SignIn(arg1:string,arg2:string):Promise<main.SignInResult>;
 
+export function SignInViaBrowser(arg1:string):Promise<main.SignInResult>;
+
 export function SignOut(arg1:string):Promise<main.SettingsView>;
 
 export function Whoami(arg1:string):Promise<main.UserView>;

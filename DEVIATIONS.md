@@ -185,3 +185,56 @@ mirroring the CLI would grow an empty profile per no-secret BriefAgent —
 future schema growth (P2 §P3's edge case). If the profile schema ever
 stores more than secrets+keep, add an explicit "create profile" affordance.
 
+## D-013 — 2026-08-31: the Build surface authors skill and prompt-agent only
+
+**What:** The new Build page (form → workspace → validate → publish over
+the cli-upload path) refuses `kind: mcp-server` at the form level.
+**Why:** An mcp-server package is code plus a launch entrypoint; a textarea
+is the wrong editor for it, and pretending otherwise would publish broken
+servers. The CLI and any editor still author them.
+**Impact:** Form-only limitation; `internal/build` renders the same closed
+manifest schema for the kinds it supports, and the generated workspace is
+byte-compatible with `agentry init`'s (validated by the real parsers in
+tests).
+
+## D-014 — 2026-08-31: prerequisite installation is pkexec + distro packages, Linux only
+
+**What:** Settings → "Install prerequisites" installs the docker engine
+through `pkexec sh -c` with a command from a static distro table
+(dnf/apt/pacman/zypper), shown verbatim before consent. macOS and Windows
+get a hand-off to the official Docker Desktop installer.
+**Why:** polkit gives the OS-native elevation dialog (the app never
+handles a password), and distribution packages avoid piping remote
+scripts into a root shell. On macOS/Windows an unattended Docker Desktop
+install is a licensing and privilege story this app should not own.
+**Impact:** The group-membership caveat is real: after install the user
+must re-login before the engine is reachable without root, and the card
+says so. Unrecognized distros fall back to the docs URL.
+
+## D-015 — 2026-08-31: browser sign-in trusts the loopback + state nonce, token rides a query parameter
+
+**What:** "Sign in via browser" (core DEV-058) receives the freshly
+minted PAT as `?token=` on a one-shot 127.0.0.1 listener bound by this
+process, gated by a random `state` nonce, then verifies it (whoami) and
+stores it keychain-first like a pasted PAT.
+**Why:** The full OAuth authorization-code exchange would need the
+registry to run an OAuth AS for its own PATs; the loopback redirect with
+a nonce is the gh/CLI-standard shape and the token never crosses a
+network boundary.
+**Impact:** The token appears in the local browser's history for the
+loopback URL. Mitigation deferred: a code→token exchange against the API
+would remove it; recorded rather than silently accepted.
+
+## D-016 — 2026-08-31: the Installed detail view is the agent page
+
+**What:** Clicking an installed BriefAgent opens the same AgentPage the
+Browse flow uses (readme, MCP tools, report, versions, provenance, Run /
+Set up tools / Install), plus an "Installed on this machine" strip with
+per-record removal — rather than a separate installed-detail screen.
+**Why:** Site parity was the requirement and AgentPage already is that
+parity; a second detail view would drift from it within a release.
+**Impact:** An installed record whose registry is no longer configured
+still opens (the record carries its registry URL); if that registry is
+unreachable the page shows its normal fetch error plus the installed
+strip.
+

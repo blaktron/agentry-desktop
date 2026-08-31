@@ -6,6 +6,10 @@ export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:
 
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
 
+export function InstallDocker():Promise<main.PrereqView>;
+
+export function PrereqStatus():Promise<main.PrereqView>;
+
 export function ProfileStatus(arg1:string,arg2:string):Promise<main.ProfileStatusView>;
 
 export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number):Promise<main.RunResultView>;

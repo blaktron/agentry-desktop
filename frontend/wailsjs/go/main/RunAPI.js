@@ -10,6 +10,14 @@ export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
 }
 
+export function InstallDocker() {
+  return window['go']['main']['RunAPI']['InstallDocker']();
+}
+
+export function PrereqStatus() {
+  return window['go']['main']['RunAPI']['PrereqStatus']();
+}
+
 export function ProfileStatus(arg1, arg2) {
   return window['go']['main']['RunAPI']['ProfileStatus'](arg1, arg2);
 }
