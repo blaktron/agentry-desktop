@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
@@ -28,6 +29,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
+	"github.com/blaktron/agentry-cli/pkg/runner/mcpinstall"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
@@ -165,7 +167,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 	info := &ProfileInfo{
 		Ref:             sig.Ref,
 		Digest:          sig.Digest,
-		DeclaredSecrets: append([]string(nil), sig.Manifest.Capabilities.Secrets...),
+		DeclaredSecrets: allSecretNames(sig.Manifest),
 		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
 		CapabilityLines: capabilityLines(sig.Manifest.Capabilities),
 	}
@@ -201,8 +203,9 @@ func saveProfileForSig(sig *Signature, secrets map[string]string, keep bool) (*P
 	if err != nil {
 		return nil, err
 	}
+	declaredNames := allSecretNames(sig.Manifest)
 	declared := map[string]bool{}
-	for _, n := range sig.Manifest.Capabilities.Secrets {
+	for _, n := range declaredNames {
 		declared[n] = true
 	}
 	values := map[string]string{}
@@ -212,7 +215,7 @@ func saveProfileForSig(sig *Signature, secrets map[string]string, keep bool) (*P
 		}
 		if !declared[name] {
 			return nil, fmt.Errorf("%q is not a secret this release declares (declared: %s)",
-				name, strings.Join(sig.Manifest.Capabilities.Secrets, ", "))
+				name, strings.Join(declaredNames, ", "))
 		}
 		values[name] = v
 	}
@@ -311,7 +314,22 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName)
+
+	// Declared MCP servers (RUNNER-PLAN-3): resolve pins (offline when the
+	// signature's store matches), compile them into the plan, install into
+	// the store with the images below.
+	serversDir := mcpinstall.StoreDir(profile.Dir(home, sig.Namespace, sig.Name, sig.Version, sig.DigestSuffix()))
+	var resolvedServers []mcpinstall.Resolved
+	var serverSpecs []spec.MCPServerSpec
+	if len(m.Capabilities.MCPServers) > 0 {
+		resolvedServers, err = ensureServerResolutions(ctx, logw, serversDir, pol, m)
+		if err != nil {
+			return nil, err
+		}
+		serverSpecs = mcpinstall.Specs(resolvedServers, m.Capabilities.MCPServers, pol.Images)
+	}
+
+	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs)
 	if err != nil {
 		return nil, err
 	}
@@ -319,6 +337,12 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	docker := newDockerClient()
 	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
+	}
+	if len(resolvedServers) > 0 {
+		if err := mcpinstall.EnsureInstalled(ctx, docker, resolvedServers, serversDir,
+			pol.MCPRegistries, pol.Images, logw); err != nil {
+			return nil, fmt.Errorf("mcp servers: %w", err)
+		}
 	}
 
 	// The MCP profile (§P2): the desktop never prompts here — the guided
@@ -375,6 +399,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		Adapter:         ad,
 		Policy:          pol,
 		SecretOverrides: overrides,
+		ServersDir:      serversDir,
 		Budgets:         budgets,
 		Attestation:     meta.Attestation,
 		RunID:           runID,
@@ -545,14 +570,15 @@ func loadInstallMeta(installDir, wantDigest string) (*installMeta, bool) {
 // (§R6/§R9), otherwise recompiles — the CLI's exact reuse rule: digest,
 // policy fingerprint, adapter, and file integrity all must hold.
 func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, installDir, workspaceDir string,
-	pol *policy.Policy, polSHA, adapterName string,
+	pol *policy.Policy, polSHA, adapterName string, serverSpecs []spec.MCPServerSpec,
 ) (*spec.Plan, string, error) {
 	planDir := filepath.Join(installDir, "plan")
 	if b, err := os.ReadFile(filepath.Join(planDir, "plan.json")); err == nil { //nolint:gosec // our install layout
 		if plan, perr := spec.ParsePlan(b); perr == nil &&
 			plan.Digest == meta.Digest &&
 			plan.PolicySHA256 == polSHA &&
-			plan.Harness.Adapter == adapterName {
+			plan.Harness.Adapter == adapterName &&
+			reflect.DeepEqual(plan.MCPServers, serverSpecs) {
 			if verr := compile.VerifyFiles(plan, planDir); verr == nil {
 				return plan, planDir, nil
 			}
@@ -571,6 +597,7 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, install
 		PolicySHA:    polSHA,
 		AdapterName:  adapterName,
 		RunnerImage:  runnerImageTag(pol),
+		MCPServers:   serverSpecs,
 	}, planDir)
 	if err != nil {
 		var refusal *compile.PolicyRefusal

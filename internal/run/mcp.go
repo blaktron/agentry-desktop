@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	"github.com/blaktron/agentry/pkg/manifest"
@@ -65,6 +66,15 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 	}
 	for _, d := range c.DataAccess {
 		info.DataAccess = append(info.DataAccess, string(d))
+	}
+	// Declared MCP servers (RUNNER-PLAN-3): installed with the agent from
+	// the operator's registries, loaded for this exact release only.
+	for _, srv := range c.MCPServers {
+		desc := srv.SourceID() + "@" + srv.Version + " — declared by the manifest; installed per-signature from the operator's trusted registries"
+		if len(srv.Tools) > 0 {
+			desc += "; tools filtered to " + strings.Join(srv.Tools, ", ")
+		}
+		info.Servers = append(info.Servers, desc)
 	}
 	return info, nil
 }
@@ -127,7 +137,7 @@ func capabilityLines(c manifest.Capabilities) []string {
 	if isZeroCapabilities(c) {
 		return []string{"none declared (pure text agent)"}
 	}
-	return []string{
+	lines := []string{
 		"network.egress: " + renderEgress(c.Network.Egress),
 		"filesystem.read: " + renderFSAccess(c.Filesystem.Read),
 		"filesystem.write: " + renderFSAccess(c.Filesystem.Write),
@@ -135,9 +145,43 @@ func capabilityLines(c manifest.Capabilities) []string {
 		"secrets: " + renderList(c.Secrets),
 		"dataAccess: " + renderDataAccess(c.DataAccess),
 	}
+	for _, srv := range c.MCPServers {
+		line := "mcpServer: " + srv.SourceID() + "@" + srv.Version
+		if len(srv.Egress) > 0 {
+			line += " (egress: " + renderList(srv.Egress) + ")"
+		}
+		if len(srv.Secrets) > 0 {
+			line += " (secrets: " + renderList(srv.Secrets) + ")"
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// allSecretNames is the union of agent-level and per-server secret names
+// (RUNNER-PLAN-3) — what the guided form collects and validates against.
+func allSecretNames(m *manifest.Manifest) []string {
+	set := map[string]bool{}
+	for _, n := range m.Capabilities.Secrets {
+		set[n] = true
+	}
+	for _, srv := range m.Capabilities.MCPServers {
+		for _, n := range srv.Secrets {
+			set[n] = true
+		}
+	}
+	out := make([]string, 0, len(set))
+	for n := range set {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func isZeroCapabilities(c manifest.Capabilities) bool {
+	if len(c.MCPServers) > 0 {
+		return false
+	}
 	return c.Network.Egress.IsZero() &&
 		c.Filesystem.Read.IsZero() && c.Filesystem.Write.IsZero() &&
 		c.Exec.IsZero() &&
