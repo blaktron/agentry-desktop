@@ -28,7 +28,10 @@ import (
 
 // DefaultRegistryURL is the production registry (§1: base URLs must stay
 // configurable — this is only the out-of-the-box value).
-const DefaultRegistryURL = "https://secureagentry.net"
+// A var, not a const, so a release build can bake its own registry in
+// (-X .../internal/settings.DefaultRegistryURL=…) — the desktop app served
+// from a site's /download page starts pointed at that site.
+var DefaultRegistryURL = "https://secureagentry.net"
 
 // keyringService matches the CLI's go-keyring service name; the account key
 // is the registry host, so multiple registries coexist and both clients see
