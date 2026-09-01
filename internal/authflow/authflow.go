@@ -32,7 +32,7 @@ const Timeout = 5 * time.Minute
 const donePage = `<!doctype html><meta charset="utf-8"><title>Signed in</title>
 <body style="font-family:system-ui;background:#141210;color:#e7e5e4;display:grid;place-items:center;height:100vh;margin:0">
 <div style="text-align:center"><h1 style="font-weight:600">Signed in</h1>
-<p>You can close this tab and return to SecureAgentry Desktop.</p></div>`
+<p>You can close this tab and return to Agentry Desktop.</p></div>`
 
 // Flow is one in-flight browser sign-in.
 type Flow struct {

@@ -1,4 +1,4 @@
-# SecureAgentry Desktop. Depends on the private modules
+# Agentry Desktop. Depends on the private modules
 # github.com/blaktron/agentry and github.com/blaktron/agentry-cli:
 #   export GOPRIVATE=github.com/blaktron/*
 # plus git credentials for github.com/blaktron (a PAT via credential helper
@@ -42,16 +42,16 @@ check: frontend lint test
 
 # --- packaging -------------------------------------------------------------
 # macOS: a universal .app zipped for distribution (unsigned/un-notarized —
-# see DEVIATIONS.md D-001). Output: build/bin/SecureAgentry-Desktop-macos.zip
+# see DEVIATIONS.md D-001). Output: build/bin/Agentry-Desktop-macos.zip
 package-darwin:
 	wails build -platform darwin/universal -ldflags '$(LDFLAGS)'
-	cd build/bin && ditto -c -k --keepParent agentry-desktop.app SecureAgentry-Desktop-$(VERSION)-macos-universal.zip
+	cd build/bin && ditto -c -k --keepParent agentry-desktop.app Agentry-Desktop-$(VERSION)-macos-universal.zip
 
 # Windows: cross-compiled from macOS (Wails v2 supports this; webview2
 # loader is compile-time). Output: build/bin/agentry-desktop.exe
 package-windows:
 	wails build -platform windows/amd64 -ldflags '$(LDFLAGS)'
-	cd build/bin && zip -q SecureAgentry-Desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
+	cd build/bin && zip -q Agentry-Desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
 
 # Linux is built on a Linux host (webkit2gtk links natively); see README.
 package: package-darwin package-windows

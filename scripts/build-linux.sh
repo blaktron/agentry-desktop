@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the SecureAgentry Desktop Linux binary inside a container.
+# Build the Agentry Desktop Linux binary inside a container.
 # Run on the docker host from the extracted source directory.
 # Prep on the dev machine first: `go mod vendor` and `cd frontend && npm run build`,
 # then ship the tree (minus .git, node_modules, build/bin) to the host.

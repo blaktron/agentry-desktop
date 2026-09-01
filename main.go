@@ -1,4 +1,4 @@
-// SecureAgentry Desktop: a client for agentry registries — browse scanned
+// Agentry Desktop: a client for agentry registries — browse scanned
 // and signed agents, install them with digest + DSSE verification on-device,
 // track what this machine accepted, and validate local agent folders with
 // the same scanners the registry runs.
@@ -28,7 +28,7 @@ func main() {
 	buildAPI := &BuildAPI{app: app}
 
 	err := wails.Run(&options.App{
-		Title:     "SecureAgentry Desktop",
+		Title:     "Agentry Desktop",
 		Width:     1200,
 		Height:    800,
 		MinWidth:  900,
@@ -48,7 +48,7 @@ func main() {
 		},
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{
-				Title:   "SecureAgentry Desktop",
+				Title:   "Agentry Desktop",
 				Message: "A client for agentry registries.\nEvery install is digest-checked and signature-verified on this machine.",
 			},
 		},

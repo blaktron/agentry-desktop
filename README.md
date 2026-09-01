@@ -1,7 +1,7 @@
-# SecureAgentry Desktop
+# Agentry Desktop
 
 A cross-platform desktop client (macOS, Windows, Linux) for
-[SecureAgentry](https://secureagentry.net) registries — browse scanned and
+[Agentry](https://secureagentry.net) registries — browse scanned and
 signed agents, install them with **digest and DSSE-signature verification on
 this machine**, track what this machine has accepted, and validate local
 agent folders with the same scanners the registry runs.

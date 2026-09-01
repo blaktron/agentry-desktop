@@ -1,7 +1,7 @@
 package install
 
 // End-to-end engine tests against a fake registry. The point of a
-// SecureAgentry client is what it REFUSES: a corrupted archive (digest
+// Agentry client is what it REFUSES: a corrupted archive (digest
 // mismatch), a signature no pinned key produced, an unsigned release without
 // explicit acceptance, a widened capability contract without explicit
 // acceptance. Each has a test; the happy path proves the refusals are not

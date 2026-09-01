@@ -54,7 +54,7 @@ export default function App() {
     <div className="shell">
       <div className="sidebar">
         <div className="brand">
-          SecureAgentry
+          Agentry
           <span className="sub">Desktop</span>
         </div>
         {navItem("Browse", "browse")}
