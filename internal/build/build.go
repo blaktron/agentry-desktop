@@ -55,6 +55,26 @@ type Model struct {
 	ExecCommands []string `json:"execCommands"`
 	Secrets      []string `json:"secrets"`
 	DataAccess   []string `json:"dataAccess"`
+	// MCPServers are the declared, version-pinned MCP servers (DEV-060);
+	// one structured row per server so the form never guesses at a
+	// line syntax.
+	MCPServers []MCPServerRow `json:"mcpServers"`
+}
+
+// MCPServerRow is one capabilities.mcpServers entry as the form edits it.
+type MCPServerRow struct {
+	// Source is "npm" or "pypi".
+	Source string `json:"source"`
+	// Package is the npm (optionally @scope/name) or PyPI package name.
+	Package string `json:"package"`
+	// Version is the exact pin (no ranges, V5).
+	Version string `json:"version"`
+	// Tools restricts the server to these tool names; empty = all.
+	Tools []string `json:"tools"`
+	// Secrets are env var NAMES this server needs (never values).
+	Secrets []string `json:"secrets"`
+	// Egress lists the hosts this server may reach; empty = none.
+	Egress []string `json:"egress"`
 }
 
 // entrypointFile maps kind → the instruction file the manifest names.
@@ -75,7 +95,7 @@ func Default(namespace string) *Model {
 		Kind: "skill", Version: "0.1.0", License: "MIT", Namespace: namespace,
 		EgressMode: "none", FSRead: "workspace", FSWrite: "none",
 		Tags: []string{}, EgressHosts: []string{}, FSReadPaths: []string{}, FSWritePaths: []string{},
-		ExecCommands: []string{}, Secrets: []string{}, DataAccess: []string{},
+		ExecCommands: []string{}, Secrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
 		Instructions: "# New BriefAgent\n\nDescribe the one job this agent does: task in, result out.\nWrite the report with the write_report tool.\n",
 	}
 }
@@ -105,6 +125,24 @@ func (m *Model) Validate() error {
 	}
 	if m.FSWrite == "paths" && len(compact(m.FSWritePaths)) == 0 {
 		return fmt.Errorf("fs write mode is paths but no paths are listed")
+	}
+	seen := map[string]bool{}
+	for i, srv := range m.MCPServers {
+		if srv.Source != "npm" && srv.Source != "pypi" {
+			return fmt.Errorf("mcp server %d: source must be npm or pypi", i+1)
+		}
+		pkg := strings.TrimSpace(srv.Package)
+		if pkg == "" {
+			return fmt.Errorf("mcp server %d: package name is required", i+1)
+		}
+		if strings.TrimSpace(srv.Version) == "" {
+			return fmt.Errorf("mcp server %d (%s): an exact version is required (no ranges)", i+1, pkg)
+		}
+		if id := srv.Source + ":" + pkg; seen[id] {
+			return fmt.Errorf("mcp server %s is declared twice", id)
+		} else {
+			seen[id] = true
+		}
 	}
 	return nil
 }
@@ -165,6 +203,22 @@ func (m *Model) manifestYAML() string {
 	if da := compact(m.DataAccess); len(da) > 0 {
 		w("  dataAccess: [%s]", strings.Join(da, ", "))
 	}
+	if len(m.MCPServers) > 0 {
+		w("  mcpServers:")
+		for _, srv := range m.MCPServers {
+			w("    - %s: %s", srv.Source, q(strings.TrimSpace(srv.Package)))
+			w("      version: %s", q(strings.TrimSpace(srv.Version)))
+			if tools := compact(srv.Tools); len(tools) > 0 {
+				w("      tools: [%s]", strings.Join(tools, ", "))
+			}
+			if secs := compact(srv.Secrets); len(secs) > 0 {
+				w("      secrets: [%s]", strings.Join(secs, ", "))
+			}
+			if eg := compact(srv.Egress); len(eg) > 0 {
+				w("      egress: [%s]", strings.Join(quoteAll(eg), ", "))
+			}
+		}
+	}
 	w("")
 	w("publish:")
 	w("  include: [agent.yaml, %s, README.md, LICENSE]", entry)
@@ -180,6 +234,16 @@ func fsValue(mode string, paths []string) string {
 	default:
 		return "none"
 	}
+}
+
+// quoteAll YAML-quotes each item ("*" is a YAML alias marker unquoted).
+func quoteAll(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		b, _ := yaml.Marshal(s)
+		out = append(out, strings.TrimSpace(string(b)))
+	}
+	return out
 }
 
 func compact(in []string) []string {
@@ -265,6 +329,14 @@ func Load(dir string) (*Model, error) {
 			Exec       yaml.Node `yaml:"exec"`
 			Secrets    []string  `yaml:"secrets"`
 			DataAccess []string  `yaml:"dataAccess"`
+			MCPServers []struct {
+				NPM     string   `yaml:"npm"`
+				PyPI    string   `yaml:"pypi"`
+				Version string   `yaml:"version"`
+				Tools   []string `yaml:"tools"`
+				Secrets []string `yaml:"secrets"`
+				Egress  []string `yaml:"egress"`
+			} `yaml:"mcpServers"`
 		} `yaml:"capabilities"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -286,6 +358,14 @@ func Load(dir string) (*Model, error) {
 	m.FSRead, m.FSReadPaths = decodeFS(doc.Capabilities.Filesystem.Read)
 	m.FSWrite, m.FSWritePaths = decodeFS(doc.Capabilities.Filesystem.Write)
 	m.ExecCommands = decodeExec(doc.Capabilities.Exec)
+	for _, srv := range doc.Capabilities.MCPServers {
+		row := MCPServerRow{Source: "npm", Package: srv.NPM, Version: srv.Version,
+			Tools: orEmpty(srv.Tools), Secrets: orEmpty(srv.Secrets), Egress: orEmpty(srv.Egress)}
+		if srv.PyPI != "" {
+			row.Source, row.Package = "pypi", srv.PyPI
+		}
+		m.MCPServers = append(m.MCPServers, row)
+	}
 
 	if entry, err := entrypointFile(m.Kind); err == nil {
 		if b, rerr := os.ReadFile(filepath.Join(dir, entry)); rerr == nil { //nolint:gosec
@@ -293,6 +373,14 @@ func Load(dir string) (*Model, error) {
 		}
 	}
 	return m, nil
+}
+
+// orEmpty keeps JSON arrays arrays — the form maps over them.
+func orEmpty(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
 }
 
 func decodeEgress(n yaml.Node) (string, []string) {

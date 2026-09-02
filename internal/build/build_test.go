@@ -25,6 +25,8 @@ func model() *Model {
 	m.FSWritePaths = []string{"out"}
 	m.ExecCommands = []string{"jq"}
 	m.Secrets = []string{"EXAMPLE_TOKEN"}
+	m.MCPServers = []MCPServerRow{{Source: "npm", Package: "@scope/server-x", Version: "1.2.3",
+		Tools: []string{"list_issues"}, Secrets: []string{"GITHUB_PAT"}, Egress: []string{"api.github.com"}}}
 	m.Tags = []string{"fixture", "build"}
 	m.Instructions = "# hello-build\n\nDo the one job.\n"
 	return m
@@ -63,6 +65,69 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if len(got.Secrets) != 1 || got.Secrets[0] != "EXAMPLE_TOKEN" {
 		t.Errorf("secrets round-trip = %v", got.Secrets)
+	}
+	// DEV-060 / desktop#5: the declared MCP server survives the round
+	// trip as a structured row, and the real parser sees the exact pin.
+	if len(got.MCPServers) != 1 {
+		t.Fatalf("mcpServers round-trip = %+v", got.MCPServers)
+	}
+	srv := got.MCPServers[0]
+	if srv.Source != "npm" || srv.Package != "@scope/server-x" || srv.Version != "1.2.3" ||
+		len(srv.Tools) != 1 || srv.Secrets[0] != "GITHUB_PAT" || srv.Egress[0] != "api.github.com" {
+		t.Errorf("mcpServers row = %+v", srv)
+	}
+	parsed, _ := manifest.Parse(raw)
+	if len(parsed.Capabilities.MCPServers) != 1 || parsed.Capabilities.MCPServers[0].NPM != "@scope/server-x" {
+		t.Errorf("real parser sees %+v", parsed.Capabilities.MCPServers)
+	}
+}
+
+// A PyPI server with a wildcard egress renders as the manifest expects
+// (quoted "*"), and a manifest without servers loads to an empty list.
+func TestMCPServerRowsRenderAndValidate(t *testing.T) {
+	dir := t.TempDir()
+	m := model()
+	m.MCPServers = []MCPServerRow{{Source: "pypi", Package: "mcp-server-fetch", Version: "0.6.2", Egress: []string{"*"},
+		Tools: []string{}, Secrets: []string{}}}
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	if !strings.Contains(string(raw), "- pypi: mcp-server-fetch\n      version: 0.6.2\n      egress: ['*']") {
+		t.Fatalf("rendered:\n%s", raw)
+	}
+	parsed, err := manifest.Parse(raw)
+	if err != nil {
+		t.Fatalf("real parser: %v\n%s", err, raw)
+	}
+	if parsed.Capabilities.MCPServers[0].PyPI != "mcp-server-fetch" || parsed.Capabilities.MCPServers[0].Egress[0] != "*" {
+		t.Errorf("parsed %+v", parsed.Capabilities.MCPServers)
+	}
+	got, err := Load(dir)
+	if err != nil || len(got.MCPServers) != 1 || got.MCPServers[0].Source != "pypi" || len(got.MCPServers[0].Tools) != 0 {
+		t.Fatalf("load: %v %+v", err, got.MCPServers)
+	}
+
+	plain := model()
+	plain.MCPServers = nil
+	if err := Save(dir, plain); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := Load(dir); got.MCPServers == nil || len(got.MCPServers) != 0 {
+		t.Fatalf("no servers must load as an empty list, got %#v", got.MCPServers)
+	}
+
+	for name, rows := range map[string][]MCPServerRow{
+		"bad source": {{Source: "cargo", Package: "x", Version: "1"}},
+		"no package": {{Source: "npm", Package: " ", Version: "1"}},
+		"no version": {{Source: "npm", Package: "x"}},
+		"duplicate":  {{Source: "npm", Package: "x", Version: "1"}, {Source: "npm", Package: "x", Version: "2"}},
+	} {
+		bad := model()
+		bad.MCPServers = rows
+		if err := bad.Validate(); err == nil {
+			t.Errorf("%s: expected a refusal", name)
+		}
 	}
 }
 
