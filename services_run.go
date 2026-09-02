@@ -181,7 +181,9 @@ type RunResultView struct {
 // apply the profile keep choice. Log lines stream as `runner:run-log`
 // events. timeoutSec > 0 overrides the policy timeout; maxTurns >= 0
 // overrides the tool-call budget (0 = unlimited, -1 = policy default).
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int) (*RunResultView, error) {
+// acceptUnsigned is the explicit consent for a release without an
+// attestation; without it such a run is refused in Go (desktop#3).
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool) (*RunResultView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -197,6 +199,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		KeepProfile:    keepProfile,
 		TimeoutSeconds: timeoutSec,
 		MaxTurns:       maxTurns,
+		AcceptUnsigned: acceptUnsigned,
 	}, logw)
 	if err != nil {
 		return nil, err

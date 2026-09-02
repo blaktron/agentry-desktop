@@ -12,7 +12,7 @@ export function PrereqStatus():Promise<main.PrereqView>;
 
 export function ProfileStatus(arg1:string,arg2:string):Promise<main.ProfileStatusView>;
 
-export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number):Promise<main.RunResultView>;
+export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean):Promise<main.RunResultView>;
 
 export function SaveProfile(arg1:string,arg2:string,arg3:Record<string, string>,arg4:boolean):Promise<main.ProfileStatusView>;
 

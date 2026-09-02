@@ -149,7 +149,7 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keep, t, mt);
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keep, t, mt, unsigned && acceptUnsigned);
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
