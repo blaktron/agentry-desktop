@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/blaktron/agentry-desktop/internal/authflow"
+	"github.com/blaktron/agentry-cli/pkg/authflow"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
