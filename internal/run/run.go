@@ -367,6 +367,9 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	if req.KeepProfile != nil {
 		keep = *req.KeepProfile
 	}
+	if prof, err = ensureKeepProfile(profDir, sig, prof, req.KeepProfile); err != nil {
+		return nil, err
+	}
 
 	runID, err := engine.NewRunID()
 	if err != nil {
@@ -634,6 +637,23 @@ func recordCapabilities(m *manifest.Manifest, meta *installMeta, installDir stri
 	if err := installed.Save(state); err != nil {
 		_, _ = fmt.Fprintf(logw, "warning: %v — the accepted capability contract could not be recorded\n", err)
 	}
+}
+
+// ensureKeepProfile records an EXPLICIT keep choice for a release that
+// declares no secrets (D-012 closed, desktop#7): the guided form never
+// runs for such a release, so nothing else would persist the choice. Only
+// an explicit true creates the (empty) profile — the panel sends nil when
+// the toggle was left alone, so no-secret runs do not grow profiles by
+// default; the CLI's `--keep-profile=true` does the same.
+func ensureKeepProfile(profDir string, sig *Signature, prof *profile.Profile, explicit *bool) (*profile.Profile, error) {
+	if prof != nil || explicit == nil || !*explicit || len(allSecretNames(sig.Manifest)) > 0 {
+		return prof, nil
+	}
+	prof = profile.New(sig.Ref, sig.Digest, true, nil)
+	if err := prof.Save(profDir); err != nil {
+		return nil, err
+	}
+	return prof, nil
 }
 
 // finishProfile applies the completion choice after the run's lifecycle

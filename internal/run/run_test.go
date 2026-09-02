@@ -373,3 +373,43 @@ func TestFormPrompterNeverSuppliesSecrets(t *testing.T) {
 		t.Fatal("Say must reach the log")
 	}
 }
+
+// D-012 closed (desktop#7): an explicit keep=true on a release declaring
+// no secrets creates the empty profile that records the choice; a nil
+// (untouched toggle) or false choice, or a release with secrets (whose
+// profile the guided form owns), creates nothing.
+func TestEnsureKeepProfileRecordsExplicitChoice(t *testing.T) {
+	home := withRunnerHome(t)
+	noSecrets := testSig(t, nil)
+	dir := profile.Dir(home, "acme", "reporter", "1.2.3", noSecrets.DigestSuffix())
+	yes, no := true, false
+
+	if p, err := ensureKeepProfile(dir, noSecrets, nil, nil); err != nil || p != nil {
+		t.Fatalf("nil choice must create nothing: %v %v", p, err)
+	}
+	if p, err := ensureKeepProfile(dir, noSecrets, nil, &no); err != nil || p != nil {
+		t.Fatalf("keep=false must create nothing: %v %v", p, err)
+	}
+	if got, _ := profile.Load(dir); got != nil {
+		t.Fatal("profile created without an explicit keep")
+	}
+
+	p, err := ensureKeepProfile(dir, noSecrets, nil, &yes)
+	if err != nil || p == nil || !p.Keep || len(p.Secrets) != 0 {
+		t.Fatalf("explicit keep must create an empty kept profile: %+v %v", p, err)
+	}
+	stored, err := profile.Load(dir)
+	if err != nil || stored == nil || !stored.Keep || stored.Digest != noSecrets.Digest {
+		t.Fatalf("stored = %+v %v", stored, err)
+	}
+	// Existing profile: returned as-is.
+	if again, _ := ensureKeepProfile(dir, noSecrets, stored, &yes); again != stored {
+		t.Fatal("existing profile must be returned untouched")
+	}
+
+	withSecrets := testSig(t, []string{"EXAMPLE_TOKEN"})
+	dir2 := profile.Dir(home, "acme", "reporter", "1.2.3", withSecrets.DigestSuffix()+"s")
+	if p, err := ensureKeepProfile(dir2, withSecrets, nil, &yes); err != nil || p != nil {
+		t.Fatalf("a release with secrets is the guided form's job: %v %v", p, err)
+	}
+}

@@ -42,6 +42,10 @@ export default function RunPanel({
   const [inputs, setInputs] = useState<string[]>([]);
   const [outDir, setOutDir] = useState("");
   const [keep, setKeep] = useState(true);
+  // D-012: the keep toggle is sent only once the user touches it; an
+  // untouched toggle sends null, so a no-secret release does not grow an
+  // empty profile per run, while an explicit keep is recorded.
+  const [keepTouched, setKeepTouched] = useState(false);
   const [timeoutSec, setTimeoutSec] = useState("");
   const [maxTurns, setMaxTurns] = useState("");
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
@@ -59,6 +63,7 @@ export default function RunPanel({
       .then((p) => {
         setProfile(p);
         setKeep(p.keep);
+        setKeepTouched(false);
         setFormKeep(p.keep);
         if (p.declaredSecrets.length > 0 && !p.exists) setFormOpen(true);
       })
@@ -149,7 +154,7 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keep, t, mt, unsigned && acceptUnsigned);
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned);
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
@@ -315,8 +320,8 @@ export default function RunPanel({
             />
           </label>
           <label className="check-row" style={{ margin: 0 }}>
-            <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} disabled={running} />
-            <span>keep the MCP profile after this run</span>
+            <input type="checkbox" checked={keep} onChange={(e) => { setKeep(e.target.checked); setKeepTouched(true); }} disabled={running} />
+            <span>keep the MCP profile after this run{profile && profile.declaredSecrets.length === 0 ? " (no keys declared; ticking records the choice)" : ""}</span>
           </label>
         </div>
 
