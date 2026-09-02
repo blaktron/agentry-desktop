@@ -1,26 +1,39 @@
-// Package authflow is the desktop half of browser sign-in (core DEV-058):
-// a one-shot loopback listener that receives the PAT the registry's
-// /settings/tokens/desktop page mints after the user signs in (through
-// the directory service, DEV-057) and clicks Authorize.
+// Package authflow is the desktop half of browser sign-in (core DEV-058,
+// hardened per agentry#19 / D-015): a one-shot loopback listener that
+// receives a single-use CODE from the registry's /settings/tokens/desktop
+// page after the user signs in (through the directory service, DEV-057)
+// and clicks Authorize, then exchanges that code for the PAT from this
+// process — POST /api/v1/auth/desktop/exchange — so the token never rides
+// a URL or lands in the browser's history.
 //
 // Trust model: the listener binds 127.0.0.1 only, accepts exactly one
 // callback, and requires the state nonce this process generated — a
-// browser tab cannot plant a token the app did not ask for, and a token
+// browser tab cannot plant a code the app did not ask for, and a code
 // meant for this app cannot be delivered anywhere else (the registry pins
-// its redirect to 127.0.0.1:<port>). The token is still verified against
-// the registry (whoami) before it is stored, exactly like a pasted PAT.
+// its redirect to 127.0.0.1:<port>). The code is bound to the same nonce
+// server-side, is single-use, and expires in a minute. The token is still
+// verified against the registry (whoami) before it is stored, exactly
+// like a pasted PAT.
+//
+// Older registries (pre-#19) send ?token= directly; that is still accepted
+// so the app keeps working against them, with the history caveat D-015
+// records.
 package authflow
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -40,6 +53,11 @@ type Flow struct {
 	Port int
 	// State is the nonce the callback must echo.
 	State string
+	// Registry is the origin the code is exchanged against; set by
+	// AuthorizeURL, which is always called before the callback can arrive.
+	Registry string
+	// HTTP performs the exchange; tests substitute it.
+	HTTP *http.Client
 
 	srv  *http.Server
 	ch   chan outcome
@@ -66,6 +84,7 @@ func Start() (*Flow, error) {
 		Port:  ln.Addr().(*net.TCPAddr).Port,
 		State: base64.RawURLEncoding.EncodeToString(stateBytes),
 		ch:    make(chan outcome, 1),
+		HTTP:  &http.Client{Timeout: 15 * time.Second},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", f.handleCallback)
@@ -76,8 +95,9 @@ func Start() (*Flow, error) {
 
 // AuthorizeURL is the page to open in the system browser.
 func (f *Flow) AuthorizeURL(registry string) string {
+	f.Registry = strings.TrimRight(registry, "/")
 	return fmt.Sprintf("%s/settings/tokens/desktop?port=%d&state=%s",
-		registry, f.Port, url.QueryEscape(f.State))
+		f.Registry, f.Port, url.QueryEscape(f.State))
 }
 
 func (f *Flow) handleCallback(w http.ResponseWriter, r *http.Request) {
@@ -88,9 +108,20 @@ func (f *Flow) handleCallback(w http.ResponseWriter, r *http.Request) {
 		f.deliver(outcome{err: errors.New("callback state mismatch")})
 		return
 	}
+	if code := r.URL.Query().Get("code"); code != "" {
+		// The hardened shape: exchange the single-use code for the PAT from
+		// this process. The browser only sees "signed in" once that worked.
+		t, err := f.exchange(r.Context(), code)
+		if err != nil {
+			http.Error(w, "sign-in could not be completed — start it again from the app", http.StatusBadGateway)
+			f.deliver(outcome{err: err})
+			return
+		}
+		token = t
+	}
 	if token == "" {
-		http.Error(w, "no token in callback", http.StatusBadRequest)
-		f.deliver(outcome{err: errors.New("callback carried no token")})
+		http.Error(w, "no code or token in callback", http.StatusBadRequest)
+		f.deliver(outcome{err: errors.New("callback carried no code")})
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -99,6 +130,38 @@ func (f *Flow) handleCallback(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write([]byte(donePage))
 	f.deliver(outcome{token: token})
+}
+
+// exchange trades the code for the PAT at the registry the flow was started
+// against. Any failure is an error to the caller; the code is single-use, so
+// a retry means a new sign-in.
+func (f *Flow) exchange(ctx context.Context, code string) (string, error) {
+	if f.Registry == "" {
+		return "", errors.New("exchange: registry not set (AuthorizeURL was not called)")
+	}
+	body, _ := json.Marshal(map[string]string{"code": code, "state": f.State})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.Registry+"/api/v1/auth/desktop/exchange", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	res, err := f.HTTP.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("exchange sign-in code: %w", err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
+	if res.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("exchange sign-in code: registry answered %d", res.StatusCode)
+	}
+	var out struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil || out.Token == "" {
+		return "", errors.New("exchange sign-in code: registry returned no token")
+	}
+	return out.Token, nil
 }
 
 func (f *Flow) deliver(o outcome) {
