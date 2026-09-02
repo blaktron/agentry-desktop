@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/blaktron/agentry-cli/runnerimage"
 	"io"
 	"os"
 	"path/filepath"
@@ -38,7 +39,6 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
-	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
 // newDockerClient builds the docker client every run/setup surface talks
@@ -61,12 +61,12 @@ func Home() (string, error) {
 	return filepath.Join(home, ".agentry", "runner"), nil
 }
 
-// runnerImageTag derives the local runner image tag from this app's
-// build-stamped version, the same derivation the CLI applies to its own
-// (policy.RunnerImageTag sanitizes; a policy `images.runner` pin wins in
-// both clients and is the way to share one image across them — D-009).
+// runnerImageTag derives the local runner image tag from the embedded
+// build context's content version — the same value the CLI uses — so both
+// clients build, probe and run one image per context (agentry-cli#6,
+// D-009). A policy `images.runner` pin still wins in both.
 func runnerImageTag(pol *policy.Policy) string {
-	return pol.RunnerImageTag(version.Version)
+	return pol.RunnerImageTag(runnerimage.ContentVersion())
 }
 
 // installMeta is <installDir>/install.json — field-for-field the CLI's
