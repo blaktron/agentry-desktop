@@ -212,6 +212,68 @@ export default function Build({ registry }: { registry: string }) {
         <label className="small" style={{ display: "block", marginTop: 8 }}>secret NAMES (env vars; never values)
           <ListInput value={m.secrets} onChange={(v) => set({ secrets: v })} placeholder="MY_API_TOKEN" />
         </label>
+        <div style={{ marginTop: 12 }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="small">declared MCP servers (exact version pins; installed per release, DEV-060)</span>
+            <button
+              type="button"
+              onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [] })] })}
+            >
+              + add server
+            </button>
+          </div>
+          {(m.mcpServers ?? []).length === 0 && (
+            <p className="muted small" style={{ margin: "4px 0 0" }}>
+              None. A server declared here is resolved from npm or PyPI at the pinned version and
+              installed into the release&apos;s own store; its tools, secret names and egress are
+              scoped to that server.
+            </p>
+          )}
+          {(m.mcpServers ?? []).map((srv, i) => {
+            const patch = (row: Partial<build.MCPServerRow>) =>
+              set({ mcpServers: m.mcpServers.map((r, j) => (j === i ? new build.MCPServerRow({ ...r, ...row }) : r)) });
+            return (
+              <div className="card" key={i} style={{ marginTop: 8 }}>
+                <div className="row">
+                  <label className="small">source
+                    <select value={srv.source} onChange={(e) => patch({ source: e.target.value })}>
+                      <option value="npm">npm</option>
+                      <option value="pypi">PyPI</option>
+                    </select>
+                  </label>
+                  <label className="small grow">package
+                    <input
+                      type="text" className="mono" style={{ width: "100%" }}
+                      placeholder={srv.source === "npm" ? "@scope/server-name" : "mcp-server-name"}
+                      value={srv.package} onChange={(e) => patch({ package: e.target.value })}
+                    />
+                  </label>
+                  <label className="small">exact version
+                    <input
+                      type="text" className="mono" style={{ width: 120 }} placeholder="1.2.3"
+                      value={srv.version} onChange={(e) => patch({ version: e.target.value })}
+                    />
+                  </label>
+                  <button type="button" onClick={() => set({ mcpServers: m.mcpServers.filter((_, j) => j !== i) })}>remove</button>
+                </div>
+                <div className="row" style={{ marginTop: 6 }}>
+                  <label className="small grow">tools (empty = all the server offers)
+                    <ListInput value={srv.tools ?? []} onChange={(v) => patch({ tools: v })} placeholder="list_issues, get_issue" />
+                  </label>
+                  <label className="small grow">secret NAMES for this server
+                    <ListInput value={srv.secrets ?? []} onChange={(v) => patch({ secrets: v })} placeholder="GITHUB_PAT" />
+                  </label>
+                  <label className="small grow">egress hosts for this server (empty = none)
+                    <ListInput value={srv.egress ?? []} onChange={(v) => patch({ egress: v })} placeholder="api.github.com" />
+                  </label>
+                </div>
+                {(srv.egress ?? []).includes("*") && (
+                  <span className="badge bad">wildcard egress: refused at run time unless the operator allows it</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
         <label className="small" style={{ display: "block", marginTop: 8 }}>data access categories
           <div className="row" style={{ flexWrap: "wrap" }}>
             {DATA_ACCESS.map((d) => (
