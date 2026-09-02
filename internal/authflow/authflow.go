@@ -150,7 +150,7 @@ func (f *Flow) exchange(ctx context.Context, code string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("exchange sign-in code: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
 	if res.StatusCode != http.StatusCreated {
 		return "", fmt.Errorf("exchange sign-in code: registry answered %d", res.StatusCode)
