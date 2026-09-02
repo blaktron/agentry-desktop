@@ -22,8 +22,8 @@ export function ProfileStatus(arg1, arg2) {
   return window['go']['main']['RunAPI']['ProfileStatus'](arg1, arg2);
 }
 
-export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
-  return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+  return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
 export function SaveProfile(arg1, arg2, arg3, arg4) {

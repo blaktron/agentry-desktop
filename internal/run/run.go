@@ -246,6 +246,12 @@ type Request struct {
 	// overrides the tool-call budget when >= 0 (0 = unlimited).
 	TimeoutSeconds int
 	MaxTurns       int
+	// AcceptUnsigned is the explicit consent to run a release the registry
+	// publishes no attestation for (the CLI's --allow-unsigned). Enforced
+	// HERE, not only in the panel's checkbox, so any caller of the bound
+	// method meets the same gate (desktop#3, D-011 closure). Digest
+	// mismatch and unverifiable attestations refuse regardless.
+	AcceptUnsigned bool
 }
 
 // Result is the envelope-derived outcome. It is populated on failure too:
@@ -294,7 +300,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		_, _ = fmt.Fprintf(logw, "warning: %s is YANKED — running only because the version was pinned exactly\n", sig.Ref)
 	}
 
-	meta, installDir, err := materialize(ctx, sig, home, logw)
+	meta, installDir, err := materialize(ctx, sig, home, req.AcceptUnsigned, logw)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +449,7 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 // CLI's cache when the digest matches and creating it (download → digest
 // check → DSSE verify → hardened extract) when not — the same gate
 // `agentry install` and `agentry run` apply (§R1).
-func materialize(ctx context.Context, sig *Signature, home string, logw io.Writer) (*installMeta, string, error) {
+func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned bool, logw io.Writer) (*installMeta, string, error) {
 	installDir := filepath.Join(home, "agents", sig.Namespace, sig.Name,
 		fmt.Sprintf("%s-%s", sig.Version, sig.DigestSuffix()))
 	if meta, ok := loadInstallMeta(installDir, sig.Digest); ok {
@@ -461,7 +467,7 @@ func materialize(ctx context.Context, sig *Signature, home string, logw io.Write
 	if computed != sig.Digest {
 		return nil, "", fmt.Errorf("digest mismatch: registry says %s, archive is %s — refusing to run", sig.Digest, computed)
 	}
-	att, err := verifyRunAttestation(ctx, sig, computed, logw)
+	att, err := verifyRunAttestation(ctx, sig, computed, acceptUnsigned, logw)
 	if err != nil {
 		return nil, "", err
 	}
@@ -488,12 +494,12 @@ func materialize(ctx context.Context, sig *Signature, home string, logw io.Write
 	return meta, installDir, nil
 }
 
-// verifyRunAttestation mirrors the CLI's run gate: verified proceeds,
-// unsigned proceeds MARKED (the run panel showed the provenance state and
-// collected the same explicit acceptance the install wizard does, D-011),
+// verifyRunAttestation mirrors the CLI's run gate: verified proceeds;
+// unsigned proceeds MARKED only with acceptUnsigned (the panel's checkbox,
+// now enforced in Go — desktop#3 closes D-011) and refuses otherwise;
 // mismatch/unverifiable always refuses — there is no override for a
 // signature that fails to verify.
-func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest string, logw io.Writer) (receipt.Attestation, error) {
+func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest string, acceptUnsigned bool, logw io.Writer) (receipt.Attestation, error) {
 	attURL := ""
 	if sig.resolve.AttestationUrl != nil {
 		attURL = *sig.resolve.AttestationUrl
@@ -507,7 +513,10 @@ func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest str
 		_, _ = fmt.Fprintf(logw, "attestation: verified (key %s)\n", att.KeyID)
 		return receipt.Attestation{State: "verified", KeyID: att.KeyID, Verified: true}, nil
 	case trust.StateUnsigned:
-		_, _ = fmt.Fprintf(logw, "warning: unsigned — the registry offers no attestation for %s; the run is marked unsigned in its receipts\n", sig.Ref)
+		if !acceptUnsigned {
+			return receipt.Attestation{}, fmt.Errorf("unsigned — the registry offers no attestation for %s (%s); tick \"Run an unsigned release\" to run it anyway", sig.Ref, att.Detail)
+		}
+		_, _ = fmt.Fprintf(logw, "warning: unsigned — the registry offers no attestation for %s; running because it was explicitly accepted; the run is marked unsigned in its receipts\n", sig.Ref)
 		return receipt.Attestation{State: "unsigned"}, nil
 	default:
 		hint := ""

@@ -73,7 +73,7 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	meta, installDir, err := materialize(context.Background(), sig, home, &log)
+	meta, installDir, err := materialize(context.Background(), sig, home, true, &log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 		t.Fatalf("archive downloads after first materialize = %d", got)
 	}
 	log.Reset()
-	meta2, dir2, err := materialize(context.Background(), sig, home, &log)
+	meta2, dir2, err := materialize(context.Background(), sig, home, true, &log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestMaterializeRefusesDigestMismatch(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, &log)
 	if err == nil || !strings.Contains(err.Error(), "digest mismatch") {
 		t.Fatalf("err = %v, want digest mismatch refusal", err)
 	}
@@ -166,7 +166,7 @@ func TestMaterializeRefusesUnverifiableAttestation(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, &log)
 	if err == nil || !strings.Contains(err.Error(), "refusing to run") {
 		t.Fatalf("err = %v, want attestation refusal", err)
 	}
@@ -319,7 +319,7 @@ func runFixture(t *testing.T) (*fakeRunRegistry, string, *dockerx.Fake, string) 
 // request builds a Request against the fixture release with the policy
 // budgets kept (MaxTurns -1 = no override).
 func request(regURL, outDir string) Request {
-	return Request{
+	return Request{AcceptUnsigned: true,
 		Registry: regURL,
 		Ref:      "acme/reporter@1.0.0",
 		Task:     "do the fixture task",
@@ -601,7 +601,7 @@ func TestMaterializeRefusesBadArchive(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, &log)
 	if err == nil || !strings.Contains(err.Error(), "extract archive") {
 		t.Fatalf("err = %v, want the extract refusal", err)
 	}
