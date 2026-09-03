@@ -21,8 +21,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
-	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // resolveFixture resolves the fixture release against a fake registry.
