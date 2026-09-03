@@ -344,6 +344,11 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}
+	// The per-BriefAgent exec image the plan names when the agent declares
+	// exec (agentry-cli#9, desktop#17): built once, same as the CLI.
+	if _, err := gateway.EnsureExecImage(ctx, docker, runnerImageTag(pol), plan.Capabilities.ExecCommands, filepath.Join(home, "image"), logw); err != nil {
+		return nil, fmt.Errorf("exec image: %w", err)
+	}
 	if len(resolvedServers) > 0 {
 		if err := mcpinstall.EnsureInstalled(ctx, docker, resolvedServers, serversDir,
 			pol.MCPRegistries, pol.Images, logw); err != nil {

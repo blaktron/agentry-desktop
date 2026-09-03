@@ -22,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // resolveFixture resolves the fixture release against a fake registry.
@@ -353,6 +354,18 @@ func TestRunHappyPath(t *testing.T) {
 	}
 	if res.Ref != "acme/reporter@1.0.0" || res.Digest != fr.digest || res.RunID == "" {
 		t.Errorf("identity fields = %+v", res)
+	}
+	// The fixture declares exec: {commands: [echo]}, so the run builds the
+	// per-BriefAgent exec image the plan names (agentry-cli#9, desktop#17).
+	execTag := spec.ExecImageTag(runnerImageTag(policy.Default()), []string{"echo"})
+	builtExec := false
+	for _, op := range fd.Ops() {
+		if strings.HasPrefix(op, "Build:"+execTag+"<-") {
+			builtExec = true
+		}
+	}
+	if !builtExec {
+		t.Errorf("exec image %s not built; docker ops: %v", execTag, fd.Ops())
 	}
 	if res.ResultJSON != `"final answer"` {
 		t.Errorf("result = %s", res.ResultJSON)
