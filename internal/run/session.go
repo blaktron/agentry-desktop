@@ -16,13 +16,13 @@ import (
 // Everything the chat can do is a method here; the engine enforces the
 // plan and ends the session on the operator's caps regardless.
 type Session struct {
-	inner   session.Session
-	ref     string
-	prof    *prepared
-	logw    io.Writer
-	ended   bool
-	result  *Result
-	endErr  error
+	inner  session.Session
+	ref    string
+	prof   *prepared
+	logw   io.Writer
+	ended  bool
+	result *Result
+	endErr error
 }
 
 // ErrNotInteractive says the release does not declare the interactive mode.
