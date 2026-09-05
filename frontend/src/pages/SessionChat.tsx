@@ -90,7 +90,7 @@ export default function SessionChat({
           setLines((p) => [...p, { kind: "note", text: `input added: ${ev.path}` }]);
           break;
         case "usage":
-          if (ev.costUsd && ev.costUsd > 0) setCost((c) => Math.max(c, ev.costUsd));
+          if (ev.costUsd !== undefined && ev.costUsd > 0) { const c0 = ev.costUsd; setCost((c) => Math.max(c, c0)); }
           break;
         case "error":
           setLines((p) => [...p, { kind: "warn", text: `harness error: ${ev.text}` }]);
