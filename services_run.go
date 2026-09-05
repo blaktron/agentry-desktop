@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -21,6 +22,9 @@ import (
 const (
 	eventSetupProgress = "runner:setup-progress"
 	eventRunLog        = "runner:run-log"
+	// eventSessionEvent carries an interactive session's events (JSON
+	// SessionEventView) to the chat view; runner:run-log stays autonomous.
+	eventSessionEvent = "runner:session-event"
 )
 
 // errBusy refuses a second docker-touching operation instead of silently
@@ -32,8 +36,109 @@ type RunAPI struct {
 	app *App
 	// mu serializes the docker-touching operations: one run (or image
 	// setup) at a time keeps the log streams and the engine's teardown
-	// sweeps unambiguous.
+	// sweeps unambiguous. An interactive session holds it from
+	// StartSession to EndSession (D-017: one session per app).
 	mu sync.Mutex
+	// session is the live interactive session, nil otherwise.
+	session *run.Session
+}
+
+// SessionView is what StartSession returns.
+type SessionView struct {
+	Ref string `json:"ref"`
+}
+
+// SessionEventView is one runner:session-event payload — the session's
+// event, flattened for the chat view.
+type SessionEventView struct {
+	Kind         string  `json:"kind"`
+	Time         string  `json:"time"`
+	Text         string  `json:"text,omitempty"`
+	Synthetic    bool    `json:"synthetic,omitempty"`
+	StopReason   string  `json:"stopReason,omitempty"`
+	Path         string  `json:"path,omitempty"`
+	Digest       string  `json:"digest,omitempty"`
+	Reason       string  `json:"reason,omitempty"`
+	InputTokens  int64   `json:"inputTokens,omitempty"`
+	OutputTokens int64   `json:"outputTokens,omitempty"`
+	CostUSD      float64 `json:"costUsd,omitempty"`
+}
+
+// StartSession starts an interactive run (plan §7): the same install,
+// consent-recorded contract, images, profile and intake as RunAgent, then
+// the engine's session; events stream as runner:session-event until
+// EndSession. The run lock is held for the session's whole life.
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string) (*SessionView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	logw := r.eventWriter(eventRunLog)
+	s, err := run.StartSession(r.app.ctx, run.Request{
+		Registry:       reg,
+		Ref:            ref,
+		Task:           task,
+		InputPaths:     inputPaths,
+		OutDir:         outDir,
+		KeepProfile:    keepProfile,
+		TimeoutSeconds: timeoutSec,
+		MaxTurns:       maxTurns,
+		AcceptUnsigned: acceptUnsigned,
+		Intake:         intakeAnswers,
+	}, logw)
+	logw.Flush()
+	if err != nil {
+		r.mu.Unlock()
+		return nil, err
+	}
+	r.session = s
+	go func() {
+		for ev := range s.Events() {
+			runtime.EventsEmit(r.app.ctx, eventSessionEvent, SessionEventView{
+				Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic,
+				StopReason: ev.StopReason, Path: ev.Path, Digest: ev.Digest, Reason: string(ev.Reason),
+				InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, CostUSD: ev.CostUSD,
+			})
+		}
+	}()
+	return &SessionView{Ref: s.Ref()}, nil
+}
+
+// errNoSession says nothing is running interactively.
+var errNoSession = errors.New("no interactive session is running")
+
+// SendTurn delivers one user message and returns when the agent's turn ends.
+func (r *RunAPI) SendTurn(text string) error {
+	s := r.session
+	if s == nil {
+		return errNoSession
+	}
+	return s.Send(r.app.ctx, text)
+}
+
+// AddSessionInput gives the agent one more file, read-only under /inputs.
+func (r *RunAPI) AddSessionInput(path string) error {
+	s := r.session
+	if s == nil {
+		return errNoSession
+	}
+	return s.AddInput(r.app.ctx, path)
+}
+
+// EndSession ends the session (finish = ask for the final result first),
+// writes receipts and the envelope, tears the sandbox down, and releases
+// the run lock. Safe to call after the engine ended the session itself.
+func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
+	s := r.session
+	if s == nil {
+		return nil, errNoSession
+	}
+	res, err := s.End(r.app.ctx, finish)
+	r.session = nil
+	r.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return runResultView(res), nil
 }
 
 // SetupStatusView is the machine's run-readiness (§P1).
@@ -119,6 +224,11 @@ type ProfileStatusView struct {
 	// Intake are the release's up-front questions (manifest v2), answered
 	// in the run panel before either mode starts.
 	Intake []IntakeQuestionView `json:"intake"`
+	// Modes are the run modes the release declares; the panel offers
+	// exactly these (a single one preselected).
+	Modes []string `json:"modes"`
+	// Opening is the manifest's interactive opening line, if any.
+	Opening string `json:"opening"`
 }
 
 // IntakeQuestionView is one intake question for the pre-run form.
@@ -140,6 +250,8 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		StoredSecretNames: emptyNotNil(p.StoredSecretNames),
 		CapabilityLines:   emptyNotNil(p.CapabilityLines),
 		Intake:            []IntakeQuestionView{},
+		Modes:             emptyNotNil(p.Modes),
+		Opening:           p.Opening,
 	}
 	for _, q := range p.Intake {
 		v.Intake = append(v.Intake, IntakeQuestionView{ID: q.ID, Prompt: q.Prompt, Type: string(q.Type), Required: q.Required, Choices: emptyNotNil(q.Choices)})
@@ -222,6 +334,11 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	if err != nil {
 		return nil, err
 	}
+	return runResultView(res), nil
+}
+
+// runResultView flattens the engine result for the frontend.
+func runResultView(res *run.Result) *RunResultView {
 	return &RunResultView{
 		Status:           res.Status,
 		ExitCode:         res.ExitCode,
@@ -239,7 +356,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		WallMS:           res.WallMS,
 		Turns:            res.Turns,
 		AttestationState: res.AttestationState,
-	}, nil
+	}
 }
 
 // MCPToolRow is one granted gateway tool and the declaration granting it.

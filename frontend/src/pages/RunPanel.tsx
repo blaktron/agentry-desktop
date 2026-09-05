@@ -11,6 +11,7 @@ import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main, trust } from "../../wailsjs/go/models";
 import { ErrorBox, Spinner, shortDigest } from "../ui";
+import SessionChat from "./SessionChat";
 
 export default function RunPanel({
   registry, ns, name, version, attestation, onClose,
@@ -40,6 +41,8 @@ export default function RunPanel({
   // Run form.
   const [task, setTask] = useState("");
   const [intakeValues, setIntakeValues] = useState<Record<string, string>>({});
+  const [mode, setMode] = useState("");
+  const [sessionActive, setSessionActive] = useState(false);
   const [inputs, setInputs] = useState<string[]>([]);
   const [outDir, setOutDir] = useState("");
   const [keep, setKeep] = useState(true);
@@ -63,6 +66,7 @@ export default function RunPanel({
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
         setProfile(p);
+        setMode((p.modes ?? []).includes("autonomous") || (p.modes ?? []).length === 0 ? "autonomous" : p.modes[0]);
         setKeep(p.keep);
         setKeepTouched(false);
         setFormKeep(p.keep);
@@ -93,6 +97,7 @@ export default function RunPanel({
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   const canRun =
     !running &&
+    !sessionActive &&
     !!setup?.dockerOk &&
     !needsProfile &&
     intakeMissing.length === 0 &&
@@ -149,7 +154,24 @@ export default function RunPanel({
     }
   }
 
+  function intakeAnswers(): Record<string, string> {
+    const answers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(intakeValues)) if (v.trim() !== "") answers[k] = v;
+    return answers;
+  }
+
+  function startSession() {
+    setRunErr(null);
+    setResult(null);
+    setLog([]);
+    setSessionActive(true);
+  }
+
   async function runAgent() {
+    if (mode === "interactive") {
+      startSession();
+      return;
+    }
     setRunning(true);
     setRunErr(null);
     setResult(null);
@@ -157,9 +179,7 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const answers: Record<string, string> = {};
-      for (const [k, v] of Object.entries(intakeValues)) if (v.trim() !== "") answers[k] = v;
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, answers);
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers());
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
@@ -169,11 +189,11 @@ export default function RunPanel({
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => !running && onClose()}>
+    <div className="modal-backdrop" onClick={() => !running && !sessionActive && onClose()}>
       <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
         <div className="spread">
           <h2 style={{ margin: 0 }}>Run {agentRef}</h2>
-          <button onClick={onClose} disabled={running} title={running ? "A run is in progress" : ""}>✕</button>
+          <button onClick={onClose} disabled={running || sessionActive} title={running || sessionActive ? "A run is in progress" : ""}>✕</button>
         </div>
         <p className="muted small">
           Runs in an isolated container; tools come only from a per-run Docker MCP Gateway
@@ -316,6 +336,29 @@ export default function RunPanel({
           </>
         )}
 
+        {/* Run mode (plan §7): only the modes the release declares. */}
+        {profile && (profile.modes ?? []).length > 0 && (
+          <>
+            <h3>Run mode</h3>
+            <div className="row" style={{ gap: 14 }}>
+              {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
+                <label key={m} className="check-row" style={{ margin: 0 }}>
+                  <input type="radio" name="run-mode" checked={mode === m} onChange={() => setMode(m)} disabled={running || sessionActive} />
+                  <span>
+                    <strong>{m}</strong>{" "}
+                    <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {mode === "interactive" && (
+              <p className="muted small">
+                Interactive: you can talk to this agent and give it files; you cannot give it more access than listed above.
+              </p>
+            )}
+          </>
+        )}
+
         {/* Run form */}
         <h3>Task</h3>
         <textarea
@@ -414,9 +457,31 @@ export default function RunPanel({
         <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
           <button onClick={onClose} disabled={running}>Close</button>
           <button className="primary" disabled={!canRun} onClick={runAgent}>
-            {running ? "Running…" : "Run"}
+            {running ? "Running…" : mode === "interactive" ? "Start session" : "Run"}
           </button>
         </div>
+
+        {/* Interactive session: the chat replaces the log pane. */}
+        {sessionActive && (
+          <SessionChat
+            registry={registry}
+            agentRef={agentRef}
+            task={task}
+            inputs={inputs}
+            outDir={outDir.trim()}
+            keepProfile={keepTouched ? keep : null}
+            timeoutSec={timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0)}
+            maxTurns={maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0)}
+            acceptUnsigned={unsigned && acceptUnsigned}
+            intakeAnswers={intakeAnswers()}
+            opening={profile?.opening ?? ""}
+            onResult={(r, err) => {
+              setSessionActive(false);
+              if (r) setResult(r);
+              if (err) setRunErr(err);
+            }}
+          />
+        )}
 
         {/* Live log */}
         {(running || log.length > 0) && (
