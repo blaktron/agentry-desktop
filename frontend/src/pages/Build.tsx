@@ -138,12 +138,20 @@ export default function Build({ registry }: { registry: string }) {
           </label>
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <label className="small">kind
-            <select value={m.kind} onChange={(e) => set({ kind: e.target.value })}>
-              <option value="skill">skill</option>
-              <option value="prompt-agent">prompt-agent</option>
-            </select>
-          </label>
+          <span className="small">run modes
+            <span className="row" style={{ gap: 10, marginTop: 4 }}>
+              {(["autonomous", "interactive"] as const).map((mode) => (
+                <label key={mode} className="check-row" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={(m.modes ?? []).includes(mode)}
+                    onChange={(e) => set({ modes: e.target.checked ? [...(m.modes ?? []).filter((x) => x !== mode), mode] : (m.modes ?? []).filter((x) => x !== mode) })}
+                  />
+                  <span title={mode === "autonomous" ? "runs from its files and ends" : "a chat session under the same controls"}>{mode}</span>
+                </label>
+              ))}
+            </span>
+          </span>
           <label className="small">version
             <input className="mono" value={m.version} onChange={(e) => set({ version: e.target.value })} />
           </label>
@@ -290,7 +298,70 @@ export default function Build({ registry }: { registry: string }) {
         </label>
       </div>
 
-      <h2>Instructions ({m.kind === "skill" ? "SKILL.md" : "AGENT.md"})</h2>
+      <h2>Up-front questions (intake)</h2>
+      <p className="muted small">
+        Asked before a run starts, in either mode; the answers are staged read-only for the agent
+        at <span className="mono">/inputs/intake.json</span>. A <em>secret</em> answer is carried by a declared
+        secret of the same upper-cased name and never reaches the agent or a receipt.
+      </p>
+      <div className="card">
+        <div className="row">
+          <button
+            type="button"
+            onClick={() => set({ intake: [...(m.intake ?? []), new build.IntakeRow({ id: "", prompt: "", type: "text", required: false, choices: [] })] })}
+          >
+            Add question
+          </button>
+          {(m.intake ?? []).length === 0 && <span className="muted small">No questions — the agent starts from its instructions and the task.</span>}
+        </div>
+        {(m.intake ?? []).map((q, i) => {
+          const patch = (row: Partial<build.IntakeRow>) =>
+            set({ intake: m.intake.map((r, j) => (j === i ? new build.IntakeRow({ ...r, ...row }) : r)) });
+          return (
+            <div className="card" key={i} style={{ marginTop: 8 }}>
+              <div className="row">
+                <label className="small">id
+                  <input type="text" className="mono" style={{ width: 140 }} placeholder="dataset" value={q.id} onChange={(e) => patch({ id: e.target.value })} />
+                </label>
+                <label className="small grow">prompt
+                  <input type="text" style={{ width: "100%" }} placeholder="Path to the dataset to analyse" value={q.prompt} onChange={(e) => patch({ prompt: e.target.value })} />
+                </label>
+                <label className="small">type
+                  <select value={q.type || "text"} onChange={(e) => patch({ type: e.target.value })}>
+                    <option value="text">text</option>
+                    <option value="choice">choice</option>
+                    <option value="file">file</option>
+                    <option value="secret">secret</option>
+                  </select>
+                </label>
+                <label className="check-row" style={{ margin: 0 }}>
+                  <input type="checkbox" checked={q.required} onChange={(e) => patch({ required: e.target.checked })} />
+                  <span>required</span>
+                </label>
+                <button type="button" onClick={() => set({ intake: m.intake.filter((_, j) => j !== i) })}>remove</button>
+              </div>
+              {q.type === "choice" && (
+                <label className="small" style={{ display: "block", marginTop: 6 }}>choices
+                  <ListInput value={q.choices ?? []} onChange={(v) => patch({ choices: v })} placeholder="emea, apac, amer" />
+                </label>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {(m.modes ?? []).includes("interactive") && (
+        <>
+          <h2>Interactive session</h2>
+          <div className="card">
+            <label className="small" style={{ display: "block" }}>opening line (the agent&apos;s first message when a session starts without a task; ≤ 500 chars)
+              <input style={inputStyle} maxLength={500} value={m.opening ?? ""} onChange={(e) => set({ opening: e.target.value })} placeholder="What should I look at?" />
+            </label>
+          </div>
+        </>
+      )}
+
+      <h2>Instructions ({m.instructionFile || "AGENT.md"})</h2>
       <div className="card">
         <textarea
           className="mono"

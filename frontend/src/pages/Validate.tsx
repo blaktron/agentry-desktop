@@ -79,7 +79,7 @@ function ResultView({ r }: { r: validate.Result }) {
             ? <span className="badge ok">PASSED</span>
             : <span className="badge bad">FAILED — {totalProblems || r.warnCount} problem{(totalProblems || r.warnCount) === 1 ? "" : "s"}</span>}
           {r.manifestName && <strong className="selectable">{r.manifestName}</strong>}
-          {r.manifestKind && <span className="badge kind">{r.manifestKind}</span>}
+          {(r.manifestModes ?? []).map((mode) => <span key={mode} className="badge kind">{mode}</span>)}
           {r.manifestVersion && <span className="mono">v{r.manifestVersion}</span>}
         </div>
         <p className="muted small">

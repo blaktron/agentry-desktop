@@ -30,6 +30,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
+	"github.com/blaktron/agentry-cli/pkg/runner/intake"
 	"github.com/blaktron/agentry-cli/pkg/runner/mcpinstall"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
@@ -140,7 +141,8 @@ type ProfileInfo struct {
 	Exists            bool
 	Keep              bool
 	StoredSecretNames []string
-	CapabilityLines   []string
+	CapabilityLines   []string // Intake are the release's up-front questions.
+	Intake            []manifest.IntakeQuestion
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
@@ -170,6 +172,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		DeclaredSecrets: allSecretNames(sig.Manifest),
 		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
 		CapabilityLines: capabilityLines(sig.Manifest.Capabilities),
+		Intake:          sig.Manifest.Intake,
 	}
 	if prof != nil {
 		info.Exists = true
@@ -252,6 +255,9 @@ type Request struct {
 	// method meets the same gate (desktop#3, D-011 closure). Digest
 	// mismatch and unverifiable attestations refuse regardless.
 	AcceptUnsigned bool
+	// Intake answers the manifest's up-front questions by id (plan §3.5);
+	// a required question without an answer refuses the run.
+	Intake map[string]string
 }
 
 // Result is the envelope-derived outcome. It is populated on failure too:
@@ -402,6 +408,21 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		task = strings.NewReader(req.Task)
 	}
 
+	answers, err := intake.Collect(nil, m.Intake, req.Intake, m.Capabilities.Secrets)
+	if err != nil {
+		finishProfile(logw, prof, profDir, keep)
+		return nil, engine.Classify(engine.ExitCLI, err)
+	}
+	if len(answers.Secrets) > 0 {
+		merged := map[string]string{}
+		for k, v := range overrides {
+			merged[k] = v
+		}
+		for id, v := range answers.Secrets {
+			merged[intake.SecretName(id)] = v
+		}
+		overrides = merged
+	}
 	env, runErr := engine.Run(ctx, docker, engine.Params{
 		Plan:            plan,
 		PlanDir:         planDir,
@@ -412,6 +433,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		InputPaths:      req.InputPaths,
 		Adapter:         ad,
 		Policy:          pol,
+		Intake:          answers,
 		SecretOverrides: overrides,
 		ServersDir:      serversDir,
 		Budgets:         budgets,

@@ -247,26 +247,6 @@ func TestRemoveMCPEntryEdgeCases(t *testing.T) {
 	}
 }
 
-// TestRemoveAgentsMDSectionEdgeCases: a missing document and a document
-// without the section are no-ops that never rewrite the file.
-func TestRemoveAgentsMDSectionEdgeCases(t *testing.T) {
-	dir := t.TempDir()
-	if err := removeAgentsMDSection(filepath.Join(dir, "absent.md"), "acme", "demo"); err != nil {
-		t.Errorf("missing doc must be a no-op: %v", err)
-	}
-	doc := filepath.Join(dir, "AGENTS.md")
-	content := "# Agents\n\n## other/agent (v1.0.0)\n\nKeep.\n"
-	if err := os.WriteFile(doc, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := removeAgentsMDSection(doc, "acme", "demo"); err != nil {
-		t.Fatal(err)
-	}
-	if got, _ := os.ReadFile(doc); string(got) != content {
-		t.Errorf("no-match removal rewrote the doc:\n%s", got)
-	}
-}
-
 func TestResolvePathsRules(t *testing.T) {
 	// claude-skill: default is managed, picked dir is not.
 	def, err := ResolvePaths("claude-skill", "", "demo")
@@ -277,22 +257,18 @@ func TestResolvePathsRules(t *testing.T) {
 	if err != nil || picked.Managed || picked.Dest != filepath.Join("/tmp/x", "demo") {
 		t.Errorf("picked skill paths wrong: %+v err=%v", picked, err)
 	}
-	// mcp and agents-md refuse to guess a project directory.
-	if _, err := ResolvePaths("mcp", "", "demo"); err == nil {
-		t.Error("mcp without a directory must refuse")
-	}
+	// agents-md refuses to guess a project directory.
 	if _, err := ResolvePaths("agents-md", "", "demo"); err == nil {
 		t.Error("agents-md without a directory must refuse")
-	}
-	m, err := ResolvePaths("mcp", "/proj", "demo")
-	if err != nil || m.Dest != filepath.Join("/proj", "agents", "demo") || m.MCPConfig != filepath.Join("/proj", ".mcp.json") || !m.Managed {
-		t.Errorf("mcp paths wrong: %+v err=%v", m, err)
 	}
 	a, err := ResolvePaths("agents-md", "/proj", "demo")
 	if err != nil || a.AgentsMD != filepath.Join("/proj", "AGENTS.md") || !a.Managed {
 		t.Errorf("agents-md paths wrong: %+v err=%v", a, err)
 	}
-	if _, err := ResolvePaths("nope", "", "demo"); err == nil {
-		t.Error("unknown target resolved")
+	// The mcp target left with the withdrawn kind (DEV-088).
+	for _, bad := range []string{"mcp", "nope"} {
+		if _, err := ResolvePaths(bad, "/proj", "demo"); err == nil {
+			t.Errorf("target %q resolved", bad)
+		}
 	}
 }

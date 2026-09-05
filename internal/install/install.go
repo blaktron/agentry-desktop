@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -36,18 +35,31 @@ import (
 )
 
 // validTargets is the §5.6 closed set.
-var validTargets = []string{manifest.InterfaceClaudeSkill, manifest.InterfaceMCP, manifest.InterfaceAgentsMD}
+// validTargets is the §5.6 closed set; the mcp target left with the withdrawn
+// v1 tool-server package kind (DEV-088).
+var validTargets = []string{manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD}
 
-// DefaultTarget maps an agent kind to its §5.6 default install target.
-func DefaultTarget(kind manifest.Kind) string {
-	switch kind {
-	case manifest.KindMCPServer:
-		return manifest.InterfaceMCP
-	case manifest.KindPromptAgent:
-		return manifest.InterfaceAgentsMD
-	default: // manifest.KindSkill and anything future
-		return manifest.InterfaceClaudeSkill
+// DefaultTarget picks the §5.6 install target from runtime.interfaces (the
+// first one the desktop can emit; claude-skill when nothing usable is
+// listed). Interfaces are independent of run mode.
+func DefaultTarget(m *manifest.Manifest) string {
+	for _, it := range m.Runtime.Interfaces {
+		for _, t := range validTargets {
+			if it == t {
+				return it
+			}
+		}
 	}
+	return manifest.InterfaceClaudeSkill
+}
+
+// modeStrings renders a mode set for a view.
+func modeStrings(modes []manifest.Mode) []string {
+	out := make([]string, 0, len(modes))
+	for _, m := range modes {
+		out = append(out, string(m))
+	}
+	return out
 }
 
 // Paths is where one install target writes.
@@ -58,13 +70,8 @@ type Paths struct {
 	// layout. Only a managed directory is cleared on reinstall or removed on
 	// uninstall — a directory the user picked is theirs.
 	Managed bool `json:"managed"`
-	// MCPConfig is the .mcp.json to merge into (mcp target only).
-	MCPConfig string `json:"mcpConfig,omitempty"`
 	// AgentsMD is the AGENTS.md to upsert (agents-md target only).
 	AgentsMD string `json:"agentsMd,omitempty"`
-	// ExtractedRel re-roots MCP args at the extraction path relative to the
-	// config file's directory; empty when config and files are siblings.
-	ExtractedRel string `json:"extractedRel,omitempty"`
 }
 
 // ResolvePaths computes the destination for a target.
@@ -88,16 +95,6 @@ func ResolvePaths(target, dir, name string) (Paths, error) {
 		}
 		return Paths{Dest: filepath.Join(home, ".claude", "skills", name), Managed: true}, nil
 
-	case manifest.InterfaceMCP:
-		if dir == "" {
-			return Paths{}, fmt.Errorf("the mcp target needs a project directory — pick one")
-		}
-		return Paths{
-			Dest: filepath.Join(dir, "agents", name), Managed: true,
-			MCPConfig:    filepath.Join(dir, ".mcp.json"),
-			ExtractedRel: path.Join("agents", name),
-		}, nil
-
 	case manifest.InterfaceAgentsMD:
 		if dir == "" {
 			return Paths{}, fmt.Errorf("the agents-md target needs a project directory — pick one")
@@ -114,15 +111,15 @@ func ResolvePaths(target, dir, name string) (Paths, error) {
 
 // Plan is everything a human needs to see before an install writes anything.
 type Plan struct {
-	ID        string `json:"id"`
-	Registry  string `json:"registry"`
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	Version   string `json:"version"`
-	Kind      string `json:"kind"`
-	Summary   string `json:"summary"`
-	Digest    string `json:"digest"`
-	Yanked    bool   `json:"yanked"`
+	ID        string   `json:"id"`
+	Registry  string   `json:"registry"`
+	Namespace string   `json:"namespace"`
+	Name      string   `json:"name"`
+	Version   string   `json:"version"`
+	Modes     []string `json:"modes"`
+	Summary   string   `json:"summary"`
+	Digest    string   `json:"digest"`
+	Yanked    bool     `json:"yanked"`
 
 	Attestation trust.AttestationResult `json:"attestation"`
 	// Unsigned is true when the registry offers no attestation; Confirm then
@@ -242,7 +239,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	}
 
 	if target == "" {
-		target = DefaultTarget(m.Kind)
+		target = DefaultTarget(m)
 	}
 	paths, err := ResolvePaths(target, dir, m.Name)
 	if err != nil {
@@ -255,7 +252,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		Namespace: res.Namespace,
 		Name:      res.Name,
 		Version:   res.Version,
-		Kind:      string(m.Kind),
+		Modes:     modeStrings(m.SupportedModes()),
 		Summary:   m.Summary,
 		Digest:    computed,
 		Yanked:    res.Yanked,
@@ -342,13 +339,6 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities bool) (*R
 	case manifest.InterfaceClaudeSkill:
 		err = exportClaudeSkill(staging, plan.Paths, p.manifest)
 		res.Message = fmt.Sprintf("installed %s/%s@%s as Claude skill: %s", plan.Namespace, plan.Name, plan.Version, plan.Paths.Dest)
-	case manifest.InterfaceMCP:
-		err = exportMCP(staging, plan.Paths, p.manifest)
-		res.Message = fmt.Sprintf("installed %s/%s@%s as MCP server: %s (server entry merged into %s)",
-			plan.Namespace, plan.Name, plan.Version, plan.Paths.Dest, plan.Paths.MCPConfig)
-		if len(plan.Secrets) > 0 {
-			res.SecretsNote = "fill in env: " + strings.Join(plan.Secrets, ", ")
-		}
 	case manifest.InterfaceAgentsMD:
 		err = exportAgentsMD(staging, plan.Paths, p.manifest, plan.Namespace, plan.Version)
 		res.Message = fmt.Sprintf("installed %s/%s@%s as prompt agent: %s (section updated in %s)",
@@ -420,33 +410,6 @@ func exportClaudeSkill(staging string, p Paths, m *manifest.Manifest) error {
 	return nil
 }
 
-// exportMCP extracts to Dest and merges a server entry into MCPConfig with
-// args re-rooted at ExtractedRel (§5.6 mcp row).
-func exportMCP(staging string, p Paths, m *manifest.Manifest) error {
-	if err := prepareDest(p); err != nil {
-		return err
-	}
-	if err := copyTree(staging, p.Dest); err != nil {
-		return err
-	}
-	entry, err := export.MCPEntryFromManifest(m, p.ExtractedRel, treeFiles(staging))
-	if err != nil {
-		return err
-	}
-	existing, err := os.ReadFile(p.MCPConfig) //nolint:gosec // fixed config name under a user-chosen dir
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("read %s: %w", p.MCPConfig, err)
-	}
-	merged, err := export.MergeMCPConfig(existing, m.Name, entry)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(p.MCPConfig, merged, 0o644); err != nil { //nolint:gosec // client config, not a secret
-		return fmt.Errorf("write %s: %w", p.MCPConfig, err)
-	}
-	return nil
-}
-
 // exportAgentsMD extracts to Dest and upserts the agent's section in
 // AgentsMD (§5.6 agents-md row).
 func exportAgentsMD(staging string, p Paths, m *manifest.Manifest, ns, version string) error {
@@ -512,24 +475,6 @@ func copyTree(src, dest string) error {
 		return fmt.Errorf("copy files to %s: %w", dest, err)
 	}
 	return nil
-}
-
-// treeFiles lists the slash-separated relative file paths under root, for
-// the exporter's arg re-rooting.
-func treeFiles(root string) map[string]bool {
-	files := map[string]bool{}
-	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return err
-		}
-		rel, rerr := filepath.Rel(root, p)
-		if rerr != nil {
-			return rerr
-		}
-		files[filepath.ToSlash(rel)] = true
-		return nil
-	})
-	return files
 }
 
 // newPlanID returns a random 16-hex-char id.

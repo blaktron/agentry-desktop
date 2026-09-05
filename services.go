@@ -233,7 +233,7 @@ type BrowseAPI struct {
 // SearchQuery mirrors the GET /search facets (§9.2).
 type SearchQuery struct {
 	Q          string `json:"q"`
-	Kind       string `json:"kind,omitempty"`
+	Mode       string `json:"mode,omitempty"`
 	Capability string `json:"capability,omitempty"`
 	License    string `json:"license,omitempty"`
 	Sort       string `json:"sort,omitempty"`
@@ -243,12 +243,12 @@ type SearchQuery struct {
 
 // SearchHitView is one search result row.
 type SearchHitView struct {
-	Namespace   string `json:"namespace"`
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	Summary     string `json:"summary"`
-	Installs30d int    `json:"installs30d"`
-	Quarantine  string `json:"quarantine,omitempty"`
+	Namespace   string   `json:"namespace"`
+	Name        string   `json:"name"`
+	Modes       []string `json:"modes"`
+	Summary     string   `json:"summary"`
+	Installs30d int      `json:"installs30d"`
+	Quarantine  string   `json:"quarantine,omitempty"`
 }
 
 // SearchView is a search response.
@@ -268,9 +268,9 @@ func (b *BrowseAPI) Search(reg string, q SearchQuery) (*SearchView, error) {
 	if q.Q != "" {
 		params.Q = &q.Q
 	}
-	if q.Kind != "" {
-		k := apiclient.AgentKind(q.Kind)
-		params.Kind = &k
+	if q.Mode != "" {
+		mo := apiclient.AgentMode(q.Mode)
+		params.Mode = &mo
 	}
 	if q.Capability != "" {
 		params.Capability = &q.Capability
@@ -305,7 +305,7 @@ func (b *BrowseAPI) Search(reg string, q SearchQuery) (*SearchView, error) {
 	for _, hit := range resp.JSON200.Results {
 		h := SearchHitView{
 			Namespace: hit.Namespace, Name: hit.Name,
-			Kind: string(hit.Kind), Summary: hit.Summary,
+			Modes: apiModes(hit.Modes), Summary: hit.Summary,
 		}
 		if hit.Installs30d != nil {
 			h.Installs30d = *hit.Installs30d
@@ -332,14 +332,14 @@ type VersionView struct {
 
 // AgentView is the agent header.
 type AgentView struct {
-	Namespace  string `json:"namespace"`
-	Name       string `json:"name"`
-	Kind       string `json:"kind"`
-	Summary    string `json:"summary"`
-	Visibility string `json:"visibility"`
-	Quarantine string `json:"quarantine,omitempty"`
-	CreatedAt  string `json:"createdAt"`
-	GitHTTPURL string `json:"gitHttpUrl,omitempty"`
+	Namespace  string   `json:"namespace"`
+	Name       string   `json:"name"`
+	Modes      []string `json:"modes"`
+	Summary    string   `json:"summary"`
+	Visibility string   `json:"visibility"`
+	Quarantine string   `json:"quarantine,omitempty"`
+	CreatedAt  string   `json:"createdAt"`
+	GitHTTPURL string   `json:"gitHttpUrl,omitempty"`
 }
 
 // AgentDetailView is the agent page's model.
@@ -370,7 +370,7 @@ func (b *BrowseAPI) Agent(reg, ns, name string) (*AgentDetailView, error) {
 	a := aresp.JSON200
 	out := &AgentDetailView{
 		Agent: AgentView{
-			Namespace: a.Namespace, Name: a.Name, Kind: string(a.Kind),
+			Namespace: a.Namespace, Name: a.Name, Modes: apiModes(a.Modes),
 			Summary: a.Summary, Visibility: string(a.Visibility),
 			CreatedAt: a.CreatedAt.Format(time.RFC3339), GitHTTPURL: a.GitHttpUrl,
 		},
@@ -417,6 +417,16 @@ func (b *BrowseAPI) Agent(reg, ns, name string) (*AgentDetailView, error) {
 }
 
 // Readme returns the API's server-sanitized README HTML.
+// apiModes renders the API's mode set for a view (never nil: the
+// frontend maps over it).
+func apiModes(modes apiclient.AgentModes) []string {
+	out := make([]string, 0, len(modes))
+	for _, m := range modes {
+		out = append(out, string(m))
+	}
+	return out
+}
+
 func (b *BrowseAPI) Readme(reg, ns, name, version string) (string, error) {
 	client, err := registry.New(reg, settings.TokenFor(reg))
 	if err != nil {

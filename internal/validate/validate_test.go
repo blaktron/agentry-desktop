@@ -13,10 +13,10 @@ func benignWorkspace(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		"agent.yaml": `schemaVersion: "1"
+		"agent.yaml": `schemaVersion: "2"
 name: injection-defense
 namespace: agentry
-kind: skill
+modes: [autonomous]
 version: 1.0.0
 summary: "Review a document for prompt-injection risk before an agent reads it"
 license: Apache-2.0
@@ -25,7 +25,7 @@ authors:
 tags: [security, prompt-injection, review]
 
 entrypoints:
-  skill: SKILL.md
+  instruction: SKILL.md
 
 runtime:
   interfaces: [claude-skill]

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -33,17 +34,27 @@ import (
 // the manifest's YAML. The YAML is the contract (a closed schema, V-rules
 // at validate/publish); this struct is only a convenient editor for it.
 type Model struct {
-	Name      string   `json:"name"`
-	Namespace string   `json:"namespace"`
-	Kind      string   `json:"kind"` // skill | prompt-agent
-	Version   string   `json:"version"`
-	Summary   string   `json:"summary"`
-	License   string   `json:"license"`
-	Homepage  string   `json:"homepage,omitempty"`
-	Tags      []string `json:"tags"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	// Modes are the run modes the release supports (manifest v2): autonomous,
+	// interactive, or both.
+	Modes    []string `json:"modes"`
+	Version  string   `json:"version"`
+	Summary  string   `json:"summary"`
+	License  string   `json:"license"`
+	Homepage string   `json:"homepage,omitempty"`
+	Tags     []string `json:"tags"`
 
-	// Instructions is the entrypoint file's content (SKILL.md / AGENT.md).
+	// InstructionFile is entrypoints.instruction (AGENT.md by default; a
+	// workspace authored as a v1 skill keeps its SKILL.md).
+	InstructionFile string `json:"instructionFile"`
+	// Instructions is the instruction file's content.
 	Instructions string `json:"instructions"`
+	// Intake are the up-front questions (manifest v2 intake, plan §3.5).
+	Intake []IntakeRow `json:"intake"`
+	// Opening is interactive.opening: the agent's first line in a session
+	// started without a task (only meaningful with interactive in Modes).
+	Opening string `json:"opening"`
 
 	// The §5.4 capability contract, flattened for form controls.
 	EgressMode   string   `json:"egressMode"` // none | hosts | all
@@ -62,6 +73,15 @@ type Model struct {
 }
 
 // MCPServerRow is one capabilities.mcpServers entry as the form edits it.
+// IntakeRow is one intake question as the form edits it.
+type IntakeRow struct {
+	ID       string   `json:"id"`
+	Prompt   string   `json:"prompt"`
+	Type     string   `json:"type"` // text | secret | choice | file
+	Required bool     `json:"required"`
+	Choices  []string `json:"choices"`
+}
+
 type MCPServerRow struct {
 	// Source is "npm" or "pypi".
 	Source string `json:"source"`
@@ -78,21 +98,26 @@ type MCPServerRow struct {
 }
 
 // entrypointFile maps kind → the instruction file the manifest names.
-func entrypointFile(kind string) (string, error) {
-	switch kind {
-	case "skill":
-		return "SKILL.md", nil
-	case "prompt-agent":
-		return "AGENT.md", nil
-	default:
-		return "", fmt.Errorf("the Build surface authors skill and prompt-agent BriefAgents; %q needs code and belongs in an editor", kind)
+// defaultInstructionFile is the manifest's default entrypoints.instruction.
+const defaultInstructionFile = "AGENT.md"
+
+// instructionFile is the file the instructions are saved to and declared as.
+func (m *Model) instructionFile() string {
+	if f := strings.TrimSpace(m.InstructionFile); f != "" {
+		return f
 	}
+	return defaultInstructionFile
 }
+
+var intakeIDRE = regexp.MustCompile(`^[a-z0-9_]+$`)
+
+func validMode(s string) bool { return s == "autonomous" || s == "interactive" }
 
 // Default returns a fresh form model with the scaffold's defaults.
 func Default(namespace string) *Model {
 	return &Model{
-		Kind: "skill", Version: "0.1.0", License: "MIT", Namespace: namespace,
+		Modes: []string{"autonomous"}, Version: "0.1.0", License: "MIT", Namespace: namespace,
+		InstructionFile: defaultInstructionFile, Intake: []IntakeRow{},
 		EgressMode: "none", FSRead: "workspace", FSWrite: "none",
 		Tags: []string{}, EgressHosts: []string{}, FSReadPaths: []string{}, FSWritePaths: []string{},
 		ExecCommands: []string{}, Secrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
@@ -108,8 +133,61 @@ func (m *Model) Validate() error {
 	if !manifest.ValidNamespace(m.Namespace) {
 		return fmt.Errorf("namespace %q is invalid (lowercase [a-z0-9-])", m.Namespace)
 	}
-	if _, err := entrypointFile(m.Kind); err != nil {
-		return err
+	if len(compact(m.Modes)) == 0 {
+		return fmt.Errorf("choose at least one run mode (autonomous, interactive)")
+	}
+	seenMode := map[string]bool{}
+	for _, mode := range compact(m.Modes) {
+		if !validMode(mode) {
+			return fmt.Errorf("unknown run mode %q (want autonomous or interactive)", mode)
+		}
+		if seenMode[mode] {
+			return fmt.Errorf("run mode %s is listed twice", mode)
+		}
+		seenMode[mode] = true
+	}
+	if strings.Contains(m.instructionFile(), "/") || strings.Contains(m.instructionFile(), "..") {
+		return fmt.Errorf("the instruction file must be a file at the workspace root")
+	}
+	if len(m.Intake) > 20 {
+		return fmt.Errorf("at most 20 intake questions")
+	}
+	declared := map[string]bool{}
+	for _, s := range compact(m.Secrets) {
+		declared[s] = true
+	}
+	seenID := map[string]bool{}
+	for i, q := range m.Intake {
+		id := strings.TrimSpace(q.ID)
+		if !intakeIDRE.MatchString(id) {
+			return fmt.Errorf("intake question %d: id must match [a-z0-9_]+", i+1)
+		}
+		if seenID[id] {
+			return fmt.Errorf("intake question %d: id %q is used twice", i+1, id)
+		}
+		seenID[id] = true
+		if strings.TrimSpace(q.Prompt) == "" {
+			return fmt.Errorf("intake question %s: the prompt is required", id)
+		}
+		switch q.Type {
+		case "", "text", "file":
+		case "choice":
+			if len(compact(q.Choices)) == 0 {
+				return fmt.Errorf("intake question %s: a choice question needs its choices", id)
+			}
+		case "secret":
+			if !declared[strings.ToUpper(id)] {
+				return fmt.Errorf("intake question %s: a secret answer is carried by a declared secret named %s — add it to the secrets", id, strings.ToUpper(id))
+			}
+		default:
+			return fmt.Errorf("intake question %s: unknown type %q (text, secret, choice, file)", id, q.Type)
+		}
+		if q.Type != "choice" && len(compact(q.Choices)) > 0 {
+			return fmt.Errorf("intake question %s: choices only apply to a choice question", id)
+		}
+	}
+	if len([]rune(m.Opening)) > 500 {
+		return fmt.Errorf("the opening line is at most 500 characters")
 	}
 	if strings.TrimSpace(m.Version) == "" {
 		return fmt.Errorf("version is required (strict semver, e.g. 0.1.0)")
@@ -158,12 +236,12 @@ func (m *Model) manifestYAML() string {
 		out, _ := yaml.Marshal(s)
 		return strings.TrimSpace(string(out))
 	}
-	entry, _ := entrypointFile(m.Kind)
+	entry := m.instructionFile()
 
-	w("schemaVersion: \"1\"")
+	w("schemaVersion: \"2\"")
 	w("name: %s", m.Name)
 	w("namespace: %s", m.Namespace)
-	w("kind: %s", m.Kind)
+	w("modes: [%s]", strings.Join(compact(m.Modes), ", "))
 	w("version: %s", m.Version)
 	w("summary: %s", q(m.Summary))
 	if m.License != "" {
@@ -177,7 +255,32 @@ func (m *Model) manifestYAML() string {
 	}
 	w("")
 	w("entrypoints:")
-	w("  %s: %s", map[string]string{"skill": "skill", "prompt-agent": "prompt"}[m.Kind], entry)
+	w("  instruction: %s", entry)
+	if len(m.Intake) > 0 {
+		w("")
+		w("intake:")
+		for _, qn := range m.Intake {
+			w("  - id: %s", strings.TrimSpace(qn.ID))
+			w("    prompt: %s", q(strings.TrimSpace(qn.Prompt)))
+			if qn.Type != "" && qn.Type != "text" {
+				w("    type: %s", qn.Type)
+			}
+			if qn.Required {
+				w("    required: true")
+			}
+			if qn.Type == "choice" {
+				w("    choices: [%s]", strings.Join(quoteAll(compact(qn.Choices)), ", "))
+			}
+		}
+	}
+	if strings.TrimSpace(m.Opening) != "" {
+		w("")
+		w("interactive:")
+		w("  opening: %s", q(strings.TrimSpace(m.Opening)))
+	}
+	w("")
+	w("runtime:")
+	w("  interfaces: [claude-skill, agents-md]")
 	w("")
 	w("capabilities:")
 	w("  network:")
@@ -266,7 +369,7 @@ func Save(dir string, m *Model) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	entry, _ := entrypointFile(m.Kind)
+	entry := m.instructionFile()
 	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(m.manifestYAML()), 0o644); err != nil { //nolint:gosec // workspace files are world-readable by design
 		return err
 	}
@@ -310,10 +413,26 @@ func Load(dir string) (*Model, error) {
 		return nil, fmt.Errorf("read agent.yaml: %w", err)
 	}
 	var doc struct {
-		Name         string   `yaml:"name"`
-		Namespace    string   `yaml:"namespace"`
-		Kind         string   `yaml:"kind"`
-		Version      string   `yaml:"version"`
+		SchemaVersion string   `yaml:"schemaVersion"`
+		Name          string   `yaml:"name"`
+		Namespace     string   `yaml:"namespace"`
+		Kind          string   `yaml:"kind"` // v1 only
+		Modes         []string `yaml:"modes"`
+		Version       string   `yaml:"version"`
+		Entrypoints   struct {
+			Skill       string `yaml:"skill"`
+			Instruction string `yaml:"instruction"`
+		} `yaml:"entrypoints"`
+		Intake []struct {
+			ID       string   `yaml:"id"`
+			Prompt   string   `yaml:"prompt"`
+			Type     string   `yaml:"type"`
+			Required bool     `yaml:"required"`
+			Choices  []string `yaml:"choices"`
+		} `yaml:"intake"`
+		Interactive struct {
+			Opening string `yaml:"opening"`
+		} `yaml:"interactive"`
 		Summary      string   `yaml:"summary"`
 		License      string   `yaml:"license"`
 		Homepage     string   `yaml:"homepage"`
@@ -343,7 +462,33 @@ func Load(dir string) (*Model, error) {
 		return nil, fmt.Errorf("parse agent.yaml: %w", err)
 	}
 	m := Default(doc.Namespace)
-	m.Name, m.Kind, m.Version = doc.Name, doc.Kind, doc.Version
+	m.Name, m.Version = doc.Name, doc.Version
+	switch {
+	case len(doc.Modes) > 0:
+		m.Modes = doc.Modes
+		if doc.Entrypoints.Instruction != "" {
+			m.InstructionFile = doc.Entrypoints.Instruction
+		}
+	case doc.Kind != "":
+		// A v1 workspace: kinds became modes (DEV-088); the skill file
+		// stays the instruction file so nothing moves on save.
+		m.Modes = []string{"autonomous"}
+		switch doc.Kind {
+		case "skill":
+			m.InstructionFile = "SKILL.md"
+			if doc.Entrypoints.Skill != "" {
+				m.InstructionFile = doc.Entrypoints.Skill
+			}
+		case "prompt-agent":
+			m.InstructionFile = "AGENT.md"
+		default:
+			return nil, fmt.Errorf("agent.yaml declares the withdrawn kind %q; the Build surface authors instruction-file BriefAgents", doc.Kind)
+		}
+	}
+	for _, qn := range doc.Intake {
+		m.Intake = append(m.Intake, IntakeRow{ID: qn.ID, Prompt: qn.Prompt, Type: qn.Type, Required: qn.Required, Choices: orEmpty(qn.Choices)})
+	}
+	m.Opening = doc.Interactive.Opening
 	m.Summary, m.License, m.Homepage = doc.Summary, doc.License, doc.Homepage
 	if doc.Tags != nil {
 		m.Tags = doc.Tags
@@ -367,10 +512,8 @@ func Load(dir string) (*Model, error) {
 		m.MCPServers = append(m.MCPServers, row)
 	}
 
-	if entry, err := entrypointFile(m.Kind); err == nil {
-		if b, rerr := os.ReadFile(filepath.Join(dir, entry)); rerr == nil { //nolint:gosec
-			m.Instructions = string(b)
-		}
+	if b, rerr := os.ReadFile(filepath.Join(dir, m.instructionFile())); rerr == nil { //nolint:gosec
+		m.Instructions = string(b)
 	}
 	return m, nil
 }
@@ -465,9 +608,13 @@ func Publish(ctx context.Context, regURL, token, dir, visibility string, logw io
 	case http.StatusNotFound:
 		vis := apiclient.CreateAgentRequestVisibility(visibility)
 		summary := m.Summary
+		modes := make(apiclient.AgentModes, 0, len(m.SupportedModes()))
+		for _, mode := range m.SupportedModes() {
+			modes = append(modes, apiclient.AgentMode(mode))
+		}
 		body := apiclient.CreateAgentJSONRequestBody{
 			Namespace: m.Namespace, Name: m.Name,
-			Kind: apiclient.AgentKind(string(m.Kind)), Summary: &summary, Visibility: &vis,
+			Modes: modes, Summary: &summary, Visibility: &vis,
 		}
 		cresp, cerr := client.CreateAgentWithResponse(ctx, body)
 		if cerr != nil {

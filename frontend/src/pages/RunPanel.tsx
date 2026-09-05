@@ -39,6 +39,7 @@ export default function RunPanel({
 
   // Run form.
   const [task, setTask] = useState("");
+  const [intakeValues, setIntakeValues] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<string[]>([]);
   const [outDir, setOutDir] = useState("");
   const [keep, setKeep] = useState(true);
@@ -89,10 +90,12 @@ export default function RunPanel({
   const unsigned = attestation?.state === "unsigned";
   const unverifiable = attestation != null && attestation.state !== "verified" && !unsigned;
   const needsProfile = !!profile && profile.declaredSecrets.length > 0 && !profile.exists;
+  const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   const canRun =
     !running &&
     !!setup?.dockerOk &&
     !needsProfile &&
+    intakeMissing.length === 0 &&
     !provPending &&
     !unverifiable &&
     (!unsigned || acceptUnsigned);
@@ -154,7 +157,9 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned);
+      const answers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(intakeValues)) if (v.trim() !== "") answers[k] = v;
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, answers);
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
@@ -256,6 +261,58 @@ export default function RunPanel({
                 </div>
               </div>
             )}
+          </>
+        )}
+
+        {/* Up-front questions (manifest v2 intake, plan §3.5): the same form
+            shape as the profile; answers are staged read-only for the agent. */}
+        {profile && profile.intake.length > 0 && (
+          <>
+            <h3>Questions from this BriefAgent</h3>
+            <div className="card">
+              <p className="muted small" style={{ marginTop: 0 }}>
+                Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
+                a secret answer is injected like a declared key and never shown to the agent.
+              </p>
+              {profile.intake.map((q) => (
+                <div className="row" key={q.id} style={{ marginBottom: 8 }}>
+                  <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
+                  {q.type === "choice" ? (
+                    <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running}>
+                      <option value="">—</option>
+                      {q.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : q.type === "file" ? (
+                    <>
+                      <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} placeholder="path on this machine" disabled={running} />
+                      <button
+                        disabled={running}
+                        onClick={async () => {
+                          try {
+                            const files = await ChooseFiles(q.prompt);
+                            if (files.length) setIntakeValues({ ...intakeValues, [q.id]: files[0] });
+                          } catch (e) {
+                            setRunErr(String(e));
+                          }
+                        }}
+                      >
+                        Choose…
+                      </button>
+                    </>
+                  ) : (
+                    <input
+                      type={q.type === "secret" ? "password" : "text"}
+                      className="grow"
+                      autoComplete="off"
+                      value={intakeValues[q.id] ?? ""}
+                      onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
+                      disabled={running}
+                    />
+                  )}
+                </div>
+              ))}
+              {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
+            </div>
           </>
         )}
 

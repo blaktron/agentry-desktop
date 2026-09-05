@@ -59,9 +59,9 @@ type Result struct {
 	Dir string `json:"dir"`
 
 	// Manifest header (empty when agent.yaml was missing/unparsable).
-	ManifestName    string `json:"manifestName,omitempty"`
-	ManifestKind    string `json:"manifestKind,omitempty"`
-	ManifestVersion string `json:"manifestVersion,omitempty"`
+	ManifestName    string   `json:"manifestName,omitempty"`
+	ManifestModes   []string `json:"manifestModes,omitempty"`
+	ManifestVersion string   `json:"manifestVersion,omitempty"`
 	// ManifestError is set when agent.yaml is missing or does not parse; the
 	// scan still runs over every file, but the run cannot pass.
 	ManifestError string  `json:"manifestError,omitempty"`
@@ -114,7 +114,10 @@ func Run(dir string) (*Result, error) {
 	}
 
 	if m != nil {
-		res.ManifestName, res.ManifestKind, res.ManifestVersion = m.Name, string(m.Kind), m.Version
+		res.ManifestName, res.ManifestVersion = m.Name, m.Version
+		for _, mode := range m.SupportedModes() {
+			res.ManifestModes = append(res.ManifestModes, string(mode))
+		}
 		// Server parity context: namespace/name from the manifest itself,
 		// Public so V7 runs, no tag, no existing versions — the same context
 		// the CLI validates in.
