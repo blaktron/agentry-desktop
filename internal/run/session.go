@@ -23,7 +23,6 @@ type Session struct {
 	ended   bool
 	result  *Result
 	endErr  error
-	release func()
 }
 
 // ErrNotInteractive says the release does not declare the interactive mode.
