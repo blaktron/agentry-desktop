@@ -202,7 +202,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
 	pol := policy.Default()
-	planDir := filepath.Join(installDir, "plan")
+	planDir := filepath.Join(installDir, "plan", "autonomous")
 	canary := filepath.Join(planDir, "canary")
 	// plant drops a marker file in the plan dir; a recompile clears the
 	// whole dir, so the marker's survival is the reuse signal.
@@ -215,7 +215,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	surviving := func() bool { _, err := os.Stat(canary); return err == nil }
 
 	var log strings.Builder
-	plan, gotDir, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil)
+	plan, gotDir, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Reuse: same digest + policy + adapter, files untouched.
 	plant()
-	if _, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil); err != nil {
+	if _, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
 		t.Fatal(err)
 	}
 	if !surviving() {
@@ -234,7 +234,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Policy change: the fingerprint participates in the reuse key (§R9).
 	plant()
-	plan2, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil)
+	plan2, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	plant()
 	changed := *meta
 	changed.Digest = "sha256:0ther"
-	plan3, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil)
+	plan3, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatal(err)
 	}
 	log.Reset()
-	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil); err != nil {
+	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
 		t.Fatal(err)
 	}
 	if surviving() {
@@ -280,7 +280,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte("not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil); err != nil {
+	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -296,7 +296,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	var log strings.Builder
-	_, _, err = ensurePlan(&log, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil)
+	_, _, err = ensurePlan(&log, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") {
 		t.Fatalf("err = %v, want a policy refusal", err)
 	}

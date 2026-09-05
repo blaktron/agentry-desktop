@@ -650,6 +650,8 @@ export namespace main {
 	    storedSecretNames: string[];
 	    capabilityLines: string[];
 	    intake: IntakeQuestionView[];
+	    modes: string[];
+	    opening: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileStatusView(source);
@@ -665,6 +667,8 @@ export namespace main {
 	        this.storedSecretNames = source["storedSecretNames"];
 	        this.capabilityLines = source["capabilityLines"];
 	        this.intake = this.convertValues(source["intake"], IntakeQuestionView);
+	        this.modes = source["modes"];
+	        this.opening = source["opening"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -866,6 +870,18 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class SessionView {
+	    ref: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	    }
 	}
 	export class SettingsView {
 	    defaultRegistry: string;

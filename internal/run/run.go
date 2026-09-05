@@ -141,8 +141,11 @@ type ProfileInfo struct {
 	Exists            bool
 	Keep              bool
 	StoredSecretNames []string
-	CapabilityLines   []string // Intake are the release's up-front questions.
-	Intake            []manifest.IntakeQuestion
+	CapabilityLines   []string                  // Intake are the release's up-front questions.
+	Intake            []manifest.IntakeQuestion // Modes are the run modes the release declares; Opening its interactive
+	// opening line.
+	Modes   []string
+	Opening string
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
@@ -173,6 +176,12 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
 		CapabilityLines: capabilityLines(sig.Manifest.Capabilities),
 		Intake:          sig.Manifest.Intake,
+	}
+	for _, mode := range sig.Manifest.SupportedModes() {
+		info.Modes = append(info.Modes, string(mode))
+	}
+	if sig.Manifest.Interactive != nil {
+		info.Opening = sig.Manifest.Interactive.Opening
 	}
 	if prof != nil {
 		info.Exists = true
@@ -284,7 +293,23 @@ type Result struct {
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
 // and diagnostics stream to logw (the Wails event channel upstairs).
-func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
+// prepared is everything Run and StartSession share: the verified install,
+// the plan for the mode, the images, the MCP profile and the engine
+// parameters. One code path, two ways to drive the harness (DR-15).
+type prepared struct {
+	sig     *Signature
+	m       *manifest.Manifest
+	plan    *spec.Plan
+	docker  dockerx.Client
+	prof    *profile.Profile
+	profDir string
+	keep    bool
+	params  engine.Params
+}
+
+// prepare does the install → plan → images → profile → intake steps for
+// the run mode; it is Run without the run.
+func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mode) (*prepared, error) {
 	home, err := Home()
 	if err != nil {
 		return nil, err
@@ -341,7 +366,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		serverSpecs = mcpinstall.Specs(resolvedServers, m.Capabilities.MCPServers, pol.Images)
 	}
 
-	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs)
+	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -423,27 +448,38 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 		}
 		overrides = merged
 	}
-	env, runErr := engine.Run(ctx, docker, engine.Params{
-		Plan:            plan,
-		PlanDir:         planDir,
-		WorkspaceSrc:    workspaceDir,
-		RunRoot:         installDir,
-		OutDir:          outDir,
-		Task:            task,
-		InputPaths:      req.InputPaths,
-		Adapter:         ad,
-		Policy:          pol,
-		Intake:          answers,
-		SecretOverrides: overrides,
-		ServersDir:      serversDir,
-		Budgets:         budgets,
-		Attestation:     meta.Attestation,
-		RunID:           runID,
-		Stderr:          logw,
-	})
+	return &prepared{
+		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
+		params: engine.Params{
+			Plan:            plan,
+			PlanDir:         planDir,
+			WorkspaceSrc:    workspaceDir,
+			RunRoot:         installDir,
+			OutDir:          outDir,
+			Task:            task,
+			InputPaths:      req.InputPaths,
+			Intake:          answers,
+			Adapter:         ad,
+			Policy:          pol,
+			SecretOverrides: overrides,
+			ServersDir:      serversDir,
+			Budgets:         budgets,
+			Attestation:     meta.Attestation,
+			RunID:           runID,
+			Stderr:          logw,
+		},
+	}, nil
+}
+
+func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
+	p, err := prepare(ctx, req, logw, manifest.ModeAutonomous)
+	if err != nil {
+		return nil, err
+	}
+	env, runErr := engine.Run(ctx, p.docker, p.params)
 	// The run completed its lifecycle (success or failure): apply the
 	// profile's keep/remove choice exactly like the CLI (§P2).
-	finishProfile(logw, prof, profDir, keep)
+	finishProfile(logw, p.prof, p.profDir, p.keep)
 
 	if env == nil {
 		return nil, runErr
@@ -609,11 +645,18 @@ func loadInstallMeta(installDir, wantDigest string) (*installMeta, bool) {
 // (§R6/§R9), otherwise recompiles — the CLI's exact reuse rule: digest,
 // policy fingerprint, adapter, and file integrity all must hold.
 func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, installDir, workspaceDir string,
-	pol *policy.Policy, polSHA, adapterName string, serverSpecs []spec.MCPServerSpec,
+	pol *policy.Policy, polSHA, adapterName string, serverSpecs []spec.MCPServerSpec, mode manifest.Mode,
 ) (*spec.Plan, string, error) {
-	planDir := filepath.Join(installDir, "plan")
+	// One plan per run mode (plan/<mode>/), exactly like the CLI; a
+	// plan/plan.json from the single-plan layout is a stale install.
+	if _, err := os.Stat(filepath.Join(installDir, "plan", "plan.json")); err == nil {
+		_ = os.RemoveAll(filepath.Join(installDir, "plan"))
+	}
+	planDir := filepath.Join(installDir, "plan", string(mode))
 	if b, err := os.ReadFile(filepath.Join(planDir, "plan.json")); err == nil { //nolint:gosec // our install layout
 		if plan, perr := spec.ParsePlan(b); perr == nil &&
+			plan.PlanVersion == spec.PlanVersion &&
+			plan.Mode == string(mode) &&
 			plan.Digest == meta.Digest &&
 			plan.PolicySHA256 == polSHA &&
 			plan.Harness.Adapter == adapterName &&
@@ -629,6 +672,7 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, install
 	}
 	plan, err := compile.Compile(compile.Inputs{
 		Manifest:     m,
+		Mode:         mode,
 		Digest:       meta.Digest,
 		Source:       meta.Source,
 		WorkspaceDir: workspaceDir,
