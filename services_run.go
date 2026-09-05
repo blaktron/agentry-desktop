@@ -116,10 +116,22 @@ type ProfileStatusView struct {
 	Keep              bool     `json:"keep"`
 	StoredSecretNames []string `json:"storedSecretNames"`
 	CapabilityLines   []string `json:"capabilityLines"`
+	// Intake are the release's up-front questions (manifest v2), answered
+	// in the run panel before either mode starts.
+	Intake []IntakeQuestionView `json:"intake"`
+}
+
+// IntakeQuestionView is one intake question for the pre-run form.
+type IntakeQuestionView struct {
+	ID       string   `json:"id"`
+	Prompt   string   `json:"prompt"`
+	Type     string   `json:"type"`
+	Required bool     `json:"required"`
+	Choices  []string `json:"choices"`
 }
 
 func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
-	return &ProfileStatusView{
+	v := &ProfileStatusView{
 		Ref:               p.Ref,
 		Digest:            p.Digest,
 		DeclaredSecrets:   emptyNotNil(p.DeclaredSecrets),
@@ -127,7 +139,12 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Keep:              p.Keep,
 		StoredSecretNames: emptyNotNil(p.StoredSecretNames),
 		CapabilityLines:   emptyNotNil(p.CapabilityLines),
+		Intake:            []IntakeQuestionView{},
 	}
+	for _, q := range p.Intake {
+		v.Intake = append(v.Intake, IntakeQuestionView{ID: q.ID, Prompt: q.Prompt, Type: string(q.Type), Required: q.Required, Choices: emptyNotNil(q.Choices)})
+	}
+	return v
 }
 
 // ProfileStatus resolves ref against the registry and reports whether the
@@ -183,7 +200,7 @@ type RunResultView struct {
 // overrides the tool-call budget (0 = unlimited, -1 = policy default).
 // acceptUnsigned is the explicit consent for a release without an
 // attestation; without it such a run is refused in Go (desktop#3).
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool) (*RunResultView, error) {
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string) (*RunResultView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -200,6 +217,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		TimeoutSeconds: timeoutSec,
 		MaxTurns:       maxTurns,
 		AcceptUnsigned: acceptUnsigned,
+		Intake:         intakeAnswers,
 	}, logw)
 	if err != nil {
 		return nil, err

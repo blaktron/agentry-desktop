@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
 import { main } from "../../wailsjs/go/models";
-import { ErrorBox, KindBadge, QuarantineBadge, Spinner } from "../ui";
+import { ErrorBox, ModeBadges, QuarantineBadge, Spinner } from "../ui";
 
-const KINDS = ["", "skill", "mcp-server", "prompt-agent"];
+const MODES = ["", "autonomous", "interactive"];
 const CAPABILITIES = ["", "network", "filesystem", "exec", "secrets", "dataAccess"];
 const SORTS = ["relevance", "installs", "newest", "updated"];
 
@@ -15,7 +15,7 @@ export default function Browse({
   onOpenAgent: (ns: string, name: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const [kind, setKind] = useState("");
+  const [mode, setMode] = useState("");
   const [capability, setCapability] = useState("");
   const [sort, setSort] = useState("relevance");
   const [results, setResults] = useState<main.SearchView | null>(null);
@@ -30,7 +30,7 @@ export default function Browse({
     setLoading(true);
     setError(null);
     try {
-      const query = new main.SearchQuery({ q, kind, capability, sort, limit: 30, offset: 0 });
+      const query = new main.SearchQuery({ q, mode, capability, sort, limit: 30, offset: 0 });
       setResults(await BrowseAPI.Search(registry, query));
     } catch (e) {
       setResults(null);
@@ -38,14 +38,14 @@ export default function Browse({
     } finally {
       setLoading(false);
     }
-  }, [registry, q, kind, capability, sort]);
+  }, [registry, q, mode, capability, sort]);
 
   // First render and registry/facet changes trigger a search; typing wants
   // the button or Enter.
   useEffect(() => {
     if (registry) void search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, kind, capability, sort]);
+  }, [registry, mode, capability, sort]);
 
   return (
     <div>
@@ -63,9 +63,9 @@ export default function Browse({
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
-        <select value={kind} onChange={(e) => setKind(e.target.value)} title="Kind">
-          {KINDS.map((k) => (
-            <option key={k} value={k}>{k === "" ? "all kinds" : k}</option>
+        <select value={mode} onChange={(e) => setMode(e.target.value)} title="Run mode">
+          {MODES.map((k) => (
+            <option key={k} value={k}>{k === "" ? "any mode" : k}</option>
           ))}
         </select>
         <select value={capability} onChange={(e) => setCapability(e.target.value)} title="Declared capability">
@@ -94,7 +94,7 @@ export default function Browse({
                 <span className="name">{hit.namespace}/{hit.name}</span>
                 <span className="row">
                   <QuarantineBadge state={hit.quarantine} />
-                  <KindBadge kind={hit.kind} />
+                  <ModeBadges modes={hit.modes} />
                 </span>
               </div>
               <div className="muted">{hit.summary}</div>

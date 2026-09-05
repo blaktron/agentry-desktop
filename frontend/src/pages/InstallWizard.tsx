@@ -11,28 +11,22 @@ import { ErrorBox, Spinner, shortDigest } from "../ui";
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
-  { id: "mcp", label: "MCP server", needsDir: true, hint: "extracts into <project>/agents/ and merges <project>/.mcp.json" },
   { id: "agents-md", label: "AGENTS.md prompt agent", needsDir: true, hint: "extracts into <project>/agents/ and updates <project>/AGENTS.md" },
 ];
 
-function defaultTargetFor(kind: string): string {
-  if (kind === "mcp-server") return "mcp";
-  if (kind === "prompt-agent") return "agents-md";
-  return "claude-skill";
-}
-
 export default function InstallWizard({
-  registry, agentRef, kind, onClose, presetTarget, presetDir, onInstalled,
+  registry, agentRef, onClose, presetTarget, presetDir, onInstalled,
 }: {
   registry: string;
   agentRef: string;
-  kind: string;
   onClose: () => void;
   presetTarget?: string;
   presetDir?: string;
   onInstalled?: () => void;
 }) {
-  const [target, setTarget] = useState(presetTarget || defaultTargetFor(kind));
+  // "" = the release's own default (the first of its runtime.interfaces the
+  // desktop can emit), decided by the Go side at Prepare time.
+  const [target, setTarget] = useState(presetTarget || "");
   const [dir, setDir] = useState(presetDir ?? "");
   const [plan, setPlan] = useState<install.Plan | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -41,7 +35,8 @@ export default function InstallWizard({
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
   const [acceptCaps, setAcceptCaps] = useState(false);
 
-  const targetInfo = useMemo(() => TARGETS.find((t) => t.id === target)!, [target]);
+  const effectiveTarget = target || plan?.target || "claude-skill";
+  const targetInfo = useMemo(() => TARGETS.find((t) => t.id === effectiveTarget) ?? TARGETS[0], [effectiveTarget]);
 
   // A preset flow (update from Installed) can go straight to Prepare.
   useEffect(() => {
@@ -109,7 +104,7 @@ export default function InstallWizard({
             <h3>Install as</h3>
             {TARGETS.map((t) => (
               <label key={t.id} className="check-row">
-                <input type="radio" name="target" checked={target === t.id} onChange={() => setTarget(t.id)} />
+                <input type="radio" name="target" checked={effectiveTarget === t.id} onChange={() => setTarget(t.id)} />
                 <span>
                   <strong>{t.label}</strong>
                   <span className="muted"> — {t.hint}</span>
@@ -146,7 +141,6 @@ export default function InstallWizard({
                   : <span>{plan.attestation.state}: {plan.attestation.detail}</span>}
               </div>
               <div className="kv"><span className="k">destination</span><span className="mono">{plan.paths.dest}</span></div>
-              {plan.paths.mcpConfig && <div className="kv"><span className="k">merges into</span><span className="mono">{plan.paths.mcpConfig}</span></div>}
               {plan.paths.agentsMd && <div className="kv"><span className="k">updates</span><span className="mono">{plan.paths.agentsMd}</span></div>}
               {plan.prevVersion && <div className="kv"><span className="k">installed here</span><span className="mono">{plan.prevVersion}</span></div>}
             </div>

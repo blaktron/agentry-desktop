@@ -1,13 +1,12 @@
 package install
 
-// Target-export and engine-flow tests: the mcp and agents-md §5.6 rows end
+// Target-export and engine-flow tests: the agents-md §5.6 row end
 // to end against the fake registry, the first-install capability gate, the
 // Prepare refusals that never touch the network, and the list surface.
 
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,106 +43,25 @@ func buildArchiveFiles(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
+// TestDefaultTarget: the default install target follows runtime.interfaces
+// (first emittable entry), never the run modes; claude-skill otherwise.
 func TestDefaultTarget(t *testing.T) {
-	cases := map[manifest.Kind]string{
-		manifest.KindSkill:       manifest.InterfaceClaudeSkill,
-		manifest.KindMCPServer:   manifest.InterfaceMCP,
-		manifest.KindPromptAgent: manifest.InterfaceAgentsMD,
-		manifest.Kind("future"):  manifest.InterfaceClaudeSkill,
+	cases := []struct {
+		interfaces []string
+		want       string
+	}{
+		{nil, manifest.InterfaceClaudeSkill},
+		{[]string{manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD}, manifest.InterfaceClaudeSkill},
+		{[]string{manifest.InterfaceAgentsMD, manifest.InterfaceClaudeSkill}, manifest.InterfaceAgentsMD},
+		{[]string{"mcp", manifest.InterfaceAgentsMD}, manifest.InterfaceAgentsMD}, // a v1 archive: the withdrawn target is skipped
+		{[]string{"mcp"}, manifest.InterfaceClaudeSkill},
 	}
-	for kind, want := range cases {
-		if got := DefaultTarget(kind); got != want {
-			t.Errorf("DefaultTarget(%s) = %q, want %q", kind, got, want)
+	for _, tc := range cases {
+		m := &manifest.Manifest{}
+		m.Runtime.Interfaces = tc.interfaces
+		if got := DefaultTarget(m); got != tc.want {
+			t.Errorf("DefaultTarget(%v) = %q, want %q", tc.interfaces, got, tc.want)
 		}
-	}
-}
-
-// TestInstallMCPTargetEndToEnd pins the §5.6 mcp row: default target from
-// the kind, extraction under <project>/agents/<name>, a server entry
-// merged into .mcp.json with args re-rooted at the extraction path, and
-// empty env placeholders for the declared secret names.
-func TestInstallMCPTargetEndToEnd(t *testing.T) {
-	isolate(t)
-	f := &fakeRegistry{
-		manifestDoc: map[string]any{
-			"schemaVersion": "1", "name": "demo", "namespace": "acme",
-			"kind": "mcp-server", "version": "1.0.0", "summary": "Test MCP server",
-			"entrypoints": map[string]any{"mcp": map[string]any{
-				"command": "node", "args": []string{"server.js"}, "transport": "stdio",
-			}},
-			"capabilities": map[string]any{"secrets": []string{"DEMO_TOKEN"}},
-			"runtime":      map[string]any{"interfaces": []string{"mcp"}},
-		},
-		archive: buildArchiveFiles(t, map[string]string{"server.js": "// server\n"}),
-	}
-	reg := startRegistry(t, f)
-	project := t.TempDir()
-	// Pre-existing config: the merge must preserve unrelated servers.
-	if err := os.WriteFile(filepath.Join(project, ".mcp.json"),
-		[]byte(`{"mcpServers":{"other":{"command":"python"}}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	e := NewEngine()
-	// Empty target: the manifest kind picks mcp (§5.6 defaults).
-	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "", project)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan.Target != manifest.InterfaceMCP || !plan.Paths.Managed {
-		t.Fatalf("plan target/paths = %q %+v", plan.Target, plan.Paths)
-	}
-	if plan.TargetWarning != "" {
-		t.Fatalf("declared interface must not warn: %q", plan.TargetWarning)
-	}
-	if len(plan.Secrets) != 1 || plan.Secrets[0] != "DEMO_TOKEN" {
-		t.Fatalf("plan secrets = %v", plan.Secrets)
-	}
-
-	res, err := e.Confirm(plan.ID, false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(project, "agents", "demo", "server.js")); err != nil {
-		t.Errorf("extracted server missing: %v", err)
-	}
-	if !strings.Contains(res.SecretsNote, "DEMO_TOKEN") {
-		t.Errorf("secrets note = %q", res.SecretsNote)
-	}
-	raw, err := os.ReadFile(filepath.Join(project, ".mcp.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc struct {
-		Servers map[string]struct {
-			Command string            `json:"command"`
-			Args    []string          `json:"args"`
-			Env     map[string]string `json:"env"`
-		} `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatal(err)
-	}
-	entry, ok := doc.Servers["demo"]
-	if !ok {
-		t.Fatalf("no demo entry merged:\n%s", raw)
-	}
-	if entry.Command != "node" || len(entry.Args) != 1 || entry.Args[0] != "agents/demo/server.js" {
-		t.Errorf("entry args not re-rooted: %+v", entry)
-	}
-	if v, ok := entry.Env["DEMO_TOKEN"]; !ok || v != "" {
-		t.Errorf("secret env placeholder wrong: %+v", entry.Env)
-	}
-	if _, ok := doc.Servers["other"]; !ok {
-		t.Errorf("unrelated server lost:\n%s", raw)
-	}
-
-	st, err := installed.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(st.Records) != 1 || !st.Records[0].Managed || st.Records[0].Target != manifest.InterfaceMCP {
-		t.Fatalf("record = %+v", st.Records)
 	}
 }
 
@@ -154,8 +72,9 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 	isolate(t)
 	f := &fakeRegistry{
 		manifestDoc: map[string]any{
-			"schemaVersion": "1", "name": "demo", "namespace": "acme",
-			"kind": "prompt-agent", "version": "1.0.0", "summary": "Prompt agent",
+			"schemaVersion": "2", "name": "demo", "namespace": "acme",
+			"modes": []string{"autonomous"}, "version": "1.0.0", "summary": "Prompt agent",
+			"runtime": map[string]any{"interfaces": []string{"agents-md", "claude-skill"}},
 		},
 		archive: buildArchiveFiles(t, map[string]string{"AGENT.md": "Do the prompt-agent thing.\n"}),
 	}
@@ -168,7 +87,7 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	if plan.Target != manifest.InterfaceAgentsMD {
-		t.Fatalf("default target for prompt-agent = %q", plan.Target)
+		t.Fatalf("default target from interfaces = %q", plan.Target)
 	}
 	if _, err := e.Confirm(plan.ID, false, false); err != nil {
 		t.Fatal(err)
@@ -205,67 +124,13 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 	}
 }
 
-// TestInstallMCPRefusesBrokenConfig: an existing .mcp.json that is not
-// valid JSON refuses the merge instead of overwriting the user's file.
-func TestInstallMCPRefusesBrokenConfig(t *testing.T) {
-	isolate(t)
-	f := &fakeRegistry{
-		manifestDoc: map[string]any{
-			"schemaVersion": "1", "name": "demo", "namespace": "acme",
-			"kind": "mcp-server", "version": "1.0.0", "summary": "Test MCP server",
-			"entrypoints": map[string]any{"mcp": map[string]any{
-				"command": "node", "args": []string{"server.js"}, "transport": "stdio",
-			}},
-		},
-		archive: buildArchiveFiles(t, map[string]string{"server.js": "// server\n"}),
-	}
-	reg := startRegistry(t, f)
-	project := t.TempDir()
-	if err := os.WriteFile(filepath.Join(project, ".mcp.json"), []byte("{broken"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	e := NewEngine()
-	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "mcp", project)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.Confirm(plan.ID, false, false); err == nil || !strings.Contains(err.Error(), "refusing to overwrite") {
-		t.Fatalf("err = %v, want the merge refusal", err)
-	}
-	if raw, _ := os.ReadFile(filepath.Join(project, ".mcp.json")); string(raw) != "{broken" {
-		t.Errorf("the user's config was rewritten: %s", raw)
-	}
-}
-
-// TestInstallMCPNeedsEntrypoint: exporting to mcp without a declared mcp
-// entrypoint is a refusal, not an empty server entry.
-func TestInstallMCPNeedsEntrypoint(t *testing.T) {
-	isolate(t)
-	f := &fakeRegistry{
-		manifestDoc: map[string]any{
-			"schemaVersion": "1", "name": "demo", "namespace": "acme",
-			"kind": "mcp-server", "version": "1.0.0", "summary": "No entrypoint",
-		},
-		archive: buildArchiveFiles(t, map[string]string{"server.js": "// server\n"}),
-	}
-	reg := startRegistry(t, f)
-	e := NewEngine()
-	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "mcp", t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.Confirm(plan.ID, false, false); err == nil || !strings.Contains(err.Error(), "no mcp entrypoint") {
-		t.Fatalf("err = %v, want the entrypoint refusal", err)
-	}
-}
-
 // TestPrepareRefusesTargetNeedingDir: the mcp target's missing-project
 // refusal surfaces from Prepare, before anything is parked.
 func TestPrepareRefusesTargetNeedingDir(t *testing.T) {
 	isolate(t)
 	reg := startRegistry(t, &fakeRegistry{})
 	e := NewEngine()
-	if _, err := e.Prepare(context.Background(), reg, "acme/demo", "mcp", ""); err == nil || !strings.Contains(err.Error(), "project directory") {
+	if _, err := e.Prepare(context.Background(), reg, "acme/demo", "agents-md", ""); err == nil || !strings.Contains(err.Error(), "project directory") {
 		t.Fatalf("err = %v, want the pick-a-project refusal", err)
 	}
 }
@@ -390,8 +255,8 @@ func TestUndeclaredTargetWarning(t *testing.T) {
 	if w := undeclaredTargetWarning(none, "claude-skill"); w != "" {
 		t.Errorf("no interfaces declared must not warn: %q", w)
 	}
-	m := &manifest.Manifest{Runtime: manifest.Runtime{Interfaces: []string{"mcp"}}}
-	if w := undeclaredTargetWarning(m, "mcp"); w != "" {
+	m := &manifest.Manifest{Runtime: manifest.Runtime{Interfaces: []string{"agents-md"}}}
+	if w := undeclaredTargetWarning(m, "agents-md"); w != "" {
 		t.Errorf("declared target must not warn: %q", w)
 	}
 	if w := undeclaredTargetWarning(m, "claude-skill"); !strings.Contains(w, "claude-skill") {
@@ -406,7 +271,7 @@ func TestListSorted(t *testing.T) {
 	for _, k := range []installed.Key{
 		{Registry: "r", Namespace: "zeta", Name: "a", Target: "claude-skill", Dir: "/d1"},
 		{Registry: "r", Namespace: "acme", Name: "b", Target: "claude-skill", Dir: "/d3"},
-		{Registry: "r", Namespace: "acme", Name: "b", Target: "mcp", Dir: "/d2"},
+		{Registry: "r", Namespace: "acme", Name: "b", Target: "agents-md", Dir: "/d2"},
 		{Registry: "r", Namespace: "acme", Name: "a", Target: "claude-skill", Dir: "/d4"},
 	} {
 		st.Upsert(k, "1.0.0", installed.CapSnapshot{}, false)

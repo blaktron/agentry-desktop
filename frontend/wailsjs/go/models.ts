@@ -1,5 +1,25 @@
 export namespace build {
 	
+	export class IntakeRow {
+	    id: string;
+	    prompt: string;
+	    type: string;
+	    required: boolean;
+	    choices: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new IntakeRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.prompt = source["prompt"];
+	        this.type = source["type"];
+	        this.required = source["required"];
+	        this.choices = source["choices"];
+	    }
+	}
 	export class MCPServerRow {
 	    source: string;
 	    package: string;
@@ -25,13 +45,16 @@ export namespace build {
 	export class Model {
 	    name: string;
 	    namespace: string;
-	    kind: string;
+	    modes: string[];
 	    version: string;
 	    summary: string;
 	    license: string;
 	    homepage?: string;
 	    tags: string[];
+	    instructionFile: string;
 	    instructions: string;
+	    intake: IntakeRow[];
+	    opening: string;
 	    egressMode: string;
 	    egressHosts: string[];
 	    fsRead: string;
@@ -51,13 +74,16 @@ export namespace build {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.namespace = source["namespace"];
-	        this.kind = source["kind"];
+	        this.modes = source["modes"];
 	        this.version = source["version"];
 	        this.summary = source["summary"];
 	        this.license = source["license"];
 	        this.homepage = source["homepage"];
 	        this.tags = source["tags"];
+	        this.instructionFile = source["instructionFile"];
 	        this.instructions = source["instructions"];
+	        this.intake = this.convertValues(source["intake"], IntakeRow);
+	        this.opening = source["opening"];
 	        this.egressMode = source["egressMode"];
 	        this.egressHosts = source["egressHosts"];
 	        this.fsRead = source["fsRead"];
@@ -116,9 +142,7 @@ export namespace install {
 	export class Paths {
 	    dest: string;
 	    managed: boolean;
-	    mcpConfig?: string;
 	    agentsMd?: string;
-	    extractedRel?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Paths(source);
@@ -128,9 +152,7 @@ export namespace install {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dest = source["dest"];
 	        this.managed = source["managed"];
-	        this.mcpConfig = source["mcpConfig"];
 	        this.agentsMd = source["agentsMd"];
-	        this.extractedRel = source["extractedRel"];
 	    }
 	}
 	export class Plan {
@@ -139,7 +161,7 @@ export namespace install {
 	    namespace: string;
 	    name: string;
 	    version: string;
-	    kind: string;
+	    modes: string[];
 	    summary: string;
 	    digest: string;
 	    yanked: boolean;
@@ -166,7 +188,7 @@ export namespace install {
 	        this.namespace = source["namespace"];
 	        this.name = source["name"];
 	        this.version = source["version"];
-	        this.kind = source["kind"];
+	        this.modes = source["modes"];
 	        this.summary = source["summary"];
 	        this.digest = source["digest"];
 	        this.yanked = source["yanked"];
@@ -270,6 +292,7 @@ export namespace installed {
 	    execCommands?: string[];
 	    secrets?: string[];
 	    dataAccess?: string[];
+	    mcpServers?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CapSnapshot(source);
@@ -286,6 +309,7 @@ export namespace installed {
 	        this.execCommands = source["execCommands"];
 	        this.secrets = source["secrets"];
 	        this.dataAccess = source["dataAccess"];
+	        this.mcpServers = source["mcpServers"];
 	    }
 	}
 	export class Diff {
@@ -403,7 +427,7 @@ export namespace main {
 	export class AgentView {
 	    namespace: string;
 	    name: string;
-	    kind: string;
+	    modes: string[];
 	    summary: string;
 	    visibility: string;
 	    quarantine?: string;
@@ -418,7 +442,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.namespace = source["namespace"];
 	        this.name = source["name"];
-	        this.kind = source["kind"];
+	        this.modes = source["modes"];
 	        this.summary = source["summary"];
 	        this.visibility = source["visibility"];
 	        this.quarantine = source["quarantine"];
@@ -493,6 +517,26 @@ export namespace main {
 	        this.excerpt = source["excerpt"];
 	        this.verdict = source["verdict"];
 	        this.verdictReason = source["verdictReason"];
+	    }
+	}
+	export class IntakeQuestionView {
+	    id: string;
+	    prompt: string;
+	    type: string;
+	    required: boolean;
+	    choices: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new IntakeQuestionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.prompt = source["prompt"];
+	        this.type = source["type"];
+	        this.required = source["required"];
+	        this.choices = source["choices"];
 	    }
 	}
 	export class MCPToolRow {
@@ -605,6 +649,7 @@ export namespace main {
 	    keep: boolean;
 	    storedSecretNames: string[];
 	    capabilityLines: string[];
+	    intake: IntakeQuestionView[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileStatusView(source);
@@ -619,7 +664,26 @@ export namespace main {
 	        this.keep = source["keep"];
 	        this.storedSecretNames = source["storedSecretNames"];
 	        this.capabilityLines = source["capabilityLines"];
+	        this.intake = this.convertValues(source["intake"], IntakeQuestionView);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class RegistryView {
 	    url: string;
@@ -726,7 +790,7 @@ export namespace main {
 	export class SearchHitView {
 	    namespace: string;
 	    name: string;
-	    kind: string;
+	    modes: string[];
 	    summary: string;
 	    installs30d: number;
 	    quarantine?: string;
@@ -739,7 +803,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.namespace = source["namespace"];
 	        this.name = source["name"];
-	        this.kind = source["kind"];
+	        this.modes = source["modes"];
 	        this.summary = source["summary"];
 	        this.installs30d = source["installs30d"];
 	        this.quarantine = source["quarantine"];
@@ -747,7 +811,7 @@ export namespace main {
 	}
 	export class SearchQuery {
 	    q: string;
-	    kind?: string;
+	    mode?: string;
 	    capability?: string;
 	    license?: string;
 	    sort?: string;
@@ -761,7 +825,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.q = source["q"];
-	        this.kind = source["kind"];
+	        this.mode = source["mode"];
 	        this.capability = source["capability"];
 	        this.license = source["license"];
 	        this.sort = source["sort"];
@@ -1035,7 +1099,7 @@ export namespace validate {
 	export class Result {
 	    dir: string;
 	    manifestName?: string;
-	    manifestKind?: string;
+	    manifestModes?: string[];
 	    manifestVersion?: string;
 	    manifestError?: string;
 	    issues: Issue[];
@@ -1058,7 +1122,7 @@ export namespace validate {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dir = source["dir"];
 	        this.manifestName = source["manifestName"];
-	        this.manifestKind = source["manifestKind"];
+	        this.manifestModes = source["manifestModes"];
 	        this.manifestVersion = source["manifestVersion"];
 	        this.manifestError = source["manifestError"];
 	        this.issues = this.convertValues(source["issues"], Issue);

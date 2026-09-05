@@ -166,9 +166,27 @@ func TestSavePreservesHandEditedReadme(t *testing.T) {
 
 func TestValidateRefusals(t *testing.T) {
 	m := model()
-	m.Kind = "mcp-server"
+	m.Modes = []string{"daemon"}
 	if err := m.Validate(); err == nil {
-		t.Fatal("mcp-server should be refused by the form")
+		t.Fatal("an unknown run mode should be refused by the form")
+	}
+	m = model()
+	m.Modes = nil
+	if err := m.Validate(); err == nil {
+		t.Fatal("no run mode should be refused by the form")
+	}
+	m = model()
+	m.Intake = []IntakeRow{{ID: "api_token", Prompt: "Token", Type: "secret"}}
+	if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "API_TOKEN") {
+		t.Fatalf("a secret intake question without its declared secret should be refused: %v", err)
+	}
+	m.Secrets = []string{"API_TOKEN"}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("secret intake with its declared secret: %v", err)
+	}
+	m.Intake = []IntakeRow{{ID: "Region", Prompt: "Which?", Type: "choice"}}
+	if err := m.Validate(); err == nil {
+		t.Fatal("a bad intake id should be refused")
 	}
 	m = model()
 	m.EgressMode = "hosts"

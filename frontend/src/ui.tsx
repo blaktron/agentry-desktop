@@ -17,8 +17,18 @@ export function Sev({ severity }: { severity: string }) {
   return <span className={`sev ${s}`}>{s.toUpperCase()}</span>;
 }
 
-export function KindBadge({ kind }: { kind: string }) {
-  return <span className="badge kind">{kind}</span>;
+/** Run-mode badges (manifest v2 modes), in a fixed order. */
+export function ModeBadges({ modes }: { modes?: string[] }) {
+  const set = new Set(modes ?? []);
+  const ordered = ["autonomous", "interactive"].filter((m) => set.has(m));
+  if (ordered.length === 0) return <span className="badge kind" title="no run mode declared">no mode</span>;
+  return (
+    <>
+      {ordered.map((m) => (
+        <span key={m} className="badge kind" title={m === "autonomous" ? "runs from its files and ends" : "a chat session under the same controls"}>{m}</span>
+      ))}
+    </>
+  );
 }
 
 export function QuarantineBadge({ state }: { state?: string }) {

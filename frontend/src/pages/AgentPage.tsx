@@ -4,7 +4,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { installed, main, trust } from "../../wailsjs/go/models";
 import {
-  CapabilityBadges, ErrorBox, Excerpt, KindBadge, QuarantineBadge, Sev,
+  CapabilityBadges, ErrorBox, Excerpt, ModeBadges, QuarantineBadge, Sev,
   SignedBadge, Spinner, fmtDate, shortDigest,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
@@ -103,7 +103,7 @@ export default function AgentPage({
         <h1 className="selectable">{a.namespace}/{a.name}</h1>
         <div className="row">
           <QuarantineBadge state={a.quarantine} />
-          <KindBadge kind={a.kind} />
+          <ModeBadges modes={a.modes} />
           {detail.latest
             ? (
               <>
@@ -235,7 +235,6 @@ export default function AgentPage({
         <InstallWizard
           registry={registry}
           agentRef={`${ns}/${name}@${detail.latest}`}
-          kind={a.kind}
           onClose={() => setInstalling(false)}
           onInstalled={refreshInstalls}
         />
