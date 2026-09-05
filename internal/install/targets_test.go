@@ -76,7 +76,7 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 			"modes": []string{"autonomous"}, "version": "1.0.0", "summary": "Prompt agent",
 			"runtime": map[string]any{"interfaces": []string{"agents-md", "claude-skill"}},
 		},
-		archive: buildArchiveFiles(t, map[string]string{"AGENT.md": "Do the prompt-agent thing.\n"}),
+		archive: buildArchiveFiles(t, map[string]string{"AGENT.md": "Do the agents-md thing.\n"}),
 	}
 	reg := startRegistry(t, f)
 	project := t.TempDir()
