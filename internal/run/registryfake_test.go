@@ -30,17 +30,17 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/registry"
 )
 
-// runManifestYAML is the fixture release's agent.yaml: a runnable skill
+// runManifestYAML is the fixture release's agent.yaml: a runnable release
 // declaring every capability class the compiler maps, plus one secret so
 // profile resolution is observable (modeled on the CLI engine fixture).
-const runManifestYAML = `schemaVersion: "1"
+const runManifestYAML = `schemaVersion: "2"
 name: reporter
 namespace: acme
-kind: skill
+modes: [autonomous]
 version: 1.0.0
 summary: "desktop run lifecycle fixture"
 entrypoints:
-  skill: SKILL.md
+  instruction: SKILL.md
 capabilities:
   network:
     egress: [api.example.com]
