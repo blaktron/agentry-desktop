@@ -45,7 +45,7 @@ func TestBrowserSignInCancel(t *testing.T) {
 	}
 
 	done := start()
-	if u := waitOpen(); !strings.HasPrefix(u, "https://registry.example.test/settings/tokens/desktop?port=") {
+	if u := waitOpen(); !strings.HasPrefix(u, "https://registry.example.test/ui/authorize?port=") {
 		t.Fatalf("authorize URL: %s", u)
 	}
 	// A second attempt while one is in flight is refused, and says how out.
