@@ -19,6 +19,8 @@ export default function Settings({
   const [notice, setNotice] = useState<string | null>(null);
   const [signIn, setSignIn] = useState<{ url: string; token: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // The registry a browser sign-in is waiting on; shows the Cancel control.
+  const [browserWait, setBrowserWait] = useState<string | null>(null);
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true);
@@ -62,6 +64,14 @@ export default function Settings({
       </p>
 
       <ErrorBox error={error} />
+      {browserWait && (
+        <div className="notice" role="status">
+          Waiting for your browser to authorize this app for <span className="mono">{browserWait}</span>.
+          Sign in there and click “Authorize the desktop app”. If the browser did not open, or you
+          closed it, cancel and try again.{" "}
+          <button onClick={() => void SettingsAPI.CancelBrowserSignIn()}>Cancel sign-in</button>
+        </div>
+      )}
       {notice && <div className="notice selectable">{notice}</div>}
 
       {settings.registries.map((r) => (
@@ -97,12 +107,23 @@ export default function Settings({
                     disabled={busy}
                     title="Opens the registry in your browser — sign in there (the directory service, MFA included) and approve the app"
                     onClick={() => wrap(async () => {
-                      setNotice("Complete the sign-in in your browser, then approve the desktop app…");
-                      const res = await SettingsAPI.SignInViaBrowser(r.url);
-                      setNotice(
-                        `Signed in to ${r.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600)"}. Signing keys: ${res.pinNote}`,
-                      );
-                      await onChanged();
+                      setBrowserWait(r.url);
+                      try {
+                        const res = await SettingsAPI.SignInViaBrowser(r.url);
+                        setNotice(
+                          `Signed in to ${r.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600)"}. Signing keys: ${res.pinNote}`,
+                        );
+                        await onChanged();
+                      } catch (e) {
+                        // Cancelled by the user (Cancel sign-in): a notice, not an error.
+                        if (String(e).includes("cancelled")) {
+                          setNotice(`Sign-in to ${r.url} cancelled.`);
+                          return;
+                        }
+                        throw e;
+                      } finally {
+                        setBrowserWait(null);
+                      }
                     })}
                   >
                     Sign in via browser
