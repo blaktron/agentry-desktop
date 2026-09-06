@@ -245,7 +245,11 @@ func saveProfileForSig(sig *Signature, secrets map[string]string, keep bool) (*P
 type Request struct {
 	Registry string
 	Ref      string
-	Task     string
+	// AllowVulnerableMCP runs even when the registry reports a high or
+	// critical advisory for a declared MCP server (the CLI's
+	// --allow-vulnerable-mcp); recorded in the receipt.
+	AllowVulnerableMCP bool
+	Task               string
 	// InputPaths feed the read-only /inputs channel (§P4).
 	InputPaths []string
 	// OutDir is where reports/receipts land ("" = ~/Downloads/agentry-out/
@@ -358,7 +362,20 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	serversDir := mcpinstall.StoreDir(profile.Dir(home, sig.Namespace, sig.Name, sig.Version, sig.DigestSuffix()))
 	var resolvedServers []mcpinstall.Resolved
 	var serverSpecs []spec.MCPServerSpec
+	var vulnLine string
 	if len(m.Capabilities.MCPServers) > 0 {
+		// The registry's vulnerability verdict on each declared server
+		// (agentry#177, DR-16), the same rule as `agentry run`: a known
+		// high/critical advisory refuses unless the request or the policy
+		// allows it; an unreachable registry does not stop the run; the
+		// receipt records the outcome.
+		statuses := mcpinstall.CheckVulnerabilities(ctx, nil, req.Registry, m.Capabilities.MCPServers)
+		_, _ = fmt.Fprintf(logw, "declared MCP servers, per the registry: %s\n", mcpinstall.Summary(statuses))
+		var refuseErr error
+		vulnLine, refuseErr = vulnerabilityVerdict(statuses, req.Registry, req.AllowVulnerableMCP, pol.MCPServers.AllowVulnerable)
+		if refuseErr != nil {
+			return nil, refuseErr
+		}
 		resolvedServers, err = ensureServerResolutions(ctx, logw, serversDir, pol, m)
 		if err != nil {
 			return nil, err
@@ -369,6 +386,12 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode)
 	if err != nil {
 		return nil, err
+	}
+	if vulnLine != "" {
+		if plan.Enforcement == nil {
+			plan.Enforcement = map[string]string{}
+		}
+		plan.Enforcement["mcpServers.vulnerabilities"] = vulnLine
 	}
 
 	docker := newDockerClient()
