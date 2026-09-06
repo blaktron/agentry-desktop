@@ -6,6 +6,10 @@ export function AddRegistry(arg1) {
   return window['go']['main']['SettingsAPI']['AddRegistry'](arg1);
 }
 
+export function CancelBrowserSignIn() {
+  return window['go']['main']['SettingsAPI']['CancelBrowserSignIn']();
+}
+
 export function Get() {
   return window['go']['main']['SettingsAPI']['Get']();
 }

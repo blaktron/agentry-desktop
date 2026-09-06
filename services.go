@@ -24,6 +24,8 @@ import (
 // SettingsAPI manages registries and credentials.
 type SettingsAPI struct {
 	app *App
+	// open replaces App.OpenExternal in tests; nil means the real browser.
+	open func(url string) error
 }
 
 // RegistryView is one configured registry as the frontend sees it.
