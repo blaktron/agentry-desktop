@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddRegistry(arg1:string):Promise<main.SettingsView>;
 
+export function CancelBrowserSignIn():Promise<boolean>;
+
 export function Get():Promise<main.SettingsView>;
 
 export function RegistryMeta(arg1:string):Promise<main.MetaView>;
