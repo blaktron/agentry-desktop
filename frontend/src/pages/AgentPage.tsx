@@ -122,6 +122,30 @@ export default function AgentPage({
       </div>
 
       {removeMsg && <div className="notice selectable">{removeMsg}</div>}
+      {detail.dependencyAlerts.length > 0 && (
+        <div className="card selectable">
+          <strong>Open dependency alerts</strong>
+          <p className="muted small" style={{ margin: "4px 0 6px" }}>
+            Versions you published declare an MCP server version with a newly known high or
+            critical vulnerability. An alert closes when the version is yanked, quarantined or
+            blocked, or when the advisory is withdrawn; publishing a fixed version does not close it.
+          </p>
+          {detail.dependencyAlerts.map((al) => (
+            <div key={al.id} className="spread" style={{ marginTop: 4 }}>
+              <div className="grow">
+                <span className="mono">v{al.version}</span>{" "}
+                <span className="mono">{al.ecosystem}:{al.package}@{al.packageVersion}</span>{" "}
+                <Sev severity={al.severity} />{" "}
+                <span className="small">
+                  {al.advisoryIds.join(", ")}
+                  {al.fixedIn.length > 0 ? `; fixed in ${al.fixedIn.join(", ")}` : ""}
+                </span>
+              </div>
+              <span className="muted small">{fmtDate(al.createdAt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {installs.length > 0 && (
         <div className="card">
           <strong>Installed on this machine</strong>
@@ -317,6 +341,44 @@ function MCPSection({
       {info.servers.map((s) => (
         <p key={s} style={{ margin: "4px 0" }}>{s}</p>
       ))}
+      {info.vulnerabilities.length > 0 && (
+        <>
+          <h3>Declared servers, per the registry</h3>
+          <table className="plain">
+            <thead>
+              <tr><th>server</th><th>status</th><th>advisories</th></tr>
+            </thead>
+            <tbody>
+              {info.vulnerabilities.map((v) => (
+                <tr key={v.ref}>
+                  <td className="mono">{v.ref}</td>
+                  <td>
+                    {v.status}
+                    {v.maxSeverity ? <> <Sev severity={v.maxSeverity} /></> : null}
+                    {v.error ? <span className="muted small"> {v.error}</span> : null}
+                  </td>
+                  <td className="small">
+                    {(v.advisories ?? []).map((a) => (
+                      <div key={a.id}>
+                        <span className="mono">{a.id}</span> {a.severity}
+                        {a.fixedIn.length > 0 ? `, fixed in ${a.fixedIn.join(", ")}` : ""}
+                      </div>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {info.refusal
+            ? (
+              <div className="error-box selectable">
+                Runs are refused by default: {info.refusal}. The run panel has the override; it is
+                recorded in the run&apos;s receipt.
+              </div>
+            )
+            : <p className="muted small">Declared MCP servers {info.vulnerabilityLine}.</p>}
+        </>
+      )}
       {info.dataAccess.length > 0 && (
         <p className="muted small">
           Operator-cataloged MCP servers may be attached for the declared dataAccess{" "}

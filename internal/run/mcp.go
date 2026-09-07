@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"sort"
 	"strings"
 
@@ -43,6 +44,13 @@ type MCPInfo struct {
 	EmbeddedTools []string
 	// CapabilityLines is the declared contract, rendered.
 	CapabilityLines []string
+	// Vulnerabilities is the registry's verdict on each declared MCP server
+	// (agentry#177); VulnerabilityLine is the receipt line a run would
+	// record and Refusal the refusal text when a run would be refused
+	// without the run panel's override ("" when it would run).
+	Vulnerabilities   []mcpvuln.Status
+	VulnerabilityLine string
+	Refusal           string
 }
 
 // Requirements resolves ns/name's latest published release and computes
@@ -76,6 +84,8 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 		}
 		info.Servers = append(info.Servers, desc)
 	}
+	vr := mcpvuln.Check(ctx, regURL, c.MCPServers)
+	info.Vulnerabilities, info.VulnerabilityLine, info.Refusal = vr.Statuses, vr.Line, vr.Refusal
 	return info, nil
 }
 

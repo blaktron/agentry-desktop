@@ -354,6 +354,24 @@ type AgentDetailView struct {
 	LatestCapabilities map[string]interface{} `json:"latestCapabilities,omitempty"`
 	// LatestDigest is Latest's archive digest (provenance panel).
 	LatestDigest string `json:"latestDigest,omitempty"`
+	// DependencyAlerts are the signed-in viewer's open alerts on this agent
+	// (agentry#177): versions they published that declare an MCP server
+	// version with a newly known high or critical vulnerability. Empty for
+	// a viewer who is not the publisher or not signed in.
+	DependencyAlerts []DependencyAlertView `json:"dependencyAlerts"`
+}
+
+// DependencyAlertView is one open dependency alert.
+type DependencyAlertView struct {
+	ID             string   `json:"id"`
+	Version        string   `json:"version"`
+	Ecosystem      string   `json:"ecosystem"`
+	Package        string   `json:"package"`
+	PackageVersion string   `json:"packageVersion"`
+	Severity       string   `json:"severity"`
+	AdvisoryIDs    []string `json:"advisoryIds"`
+	FixedIn        []string `json:"fixedIn"`
+	CreatedAt      string   `json:"createdAt"`
 }
 
 // Agent fetches the agent header plus version history.
@@ -376,7 +394,27 @@ func (b *BrowseAPI) Agent(reg, ns, name string) (*AgentDetailView, error) {
 			Summary: a.Summary, Visibility: string(a.Visibility),
 			CreatedAt: a.CreatedAt.Format(time.RFC3339), GitHTTPURL: a.GitHttpUrl,
 		},
-		Versions: []VersionView{},
+		Versions:         []VersionView{},
+		DependencyAlerts: []DependencyAlertView{},
+	}
+	if settings.TokenFor(reg) != "" {
+		// The alerts endpoint is the caller's own; a viewer who is not the
+		// publisher gets none, and a registry that cannot answer (an older
+		// release, a lapsed token) leaves the list empty rather than
+		// failing the page.
+		if dresp, derr := client.ListUserDependencyAlertsWithResponse(b.app.ctx); derr == nil && dresp.JSON200 != nil {
+			for _, al := range *dresp.JSON200 {
+				if al.Agent != ns+"/"+name {
+					continue
+				}
+				out.DependencyAlerts = append(out.DependencyAlerts, DependencyAlertView{
+					ID: al.Id.String(), Version: al.Version, Ecosystem: string(al.Ecosystem),
+					Package: al.Package, PackageVersion: al.PackageVersion, Severity: string(al.Severity),
+					AdvisoryIDs: emptyNotNil(al.AdvisoryIds), FixedIn: emptyNotNil(al.FixedIn),
+					CreatedAt: al.CreatedAt.Format(time.RFC3339),
+				})
+			}
+		}
 	}
 	if a.QuarantineState != "none" {
 		out.Agent.Quarantine = string(a.QuarantineState)

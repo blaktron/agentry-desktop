@@ -9,6 +9,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"io"
 	"sync"
 	"time"
@@ -68,22 +69,23 @@ type SessionEventView struct {
 // consent-recorded contract, images, profile and intake as RunAgent, then
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP bool) (*SessionView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
 	logw := r.eventWriter(eventRunLog)
 	s, err := run.StartSession(r.app.ctx, run.Request{
-		Registry:       reg,
-		Ref:            ref,
-		Task:           task,
-		InputPaths:     inputPaths,
-		OutDir:         outDir,
-		KeepProfile:    keepProfile,
-		TimeoutSeconds: timeoutSec,
-		MaxTurns:       maxTurns,
-		AcceptUnsigned: acceptUnsigned,
-		Intake:         intakeAnswers,
+		Registry:           reg,
+		Ref:                ref,
+		Task:               task,
+		InputPaths:         inputPaths,
+		OutDir:             outDir,
+		KeepProfile:        keepProfile,
+		TimeoutSeconds:     timeoutSec,
+		MaxTurns:           maxTurns,
+		AcceptUnsigned:     acceptUnsigned,
+		AllowVulnerableMCP: allowVulnerableMCP,
+		Intake:             intakeAnswers,
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -312,7 +314,7 @@ type RunResultView struct {
 // overrides the tool-call budget (0 = unlimited, -1 = policy default).
 // acceptUnsigned is the explicit consent for a release without an
 // attestation; without it such a run is refused in Go (desktop#3).
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string) (*RunResultView, error) {
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP bool) (*RunResultView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -320,16 +322,17 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	logw := r.eventWriter(eventRunLog)
 	defer logw.Flush()
 	res, err := run.Run(r.app.ctx, run.Request{
-		Registry:       reg,
-		Ref:            ref,
-		Task:           task,
-		InputPaths:     inputPaths,
-		OutDir:         outDir,
-		KeepProfile:    keepProfile,
-		TimeoutSeconds: timeoutSec,
-		MaxTurns:       maxTurns,
-		AcceptUnsigned: acceptUnsigned,
-		Intake:         intakeAnswers,
+		Registry:           reg,
+		Ref:                ref,
+		Task:               task,
+		InputPaths:         inputPaths,
+		OutDir:             outDir,
+		KeepProfile:        keepProfile,
+		TimeoutSeconds:     timeoutSec,
+		MaxTurns:           maxTurns,
+		AcceptUnsigned:     acceptUnsigned,
+		AllowVulnerableMCP: allowVulnerableMCP,
+		Intake:             intakeAnswers,
 	}, logw)
 	if err != nil {
 		return nil, err
@@ -376,6 +379,11 @@ type MCPView struct {
 	DataAccess      []string     `json:"dataAccess"`
 	EmbeddedTools   []string     `json:"embeddedTools"`
 	CapabilityLines []string     `json:"capabilityLines"`
+	// Vulnerabilities is the registry's verdict on each declared MCP server;
+	// Refusal is the text a run meets by default (agentry#177).
+	Vulnerabilities   []mcpvuln.Status `json:"vulnerabilities"`
+	VulnerabilityLine string           `json:"vulnerabilityLine,omitempty"`
+	Refusal           string           `json:"refusal,omitempty"`
 }
 
 // GatewayRequirements computes the tool surface the latest published
@@ -387,14 +395,20 @@ func (r *RunAPI) GatewayRequirements(reg, ns, name string) (*MCPView, error) {
 		return nil, err
 	}
 	v := &MCPView{
-		Ref:             info.Ref,
-		Version:         info.Version,
-		ToolRows:        []MCPToolRow{},
-		Servers:         emptyNotNil(info.Servers),
-		SecretNames:     emptyNotNil(info.SecretNames),
-		DataAccess:      emptyNotNil(info.DataAccess),
-		EmbeddedTools:   emptyNotNil(info.EmbeddedTools),
-		CapabilityLines: emptyNotNil(info.CapabilityLines),
+		Ref:               info.Ref,
+		Version:           info.Version,
+		ToolRows:          []MCPToolRow{},
+		Servers:           emptyNotNil(info.Servers),
+		SecretNames:       emptyNotNil(info.SecretNames),
+		DataAccess:        emptyNotNil(info.DataAccess),
+		EmbeddedTools:     emptyNotNil(info.EmbeddedTools),
+		CapabilityLines:   emptyNotNil(info.CapabilityLines),
+		Vulnerabilities:   info.Vulnerabilities,
+		VulnerabilityLine: info.VulnerabilityLine,
+		Refusal:           info.Refusal,
+	}
+	if v.Vulnerabilities == nil {
+		v.Vulnerabilities = []mcpvuln.Status{}
 	}
 	for _, row := range info.ToolRows {
 		v.ToolRows = append(v.ToolRows, MCPToolRow{Tool: row.Tool, GrantedBy: row.GrantedBy})

@@ -53,6 +53,11 @@ export default function RunPanel({
   const [timeoutSec, setTimeoutSec] = useState("");
   const [maxTurns, setMaxTurns] = useState("");
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
+  // The registry's verdict on the declared MCP servers (agentry#177): a
+  // known high/critical advisory refuses the run unless this override
+  // (recorded in the receipt) or the operator policy allows it.
+  const [mcp, setMcp] = useState<main.MCPView | null>(null);
+  const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(false);
 
   // Run state.
   const [running, setRunning] = useState(false);
@@ -63,6 +68,7 @@ export default function RunPanel({
 
   useEffect(() => {
     RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
+    RunAPI.GatewayRequirements(registry, ns, name).then(setMcp).catch(() => setMcp(null));
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
         setProfile(p);
@@ -93,6 +99,7 @@ export default function RunPanel({
   const provPending = attestation == null;
   const unsigned = attestation?.state === "unsigned";
   const unverifiable = attestation != null && attestation.state !== "verified" && !unsigned;
+  const refused = !!mcp?.refusal;
   const needsProfile = !!profile && profile.declaredSecrets.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   const canRun =
@@ -103,7 +110,8 @@ export default function RunPanel({
     intakeMissing.length === 0 &&
     !provPending &&
     !unverifiable &&
-    (!unsigned || acceptUnsigned);
+    (!unsigned || acceptUnsigned) &&
+    (!refused || allowVulnerableMCP);
 
   const defaultOutHint = useMemo(
     () => `~/Downloads/agentry-out/${ns}-${name}-<runid>`,
@@ -179,7 +187,7 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers());
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP);
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
@@ -437,6 +445,20 @@ export default function RunPanel({
             </span>
           </label>
         )}
+        {refused && (
+          <label className="check-row">
+            <input type="checkbox" checked={allowVulnerableMCP} onChange={(e) => setAllowVulnerableMCP(e.target.checked)} />
+            <span>
+              <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
+              <span className="muted selectable">
+                {mcp?.refusal}. The override is recorded in the run&apos;s receipt.
+              </span>
+            </span>
+          </label>
+        )}
+        {!refused && mcp?.vulnerabilityLine && (
+          <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>
+        )}
         {unverifiable && (
           <div className="error-box selectable">
             Attestation {attestation?.state}: {attestation?.detail} — the runner re-verifies before
@@ -473,6 +495,7 @@ export default function RunPanel({
             timeoutSec={timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0)}
             maxTurns={maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0)}
             acceptUnsigned={unsigned && acceptUnsigned}
+            allowVulnerableMCP={refused && allowVulnerableMCP}
             intakeAnswers={intakeAnswers()}
             opening={profile?.opening ?? ""}
             onResult={(r, err) => {

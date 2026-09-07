@@ -34,7 +34,7 @@ type Line =
   | { kind: "warn"; text: string };
 
 export default function SessionChat({
-  registry, agentRef, task, inputs, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, opening, onResult,
+  registry, agentRef, task, inputs, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, allowVulnerableMCP, intakeAnswers, opening, onResult,
 }: {
   registry: string;
   agentRef: string;
@@ -45,6 +45,8 @@ export default function SessionChat({
   timeoutSec: number;
   maxTurns: number;
   acceptUnsigned: boolean;
+  /** Run despite a known high/critical advisory on a declared MCP server (recorded in the receipt). */
+  allowVulnerableMCP: boolean;
   intakeAnswers: Record<string, string>;
   opening: string;
   /** Called once the session has ended and its envelope is written. */
@@ -111,7 +113,7 @@ export default function SessionChat({
     let cancelled = false;
     (async () => {
       try {
-        await RunAPI.StartSession(registry, agentRef, task, inputs, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers);
+        await RunAPI.StartSession(registry, agentRef, task, inputs, outDir, keepProfile, timeoutSec, maxTurns, acceptUnsigned, intakeAnswers, allowVulnerableMCP);
         if (!cancelled) {
           if (!task.trim() && opening.trim()) setLines((p) => [...p, { kind: "assistant", text: opening }]);
           setStarting(false);
