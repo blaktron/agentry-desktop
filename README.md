@@ -81,13 +81,22 @@ Install records and pinned signing keys are shared files under
 ## Building
 
 Prereqs: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
-(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`), and access to
-the private `blaktron` modules:
+(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`); on Linux the
+GTK 3 and WebKit2GTK 4.1 development headers.
+
+**Until the repositories are public** (the open core is private until the
+operator flips it; see `PUBLIC-FLIP.md` in agentry-notes), the core and CLI
+modules cannot be fetched anonymously. Either build from a workspace whose
+`go.work` resolves `github.com/blaktron/agentry` and
+`github.com/blaktron/agentry-cli` against sibling checkouts, or:
 
 ```bash
-export GOPRIVATE='github.com/blaktron/*'
-# plus a PAT for github.com/blaktron via credential helper or insteadOf
+export GOPRIVATE='github.com/blaktron/*' GONOSUMDB='github.com/blaktron/*'
+# plus a read token for github.com/blaktron via a credential helper or insteadOf
 ```
+
+CI does the same with the `AGENTRY_BUILD_TOKEN` secret. All of this goes
+away at the flip.
 
 | task | command |
 |---|---|
@@ -106,18 +115,26 @@ apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev npm golang
 wails build -platform linux/amd64
 ```
 
-(The dev stack's Fedora server builds it inside an Ubuntu container — see
+(A host without those headers can build inside an Ubuntu container — see
 `scripts/build-linux.sh`.)
 
-Artifacts are not committed; they attach to GitHub releases (currently a
-manual step — the deploy PAT lacks the `workflow` scope, so there is no
-Actions pipeline in this repo).
+CI (`ci.yaml`: `check` and `govulncheck`) runs on the project's own
+runners. Artifacts are not committed; they attach to GitHub releases, still
+a manual step (the hosted service builds and serves its own binaries from
+the site repository).
 
-## First run against a dev stack
+## The registry it talks to
 
-Settings → Add a registry → `http://agentry:8080` → Use. Anonymous browsing
-works; sign in with a PAT (web app → Settings → Tokens, or `agentry login`)
-to see private agents and to pin signing keys deliberately at login.
+The app works against any Agentry registry — the hosted service or one you
+run from the open core ([self-hosting guide](https://github.com/blaktron/agentry/blob/main/docs/self-hosting.md)).
+Settings → Add a registry → its URL (`http://localhost:8080` for a local
+stack) → Use; the first one added becomes the default (`defaultRegistry`
+in the app's config file), and a hosted build may compile one in. Anonymous
+browsing works; **Sign in** opens the registry's own `/ui/authorize` page
+in your browser and brings a scoped token back to the app, which is when
+the registry's signing keys are pinned — a personal access token pasted from
+the registry (its `/ui/account/tokens` page, the site's Settings → Tokens,
+or `agentry login`) does the same.
 
 ## Conventions
 
