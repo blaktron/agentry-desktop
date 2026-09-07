@@ -24,7 +24,11 @@ The product never claims an agent is "safe". The language is always:
   with explicit confirmation on any widening) → export → record. An unsigned
   release requires an explicit checkbox, mirroring the CLI's
   `--allow-unsigned`. A signature that fails to verify aborts — there is no
-  override for that.
+  override for that. The wizard also shows the registry's verdict on each
+  declared MCP server; a known high or critical advisory refuses runs by
+  default (the run panel's "allow vulnerable MCP servers" override, recorded
+  in the receipt, or the operator policy lifts it), and the agent page shows
+  the verdict per server and, for the publisher, the open dependency alerts.
 - **Run** — run a BriefAgent from the app (RUNNER-PLAN-2 §P6) with the same
   lifecycle `agentry run` executes: verify (digest + DSSE, the install
   gate) → materialize into the shared `~/.agentry/runner` cache → compile

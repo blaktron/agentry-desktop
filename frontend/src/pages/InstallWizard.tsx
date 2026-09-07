@@ -146,6 +146,16 @@ export default function InstallWizard({
             </div>
 
             {plan.targetWarning && <div className="notice">{plan.targetWarning}</div>}
+            {plan.vulnerabilityRefusal && (
+              <div className="notice selectable">
+                <strong>Runs of this release are refused by default.</strong> {plan.vulnerabilityRefusal}.
+                Installing records the declared servers as they are; the run panel has the override,
+                which is recorded in the run&apos;s receipt.
+              </div>
+            )}
+            {!plan.vulnerabilityRefusal && plan.vulnerabilityLine && (
+              <p className="muted small">Declared MCP servers {plan.vulnerabilityLine}.</p>
+            )}
 
             <h3>Declared capabilities</h3>
             <CapsTable caps={plan.capabilities} />

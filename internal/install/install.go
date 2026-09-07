@@ -17,6 +17,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"os"
 	"path/filepath"
 	"sort"
@@ -136,8 +137,15 @@ type Plan struct {
 	// RequiresWidenedConfirm: the diff widens the contract (§11).
 	RequiresWidenedConfirm bool `json:"requiresWidenedConfirm"`
 
-	Target string `json:"target"`
-	Paths  Paths  `json:"paths"`
+	// Vulnerabilities is the registry's verdict on each declared MCP server
+	// (agentry#177): VulnerabilityLine the receipt line a run would record,
+	// VulnerabilityRefusal the refusal a run meets by default ("" when it
+	// would run). Installing never refuses; the run panel has the override.
+	Vulnerabilities      []mcpvuln.Status `json:"vulnerabilities"`
+	VulnerabilityLine    string           `json:"vulnerabilityLine,omitempty"`
+	VulnerabilityRefusal string           `json:"vulnerabilityRefusal,omitempty"`
+	Target               string           `json:"target"`
+	Paths                Paths            `json:"paths"`
 	// TargetWarning is set when runtime.interfaces omits the chosen target.
 	TargetWarning string `json:"targetWarning,omitempty"`
 	// Secrets lists declared secret NAMES the user must fill in (mcp env).
@@ -268,6 +276,8 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if w := undeclaredTargetWarning(m, target); w != "" {
 		plan.TargetWarning = w
 	}
+	vr := mcpvuln.Check(ctx, regURL, m.Capabilities.MCPServers)
+	plan.Vulnerabilities, plan.VulnerabilityLine, plan.VulnerabilityRefusal = vr.Statuses, vr.Line, vr.Refusal
 
 	key := installed.Key{
 		Registry: regURL, Namespace: res.Namespace, Name: m.Name,

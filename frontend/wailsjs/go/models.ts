@@ -172,6 +172,9 @@ export namespace install {
 	    prevVersion?: string;
 	    diff?: installed.Diff;
 	    requiresWidenedConfirm: boolean;
+	    vulnerabilities: mcpvuln.Status[];
+	    vulnerabilityLine?: string;
+	    vulnerabilityRefusal?: string;
 	    target: string;
 	    paths: Paths;
 	    targetWarning?: string;
@@ -199,6 +202,9 @@ export namespace install {
 	        this.prevVersion = source["prevVersion"];
 	        this.diff = this.convertValues(source["diff"], installed.Diff);
 	        this.requiresWidenedConfirm = source["requiresWidenedConfirm"];
+	        this.vulnerabilities = this.convertValues(source["vulnerabilities"], mcpvuln.Status);
+	        this.vulnerabilityLine = source["vulnerabilityLine"];
+	        this.vulnerabilityRefusal = source["vulnerabilityRefusal"];
 	        this.target = source["target"];
 	        this.paths = this.convertValues(source["paths"], Paths);
 	        this.targetWarning = source["targetWarning"];
@@ -398,6 +404,34 @@ export namespace installed {
 
 export namespace main {
 	
+	export class DependencyAlertView {
+	    id: string;
+	    version: string;
+	    ecosystem: string;
+	    package: string;
+	    packageVersion: string;
+	    severity: string;
+	    advisoryIds: string[];
+	    fixedIn: string[];
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DependencyAlertView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.version = source["version"];
+	        this.ecosystem = source["ecosystem"];
+	        this.package = source["package"];
+	        this.packageVersion = source["packageVersion"];
+	        this.severity = source["severity"];
+	        this.advisoryIds = source["advisoryIds"];
+	        this.fixedIn = source["fixedIn"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
 	export class VersionView {
 	    version: string;
 	    channel: string;
@@ -456,6 +490,7 @@ export namespace main {
 	    latest: string;
 	    latestCapabilities?: Record<string, any>;
 	    latestDigest?: string;
+	    dependencyAlerts: DependencyAlertView[];
 	
 	    static createFrom(source: any = {}) {
 	        return new AgentDetailView(source);
@@ -468,6 +503,7 @@ export namespace main {
 	        this.latest = source["latest"];
 	        this.latestCapabilities = source["latestCapabilities"];
 	        this.latestDigest = source["latestDigest"];
+	        this.dependencyAlerts = this.convertValues(source["dependencyAlerts"], DependencyAlertView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -488,6 +524,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	export class FindingView {
 	    scanner: string;
@@ -562,6 +599,9 @@ export namespace main {
 	    dataAccess: string[];
 	    embeddedTools: string[];
 	    capabilityLines: string[];
+	    vulnerabilities: mcpvuln.Status[];
+	    vulnerabilityLine?: string;
+	    refusal?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MCPView(source);
@@ -577,6 +617,9 @@ export namespace main {
 	        this.dataAccess = source["dataAccess"];
 	        this.embeddedTools = source["embeddedTools"];
 	        this.capabilityLines = source["capabilityLines"];
+	        this.vulnerabilities = this.convertValues(source["vulnerabilities"], mcpvuln.Status);
+	        this.vulnerabilityLine = source["vulnerabilityLine"];
+	        this.refusal = source["refusal"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1002,6 +1045,71 @@ export namespace main {
 		}
 	}
 	
+
+}
+
+export namespace mcpvuln {
+	
+	export class Advisory {
+	    id: string;
+	    severity: string;
+	    summary: string;
+	    fixedIn: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Advisory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.severity = source["severity"];
+	        this.summary = source["summary"];
+	        this.fixedIn = source["fixedIn"];
+	    }
+	}
+	export class Status {
+	    ref: string;
+	    status: string;
+	    maxSeverity?: string;
+	    advisories: Advisory[];
+	    checkedAt?: string;
+	    error?: string;
+	    refuses: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.status = source["status"];
+	        this.maxSeverity = source["maxSeverity"];
+	        this.advisories = this.convertValues(source["advisories"], Advisory);
+	        this.checkedAt = source["checkedAt"];
+	        this.error = source["error"];
+	        this.refuses = source["refuses"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 

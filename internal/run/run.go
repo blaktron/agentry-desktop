@@ -38,6 +38,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -372,7 +373,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		statuses := mcpinstall.CheckVulnerabilities(ctx, nil, req.Registry, m.Capabilities.MCPServers)
 		_, _ = fmt.Fprintf(logw, "declared MCP servers, per the registry: %s\n", mcpinstall.Summary(statuses))
 		var refuseErr error
-		vulnLine, refuseErr = vulnerabilityVerdict(statuses, req.Registry, req.AllowVulnerableMCP, pol.MCPServers.AllowVulnerable)
+		vulnLine, refuseErr = mcpvuln.Verdict(statuses, req.Registry, req.AllowVulnerableMCP, pol.MCPServers.AllowVulnerable)
 		if refuseErr != nil {
 			return nil, refuseErr
 		}
