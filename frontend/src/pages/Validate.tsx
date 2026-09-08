@@ -5,7 +5,7 @@ import { useState } from "react";
 import * as ValidateAPI from "../../wailsjs/go/main/ValidateAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { validate } from "../../wailsjs/go/models";
-import { ErrorBox, Excerpt, Sev, Spinner } from "../ui";
+import { Button, Card, ErrorBox, Excerpt, Input, ModeBadges, Notice, PageHeader, Sev, Spinner, Toolbar } from "../ui";
 
 export default function Validate() {
   const [dir, setDir] = useState("");
@@ -41,15 +41,13 @@ export default function Validate() {
 
   return (
     <div>
-      <h1>Validate</h1>
-      <p className="page-sub">
-        Run a local agent folder through the manifest rules (V1–V8), the S1 inventory
-        (content-sniffed binaries, nested archives, encoding), and the S3/S4 hidden-content
-        and injection-signature scanners — the same code the registry runs at publish time.
-      </p>
+      <PageHeader
+        title="Validate"
+        sub="Run a local agent folder through the manifest rules (V1–V8), the S1 inventory (content-sniffed binaries, nested archives, encoding), and the S3/S4 hidden-content and injection-signature scanners — the same code the registry runs at publish time."
+      />
 
-      <div className="row">
-        <input
+      <Toolbar>
+        <Input
           type="text"
           className="grow mono"
           placeholder="Path to an agent folder (contains agent.yaml)"
@@ -57,9 +55,9 @@ export default function Validate() {
           onChange={(e) => setDir(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && run()}
         />
-        <button onClick={pick}>Choose…</button>
-        <button className="primary" disabled={!dir || busy} onClick={() => run()}>Validate</button>
-      </div>
+        <Button onClick={pick}>Choose…</Button>
+        <Button variant="primary" disabled={!dir} busy={busy} busyLabel="Scanning…" onClick={() => run()}>Validate</Button>
+      </Toolbar>
 
       <ErrorBox error={error} />
       {busy && <Spinner label="Scanning…" />}
@@ -73,25 +71,25 @@ function ResultView({ r }: { r: validate.Result }) {
   const totalProblems = r.errorCount + r.inventoryFailing + r.findings.length;
   return (
     <div>
-      <div className="card">
+      <Card>
         <div className="row">
           {r.passed
             ? <span className="badge ok">PASSED</span>
             : <span className="badge bad">FAILED — {totalProblems || r.warnCount} problem{(totalProblems || r.warnCount) === 1 ? "" : "s"}</span>}
           {r.manifestName && <strong className="selectable">{r.manifestName}</strong>}
-          {(r.manifestModes ?? []).map((mode) => <span key={mode} className="badge kind">{mode}</span>)}
+          <ModeBadges modes={r.manifestModes} />
           {r.manifestVersion && <span className="mono">v{r.manifestVersion}</span>}
         </div>
-        <p className="muted small">
+        <p className="muted small" style={{ marginBottom: 0 }}>
           {r.fileCount} file{r.fileCount === 1 ? "" : "s"} scanned · rule bundle {r.bundleVersion} ({r.bundleSource})
           {r.warnCount > 0 && <> · {r.warnCount} manifest warning{r.warnCount === 1 ? "" : "s"}</>}
         </p>
-        {r.manifestError && <div className="notice selectable">{r.manifestError}</div>}
+        {r.manifestError && <Notice tone="warn">{r.manifestError}</Notice>}
         {(r.readErrors ?? []).map((e, i) => <div key={i} className="error-box">{e}</div>)}
-      </div>
+      </Card>
 
       {r.issues.length > 0 && (
-        <div className="card">
+        <Card>
           <h3 style={{ marginTop: 0 }}>Manifest (rules V1–V8, public-publish context)</h3>
           {r.issues.map((iss, i) => (
             <div key={i} className="finding">
@@ -103,13 +101,13 @@ function ResultView({ r }: { r: validate.Result }) {
               <div className="selectable">{iss.message}</div>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
-      <div className="card">
+      <Card>
         <h3 style={{ marginTop: 0 }}>Inventory (S1)</h3>
         {r.inventory.length === 0
-          ? <p className="muted">Clean — no binaries, nested archives, or encoding problems.</p>
+          ? <p className="muted" style={{ marginBottom: 0 }}>Clean — no binaries, nested archives, or encoding problems.</p>
           : r.inventory.map((f, i) => (
             <div key={i} className="finding">
               <div className="row">
@@ -121,12 +119,12 @@ function ResultView({ r }: { r: validate.Result }) {
               <div className="muted small">{f.detail}</div>
             </div>
           ))}
-      </div>
+      </Card>
 
-      <div className="card">
+      <Card>
         <h3 style={{ marginTop: 0 }}>Content scan (S3 hidden-content + S4 signatures)</h3>
         {r.findings.length === 0
-          ? <p className="muted">Clean — {r.fileCount} file{r.fileCount === 1 ? "" : "s"}, no findings.</p>
+          ? <p className="muted" style={{ marginBottom: 0 }}>Clean — {r.fileCount} file{r.fileCount === 1 ? "" : "s"}, no findings.</p>
           : r.findings.map((f, i) => (
             <div key={i} className="finding">
               <div className="row">
@@ -139,11 +137,11 @@ function ResultView({ r }: { r: validate.Result }) {
               <Excerpt text={f.excerpt} />
             </div>
           ))}
-      </div>
+      </Card>
 
       <p className="muted small">
         A passing scan means these detectors found nothing — the same claim, no more,
-        that the registry's report card makes.
+        that the registry&apos;s report card makes.
       </p>
     </div>
   );
