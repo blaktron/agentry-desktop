@@ -65,7 +65,11 @@ g.go = { main: {
   InstallAPI: { ListInstalled: async () => installedRecs, CheckUpdates: async () => [] },
   BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
   ValidateAPI: { Run: async () => validateResult },
-  RunAPI: { GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }) },
+  RunAPI: {
+    GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
+    SetupStatus: async () => ({ dockerOk: true, imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+    PrereqStatus: async () => ({ dockerOk: true, os: "linux", canInstall: false, downloadUrl: "https://docs.docker.com/engine/install/" }),
+  },
 } };
 g.runtime = {
   EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, EventsOnce: () => () => {},
@@ -77,7 +81,15 @@ import AgentPage from "../src/pages/AgentPage";
 import Installed from "../src/pages/Installed";
 import Build from "../src/pages/Build";
 import Validate from "../src/pages/Validate";
+import Settings from "../src/pages/Settings";
 
+const settingsView = {
+  defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml",
+  registries: [
+    { url: "https://secureagentry.net", isDefault: true, hasToken: true, tokenSource: "keyring" },
+    { url: "http://agentry:8080", isDefault: false, hasToken: false, tokenSource: "" },
+  ],
+};
 const REG = "https://secureagentry.net";
 function Shell({ active, children }: { active: string; children: React.ReactNode }) {
   const nav = ["Browse", "Installed", "Build", "Validate", "Settings"];
@@ -100,5 +112,6 @@ createRoot(document.getElementById("root")!).render(
     <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="build"><Shell active="Build"><Build registry={REG} /></Shell></div>
     <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
+    <div data-preview="settings"><Shell active="Settings"><Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}} /></Shell></div>
   </div>,
 );
