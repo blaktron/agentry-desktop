@@ -4,8 +4,8 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { installed, main, trust } from "../../wailsjs/go/models";
 import {
-  CapabilityBadges, ErrorBox, Excerpt, ModeBadges, QuarantineBadge, Sev,
-  SignedBadge, Spinner, fmtDate, shortDigest,
+  Button, Card, CapabilityBadges, ErrorBox, Excerpt, Modal, ModeBadges,
+  Notice, PageHeader, QuarantineBadge, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
@@ -85,7 +85,7 @@ export default function AgentPage({
   if (error) {
     return (
       <div>
-        <button className="link" onClick={onBack}>{backLabel}</button>
+        <Button variant="link" onClick={onBack}>{backLabel}</Button>
         <ErrorBox error={error} />
       </div>
     );
@@ -98,32 +98,32 @@ export default function AgentPage({
 
   return (
     <div>
-      <button className="link" onClick={onBack}>{backLabel}</button>
-      <div className="spread" style={{ marginTop: 10 }}>
-        <h1 className="selectable">{a.namespace}/{a.name}</h1>
-        <div className="row">
+      <Button variant="link" onClick={onBack}>{backLabel}</Button>
+      <PageHeader
+        title={<span className="selectable">{a.namespace}/{a.name}</span>}
+        sub={<span className="selectable">{a.summary}</span>}
+        actions={<>
           <QuarantineBadge state={a.quarantine} />
           <ModeBadges modes={a.modes} />
           {detail.latest
             ? (
               <>
-                <button className="primary" onClick={() => setRunOpen(true)}>Run</button>
-                <button onClick={() => setToolsOpen(true)}>Set up tools</button>
-                <button className="primary" onClick={() => setInstalling(true)}>Install {detail.latest}</button>
+                <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
+                <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>
+                <Button variant="primary" onClick={() => setInstalling(true)}>Install {detail.latest}</Button>
               </>
             )
             : <span className="badge">no published version</span>}
-        </div>
-      </div>
-      <p className="page-sub selectable">{a.summary}</p>
-      <div className="row">
+        </>}
+      />
+      <div className="row" style={{ margin: "0 0 8px" }}>
         <CapabilityBadges caps={detail.latestCapabilities} />
         <SignedBadge att={prov} />
       </div>
 
-      {removeMsg && <div className="notice selectable">{removeMsg}</div>}
+      {removeMsg && <Notice tone="info">{removeMsg}</Notice>}
       {detail.dependencyAlerts.length > 0 && (
-        <div className="card selectable">
+        <Card className="selectable">
           <strong>Open dependency alerts</strong>
           <p className="muted small" style={{ margin: "4px 0 6px" }}>
             Versions you published declare an MCP server version with a newly known high or
@@ -144,10 +144,10 @@ export default function AgentPage({
               <span className="muted small">{fmtDate(al.createdAt)}</span>
             </div>
           ))}
-        </div>
+        </Card>
       )}
       {installs.length > 0 && (
-        <div className="card">
+        <Card>
           <strong>Installed on this machine</strong>
           {installs.map((rec) => (
             <div key={`${rec.target} ${rec.dir}`} className="spread" style={{ marginTop: 6 }}>
@@ -156,27 +156,24 @@ export default function AgentPage({
                 <span className="badge">{rec.target}</span>{" "}
                 <span className="muted small mono selectable">{rec.dir}</span>
               </div>
-              <button className="danger" onClick={() => setConfirmRemove(rec)}>Remove</button>
+              <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Remove</Button>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
       {confirmRemove && (
-        <div className="modal-backdrop" onClick={() => setConfirmRemove(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginTop: 0 }}>Remove {confirmRemove.namespace}/{confirmRemove.name}?</h2>
-            <p>
-              {confirmRemove.managed
-                ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
-                : <>The directory was chosen by you, so its files are <strong>left in place</strong>; only the install record is removed.</>}
-            </p>
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmRemove(null)}>Cancel</button>
-              <button className="danger" onClick={() => uninstall(confirmRemove)}>Remove</button>
-            </div>
+        <Modal title={`Remove ${confirmRemove.namespace}/${confirmRemove.name}?`} onClose={() => setConfirmRemove(null)}>
+          <p>
+            {confirmRemove.managed
+              ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
+              : <>The directory was chosen by you, so its files are <strong>left in place</strong>; only the install record is removed.</>}
+          </p>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button onClick={() => setConfirmRemove(null)}>Cancel</Button>
+            <Button variant="danger" onClick={() => uninstall(confirmRemove)}>Remove</Button>
           </div>
-        </div>
+        </Modal>
       )}
 
       <div className="tabs">
@@ -188,30 +185,30 @@ export default function AgentPage({
       </div>
 
       {tab === "readme" && (
-        <div className="card">
+        <Card>
           {readme === null && <Spinner />}
           {readme === "" && <div className="empty">No README.</div>}
           {/* Server-sanitized HTML (§10.3): the API strips scripts/handlers
               and marks invisible characters; the client never parses raw
               markdown from the archive. */}
           {readme && <div className="readme selectable" dangerouslySetInnerHTML={{ __html: readme }} />}
-        </div>
+        </Card>
       )}
 
       {tab === "mcp" && (
-        <div className="card">
+        <Card>
           <MCPSection registry={registry} ns={ns} name={name} hasPublished={!!detail.latest} />
-        </div>
+        </Card>
       )}
 
       {tab === "report" && (
-        <div className="card">
+        <Card>
           <ReportCard report={report} error={reportErr} version={detail.latest} />
-        </div>
+        </Card>
       )}
 
       {tab === "versions" && (
-        <div className="card">
+        <Card>
           <table className="plain selectable">
             <thead>
               <tr><th>version</th><th>channel</th><th>status</th><th>published</th><th>digest</th></tr>
@@ -228,11 +225,11 @@ export default function AgentPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       {tab === "provenance" && (
-        <div className="card selectable">
+        <Card className="selectable">
           {!detail.latest && <div className="empty">No published version.</div>}
           {detail.latest && (
             <>
@@ -252,7 +249,7 @@ export default function AgentPage({
               {prov && prov.state !== "verified" && <p className="muted small">{prov.detail}</p>}
             </>
           )}
-        </div>
+        </Card>
       )}
 
       {installing && detail.latest && (

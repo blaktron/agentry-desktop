@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
 import { main } from "../../wailsjs/go/models";
-import { ErrorBox, ModeBadges, QuarantineBadge, Spinner } from "../ui";
+import {
+  AgentRow, Button, EmptyState, ErrorBox, Input, ModeBadges, PageHeader,
+  QuarantineBadge, Select, Spinner, Toolbar,
+} from "../ui";
 
 const MODES = ["", "autonomous", "interactive"];
 const CAPABILITIES = ["", "network", "filesystem", "exec", "secrets", "dataAccess"];
@@ -49,13 +52,13 @@ export default function Browse({
 
   return (
     <div>
-      <h1>Browse</h1>
-      <p className="page-sub selectable">
-        Agents on {registry || "(no registry)"} — every published version is scanned and the report is public.
-      </p>
+      <PageHeader
+        title="Browse"
+        sub={<span className="selectable">Agents on {registry || "(no registry)"} — every published version is scanned and the report is public.</span>}
+      />
 
-      <div className="row">
-        <input
+      <Toolbar>
+        <Input
           type="search"
           className="grow"
           placeholder="Search agents…"
@@ -63,23 +66,17 @@ export default function Browse({
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
-        <select value={mode} onChange={(e) => setMode(e.target.value)} title="Run mode">
-          {MODES.map((k) => (
-            <option key={k} value={k}>{k === "" ? "any mode" : k}</option>
-          ))}
-        </select>
-        <select value={capability} onChange={(e) => setCapability(e.target.value)} title="Declared capability">
-          {CAPABILITIES.map((c) => (
-            <option key={c} value={c}>{c === "" ? "any capability" : `asks for ${c}`}</option>
-          ))}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} title="Sort">
-          {SORTS.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <button className="primary" onClick={search}>Search</button>
-      </div>
+        <Select value={mode} onChange={(e) => setMode(e.target.value)} title="Run mode">
+          {MODES.map((k) => <option key={k} value={k}>{k === "" ? "any mode" : k}</option>)}
+        </Select>
+        <Select value={capability} onChange={(e) => setCapability(e.target.value)} title="Declared capability">
+          {CAPABILITIES.map((c) => <option key={c} value={c}>{c === "" ? "any capability" : `asks for ${c}`}</option>)}
+        </Select>
+        <Select value={sort} onChange={(e) => setSort(e.target.value)} title="Sort">
+          {SORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </Select>
+        <Button variant="primary" onClick={search}>Search</Button>
+      </Toolbar>
 
       <ErrorBox error={error} />
       {loading && <Spinner label="Searching…" />}
@@ -87,19 +84,18 @@ export default function Browse({
       {!loading && results && (
         <div>
           <p className="muted small">{results.total} result{results.total === 1 ? "" : "s"}</p>
-          {results.results.length === 0 && <div className="empty">Nothing matched.</div>}
+          {results.results.length === 0 && (
+            <EmptyState title="Nothing matched">Try a broader query, or clear the mode and capability filters.</EmptyState>
+          )}
           {results.results.map((hit) => (
-            <button key={`${hit.namespace}/${hit.name}`} className="result" onClick={() => onOpenAgent(hit.namespace, hit.name)}>
-              <div className="spread">
-                <span className="name">{hit.namespace}/{hit.name}</span>
-                <span className="row">
-                  <QuarantineBadge state={hit.quarantine} />
-                  <ModeBadges modes={hit.modes} />
-                </span>
-              </div>
-              <div className="muted">{hit.summary}</div>
-              {hit.installs30d > 0 && <div className="muted small">{hit.installs30d} installs in 30 days</div>}
-            </button>
+            <AgentRow
+              key={`${hit.namespace}/${hit.name}`}
+              title={`${hit.namespace}/${hit.name}`}
+              badges={<><QuarantineBadge state={hit.quarantine} /><ModeBadges modes={hit.modes} /></>}
+              summary={hit.summary}
+              meta={hit.installs30d > 0 ? `${hit.installs30d} installs in 30 days` : undefined}
+              onClick={() => onOpenAgent(hit.namespace, hit.name)}
+            />
           ))}
         </div>
       )}

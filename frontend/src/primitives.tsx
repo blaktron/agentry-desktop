@@ -97,6 +97,28 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "ok" | "wa
   return <div className={`notice notice-${tone} selectable`} role="status">{children}</div>;
 }
 
+/** A clickable result/list card: a mono title, a right-aligned badges slot,
+ *  a summary line, and a muted meta line — the shape the website's search
+ *  results and the installed list share. */
+export function AgentRow({ title, badges, summary, meta, actions, onClick }: {
+  title: React.ReactNode; badges?: React.ReactNode; summary?: React.ReactNode;
+  meta?: React.ReactNode; actions?: React.ReactNode; onClick?: () => void;
+}) {
+  return (
+    <div className={`agent-row${onClick ? " clickable" : ""}`} onClick={onClick}>
+      <div className="agent-row-main">
+        <div className="agent-row-head">
+          <span className="agent-row-title mono">{title}</span>
+          {badges && <span className="row agent-row-badges">{badges}</span>}
+        </div>
+        {summary && <div className="agent-row-summary muted">{summary}</div>}
+        {meta && <div className="agent-row-meta muted small">{meta}</div>}
+      </div>
+      {actions && <div className="row nowrap agent-row-actions" onClick={(e) => e.stopPropagation()}>{actions}</div>}
+    </div>
+  );
+}
+
 /** A modal dialog over a scrim. `wide` widens it for diffs and forms. */
 export function Modal({ title, onClose, wide, children }: {
   title?: React.ReactNode; onClose: () => void; wide?: boolean; children: React.ReactNode;
