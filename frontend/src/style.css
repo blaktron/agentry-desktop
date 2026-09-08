@@ -477,3 +477,24 @@ button.ghost:hover, .btn.ghost:hover {
 .notice-info { border-color: var(--color-border); background: var(--color-surface); }
 .notice-ok { border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); background: color-mix(in srgb, var(--color-ok) var(--badge-tint), var(--color-bg)); }
 .notice-warn { border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), var(--color-bg)); }
+
+/* Result / list card (the website's AgentRow). A calm surface panel that
+   lifts to the accent border on hover when it is clickable. */
+.agent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  padding: 12px 14px;
+  margin: 8px 0;
+}
+.agent-row.clickable:hover { border-color: var(--color-accent); }
+.agent-row-main { flex: 1; min-width: 0; }
+.agent-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agent-row-title { font-weight: 600; font-size: 14px; color: var(--color-fg); }
+.agent-row-badges { gap: 6px; }
+.agent-row-summary { margin-top: 4px; }
+.agent-row-meta { margin-top: 4px; }
+.agent-row-actions { flex: none; padding-top: 1px; }
