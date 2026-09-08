@@ -14,6 +14,10 @@ export function Get() {
   return window['go']['main']['SettingsAPI']['Get']();
 }
 
+export function MarkOnboarded() {
+  return window['go']['main']['SettingsAPI']['MarkOnboarded']();
+}
+
 export function RegistryMeta(arg1) {
   return window['go']['main']['SettingsAPI']['RegistryMeta'](arg1);
 }

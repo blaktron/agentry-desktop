@@ -8,6 +8,7 @@ import Installed from "./pages/Installed";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings from "./pages/Settings";
+import Wizard from "./pages/Wizard";
 import { Wordmark } from "./ui";
 
 export type Route =
@@ -25,6 +26,7 @@ export default function App() {
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
+  const [showWizard, setShowWizard] = useState(false);
 
   const refreshSettings = useCallback(async () => {
     const s = await SettingsAPI.Get();
@@ -37,8 +39,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    refreshSettings().catch(() => setSettings(null));
+    refreshSettings()
+      .then((s) => {
+        // First-run gate: open the guided setup when the machine is
+        // unconfigured — not yet onboarded and nothing signed in (#41).
+        if (!s.onboarded && !s.registries.some((r) => r.hasToken)) setShowWizard(true);
+      })
+      .catch(() => setSettings(null));
     AppVersion().then(setVersion).catch(() => {});
+  }, [refreshSettings]);
+
+  // Closing the wizard (finished or skipped) marks onboarding done so it
+  // does not reopen on the next start; Settings can reopen it on demand.
+  const finishWizard = useCallback(async () => {
+    try {
+      await SettingsAPI.MarkOnboarded();
+    } catch {
+      // Non-fatal: the flag is a convenience, not a gate on functionality.
+    }
+    await refreshSettings().catch(() => {});
+    setShowWizard(false);
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
@@ -94,9 +114,19 @@ export default function App() {
             activeRegistry={registry}
             onChanged={refreshSettings}
             onSelectRegistry={setRegistry}
+            onRunSetup={() => setShowWizard(true)}
           />
         )}
       </div>
+      {showWizard && settings && (
+        <Wizard
+          settings={settings}
+          activeRegistry={registry}
+          onChanged={refreshSettings}
+          onSelectRegistry={setRegistry}
+          onFinish={finishWizard}
+        />
+      )}
     </div>
   );
 }

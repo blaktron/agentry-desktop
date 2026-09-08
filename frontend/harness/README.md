@@ -21,5 +21,9 @@ Then open http://localhost:5199/. Both themes follow the OS setting
 (`prefers-color-scheme`); a screenshot tool that can emulate the colour
 scheme (Playwright `colorScheme: 'light' | 'dark'`) captures both.
 
-Later milestones (agentry-desktop#37–#41) add page previews here as they
-redesign each page.
+Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
+Installed, Build, Validate and Settings under the shell. Overlays live in
+their own entries so each gets a clean screenshot over the shell backdrop:
+the run surfaces in `modals.html` (`#runpanel | #toolspanel | #chat`) and
+the first-run wizard in `wizard.html` (`#0` welcome, `#1` sign-in, `#2`
+runtime, `#3` done).

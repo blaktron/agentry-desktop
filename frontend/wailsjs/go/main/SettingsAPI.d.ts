@@ -8,6 +8,8 @@ export function CancelBrowserSignIn():Promise<boolean>;
 
 export function Get():Promise<main.SettingsView>;
 
+export function MarkOnboarded():Promise<main.SettingsView>;
+
 export function RegistryMeta(arg1:string):Promise<main.MetaView>;
 
 export function RemoveRegistry(arg1:string):Promise<main.SettingsView>;
