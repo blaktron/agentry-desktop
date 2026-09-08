@@ -4,7 +4,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
-import { ErrorBox, Spinner } from "../ui";
+import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Select, Spinner, Toolbar } from "../ui";
 
 export default function Settings({
   settings, activeRegistry, onChanged, onSelectRegistry,
@@ -57,25 +57,24 @@ export default function Settings({
 
   return (
     <div>
-      <h1>Settings</h1>
-      <p className="page-sub">
-        Registries this app talks to. Credentials live in the OS keychain under the same
-        convention the <span className="mono">agentry</span> CLI uses, so a sign-in here works there too.
-      </p>
+      <PageHeader
+        title="Settings"
+        sub={<>Registries this app talks to. Credentials live in the OS keychain under the same convention the <span className="mono">agentry</span> CLI uses, so a sign-in here works there too.</>}
+      />
 
       <ErrorBox error={error} />
       {browserWait && (
-        <div className="notice" role="status">
+        <Notice tone="info">
           Waiting for your browser to authorize this app for <span className="mono">{browserWait}</span>.
           Sign in there and click “Authorize the desktop app”. If the browser did not open, or you
           closed it, cancel and try again.{" "}
-          <button onClick={() => void SettingsAPI.CancelBrowserSignIn()}>Cancel sign-in</button>
-        </div>
+          <Button onClick={() => void SettingsAPI.CancelBrowserSignIn()}>Cancel sign-in</Button>
+        </Notice>
       )}
-      {notice && <div className="notice selectable">{notice}</div>}
+      {notice && <Notice tone="ok">{notice}</Notice>}
 
       {settings.registries.map((r) => (
-        <div key={r.url} className="card">
+        <Card key={r.url}>
           <div className="spread">
             <div className="grow">
               <div className="row">
@@ -89,21 +88,21 @@ export default function Settings({
             </div>
             <div className="row nowrap">
               {r.url !== activeRegistry && (
-                <button onClick={() => onSelectRegistry(r.url)}>Use</button>
+                <Button onClick={() => onSelectRegistry(r.url)}>Use</Button>
               )}
               {!r.isDefault && (
-                <button disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.SetDefault(r.url); await onChanged(); })}>
+                <Button disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.SetDefault(r.url); await onChanged(); })}>
                   Make default
-                </button>
+                </Button>
               )}
               {r.hasToken ? (
-                <button disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.SignOut(r.url); await onChanged(); setNotice(`Signed out of ${r.url}.`); })}>
+                <Button disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.SignOut(r.url); await onChanged(); setNotice(`Signed out of ${r.url}.`); })}>
                   Sign out
-                </button>
+                </Button>
               ) : (
                 <>
-                  <button
-                    className="primary"
+                  <Button
+                    variant="primary"
                     disabled={busy}
                     title="Opens the registry in your browser — sign in there (the directory service, MFA included) and approve the app"
                     onClick={() => wrap(async () => {
@@ -127,23 +126,23 @@ export default function Settings({
                     })}
                   >
                     Sign in via browser
-                  </button>
-                  <button disabled={busy} onClick={() => setSignIn({ url: r.url, token: "" })}>
+                  </Button>
+                  <Button disabled={busy} onClick={() => setSignIn({ url: r.url, token: "" })}>
                     Paste token
-                  </button>
+                  </Button>
                 </>
               )}
-              <button className="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
+              <Button variant="danger" disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.RemoveRegistry(r.url); await onChanged(); })}>
                 Remove
-              </button>
+              </Button>
             </div>
           </div>
-        </div>
+        </Card>
       ))}
 
       <h2>Add a registry</h2>
-      <div className="row">
-        <input
+      <Toolbar>
+        <Input
           type="text"
           className="grow mono"
           placeholder="https://secureagentry.net — or http://agentry:8080 for a dev stack"
@@ -151,8 +150,8 @@ export default function Settings({
           onChange={(e) => setNewURL(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && newURL.trim() && addRegistry()}
         />
-        <button className="primary" disabled={busy || !newURL.trim()} onClick={addRegistry}>Add</button>
-      </div>
+        <Button variant="primary" disabled={busy || !newURL.trim()} onClick={addRegistry}>Add</Button>
+      </Toolbar>
       <p className="muted small selectable">
         Settings file: <span className="mono">{settings.configPath}</span>. Install records and pinned
         signing keys are shared with the CLI under the same directory.
@@ -161,15 +160,13 @@ export default function Settings({
       <AgentRunSettings />
 
       {signIn && (
-        <div className="modal-backdrop" onClick={() => setSignIn(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginTop: 0 }}>Sign in to {signIn.url}</h2>
+        <Modal title={`Sign in to ${signIn.url}`} onClose={() => setSignIn(null)}>
             <p className="muted">
               Paste a personal access token (create one in the web app under Settings → Tokens,
               or with <span className="mono">agentry login</span>). Signing in also pins the registry's
               signing keys on first use (TOFU).
             </p>
-            <input
+            <Input
               type="password"
               style={{ width: "100%" }}
               placeholder="agentry_pat_…"
@@ -179,13 +176,12 @@ export default function Settings({
               autoFocus
             />
             <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
-              <button onClick={() => setSignIn(null)}>Cancel</button>
-              <button className="primary" disabled={busy || !signIn.token.trim()} onClick={doSignIn}>
+              <Button onClick={() => setSignIn(null)}>Cancel</Button>
+              <Button variant="primary" disabled={busy || !signIn.token.trim()} onClick={doSignIn}>
                 {busy ? "Checking…" : "Sign in"}
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -279,7 +275,7 @@ function AgentRunSettings() {
       </p>
 
       <ErrorBox error={error} />
-      {notice && <div className="notice selectable">{notice}</div>}
+      {notice && <Notice tone="ok">{notice}</Notice>}
 
       {status && !status.dockerOk && (
         <PrereqCard
@@ -303,23 +299,23 @@ function AgentRunSettings() {
         </div>
       )}
 
-      <div className="card">
+      <Card>
         <div className="row" style={{ marginBottom: 8 }}>
           <label className="row" style={{ gap: 6 }}>
             <span className="muted small">provider</span>
-            <select value={provider} onChange={(e) => pickProvider(e.target.value)} disabled={!!busy}>
+            <Select value={provider} onChange={(e) => pickProvider(e.target.value)} disabled={!!busy}>
               {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="row grow" style={{ gap: 6 }}>
             <span className="muted small">model</span>
-            <input type="text" className="grow mono" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
+            <Input type="text" className="grow mono" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
           </label>
         </div>
         <div className="row" style={{ marginBottom: 8 }}>
           <label className="row grow" style={{ gap: 6 }}>
             <span className="muted small nowrap">api key env var</span>
-            <input
+            <Input
               type="text" className="grow mono" placeholder="e.g. ANTHROPIC_API_KEY"
               value={apiKeyEnv} onChange={(e) => setApiKeyEnv(e.target.value)} disabled={!!busy}
             />
@@ -329,7 +325,7 @@ function AgentRunSettings() {
           <div className="row" style={{ marginBottom: 8 }}>
             <label className="row grow" style={{ gap: 6 }}>
               <span className="muted small nowrap">base URL</span>
-              <input
+              <Input
                 type="text" className="grow mono" placeholder="https://llm.internal:8443/v1"
                 value={baseURL} onChange={(e) => setBaseURL(e.target.value)} disabled={!!busy}
               />
@@ -341,23 +337,23 @@ function AgentRunSettings() {
           container&apos;s only egress is the model endpoint this derives.
         </p>
         <div className="row" style={{ justifyContent: "flex-end" }}>
-          <button disabled={!!busy || (needsBaseURL && !baseURL.trim())} onClick={() => apply(false)}>
+          <Button disabled={!!busy || (needsBaseURL && !baseURL.trim())} onClick={() => apply(false)}>
             Save provider settings
-          </button>
-          <button
-            className="primary"
+          </Button>
+          <Button
+            variant="primary"
             disabled={!!busy || !status?.dockerOk || (needsBaseURL && !baseURL.trim())}
             title={status?.dockerOk ? "" : "docker must be available first"}
             onClick={() => apply(true)}
           >
             Prepare images now
-          </button>
+          </Button>
         </div>
         {busy && <Spinner label={busy} />}
         {log.length > 0 && (
           <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -391,7 +387,7 @@ function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
 
   if (!prereq) return null;
   return (
-    <div className="card">
+    <Card>
       <strong>Install prerequisites</strong>
       <p className="muted small">
         BriefAgent runs need a docker engine; the MCP gateway and harness images follow
@@ -406,9 +402,9 @@ function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
           <pre className="run-log selectable">pkexec sh -c &apos;{prereq.command}&apos;</pre>
           {prereq.note && <p className="muted small">{prereq.note}</p>}
           <div className="row" style={{ justifyContent: "flex-end" }}>
-            <button className="primary" disabled={busy} onClick={install}>
+            <Button variant="primary" disabled={busy} onClick={install}>
               {busy ? "Installing…" : "Install the docker engine"}
-            </button>
+            </Button>
           </div>
         </>
       ) : (
@@ -416,11 +412,11 @@ function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
           Automatic installation is not available on this system ({prereq.os}
           {prereq.distro ? `/${prereq.distro}` : ""}). Install docker with the official
           instructions, then come back:{" "}
-          <button className="link" onClick={() => OpenExternal(prereq.downloadUrl)}>
+          <Button variant="link" onClick={() => OpenExternal(prereq.downloadUrl)}>
             {prereq.downloadUrl}
-          </button>
+          </Button>
         </p>
       )}
-    </div>
+    </Card>
   );
 }
