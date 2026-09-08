@@ -8,6 +8,7 @@ import Installed from "./pages/Installed";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings from "./pages/Settings";
+import { Wordmark } from "./ui";
 
 export type Route =
   | { page: "browse" }
@@ -54,8 +55,7 @@ export default function App() {
     <div className="shell">
       <div className="sidebar">
         <div className="brand">
-          Agentry
-          <span className="sub">Desktop</span>
+          <Wordmark sub="Desktop" />
         </div>
         {navItem("Browse", "browse")}
         {navItem("Installed", "installed")}

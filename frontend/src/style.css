@@ -1,38 +1,79 @@
-/* Agentry Desktop — design tokens copied from the web app
-   (agentry/web/app/globals.css) so desktop and web read as one product:
-   a light base with a prefers-color-scheme dark override, deliberately
-   restrained — a trust product reads as calm and legible, not flashy. */
+/* Agentry Desktop — the website's design tokens (agentry-web
+   app/globals.css §10), kept in step so desktop and web read as one
+   product: warm paper and ink with one deep viridian accent, a tuned
+   severity/syntax palette, a light base with a prefers-color-scheme dark
+   override. Deliberately restrained — a trust product reads as calm and
+   legible, not flashy, and deliberately NOT the framework-default
+   indigo/slate (which is what this file used to be, out of step with the
+   site since it moved; agentry-desktop#36). When the site's tokens change,
+   these follow. */
+
+@import "./fonts.css";
 
 :root {
-  --color-bg: #ffffff;
-  --color-fg: #0f172a;
-  --color-muted: #64748b;
-  --color-border: #e2e8f0;
-  --color-surface: #f8fafc;
-  --color-accent: #4f46e5;
+  --color-bg: #faf9f7;
+  --color-fg: #1c1917;
+  --color-muted: #57534e;
+  --color-border: #e7e5e4;
+  --color-surface: #f5f5f4;
+  --color-accent: #0e7a63;
   --color-accent-fg: #ffffff;
 
-  --color-sev-critical: #b91c1c;
-  --color-sev-high: #dc2626;
-  --color-sev-medium: #d97706;
-  --color-sev-low: #65a30d;
-  --color-sev-info: #64748b;
-  --color-ok: #16a34a;
+  /* Severity/ok tokens, tuned like the site so badge TEXT clears 4.5:1 on
+     the page in its own mode (the dark set is overridden below). */
+  --color-sev-critical: #991b1b;
+  --color-sev-high: #b91c1c;
+  --color-sev-medium: #b45309;
+  --color-sev-low: #4d7c0f;
+  --color-sev-info: #475569;
+  --color-ok: #15803d;
   --color-ok-strong: #15803d;
   --color-solid-fg: #ffffff;
+
+  /* Syntax highlighting parity with the site (both modes keep ≥4.5:1 on
+     --color-surface). */
+  --hl-keyword: #7c2d92;
+  --hl-string: #166534;
+  --hl-comment: #6b7280;
+  --hl-number: #b45309;
+  --hl-name: #1e3a8a;
+  --hl-type: #0f766e;
+  --hl-error: #b91c1c;
+
+  /* Type: self-hosted IBM Plex (fonts.css), the site's stacks. */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Badge background strength: light needs a fainter tint than dark for the
+     same text colour to stay legible on it. */
+  --badge-tint: 8%;
 
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #0b1120;
-    --color-fg: #e2e8f0;
-    --color-muted: #94a3b8;
-    --color-border: #1e293b;
-    --color-surface: #111827;
-    --color-accent: #818cf8;
-    --color-accent-fg: #0b1120;
+    --color-bg: #141210;
+    --color-fg: #e7e5e4;
+    --color-muted: #a8a29e;
+    --color-border: #292524;
+    --color-surface: #1c1917;
+    --color-accent: #4fd1b0;
+    --color-accent-fg: #141210;
+    --color-sev-critical: #fca5a5;
+    --color-sev-high: #f87171;
+    --color-sev-medium: #fbbf24;
+    --color-sev-low: #a3e635;
+    --color-sev-info: #94a3b8;
+    --color-ok: #4ade80;
+    --hl-keyword: #d8b4fe;
+    --hl-string: #86efac;
+    --hl-comment: #9ca3af;
+    --hl-number: #fbbf24;
+    --hl-name: #93c5fd;
+    --hl-type: #5eead4;
+    --hl-error: #fca5a5;
+    --badge-tint: 16%;
   }
 }
 
@@ -47,7 +88,7 @@ html, body, #root {
 body {
   background: var(--color-bg);
   color: var(--color-fg);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -56,7 +97,7 @@ body {
 }
 
 code, pre, .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.92em;
 }
 
@@ -204,10 +245,10 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--color-ac
   background: var(--color-bg);
   white-space: nowrap;
 }
-.badge.kind { color: var(--color-accent); border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); }
-.badge.ok { color: var(--color-ok); border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); }
-.badge.warn { color: var(--color-sev-medium); border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); }
-.badge.bad { color: var(--color-sev-high); border-color: color-mix(in srgb, var(--color-sev-high) 50%, transparent); }
+.badge.kind { color: var(--color-accent); border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); background: color-mix(in srgb, var(--color-accent) var(--badge-tint), var(--color-bg)); }
+.badge.ok { color: var(--color-ok); border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); background: color-mix(in srgb, var(--color-ok) var(--badge-tint), var(--color-bg)); }
+.badge.warn { color: var(--color-sev-medium); border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), var(--color-bg)); }
+.badge.bad { color: var(--color-sev-high); border-color: color-mix(in srgb, var(--color-sev-high) 50%, transparent); background: color-mix(in srgb, var(--color-sev-high) var(--badge-tint), var(--color-bg)); }
 
 .sev { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; }
 .sev.critical { color: var(--color-sev-critical); }
@@ -378,3 +419,61 @@ table.plain th { color: var(--color-muted); font-weight: 600; font-size: 12px; }
 .kv .k { color: var(--color-muted); display: inline-block; min-width: 130px; }
 
 .clickable { cursor: pointer; }
+
+/* ---------- primitive layer (agentry-desktop#36) ---------- */
+
+/* Brand lockup: the shield mark + the product name, the site's header
+   identity carried into the desktop shell and the wizard. */
+.wordmark { display: inline-flex; align-items: center; gap: 9px; }
+.wordmark-text { display: flex; flex-direction: column; line-height: 1.15; }
+.wordmark-name { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.wordmark-sub { font-size: 11px; color: var(--color-muted); font-weight: 500; }
+
+/* A ghost button: no chrome until hovered — for low-emphasis actions in a
+   toolbar or a row. */
+button.ghost, .btn.ghost {
+  background: none;
+  border-color: transparent;
+}
+button.ghost:hover, .btn.ghost:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+/* A flush card: the panel chrome without inner padding, for a list whose
+   rows draw their own. */
+.card-flush { padding: 0; overflow: hidden; }
+
+/* Page header: title block on the left, actions on the right. */
+.page-header { display: flex; align-items: flex-start; gap: 16px; margin: 0 0 16px; }
+.page-header h1 { margin: 0 0 2px; }
+.page-header .page-sub { margin: 0; }
+.page-header-actions { flex: none; padding-top: 2px; }
+
+/* Labelled form control. */
+.field { display: flex; flex-direction: column; gap: 5px; margin: 0 0 12px; }
+.field-label { font-size: 12px; font-weight: 600; color: var(--color-muted); }
+.field-hint { margin-top: 1px; }
+.field input, .field select, .field textarea { width: 100%; }
+
+/* A control strip: search bars and filter rows. */
+.toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+
+/* Empty state: the calm centered "nothing here yet". */
+.empty-state {
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--color-fg);
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+}
+.empty-state-title { font-weight: 600; margin-bottom: 4px; }
+
+/* Notice tones: the accent border says which kind of message it is. */
+.notice-info { border-color: var(--color-border); background: var(--color-surface); }
+.notice-ok { border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); background: color-mix(in srgb, var(--color-ok) var(--badge-tint), var(--color-bg)); }
+.notice-warn { border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), var(--color-bg)); }

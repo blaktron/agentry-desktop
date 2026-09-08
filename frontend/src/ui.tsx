@@ -3,14 +3,10 @@
 import React from "react";
 import { trust } from "../wailsjs/go/models";
 
-export function Spinner({ label }: { label?: string }) {
-  return <div className="spinner">{label ?? "Loading…"}</div>;
-}
-
-export function ErrorBox({ error }: { error: string | null }) {
-  if (!error) return null;
-  return <div className="error-box selectable">{error}</div>;
-}
+// The shared primitives and the brand live in their own modules; re-export
+// them here so a page imports everything design-related from "../ui".
+export * from "./primitives";
+export { Mark, Wordmark } from "./brand";
 
 export function Sev({ severity }: { severity: string }) {
   const s = severity.toLowerCase();
@@ -67,7 +63,15 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
   const fs = (dir: "read" | "write") => {
     const v = c.filesystem?.[dir];
     if (v == null || v === "none") return;
-    const text = Array.isArray(v) ? `paths: ${v.join(", ")}` : String(v);
+    // The manifest shape is "workspace" | "none" | a bare path array | an
+    // object { paths: [...] } (write uses the object form). Render each as
+    // the paths it grants — never the raw object, which used to read as
+    // "[object Object]" in this security-consent badge (agentry-desktop#36).
+    let text: string;
+    if (Array.isArray(v)) text = `paths: ${v.join(", ")}`;
+    else if (v && typeof v === "object" && Array.isArray((v as { paths?: unknown }).paths))
+      text = `paths: ${((v as { paths: string[] }).paths).join(", ")}`;
+    else text = String(v);
     badges.push(<span key={`fs-${dir}`} className="badge warn">fs {dir}: {text}</span>);
   };
   fs("read");
