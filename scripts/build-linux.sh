@@ -4,7 +4,7 @@
 # Prep on the dev machine first: `go mod vendor` and `cd frontend && npm run build`,
 # then ship the tree (minus .git, node_modules, build/bin) to the host.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # the repo root — go.mod lives here, and it is what mounts as /src
 
 docker run --rm -v "$PWD:/src" -w /src golang:1.27-bookworm bash -ec '
   apt-get update -qq >/dev/null 2>&1
