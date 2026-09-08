@@ -8,7 +8,7 @@ import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, validate } from "../../wailsjs/go/models";
-import { ErrorBox, Sev, Spinner } from "../ui";
+import { Button, Card, ErrorBox, Notice, PageHeader, Sev, Spinner, Textarea } from "../ui";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
 
@@ -110,22 +110,20 @@ export default function Build({ registry }: { registry: string }) {
 
   return (
     <div>
-      <h1>Build</h1>
-      <p className="page-sub">
-        Author a BriefAgent, run the registry&apos;s own checks on it, and publish it. The form
-        edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the{" "}
-        <span className="mono">agentry</span> CLI and git work on too.
-      </p>
+      <PageHeader
+        title="Build"
+        sub={<>Author a BriefAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
+      />
 
       <ErrorBox error={error} />
-      {notice && <div className="notice selectable">{notice}</div>}
+      {notice && <Notice tone="info">{notice}</Notice>}
 
-      <div className="card">
+      <Card>
         <div className="row">
-          <button onClick={pickFolder} disabled={!!busy}>Choose folder…</button>
+          <Button onClick={pickFolder} disabled={!!busy}>Choose folder…</Button>
           {dir ? <span className="mono small selectable">{dir}</span> : <span className="muted small">Pick where the workspace lives (an existing BriefAgent loads into the form).</span>}
         </div>
-      </div>
+      </Card>
 
       <h2>Identity</h2>
       <div className="card">
@@ -223,12 +221,12 @@ export default function Build({ registry }: { registry: string }) {
         <div style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span className="small">declared MCP servers (exact version pins; installed per release, DEV-060)</span>
-            <button
+            <Button
               type="button"
               onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [] })] })}
             >
               + add server
-            </button>
+            </Button>
           </div>
           {(m.mcpServers ?? []).length === 0 && (
             <p className="muted small" style={{ margin: "4px 0 0" }}>
@@ -262,7 +260,7 @@ export default function Build({ registry }: { registry: string }) {
                       value={srv.version} onChange={(e) => patch({ version: e.target.value })}
                     />
                   </label>
-                  <button type="button" onClick={() => set({ mcpServers: m.mcpServers.filter((_, j) => j !== i) })}>remove</button>
+                  <Button type="button" onClick={() => set({ mcpServers: m.mcpServers.filter((_, j) => j !== i) })}>remove</Button>
                 </div>
                 <div className="row" style={{ marginTop: 6 }}>
                   <label className="small grow">tools (empty = all the server offers)
@@ -306,12 +304,12 @@ export default function Build({ registry }: { registry: string }) {
       </p>
       <div className="card">
         <div className="row">
-          <button
+          <Button
             type="button"
             onClick={() => set({ intake: [...(m.intake ?? []), new build.IntakeRow({ id: "", prompt: "", type: "text", required: false, choices: [] })] })}
           >
             Add question
-          </button>
+          </Button>
           {(m.intake ?? []).length === 0 && <span className="muted small">No questions — the agent starts from its instructions and the task.</span>}
         </div>
         {(m.intake ?? []).map((q, i) => {
@@ -338,7 +336,7 @@ export default function Build({ registry }: { registry: string }) {
                   <input type="checkbox" checked={q.required} onChange={(e) => patch({ required: e.target.checked })} />
                   <span>required</span>
                 </label>
-                <button type="button" onClick={() => set({ intake: m.intake.filter((_, j) => j !== i) })}>remove</button>
+                <Button type="button" onClick={() => set({ intake: m.intake.filter((_, j) => j !== i) })}>remove</Button>
               </div>
               {q.type === "choice" && (
                 <label className="small" style={{ display: "block", marginTop: 6 }}>choices
@@ -363,29 +361,29 @@ export default function Build({ registry }: { registry: string }) {
 
       <h2>Instructions ({m.instructionFile || "AGENT.md"})</h2>
       <div className="card">
-        <textarea
+        <Textarea
           className="mono"
-          style={{ width: "100%", minHeight: 260 }}
+          style={{ minHeight: 260 }}
           value={m.instructions}
           onChange={(e) => set({ instructions: e.target.value })}
         />
       </div>
 
       <div className="row" style={{ marginTop: 12 }}>
-        <button disabled={!dir || !!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</button>
-        <button disabled={!dir || !!busy} onClick={runValidate}>{busy === "validate" ? "Validating…" : "Save + Validate"}</button>
+        <Button disabled={!dir || !!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
+        <Button disabled={!dir || !!busy} onClick={runValidate}>{busy === "validate" ? "Validating…" : "Save + Validate"}</Button>
         <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
           <option value="private">private</option>
           <option value="public">public</option>
         </select>
-        <button className="primary" disabled={!dir || !!busy} onClick={publish}>
+        <Button variant="primary" disabled={!dir || !!busy} onClick={publish}>
           {busy === "publish" ? "Publishing…" : "Save + Publish"}
-        </button>
+        </Button>
       </div>
       {!dir && <p className="muted small">Choose a folder first — the form edits real files.</p>}
 
       {result && (
-        <div className="card" style={{ marginTop: 12 }}>
+        <Card className="mt">
           <strong>{result.passed ? "validate: PASSED" : "validate: FAILED"}</strong>
           {result.manifestError && <div className="error-box selectable">{result.manifestError}</div>}
           {(result.findings ?? []).map((f: any, i: number) => (
@@ -399,12 +397,12 @@ export default function Build({ registry }: { registry: string }) {
             </div>
           ))}
           {result.passed && <p className="muted small">Same manifest rules and content scanners the registry runs at publish time.</p>}
-        </div>
+        </Card>
       )}
 
       {(log.length > 0 || pubResult) && (
-        <div className="card" style={{ marginTop: 12 }}>
-          <pre ref={logRef} className="log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
+        <Card className="mt">
+          <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
           {pubResult && (
             <div className="selectable">
               <strong>
@@ -420,7 +418,7 @@ export default function Build({ registry }: { registry: string }) {
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

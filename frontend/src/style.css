@@ -498,3 +498,6 @@ button.ghost:hover, .btn.ghost:hover {
 .agent-row-summary { margin-top: 4px; }
 .agent-row-meta { margin-top: 4px; }
 .agent-row-actions { flex: none; padding-top: 1px; }
+
+/* Small spacing utility used by result/publish panels. */
+.mt { margin-top: 12px; }

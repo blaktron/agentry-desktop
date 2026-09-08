@@ -36,6 +36,22 @@ const installedRecs = [
   { registry: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] } },
 ];
 
+const buildModel = {
+  name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
+  license: "Apache-2.0", summary: "Summarises an incident channel into a report card, redacting secrets first.",
+  tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
+  egressMode: "hosts", egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsReadPaths: [],
+  fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN"],
+  mcpServers: [], dataAccess: ["tickets"], intake: [], opening: "",
+  instructions: "You summarise an incident channel. Read it, redact secrets, and write reports/report.md.",
+};
+const validateResult = {
+  passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
+  bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
+  manifestModes: ["autonomous"], manifestVersion: "1.2.0", manifestError: "",
+  issues: [], inventory: [], findings: [], readErrors: [],
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
 g.go = { main: {
@@ -47,13 +63,20 @@ g.go = { main: {
     Provenance: async () => prov,
   },
   InstallAPI: { ListInstalled: async () => installedRecs, CheckUpdates: async () => [] },
+  BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
+  ValidateAPI: { Run: async () => validateResult },
   RunAPI: { GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }) },
 } };
-g.runtime = { EventsOn: () => () => {}, EventsOff: () => {} };
+g.runtime = {
+  EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, EventsOnce: () => () => {},
+  EventsOff: () => {}, EventsEmit: () => {}, LogPrint: () => {},
+};
 
 import Browse from "../src/pages/Browse";
 import AgentPage from "../src/pages/AgentPage";
 import Installed from "../src/pages/Installed";
+import Build from "../src/pages/Build";
+import Validate from "../src/pages/Validate";
 
 const REG = "https://secureagentry.net";
 function Shell({ active, children }: { active: string; children: React.ReactNode }) {
@@ -75,5 +98,7 @@ createRoot(document.getElementById("root")!).render(
     <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="Browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="build"><Shell active="Build"><Build registry={REG} /></Shell></div>
+    <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
   </div>,
 );
