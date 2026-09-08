@@ -10,7 +10,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main, trust } from "../../wailsjs/go/models";
-import { ErrorBox, Spinner, shortDigest } from "../ui";
+import { Button, Card, ErrorBox, Notice, Spinner, Textarea, shortDigest } from "../ui";
 import SessionChat from "./SessionChat";
 
 export default function RunPanel({
@@ -201,7 +201,7 @@ export default function RunPanel({
       <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
         <div className="spread">
           <h2 style={{ margin: 0 }}>Run {agentRef}</h2>
-          <button onClick={onClose} disabled={running || sessionActive} title={running || sessionActive ? "A run is in progress" : ""}>✕</button>
+          <Button onClick={onClose} disabled={running || sessionActive} title={running || sessionActive ? "A run is in progress" : ""}>✕</Button>
         </div>
         <p className="muted small">
           Runs in an isolated container; tools come only from a per-run Docker MCP Gateway
@@ -217,23 +217,23 @@ export default function RunPanel({
           </div>
         )}
         {setup && setup.dockerOk && !setup.imagesReady && (
-          <div className="notice">
+          <Notice tone="warn">
             The gateway/harness/runner images are not all present yet — this run will install
             them first (it can take a few minutes), or prepare them once in Settings → Agent runs.
-          </div>
+          </Notice>
         )}
 
         {/* Declared contract: what a Run click accepts. */}
         {profile && (
           <>
             <h3>Declared contract</h3>
-            <div className="card selectable">
+            <Card className="selectable">
               <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
               <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
               {profile.capabilityLines.map((l) => (
                 <div key={l} className="mono small">{l}</div>
               ))}
-            </div>
+            </Card>
           </>
         )}
         {profileErr && <ErrorBox error={profileErr} />}
@@ -250,11 +250,11 @@ export default function RunPanel({
                     : " (all resolve from the environment at run time)"}
                   {" · "}{profile.keep ? "kept after runs" : "removed when a run completes"}
                 </span>
-                <button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</button>
+                <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</Button>
               </div>
             )}
             {formOpen && (
-              <div className="card">
+              <Card>
                 <p className="muted small" style={{ marginTop: 0 }}>
                   This release declares the keys below. They are stored once per exact release
                   (0600, this machine only), injected only into the run&apos;s tool container, and
@@ -282,12 +282,12 @@ export default function RunPanel({
                   </span>
                 </label>
                 <div className="row" style={{ justifyContent: "flex-end" }}>
-                  {profile.exists && <button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</button>}
-                  <button className="primary" onClick={saveProfile} disabled={savingProfile}>
+                  {profile.exists && <Button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</Button>}
+                  <Button variant="primary" onClick={saveProfile} disabled={savingProfile}>
                     {savingProfile ? "Saving…" : "Save keys"}
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </Card>
             )}
           </>
         )}
@@ -297,7 +297,7 @@ export default function RunPanel({
         {profile && profile.intake.length > 0 && (
           <>
             <h3>Questions from this BriefAgent</h3>
-            <div className="card">
+            <Card>
               <p className="muted small" style={{ marginTop: 0 }}>
                 Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
                 a secret answer is injected like a declared key and never shown to the agent.
@@ -313,7 +313,7 @@ export default function RunPanel({
                   ) : q.type === "file" ? (
                     <>
                       <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} placeholder="path on this machine" disabled={running} />
-                      <button
+                      <Button
                         disabled={running}
                         onClick={async () => {
                           try {
@@ -325,7 +325,7 @@ export default function RunPanel({
                         }}
                       >
                         Choose…
-                      </button>
+                      </Button>
                     </>
                   ) : (
                     <input
@@ -340,7 +340,7 @@ export default function RunPanel({
                 </div>
               ))}
               {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
-            </div>
+            </Card>
           </>
         )}
 
@@ -369,8 +369,8 @@ export default function RunPanel({
 
         {/* Run form */}
         <h3>Task</h3>
-        <textarea
-          className="task-input mono"
+        <Textarea
+          className="mono"
           rows={4}
           placeholder="What should this BriefAgent do? (empty = the packaged instruction runs with no extra task)"
           value={task}
@@ -388,14 +388,14 @@ export default function RunPanel({
             {inputs.map((p) => (
               <div key={p} className="row" style={{ marginBottom: 4 }}>
                 <span className="mono small grow selectable">{p}</span>
-                <button disabled={running} onClick={() => setInputs(inputs.filter((x) => x !== p))}>Remove</button>
+                <Button disabled={running} onClick={() => setInputs(inputs.filter((x) => x !== p))}>Remove</Button>
               </div>
             ))}
           </div>
         )}
         <div className="row">
-          <button onClick={addFiles} disabled={running}>Add files…</button>
-          <button onClick={addFolder} disabled={running}>Add folder…</button>
+          <Button onClick={addFiles} disabled={running}>Add files…</Button>
+          <Button onClick={addFolder} disabled={running}>Add folder…</Button>
         </div>
 
         <h3>Output &amp; limits</h3>
@@ -408,7 +408,7 @@ export default function RunPanel({
             onChange={(e) => setOutDir(e.target.value)}
             disabled={running}
           />
-          <button onClick={pickOutDir} disabled={running}>Choose…</button>
+          <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
         </div>
         <div className="row" style={{ marginTop: 8 }}>
           <label className="row" style={{ gap: 6 }}>
@@ -477,10 +477,10 @@ export default function RunPanel({
 
         <ErrorBox error={runErr} />
         <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-          <button onClick={onClose} disabled={running}>Close</button>
-          <button className="primary" disabled={!canRun} onClick={runAgent}>
+          <Button onClick={onClose} disabled={running}>Close</Button>
+          <Button variant="primary" disabled={!canRun} onClick={runAgent}>
             {running ? "Running…" : mode === "interactive" ? "Start session" : "Run"}
-          </button>
+          </Button>
         </div>
 
         {/* Interactive session: the chat replaces the log pane. */}
@@ -519,7 +519,7 @@ export default function RunPanel({
         {result && (
           <>
             <h3>Result</h3>
-            <div className="card selectable">
+            <Card className="selectable">
               <div className="row">
                 {result.status === "ok"
                   ? <span className="badge ok">ok</span>
@@ -537,7 +537,7 @@ export default function RunPanel({
               <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
               <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
               <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>
-            </div>
+            </Card>
           </>
         )}
       </div>

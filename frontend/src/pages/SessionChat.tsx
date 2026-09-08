@@ -9,7 +9,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
-import { ErrorBox, Spinner } from "../ui";
+import { Button, ErrorBox, Input, Spinner } from "../ui";
 
 /** One runner:session-event payload (main.SessionEventView on the Go side;
  * it travels only over the event bus, so it is not in the bindings). */
@@ -175,23 +175,29 @@ export default function SessionChat({
   return (
     <div>
       <h3>Session</h3>
-      <div ref={paneRef} className="run-log selectable" style={{ minHeight: 220, maxHeight: 360, overflowY: "auto", whiteSpace: "pre-wrap" }}>
+      <div ref={paneRef} className="chat-pane">
         {starting && <Spinner label="Starting the sandbox and the agent…" />}
         {lines.map((l, i) => {
-          if (l.kind === "user") return <div key={i}><strong>{l.synthetic ? "Runner" : "You"}:</strong> {l.text}</div>;
-          if (l.kind === "assistant") return <div key={i} style={{ marginBottom: 6 }}><strong>Agent:</strong> {l.text}</div>;
-          if (l.kind === "warn") return <div key={i} className="badge warn">{l.text}</div>;
-          return <div key={i} className="muted small">· {l.text}</div>;
+          if (l.kind === "user") return (
+            <div key={i} className="chat-msg user"><div className="chat-bubble"><div className="chat-who">{l.synthetic ? "Runner" : "You"}</div>{l.text}</div></div>
+          );
+          if (l.kind === "assistant") return (
+            <div key={i} className="chat-msg assistant"><div className="chat-bubble"><div className="chat-who">Agent</div>{l.text}</div></div>
+          );
+          if (l.kind === "warn") return <div key={i} className="chat-note warn">{l.text}</div>;
+          return <div key={i} className="chat-note">· {l.text}</div>;
         })}
-        {streaming && <div><strong>Agent:</strong> {streaming}</div>}
+        {streaming && (
+          <div className="chat-msg assistant"><div className="chat-bubble"><div className="chat-who">Agent</div>{streaming}</div></div>
+        )}
       </div>
-      <p className="muted small" style={{ margin: "4px 0" }}>
+      <p className="muted small" style={{ margin: "6px 0" }}>
         {agentRef} · interactive · {turns} turn{turns === 1 ? "" : "s"} · {tools} tool call{tools === 1 ? "" : "s"}
         {cost > 0 ? ` · $${cost.toFixed(4)}` : ""}{busy ? " · thinking…" : ""}{ended ? ` · ended (${ended})` : ""}
       </p>
       <ErrorBox error={error} />
       <div className="row">
-        <input
+        <Input
           type="text"
           className="grow"
           placeholder={ended ? "the session has ended" : "message the agent"}
@@ -200,12 +206,10 @@ export default function SessionChat({
           onKeyDown={(e) => e.key === "Enter" && send()}
           disabled={starting || busy || !!ended || ending}
         />
-        <button onClick={send} disabled={starting || busy || !!ended || ending || !input.trim()}>Send</button>
-        <button onClick={addFile} disabled={starting || !!ended || ending} title="Give the agent another file, read-only under /inputs">Add file…</button>
-        <button className="primary" onClick={() => end(true)} disabled={starting || busy || !!ended || ending} title="Ask the agent for its final result, then end">
-          {ending ? "Ending…" : "Finish"}
-        </button>
-        <button onClick={() => end(false)} disabled={starting || ending} title="End now without a final result">Stop</button>
+        <Button onClick={send} disabled={starting || busy || !!ended || ending || !input.trim()}>Send</Button>
+        <Button onClick={addFile} disabled={starting || !!ended || ending} title="Give the agent another file, read-only under /inputs">Add file…</Button>
+        <Button variant="primary" onClick={() => end(true)} busy={ending} busyLabel="Ending…" disabled={starting || busy || !!ended} title="Ask the agent for its final result, then end">Finish</Button>
+        <Button onClick={() => end(false)} disabled={starting || ending} title="End now without a final result">Stop</Button>
       </div>
     </div>
   );

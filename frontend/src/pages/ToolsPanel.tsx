@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
-import { ErrorBox, Spinner, shortDigest } from "../ui";
+import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Spinner, shortDigest } from "../ui";
 
 export default function ToolsPanel({
   registry, ns, name, version, onClose,
@@ -47,69 +47,61 @@ export default function ToolsPanel({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="spread">
-          <h2 style={{ margin: 0 }}>Set up tools — {agentRef}</h2>
-          <button onClick={onClose}>✕</button>
-        </div>
-        <ErrorBox error={error} />
-        {notice && <div className="notice">{notice}</div>}
-        {!profile && !error && <Spinner />}
-        {profile && (
-          <>
-            <div className="card selectable">
-              <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
-              <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
-              {profile.capabilityLines.map((l) => (
-                <div key={l} className="mono small">{l}</div>
-              ))}
-            </div>
+    <Modal title={`Set up tools — ${agentRef}`} onClose={onClose}>
+      <ErrorBox error={error} />
+      {notice && <Notice tone="ok">{notice}</Notice>}
+      {!profile && !error && <Spinner />}
+      {profile && (
+        <>
+          <Card className="selectable">
+            <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
+            <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
+            {profile.capabilityLines.map((l) => (
+              <div key={l} className="mono small">{l}</div>
+            ))}
+          </Card>
 
-            {profile.declaredSecrets.length === 0 && (
-              <p className="muted">
-                This release declares no keys or identities — its gateway needs no
-                configuration. Runs get exactly the declared tools, nothing else.
+          {profile.declaredSecrets.length === 0 && (
+            <p className="muted">
+              This release declares no keys or identities — its gateway needs no
+              configuration. Runs get exactly the declared tools, nothing else.
+            </p>
+          )}
+
+          {profile.declaredSecrets.length > 0 && (
+            <>
+              <p className="muted small">
+                Stored once per exact release (a different digest is a different trust
+                decision). {profile.exists && (
+                  <>Currently stored: <span className="mono">
+                    {profile.storedSecretNames.length ? profile.storedSecretNames.join(", ") : "none — all resolve from the environment"}
+                  </span>.</>
+                )}
               </p>
-            )}
-
-            {profile.declaredSecrets.length > 0 && (
-              <>
-                <p className="muted small">
-                  Stored once per exact release (a different digest is a different trust
-                  decision). {profile.exists && (
-                    <>Currently stored: <span className="mono">
-                      {profile.storedSecretNames.length ? profile.storedSecretNames.join(", ") : "none — all resolve from the environment"}
-                    </span>.</>
-                  )}
-                </p>
-                {profile.declaredSecrets.map((s) => (
-                  <label key={s} className="small" style={{ display: "block", marginTop: 8 }}>
-                    <span className="mono">{s}</span>
-                    <input
-                      type="password"
-                      style={{ width: "100%" }}
-                      placeholder="empty = resolve from the environment at run time"
-                      value={values[s] ?? ""}
-                      onChange={(e) => setValues({ ...values, [s]: e.target.value })}
-                    />
-                  </label>
-                ))}
-                <label className="row small" style={{ marginTop: 10 }}>
-                  <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
-                  keep this profile after runs (uncheck: deleted when a run completes)
-                </label>
-                <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-                  <button onClick={onClose}>Close</button>
-                  <button className="primary" disabled={saving} onClick={save}>
-                    {saving ? "Storing…" : profile.exists ? "Update profile" : "Store profile"}
-                  </button>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+              {profile.declaredSecrets.map((s) => (
+                <Field key={s} label={<span className="mono">{s}</span>}>
+                  <Input
+                    type="password"
+                    placeholder="empty = resolve from the environment at run time"
+                    value={values[s] ?? ""}
+                    onChange={(e) => setValues({ ...values, [s]: e.target.value })}
+                  />
+                </Field>
+              ))}
+              <label className="check-row" style={{ marginTop: 10 }}>
+                <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
+                <span>keep this profile after runs (uncheck: deleted when a run completes)</span>
+              </label>
+              <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+                <Button onClick={onClose}>Close</Button>
+                <Button variant="primary" busy={saving} busyLabel="Storing…" onClick={save}>
+                  {profile.exists ? "Update profile" : "Store profile"}
+                </Button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </Modal>
   );
 }
