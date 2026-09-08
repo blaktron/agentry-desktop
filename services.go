@@ -42,6 +42,10 @@ type SettingsView struct {
 	DefaultRegistry string         `json:"defaultRegistry"`
 	Registries      []RegistryView `json:"registries"`
 	ConfigPath      string         `json:"configPath"`
+	// Onboarded is false until the first-run wizard is completed or skipped;
+	// the frontend opens the guided setup while it is false and nothing is
+	// signed in (agentry-desktop#41).
+	Onboarded bool `json:"onboarded"`
 }
 
 func settingsView() (*SettingsView, error) {
@@ -50,7 +54,7 @@ func settingsView() (*SettingsView, error) {
 		return nil, err
 	}
 	path, _ := settings.Path()
-	v := &SettingsView{DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path}
+	v := &SettingsView{DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded}
 	for _, r := range s.Registries {
 		src := settings.TokenSource(r.URL)
 		v.Registries = append(v.Registries, RegistryView{
@@ -63,6 +67,16 @@ func settingsView() (*SettingsView, error) {
 
 // Get returns the current settings.
 func (s *SettingsAPI) Get() (*SettingsView, error) { return settingsView() }
+
+// MarkOnboarded records that the first-run wizard finished or was skipped,
+// so it does not reopen on the next start (agentry-desktop#41). The wizard
+// only orchestrates existing services; this flag is the sole state it adds.
+func (s *SettingsAPI) MarkOnboarded() (*SettingsView, error) {
+	if err := settings.SetOnboarded(); err != nil {
+		return nil, err
+	}
+	return settingsView()
+}
 
 // AddRegistry records a new registry.
 func (s *SettingsAPI) AddRegistry(url string) (*SettingsView, error) {

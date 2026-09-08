@@ -930,6 +930,7 @@ export namespace main {
 	    defaultRegistry: string;
 	    registries: RegistryView[];
 	    configPath: string;
+	    onboarded: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsView(source);
@@ -940,6 +941,7 @@ export namespace main {
 	        this.defaultRegistry = source["defaultRegistry"];
 	        this.registries = this.convertValues(source["registries"], RegistryView);
 	        this.configPath = source["configPath"];
+	        this.onboarded = source["onboarded"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

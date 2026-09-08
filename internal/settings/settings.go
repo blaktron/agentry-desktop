@@ -51,6 +51,10 @@ type Registry struct {
 type Settings struct {
 	DefaultRegistry string     `yaml:"defaultRegistry,omitempty" json:"defaultRegistry"`
 	Registries      []Registry `yaml:"registries,omitempty" json:"registries"`
+	// Onboarded is set once the first-run wizard has been completed or
+	// explicitly skipped. While it is false and no registry is signed in,
+	// the desktop app opens the guided setup on start (agentry-desktop#41).
+	Onboarded bool `yaml:"onboarded,omitempty" json:"onboarded"`
 }
 
 // Path returns the settings file path.
@@ -107,6 +111,22 @@ func Save(s Settings) error {
 		return fmt.Errorf("chmod %s: %w", path, err)
 	}
 	return nil
+}
+
+// SetOnboarded records that the first-run wizard has been completed or
+// skipped, so it does not reopen on the next start. It is idempotent: a
+// no-op when the flag is already set, and it writes a fresh settings file
+// (with the shippable default registry) when none exists yet.
+func SetOnboarded() error {
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	if s.Onboarded {
+		return nil
+	}
+	s.Onboarded = true
+	return Save(s)
 }
 
 // Normalize canonicalizes a registry URL for storage and comparison.
