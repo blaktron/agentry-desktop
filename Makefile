@@ -41,17 +41,23 @@ check: frontend lint test
 	$(GO) build ./...
 
 # --- packaging -------------------------------------------------------------
+# Package names follow the shape the download manifest matches — product,
+# version, os, arch, lowercase — so a built artifact can reach the download
+# page instead of being dropped for its name (agentry-web#59 teaches the
+# manifest about the archive extension a .app has to ship in).
+#
 # macOS: a universal .app zipped for distribution (unsigned/un-notarized —
-# see DEVIATIONS.md D-001). Output: build/bin/Agentry-Desktop-macos.zip
+# see DEVIATIONS.md D-001).
+# Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 package-darwin:
 	wails build -platform darwin/universal -ldflags '$(LDFLAGS)'
-	cd build/bin && ditto -c -k --keepParent agentry-desktop.app Agentry-Desktop-$(VERSION)-macos-universal.zip
+	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 
 # Windows: cross-compiled from macOS (Wails v2 supports this; webview2
 # loader is compile-time). Output: build/bin/agentry-desktop.exe
 package-windows:
 	wails build -platform windows/amd64 -ldflags '$(LDFLAGS)'
-	cd build/bin && zip -q Agentry-Desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
+	cd build/bin && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
 
 # Linux is built on a Linux host (webkit2gtk links natively); see README.
 package: package-darwin package-windows

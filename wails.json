@@ -6,6 +6,13 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "info": {
+    "companyName": "SecureAgentry",
+    "productName": "Agentry Desktop",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 SecureAgentry",
+    "comments": "Desktop client for Agentry registries"
+  },
   "author": {
     "name": "cdupres",
     "email": "chris@secureagentry.net"
