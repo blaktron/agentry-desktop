@@ -11,26 +11,26 @@ The product never claims an agent is "safe". The language is always:
 
 ## Surfaces
 
-- **Browse** — search the connected registry, with facets for run mode,
-  declared capability and sort order. An agent page shows the summary,
+- **Browse** — search the connected registry, with filters for run mode and
+  declared capability, and a sort order. An agent page shows the summary,
   capability badges, the public security report card (findings by severity,
   ruleset version, scan date), version history, and provenance (archive
   digest, signing key id, DSSE verification state). READMEs are rendered
   from the API's server-sanitized HTML — the client never parses registry
   markdown itself.
-- **Install** — pick a target and a directory, then: resolve → download →
-  **sha256 digest check → DSSE signature verification against TOFU-pinned
-  keys** → review the declared capability contract → export → record. The
-  app diffs it against what this machine previously accepted, and any
-  widening needs explicit confirmation. The targets are `claude-skill` and
-  `agents-md`; the `mcp` target left with the withdrawn v1 tool-server kind
-  (DEV-088). An unsigned release requires an explicit checkbox, mirroring
-  the CLI's `--allow-unsigned`. A signature that fails to verify aborts —
-  there is no override for that. The wizard also shows the registry's
-  verdict on each declared MCP server, and a known high or critical
-  advisory refuses runs by default. The run panel's "allow
+- **Install** — pick a target, `claude-skill` or `agents-md` (the `mcp`
+  target left with the withdrawn v1 tool-server kind, DEV-088), and a
+  directory, then: resolve → download → **sha256 digest check → DSSE
+  signature verification against TOFU-pinned keys** → review the declared
+  capability contract → export → record. The app diffs that contract
+  against what this machine previously accepted, and any widening needs
+  explicit confirmation; an unsigned release requires an explicit checkbox,
+  mirroring the CLI's `--allow-unsigned`, and a signature that fails to
+  verify aborts — there is no override for that. The wizard shows the
+  registry's verdict on each declared MCP server, and a known high or
+  critical advisory refuses runs by default. The run panel's "allow
   vulnerable MCP servers" override lifts that for one run and is recorded in
-  the receipt; the operator policy can lift it outright. The agent page
+  the receipt; the operator policy can lift it outright, and the agent page
   shows the verdict per server and, for the publisher, the open dependency
   alerts.
 - **Run** — run a BriefAgent from the app (RUNNER-PLAN-2 §P6) with the same
@@ -51,7 +51,7 @@ The product never claims an agent is "safe". The language is always:
   writes), with per-item capabilities and update checks. Uninstall deletes
   client-managed directories only: a directory you picked is never deleted.
 - **Validate** — an author drop-zone. Point it at a local agent folder and
-  it runs manifest rules V1–V8, the S1 inventory (content-sniffed binaries,
+  it runs the manifest rules, the S1 inventory (content-sniffed binaries,
   nested archives, encoding), and the S3/S4 hidden-content and
   injection-signature scanners. Those are the same Go packages the
   publication pipeline runs (D-12 local/remote parity by construction), with
@@ -62,8 +62,8 @@ The product never claims an agent is "safe". The language is always:
 Wails v2 (Go + native webview) with a React + TypeScript + Vite frontend
 sharing the web app's design tokens.
 
-Verification and scanning run **in-process**, through the same libraries the
-server and CLI use —
+Go is the whole point: verification and scanning run **in-process** through
+the same libraries the server and CLI use —
 
 | concern | package |
 |---|---|
@@ -145,8 +145,8 @@ hosted build may compile one in.
 
 Anonymous browsing works. **Sign in via browser** opens the registry's own
 `/ui/authorize` page in your browser and brings a scoped token back to the
-app, which is when the registry's signing keys are pinned. Pasting a
-personal access token does the same — take one from the registry's
+app. Signing in is also when the app pins the registry's signing keys.
+Pasting a personal access token does the same — take one from the registry's
 `/ui/account/tokens` page, the site's Settings → Authentication, or
 `agentry login`.
 
