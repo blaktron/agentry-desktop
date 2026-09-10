@@ -11,13 +11,14 @@ The product never claims an agent is "safe". The language is always:
 
 ## Surfaces
 
-- **Browse** — search the connected registry (kind / capability / license /
+- **Browse** — search the connected registry (run mode / capability /
   sort facets); agent pages show the summary, capability badges, the public
   security report card (findings by severity, ruleset version, scan date),
   version history, and provenance (archive digest, signing key id, DSSE
   verification state). READMEs are rendered from the API's server-sanitized
   HTML — the client never parses registry markdown itself.
-- **Install** — pick a target (`claude-skill` / `mcp` / `agents-md`) and
+- **Install** — pick a target (`claude-skill` or `agents-md`; the `mcp`
+  target left with the withdrawn v1 tool-server kind, DEV-088) and
   directory, then: resolve → download → **sha256 digest check → DSSE
   signature verification against TOFU-pinned keys** → review the declared
   capability contract (diffed against what this machine previously accepted,
@@ -78,13 +79,15 @@ to the frontend; engines live in
 `internal/{registry,install,validate,settings,run}`.
 
 Credentials are stored in the OS keychain under the same service/account
-convention as the CLI, so signing in from either client signs in both.
+convention as the CLI, so signing in from either client signs in both. With
+no keychain available the token falls back into the app's own settings file
+at 0600, the CLI's posture too.
 Install records and pinned signing keys are shared files under
 `~/.config/agentry/` (relocatable with `AGENTRY_CONFIG_DIR`).
 
 ## Building
 
-Prereqs: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
+Prereqs for a platform bundle: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
 (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`); on Linux the
 GTK 3 and WebKit2GTK 4.1 development headers.
 
@@ -119,11 +122,13 @@ apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev npm golang
 wails build -platform linux/amd64
 ```
 
-(A host without those headers can build inside an Ubuntu container — see
+(A host without those headers can build inside a Debian container — see
 `scripts/build-linux.sh`.)
 
 CI (`ci.yaml`: `check` and `govulncheck`) runs on the project's own
-runners. Artifacts are not committed; they attach to GitHub releases, still
+runners. Those two jobs need neither the Wails CLI nor the WebKit headers:
+they compile the app library, not the platform bundle. Artifacts are not
+committed; they attach to GitHub releases, still
 a manual step (the hosted service builds and serves its own binaries from
 the site repository).
 
@@ -137,7 +142,7 @@ in the app's config file), and a hosted build may compile one in. Anonymous
 browsing works; **Sign in** opens the registry's own `/ui/authorize` page
 in your browser and brings a scoped token back to the app, which is when
 the registry's signing keys are pinned — a personal access token pasted from
-the registry (its `/ui/account/tokens` page, the site's Settings → Tokens,
+the registry (its `/ui/account/tokens` page, the site's Settings → Authentication,
 or `agentry login`) does the same.
 
 ## Conventions
