@@ -1,65 +1,69 @@
 # Agentry Desktop
 
 A cross-platform desktop client (macOS, Windows, Linux) for
-[Agentry](https://secureagentry.net) registries — browse scanned and
-signed agents, install them with **digest and DSSE-signature verification on
-this machine**, track what this machine has accepted, and validate local
-agent folders with the same scanners the registry runs.
+[Agentry](https://secureagentry.net) registries. Browse scanned and signed
+agents, install them with **digest and DSSE-signature verification on this
+machine**, track what this machine has accepted, and validate local agent
+folders with the same scanners the registry runs.
 
 The product never claims an agent is "safe". The language is always:
 *scanned, N findings, signed.*
 
 ## Surfaces
 
-- **Browse** — search the connected registry (kind / capability / license /
-  sort facets); agent pages show the summary, capability badges, the public
-  security report card (findings by severity, ruleset version, scan date),
-  version history, and provenance (archive digest, signing key id, DSSE
-  verification state). READMEs are rendered from the API's server-sanitized
-  HTML — the client never parses registry markdown itself.
-- **Install** — pick a target (`claude-skill` / `mcp` / `agents-md`) and
-  directory, then: resolve → download → **sha256 digest check → DSSE
-  signature verification against TOFU-pinned keys** → review the declared
-  capability contract (diffed against what this machine previously accepted,
-  with explicit confirmation on any widening) → export → record. An unsigned
-  release requires an explicit checkbox, mirroring the CLI's
-  `--allow-unsigned`. A signature that fails to verify aborts — there is no
-  override for that. The wizard also shows the registry's verdict on each
-  declared MCP server; a known high or critical advisory refuses runs by
-  default (the run panel's "allow vulnerable MCP servers" override, recorded
-  in the receipt, or the operator policy lifts it), and the agent page shows
-  the verdict per server and, for the publisher, the open dependency alerts.
+- **Browse** — search the connected registry, with facets for run mode,
+  declared capability and sort order. An agent page shows the summary,
+  capability badges, the public security report card (findings by severity,
+  ruleset version, scan date), version history, and provenance (archive
+  digest, signing key id, DSSE verification state). READMEs are rendered
+  from the API's server-sanitized HTML — the client never parses registry
+  markdown itself.
+- **Install** — pick a target and a directory, then: resolve → download →
+  **sha256 digest check → DSSE signature verification against TOFU-pinned
+  keys** → review the declared capability contract → export → record. The
+  app diffs it against what this machine previously accepted, and any
+  widening needs explicit confirmation. The targets are `claude-skill` and
+  `agents-md`; the `mcp` target left with the withdrawn v1 tool-server kind
+  (DEV-088). An unsigned release requires an explicit checkbox, mirroring
+  the CLI's `--allow-unsigned`. A signature that fails to verify aborts —
+  there is no override for that. The wizard also shows the registry's
+  verdict on each declared MCP server, and a known high or critical
+  advisory refuses runs by default. The run panel's "allow
+  vulnerable MCP servers" override lifts that for one run and is recorded in
+  the receipt; the operator policy can lift it outright. The agent page
+  shows the verdict per server and, for the publisher, the open dependency
+  alerts.
 - **Run** — run a BriefAgent from the app (RUNNER-PLAN-2 §P6) with the same
   lifecycle `agentry run` executes: verify (digest + DSSE, the install
   gate) → materialize into the shared `~/.agentry/runner` cache → compile
   the capability contract into a run plan → execute in an isolated
   container topology where tools come only from a per-run Docker MCP
-  Gateway. Agent pages gain an **MCP servers & tools** section (the tools
+  Gateway. Agent pages gain an **MCP servers & tools** section: the tools
   the contract grants, the servers involved, declared key NAMES, and the
-  embedded-install equivalent); a guided form collects a BriefAgent's keys
-  once per release into its MCP profile (values 0600 on disk, never shown,
-  never logged); Settings → **Agent runs** writes the LLM provider into the
-  same operator policy the CLI reads and can prepare the gateway images
-  up front. Runs stream their log live and finish with the §R8 result
+  embedded-install equivalent. A guided form collects a BriefAgent's keys
+  once per release into its MCP profile — values 0600 on disk, never shown,
+  never logged. Settings → **Agent runs** writes the LLM provider into the
+  same operator policy the CLI reads, and can prepare the gateway images up
+  front. Runs stream their log live and finish with the §R8 result
   envelope — status, usage, receipts, and the output folder.
 - **Installed** — the shared install state
   (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
-  writes), per-item capabilities, update checks, uninstall (client-managed
-  directories only; a directory you picked is never deleted).
-- **Validate** — an author drop-zone: point at a local agent folder and run
-  manifest rules V1–V8, the S1 inventory (content-sniffed binaries, nested
-  archives, encoding), and the S3/S4 hidden-content + injection-signature
-  scanners — the same Go packages the publication pipeline runs (D-12
-  local/remote parity by construction), with the rule bundle embedded in
-  the binary.
+  writes), with per-item capabilities and update checks. Uninstall deletes
+  client-managed directories only: a directory you picked is never deleted.
+- **Validate** — an author drop-zone. Point it at a local agent folder and
+  it runs manifest rules V1–V8, the S1 inventory (content-sniffed binaries,
+  nested archives, encoding), and the S3/S4 hidden-content and
+  injection-signature scanners. Those are the same Go packages the
+  publication pipeline runs (D-12 local/remote parity by construction), with
+  the rule bundle embedded in the binary.
 
 ## Architecture
 
 Wails v2 (Go + native webview) with a React + TypeScript + Vite frontend
 sharing the web app's design tokens.
 
-Go is the whole point: verification and scanning run **in-process** through
-the same libraries the server and CLI use —
+Verification and scanning run **in-process**, through the same libraries the
+server and CLI use —
 
 | concern | package |
 |---|---|
@@ -77,14 +81,16 @@ Bound services (`services.go`, `services_run.go`) expose flat view models
 to the frontend; engines live in
 `internal/{registry,install,validate,settings,run}`.
 
-Credentials are stored in the OS keychain under the same service/account
-convention as the CLI, so signing in from either client signs in both.
-Install records and pinned signing keys are shared files under
-`~/.config/agentry/` (relocatable with `AGENTRY_CONFIG_DIR`).
+The app puts credentials in the OS keychain, under the same service/account
+convention as the CLI, so signing in from either client signs in both. With
+no keychain available the token falls back into the app's own settings file
+at 0600, the CLI's posture too. Install records and pinned signing keys are
+shared files under `~/.config/agentry/` (relocatable with
+`AGENTRY_CONFIG_DIR`).
 
 ## Building
 
-Prereqs: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
+Prereqs for a platform bundle: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
 (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`); on Linux the
 GTK 3 and WebKit2GTK 4.1 development headers.
 
@@ -119,26 +125,30 @@ apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev npm golang
 wails build -platform linux/amd64
 ```
 
-(A host without those headers can build inside an Ubuntu container — see
+(A host without those headers can build inside a Debian container — see
 `scripts/build-linux.sh`.)
 
 CI (`ci.yaml`: `check` and `govulncheck`) runs on the project's own
-runners. Artifacts are not committed; they attach to GitHub releases, still
-a manual step (the hosted service builds and serves its own binaries from
-the site repository).
+runners. Those two jobs need neither the Wails CLI nor the WebKit headers:
+they compile the app library, not the platform bundle. Artifacts are not
+committed; they attach to GitHub releases, still a manual step (the hosted
+service builds and serves its own binaries from the site repository).
 
 ## The registry it talks to
 
 The app works against any Agentry registry — the hosted service or one you
 run from the open core ([self-hosting guide](https://github.com/blaktron/agentry/blob/main/docs/self-hosting.md)).
-Settings → Add a registry → its URL (`http://localhost:8080` for a local
-stack) → Use; the first one added becomes the default (`defaultRegistry`
-in the app's config file), and a hosted build may compile one in. Anonymous
-browsing works; **Sign in** opens the registry's own `/ui/authorize` page
-in your browser and brings a scoped token back to the app, which is when
-the registry's signing keys are pinned — a personal access token pasted from
-the registry (its `/ui/account/tokens` page, the site's Settings → Tokens,
-or `agentry login`) does the same.
+Add one under Settings → Add a registry: its URL
+(`http://localhost:8080` for a local stack), then Use. The first one added
+becomes the default (`defaultRegistry` in the app's config file), and a
+hosted build may compile one in.
+
+Anonymous browsing works. **Sign in via browser** opens the registry's own
+`/ui/authorize` page in your browser and brings a scoped token back to the
+app, which is when the registry's signing keys are pinned. Pasting a
+personal access token does the same — take one from the registry's
+`/ui/account/tokens` page, the site's Settings → Authentication, or
+`agentry login`.
 
 ## Conventions
 
