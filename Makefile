@@ -6,7 +6,15 @@
 export PATH := $(HOME)/go/bin:/opt/homebrew/bin:$(PATH)
 GO ?= go
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
-LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VERSION)
+# EXTRA_LDFLAGS lets a caller add to the linker flags (a baked-in default
+# registry, -w -s) without taking the version stamp away from this file.
+EXTRA_LDFLAGS ?=
+LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VERSION) $(EXTRA_LDFLAGS)
+# Extra flags for `wails build` in package-darwin. scripts/build-darwin.sh
+# passes `-m` (skip `go mod tidy`): a tree shipped with vendor/ and no GitHub
+# credential builds in vendor mode on its own, but tidy walks the whole module
+# graph past vendor/ and asks GitHub for the private modules.
+WAILS_FLAGS ?=
 
 .PHONY: dev build check lint test frontend package package-darwin package-windows clean bindings
 
@@ -50,7 +58,7 @@ check: frontend lint test
 # see DEVIATIONS.md D-001).
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 package-darwin:
-	wails build -platform darwin/universal -ldflags '$(LDFLAGS)'
+	wails build $(WAILS_FLAGS) -platform darwin/universal -ldflags '$(LDFLAGS)'
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 
 # Windows: cross-compiled from macOS (Wails v2 supports this; webview2
