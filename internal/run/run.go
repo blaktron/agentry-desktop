@@ -396,7 +396,12 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	}
 
 	docker := newDockerClient()
-	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
+	// The last argument asks for the pinned harness image. A host-run
+	// harness runs no container, so pulling it would be a download nobody
+	// asked for; the desktop only compiles the default container adapter
+	// today, and the plan is the honest place to read that from.
+	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw,
+		plan.Harness.Host == nil); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}
 	// The per-BriefAgent exec image the plan names when the agent declares

@@ -1,0 +1,49 @@
+# The desktop shares on-disk formats with the CLI — the operator policy, the
+# install record, the pinned signing keys, the runner home — so a pinned
+# dependency that falls behind is not a housekeeping matter: it is a shipped
+# build that cannot read a file the current CLI writes (desktop#60, where the
+# first-run wizard died on a policy field the pinned CLI did not define).
+#
+# Deliberately NOT a pull-request job. A pin goes stale when another
+# repository merges, which is nobody's fault on the pull request that happens
+# to be open here, and a gate that reddens for someone else's merge teaches
+# people to merge past red.
+name: pins
+on:
+  schedule:
+    # Daily, after the working day's merges have settled.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freshness:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # The runner shares one persistent host module cache with every other
+          # runner; restoring the Actions cache over it is slow and left partial
+          # modules that broke `go mod verify` in the core (agentry#225).
+          cache: false
+      - name: Authenticate for the private blaktron modules
+        env:
+          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE='github.com/blaktron/*'
+      - name: Are the blaktron pins current?
+        run: |
+          set -euo pipefail
+          behind=$(go list -m -u -f '{{if .Update}}{{.Path}}: {{.Version}} -> {{.Update.Version}}{{end}}' \
+            github.com/blaktron/agentry github.com/blaktron/agentry-cli)
+          if [ -n "$behind" ]; then
+            echo "$behind"
+            echo "::error::A pinned dependency is behind its default branch. The desktop reads files the CLI writes, so a stale pin ships as a broken build (desktop#60). Bump with: go get github.com/blaktron/agentry@main github.com/blaktron/agentry-cli@main, then fix any call sites the API moved under."
+            exit 1
+          fi
+          echo "pins are current"
