@@ -134,7 +134,10 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		return nil
 	}
 	docker := newDockerClient()
-	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw); err != nil {
+	// Setup prepares the whole plane before any agent is chosen, so the
+	// harness image is wanted here whatever a later run turns out to use.
+	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw,
+		true); err != nil {
 		return fmt.Errorf("gateway/docker environment: %w", err)
 	}
 	_, _ = fmt.Fprintln(logw, "setup complete — gateway, harness, and runner images ready; BriefAgents can run")
