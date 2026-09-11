@@ -128,6 +128,20 @@ wails build -platform linux/amd64
 (A host without those headers can build inside a Debian container — see
 `scripts/build-linux.sh`.)
 
+**macOS** cannot be cross-built (the macOS front end is Objective-C behind
+cgo), so the universal bundle is built on a Mac that carries the Command
+Line Tools, Go, Node and the Wails CLI. `scripts/build-darwin.sh [user@host]`
+runs from a Linux workstation: it vendors the modules where the credential
+helper lives, ships the tree without `.git` to the Mac, runs
+`make package-darwin WAILS_FLAGS=-m` there (the Makefile says why `-m`),
+copies the zip back and prints its digest. The bundle is ad-hoc signed
+only (D-001: no Developer ID, no notarization). The Mac needs no GitHub
+credential. Set `AGENTRY_DEFAULT_REGISTRY` to bake in the
+registry the build connects to by default. The launch smoke at the end
+needs the build user logged in at the Mac's console; without one it is
+reported as skipped, not failed. The estate's Mac and the plan behind it:
+`agentry-notes/plans/macos-build-host.md`.
+
 CI (`ci.yaml`: `check` and `govulncheck`) runs on the project's own
 runners. Those two jobs need neither the Wails CLI nor the WebKit headers:
 they compile the app library, not the platform bundle. Artifacts are not
