@@ -1,7 +1,8 @@
 # CI gate for the desktop client: frontend type-check + the dist bundle the
 # Go binary embeds, then gofmt/vet/lint/tests/build (`make check`), and
-# dependency hygiene. No wails CLI or webkit2gtk needed — the checks compile
-# the app library, not the platform bundle.
+# dependency hygiene, on the Linux runners — no wails CLI or webkit2gtk
+# needed, they compile the app library, not the platform bundle. The macos
+# job below is the exception: it builds the universal bundle on the Mac.
 name: ci
 on:
   push:
@@ -69,3 +70,80 @@ jobs:
           git config --global url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
           go env -w GOPRIVATE='github.com/blaktron/*'
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  # The one target that cannot be cross-built (agentry-desktop#57): the
+  # universal bundle is built on the estate's Mac, the Go tests run natively,
+  # the Keychain path is exercised, and the built app is launched when the
+  # runner's user has a console session. Not a required check yet: the runner
+  # is new and one machine, so its failure is visible but does not block.
+  macos:
+    runs-on: [self-hosted, macOS, ARM64]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A persistent, non-container runner: caches live in stable places under
+      # the runner user's home rather than accumulating per job, and nothing
+      # here is restored over them. The wails CLI goes on PATH from ~/go/bin.
+      - name: Pin the caches and PATH
+        run: |
+          mkdir -p "$HOME/runner-cache/go-mod" "$HOME/runner-cache/go-build" "$HOME/runner-cache/npm"
+          {
+            echo "GOMODCACHE=$HOME/runner-cache/go-mod"
+            echo "GOCACHE=$HOME/runner-cache/go-build"
+            echo "npm_config_cache=$HOME/runner-cache/npm"
+            echo "GOPRIVATE=github.com/blaktron/*"
+            echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig"
+          } >> "$GITHUB_ENV"
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      # The private blaktron modules need a credential to fetch. On this
+      # persistent host it must not land in ~/.gitconfig, so the rewrite goes
+      # into a job-scoped file (GIT_CONFIG_GLOBAL above) removed at the end.
+      - name: Authenticate for the private blaktron modules (job-scoped)
+        env:
+          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: |
+          git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: Install the wails CLI at the version go.mod pins
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      - name: Build the universal bundle
+        run: |
+          make package-darwin
+          lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
+          shasum -a 256 build/bin/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentry-desktop-darwin-universal
+          path: build/bin/agentry-desktop-*-darwin-universal.zip
+          if-no-files-found: error
+      # frontend/dist exists after the wails build, so the Go tools run on the
+      # embedded bundle the app ships with.
+      - name: Go tests, natively on macOS
+        run: go test ./...
+      - name: Keychain round trip
+        run: AGENTRY_KEYCHAIN_TEST=1 go test ./internal/settings/ -run TestKeychainRoundTrip -v
+      # A window needs the runner's user logged in at the console. Without a
+      # session the smoke cannot run and says so; with one, the built app must
+      # still be running after five seconds.
+      - name: Launch smoke
+        run: |
+          if ! launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
+            echo "::warning::launch smoke skipped: no console session for $(id -un) on this runner"
+            exit 0
+          fi
+          ./build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop >smoke.log 2>&1 & pid=$!
+          sleep 5
+          if kill -0 "$pid" 2>/dev/null; then
+            echo "agentry-desktop running after 5 s"; kill "$pid"; wait "$pid" 2>/dev/null || true
+          else
+            wait "$pid"; ec=$?; echo "agentry-desktop exited with $ec before 5 s"; tail -20 smoke.log; exit 1
+          fi
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$GIT_CONFIG_GLOBAL"
