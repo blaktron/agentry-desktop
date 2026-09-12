@@ -250,8 +250,10 @@ function DoneStep({
   onFinish: () => void;
 }) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
+  const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
   useEffect(() => {
     RunAPI.SetupStatus().then(setStatus).catch(() => setStatus(null));
+    RunAPI.PrereqStatus().then(setPrereq).catch(() => setPrereq(null));
   }, []);
 
   const signedReg = settings.registries.find((r) => r.hasToken);
@@ -259,9 +261,15 @@ function DoneStep({
     signedReg
       ? { ok: true, text: `Signed in to ${signedReg.url}` }
       : { ok: false, text: "Browsing anonymously — sign in any time from Settings" },
+    // The docker row names the state (agentry-desktop#64): a pending restart
+    // is a step done, waiting on the session, not a missing engine.
     status?.dockerOk
       ? { ok: true, text: "Docker is available" }
-      : { ok: false, text: "Docker not detected — install it from Settings before a run" },
+      : prereq?.state === "pendingRestart"
+        ? { ok: false, text: "Docker is installed — restart your session before the first run" }
+        : prereq?.state === "groupMissing"
+          ? { ok: false, text: "Docker is installed — add yourself to the docker group from Settings, then restart your session" }
+          : { ok: false, text: "Docker not detected — install it from Settings before a run" },
     status?.policyExists
       ? { ok: true, text: `Provider ${status.provider}${status.model ? ` (${status.model})` : ""} written to the runner policy` }
       : { ok: false, text: "Provider defaults will be written on your first run" },

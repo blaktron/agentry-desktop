@@ -44,8 +44,16 @@ The product never claims an agent is "safe". The language is always:
   once per release into its MCP profile — values 0600 on disk, never shown,
   never logged. Settings → **Agent runs** writes the LLM provider into the
   same operator policy the CLI reads, and can prepare the gateway images up
-  front. Runs stream their log live and finish with the §R8 result
-  envelope — status, usage, receipts, and the output folder.
+  front. On Linux the docker card names the machine's state — `installable`
+  (the app installs the engine through `pkexec`), `groupMissing` (the engine
+  is in, your user is not in the `docker` group: one button adds you, through
+  `pkexec`), `pendingRestart` (installed and in the group, but this session
+  cannot use it until it restarts: **Restart now** asks the session manager
+  to reboot, **Restart later** keeps the card until the engine answers),
+  `ready`, or `manual` (a hand-off to the official installer, or an installed
+  engine that refuses for its own reason). The app never runs as root. Runs
+  stream their log live and finish with the §R8 result envelope — status,
+  usage, receipts, and the output folder.
 - **Installed** — the shared install state
   (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
   writes), with per-item capabilities and update checks. Uninstall deletes

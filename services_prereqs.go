@@ -18,17 +18,50 @@ type PrereqView struct {
 	Command     string `json:"command,omitempty"`
 	DownloadURL string `json:"downloadUrl"`
 	Note        string `json:"note,omitempty"`
+	// State is run.State*: what the card shows and offers (agentry-desktop#64).
+	State           string `json:"state"`
+	EngineInstalled bool   `json:"engineInstalled"`
+	InDockerGroup   bool   `json:"inDockerGroup"`
+	GroupCommand    string `json:"groupCommand,omitempty"`
 }
 
-// PrereqStatus reports what an "Install prerequisites" click would do.
-func (r *RunAPI) PrereqStatus() (*PrereqView, error) {
-	p := run.DetectPrereqs(r.app.ctx)
+func prereqView(p *run.Prereqs) *PrereqView {
 	return &PrereqView{
 		DockerOK: p.DockerOK, DockerErr: p.DockerErr,
 		OS: p.OS, Distro: p.Distro,
 		CanInstall: p.CanInstall, Command: p.Command,
 		DownloadURL: p.DownloadURL, Note: p.Note,
-	}, nil
+		State: p.State, EngineInstalled: p.EngineInstalled, InDockerGroup: p.InDockerGroup, GroupCommand: p.GroupCommand,
+	}
+}
+
+// PrereqStatus reports what an "Install prerequisites" click would do.
+func (r *RunAPI) PrereqStatus() (*PrereqView, error) {
+	return prereqView(run.DetectPrereqs(r.app.ctx)), nil
+}
+
+// AddToDockerGroup runs only the usermod half of the install through
+// pkexec, for a machine where the engine landed but the membership did
+// not; detection afterwards says pendingRestart (agentry-desktop#64).
+func (r *RunAPI) AddToDockerGroup() (*PrereqView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.AddToDockerGroup(r.app.ctx, logw); err != nil {
+		return nil, err
+	}
+	return r.PrereqStatus()
+}
+
+// RestartNow asks the session manager to reboot (systemctl reboot; pkexec
+// if polkit refuses). The page confirms first; the app never runs as root.
+func (r *RunAPI) RestartNow() error {
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	return run.Restart(r.app.ctx, logw)
 }
 
 // InstallDocker installs the engine through pkexec (the OS shows its own

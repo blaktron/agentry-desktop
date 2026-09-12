@@ -75,8 +75,21 @@ g.go = { main: {
   ValidateAPI: { Run: async () => validateResult },
   RunAPI: {
     GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
-    SetupStatus: async () => ({ dockerOk: true, imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
-    PrereqStatus: async () => ({ dockerOk: true, os: "linux", canInstall: false, downloadUrl: "https://docs.docker.com/engine/install/" }),
+    // pages.html#docker-<state> previews the docker card in that state
+    // (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.
+    PrereqStatus: async () => {
+      const state = (window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "installable";
+      const base = { os: "linux", distro: "fedora", downloadUrl: "https://docs.docker.com/engine/install/", command: "dnf install -y moby-engine && systemctl enable --now docker && usermod -aG docker me", note: "After installation, log out and back in (or reboot) so your user joins the docker group.", groupCommand: "usermod -aG docker me", dockerErr: "permission denied while trying to connect to the docker daemon socket" };
+      switch (state) {
+        case "groupMissing": return { ...base, state, canInstall: true, engineInstalled: true, inDockerGroup: false, dockerOk: false };
+        case "pendingRestart": return { ...base, state, canInstall: true, engineInstalled: true, inDockerGroup: true, dockerOk: false };
+        case "manual": return { ...base, state, canInstall: false, engineInstalled: true, inDockerGroup: true, dockerOk: false, dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" };
+        default: return { ...base, state: "installable", canInstall: true, engineInstalled: false, inDockerGroup: false, dockerOk: false };
+      }
+    },
+    AddToDockerGroup: async () => ({ state: "pendingRestart" }),
+    RestartNow: async () => undefined,
+    SetupStatus: async () => ({ dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
   },
 } };
 g.runtime = {
