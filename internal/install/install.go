@@ -45,10 +45,8 @@ var validTargets = []string{manifest.InterfaceClaudeSkill, manifest.InterfaceAge
 // listed). Interfaces are independent of run mode.
 func DefaultTarget(m *manifest.Manifest) string {
 	for _, it := range m.Runtime.Interfaces {
-		for _, t := range validTargets {
-			if it == t {
-				return it
-			}
+		if manageable(it) {
+			return it
 		}
 	}
 	return manifest.InterfaceClaudeSkill
@@ -193,16 +191,8 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if _, err := manifest.ParseRef(ref); err != nil {
 		return nil, err
 	}
-	if target != "" {
-		ok := false
-		for _, t := range validTargets {
-			if t == target {
-				ok = true
-			}
-		}
-		if !ok {
-			return nil, fmt.Errorf("unknown target %q (want %s)", target, strings.Join(validTargets, ", "))
-		}
+	if target != "" && !manageable(target) {
+		return nil, fmt.Errorf("unknown target %q (want %s)", target, strings.Join(validTargets, ", "))
 	}
 	regURL = settings.Normalize(regURL)
 	token := settings.TokenFor(regURL)
@@ -647,12 +637,69 @@ func sortRecords(recs []installed.Record) {
 	})
 }
 
-// List returns the shared install state, sorted for display.
-func List() ([]installed.Record, error) {
+// Item is one install record with the two facts the Installed page sorts
+// on (agentry-desktop#63): whether its directory is still there, and whether
+// this app can uninstall it. The state file is shared with the CLI, whose
+// `agentry run` writes run consents with target "runner" — records the
+// desktop can show but not manage — and directories go away under both.
+type Item struct {
+	installed.Record
+	// Present is true when Dir exists and is a directory.
+	Present bool `json:"present"`
+	// Manageable is true for a target this app installs and uninstalls
+	// (the §5.6 set); a runner consent is not one.
+	Manageable bool `json:"manageable"`
+}
+
+// manageable reports whether target is in the §5.6 set this app installs
+// and uninstalls; "runner", which the CLI writes for a run consent, is not.
+func manageable(target string) bool {
+	for _, t := range validTargets {
+		if t == target {
+			return true
+		}
+	}
+	return false
+}
+
+// List returns the shared install state, sorted for display, each record
+// with its Present and Manageable facts.
+func List() ([]Item, error) {
 	st, err := installed.Load()
 	if err != nil {
 		return nil, err
 	}
 	sortRecords(st.Records)
-	return st.Records, nil
+	items := make([]Item, 0, len(st.Records))
+	for _, rec := range st.Records {
+		info, statErr := os.Stat(rec.Dir)
+		items = append(items, Item{
+			Record:     rec,
+			Present:    statErr == nil && info.IsDir(),
+			Manageable: manageable(rec.Target),
+		})
+	}
+	return items, nil
+}
+
+// Forget drops an install record and touches nothing on disk. It is for a
+// record whose directory is gone (a project deleted, a runner workspace
+// cleaned up): there is nothing left to uninstall, only a line to remove
+// from the state file. A record whose directory still exists is refused —
+// that is an uninstall, and this must never become a way to leave files
+// behind unrecorded.
+func Forget(k installed.Key) error {
+	state, err := installed.Load()
+	if err != nil {
+		return err
+	}
+	rec := state.Find(k)
+	if rec == nil {
+		return fmt.Errorf("no install record for %s/%s (%s) at %s", k.Namespace, k.Name, k.Target, k.Dir)
+	}
+	if info, statErr := os.Stat(rec.Dir); statErr == nil && info.IsDir() {
+		return fmt.Errorf("%s still exists; uninstall it instead of forgetting the record", rec.Dir)
+	}
+	state.Remove(k)
+	return installed.Save(state)
 }

@@ -48,7 +48,10 @@ export default function AgentPage({
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
   const refreshInstalls = useCallback(() => {
     InstallAPI.ListInstalled()
-      .then((all) => setInstalls(all.filter((r) => r.namespace === ns && r.name === name)))
+      // Only what this app can uninstall and that is still on disk: run
+      // consents and gone directories belong to the Installed page's
+      // other sections (agentry-desktop#63).
+      .then((all) => setInstalls(all.filter((r) => r.namespace === ns && r.name === name && r.manageable && r.present)))
       .catch(() => setInstalls([]));
   }, [ns, name]);
   useEffect(refreshInstalls, [refreshInstalls]);

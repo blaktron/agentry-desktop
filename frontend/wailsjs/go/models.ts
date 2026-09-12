@@ -139,6 +139,57 @@ export namespace build {
 
 export namespace install {
 	
+	export class Item {
+	    registry: string;
+	    namespace: string;
+	    name: string;
+	    target: string;
+	    dir: string;
+	    version: string;
+	    // Go type: time
+	    installedAt: any;
+	    capabilities: installed.CapSnapshot;
+	    managed?: boolean;
+	    present: boolean;
+	    manageable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Item(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registry = source["registry"];
+	        this.namespace = source["namespace"];
+	        this.name = source["name"];
+	        this.target = source["target"];
+	        this.dir = source["dir"];
+	        this.version = source["version"];
+	        this.installedAt = this.convertValues(source["installedAt"], null);
+	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
+	        this.managed = source["managed"];
+	        this.present = source["present"];
+	        this.manageable = source["manageable"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Paths {
 	    dest: string;
 	    managed: boolean;
@@ -881,7 +932,7 @@ export namespace main {
 	    }
 	}
 	export class SearchView {
-	    total: number;
+	    total?: number;
 	    results: SearchHitView[];
 	    facets?: Record<string, any>;
 	

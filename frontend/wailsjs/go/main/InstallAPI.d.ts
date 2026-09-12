@@ -9,7 +9,9 @@ export function CheckUpdates():Promise<Array<install.UpdateInfo>>;
 
 export function Confirm(arg1:string,arg2:boolean,arg3:boolean):Promise<install.Result>;
 
-export function ListInstalled():Promise<Array<installed.Record>>;
+export function Forget(arg1:installed.Key):Promise<void>;
+
+export function ListInstalled():Promise<Array<install.Item>>;
 
 export function Prepare(arg1:string,arg2:string,arg3:string,arg4:string):Promise<install.Plan>;
 

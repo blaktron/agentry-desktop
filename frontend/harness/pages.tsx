@@ -31,10 +31,18 @@ const report = {
   ],
 };
 const prov = { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified", rulesetVersion: "2026.09.1", judgeModel: "claude-sonnet-4-5" };
+// The Installed page's three sections (agentry-desktop#63): two installs this
+// app manages, a run consent the CLI wrote into the same file, and a record
+// whose directory is gone.
 const installedRecs = [
-  { registry: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: "1.2.0", target: "agents-md", dir: "/home/me/work/oncall", managed: true, installedAt: "2026-09-02T09:00:00Z", capabilities: { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", secrets: ["PAGERDUTY_TOKEN"], execCommands: [] } },
-  { registry: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] } },
+  { registry: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: "1.2.0", target: "agents-md", dir: "/home/me/work/oncall", managed: true, installedAt: "2026-09-02T09:00:00Z", capabilities: { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", secrets: ["PAGERDUTY_TOKEN"], execCommands: [] }, present: true, manageable: true },
+  { registry: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] }, present: true, manageable: true },
+  { registry: "runner", namespace: "agentry", name: "changelog-from-git", version: "1.2.1", target: "runner", dir: "/home/me/.agentry/runner/agentry/changelog-from-git", managed: false, installedAt: "2026-09-11T16:20:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["git"] }, present: true, manageable: false },
+  { registry: "https://secureagentry.net", namespace: "acme", name: "release-notes", version: "0.2.0", target: "claude-skill", dir: "/home/me/old-project", managed: true, installedAt: "2026-07-14T10:00:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: [] }, present: false, manageable: true },
 ];
+// pages.html#fresh previews a first run: nothing installed, and a registry
+// that sent no total (a core before agentry#290) gets a list with no count.
+const fresh = window.location.hash === "#fresh";
 
 const buildModel = {
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
@@ -56,13 +64,13 @@ const validateResult = {
 const g = window as any;
 g.go = { main: {
   BrowseAPI: {
-    Search: async () => ({ total: hits.length, results: hits }),
+    Search: async () => (fresh ? { results: hits } : { total: hits.length, results: hits }),
     Agent: async () => detail,
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
     Report: async () => report,
     Provenance: async () => prov,
   },
-  InstallAPI: { ListInstalled: async () => installedRecs, CheckUpdates: async () => [] },
+  InstallAPI: { ListInstalled: async () => (fresh ? [] : installedRecs), CheckUpdates: async () => [], Forget: async () => undefined },
   BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
   ValidateAPI: { Run: async () => validateResult },
   RunAPI: {

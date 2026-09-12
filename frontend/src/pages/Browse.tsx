@@ -83,7 +83,12 @@ export default function Browse({
 
       {!loading && results && (
         <div>
-          <p className="muted small">{results.total} result{results.total === 1 ? "" : "s"}</p>
+          {/* The count is the registry's or nothing: a core that sent no
+              total (before agentry#290) gets a list without a number, not
+              "0 results" above a full list (agentry-desktop#63). */}
+          {typeof results.total === "number" && (
+            <p className="muted small">{results.total} result{results.total === 1 ? "" : "s"}</p>
+          )}
           {results.results.length === 0 && (
             <EmptyState title="Nothing matched">Try a broader query, or clear the mode and capability filters.</EmptyState>
           )}

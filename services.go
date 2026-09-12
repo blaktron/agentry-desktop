@@ -267,9 +267,12 @@ type SearchHitView struct {
 	Quarantine  string   `json:"quarantine,omitempty"`
 }
 
-// SearchView is a search response.
+// SearchView is a search response. Total is a pointer because the registry
+// may not send one (cores before agentry#290 never did), and a count the
+// registry did not give is not a count: the page prints nothing then,
+// rather than the zero this used to carry (agentry-desktop#63).
 type SearchView struct {
-	Total   int                       `json:"total"`
+	Total   *int                      `json:"total,omitempty"`
 	Results []SearchHitView           `json:"results"`
 	Facets  map[string]map[string]int `json:"facets,omitempty"`
 }
@@ -312,9 +315,7 @@ func (b *BrowseAPI) Search(reg string, q SearchQuery) (*SearchView, error) {
 		return nil, registry.Problem("search", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
 	}
 	out := &SearchView{Results: []SearchHitView{}}
-	if resp.JSON200.Total != nil {
-		out.Total = *resp.JSON200.Total
-	}
+	out.Total = resp.JSON200.Total
 	if resp.JSON200.Facets != nil {
 		out.Facets = *resp.JSON200.Facets
 	}
@@ -607,8 +608,14 @@ func (i *InstallAPI) Cancel(planID string) {
 
 // ListInstalled returns the shared install state (~/.config/agentry/
 // installed.yaml — the same file the CLI writes).
-func (i *InstallAPI) ListInstalled() ([]installed.Record, error) {
+func (i *InstallAPI) ListInstalled() ([]install.Item, error) {
 	return install.List()
+}
+
+// Forget drops a record whose directory is gone; nothing on disk is touched
+// (agentry-desktop#63).
+func (i *InstallAPI) Forget(k installed.Key) error {
+	return install.Forget(k)
 }
 
 // CheckUpdates resolves the latest version for every installed record.

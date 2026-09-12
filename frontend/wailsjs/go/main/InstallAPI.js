@@ -14,6 +14,10 @@ export function Confirm(arg1, arg2, arg3) {
   return window['go']['main']['InstallAPI']['Confirm'](arg1, arg2, arg3);
 }
 
+export function Forget(arg1) {
+  return window['go']['main']['InstallAPI']['Forget'](arg1);
+}
+
 export function ListInstalled() {
   return window['go']['main']['InstallAPI']['ListInstalled']();
 }
