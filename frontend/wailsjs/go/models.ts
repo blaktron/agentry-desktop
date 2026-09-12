@@ -718,6 +718,10 @@ export namespace main {
 	    command?: string;
 	    downloadUrl: string;
 	    note?: string;
+	    state: string;
+	    engineInstalled: boolean;
+	    inDockerGroup: boolean;
+	    groupCommand?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PrereqView(source);
@@ -733,6 +737,10 @@ export namespace main {
 	        this.command = source["command"];
 	        this.downloadUrl = source["downloadUrl"];
 	        this.note = source["note"];
+	        this.state = source["state"];
+	        this.engineInstalled = source["engineInstalled"];
+	        this.inDockerGroup = source["inDockerGroup"];
+	        this.groupCommand = source["groupCommand"];
 	    }
 	}
 	export class ProfileStatusView {

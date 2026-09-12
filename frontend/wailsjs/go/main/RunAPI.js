@@ -6,6 +6,10 @@ export function AddSessionInput(arg1) {
   return window['go']['main']['RunAPI']['AddSessionInput'](arg1);
 }
 
+export function AddToDockerGroup() {
+  return window['go']['main']['RunAPI']['AddToDockerGroup']();
+}
+
 export function ApplySetup(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['RunAPI']['ApplySetup'](arg1, arg2, arg3, arg4, arg5);
 }
@@ -28,6 +32,10 @@ export function PrereqStatus() {
 
 export function ProfileStatus(arg1, arg2) {
   return window['go']['main']['RunAPI']['ProfileStatus'](arg1, arg2);
+}
+
+export function RestartNow() {
+  return window['go']['main']['RunAPI']['RestartNow']();
 }
 
 export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11) {
