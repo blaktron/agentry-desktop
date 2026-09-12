@@ -313,3 +313,52 @@ func TestListSurfacesCorruptState(t *testing.T) {
 		t.Fatal("corrupt state must surface as an error")
 	}
 }
+
+// TestListPresentAndManageable pins the two facts the Installed page sorts
+// on (agentry-desktop#63): a manageable install whose directory exists, a
+// runner consent the CLI wrote (present, not manageable), and a record whose
+// directory is gone.
+func TestListPresentAndManageable(t *testing.T) {
+	isolate(t)
+	here := t.TempDir()
+	gone := filepath.Join(t.TempDir(), "deleted-project")
+	var st installed.State
+	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "skill", Target: "claude-skill", Dir: here}, "1.0.0", installed.CapSnapshot{}, true)
+	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "consent", Target: "runner", Dir: here}, "1.0.0", installed.CapSnapshot{}, false)
+	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "vanished", Target: "agents-md", Dir: gone}, "1.0.0", installed.CapSnapshot{}, true)
+	if err := installed.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	items, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][2]bool{}
+	for _, it := range items {
+		got[it.Name] = [2]bool{it.Present, it.Manageable}
+	}
+	want := map[string][2]bool{"skill": {true, true}, "consent": {true, false}, "vanished": {false, true}}
+	for name, w := range want {
+		if got[name] != w {
+			t.Fatalf("%s: present/manageable = %v, want %v", name, got[name], w)
+		}
+	}
+
+	// Forget removes only the vanished record; a present one is refused.
+	if err := Forget(installed.Key{Registry: "r", Namespace: "acme", Name: "skill", Target: "claude-skill", Dir: here}); err == nil {
+		t.Fatal("forgetting a record whose directory exists must be refused")
+	}
+	if err := Forget(installed.Key{Registry: "r", Namespace: "acme", Name: "vanished", Target: "agents-md", Dir: gone}); err != nil {
+		t.Fatal(err)
+	}
+	back, _ := installed.Load()
+	if len(back.Records) != 2 {
+		t.Fatalf("forget left %d records, want 2", len(back.Records))
+	}
+	if _, err := os.Stat(here); err != nil {
+		t.Fatalf("forget touched the disk: %v", err)
+	}
+	if err := Forget(installed.Key{Registry: "r", Namespace: "acme", Name: "vanished", Target: "agents-md", Dir: gone}); err == nil {
+		t.Fatal("forgetting a missing record must be an error")
+	}
+}

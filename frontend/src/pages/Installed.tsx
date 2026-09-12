@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { install, installed } from "../../wailsjs/go/models";
 import {
@@ -18,13 +18,13 @@ export default function Installed({
   onBrowse: () => void;
   onOpenAgent: (registry: string, ns: string, name: string) => void;
 }) {
-  const [records, setRecords] = useState<installed.Record[] | null>(null);
+  const [records, setRecords] = useState<install.Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updates, setUpdates] = useState<UpdateMap>({});
   const [checking, setChecking] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<installed.Record | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<install.Item | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [updating, setUpdating] = useState<{ rec: installed.Record; dir: string; ref: string } | null>(null);
+  const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
@@ -46,7 +46,7 @@ export default function Installed({
     }
   }
 
-  async function uninstall(rec: installed.Record) {
+  async function uninstall(rec: install.Item) {
     setConfirmRemove(null);
     setError(null);
     try {
@@ -60,7 +60,23 @@ export default function Installed({
     }
   }
 
-  async function startUpdate(rec: installed.Record) {
+  // Forget drops the record of a directory that is gone; the engine refuses
+  // it for a directory that still exists, so this can never leave files
+  // behind unrecorded (agentry-desktop#63).
+  async function forget(rec: install.Item) {
+    setError(null);
+    try {
+      await InstallAPI.Forget(
+        new installed.Key({ registry: rec.registry, namespace: rec.namespace, name: rec.name, target: rec.target, dir: rec.dir }),
+      );
+      setNotice(`Forgot ${rec.namespace}/${rec.name}; nothing on disk was touched.`);
+      refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function startUpdate(rec: install.Item) {
     setError(null);
     try {
       const dir = await InstallAPI.UpdateDir(rec);
@@ -72,7 +88,7 @@ export default function Installed({
     }
   }
 
-  function capsSummary(rec: installed.Record): string {
+  function capsSummary(rec: install.Item): string {
     const c = rec.capabilities;
     const bits: string[] = [];
     if (c.egressHosts?.length) bits.push(`net: ${c.egressHosts.join(", ")}`);
@@ -83,12 +99,26 @@ export default function Installed({
     return bits.length ? bits.join(" · ") : "no capabilities accepted";
   }
 
+  const managed = (records ?? []).filter((r) => r.manageable && r.present);
+  const consents = (records ?? []).filter((r) => !r.manageable && r.present);
+  const gone = (records ?? []).filter((r) => !r.present);
+
+  function section(title: string, items: install.Item[], row: (rec: install.Item) => ReactNode, empty?: string) {
+    return (
+      <section>
+        <h3 className="muted small" style={{ marginTop: "1rem" }}>{title}</h3>
+        {items.length === 0 && empty && <p className="muted small">{empty}</p>}
+        {items.map(row)}
+      </section>
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title="Installed"
         sub={<>What this machine has accepted — shared state with the <span className="mono">agentry</span> CLI (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
-        actions={<Button onClick={checkUpdates} busy={checking} busyLabel="Checking…" disabled={!records?.length}>Check for updates</Button>}
+        actions={<Button onClick={checkUpdates} busy={checking} busyLabel="Checking…" disabled={managed.length === 0}>Check for updates</Button>}
       />
 
       <ErrorBox error={error} />
@@ -100,29 +130,68 @@ export default function Installed({
         </EmptyState>
       )}
 
-      {records?.map((rec) => {
-        const u = updates[keyOf(rec)];
-        return (
-          <AgentRow
-            key={keyOf(rec)}
-            title={`${rec.namespace}/${rec.name}`}
-            badges={<>
-              <span className="mono small">v{rec.version}</span>
-              <span className="badge">{rec.target}</span>
-              {u?.updateAvailable && <span className="badge warn">update: {u.latest}</span>}
-              {u && !u.updateAvailable && !u.error && <span className="badge ok">up to date</span>}
-            </>}
-            summary={<span className="mono small selectable">{rec.dir}</span>}
-            meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.registry.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}</>}
-            actions={<>
-              <Button onClick={() => onOpenAgent(rec.registry, rec.namespace, rec.name)}>Details</Button>
-              {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)}>Update</Button>}
-              <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
-            </>}
-            onClick={() => onOpenAgent(rec.registry, rec.namespace, rec.name)}
-          />
-        );
-      })}
+      {/* Three sections (agentry-desktop#63): what this app can manage, the
+          run consents the CLI wrote into the same file (shown, not managed),
+          and records whose directory is gone (Forget removes the line). */}
+      {records && records.length > 0 && (
+        <>
+          {section(
+            "Installed here",
+            managed,
+            (rec) => {
+              const u = updates[keyOf(rec)];
+              return (
+                <AgentRow
+                  key={keyOf(rec)}
+                  title={`${rec.namespace}/${rec.name}`}
+                  badges={<>
+                    <span className="mono small">v{rec.version}</span>
+                    <span className="badge">{rec.target}</span>
+                    {u?.updateAvailable && <span className="badge warn">update: {u.latest}</span>}
+                    {u && !u.updateAvailable && !u.error && <span className="badge ok">up to date</span>}
+                  </>}
+                  summary={<span className="mono small selectable">{rec.dir}</span>}
+                  meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.registry.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}</>}
+                  actions={<>
+                    <Button onClick={() => onOpenAgent(rec.registry, rec.namespace, rec.name)}>Details</Button>
+                    {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)}>Update</Button>}
+                    <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
+                  </>}
+                  onClick={() => onOpenAgent(rec.registry, rec.namespace, rec.name)}
+                />
+              );
+            },
+            "Nothing this app installed. Run consents and gone directories are listed below.",
+          )}
+          {consents.length > 0 && section(
+            "Run consents recorded by the CLI",
+            consents,
+            (rec) => (
+              <AgentRow
+                key={keyOf(rec)}
+                title={`${rec.namespace}/${rec.name}`}
+                badges={<><span className="mono small">v{rec.version}</span><span className="badge">{rec.target}</span></>}
+                summary={<span className="mono small selectable">{rec.dir}</span>}
+                meta={<>{capsSummary(rec)} · accepted {fmtDate(rec.installedAt as unknown as string)} · recorded by <span className="mono">agentry run</span>; this app does not manage it</>}
+              />
+            ),
+          )}
+          {gone.length > 0 && section(
+            "No longer on disk",
+            gone,
+            (rec) => (
+              <AgentRow
+                key={keyOf(rec)}
+                title={`${rec.namespace}/${rec.name}`}
+                badges={<><span className="mono small">v{rec.version}</span><span className="badge">{rec.target}</span><span className="badge warn">directory missing</span></>}
+                summary={<span className="mono small selectable">{rec.dir}</span>}
+                meta={<>recorded {fmtDate(rec.installedAt as unknown as string)} · the directory is gone, so there is nothing to uninstall; Forget removes only this record</>}
+                actions={<Button onClick={() => forget(rec)}>Forget</Button>}
+              />
+            ),
+          )}
+        </>
+      )}
 
       {confirmRemove && (
         <Modal title={`Uninstall ${confirmRemove.namespace}/${confirmRemove.name}?`} onClose={() => setConfirmRemove(null)}>
