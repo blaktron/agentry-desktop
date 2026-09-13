@@ -5,6 +5,7 @@
 // nothing here bypasses a publication gate.
 import { useEffect, useRef, useState } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
+import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, validate } from "../../wailsjs/go/models";
@@ -409,8 +410,19 @@ export default function Build({ registry }: { registry: string }) {
                 {pubResult.status === "published" && `published ${m.namespace}/${m.name}@${pubResult.version}`}
                 {pubResult.status === "needs_review" && `submitted — ${m.namespace}/${m.name}@${pubResult.version} needs human review`}
                 {pubResult.status === "rejected" && `rejected — ${m.namespace}/${m.name}@${pubResult.version}`}
+                {pubResult.status === "refused" && "refused — the registry stored nothing"}
               </strong>
               {pubResult.detail && <p className="muted small">{pubResult.detail}</p>}
+              {pubResult.status === "refused" && pubResult.refusal === "credits-exhausted" && (
+                // The allowance's refusal (plan subscription-tiers.md §8): the
+                // sentence above names the balance and the reset date; the
+                // way onward is the site's subscription page.
+                <p className="small">
+                  <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>
+                    Credits and upgrade
+                  </Button>
+                </p>
+              )}
               {pubResult.findingCounts && Object.keys(pubResult.findingCounts).length > 0 && (
                 <p className="muted small">
                   findings: {Object.entries(pubResult.findingCounts).map(([s, n]) => `${s} ${n}`).join(" · ")}

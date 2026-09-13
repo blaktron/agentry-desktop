@@ -119,6 +119,7 @@ export namespace build {
 	    status: string;
 	    digest: string;
 	    detail?: string;
+	    refusal?: string;
 	    findingCounts?: Record<string, number>;
 	
 	    static createFrom(source: any = {}) {
@@ -131,6 +132,7 @@ export namespace build {
 	        this.status = source["status"];
 	        this.digest = source["digest"];
 	        this.detail = source["detail"];
+	        this.refusal = source["refusal"];
 	        this.findingCounts = source["findingCounts"];
 	    }
 	}
@@ -455,6 +457,101 @@ export namespace installed {
 
 export namespace main {
 	
+	export class SubscriptionView {
+	    tier: string;
+	    balance: number;
+	    allowance: number;
+	    submissionCost: number;
+	    periodEnd: string;
+	    pendingTier?: string;
+	    // Go type: struct { Max int64 "json:\"max\""; Used int64 "json:\"used\"" }
+	    privateAgents: any;
+	    upgradeUrl?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tier = source["tier"];
+	        this.balance = source["balance"];
+	        this.allowance = source["allowance"];
+	        this.submissionCost = source["submissionCost"];
+	        this.periodEnd = source["periodEnd"];
+	        this.pendingTier = source["pendingTier"];
+	        this.privateAgents = this.convertValues(source["privateAgents"], Object);
+	        this.upgradeUrl = source["upgradeUrl"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UserView {
+	    handle: string;
+	    displayName: string;
+	    email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.displayName = source["displayName"];
+	        this.email = source["email"];
+	    }
+	}
+	export class AccountView {
+	    user: UserView;
+	    subscription?: SubscriptionView;
+	    subscriptionError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user = this.convertValues(source["user"], UserView);
+	        this.subscription = this.convertValues(source["subscription"], SubscriptionView);
+	        this.subscriptionError = source["subscriptionError"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DependencyAlertView {
 	    id: string;
 	    version: string;
@@ -1055,22 +1152,6 @@ export namespace main {
 	        this.keepProfilesByDefault = source["keepProfilesByDefault"];
 	    }
 	}
-	export class UserView {
-	    handle: string;
-	    displayName: string;
-	    email: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new UserView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.handle = source["handle"];
-	        this.displayName = source["displayName"];
-	        this.email = source["email"];
-	    }
-	}
 	export class SignInResult {
 	    user: UserView;
 	    tokenStore: string;
@@ -1105,6 +1186,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 
 }

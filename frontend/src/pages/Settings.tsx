@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } from "../ui";
@@ -22,6 +22,22 @@ export default function Settings({
   const [busy, setBusy] = useState(false);
   // The registry a browser sign-in is waiting on; shows the Cancel control.
   const [browserWait, setBrowserWait] = useState<string | null>(null);
+  // The account behind each stored credential and, where the registry has
+  // subscription tiers, its tier and credits (plan subscription-tiers.md
+  // §8). Read after the registries render, so a slow registry never holds
+  // the page; a read that fails leaves the card as it was.
+  const [accounts, setAccounts] = useState<Record<string, main.AccountView>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const signedIn = (settings?.registries ?? []).filter((r) => r.hasToken);
+    Promise.all(signedIn.map(async (r) => [r.url, await SettingsAPI.Account(r.url).catch(() => null)] as const)).then((pairs) => {
+      if (cancelled) return;
+      const next: Record<string, main.AccountView> = {};
+      for (const [url, acct] of pairs) if (acct) next[url] = acct;
+      setAccounts(next);
+    });
+    return () => { cancelled = true; };
+  }, [settings?.registries]);
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true);
@@ -87,6 +103,9 @@ export default function Settings({
                   ? <span className="badge">signed in ({r.tokenSource})</span>
                   : <span className="badge warn">anonymous</span>}
               </div>
+              {accounts[r.url] && (
+                <AccountLine account={accounts[r.url]} onUpgrade={() => wrap(() => SettingsAPI.OpenUpgrade(r.url))} />
+              )}
             </div>
             <div className="row nowrap">
               {r.url !== activeRegistry && (
@@ -188,3 +207,40 @@ export default function Settings({
     </div>
   );
 }
+
+// AccountLine: the handle and email of the credential and, where the
+// registry has tiers, the subscription; Upgrade opens the site in the
+// browser — the app takes no payment.
+function AccountLine({ account, onUpgrade }: { account: main.AccountView; onUpgrade: () => void }) {
+  const sub = account.subscription;
+  const tier = sub ? (sub.tier === "pro" ? "Pro" : "Standard") : null;
+  return (
+    <div className="muted small" style={{ marginTop: 4 }}>
+      <span className="selectable">{account.user.handle}</span>
+      {account.user.email && <> · <span className="selectable">{account.user.email}</span></>}
+      {sub && (
+        <>
+          {" "}· {tier} · {sub.balance} of {sub.allowance} credits (a submission costs {sub.submissionCost}; resets on {dayOf(sub.periodEnd)})
+          {sub.pendingTier && <> · {sub.pendingTier === "pro" ? "Pro" : "Standard"} from {dayOf(sub.periodEnd)}</>}
+          {sub.upgradeUrl && (
+            <>
+              {" "}
+              <Button onClick={onUpgrade} title="Opens the subscription page of the registry's site in your browser">
+                Upgrade
+              </Button>
+            </>
+          )}
+        </>
+      )}
+      {!sub && account.subscriptionError && <> · subscription not read: {account.subscriptionError}</>}
+    </div>
+  );
+}
+
+// dayOf renders an RFC 3339 instant as its UTC day, the way the site does.
+export function dayOf(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+

@@ -264,3 +264,41 @@ func TestPublishRefusesAnonymous(t *testing.T) {
 		t.Fatal("anonymous publish should be refused before any network call")
 	}
 }
+
+// A spent credit allowance (plan subscription-tiers.md §8): the registry
+// answers 402 credits-exhausted before storing anything, and Publish
+// returns it as a refused result — the sentence and the slug — rather
+// than an error, so the page can offer the way onward.
+func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
+	dir := t.TempDir()
+	if err := Save(dir, model()); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/agents/acme/hello-build", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"namespace":"acme","name":"hello-build","visibility":"private","modes":["autonomous"]}`))
+	})
+	mux.HandleFunc("POST /api/v1/agents/acme/hello-build/versions", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusPaymentRequired)
+		_, _ = w.Write([]byte(`{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"A submission costs 10 credits; this account has 0, and its allowance resets on 11 October 2026.","balance":0,"resetsAt":"2026-10-11T00:00:00Z"}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	var log strings.Builder
+	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, "private", &log)
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if res.Status != StatusRefused || res.Refusal != "credits-exhausted" {
+		t.Fatalf("result = %+v", res)
+	}
+	if !strings.Contains(res.Detail, "A submission costs 10 credits; this account has 0") || !strings.HasPrefix(res.Detail, "Not enough credits for this submission: ") {
+		t.Fatalf("detail = %q", res.Detail)
+	}
+	if !strings.Contains(log.String(), "refused:") {
+		t.Fatalf("log lacks the refusal:\n%s", log.String())
+	}
+}

@@ -10,6 +10,7 @@ package build
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -569,12 +570,22 @@ func decodeExec(n yaml.Node) []string {
 
 // PublishResult is the pipeline's verdict, flattened for the UI.
 type PublishResult struct {
-	Version       string         `json:"version"`
-	Status        string         `json:"status"` // published | needs_review | rejected
+	Version string `json:"version"`
+	// Status is the pipeline's verdict — published | needs_review |
+	// rejected — or "refused" when the registry declined the submission
+	// before storing anything (a spent credit allowance: 402
+	// credits-exhausted, plan subscription-tiers.md §8); Detail then
+	// carries the refusal's sentence and Refusal its slug.
+	Status        string         `json:"status"`
 	Digest        string         `json:"digest"`
 	Detail        string         `json:"detail,omitempty"`
+	Refusal       string         `json:"refusal,omitempty"`
 	FindingCounts map[string]int `json:"findingCounts,omitempty"`
 }
+
+// StatusRefused is the PublishResult status of a submission the registry
+// declined before storing it.
+const StatusRefused = "refused"
 
 // Publish creates the agent if it does not exist, uploads the packed
 // archive (cli-upload source), and follows the pipeline to a verdict —
@@ -665,6 +676,14 @@ func Publish(ctx context.Context, regURL, token, dir, visibility string, logw io
 		return nil, fmt.Errorf("upload version: %w", err)
 	}
 	if sresp.JSON202 == nil {
+		if sresp.StatusCode() == http.StatusPaymentRequired {
+			// The allowance's refusal is a result the page renders with the
+			// way onward, not a failure: the registry stored nothing and
+			// says why.
+			slug, msg := refusalOf(sresp.Body)
+			_, _ = fmt.Fprintf(logw, "refused: %s\n", msg)
+			return &PublishResult{Status: StatusRefused, Refusal: slug, Detail: msg}, nil
+		}
 		return nil, registry.Problem("submit version", sresp.StatusCode(), sresp.ApplicationproblemJSONDefault, sresp.Body)
 	}
 	v := sresp.JSON202
@@ -735,4 +754,25 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 `, time.Now().Year(), holder)
+}
+
+// refusalOf reads a problem body's slug and sentence.
+func refusalOf(body []byte) (slug, msg string) {
+	var p struct {
+		Type   string `json:"type"`
+		Title  string `json:"title"`
+		Detail string `json:"detail"`
+	}
+	if err := json.Unmarshal(body, &p); err != nil {
+		return "", strings.TrimSpace(string(body))
+	}
+	slug = p.Type
+	if i := strings.LastIndex(slug, "/"); i >= 0 {
+		slug = slug[i+1:]
+	}
+	msg = p.Title
+	if p.Detail != "" {
+		msg += ": " + p.Detail
+	}
+	return slug, msg
 }

@@ -51,6 +51,11 @@ jobs:
           version: latest
       - name: make check
         run: make check
+      # No client takes money (plan subscription-tiers.md D12): the app shows
+      # a tier and a balance and opens the site to upgrade.
+      - name: no payment provider in the app
+        run: |
+          if grep -rIi -n 'stripe' --include='*.go' --include='*.ts' --include='*.tsx' --exclude-dir=vendor --exclude-dir=node_modules --exclude-dir=dist . ; then echo "::error::a payment provider reached the desktop"; exit 1; fi
 
   govulncheck:
     runs-on: [self-hosted, linux, x64]
