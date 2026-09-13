@@ -180,6 +180,14 @@ Pasting a personal access token does the same — take one from the registry's
 `/ui/account/tokens` page, the site's Settings → Authentication, or
 `agentry login`.
 
+A signed-in registry's card shows the account behind the credential and,
+where the registry has subscription tiers (its `/meta` lists the billing
+extension), the tier, the balance out of the allowance, what a submission
+costs and when the allowance resets, with **Upgrade** opening the site's
+subscription page in your browser — the app takes no payment. A Build
+submission the allowance cannot pay for comes back refused with the
+registry's sentence and the same button; the registry stored nothing.
+
 ## Conventions
 
 Conventional commits; `make check` green before every push; every
