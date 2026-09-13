@@ -64,6 +64,9 @@ The product never claims an agent is "safe". The language is always:
   injection-signature scanners. Those are the same Go packages the
   publication pipeline runs (D-12 local/remote parity by construction), with
   the rule bundle embedded in the binary.
+- **Build** — author a BriefAgent as a form (manifest schema v2: run-mode
+  checkboxes, an intake editor, the interactive opening line), validate
+  it, and publish over the same upload path the CLI uses.
 
 ## Architecture
 
@@ -85,9 +88,10 @@ the same libraries the server and CLI use —
 | TOFU key pins + attestation flow | `…/pkg/trust` |
 | run lifecycle (policy, compile, engine, gateway, profiles, setup) | `…/pkg/runner/*` |
 
-Bound services (`services.go`, `services_run.go`) expose flat view models
-to the frontend; engines live in
-`internal/{registry,install,validate,settings,run}`.
+Bound services (`services.go`, `services_auth.go`, `services_build.go`,
+`services_prereqs.go`, `services_run.go`) expose flat view models to the
+frontend; engines live in
+`internal/{registry,install,validate,settings,run,build,mcpvuln,version}`.
 
 The app puts credentials in the OS keychain, under the same service/account
 convention as the CLI, so signing in from either client signs in both. With
@@ -129,8 +133,8 @@ away at the flip.
 
 ```bash
 # Debian/Ubuntu build deps
-apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev npm golang
-wails build -platform linux/amd64
+apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev npm golang
+wails build -platform linux/amd64 -tags webkit2_41
 ```
 
 (A host without those headers can build inside a Debian container — see
@@ -152,7 +156,10 @@ reported as skipped, not failed. The estate's Mac and the plan behind it:
 
 CI (`ci.yaml`: `check` and `govulncheck`) runs on the project's own
 runners. Those two jobs need neither the Wails CLI nor the WebKit headers:
-they compile the app library, not the platform bundle. Artifacts are not
+they compile the app library, not the platform bundle. A third job,
+`macos`, builds the universal bundle on the Mac build host, runs the tests
+and the Keychain round trip there, and uploads the bundle as a workflow
+artifact; it does not block the merge (`continue-on-error`). Artifacts are not
 committed; they attach to GitHub releases, still a manual step (the hosted
 service builds and serves its own binaries from the site repository).
 
@@ -161,9 +168,10 @@ service builds and serves its own binaries from the site repository).
 The app works against any Agentry registry — the hosted service or one you
 run from the open core ([self-hosting guide](https://github.com/blaktron/agentry/blob/main/docs/self-hosting.md)).
 Add one under Settings → Add a registry: its URL
-(`http://localhost:8080` for a local stack), then Use. The first one added
-becomes the default (`defaultRegistry` in the app's config file), and a
-hosted build may compile one in.
+(`http://localhost:8080` for a local stack), then Use. The default is the
+compiled-in registry (`https://secureagentry.net`, or whatever the build
+set through `AGENTRY_DEFAULT_REGISTRY`), recorded as `defaultRegistry` in
+the app's config file; Use switches it.
 
 Anonymous browsing works. **Sign in via browser** opens the registry's own
 `/ui/authorize` page in your browser and brings a scoped token back to the

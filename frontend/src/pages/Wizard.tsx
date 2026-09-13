@@ -193,7 +193,7 @@ function SignInStep({
                 <span className="field-label">Personal access token</span>
                 <div className="row">
                   <Input
-                    type="password" className="grow mono" placeholder="agentry_pat_…"
+                    type="password" className="grow mono" placeholder="agy_…"
                     value={token} onChange={(e) => setToken(e.target.value)} disabled={busy}
                     onKeyDown={(e) => e.key === "Enter" && token.trim() && signInPaste()}
                   />

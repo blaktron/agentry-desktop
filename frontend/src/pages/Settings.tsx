@@ -171,7 +171,7 @@ export default function Settings({
             <Input
               type="password"
               style={{ width: "100%" }}
-              placeholder="agentry_pat_…"
+              placeholder="agy_…"
               value={signIn.token}
               onChange={(e) => setSignIn({ ...signIn, token: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && signIn.token.trim() && doSignIn()}
