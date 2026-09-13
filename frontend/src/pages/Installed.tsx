@@ -161,10 +161,10 @@ export default function Installed({
                 />
               );
             },
-            "Nothing this app installed. Run consents and gone directories are listed below.",
+            "Nothing this app installed. Records the CLI wrote and gone directories are listed below.",
           )}
           {consents.length > 0 && section(
-            "Run consents recorded by the CLI",
+            "Recorded by the CLI",
             consents,
             (rec) => (
               <AgentRow
@@ -172,7 +172,7 @@ export default function Installed({
                 title={`${rec.namespace}/${rec.name}`}
                 badges={<><span className="mono small">v{rec.version}</span><span className="badge">{rec.target}</span></>}
                 summary={<span className="mono small selectable">{rec.dir}</span>}
-                meta={<>{capsSummary(rec)} · accepted {fmtDate(rec.installedAt as unknown as string)} · recorded by <span className="mono">agentry run</span>; this app does not manage it</>}
+                meta={<>{capsSummary(rec)} · accepted {fmtDate(rec.installedAt as unknown as string)} · {rec.target === "runner" ? <>recorded by <span className="mono">agentry run</span></> : "installed by an older client"}; this app does not manage it</>}
               />
             ),
           )}
@@ -198,7 +198,6 @@ export default function Installed({
           {confirmRemove.managed ? (
             <p>
               This removes <span className="mono selectable">{confirmRemove.dir}</span>
-              {confirmRemove.target === "mcp" && " and its entry in the project's .mcp.json"}
               {confirmRemove.target === "agents-md" && " and its section in the project's AGENTS.md"}.
             </p>
           ) : (
