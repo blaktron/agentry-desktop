@@ -73,6 +73,15 @@ g.go = { main: {
   InstallAPI: { ListInstalled: async () => (fresh ? [] : installedRecs), CheckUpdates: async () => [], Forget: async () => undefined },
   BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
   ValidateAPI: { Run: async () => validateResult },
+  // The account line on a signed-in registry's card (agentry-desktop#74):
+  // a Standard account on a registry with subscription tiers.
+  SettingsAPI: {
+    Account: async () => ({
+      user: { handle: "chris", displayName: "Chris", email: "chris@example.test" },
+      subscription: { tier: "standard", balance: 40, allowance: 50, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z", privateAgents: { max: 10, used: 4 }, upgradeUrl: "https://secureagentry.net/settings/subscription?upgrade=pro" },
+    }),
+    OpenUpgrade: async () => undefined,
+  },
   RunAPI: {
     GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
     // pages.html#docker-<state> previews the docker card in that state
