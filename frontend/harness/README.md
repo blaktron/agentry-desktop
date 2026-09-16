@@ -27,3 +27,22 @@ their own entries so each gets a clean screenshot over the shell backdrop:
 the run surfaces in `modals.html` (`#runpanel | #toolspanel | #chat`) and
 the first-run wizard in `wizard.html` (`#0` welcome, `#1` sign-in, `#2`
 runtime, `#3` done).
+
+The run panel's **In Agentry** states (hosted runs M6, agentry-desktop#77)
+are hashes of the same entry: `#runpanel-hosted` (the mode chosen, with the
+hold, the balance and the tier's caps), `#runpanel-unavailable` (offered,
+unavailable, with the reason and the remedy), `#runpanel-queued` (queued
+with its position), `#runpanel-streaming` and `#runpanel-finished` (the
+outcome, the receipt listed verbatim, and the downloaded artefacts). The
+bindings are mocked in `modals.tsx`, so no registry is involved.
+
+`shots/` holds those six states in light and dark, re-made by
+`node harness/shots.mjs` — it starts the harness itself, shoots each state
+and stops it again. Playwright is not a dependency of this app; point
+`PLAYWRIGHT_MODULE` at an installation that has it:
+
+```
+cd frontend
+PLAYWRIGHT_MODULE=../../agentry-web/node_modules/playwright/index.mjs \
+  node harness/shots.mjs
+```

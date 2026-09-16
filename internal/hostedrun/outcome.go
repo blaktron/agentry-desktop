@@ -1,0 +1,98 @@
+package hostedrun
+
+// What a finished run says (plan §5). The outcome is the registry's, read
+// from the run and never re-derived here; this file only decides how each
+// one reads, so the seven outcomes are distinguishable and honest — a
+// refusal says the platform's own verification refused the release and the
+// credits came back, an error says the platform could not run it.
+
+// The outcomes a finished run carries.
+const (
+	OutcomeSucceeded   = "succeeded"
+	OutcomeFailed      = "failed"
+	OutcomeRefused     = "refused"
+	OutcomeTimeout     = "timeout"
+	OutcomeBudget      = "budget"
+	OutcomeInterrupted = "interrupted"
+	OutcomeError       = "error"
+)
+
+// Verdict is how one finished run reads.
+type Verdict struct {
+	// Outcome is the registry's word for it, verbatim.
+	Outcome string
+	// Tone is "ok", "warn" or "bad" — the badge classes the app already
+	// has.
+	Tone string
+	// Line says what happened, in one sentence.
+	Line string
+	// Settled is false when the credits went back to the account.
+	Settled bool
+}
+
+// Read renders a run's outcome. A run that is still moving, or one
+// cancelled before a worker took it, has its own line.
+func Read(run *Run) Verdict {
+	if run == nil {
+		return Verdict{Tone: "warn", Line: "no run"}
+	}
+	if run.Status == StatusCancelled {
+		return Verdict{
+			Outcome: StatusCancelled, Tone: "warn",
+			Line:    "cancelled before a worker took it — the credits it held were released",
+			Settled: false,
+		}
+	}
+	if run.Status != StatusFinished {
+		return Verdict{Outcome: run.Status, Tone: "warn", Line: statusLine(run)}
+	}
+	switch run.Outcome {
+	case OutcomeSucceeded:
+		return Verdict{Outcome: run.Outcome, Tone: "ok", Line: "ran to the end and wrote its result", Settled: true}
+	case OutcomeFailed:
+		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "the agent ran and failed — the log and the receipt say where", Settled: true}
+	case OutcomeTimeout:
+		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "stopped at the time limit for this tier", Settled: true}
+	case OutcomeBudget:
+		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "stopped at the turn or token budget for this tier", Settled: true}
+	case OutcomeInterrupted:
+		return Verdict{Outcome: run.Outcome, Tone: "warn", Line: "you cancelled it — what had run was settled", Settled: true}
+	case OutcomeRefused:
+		return Verdict{
+			Outcome: run.Outcome, Tone: "bad",
+			Line:    "the platform's own verification refused this release before it ran — the credits it held were refunded",
+			Settled: false,
+		}
+	case OutcomeError:
+		return Verdict{
+			Outcome: run.Outcome, Tone: "bad",
+			Line:    "the platform could not run it — the credits it held were refunded",
+			Settled: false,
+		}
+	default:
+		return Verdict{Outcome: run.Outcome, Tone: "warn", Line: "finished"}
+	}
+}
+
+// statusLine says where a run that is still moving stands.
+func statusLine(run *Run) string {
+	switch run.Status {
+	case StatusQueued:
+		if run.CancelRequested {
+			return "cancelling"
+		}
+		if run.QueuePosition > 1 {
+			return "queued"
+		}
+		return "queued — next to run"
+	case StatusClaimed:
+		return "a worker has taken it and is materialising the release"
+	case StatusRunning:
+		if run.CancelRequested {
+			return "cancelling — the worker interrupts the agent and the run settles what it used"
+		}
+		return "running"
+	default:
+		return run.Status
+	}
+}

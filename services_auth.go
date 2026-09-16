@@ -11,9 +11,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/blaktron/agentry-cli/pkg/authflow"
+
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -60,7 +64,7 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 		return nil, err
 	}
 	defer flow.Close()
-	if err := s.openExternal(flow.AuthorizeURL(url)); err != nil {
+	if err := s.openExternal(authorizeURL(flow, url)); err != nil {
 		return nil, fmt.Errorf("open the system browser: %w", err)
 	}
 	token, err := flow.Wait(ctx)
@@ -72,6 +76,32 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 	}
 	// From here it is an ordinary sign-in: whoami-verify, store, TOFU-pin.
 	return s.SignIn(url, token)
+}
+
+// requestedScopes are the scopes this app's surfaces need, named on the
+// authorize page's URL. Browse and install, Build → publish and identity
+// are what the registry has always minted for a desktop sign-in; a run In
+// Agentry adds run:read and run:write (plan hosted-runs.md §6, agentry
+// #348). The registry decides what it grants — the scope set of a desktop
+// grant is fixed server-side so no caller can widen it — so this names
+// what the app asks for, and HostedAvailability reads back what the token
+// actually carries. A registry that does not know the parameter ignores
+// it, and every other surface keeps working with the token it mints.
+var requestedScopes = []string{
+	"agent:read", "agent:publish", "repo:read", "repo:write", "user:profile",
+	hostedrun.ScopeRunRead, hostedrun.ScopeRunWrite,
+}
+
+// authorizeURL is the flow's authorize page plus the scopes the app asks
+// for. AuthorizeURL also records the registry on the flow, so it is always
+// called, never bypassed.
+func authorizeURL(flow *authflow.Flow, registryURL string) string {
+	u := flow.AuthorizeURL(registryURL)
+	sep := "&"
+	if !strings.Contains(u, "?") {
+		sep = "?"
+	}
+	return u + sep + "scopes=" + url.QueryEscape(strings.Join(requestedScopes, " "))
 }
 
 // CancelBrowserSignIn abandons the in-flight browser sign-in, if there is

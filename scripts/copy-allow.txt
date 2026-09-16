@@ -1,0 +1,20 @@
+# Spans that legitimately carry a word from the never list
+# (scripts/copy-check.sh). One `reason :: span` per line; a line of source
+# whose text contains the span passes. Matching is case-insensitive.
+#
+# The point of the allowlist is that the ban cannot be satisfied by
+# deleting the sentence that states the limit: the honest-posture rule
+# itself has to say the word in order to refuse it.
+
+# The rule, written down where the copy lives.
+the honest-posture rule, stated in the shared UI module :: an agent is "scanned, N findings, signed" — never "safe"
+the honest-posture rule, stated on the report view :: never a "safe" claim
+
+# A value in someone else's vocabulary, not a claim of ours: the registry's
+# MCP vulnerability verdict is the string "safe" on the wire
+# (mcpinstall.VulnStatus), and this comment names it.
+the API's own status value, named not claimed :: Status is safe, vulnerable, error, unknown or unreachable
+
+# A comment about shell quoting on the prereqs path — "safe to place in a
+# root shell" is about a username's characters, not about a BriefAgent.
+a comment about shell metacharacters in a username :: whether it is safe to place in

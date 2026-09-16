@@ -14,12 +14,24 @@ export function ApplySetup(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['RunAPI']['ApplySetup'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function AttachHostedRun(arg1, arg2) {
+  return window['go']['main']['RunAPI']['AttachHostedRun'](arg1, arg2);
+}
+
+export function CancelHostedRun() {
+  return window['go']['main']['RunAPI']['CancelHostedRun']();
+}
+
 export function EndSession(arg1) {
   return window['go']['main']['RunAPI']['EndSession'](arg1);
 }
 
 export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
+}
+
+export function HostedAvailability(arg1, arg2) {
+  return window['go']['main']['RunAPI']['HostedAvailability'](arg1, arg2);
 }
 
 export function InstallDocker() {
@@ -52,6 +64,10 @@ export function SendTurn(arg1) {
 
 export function SetupStatus() {
   return window['go']['main']['RunAPI']['SetupStatus']();
+}
+
+export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['RunAPI']['StartHostedRun'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11) {

@@ -78,7 +78,7 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 	// Declared MCP servers (RUNNER-PLAN-3): installed with the agent from
 	// the operator's registries, loaded for this exact release only.
 	for _, srv := range c.MCPServers {
-		desc := srv.SourceID() + "@" + srv.Version + " — declared by the manifest; installed per-signature from the operator's trusted registries"
+		desc := srv.SourceID() + "@" + srv.Version + " — declared by the manifest; installed per-signature from the operator's configured registries"
 		if len(srv.Tools) > 0 {
 			desc += "; tools filtered to " + strings.Join(srv.Tools, ", ")
 		}
