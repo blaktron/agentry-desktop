@@ -149,6 +149,23 @@ type ProfileInfo struct {
 	Opening string
 }
 
+// Declared reports what a release declares, from the registry's resolve
+// alone: the run modes, and every secret name — its own and its declared
+// MCP servers' — that a run would have to supply. The In-Agentry
+// availability rule (services_hostedrun.go) reads this rather than
+// ProfileStatus, because a hosted run must touch nothing on this machine:
+// no operator policy, no MCP profile, no docker (hosted-runs.md §4.7).
+func Declared(ctx context.Context, regURL, ref string) (modes, secrets []string, err error) {
+	sig, err := ResolveSignature(ctx, regURL, ref, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, mode := range sig.Manifest.SupportedModes() {
+		modes = append(modes, string(mode))
+	}
+	return modes, allSecretNames(sig.Manifest), nil
+}
+
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
 // non-existent profile is the policy default, so the form's toggle starts
 // where guided setup would.
@@ -777,17 +794,24 @@ func finishProfile(logw io.Writer, prof *profile.Profile, dir string, keep bool)
 	_, _ = fmt.Fprintln(logw, "MCP profile removed (run completed with keep-profile=false)")
 }
 
-// resolveOutDir picks and creates the output folder. The desktop default
-// is ~/Downloads/agentry-out/<ns>-<name>-<runid> — a GUI has no meaningful
-// cwd for the CLI's ./agentry-out (same reasoning as D-002).
+// resolveOutDir picks and creates the output folder for a local run.
 func resolveOutDir(dir string, sig *Signature, runID string) (string, error) {
+	return OutputDir(dir, sig.Namespace, sig.Name, runID)
+}
+
+// OutputDir picks and creates a run's output folder. The desktop default
+// is ~/Downloads/agentry-out/<ns>-<name>-<runid> — a GUI has no meaningful
+// cwd for the CLI's ./agentry-out (same reasoning as D-002). A run In
+// Agentry downloads its artefacts into the same folder a local run would
+// have written into, so the two kinds land in one place.
+func OutputDir(dir, namespace, name, runID string) (string, error) {
 	if dir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("locate home directory (pick an output folder instead): %w", err)
 		}
 		dir = filepath.Join(home, "Downloads", "agentry-out",
-			fmt.Sprintf("%s-%s-%s", sig.Namespace, sig.Name, runID))
+			fmt.Sprintf("%s-%s-%s", namespace, name, runID))
 	}
 	abs, err := filepath.Abs(dir)
 	if err != nil {

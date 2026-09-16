@@ -42,6 +42,11 @@ type RunAPI struct {
 	mu sync.Mutex
 	// session is the live interactive session, nil otherwise.
 	session *run.Session
+	// hosted is the In-Agentry run this app is following (services_
+	// hostedrun.go), under its own lock: a hosted run touches no docker,
+	// so it must not wait on — or be waited on by — the run lock above.
+	hostedMu sync.Mutex
+	hosted   *hostedFollow
 }
 
 // SessionView is what StartSession returns.
@@ -128,7 +133,8 @@ func (r *RunAPI) AddSessionInput(path string) error {
 
 // EndSession ends the session (finish = ask for the final result first),
 // writes receipts and the envelope, tears the sandbox down, and releases
-// the run lock. Safe to call after the engine ended the session itself.
+// the run lock. Calling it after the engine ended the session itself
+// returns the same result rather than failing.
 func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	s := r.session
 	if s == nil {
@@ -431,8 +437,8 @@ func (r *RunAPI) eventWriter(event string) *lineEventWriter {
 
 // lineEventWriter buffers writes and emits one event per completed line;
 // Flush emits any trailing partial line. It writes nothing anywhere else,
-// so a secret that never enters the log stream (the engine guarantees
-// that) never reaches the webview.
+// so a secret that never enters the log stream (the engine keeps it out)
+// never reaches the webview.
 type lineEventWriter struct {
 	ctx   *App
 	event string
@@ -466,7 +472,10 @@ func (w *lineEventWriter) emit(line string) {
 	if line == "" {
 		return
 	}
-	runtime.EventsEmit(w.ctx.ctx, w.event, line)
+	// Through the one emitter (services_hostedrun.go), so a run followed
+	// without a webview — the hosted lifecycle tests — can read what the
+	// panel would have been shown.
+	emitEvent(w.ctx, w.event, line)
 }
 
 // Compile-time check: the engine hands us an io.Writer contract.
