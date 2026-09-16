@@ -51,6 +51,12 @@ jobs:
           version: latest
       - name: make check
         run: make check
+      # The honest posture, as a check (plan hosted-runs.md §3): the app
+      # says what ran and what was enforced, never "safe" or "secure".
+      # `make check` runs it too; it is its own step so a copy failure is
+      # obvious in the checks list.
+      - name: desktop copy check
+        run: ./scripts/copy-check.sh --self-test && ./scripts/copy-check.sh
       # No client takes money (plan subscription-tiers.md D12): the app shows
       # a tier and a balance and opens the site to upgrade.
       - name: no payment provider in the app

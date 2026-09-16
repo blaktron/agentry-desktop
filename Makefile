@@ -16,7 +16,7 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # graph past vendor/ and asks GitHub for the private modules.
 WAILS_FLAGS ?=
 
-.PHONY: dev build check lint test frontend package package-darwin package-windows clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows clean bindings
 
 # Live-reload development shell (wails dev).
 dev:
@@ -38,6 +38,11 @@ lint:
 test:
 	$(GO) test ./...
 
+# The honest-posture rule as a check over the copy this app ships (plan
+# hosted-runs.md §3): no "safe", "secure", "guaranteed" or "trusted".
+copy:
+	./scripts/copy-check.sh
+
 # Frontend type-check plus the dist bundle main.go embeds. `go build ./...`,
 # `go vet ./...` and `go test ./...` all fail on a fresh tree without
 # frontend/dist, so `check` runs this target first; wails builds its own
@@ -45,7 +50,7 @@ test:
 frontend:
 	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx vite build
 
-check: frontend lint test
+check: frontend lint test copy
 	$(GO) build ./...
 
 # --- packaging -------------------------------------------------------------

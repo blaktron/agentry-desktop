@@ -21,10 +21,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/validate"
@@ -150,5 +152,113 @@ func TestLiveEndToEnd(t *testing.T) {
 		t.Logf("validate: %s PASSED (%d files, bundle %s)", example, vres.FileCount, vres.BundleVersion)
 	} else {
 		t.Log("AGENTRY_LIVE_EXAMPLE not set — skipping the fixture validation step")
+	}
+}
+
+// One In-Agentry run against a real registry with the runs extension
+// (agentry-desktop#77, plan hosted-runs.md §4.7): the same path the panel
+// takes — status, create, stream to a terminal state, download the
+// artefacts into a chosen folder, read the receipt — with the app's own
+// client and the account's PAT. Skipped unless the environment names a
+// registry, a token and a release:
+//
+//	AGENTRY_HOSTED_REGISTRY=https://dev.secureagentry.net \
+//	AGENTRY_HOSTED_TOKEN=agy_… \
+//	AGENTRY_HOSTED_REF=runs-checker-125725/hosted-smoke@0.1.0 \
+//	AGENTRY_HOSTED_TASK="say hello" \
+//	AGENTRY_HOSTED_TIMEOUT=15m \
+//	go test -run TestLiveHostedRun -v .
+//
+// The token needs run:read and run:write. Nothing is written outside the
+// test's temp folder, and the run costs the account credits.
+func TestLiveHostedRun(t *testing.T) {
+	reg := strings.TrimRight(os.Getenv("AGENTRY_HOSTED_REGISTRY"), "/")
+	token := os.Getenv("AGENTRY_HOSTED_TOKEN")
+	ref := os.Getenv("AGENTRY_HOSTED_REF")
+	if reg == "" || token == "" || ref == "" {
+		t.Skip("set AGENTRY_HOSTED_REGISTRY, AGENTRY_HOSTED_TOKEN and AGENTRY_HOSTED_REF to run one hosted run")
+	}
+	wait := 15 * time.Minute
+	if v := os.Getenv("AGENTRY_HOSTED_TIMEOUT"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			t.Fatalf("AGENTRY_HOSTED_TIMEOUT: %v", err)
+		}
+		wait = d
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	defer cancel()
+	c := hostedrun.New(reg, token)
+
+	st, err := c.Status(ctx)
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !st.Enabled {
+		t.Fatalf("this registry is not taking hosted runs: %+v", st)
+	}
+	if st.Caller == nil {
+		t.Fatal("the status route told this token nothing about its tier, caps or hold")
+	}
+	t.Logf("hosted runs: %d workers online, %d queued; this account is %s, a run holds %d credits (%d tokens per credit), caps %ds/%d turns/%d tokens",
+		st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits, st.Caller.TokensPerCredit,
+		st.Caller.Caps.TimeoutSeconds, st.Caller.Caps.MaxTurns, st.Caller.Caps.MaxTokens)
+
+	task := os.Getenv("AGENTRY_HOSTED_TASK")
+	if task == "" {
+		task = "Write a one-line summary of the input you were given."
+	}
+	run, err := c.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Logf("run %s queued: %s, holding %d credits, queue position %d", run.ID, run.Ref, run.HoldCredits, run.QueuePosition)
+
+	var lines int
+	final, err := c.Follow(ctx, run.ID, hostedrun.FollowOptions{
+		OnEvent: func(ev hostedrun.Event) {
+			lines++
+			t.Logf("  %d %s %s", ev.Seq, ev.Kind, ev.Line)
+		},
+		OnStatus: func(r *hostedrun.Run) {
+			t.Logf("status: %s%s", r.Status, map[bool]string{true: " (cancel requested)", false: ""}[r.CancelRequested])
+		},
+	})
+	if err != nil {
+		t.Fatalf("follow: %v", err)
+	}
+	verdict := hostedrun.Read(final)
+	turns, wall := 0, int64(0)
+	if final.Usage != nil {
+		turns, wall = final.Usage.Turns, final.Usage.WallMS
+	}
+	t.Logf("finished: %s (%s) — %s; %d log lines, %d turns, %d tokens, %d ms",
+		final.Outcome, final.ExitClass, verdict.Line, lines, turns, final.Usage.Tokens(), wall)
+	if final.SettledCredits != nil {
+		t.Logf("credits: %d held, %d settled", final.HoldCredits, *final.SettledCredits)
+	}
+	if final.Status != hostedrun.StatusFinished {
+		t.Fatalf("run ended as %s, not finished: %+v", final.Status, final)
+	}
+
+	dir := t.TempDir()
+	got, err := c.DownloadOutputs(ctx, final, dir)
+	if err != nil {
+		t.Fatalf("download: %v", err)
+	}
+	for _, a := range got {
+		t.Logf("artefact %s (%d bytes) → %s", a.Name, a.Bytes, a.Path)
+		if !strings.HasPrefix(a.Path, dir) {
+			t.Fatalf("%s landed outside the run folder", a.Name)
+		}
+	}
+	if final.Outcome == hostedrun.OutcomeSucceeded && len(got) == 0 {
+		t.Fatal("a succeeded run wrote no artefacts")
+	}
+	if len(final.Receipt.CapabilitiesEnforced) == 0 {
+		t.Log("the run reported no capabilities_enforced — check the receipt on the run")
+	}
+	for k, v := range final.Receipt.CapabilitiesEnforced {
+		t.Logf("enforced %s: %s", k, v)
 	}
 }
