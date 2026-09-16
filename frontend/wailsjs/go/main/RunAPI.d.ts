@@ -8,9 +8,15 @@ export function AddToDockerGroup():Promise<main.PrereqView>;
 
 export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<main.SetupStatusView>;
 
+export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStartView>;
+
+export function CancelHostedRun():Promise<main.HostedRunView>;
+
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
+
+export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedAvailabilityView>;
 
 export function InstallDocker():Promise<main.PrereqView>;
 
@@ -27,5 +33,7 @@ export function SaveProfile(arg1:string,arg2:string,arg3:Record<string, string>,
 export function SendTurn(arg1:string):Promise<void>;
 
 export function SetupStatus():Promise<main.SetupStatusView>;
+
+export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>):Promise<main.HostedStartView>;
 
 export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean):Promise<main.SessionView>;

@@ -7,14 +7,15 @@
 // stream live; the §R8 envelope renders at the end, receipts included.
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main, trust } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, Spinner, Textarea, shortDigest } from "../ui";
 import SessionChat from "./SessionChat";
+import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "./HostedRun";
 
 export default function RunPanel({
-  registry, ns, name, version, attestation, onClose,
+  registry, ns, name, version, attestation, onClose, initialMode,
 }: {
   registry: string;
   ns: string;
@@ -24,6 +25,8 @@ export default function RunPanel({
    * re-verifies the downloaded bytes either way. */
   attestation: trust.AttestationResult | null;
   onClose: () => void;
+  /** Harness-only: open with this run mode selected, for screenshots. */
+  initialMode?: string;
 }) {
   const agentRef = `${ns}/${name}@${version}`;
 
@@ -66,13 +69,21 @@ export default function RunPanel({
   const [runErr, setRunErr] = useState<string | null>(null);
   const logRef = useRef<HTMLPreElement | null>(null);
 
+  // In Agentry (hosted runs M6): whether the mode is offered here, the run
+  // the registry is executing, and a refused create rendered as a sentence.
+  const [hosted, setHosted] = useState<main.HostedAvailabilityView | null>(null);
+  const [hostedRun, setHostedRun] = useState<main.HostedRunView | null>(null);
+  const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   useEffect(() => {
     RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
     RunAPI.GatewayRequirements(registry, ns, name).then(setMcp).catch(() => setMcp(null));
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
         setProfile(p);
-        setMode((p.modes ?? []).includes("autonomous") || (p.modes ?? []).length === 0 ? "autonomous" : p.modes[0]);
+        setMode(initialMode ?? ((p.modes ?? []).includes("autonomous") || (p.modes ?? []).length === 0 ? "autonomous" : p.modes[0]));
         setKeep(p.keep);
         setKeepTouched(false);
         setFormKeep(p.keep);
@@ -85,6 +96,36 @@ export default function RunPanel({
     const off = EventsOn("runner:run-log", (line: string) => {
       setLog((prev) => [...prev, line]);
     });
+    return off;
+  }, []);
+
+  // In Agentry: is the mode offered for this release, and does this
+  // account already have a run the panel should reattach to (D11)?
+  useEffect(() => {
+    let live = true;
+    RunAPI.HostedAvailability(registry, agentRef)
+      .then((h) => {
+        if (!live) return;
+        setHosted(h);
+        // Only when the mode can actually be used: listing this account's
+        // runs needs run:read, and a token without it must not be sent to
+        // a route that would refuse it.
+        if (!h.available) return;
+        return RunAPI.AttachHostedRun(registry, outDir.trim()).then((a) => {
+          if (!live || !a.run) return;
+          setMode("hosted");
+          setHostedRun(a.run);
+        });
+      })
+      .catch(() => setHosted(null));
+    return () => { live = false; };
+    // The attach reads the folder as it stands when the panel opens; a
+    // later change applies to the next run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registry, agentRef]);
+
+  useEffect(() => {
+    const off = EventsOn("runner:hosted-run", (v: main.HostedRunView) => setHostedRun(v));
     return off;
   }, []);
 
@@ -102,15 +143,19 @@ export default function RunPanel({
   const refused = !!mcp?.refusal;
   const needsProfile = !!profile && profile.declaredSecrets.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
+  // In Agentry needs no docker, no images and no operator policy on this
+  // machine: the setup status gates the local modes only.
+  const inAgentry = mode === "hosted";
+  const hostedActive = !!hostedRun && (hostedRun.status === "queued" || hostedRun.status === "claimed" || hostedRun.status === "running");
   const canRun =
     !running &&
     !sessionActive &&
-    !!setup?.dockerOk &&
+    (inAgentry ? !!hosted?.available && !starting && !hostedActive : !!setup?.dockerOk) &&
     !needsProfile &&
     intakeMissing.length === 0 &&
     !provPending &&
     !unverifiable &&
-    (!unsigned || acceptUnsigned) &&
+    (inAgentry || !unsigned || acceptUnsigned) &&
     (!refused || allowVulnerableMCP);
 
   const defaultOutHint = useMemo(
@@ -175,7 +220,45 @@ export default function RunPanel({
     setSessionActive(true);
   }
 
+  // In Agentry: the inputs go up, the run is created, and the log streams
+  // back into the same view. A refused create is a sentence, not an error.
+  async function runInAgentry() {
+    setStarting(true);
+    setRunErr(null);
+    setResult(null);
+    setHostedRefusal(null);
+    setHostedRun(null);
+    setLog([]);
+    try {
+      const started = await RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers());
+      if (started.refusal) {
+        setHostedRefusal(started);
+        return;
+      }
+      setHostedRun(started.run ?? null);
+    } catch (e) {
+      setRunErr(String(e));
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function cancelInAgentry() {
+    setCancelling(true);
+    try {
+      setHostedRun(await RunAPI.CancelHostedRun());
+    } catch (e) {
+      setRunErr(String(e));
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   async function runAgent() {
+    if (mode === "hosted") {
+      await runInAgentry();
+      return;
+    }
     if (mode === "interactive") {
       startSession();
       return;
@@ -208,15 +291,17 @@ export default function RunPanel({
           serving exactly the declared contract. Reports and receipts land in the output folder.
         </p>
 
-        {/* Machine readiness (§P1) */}
-        {setupErr && <ErrorBox error={setupErr} />}
-        {setup && !setup.dockerOk && (
+        {/* Machine readiness (§P1) — the local modes only; a run In
+            Agentry needs nothing from this machine. */}
+        {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
+        {setup && !setup.dockerOk && !inAgentry && (
           <div className="error-box selectable">
-            Docker is not available — BriefAgent runs need a docker engine on this machine.
-            {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel.
+            Docker is not available — a BriefAgent run on this machine needs a docker engine.
+            {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
+            {hosted?.offered ? ", or run this release In Agentry" : ""}.
           </div>
         )}
-        {setup && setup.dockerOk && !setup.imagesReady && (
+        {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
           <Notice tone="warn">
             The gateway/harness/runner images are not all present yet — this run will install
             them first (it can take a few minutes), or prepare them once in Settings → Agent runs.
@@ -344,25 +429,55 @@ export default function RunPanel({
           </>
         )}
 
-        {/* Run mode (plan §7): only the modes the release declares. */}
+        {/* Run mode (plan §7): the modes the release declares, plus In
+            Agentry where the registry runs it (hosted-runs.md §4.7). */}
         {profile && (profile.modes ?? []).length > 0 && (
           <>
             <h3>Run mode</h3>
             <div className="row" style={{ gap: 14 }}>
               {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
                 <label key={m} className="check-row" style={{ margin: 0 }}>
-                  <input type="radio" name="run-mode" checked={mode === m} onChange={() => setMode(m)} disabled={running || sessionActive} />
+                  <input type="radio" name="run-mode" checked={mode === m} onChange={() => setMode(m)} disabled={running || sessionActive || hostedActive} />
                   <span>
                     <strong>{m}</strong>{" "}
                     <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
                   </span>
                 </label>
               ))}
+              {hosted?.offered && (
+                <label className="check-row" style={{ margin: 0 }}>
+                  <input
+                    type="radio" name="run-mode" checked={inAgentry} onChange={() => setMode("hosted")}
+                    disabled={running || sessionActive || !hosted.available}
+                  />
+                  <span>
+                    <strong>In Agentry</strong>{" "}
+                    <span className="muted">— runs on the platform, autonomously; nothing runs on this machine</span>
+                  </span>
+                </label>
+              )}
             </div>
             {mode === "interactive" && (
               <p className="muted small">
                 Interactive: you can talk to this agent and give it files; you cannot give it more access than listed above.
               </p>
+            )}
+            {hosted && <HostedUnavailable hosted={hosted} />}
+            {inAgentry && hosted && (
+              <>
+                <p className="muted small" style={{ marginBottom: 2 }}>
+                  The task, your answers and the input files go to {registry}, which runs this release under the same
+                  contract and sends back the log, the outputs and the receipt. This machine needs no docker engine and
+                  no operator policy for it.
+                </p>
+                <HostedCredits hosted={hosted} />
+                {unsigned && (
+                  <Notice tone="warn">
+                    This registry published no attestation for this version. A run In Agentry verifies the release
+                    itself before executing it, so this one is refused there and the credits it held are refunded.
+                  </Notice>
+                )}
+              </>
             )}
           </>
         )}
@@ -382,6 +497,10 @@ export default function RunPanel({
         <p className="muted small" style={{ margin: "2px 0 6px" }}>
           Provided read-only under <span className="mono">/inputs</span> in the tool container —
           the BriefAgent reads them with <span className="mono">list_inputs</span> / <span className="mono">read_input</span>.
+          {inAgentry && hosted && (
+            <> In Agentry they are uploaded before the run is created: at most {hosted.maxInputFiles} files,{" "}
+            {Math.round(hosted.maxInputBytes / (1024 * 1024))} MB together.</>
+          )}
         </p>
         {inputs.length > 0 && (
           <div>
@@ -399,6 +518,12 @@ export default function RunPanel({
         </div>
 
         <h3>Output &amp; limits</h3>
+        {inAgentry && (
+          <p className="muted small" style={{ margin: "2px 0 6px" }}>
+            The run&apos;s result, reports, receipts and outputs download into this folder when it finishes. The time and
+            turn ceilings are the tier&apos;s, not this form&apos;s.
+          </p>
+        )}
         <div className="row">
           <input
             type="text"
@@ -433,7 +558,7 @@ export default function RunPanel({
           </label>
         </div>
 
-        {unsigned && (
+        {unsigned && !inAgentry && (
           <label className="check-row">
             <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />
             <span>
@@ -476,12 +601,45 @@ export default function RunPanel({
         )}
 
         <ErrorBox error={runErr} />
+
+        {/* A refused create, as a sentence — and, for credits, the way
+            onward the Build page already offers (desktop#74). */}
+        {hostedRefusal?.refusal && (
+          <Notice tone="warn">
+            <strong>
+              {hostedRefusal.refusal === "credits-exhausted"
+                ? "Not enough credits for this run."
+                : hostedRefusal.refusal === "run-active"
+                  ? "This account already has a run In Agentry."
+                  : "The registry refused this run."}
+            </strong>{" "}
+            <span className="selectable">{hostedRefusal.detail}</span>
+            {hostedRefusal.refusal === "credits-exhausted" && (
+              <p className="small" style={{ marginBottom: 0 }}>
+                <Button onClick={() => hostedRefusal.upgradeUrl && OpenExternal(hostedRefusal.upgradeUrl).catch((e) => setRunErr(String(e)))}>
+                  Credits and upgrade
+                </Button>
+              </p>
+            )}
+          </Notice>
+        )}
+
         <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
           <Button onClick={onClose} disabled={running}>Close</Button>
           <Button variant="primary" disabled={!canRun} onClick={runAgent}>
-            {running ? "Running…" : mode === "interactive" ? "Start session" : "Run"}
+            {inAgentry
+              ? starting ? "Starting…" : hostedActive ? "Running In Agentry…" : "Run In Agentry"
+              : running ? "Running…" : mode === "interactive" ? "Start session" : "Run"}
           </Button>
         </div>
+
+        {/* The hosted run: where it stands, and what it produced. */}
+        {inAgentry && hostedRun && (
+          <>
+            <h3>Run In Agentry</h3>
+            <HostedProgress run={hostedRun} onCancel={cancelInAgentry} cancelling={cancelling} />
+          </>
+        )}
 
         {/* Interactive session: the chat replaces the log pane. */}
         {sessionActive && (
@@ -506,12 +664,27 @@ export default function RunPanel({
           />
         )}
 
-        {/* Live log */}
-        {(running || log.length > 0) && (
+        {/* Live log — the same view for either kind of run. */}
+        {(running || hostedActive || log.length > 0) && (
           <>
             <h3>Run log</h3>
-            <pre ref={logRef} className="run-log selectable">{log.join("\n")}{running ? "\n…" : ""}</pre>
+            <pre ref={logRef} className="run-log selectable">{log.join("\n")}{running || hostedActive ? "\n…" : ""}</pre>
             {running && <Spinner label="Running — the container topology streams its progress above." />}
+            {hostedActive && (
+              <Spinner label={hostedRun?.status === "queued"
+                ? "Queued In Agentry — the log starts when a worker takes it."
+                : "Running In Agentry — the platform streams its log above."} />
+            )}
+          </>
+        )}
+
+        {/* The finished hosted run: the same facts a local result shows. */}
+        {inAgentry && hostedRun?.final && (
+          <>
+            <h3>Result</h3>
+            <HostedResult run={hostedRun}>
+              <ResultBody raw={hostedRun.resultJson ?? ""} />
+            </HostedResult>
           </>
         )}
 
