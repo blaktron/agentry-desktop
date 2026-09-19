@@ -30,7 +30,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 HOST=${1:-agentry@maxbookpro}
-VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
+VERSION=$( (git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev) | sed "s/^v//")
 SMOKE=${BUILD_DARWIN_SMOKE:-1}
 
 # sshpass -e when a password is in the environment, plain ssh otherwise.

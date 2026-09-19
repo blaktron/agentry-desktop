@@ -1,0 +1,298 @@
+# A release of the desktop client is a pushed tag v<productVersion> on main
+# (plan agentry-notes/plans/desktop-installers.md §6, D4; register D-023).
+# This workflow builds every platform artifact from that commit — Windows and
+# Linux on the Linux runner, the universal macOS bundle on the Mac — writes
+# SHA256SUMS over them and over BUILD-INFO, and uploads the set as ONE
+# workflow artifact named for the version. No GitHub Release is created
+# before 1.0 (operator, 2026-09-19): the site's downloads builder imports the
+# bundle from this run (build-downloads.sh --from-run, agentry-web#152) and
+# the website is where a release lives.
+#
+# workflow_dispatch runs the same jobs on any ref as a DRY RUN: the version is
+# whatever git describe says of that ref, the tag check is skipped when the
+# ref is not a tag, a stale pin warns instead of refusing, and BUILD-INFO
+# carries event=workflow_dispatch so the site's importer can refuse it.
+#
+# The version is derived once, in preflight, and every later job takes it
+# from there: the Mac is a persistent runner whose tree can be -dirty for
+# reasons of its own, and two derivations that disagree would build a bundle
+# the completeness check then rejects.
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run per ref, never cancelled by a later one: a release in flight
+# finishes or fails on its own account.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  # Refuses before a single artifact is built: a tag that does not name the
+  # version wails.json carries into the bundle metadata, or a pin of the core
+  # or the CLI that is behind its default branch — the desktop reads files
+  # the CLI writes, so a stale pin ships as a build that cannot read them
+  # (D-020, desktop#60). The daily pins job reports; this one refuses.
+  preflight:
+    runs-on: [self-hosted, linux, x64]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git describe needs the tags; the checkout token stays out of
+          # .git/config, nothing after this step fetches with it.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # The runner shares one persistent host module cache with every
+          # other runner; restoring the Actions cache over it left partial
+          # modules that broke go mod verify in the core (agentry#225).
+          cache: false
+      # The blaktron modules are private. The rewrite that carries the token
+      # goes into a job-scoped git config file, removed at the end, so nothing
+      # persists in the runner's home between jobs.
+      - name: Authenticate for the private blaktron modules (job-scoped)
+        env:
+          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
+          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: The tag names wails.json's productVersion
+        if: github.ref_type == 'tag'
+        run: make version-check RELEASE_TAG="${GITHUB_REF_NAME}"
+      - name: The version this release is named for
+        id: version
+        run: |
+          set -euo pipefail
+          v=$(make -s version)
+          [ -n "$v" ] || { echo "::error::make version printed nothing"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "version $v"
+      # go list -m -u compares against the newest version the module proxy
+      # offers, which is the default branch head only while the core and the
+      # CLI carry no semver tags (as today; the daily pins job makes the same
+      # comparison). A dry run warns; a tag refuses.
+      - name: The pins of the core and the CLI are current
+        run: |
+          set -euo pipefail
+          behind=$(go list -m -u -f '{{if .Update}}{{.Path}}: {{.Version}} -> {{.Update.Version}}{{end}}' \
+            github.com/blaktron/agentry github.com/blaktron/agentry-cli)
+          if [ -n "$behind" ]; then
+            echo "$behind"
+            msg="A pinned dependency is behind its default branch; a release built from it could not read a file the current CLI writes (desktop#60). Bump with: go get github.com/blaktron/agentry@main github.com/blaktron/agentry-cli@main, merge, then tag."
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then echo "::warning::dry run on stale pins: $msg"; else echo "::error::$msg"; exit 1; fi
+          else
+            echo "pins are current"
+          fi
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gitconfig"
+
+  # Windows is cross-built by the wails CLI (DEV-097); Linux is built inside
+  # a Debian container carrying the GTK and WebKit headers the runner image
+  # does not (scripts/build-linux.sh), from the tree vendored here with the
+  # job's credential — the container itself gets no credential: the checkout
+  # token is not persisted and the job-scoped git config is not mounted.
+  # Both artifacts are unsigned (agentry-desktop#54).
+  linux-windows:
+    needs: preflight
+    runs-on: [self-hosted, linux, x64]
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # Shared persistent host module cache; see preflight (agentry#225).
+          cache: false
+      - name: Authenticate for the private blaktron modules (job-scoped)
+        env:
+          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
+          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: What this release bakes in
+        run: |
+          set -euo pipefail
+          set -a; . build/release.env; set +a
+          : "${AGENTRY_DEFAULT_REGISTRY:?build/release.env must set AGENTRY_DEFAULT_REGISTRY}"
+          echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
+          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
+      - name: Build the embedded frontend bundle
+        run: cd frontend && npm ci --no-audit --no-fund && npx vite build
+      - name: Install the wails CLI at the version go.mod pins
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      # -m: no go mod tidy (the module graph is already resolved); -s: the
+      # frontend bundle was just built; -skipbindings: the checked-in
+      # TypeScript bindings stay as they are. VERSION overrides the
+      # Makefile's own describe so every job names one version.
+      - name: Windows amd64 (unsigned)
+        run: PATH="$HOME/go/bin:$PATH" make package-windows VERSION="$VERSION" WAILS_FLAGS='-m -s -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+      - name: Linux amd64, in the container that carries the GTK headers
+        run: |
+          set -euo pipefail
+          GOWORK=off go mod vendor
+          make package-linux VERSION="$VERSION" EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+      - name: Stage the artifacts, and check the bake reached them
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "build/bin/agentry-desktop-$VERSION-windows-amd64.exe" "build/bin/agentry-desktop-$VERSION-windows-amd64.zip" "build/linux/agentry-desktop-$VERSION-linux-amd64" dist/
+          # -X on a symbol that moved fails silently; the URL must be in the binaries.
+          for f in dist/agentry-desktop-"$VERSION"-linux-amd64 dist/agentry-desktop-"$VERSION"-windows-amd64.exe; do
+            grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" "$f" || { echo "::error::$f does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
+          done
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gitconfig"
+
+  # The one target that cannot be cross-built (D-021, agentry-desktop#57):
+  # the universal bundle is built on the estate's Mac, the same way the ci
+  # workflow's macos job does, with the release's version and linker flags.
+  # Unsigned and ad-hoc (D-001, agentry-desktop#6).
+  macos:
+    needs: preflight
+    runs-on: [self-hosted, macOS, ARM64]
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A persistent, non-container runner: caches live in stable places under
+      # the runner user's home rather than accumulating per job, and nothing
+      # here is restored over them. The wails CLI goes on PATH from ~/go/bin.
+      - name: Pin the caches and PATH
+        run: |
+          mkdir -p "$HOME/runner-cache/go-mod" "$HOME/runner-cache/go-build" "$HOME/runner-cache/npm"
+          {
+            echo "GOMODCACHE=$HOME/runner-cache/go-mod"
+            echo "GOCACHE=$HOME/runner-cache/go-build"
+            echo "npm_config_cache=$HOME/runner-cache/npm"
+            echo "GOPRIVATE=github.com/blaktron/*"
+            echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig"
+          } >> "$GITHUB_ENV"
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      # Job-scoped on this persistent host (see ci.yaml): removed at the end.
+      - name: Authenticate for the private blaktron modules (job-scoped)
+        env:
+          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: |
+          git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - name: What this release bakes in
+        run: |
+          set -euo pipefail
+          set -a; . build/release.env; set +a
+          : "${AGENTRY_DEFAULT_REGISTRY:?build/release.env must set AGENTRY_DEFAULT_REGISTRY}"
+          echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
+          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
+      - name: Install the wails CLI at the version go.mod pins
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      - name: Build the universal bundle
+        run: |
+          set -euo pipefail
+          make package-darwin VERSION="$VERSION" EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+          lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/bin/agentry-desktop.app/Contents/Info.plist
+          grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-darwin
+          path: build/bin/agentry-desktop-${{ needs.preflight.outputs.version }}-darwin-universal.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$GIT_CONFIG_GLOBAL"
+
+  # One bundle: every platform artifact, BUILD-INFO saying what built it and
+  # what it bakes in, and SHA256SUMS covering all of them — every file but
+  # SHA256SUMS itself is in the sums, and every artifact the release matrix
+  # names is present. Kept 90 days (the artifact store's default here; the
+  # site's downloads directory is the long-lived copy, plan §6).
+  bundle:
+    needs: [preflight, linux-windows, macos]
+    runs-on: [self-hosted, linux, x64]
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: bundle
+      - name: BUILD-INFO
+        run: |
+          set -euo pipefail
+          set -a; . build/release.env; set +a
+          {
+            echo "product=agentry-desktop"
+            echo "version=$VERSION"
+            echo "event=${GITHUB_EVENT_NAME}"
+            echo "ref=${GITHUB_REF}"
+            echo "commit=${GITHUB_SHA}"
+            echo "default_registry=${AGENTRY_DEFAULT_REGISTRY}"
+            echo "signed=false"
+            echo "built_by=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > bundle/BUILD-INFO
+          cat bundle/BUILD-INFO
+      - name: SHA256SUMS over every file, and every platform present
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd bundle
+          files=(*)
+          [ "${#files[@]}" -gt 0 ] || { echo "::error::the bundle is empty"; exit 1; }
+          for f in "${files[@]}"; do
+            case "$f" in BUILD-INFO|agentry-desktop-"$VERSION"-*) ;; *) echo "::error::$f is not an artifact of $VERSION"; exit 1;; esac
+          done
+          sha256sum "${files[@]}" > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          for f in *; do [ "$f" = SHA256SUMS ] || grep -q " $f\$" SHA256SUMS || { echo "::error::$f is not covered by SHA256SUMS"; exit 1; }; done
+          # The release matrix, as the site's download page lists it.
+          for want in linux-amd64 windows-amd64.exe windows-amd64.zip darwin-universal.zip; do
+            [ -f "agentry-desktop-$VERSION-$want" ] || { echo "::error::agentry-desktop-$VERSION-$want is missing"; exit 1; }
+          done
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentry-desktop-${{ needs.preflight.outputs.version }}
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 90
