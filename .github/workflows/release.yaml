@@ -1,9 +1,9 @@
 # A release of the desktop client is a pushed tag v<productVersion> on main
 # (plan agentry-notes/plans/desktop-installers.md §6, D4; register D-023).
 # This workflow builds every platform artifact from that commit — Windows and
-# Linux on the Linux runner, the universal macOS bundle on the Mac — writes
-# SHA256SUMS over them and over BUILD-INFO, and uploads the set as ONE
-# workflow artifact named for the version. No GitHub Release is created
+# Linux on the Linux runner, the universal macOS bundle and its dmg on the
+# Mac — writes SHA256SUMS over them and over BUILD-INFO, and uploads the set
+# as ONE workflow artifact named for the version. No GitHub Release is created
 # before 1.0 (operator, 2026-09-19): the site's downloads builder imports the
 # bundle from this run (build-downloads.sh --from-run, agentry-web#152) and
 # the website is where a release lives.
@@ -216,8 +216,9 @@ jobs:
 
   # The one target that cannot be cross-built (D-021, agentry-desktop#57):
   # the universal bundle is built on the estate's Mac, the same way the ci
-  # workflow's macos job does, with the release's version and linker flags.
-  # Unsigned and ad-hoc (D-001, agentry-desktop#6).
+  # workflow's macos job does, with the release's version and linker flags,
+  # and wrapped in both the zip and the dmg the download page offers
+  # (agentry-desktop#85). Unsigned and ad-hoc (D-001, agentry-desktop#6).
   macos:
     needs: preflight
     runs-on: [self-hosted, macOS, ARM64]
@@ -267,19 +268,39 @@ jobs:
       # -skipbindings: the checked-in bindings, checked current in
       # preflight, are what ships; a release never regenerates them
       # (desktop#97). -m: skip wails' own go mod tidy.
-      - name: Build the universal bundle
+      # package-darwin builds the bundle, the zip and the dmg, and reads the
+      # dmg back (scripts/check-darwin-dmg.sh: it mounts, holds the bundle
+      # and an Applications shortcut, is universal, its signature verifies,
+      # and it is the same bundle the zip carries).
+      - name: Build the universal bundle, its zip and its dmg
         run: |
           set -euo pipefail
           make package-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/bin/agentry-desktop.app/Contents/Info.plist
           grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
+      # Uploaded before the smoke, not after: a smoke that goes red fails the
+      # release, and that is exactly when someone wants the image to look at.
+      # The bundle job needs this one to have succeeded, so nothing a failed
+      # run uploaded can reach a release.
       - uses: actions/upload-artifact@v4
         with:
           name: release-darwin
-          path: build/bin/agentry-desktop-${{ needs.preflight.outputs.version }}-darwin-universal.zip
+          path: |
+            build/bin/agentry-desktop-${{ needs.preflight.outputs.version }}-darwin-universal.zip
+            build/bin/agentry-desktop-${{ needs.preflight.outputs.version }}-darwin-universal.dmg
           if-no-files-found: error
           retention-days: 7
+      # Dragging the bundle onto Applications over a copy already there leaves
+      # the settings, the installed agents, the pinned key, the runner policy
+      # and a keychain item byte-identical (plan §8), and the bundle installed
+      # from the image launches where a console session allows it. The keychain
+      # half uses a keychain the script creates inside its own temporary
+      # directory and names explicitly, so it runs on this runner too, which
+      # has no login keychain at all (#106). This step gates a release: a red
+      # here is a release that does not complete.
+      - name: Install-over-install smoke of the dmg
+        run: make smoke-darwin-dmg VERSION="$VERSION"
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$GIT_CONFIG_GLOBAL"
@@ -332,7 +353,7 @@ jobs:
           sha256sum -c SHA256SUMS
           for f in *; do [ "$f" = SHA256SUMS ] || grep -q " $f\$" SHA256SUMS || { echo "::error::$f is not covered by SHA256SUMS"; exit 1; }; done
           # The release matrix, as the site's download page lists it.
-          for want in linux-amd64 linux-amd64.deb linux-amd64.rpm windows-amd64.exe windows-amd64.zip windows-amd64-setup.exe darwin-universal.zip; do
+          for want in linux-amd64 linux-amd64.deb linux-amd64.rpm windows-amd64.exe windows-amd64.zip windows-amd64-setup.exe darwin-universal.zip darwin-universal.dmg; do
             [ -f "agentry-desktop-$VERSION-$want" ] || { echo "::error::agentry-desktop-$VERSION-$want is missing"; exit 1; }
           done
           cat SHA256SUMS

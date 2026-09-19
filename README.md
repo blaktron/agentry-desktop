@@ -142,10 +142,11 @@ away at the flip.
 | host-platform build | `make build` → `build/bin/` |
 | lint + tests + tsc | `make check` |
 | regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
-| macOS universal .app (zipped) | `make package-darwin` |
+| macOS universal .app, zipped and as a .dmg | `make package-darwin` |
 | Windows amd64 exe, zip and per-user installer (cross-compiled, unsigned) | `make package-windows` |
 | Linux amd64 binary, .deb and .rpm (in a container) | `make package-linux` |
 | install both Linux packages in clean containers | `make smoke-linux-packages` |
+| drag the dmg's bundle over an installed copy (macOS) | `make smoke-darwin-dmg` |
 | the version every target stamps | `make version` |
 | does this tag name `wails.json`'s version? | `make version-check RELEASE_TAG=v0.1.0` |
 
@@ -206,10 +207,25 @@ Line Tools, Go, Node and the Wails CLI. `scripts/build-darwin.sh [user@host]`
 runs from a Linux workstation: it vendors the modules where the credential
 helper lives, ships the tree without `.git` to the Mac, runs
 `make package-darwin WAILS_FLAGS=-m` there (the Makefile says why `-m`),
-copies the zip back and prints its digest. The bundle is ad-hoc signed
-only (D-001: no Developer ID, no notarization). The Mac needs no GitHub
-credential. Set `AGENTRY_DEFAULT_REGISTRY` to bake in the
-registry the build connects to by default. The launch smoke at the end
+copies the zip and the dmg back and prints their digests. The target wraps
+one bundle twice: the zip for people who want the bundle, and a disk image
+holding the bundle beside an `Applications` shortcut for people who install
+a macOS application the usual way. `hdiutil` builds the image
+(`scripts/package-darwin-dmg.sh`) and `scripts/check-darwin-dmg.sh` mounts
+it and reads it back — the right name for the download manifest, the bundle
+and the shortcut and nothing else, universal, its signature verifying, and
+byte-identical to the bundle the zip carries.
+`scripts/acceptance/darwin-dmg-install.sh` (`make smoke-darwin-dmg`) then
+drags that bundle onto a temporary Applications folder over a copy already
+there and checks the settings, the installed agents, the pinned key, the
+runner policy and a keychain item come through byte-identical. The keychain
+item goes into a keychain the script creates, unlocks by name and deletes,
+which needs no login session, so that half runs on the Mac runner too and
+never touches a real sign-in. The
+bundle is ad-hoc signed only and the image is not signed at all (D-001: no
+Developer ID, no notarization), so both meet the same Gatekeeper prompt.
+The Mac needs no GitHub credential. Set `AGENTRY_DEFAULT_REGISTRY` to bake
+in the registry the build connects to by default. The launch smoke at the end
 needs the build user logged in at the Mac's console; without one it is
 reported as skipped, not failed. The estate's Mac and the plan behind it:
 `agentry-notes/plans/macos-build-host.md`.
@@ -220,9 +236,11 @@ headers: they compile the app library, not the platform bundle. `windows`
 cross-builds the Windows exe and its installer on the Linux runner and
 keeps them as a workflow artifact, so a broken Windows build fails the
 gate. A fourth job, `macos`, builds the universal bundle on the Mac build
-host, runs the tests and the Keychain round trip there, and uploads the
-bundle as a workflow artifact; it does not block the merge
-(`continue-on-error`).
+host, builds and checks the dmg, runs the tests and the Keychain round
+trip there, and uploads the zip and the dmg as a workflow artifact; it does
+not block the merge (`continue-on-error`). Its Keychain round trip has
+failed since the Mac became a runner, for want of a console session
+(#106).
 
 ## Releasing
 
@@ -237,8 +255,8 @@ origin v0.2.0`. The `release` workflow refuses a tag that does not name the
 version in `wails.json`, and a tag whose pins of the core or the CLI are
 behind their default branches (the desktop reads files the CLI writes;
 D-020). It then builds every platform artifact — Windows and Linux on the
-Linux runner, the universal macOS bundle on the Mac — writes `SHA256SUMS`
-over them, and uploads the set as one workflow artifact named
+Linux runner, the universal macOS bundle and its dmg on the Mac — writes
+`SHA256SUMS` over them, and uploads the set as one workflow artifact named
 `agentry-desktop-<version>`. `BUILD-INFO`, covered by the sums, names the
 commit, the event (a tag push, or a `workflow_dispatch` dry run the site's
 importer refuses), `signed=false`, and the registry the build connects to
