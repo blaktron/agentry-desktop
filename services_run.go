@@ -219,6 +219,78 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 	return r.SetupStatus()
 }
 
+// HarnessView is one coding agent — a host harness behind a CLI adapter —
+// as the wizard's Coding agent step shows it (agentry-desktop#89). Facts
+// from the CLI's harnessprobe; no secret is anywhere near this surface.
+type HarnessView struct {
+	Name           string   `json:"name"`
+	Executable     string   `json:"executable"`
+	InstallURL     string   `json:"installUrl"`
+	Found          bool     `json:"found"`
+	Path           string   `json:"path,omitempty"`
+	PathFromPolicy bool     `json:"pathFromPolicy"`
+	Version        string   `json:"version,omitempty"`
+	VersionMatches bool     `json:"versionMatches"`
+	Warnings       []string `json:"warnings,omitempty"`
+	Reason         string   `json:"reason,omitempty"`
+	Chosen         bool     `json:"chosen"`
+	MCPCommand     string   `json:"mcpCommand"`
+}
+
+func harnessViews(hs []run.Harness) []HarnessView {
+	out := make([]HarnessView, 0, len(hs))
+	for _, h := range hs {
+		out = append(out, HarnessView{
+			Name: h.Name, Executable: h.Executable, InstallURL: h.InstallURL,
+			Found: h.Found, Path: h.Path, PathFromPolicy: h.PathFromPolicy,
+			Version: h.Version, VersionMatches: h.VersionMatches, Warnings: h.Warnings, Reason: h.Reason,
+			Chosen: h.Chosen, MCPCommand: h.MCPCommand,
+		})
+	}
+	return out
+}
+
+// HarnessStatus probes the coding agents the CLI's adapters can drive
+// (Claude Code, Codex) on this machine. Read-only: it never creates the
+// policy file and runs nothing but each harness's version flag.
+func (r *RunAPI) HarnessStatus() ([]HarnessView, error) {
+	hs, err := run.HarnessStatus(r.app.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return harnessViews(hs), nil
+}
+
+// ChosenHarnesses names the harnesses the operator policy carries an entry
+// for, reading the policy only — the Done recap asks this, so finishing the
+// wizard never executes a harness.
+func (r *RunAPI) ChosenHarnesses() ([]string, error) {
+	names, err := run.ChosenHarnesses()
+	if err != nil {
+		return nil, err
+	}
+	if names == nil {
+		names = []string{}
+	}
+	return names, nil
+}
+
+// ChooseHarness records harness.<name> in the operator policy (the path the
+// probe resolved), so `agentry run --adapter <name>` finds the harness the
+// person picked. It refuses a harness that is not on this machine. The
+// policy write takes the run lock so it cannot interleave with ApplySetup's;
+// errBusy's wording covers the run case, which is the one a person can hit.
+func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	if err := run.ChooseHarness(r.app.ctx, name); err != nil {
+		return nil, err
+	}
+	return r.HarnessStatus()
+}
+
 // ProfileStatusView is a BriefAgent signature's MCP-profile state (§P2).
 // Secret NAMES only — no surface ever returns a value.
 type ProfileStatusView struct {

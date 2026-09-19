@@ -706,6 +706,40 @@ export namespace main {
 	        this.verdictReason = source["verdictReason"];
 	    }
 	}
+	export class HarnessView {
+	    name: string;
+	    executable: string;
+	    installUrl: string;
+	    found: boolean;
+	    path?: string;
+	    pathFromPolicy: boolean;
+	    version?: string;
+	    versionMatches: boolean;
+	    warnings?: string[];
+	    reason?: string;
+	    chosen: boolean;
+	    mcpCommand: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HarnessView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.executable = source["executable"];
+	        this.installUrl = source["installUrl"];
+	        this.found = source["found"];
+	        this.path = source["path"];
+	        this.pathFromPolicy = source["pathFromPolicy"];
+	        this.version = source["version"];
+	        this.versionMatches = source["versionMatches"];
+	        this.warnings = source["warnings"];
+	        this.reason = source["reason"];
+	        this.chosen = source["chosen"];
+	        this.mcpCommand = source["mcpCommand"];
+	    }
+	}
 	export class HostedArtefactView {
 	    name: string;
 	    bytes: number;

@@ -8,8 +8,8 @@ import Installed from "./pages/Installed";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings from "./pages/Settings";
-import Wizard from "./pages/Wizard";
-import { Wordmark } from "./ui";
+import Wizard, { WizardOutcome } from "./pages/Wizard";
+import { Button, Notice, Wordmark } from "./ui";
 
 export type Route =
   | { page: "browse" }
@@ -27,6 +27,12 @@ export default function App() {
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
   const [showWizard, setShowWizard] = useState(false);
+  // The "nothing set up" reminder (plan desktop-installers.md D10): raised
+  // when the wizard closed with "I'll do it later", shown on Browse until
+  // dismissed (opening Settings from it leaves it standing for the return
+  // trip), and never persisted — the next launch starts clean, and D-019's
+  // flag keeps the wizard closed.
+  const [setupMissing, setSetupMissing] = useState<string[] | null>(null);
 
   const refreshSettings = useCallback(async () => {
     const s = await SettingsAPI.Get();
@@ -51,7 +57,7 @@ export default function App() {
 
   // Closing the wizard (finished or skipped) marks onboarding done so it
   // does not reopen on the next start; Settings can reopen it on demand.
-  const finishWizard = useCallback(async () => {
+  const finishWizard = useCallback(async (outcome: WizardOutcome) => {
     try {
       await SettingsAPI.MarkOnboarded();
     } catch {
@@ -59,6 +65,7 @@ export default function App() {
     }
     await refreshSettings().catch(() => {});
     setShowWizard(false);
+    setSetupMissing(outcome.kind === "later" ? outcome.missing : null);
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
@@ -88,6 +95,21 @@ export default function App() {
         </div>
       </div>
       <div className="content">
+        {route.page === "browse" && setupMissing && (
+          <div className="setup-banner">
+            <Notice tone="warn">
+              <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
+              it cannot sign in, run or build anything until it is:
+              <ul className="setup-banner-list">
+                {setupMissing.map((m) => <li key={m}>{m}</li>)}
+              </ul>
+              <div className="row">
+                <Button variant="primary" onClick={() => nav({ page: "settings" })}>Open Settings</Button>
+                <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
+              </div>
+            </Notice>
+          </div>
+        )}
         {route.page === "browse" && (
           <Browse registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
         )}

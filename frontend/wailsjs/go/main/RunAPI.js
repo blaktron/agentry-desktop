@@ -22,12 +22,24 @@ export function CancelHostedRun() {
   return window['go']['main']['RunAPI']['CancelHostedRun']();
 }
 
+export function ChooseHarness(arg1) {
+  return window['go']['main']['RunAPI']['ChooseHarness'](arg1);
+}
+
+export function ChosenHarnesses() {
+  return window['go']['main']['RunAPI']['ChosenHarnesses']();
+}
+
 export function EndSession(arg1) {
   return window['go']['main']['RunAPI']['EndSession'](arg1);
 }
 
 export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
+}
+
+export function HarnessStatus() {
+  return window['go']['main']['RunAPI']['HarnessStatus']();
 }
 
 export function HostedAvailability(arg1, arg2) {
