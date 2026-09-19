@@ -43,9 +43,13 @@ build:
 # respelled that way (the per-package .d.ts files keep Record<>: nothing
 # shadows it there). A shape the sed cannot respell — a nested generic —
 # fails here by name rather than later in tsc. CI regenerates and fails on
-# drift, so this is the only way models.ts changes.
+# drift, so this is the only way models.ts changes. Generating compiles
+# the app, whose go:embed needs frontend/dist to hold a file: on a fresh
+# tree (the release preflight, a new clone) an empty index.html stands in
+# and is removed again, so nothing downstream can mistake it for a bundle.
 bindings:
-	wails generate module
+	@stub=0; if [ ! -f frontend/dist/index.html ]; then mkdir -p frontend/dist && : > frontend/dist/index.html && stub=1 && echo "frontend/dist was missing: an empty index.html stands in for the embed while the bindings generate (go:embed all:frontend/dist must match) and is removed afterwards; make frontend builds the real one"; fi; \
+	wails generate module; st=$$?; if [ "$$stub" = 1 ]; then rm -rf frontend/dist; fi; exit $$st
 	sed -i.bak -E 's/Record<string, ([^<>]+)>/{[key: string]: \1}/g' frontend/wailsjs/go/models.ts && rm -f frontend/wailsjs/go/models.ts.bak
 	@if grep -n 'Record<' frontend/wailsjs/go/models.ts; then echo "models.ts still carries a Record<> the bindings sed cannot respell (a nested generic?): widen the sed in this target"; exit 1; fi
 
