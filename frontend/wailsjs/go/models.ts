@@ -120,7 +120,7 @@ export namespace build {
 	    digest: string;
 	    detail?: string;
 	    refusal?: string;
-	    findingCounts?: Record<string, number>;
+	    findingCounts?: {[key: string]: number};
 	
 	    static createFrom(source: any = {}) {
 	        return new PublishResult(source);
@@ -352,6 +352,7 @@ export namespace installed {
 	    secrets?: string[];
 	    dataAccess?: string[];
 	    mcpServers?: string[];
+	    mcpServerEnv?: {[key: string]: any};
 	
 	    static createFrom(source: any = {}) {
 	        return new CapSnapshot(source);
@@ -369,6 +370,7 @@ export namespace installed {
 	        this.secrets = source["secrets"];
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = source["mcpServers"];
+	        this.mcpServerEnv = source["mcpServerEnv"];
 	    }
 	}
 	export class Diff {
@@ -636,7 +638,7 @@ export namespace main {
 	    agent: AgentView;
 	    versions: VersionView[];
 	    latest: string;
-	    latestCapabilities?: Record<string, any>;
+	    latestCapabilities?: {[key: string]: any};
 	    latestDigest?: string;
 	    dependencyAlerts: DependencyAlertView[];
 	
@@ -823,7 +825,7 @@ export namespace main {
 	    holdCredits: number;
 	    settledCredits: number;
 	    settled: boolean;
-	    capabilitiesEnforced?: Record<string, string>;
+	    capabilitiesEnforced?: {[key: string]: string};
 	    attestationState?: string;
 	    adapter?: string;
 	    resultJson?: string;
@@ -1023,7 +1025,7 @@ export namespace main {
 	    version: string;
 	    apiVersion: string;
 	    minCliVersion?: string;
-	    features: Record<string, boolean>;
+	    features: {[key: string]: boolean};
 	
 	    static createFrom(source: any = {}) {
 	        return new MetaView(source);
@@ -1143,7 +1145,7 @@ export namespace main {
 	    rulesetVersion?: string;
 	    judgeModel?: string;
 	    finishedAt?: string;
-	    findingCounts?: Record<string, number>;
+	    findingCounts?: {[key: string]: number};
 	    findings: FindingView[];
 	
 	    static createFrom(source: any = {}) {
@@ -1270,7 +1272,7 @@ export namespace main {
 	export class SearchView {
 	    total?: number;
 	    results: SearchHitView[];
-	    facets?: Record<string, any>;
+	    facets?: {[key: string]: any};
 	
 	    static createFrom(source: any = {}) {
 	        return new SearchView(source);

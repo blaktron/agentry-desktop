@@ -23,17 +23,31 @@ WAILS_FLAGS ?=
 
 .PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux version-check version clean bindings
 
-# Live-reload development shell (wails dev).
+# Live-reload development shell (wails dev). -skipbindings on every build:
+# the checked-in bindings are the ones `make bindings` produced (see there),
+# and a build that regenerated them would undo that. Run `make bindings`
+# after changing a bound Go method or type.
 dev:
-	wails dev -ldflags '$(LDFLAGS)'
+	wails dev -skipbindings -ldflags '$(LDFLAGS)'
 
 # Production build for the host platform (macOS: build/bin/*.app).
 build:
-	wails build -ldflags '$(LDFLAGS)'
+	wails build $(WAILS_FLAGS) -skipbindings -ldflags '$(LDFLAGS)'
 
 # Regenerate the TypeScript bindings after changing bound Go methods/types.
+# The generator spells a Go map as TypeScript's generic Record<K, V>; inside
+# the `installed` namespace of models.ts that name is the CLI's install
+# record class, so the type-check reads the generic as the class and fails
+# ("Type 'Record' is not generic", desktop#97). An index signature is the
+# same type without the shadowed name, so every map in models.ts is
+# respelled that way (the per-package .d.ts files keep Record<>: nothing
+# shadows it there). A shape the sed cannot respell — a nested generic —
+# fails here by name rather than later in tsc. CI regenerates and fails on
+# drift, so this is the only way models.ts changes.
 bindings:
 	wails generate module
+	sed -i.bak -E 's/Record<string, ([^<>]+)>/{[key: string]: \1}/g' frontend/wailsjs/go/models.ts && rm -f frontend/wailsjs/go/models.ts.bak
+	@if grep -n 'Record<' frontend/wailsjs/go/models.ts; then echo "models.ts still carries a Record<> the bindings sed cannot respell (a nested generic?): widen the sed in this target"; exit 1; fi
 
 lint:
 	@fmt_out=$$(gofmt -l . | grep -v -e '^frontend/' -e '^vendor/' || true); if [ -n "$$fmt_out" ]; then echo "gofmt needed on:"; echo "$$fmt_out"; exit 1; fi

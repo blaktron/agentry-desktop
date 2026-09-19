@@ -93,6 +93,19 @@ jobs:
           else
             echo "pins are current"
           fi
+      # A tag can land on a commit whose ci run never happened, and both
+      # build jobs ship the checked-in bindings without regenerating them,
+      # so the release checks for itself that those bindings are what the Go
+      # types generate (desktop#97).
+      - name: Install the wails CLI at the version go.mod pins
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      - name: The checked-in bindings are current
+        run: |
+          set -euo pipefail
+          make bindings
+          drift=$(git status --porcelain -- frontend/wailsjs)
+          if [ -n "$drift" ]; then echo "$drift"; echo "::error::the checked-in bindings differ from what the Go types generate: run make bindings, commit, then tag"; exit 1; fi
+          echo "bindings are current"
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
@@ -137,7 +150,7 @@ jobs:
           echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
           echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
       - name: Build the embedded frontend bundle
-        run: cd frontend && npm ci --no-audit --no-fund && npx vite build
+        run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       # -m: no go mod tidy (the module graph is already resolved); -s: the
@@ -221,10 +234,13 @@ jobs:
           echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      # -skipbindings: the checked-in bindings, checked current in
+      # preflight, are what ships; a release never regenerates them
+      # (desktop#97). -m: skip wails' own go mod tidy.
       - name: Build the universal bundle
         run: |
           set -euo pipefail
-          make package-darwin VERSION="$VERSION" EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+          make package-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/bin/agentry-desktop.app/Contents/Info.plist
           grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }

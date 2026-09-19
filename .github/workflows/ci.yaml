@@ -62,6 +62,21 @@ jobs:
       - name: no payment provider in the app
         run: |
           if grep -rIi -n 'stripe' --include='*.go' --include='*.ts' --include='*.tsx' --exclude-dir=vendor --exclude-dir=node_modules --exclude-dir=dist . ; then echo "::error::a payment provider reached the desktop"; exit 1; fi
+      # Generated code is regenerated, never hand-edited, and a stale copy
+      # is a build that fails somewhere else (the Mac's wails build
+      # regenerated models.ts and could not type-check it, desktop#97). The
+      # wails CLI at the version go.mod pins regenerates here; any modified
+      # or new file under the bindings tree is the failure. Last, because it
+      # rewrites the tree.
+      - name: Install the wails CLI at the version go.mod pins
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      - name: Bindings drift
+        run: |
+          set -euo pipefail
+          make bindings
+          drift=$(git status --porcelain -- frontend/wailsjs)
+          if [ -n "$drift" ]; then echo "$drift"; echo "::error::the checked-in bindings differ from what the Go types generate: run make bindings and commit"; exit 1; fi
+          echo "bindings are current"
 
   govulncheck:
     runs-on: [self-hosted, linux, x64]
@@ -123,9 +138,12 @@ jobs:
           git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      # -skipbindings: the checked-in bindings are what the check job
+      # type-checks and the drift step keeps current; a build never
+      # regenerates them (desktop#97). -m: skip wails' own go mod tidy.
       - name: Build the universal bundle
         run: |
-          make package-darwin
+          make package-darwin WAILS_FLAGS='-m -skipbindings'
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           shasum -a 256 build/bin/*.zip
       - uses: actions/upload-artifact@v4
