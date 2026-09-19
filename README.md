@@ -118,8 +118,9 @@ shared files under `~/.config/agentry/` (relocatable with
 ## Building
 
 Prereqs for a platform bundle: Go ≥ 1.27, Node ≥ 20, the Wails v2 CLI
-(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`); on Linux the
-GTK 3 and WebKit2GTK 4.1 development headers.
+(`go install github.com/wailsapp/wails/v2/cmd/wails@latest`); Docker for the
+Linux package (the GTK 3 and WebKit2GTK 4.1 headers live in its container,
+or on the host for a direct `wails build`); `jq` for `make version-check`.
 
 **Until the repositories are public** (the open core is private until the
 operator flips it; see `PUBLIC-FLIP.md` in agentry-notes), the core and CLI
@@ -142,18 +143,23 @@ away at the flip.
 | lint + tests + tsc | `make check` |
 | regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
 | macOS universal .app (zipped) | `make package-darwin` |
-| Windows amd64 (cross-compiled) | `make package-windows` |
+| Windows amd64 (cross-compiled, unsigned) | `make package-windows` |
+| Linux amd64 (in a container) | `make package-linux` |
+| the version every target stamps | `make version` |
+| does this tag name `wails.json`'s version? | `make version-check RELEASE_TAG=v0.1.0` |
 
-**Linux** builds on a Linux host (webkit2gtk links natively):
+**Linux** links WebKit2GTK natively, so it is built where the headers are.
+`make package-linux` runs `scripts/build-linux.sh`: it vendors the modules
+and builds the frontend bundle on the host, then builds inside a Debian
+container that installs the GTK 3 and WebKit2GTK 4.1 headers, and launches
+the result under a virtual display as a smoke. A host with the headers can
+also build directly:
 
 ```bash
 # Debian/Ubuntu build deps
 apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev npm golang
 wails build -platform linux/amd64 -tags webkit2_41
 ```
-
-(A host without those headers can build inside a Debian container — see
-`scripts/build-linux.sh`.)
 
 **macOS** cannot be cross-built (the macOS front end is Objective-C behind
 cgo), so the universal bundle is built on a Mac that carries the Command
@@ -174,9 +180,39 @@ runners. Those two jobs need neither the Wails CLI nor the WebKit headers:
 they compile the app library, not the platform bundle. A third job,
 `macos`, builds the universal bundle on the Mac build host, runs the tests
 and the Keychain round trip there, and uploads the bundle as a workflow
-artifact; it does not block the merge (`continue-on-error`). Artifacts are not
-committed; they attach to GitHub releases, still a manual step (the hosted
-service builds and serves its own binaries from the site repository).
+artifact; it does not block the merge (`continue-on-error`).
+
+## Releasing
+
+A release is a tag `v<productVersion>` on `main`. The version lives in one
+place, `wails.json`'s `productVersion`, which the Wails build carries into
+the macOS bundle's `CFBundleShortVersionString` and the Windows version-info
+block; the Makefile stamps the same string into the binary (`make version`
+prints it: `git describe` without the tag's leading `v`, so a tagged commit
+is `0.1.0` and a commit past it is `0.1.0-3-g<sha>`). To cut `0.2.0`: bump
+`productVersion` in a commit on `main`, then `git tag v0.2.0 && git push
+origin v0.2.0`. The `release` workflow refuses a tag that does not name the
+version in `wails.json`, and a tag whose pins of the core or the CLI are
+behind their default branches (the desktop reads files the CLI writes;
+D-020). It then builds every platform artifact — Windows and Linux on the
+Linux runner, the universal macOS bundle on the Mac — writes `SHA256SUMS`
+over them, and uploads the set as one workflow artifact named
+`agentry-desktop-<version>`. `BUILD-INFO`, covered by the sums, names the
+commit, the event (a tag push, or a `workflow_dispatch` dry run the site's
+importer refuses), `signed=false`, and the registry the build connects to
+by default (`build/release.env`, committed: dev until the launch flips it;
+the jobs check the URL is really in the binaries). Between tags the bundle
+metadata keeps the last `productVersion` while the binary reports the
+describe string; only a tagged build has one version everywhere, which is
+what a release is.
+
+No GitHub Release is created before 1.0 (operator, 2026-09-19): the site's
+downloads builder imports the bundle from the run and the download page is
+where a release lives. `workflow_dispatch` runs the same jobs on any ref as
+a dry run, named by the describe string instead of a tag. Every artifact
+is unsigned (D-001 for macOS, agentry-desktop#54 for Windows) and the
+download page says so. The plan behind this and the installers that
+follow: `agentry-notes/plans/desktop-installers.md`.
 
 ## The registry it talks to
 

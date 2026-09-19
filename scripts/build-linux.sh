@@ -1,24 +1,69 @@
 #!/usr/bin/env bash
 # Build the Agentry Desktop Linux binary inside a container.
-# Run on the docker host from the extracted source directory.
-# Prep on the dev machine first: `go mod vendor` and `cd frontend && npm run build`,
-# then ship the tree (minus .git, node_modules, build/bin) to the host.
+#
+#   make package-linux            (sets DESKTOP_VERSION from git describe)
+#   scripts/build-linux.sh        (DESKTOP_VERSION defaults to 0.0.0-dev)
+#
+# The GTK 3 and WebKit2GTK 4.1 headers the Linux front end links against live
+# in the container, not on the host, so the host needs Docker and nothing
+# else: the CI runners carry no GTK, and neither need a workstation. The
+# private modules are vendored here every time (the credential lives on the
+# host, never in the container, and a stale vendor tree would link
+# yesterday's modules without a word); the frontend bundle is reused when it
+# exists, because it is slow and the Makefile's other targets reuse it too —
+# rm -rf frontend/dist to rebuild it. The container builds in vendor mode
+# with the version and the extra linker flags passed in, and hands its
+# output back owned by the invoking user, not root.
+#
+# Environment:
+#   DESKTOP_VERSION   the version stamped into the binary and its file name
+#                     (default 0.0.0-dev; the Makefile passes git describe).
+#   EXTRA_LDFLAGS     appended to the linker flags, as for the Makefile's
+#                     other targets; nothing is stripped unless it says -w -s
+#                     (the release workflow does).
+#
+# Output: build/linux/agentry-desktop-<version>-linux-amd64 and a launch
+# smoke under a virtual display.
 set -euo pipefail
 cd "$(dirname "$0")/.."   # the repo root — go.mod lives here, and it is what mounts as /src
 
-docker run --rm -v "$PWD:/src" -w /src golang:1.27-bookworm bash -ec '
+VERSION="${DESKTOP_VERSION:-0.0.0-dev}"
+OUT="agentry-desktop-${VERSION}-linux-amd64"
+
+echo "== vendoring modules here (GOWORK=off, matching CI)"
+GOWORK=off go mod vendor
+if [ -f frontend/dist/index.html ]; then
+  echo "== reusing frontend/dist (rm -rf frontend/dist to rebuild it)"
+else
+  echo "== building the frontend bundle here"
+  (cd frontend && npm ci --no-audit --no-fund && npx vite build)
+fi
+
+# label=disable: on a host whose Docker daemon runs with SELinux (the CI
+# runner host), a bind mount is otherwise unwritable from inside.
+# The container runs as root (apt needs it) and chowns its output to the
+# invoking user on the way out, so the host can clean build/linux afterwards.
+docker run --rm --security-opt label=disable -v "$PWD:/src" -w /src \
+  -e DESKTOP_VERSION="$VERSION" -e EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-}" -e OUT="$OUT" \
+  -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+  golang:1.27-bookworm bash -ec '
+  trap "chown -R ${HOST_UID}:${HOST_GID} build/linux 2>/dev/null || true" EXIT
   apt-get update -qq >/dev/null 2>&1
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config xvfb dbus >/dev/null 2>&1
-  VERSION="${DESKTOP_VERSION:-0.0.0-dev}"
-  go build -mod=vendor -tags "desktop production webkit2_41" \
-    -ldflags "-w -s -X github.com/blaktron/agentry-desktop/internal/version.Version=${VERSION}" \
-    -o build/linux/agentry-desktop .
+  mkdir -p build/linux
+  # -buildvcs=false: the bind-mounted .git belongs to another uid, which git
+  # inside the container refuses to read; the version is stamped by ldflags.
+  go build -mod=vendor -trimpath -buildvcs=false -tags "desktop production webkit2_41" \
+    -ldflags "-X github.com/blaktron/agentry-desktop/internal/version.Version=${DESKTOP_VERSION} ${EXTRA_LDFLAGS}" \
+    -o "build/linux/${OUT}" .
   echo BUILD-OK
   ls -la build/linux/
   # Smoke: the GUI must start and stay alive under a virtual display.
   # timeout killing it (exit 124) means it ran without crashing.
-  timeout 6 xvfb-run -a ./build/linux/agentry-desktop >/tmp/run.log 2>&1 && ec=$? || ec=$?
+  timeout 6 xvfb-run -a "./build/linux/${OUT}" >/tmp/run.log 2>&1 && ec=$? || ec=$?
   echo "xvfb exit: ${ec}"
   tail -3 /tmp/run.log || true
+  if [ "${ec}" != 124 ]; then echo "SMOKE-FAIL: exited with ${ec} before the timeout"; exit 1; fi
+  echo SMOKE-OK
 '

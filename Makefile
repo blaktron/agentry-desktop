@@ -5,7 +5,12 @@
 # or an url.<...>.insteadOf rewrite).
 export PATH := $(HOME)/go/bin:/opt/homebrew/bin:$(PATH)
 GO ?= go
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)
+# The version is git describe without the tag's leading v: a tagged commit
+# gives 0.1.0, which is what wails.json's productVersion must equal (the
+# release workflow refuses a tag that does not), so the bundle metadata, the
+# binary and the artifact names all say the same thing; between tags it is
+# 0.1.0-3-g<sha>[-dirty], and a checkout with no tag at all is the bare sha.
+VERSION := $(shell (git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev) | sed 's/^v//')
 # EXTRA_LDFLAGS lets a caller add to the linker flags (a baked-in default
 # registry, -w -s) without taking the version stamp away from this file.
 EXTRA_LDFLAGS ?=
@@ -16,7 +21,7 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # graph past vendor/ and asks GitHub for the private modules.
 WAILS_FLAGS ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux version-check version clean bindings
 
 # Live-reload development shell (wails dev).
 dev:
@@ -66,14 +71,36 @@ package-darwin:
 	wails build $(WAILS_FLAGS) -platform darwin/universal -ldflags '$(LDFLAGS)'
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 
-# Windows: cross-compiled from macOS (Wails v2 supports this; webview2
-# loader is compile-time). Output: build/bin/agentry-desktop.exe
+# Windows: cross-compiled from any host (DEV-097: Wails v2 loads WebView2
+# through a pure-Go loader, so windows/amd64 builds with cgo off on Linux
+# and macOS alike; the wails CLI supplies the icon, the manifest and the GUI
+# subsystem a bare go build would not). Unsigned (agentry-desktop#54).
+# Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe and its zip.
 package-windows:
-	wails build -platform windows/amd64 -ldflags '$(LDFLAGS)'
-	cd build/bin && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
+	wails build $(WAILS_FLAGS) -platform windows/amd64 -ldflags '$(LDFLAGS)'
+	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
 
-# Linux is built on a Linux host (webkit2gtk links natively); see README.
-package: package-darwin package-windows
+# Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
+# 4.1 headers, from the vendored tree, so the host needs Docker and nothing
+# else (scripts/build-linux.sh). Output: build/linux/agentry-desktop-$(VERSION)-linux-amd64
+package-linux:
+	DESKTOP_VERSION='$(VERSION)' EXTRA_LDFLAGS='$(EXTRA_LDFLAGS)' scripts/build-linux.sh
+
+package: package-darwin package-windows package-linux
+
+# A release is a tag v<productVersion>: the tag names the version wails.json
+# carries into the macOS bundle and the Windows version-info block, and the
+# Makefile stamps the same string into the binary. RELEASE_TAG is the tag
+# being cut (the release workflow passes github.ref_name).
+version-check:
+	@tag='$(RELEASE_TAG)'; pv=$$(jq -r .info.productVersion wails.json); \
+	if [ -z "$$tag" ]; then echo "RELEASE_TAG is not set"; exit 2; fi; \
+	if [ "$${tag#v}" != "$$pv" ]; then echo "tag $$tag does not name wails.json productVersion $$pv: bump productVersion in a commit on main first, then tag"; exit 1; fi; \
+	echo "tag $$tag names productVersion $$pv"
 
 clean:
-	rm -rf build/bin frontend/dist
+	rm -rf build/bin build/linux frontend/dist
+
+# The version the Makefile stamps (the release workflow names the bundle by it).
+version:
+	@echo $(VERSION)
