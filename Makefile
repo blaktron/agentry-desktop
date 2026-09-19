@@ -21,7 +21,7 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # graph past vendor/ and asks GitHub for the private modules.
 WAILS_FLAGS ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux smoke-linux-packages linux-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -113,9 +113,28 @@ package-windows:
 
 # Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
 # 4.1 headers, from the vendored tree, so the host needs Docker and nothing
-# else (scripts/build-linux.sh). Output: build/linux/agentry-desktop-$(VERSION)-linux-amd64
+# else (scripts/build-linux.sh), then wrapped in a .deb and an .rpm from one
+# description (build/nfpm/nfpm.yaml via scripts/package-linux.sh; nfpm runs
+# through `go run` at a pinned version). The bare binary stays as its own
+# artifact (agentry-desktop#84; plan desktop-installers.md §5).
+# Output: build/linux/agentry-desktop-$(VERSION)-linux-amd64{,.deb,.rpm}
 package-linux:
 	DESKTOP_VERSION='$(VERSION)' EXTRA_LDFLAGS='$(EXTRA_LDFLAGS)' scripts/build-linux.sh
+	DESKTOP_VERSION='$(VERSION)' scripts/package-linux.sh
+
+# Installs the two packages in a clean Debian and a clean Fedora container
+# and proves what #84 asks: clean install, same binary as the bare artifact,
+# declared dependencies exactly the owners of the linked libraries, a launch
+# under Xvfb, and a populated home untouched by reinstall and removal. Needs
+# Docker; a few minutes. The release workflow runs it after package-linux.
+smoke-linux-packages:
+	scripts/acceptance/linux-packages.sh build/linux/agentry-desktop-$(VERSION)-linux-amd64.deb build/linux/agentry-desktop-$(VERSION)-linux-amd64.rpm build/linux/agentry-desktop-$(VERSION)-linux-amd64 build/linux/smoke/agentry-desktop-previous.deb build/linux/smoke/agentry-desktop-previous.rpm
+
+# The Linux packages' icons: build/appicon.png at the hicolor sizes, committed
+# under build/nfpm/icons (ImageMagick renders them; nothing does at build
+# time). Run and commit after changing the app icon.
+linux-icons:
+	for s in 16 32 48 64 128 256 512; do magick build/appicon.png -resize $${s}x$${s} build/nfpm/icons/agentry-desktop-$${s}.png; done
 
 package: package-darwin package-windows package-linux
 

@@ -144,7 +144,8 @@ away at the flip.
 | regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
 | macOS universal .app (zipped) | `make package-darwin` |
 | Windows amd64 exe, zip and per-user installer (cross-compiled, unsigned) | `make package-windows` |
-| Linux amd64 (in a container) | `make package-linux` |
+| Linux amd64 binary, .deb and .rpm (in a container) | `make package-linux` |
+| install both Linux packages in clean containers | `make smoke-linux-packages` |
 | the version every target stamps | `make version` |
 | does this tag name `wails.json`'s version? | `make version-check RELEASE_TAG=v0.1.0` |
 
@@ -152,8 +153,26 @@ away at the flip.
 `make package-linux` runs `scripts/build-linux.sh`: it vendors the modules
 and builds the frontend bundle on the host, then builds inside a Debian
 container that installs the GTK 3 and WebKit2GTK 4.1 headers, and launches
-the result under a virtual display as a smoke. A host with the headers can
-also build directly:
+the result under a virtual display as a smoke. It then runs
+`scripts/package-linux.sh`, which wraps that binary in a `.deb` and an
+`.rpm` from the one description in `build/nfpm/nfpm.yaml` (nfpm through
+`go run` at a pinned version): the binary at `/usr/bin/agentry-desktop`, a
+desktop entry, the icon at the hicolor sizes, the runtime libraries the
+binary links declared as dependencies, no maintainer scripts and nothing
+under anyone's home, so the package manager's upgrade or removal cannot
+reach `~/.config/agentry`, `~/.agentry/runner` or the keyring.
+`make smoke-linux-packages` installs a 0.0.0 build of the same package in
+a clean container of each family (Debian bookworm, Ubuntu 24.04, Fedora
+44), upgrades to the real one, and proves the file half of that promise
+plus a launch under Xvfb and, on Debian and Fedora, that the declared
+dependencies are exactly the packages owning the linked libraries; a
+container has no session keyring, so the keychain half rests on the
+package having no scripts, which the smoke reads from the control archive.
+The release workflow runs it before it stages the packages. A build past a
+tag is spelt `0.1.0+9.g<sha>` in the packages so it sorts above the tag it
+follows (`scripts/package-linux.sh --self-test` pins the spellings). The
+bare binary stays as its own download. A host with the headers can also
+build directly:
 
 ```bash
 # Debian/Ubuntu build deps
