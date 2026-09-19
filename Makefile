@@ -21,7 +21,7 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # graph past vendor/ and asks GitHub for the private modules.
 WAILS_FLAGS ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux smoke-linux-packages linux-icons version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux smoke-linux-packages smoke-darwin-dmg linux-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -82,12 +82,28 @@ check: frontend lint test copy
 # page instead of being dropped for its name (agentry-web#59 teaches the
 # manifest about the archive extension a .app has to ship in).
 #
-# macOS: a universal .app zipped for distribution (unsigned/un-notarized —
-# see DEVIATIONS.md D-001).
-# Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
+# macOS: a universal .app in the two wrappers the download page offers — a
+# zip for people who want the bundle, and a disk image with an Applications
+# shortcut for people who want to install it the way macOS applications are
+# installed (agentry-desktop#85; plan desktop-installers.md §5, D2).
+# Both carry the same bundle: one build, two wrappers.
+# hdiutil builds the image (scripts/package-darwin-dmg.sh — create-dmg is not
+# on the Mac and would only add a window picture that needs a Finder session)
+# and scripts/check-darwin-dmg.sh reads it back, as the Windows target does
+# with its installer. Unsigned/un-notarized — see DEVIATIONS.md D-001.
+# Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
 package-darwin:
 	wails build $(WAILS_FLAGS) -platform darwin/universal -ldflags '$(LDFLAGS)'
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
+	scripts/package-darwin-dmg.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
+	scripts/check-darwin-dmg.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg build/bin/agentry-desktop.app
+
+# Drags the dmg's bundle onto a temporary Applications folder over a copy
+# that is already there and proves the person's configuration and sign-in
+# survive it (agentry-desktop#85; plan §8). macOS only; installs nothing on
+# the machine. The release workflow runs it after package-darwin.
+smoke-darwin-dmg:
+	scripts/acceptance/darwin-dmg-install.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
 
 # Windows: cross-compiled from any host (DEV-097: Wails v2 loads WebView2
 # through a pure-Go loader, so windows/amd64 builds with cgo off on Linux

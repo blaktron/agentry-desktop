@@ -8,10 +8,10 @@
 # script runs on the workstation, prepares the tree, ships it to a Mac that
 # carries the toolchain (plan agentry-notes/plans/macos-build-host.md, M1),
 # builds there with the Makefile's own package-darwin target (WAILS_FLAGS=-m,
-# see the Makefile for why), and brings the zip back. The Mac never needs a
-# GitHub credential: the private modules are vendored here, where the
-# credential helper lives, and the vendor directory travels with the tree (go
-# builds in vendor mode on its own when vendor/ is present). The .git
+# see the Makefile for why), and brings the zip and the dmg back. The Mac
+# never needs a GitHub credential: the private modules are vendored here,
+# where the credential helper lives, and the vendor directory travels with the
+# tree (go builds in vendor mode on its own when vendor/ is present). The .git
 # directory does not travel, so the version is computed here and passed in,
 # and the build needs no -buildvcs=false.
 #
@@ -24,8 +24,10 @@
 #   BUILD_DARWIN_SMOKE        1 (default) to launch the built app on the Mac for a
 #                             few seconds after the build; 0 to skip.
 #
-# Output: build/bin/agentry-desktop-<version>-darwin-universal.zip locally,
-# its SHA-256 on stdout, and the lipo architectures of the binary inside.
+# Output: build/bin/agentry-desktop-<version>-darwin-universal.{zip,dmg}
+# locally, their SHA-256s on stdout, and the lipo architectures of the binary
+# inside. No SHA256SUMS is written: a by-hand build is not a release, and the
+# site's downloads builder imports a release run's bundle, not this.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -60,16 +62,22 @@ fi
 # The remote shell is zsh; ~/.zshenv puts Go, Node and the Wails CLI on PATH
 # for non-interactive sessions (plan M1). VERSION overrides the Makefile's
 # git describe, which has no .git to read; WAILS_FLAGS=-m is explained there.
+# -skipbindings for the reason both Mac CI jobs pass it: the checked-in
+# bindings are the ones `make bindings` respelled, and a build that
+# regenerated them would ship a models.ts that does not type-check
+# (agentry-desktop#97, #107).
 "${SSH[@]}" "$HOST" "cd $REMOTE_DIR && \
-  make package-darwin WAILS_FLAGS='-m' VERSION='$VERSION' EXTRA_LDFLAGS='$EXTRA_LDFLAGS' && \
+  make package-darwin WAILS_FLAGS='-m -skipbindings' VERSION='$VERSION' EXTRA_LDFLAGS='$EXTRA_LDFLAGS' && \
   cd build/bin && lipo -info agentry-desktop.app/Contents/MacOS/agentry-desktop && \
-  shasum -a 256 agentry-desktop-$VERSION-darwin-universal.zip"
+  shasum -a 256 agentry-desktop-$VERSION-darwin-universal.zip agentry-desktop-$VERSION-darwin-universal.dmg"
 
 ZIP="agentry-desktop-$VERSION-darwin-universal.zip"
+DMG="agentry-desktop-$VERSION-darwin-universal.dmg"
 mkdir -p build/bin
-echo "== copying $ZIP back"
+echo "== copying $ZIP and $DMG back"
 "${SCP[@]}" -q "$HOST:$REMOTE_DIR/build/bin/$ZIP" "build/bin/$ZIP"
-sha256sum "build/bin/$ZIP"
+"${SCP[@]}" -q "$HOST:$REMOTE_DIR/build/bin/$DMG" "build/bin/$DMG"
+sha256sum "build/bin/$ZIP" "build/bin/$DMG"
 
 if [ "$SMOKE" = "1" ]; then
   echo "== launch smoke on $HOST (needs a logged-in GUI session for the user)"
@@ -85,4 +93,4 @@ if [ "$SMOKE" = "1" ]; then
       else wait \$pid; ec=\$?; echo \"SMOKE-FAIL: agentry-desktop exited with \$ec before 5 s\"; tail -5 smoke/run.log; exit 1; fi; \
     else echo 'SMOKE-SKIPPED: no GUI session for this user on the Mac (launchctl print gui/uid)'; fi"
 fi
-echo "BUILD-OK $ZIP"
+echo "BUILD-OK $ZIP $DMG"
