@@ -23,6 +23,10 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Nothing after the checkout fetches with its token; the private
+          # modules go through the job-scoped rewrite below.
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -30,14 +34,18 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify` in the core (agentry#225).
           cache: false
-      # The blaktron modules are private; the runner needs credentials to
-      # fetch github.com/blaktron/agentry. The token never lands in the repo.
-      - name: Authenticate for the private blaktron modules
+      # The blaktron modules are private. The rewrite that carries the token
+      # goes into a job-scoped git config file, removed at the end, so nothing
+      # persists in the runner's home between jobs (desktop#92; the release
+      # workflow has done this since #93).
+      - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE='github.com/blaktron/*'
+          set -euo pipefail
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
+          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -77,11 +85,16 @@ jobs:
           drift=$(git status --porcelain -- frontend/wailsjs)
           if [ -n "$drift" ]; then echo "$drift"; echo "::error::the checked-in bindings differ from what the Go types generate: run make bindings and commit"; exit 1; fi
           echo "bindings are current"
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gitconfig"
 
   govulncheck:
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -89,13 +102,22 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify` in the core (agentry#225).
           cache: false
-      - name: Authenticate for the private blaktron modules
+      # The blaktron modules are private. The rewrite that carries the token
+      # goes into a job-scoped git config file, removed at the end, so nothing
+      # persists in the runner's home between jobs (desktop#92; the release
+      # workflow has done this since #93).
+      - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE='github.com/blaktron/*'
+          set -euo pipefail
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
+          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gitconfig"
 
   # The one target that cannot be cross-built (agentry-desktop#57): the
   # universal bundle is built on the estate's Mac, the Go tests run natively,

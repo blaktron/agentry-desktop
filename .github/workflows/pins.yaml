@@ -23,6 +23,8 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -30,12 +32,18 @@ jobs:
           # runner; restoring the Actions cache over it is slow and left partial
           # modules that broke `go mod verify` in the core (agentry#225).
           cache: false
-      - name: Authenticate for the private blaktron modules
+      # The blaktron modules are private. The rewrite that carries the token
+      # goes into a job-scoped git config file, removed at the end, so nothing
+      # persists in the runner's home between jobs (desktop#92; the release
+      # workflow has done this since #93).
+      - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE='github.com/blaktron/*'
+          set -euo pipefail
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
+          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: Are the blaktron pins current?
         run: |
           set -euo pipefail
@@ -47,3 +55,6 @@ jobs:
             exit 1
           fi
           echo "pins are current"
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gitconfig"
