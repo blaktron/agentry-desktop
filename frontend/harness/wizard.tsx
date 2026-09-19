@@ -23,6 +23,7 @@ const setup = {
   dockerOk: dockerState === "", imagesReady: !nothing, policyExists: !nothing,
   policyPath: "~/.agentry/runner/policy.yaml",
   provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
+  apiKeySource: nothing ? "" : "keyring", keyStored: !nothing, keyStoreErr: "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
 };
 
@@ -37,7 +38,7 @@ const settingsView = {
 
 const harnesses = [
   {
-    name: "claude", executable: "claude", installUrl: "https://github.com/anthropics/claude-code",
+    name: "claude", displayName: "Claude Code", executable: "claude", installUrl: "https://github.com/anthropics/claude-code",
     found: !harnessesMissing, path: harnessesMissing ? "" : "/home/me/.local/bin/claude",
     pathFromPolicy: false, version: harnessesMissing ? "" : "2.1.263 (Claude Code)", versionMatches: !harnessesMissing,
     warnings: [], reason: harnessesMissing ? "claude is not installed on this machine (not on PATH) — install it, or set harness.claude.path in the policy" : "",
@@ -45,7 +46,7 @@ const harnesses = [
     mcpCommand: "claude mcp add agentry -- node /path/to/agentry-mcp/dist/index.js",
   },
   {
-    name: "codex", executable: "codex", installUrl: "https://github.com/openai/codex",
+    name: "codex", displayName: "Codex", executable: "codex", installUrl: "https://github.com/openai/codex",
     found: false, path: "", pathFromPolicy: false, version: "", versionMatches: false, warnings: [],
     reason: "codex is not installed on this machine (not on PATH) — install it, or set harness.codex.path in the policy",
     chosen: false,
@@ -57,6 +58,7 @@ const g = window as any;
 g.go = { main: {
   RunAPI: {
     SetupStatus: async () => setup,
+    ApplySetup: async () => ({ ...setup, apiKeySource: "keyring", keyStored: true }),
     PrereqStatus: async () => ({
       dockerOk: dockerState === "", state: dockerState || "ready", os: "linux", distro: "fedora",
       canInstall: dockerState !== "manual", engineInstalled: dockerState !== "installable" && dockerState !== "",
@@ -70,7 +72,8 @@ g.go = { main: {
     AddToDockerGroup: async () => ({ state: "pendingRestart" }),
     RestartNow: async () => undefined,
     HarnessStatus: async () => harnesses,
-    ChosenHarnesses: async () => harnesses.filter((h) => h.chosen).map((h) => h.name),
+    ChosenHarnesses: async () => harnesses.filter((h) => h.chosen),
+    StoreModelKey: async () => ({ ...setup, apiKeySource: "keyring", keyStored: true }),
     ChooseHarness: async (name: string) => harnesses.map((h) => ({ ...h, chosen: h.name === name, pathFromPolicy: h.name === name })),
   },
   SettingsAPI: {

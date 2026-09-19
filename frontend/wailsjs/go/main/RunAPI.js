@@ -10,8 +10,8 @@ export function AddToDockerGroup() {
   return window['go']['main']['RunAPI']['AddToDockerGroup']();
 }
 
-export function ApplySetup(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['RunAPI']['ApplySetup'](arg1, arg2, arg3, arg4, arg5);
+export function ApplySetup(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['RunAPI']['ApplySetup'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function AttachHostedRun(arg1, arg2) {
@@ -84,4 +84,8 @@ export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6) {
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11) {
   return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11);
+}
+
+export function StoreModelKey(arg1, arg2) {
+  return window['go']['main']['RunAPI']['StoreModelKey'](arg1, arg2);
 }

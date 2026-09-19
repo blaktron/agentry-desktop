@@ -153,8 +153,8 @@ func TestChosenHarnessesReadsWithoutExecuting(t *testing.T) {
 		t.Fatal(err)
 	}
 	names, err = ChosenHarnesses()
-	if err != nil || strings.Join(names, ",") != "claude,codex" {
-		t.Fatalf("names=%v err=%v", names, err)
+	if err != nil || len(names) != 2 || names[0].Name != "claude" || names[0].DisplayName != "Claude Code" || names[1].Name != "codex" || names[1].DisplayName != "Codex" || !names[1].Chosen {
+		t.Fatalf("names=%+v err=%v", names, err)
 	}
 	if _, statErr := os.Stat(filepath.Join(bin, "claude.ran")); !os.IsNotExist(statErr) {
 		t.Fatal("ChosenHarnesses executed the harness")

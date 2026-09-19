@@ -54,16 +54,7 @@ var newDockerClient = func() dockerx.Client { return dockerx.New() }
 
 // Home is ~/.agentry/runner, or $AGENTRY_RUNNER_HOME — the CLI's exact
 // derivation (cmd_run.go runnerHome), so both clients share one cache.
-func Home() (string, error) {
-	if h := os.Getenv("AGENTRY_RUNNER_HOME"); h != "" {
-		return h, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("locate home directory (set AGENTRY_RUNNER_HOME): %w", err)
-	}
-	return filepath.Join(home, ".agentry", "runner"), nil
-}
+func Home() (string, error) { return policy.Home() }
 
 // runnerImageTag derives the local runner image tag from the embedded
 // build context's content version — the same value the CLI uses — so both

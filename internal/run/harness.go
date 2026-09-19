@@ -28,8 +28,10 @@ const harnessProbeTimeout = 5 * time.Second
 
 // Harness is one host harness as the wizard's Coding agent step shows it.
 type Harness struct {
-	// Name is the adapter name (claude, codex).
-	Name string
+	// Name is the adapter name (claude, codex); DisplayName the product's
+	// ("Claude Code"), from the adapter (agentry-cli#151).
+	Name        string
+	DisplayName string
 	// Executable is the program the adapter looks for on PATH.
 	Executable string
 	// InstallURL is the vendor's page, for when Found is false.
@@ -47,16 +49,10 @@ type Harness struct {
 	// entry — the person picked this one, here or in the CLI.
 	Chosen bool
 	// MCPCommand is the one line that registers the agentry-mcp server
-	// with this host, as agentry-mcp's README documents it; the app only
-	// shows it (D14: the CLI is not shipped, the command is the person's).
+	// with this host, from the adapter (verbatim from agentry-mcp's
+	// README); the app only shows it (D14: the CLI is not shipped, the
+	// command is the person's).
 	MCPCommand string
-}
-
-// mcpCommand is agentry-mcp's documented registration line per host. The
-// path is the person's own build of the server; the README says so.
-var mcpCommand = map[string]string{
-	adapter.ClaudeAdapterName: "claude mcp add agentry -- node /path/to/agentry-mcp/dist/index.js",
-	adapter.CodexAdapterName:  "codex mcp add agentry -- node /path/to/agentry-mcp/dist/index.js",
 }
 
 // HarnessStatus probes every host adapter the CLI registers, reading the
@@ -78,10 +74,10 @@ func HarnessStatus(ctx context.Context) ([]Harness, error) {
 			continue
 		}
 		h := Harness{
-			Name: name, Executable: r.Executable, InstallURL: r.InstallURL,
+			Name: name, DisplayName: r.DisplayName, Executable: r.Executable, InstallURL: r.InstallURL,
 			Found: r.Found, Path: r.Path, PathFromPolicy: r.PathFromPolicy,
 			Version: r.Version, VersionMatches: r.VersionMatches, Warnings: r.Warnings, Reason: r.Reason,
-			MCPCommand: mcpCommand[name],
+			MCPCommand: r.MCPCommand,
 		}
 		if pol != nil {
 			_, h.Chosen = pol.Harness[name]
@@ -134,8 +130,9 @@ func ChooseHarness(ctx context.Context, name string) error {
 // ChosenHarnesses names the harnesses the operator policy carries an
 // entry for, in order — what the person picked, here or in the CLI — by
 // reading the policy alone: nothing is executed, so a recap can ask
-// without running anyone's binaries.
-func ChosenHarnesses() ([]string, error) {
+// without running anyone's binaries. Each carries its product name from
+// the adapter, so the recap says "Claude Code", not "claude".
+func ChosenHarnesses() ([]Harness, error) {
 	pol, err := loadPolicyIfPresent()
 	if err != nil || pol == nil {
 		return nil, err
@@ -145,7 +142,17 @@ func ChosenHarnesses() ([]string, error) {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return names, nil
+	out := make([]Harness, 0, len(names))
+	for _, name := range names {
+		h := Harness{Name: name, DisplayName: name, Chosen: true}
+		if ad, aerr := adapter.Get(name); aerr == nil {
+			if hh, ok := ad.(adapter.HostHarness); ok {
+				h.DisplayName = hh.DisplayName()
+			}
+		}
+		out = append(out, h)
+	}
+	return out, nil
 }
 
 // loadPolicyIfPresent is the harness surfaces' read of the operator

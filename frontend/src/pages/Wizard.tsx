@@ -243,9 +243,10 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
           intro={
             <>
               BriefAgents run in isolated containers with tools served by a per-run Docker MCP
-              Gateway. Pick the LLM provider those runs drive — only the env-var name is stored,
-              never the key. Preparing the images is optional now; your first run prepares them if
-              you skip it.
+              Gateway. Pick the LLM provider those runs drive, and where the key comes from: the
+              variable you set, or the OS keychain on this machine — the policy records the name and
+              the source, never the key. Preparing the images is optional now; your first run
+              prepares them if you skip it.
             </>
           }
         />
@@ -259,12 +260,9 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
   );
 }
 
-// The coding agents the CLI's adapters can drive as a process on this
-// machine (plan runner-m-r4-adapters D2), by their product names; an
-// adapter this table does not know is shown by its name, capitalised
-// (agentry-cli#151 moves the label into the adapter itself).
-const HARNESS_LABEL: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
-const harnessLabel = (name: string) => HARNESS_LABEL[name] ?? name.charAt(0).toUpperCase() + name.slice(1);
+// harnessLabel is the product's name the adapter carries ("Claude Code",
+// agentry-cli#151), with the adapter's own name as the fallback.
+const harnessLabel = (h: { name: string; displayName?: string }) => h.displayName || h.name;
 
 // Recap is the wizard's list of where things stand: a check for what is
 // true, a bullet for what is not.
@@ -296,7 +294,7 @@ function Recap({ rows }: { rows: { ok: boolean; text: string }[] }) {
 // Until then the step shows what the policy already records, read without
 // executing anything.
 function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () => void; onNext: () => void; probeOnEntry?: boolean }) {
-  const [chosenNames, setChosenNames] = useState<string[] | null>(null);
+  const [chosenNames, setChosenNames] = useState<main.HarnessView[] | null>(null);
   const [harnesses, setHarnesses] = useState<main.HarnessView[] | null>(null);
   const [looking, setLooking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -379,7 +377,7 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
         {harnesses?.map((h) => (
           <div key={h.name} className={`card wizard-harness${h.chosen ? " chosen" : ""}`}>
             <div className="row">
-              <strong>{harnessLabel(h.name)}</strong>
+              <strong>{harnessLabel(h)}</strong>
               <span className="muted mono">{h.executable}</span>
               <div className="grow" />
               {h.found ? (
@@ -391,7 +389,7 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
                   {h.chosen ? "Chosen ✓" : busy === h.name ? "Recording…" : "Use this one"}
                 </Button>
               ) : (
-                <Button variant="link" onClick={() => void OpenExternal(h.installUrl)}>Get {harnessLabel(h.name)}</Button>
+                <Button variant="link" onClick={() => void OpenExternal(h.installUrl)}>Get {harnessLabel(h)}</Button>
               )}
             </div>
             {h.found ? (
@@ -449,7 +447,7 @@ function DoneStep({
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
   const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
   // Read from the policy, never probed: the recap runs no harness.
-  const [chosenNames, setChosenNames] = useState<string[]>([]);
+  const [chosenNames, setChosenNames] = useState<main.HarnessView[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     Promise.allSettled([

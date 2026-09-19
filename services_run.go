@@ -158,6 +158,12 @@ type SetupStatusView struct {
 	Provider     string `json:"provider"`
 	Model        string `json:"model"`
 	APIKeyEnv    string `json:"apiKeyEnv"`
+	// APIKeySource is "keyring" when the OS keychain is the fallback for
+	// an unset variable; KeyStored whether it holds a key for the
+	// provider; KeyStoreErr why that could not be asked. No value, ever.
+	APIKeySource string `json:"apiKeySource,omitempty"`
+	KeyStored    bool   `json:"keyStored"`
+	KeyStoreErr  string `json:"keyStoreErr,omitempty"`
 	BaseURL      string `json:"baseUrl,omitempty"`
 	ImagesReady  bool   `json:"imagesReady"`
 	// Policy budget defaults, shown as the run form's placeholders.
@@ -176,6 +182,9 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 		Provider:              s.Provider,
 		Model:                 s.Model,
 		APIKeyEnv:             s.APIKeyEnv,
+		APIKeySource:          s.APIKeySource,
+		KeyStored:             s.KeyStored,
+		KeyStoreErr:           s.KeyStoreErr,
 		BaseURL:               s.BaseURL,
 		ImagesReady:           s.ImagesReady,
 		TimeoutSeconds:        s.TimeoutSeconds,
@@ -198,8 +207,11 @@ func (r *RunAPI) SetupStatus() (*SetupStatusView, error) {
 // ApplySetup writes the LLM provider preference into the operator policy
 // (the same policy.yaml the CLI reads, req 5) and optionally prepares the
 // gateway plane now. Image pulls/builds can take minutes; progress lines
-// stream as `runner:setup-progress` events.
-func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImages bool) (*SetupStatusView, error) {
+// stream as `runner:setup-progress` events. apiKeySource is "" (keep), "env"
+// or "keyring" (refused when no key is stored); forgetKey removes the stored
+// key and makes the source env. The key itself never rides this call: see
+// StoreModelKey.
+func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImages bool, apiKeySource string, forgetKey bool) (*SetupStatusView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -207,11 +219,13 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	err := run.ApplySetup(r.app.ctx, run.SetupOpts{
-		Provider:   provider,
-		Model:      model,
-		APIKeyEnv:  apiKeyEnv,
-		BaseURL:    baseURL,
-		PullImages: pullImages,
+		Provider:     provider,
+		Model:        model,
+		APIKeyEnv:    apiKeyEnv,
+		APIKeySource: apiKeySource,
+		ForgetKey:    forgetKey,
+		BaseURL:      baseURL,
+		PullImages:   pullImages,
 	}, logw)
 	if err != nil {
 		return nil, err
@@ -224,6 +238,7 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 // from the CLI's harnessprobe; no secret is anywhere near this surface.
 type HarnessView struct {
 	Name           string   `json:"name"`
+	DisplayName    string   `json:"displayName"`
 	Executable     string   `json:"executable"`
 	InstallURL     string   `json:"installUrl"`
 	Found          bool     `json:"found"`
@@ -241,7 +256,7 @@ func harnessViews(hs []run.Harness) []HarnessView {
 	out := make([]HarnessView, 0, len(hs))
 	for _, h := range hs {
 		out = append(out, HarnessView{
-			Name: h.Name, Executable: h.Executable, InstallURL: h.InstallURL,
+			Name: h.Name, DisplayName: h.DisplayName, Executable: h.Executable, InstallURL: h.InstallURL,
 			Found: h.Found, Path: h.Path, PathFromPolicy: h.PathFromPolicy,
 			Version: h.Version, VersionMatches: h.VersionMatches, Warnings: h.Warnings, Reason: h.Reason,
 			Chosen: h.Chosen, MCPCommand: h.MCPCommand,
@@ -264,15 +279,12 @@ func (r *RunAPI) HarnessStatus() ([]HarnessView, error) {
 // ChosenHarnesses names the harnesses the operator policy carries an entry
 // for, reading the policy only — the Done recap asks this, so finishing the
 // wizard never executes a harness.
-func (r *RunAPI) ChosenHarnesses() ([]string, error) {
-	names, err := run.ChosenHarnesses()
+func (r *RunAPI) ChosenHarnesses() ([]HarnessView, error) {
+	hs, err := run.ChosenHarnesses()
 	if err != nil {
 		return nil, err
 	}
-	if names == nil {
-		names = []string{}
-	}
-	return names, nil
+	return harnessViews(hs), nil
 }
 
 // ChooseHarness records harness.<name> in the operator policy (the path the
@@ -289,6 +301,23 @@ func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
 		return nil, err
 	}
 	return r.HarnessStatus()
+}
+
+// StoreModelKey puts the model key for provider into the OS keychain and
+// records the keychain as the policy's source — the one call that carries
+// a key, kept to two arguments so a dispatch error's log line (desktop#102)
+// has as little to carry as possible. The key is written nowhere else.
+func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.StoreModelKey(r.app.ctx, provider, key, logw); err != nil {
+		return nil, err
+	}
+	return r.SetupStatus()
 }
 
 // ProfileStatusView is a BriefAgent signature's MCP-profile state (§P2).
