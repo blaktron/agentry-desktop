@@ -110,12 +110,14 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
 
-  # Windows is cross-built by the wails CLI (DEV-097); Linux is built inside
-  # a Debian container carrying the GTK and WebKit headers the runner image
-  # does not (scripts/build-linux.sh), from the tree vendored here with the
-  # job's credential — the container itself gets no credential: the checkout
-  # token is not persisted and the job-scoped git config is not mounted.
-  # Both artifacts are unsigned (agentry-desktop#54).
+  # Windows is cross-built by the wails CLI (DEV-097) and its per-user
+  # installer by makensis from build/windows/installer/project.nsi
+  # (desktop#83; the ci workflow's windows job does the same on every PR);
+  # Linux is built inside a Debian container carrying the GTK and WebKit
+  # headers the runner image does not (scripts/build-linux.sh), from the
+  # tree vendored here with the job's credential — the container itself gets
+  # no credential: the checkout token is not persisted and the job-scoped
+  # git config is not mounted. Every artifact is unsigned (agentry-desktop#54).
   linux-windows:
     needs: preflight
     runs-on: [self-hosted, linux, x64]
@@ -153,11 +155,25 @@ jobs:
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      # The installer's toolchain, from Ubuntu's packages: the runner
+      # container runs as root and keeps them until it is recreated (see the
+      # ci workflow's windows job).
+      - name: makensis and 7z from Ubuntu's packages
+        run: |
+          set -euo pipefail
+          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null; then
+            sudo=""; [ "$(id -u)" = 0 ] || sudo=sudo
+            $sudo apt-get update -qq
+            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full
+          fi
+          makensis -VERSION; 7z | sed -n 2p
       # -m: no go mod tidy (the module graph is already resolved); -s: the
       # frontend bundle was just built; -skipbindings: the checked-in
       # TypeScript bindings stay as they are. VERSION overrides the
-      # Makefile's own describe so every job names one version.
-      - name: Windows amd64 (unsigned)
+      # Makefile's own describe so every job names one version. The target
+      # builds the exe, its zip and the per-user setup exe, and reads the
+      # installer back (scripts/check-windows-installer.sh).
+      - name: Windows amd64 package and per-user installer (unsigned)
         run: PATH="$HOME/go/bin:$PATH" make package-windows VERSION="$VERSION" WAILS_FLAGS='-m -s -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
       - name: Linux amd64, in the container that carries the GTK headers
         run: |
@@ -168,11 +184,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp "build/bin/agentry-desktop-$VERSION-windows-amd64.exe" "build/bin/agentry-desktop-$VERSION-windows-amd64.zip" "build/linux/agentry-desktop-$VERSION-linux-amd64" dist/
+          cp "build/bin/agentry-desktop-$VERSION-windows-amd64.exe" "build/bin/agentry-desktop-$VERSION-windows-amd64.zip" "build/bin/agentry-desktop-$VERSION-windows-amd64-setup.exe" "build/linux/agentry-desktop-$VERSION-linux-amd64" dist/
           # -X on a symbol that moved fails silently; the URL must be in the binaries.
           for f in dist/agentry-desktop-"$VERSION"-linux-amd64 dist/agentry-desktop-"$VERSION"-windows-amd64.exe; do
             grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" "$f" || { echo "::error::$f does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
           done
+          # The installer carries the same exe (make package-windows checked
+          # the bytes); the bake reaches it through that exe, compressed, so
+          # the check above is the one that proves it.
           ls -la dist
       - uses: actions/upload-artifact@v4
         with:
@@ -302,7 +321,7 @@ jobs:
           sha256sum -c SHA256SUMS
           for f in *; do [ "$f" = SHA256SUMS ] || grep -q " $f\$" SHA256SUMS || { echo "::error::$f is not covered by SHA256SUMS"; exit 1; }; done
           # The release matrix, as the site's download page lists it.
-          for want in linux-amd64 windows-amd64.exe windows-amd64.zip darwin-universal.zip; do
+          for want in linux-amd64 windows-amd64.exe windows-amd64.zip windows-amd64-setup.exe darwin-universal.zip; do
             [ -f "agentry-desktop-$VERSION-$want" ] || { echo "::error::agentry-desktop-$VERSION-$want is missing"; exit 1; }
           done
           cat SHA256SUMS

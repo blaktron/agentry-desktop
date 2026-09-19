@@ -4,3 +4,5 @@ dist
 node_modules
 frontend/dist
 vendor/
+# wails build -nsis drops the WebView2 bootstrapper here before makensis runs
+build/windows/installer/tmp/

@@ -20,21 +20,21 @@ func TestKeychainRoundTrip(t *testing.T) {
 	}
 	host := fmt.Sprintf("keychain-test-%d.invalid", os.Getpid())
 	const secret = "not-a-real-token"
-	if err := keyring.Set(keyringService, host, secret); err != nil {
+	if err := keyring.Set(KeyringService, host, secret); err != nil {
 		t.Fatalf("keyring.Set: %v", err)
 	}
-	t.Cleanup(func() { _ = keyring.Delete(keyringService, host) })
-	got, err := keyring.Get(keyringService, host)
+	t.Cleanup(func() { _ = keyring.Delete(KeyringService, host) })
+	got, err := keyring.Get(KeyringService, host)
 	if err != nil {
 		t.Fatalf("keyring.Get: %v", err)
 	}
 	if got != secret {
 		t.Fatalf("keyring.Get = %q, want %q", got, secret)
 	}
-	if err := keyring.Delete(keyringService, host); err != nil {
+	if err := keyring.Delete(KeyringService, host); err != nil {
 		t.Fatalf("keyring.Delete: %v", err)
 	}
-	if _, err := keyring.Get(keyringService, host); err == nil {
+	if _, err := keyring.Get(KeyringService, host); err == nil {
 		t.Fatalf("keyring.Get after Delete: still present")
 	}
 }

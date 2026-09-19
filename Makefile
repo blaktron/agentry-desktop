@@ -92,11 +92,24 @@ package-darwin:
 # Windows: cross-compiled from any host (DEV-097: Wails v2 loads WebView2
 # through a pure-Go loader, so windows/amd64 builds with cgo off on Linux
 # and macOS alike; the wails CLI supplies the icon, the manifest and the GUI
-# subsystem a bare go build would not). Unsigned (agentry-desktop#54).
-# Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe and its zip.
+# subsystem a bare go build would not), then the per-user installer from
+# build/windows/installer/project.nsi (agentry-desktop#83; plan
+# desktop-installers.md §5, D11). -nsis needs makensis on the host
+# (`apt-get install nsis` on Debian/Ubuntu, `dnf install mingw32-nsis` on
+# Fedora); without it wails only warns, so the mv below is what fails, and
+# an installer-less package is not a package. The installer's file name is
+# the download manifest's grammar (agentry-web scripts/release/manifest.py:
+# -setup.exe is the "setup" format); wails names it for the architecture and
+# the version comes from here, not from wails.json, for the same reason the
+# exe's does. scripts/check-windows-installer.sh reads the result back
+# (needs 7z: p7zip-full / p7zip-plugins). Unsigned (agentry-desktop#54).
+# Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe, its zip,
+# and build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe.
 package-windows:
-	wails build $(WAILS_FLAGS) -platform windows/amd64 -ldflags '$(LDFLAGS)'
+	wails build $(WAILS_FLAGS) -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
 	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
+	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
+	scripts/check-windows-installer.sh build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
 # Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
 # 4.1 headers, from the vendored tree, so the host needs Docker and nothing

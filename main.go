@@ -6,6 +6,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -13,12 +14,20 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
+	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	// The Windows uninstaller's "Also remove my Agentry settings and
+	// sign-in" runs this binary once more, headless, before deleting it
+	// (build/windows/installer/project.nsi; internal/uninstall says what
+	// goes). No window, no other argument is read.
+	if len(os.Args) > 1 && os.Args[1] == uninstall.Flag {
+		os.Exit(uninstall.Main(os.Stderr))
+	}
 	app := NewApp()
 	settingsAPI := &SettingsAPI{app: app}
 	browseAPI := &BrowseAPI{app: app}
