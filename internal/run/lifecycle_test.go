@@ -22,7 +22,6 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
-	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // resolveFixture resolves the fixture release against a fake registry.
@@ -201,7 +200,7 @@ func planFixture(t *testing.T) (*manifest.Manifest, *installMeta, string, string
 func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
-	pol := policy.Default()
+	pol := cataloguedPolicy()
 	planDir := filepath.Join(installDir, "plan", "autonomous")
 	canary := filepath.Join(planDir, "canary")
 	// plant drops a marker file in the plan dir; a recompile clears the
@@ -240,6 +239,47 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	}
 	if surviving() || plan2.PolicySHA256 != "pol-sha-2" {
 		t.Fatalf("policy change must recompile (canary=%v, sha=%s)", surviving(), plan2.PolicySHA256)
+	}
+
+	// Another build compiled it (same schema, possibly different output;
+	// desktop#94): recompiled, and the log names both builds.
+	plant()
+	b, err := os.ReadFile(filepath.Join(planDir, "plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan2.CompiledBy == "" {
+		t.Fatal("the desktop must record its build in the plans it compiles")
+	}
+	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte(strings.Replace(string(b), plan2.CompiledBy, "other-build", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log.Reset()
+	planB, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if surviving() || planB.CompiledBy != plan2.CompiledBy || !strings.Contains(log.String(), "compiled by another build (other-build") {
+		t.Fatalf("a plan from another build was reused (canary=%v, compiledBy=%q, log=%q)", surviving(), planB.CompiledBy, log.String())
+	}
+
+	// Another runner image (a policy that pins a different tag compiled
+	// it, or a different content version): recompiled, named in the log.
+	plant()
+	b, err = os.ReadFile(filepath.Join(planDir, "plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte(strings.Replace(string(b), planB.Proxy.Image, "agentry-runner:elsewhere", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log.Reset()
+	planC, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if surviving() || planC.Proxy.Image != planB.Proxy.Image || !strings.Contains(log.String(), "names runner image agentry-runner:elsewhere") {
+		t.Fatalf("a plan for another runner image was reused (canary=%v, image=%q, log=%q)", surviving(), planC.Proxy.Image, log.String())
 	}
 
 	// Digest change (a different release at the same path) recompiles.
@@ -300,6 +340,15 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") {
 		t.Fatalf("err = %v, want a policy refusal", err)
 	}
+
+	// An exec command the policy does not catalogue is the compiler's
+	// refusal too (agentry-cli#100): the fixture declares exec: [echo] and
+	// the default policy maps no package to it.
+	m, _, installDir, workspaceDir := planFixture(t)
+	_, _, err = ensurePlan(&log, m, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	if err == nil || !strings.Contains(err.Error(), "refused by policy") || !strings.Contains(err.Error(), "does not catalogue") {
+		t.Fatalf("err = %v, want the exec catalogue refusal", err)
+	}
 }
 
 // runFixture stands up everything Run needs: isolated env, fake registry,
@@ -308,6 +357,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 func runFixture(t *testing.T) (*fakeRunRegistry, string, *dockerx.Fake, string) {
 	t.Helper()
 	home := isolateRunEnv(t)
+	saveCataloguedPolicy(t)
 	fr := &fakeRunRegistry{}
 	regURL := startRunRegistry(t, fr)
 	fake := readyImagesFake()
@@ -357,7 +407,7 @@ func TestRunHappyPath(t *testing.T) {
 	}
 	// The fixture declares exec: {commands: [echo]}, so the run builds the
 	// per-BriefAgent exec image the plan names (agentry-cli#9, desktop#17).
-	execTag := spec.ExecImageTag(runnerImageTag(policy.Default()), []string{"echo"})
+	execTag := fixtureExecTag()
 	builtExec := false
 	for _, op := range fd.Ops() {
 		if strings.HasPrefix(op, "Build:"+execTag+"<-") {
@@ -506,6 +556,7 @@ func TestRunKeepProfilePrecedence(t *testing.T) {
 // receipt paths. Also covers the yanked-release warning.
 func TestRunAgentFailureStillReturnsView(t *testing.T) {
 	isolateRunEnv(t)
+	saveCataloguedPolicy(t)
 	fr := &fakeRunRegistry{yanked: true}
 	regURL := startRunRegistry(t, fr)
 	fake := readyImagesFake()
@@ -594,6 +645,7 @@ func TestRunMissingSecretRefusesWithExit11(t *testing.T) {
 // class's wording.
 func TestRunDockerEnvironmentFailure(t *testing.T) {
 	isolateRunEnv(t)
+	saveCataloguedPolicy(t)
 	regURL := startRunRegistry(t, &fakeRunRegistry{})
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
 	t.Setenv("ANTHROPIC_API_KEY", "sk-test-key")

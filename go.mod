@@ -4,8 +4,8 @@ go 1.27.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.0.0-20260910134233-63b0d2a64e3a
-	github.com/blaktron/agentry-cli v0.0.0-20260910114400-6d79d0aa999c
+	github.com/blaktron/agentry v0.0.0-20260919104125-b92069e21092
+	github.com/blaktron/agentry-cli v0.0.0-20260918143034-687e7f2ebff5
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8
 	gopkg.in/yaml.v3 v3.0.1
@@ -43,7 +43,7 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
 

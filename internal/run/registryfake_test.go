@@ -25,7 +25,9 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
 )
@@ -222,16 +224,53 @@ func withFakeDocker(t *testing.T, f *dockerx.Fake) {
 	t.Cleanup(func() { newDockerClient = old })
 }
 
+// cataloguedPolicy is the default policy plus the one line the fixture
+// needs: it declares exec: {commands: [echo]}, and the compiler refuses a
+// command the policy does not catalogue (agentry-cli#100), so echo maps to
+// busybox, the applet the runner image already has — the same line the
+// CLI's own fixtures set.
+func cataloguedPolicy() *policy.Policy {
+	pol := policy.Default()
+	pol.Exec.Packages = map[string]string{"echo": "busybox"}
+	return pol
+}
+
+// saveCataloguedPolicy writes cataloguedPolicy into the isolated runner
+// home, where Run reads the operator policy from.
+func saveCataloguedPolicy(t *testing.T) {
+	t.Helper()
+	path, err := policy.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := policy.Save(path, cataloguedPolicy()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// fixtureExecTag is the exec image the compiler names for the fixture
+// under cataloguedPolicy: echo -> busybox, no mirror.
+func fixtureExecTag() string {
+	pol := cataloguedPolicy()
+	return spec.ExecImageTag(runnerImageTag(pol), []string{"echo"}, []string{"busybox"}, pol.Exec.APKMirror)
+}
+
 // readyImagesFake returns a Fake whose image checks all pass for the
 // default policy's pins plus this build's runner tag, so EnsureInstalled
-// pulls and builds nothing.
+// pulls and builds nothing; it also serves the package record the install
+// step reads back from the fixture's exec image once the run has built it
+// (agentry-cli#100) — that image is deliberately absent, so the build
+// happens and the record is what the fake answers with afterwards.
 func readyImagesFake() *dockerx.Fake {
-	pol := policy.Default()
-	return &dockerx.Fake{ExistingImages: map[string]bool{
-		pol.Images.Gateway:            true,
-		pol.Images.HarnessDockerAgent: true,
-		runnerImageTag(pol):           true,
-	}}
+	pol := cataloguedPolicy()
+	return &dockerx.Fake{
+		ExistingImages: map[string]bool{
+			pol.Images.Gateway:            true,
+			pol.Images.HarnessDockerAgent: true,
+			runnerImageTag(pol):           true,
+		},
+		ImageFiles: map[string]string{fixtureExecTag() + ":" + gateway.ExecPackagesFile: "busybox\n"},
+	}
 }
 
 // scriptHappyAgent scripts a clean run: probe passes, the agent makes two

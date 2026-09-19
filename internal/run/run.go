@@ -9,6 +9,7 @@ package run
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -41,6 +42,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
+	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
 // newDockerClient builds the docker client every run/setup surface talks
@@ -422,13 +424,21 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}
 	// The per-BriefAgent exec image the plan names when the agent declares
-	// exec (agentry-cli#9, desktop#17): built once, same as the CLI.
-	if _, err := gateway.EnsureExecImage(ctx, docker, runnerImageTag(pol), plan.Capabilities.ExecCommands, filepath.Join(home, "image"), logw); err != nil {
-		return nil, fmt.Errorf("exec image: %w", err)
+	// exec (agentry-cli#9, desktop#17): built once, same as the CLI, from
+	// the spec the compiler put on the plan (the catalogued packages and
+	// the mirror, not just the command list; agentry-cli#100). The package
+	// versions it resolved are the CLI's receipt line; the desktop's
+	// receipt omits them (desktop#95).
+	if plan.ExecImage != nil {
+		if _, err := gateway.EnsureExecImage(ctx, docker, runnerImageTag(pol), *plan.ExecImage, filepath.Join(home, "image"), logw); err != nil {
+			return nil, fmt.Errorf("exec image: %w", err)
+		}
 	}
 	if len(resolvedServers) > 0 {
+		// pol.Docker.Runtime: the operator's container runtime (gVisor when
+		// set, agentry-cli#136) applies to the server install builds too.
 		if err := mcpinstall.EnsureInstalled(ctx, docker, resolvedServers, serversDir,
-			pol.MCPRegistries, pol.Images, logw); err != nil {
+			pol.MCPRegistries, pol.Images, pol.Docker.Runtime, logw); err != nil {
 			return nil, fmt.Errorf("mcp servers: %w", err)
 		}
 	}
@@ -707,10 +717,23 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, install
 			plan.PolicySHA256 == polSHA &&
 			plan.Harness.Adapter == adapterName &&
 			reflect.DeepEqual(plan.MCPServers, serverSpecs) {
-			if verr := compile.VerifyFiles(plan, planDir); verr == nil {
-				return plan, planDir, nil
+			switch {
+			case plan.CompiledBy != version.Version:
+				// Same schema, another build: the compiler's output can
+				// differ without a schema bump (the exec image spec, the
+				// gateway's pinned flags, the servers' env all did while
+				// the pins were behind; desktop#94, the CLI's own guard is
+				// agentry-cli#105). A plan the CLI compiled reads as another
+				// build too, which is right: each client compiles its own.
+				_, _ = fmt.Fprintf(logw, "installed plan was compiled by another build (%s, this is %s) — recompiling\n", cmp.Or(plan.CompiledBy, "unknown"), version.Version)
+			case plan.Proxy.Image != runnerImageTag(pol):
+				_, _ = fmt.Fprintf(logw, "installed plan names runner image %s, this build uses %s — recompiling\n", plan.Proxy.Image, runnerImageTag(pol))
+			default:
+				if verr := compile.VerifyFiles(plan, planDir); verr == nil {
+					return plan, planDir, nil
+				}
+				_, _ = fmt.Fprintln(logw, "installed plan failed integrity check — recompiling")
 			}
-			_, _ = fmt.Fprintln(logw, "installed plan failed integrity check — recompiling")
 		}
 	}
 	if err := os.RemoveAll(planDir); err != nil {
@@ -727,6 +750,7 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, install
 		AdapterName:  adapterName,
 		RunnerImage:  runnerImageTag(pol),
 		MCPServers:   serverSpecs,
+		CompiledBy:   version.Version,
 	}, planDir)
 	if err != nil {
 		var refusal *compile.PolicyRefusal

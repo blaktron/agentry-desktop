@@ -7,10 +7,10 @@ github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7D
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/bep/debounce v1.2.1 h1:v67fRdBA9UQu2NhLFXrSg0Brw7CexQekrBwDMM8bzeY=
 github.com/bep/debounce v1.2.1/go.mod h1:H8yggRPQKLUhUoqrJC1bO2xNya7vanpDl7xR3ISbCJ0=
-github.com/blaktron/agentry v0.0.0-20260910134233-63b0d2a64e3a h1:lQTaoizO5GRm54rTA96ZP2kTwSY1TrhDJvlMDAIVPLI=
-github.com/blaktron/agentry v0.0.0-20260910134233-63b0d2a64e3a/go.mod h1:DoxM2Gh//daes3ObXxzQrYR1TkiuI6osLuWUrFyzStQ=
-github.com/blaktron/agentry-cli v0.0.0-20260910114400-6d79d0aa999c h1:Jg2is6MJQDUNITb48PxI2USi63f4RkL4LTpyDQUYr7E=
-github.com/blaktron/agentry-cli v0.0.0-20260910114400-6d79d0aa999c/go.mod h1:NvnhC2iYUghJIYGg5zaCtc9s+HoV+MyvdxEWiGSj7DI=
+github.com/blaktron/agentry v0.0.0-20260919104125-b92069e21092 h1:iG20IYkVZAFElqGsl3Mw+jptCdP2HdYQqq2AGzz0FeE=
+github.com/blaktron/agentry v0.0.0-20260919104125-b92069e21092/go.mod h1:DoxM2Gh//daes3ObXxzQrYR1TkiuI6osLuWUrFyzStQ=
+github.com/blaktron/agentry-cli v0.0.0-20260918143034-687e7f2ebff5 h1:5+hvMIptc8V3WVrXXxsbnlLvp4b49W5vwKUDYKaYP4I=
+github.com/blaktron/agentry-cli v0.0.0-20260918143034-687e7f2ebff5/go.mod h1:bTPILkDGwGqtpNZu/tzMwt/6+Xuul6RMcpEQA8kRsIg=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
 github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMFLdQ=
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=
@@ -105,8 +105,8 @@ golang.org/x/sys v0.0.0-20201119102817-f84b799fce68/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20210423082822-04245dca01da/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
-golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
+golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
+golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/text v0.3.6/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
 golang.org/x/text v0.41.0 h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=
