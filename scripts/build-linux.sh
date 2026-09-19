@@ -32,7 +32,8 @@ OUT="agentry-desktop-${VERSION}-linux-amd64"
 
 echo "== vendoring modules here (GOWORK=off, matching CI)"
 GOWORK=off go mod vendor
-if [ -f frontend/dist/index.html ]; then
+# -s: a non-empty index.html; an empty stand-in is not a bundle.
+if [ -s frontend/dist/index.html ]; then
   echo "== reusing frontend/dist (rm -rf frontend/dist to rebuild it)"
 else
   echo "== building the frontend bundle here"
