@@ -212,3 +212,75 @@ func TestApplySetupPullImagesDockerDown(t *testing.T) {
 		t.Fatalf("the policy half must have been written before the image half failed: %v", statErr)
 	}
 }
+
+// TestApplySetupStoresTheKeyBeforeThePolicy (agentry-desktop#90): with no
+// keychain to reach (AGENTRY_NO_KEYRING models a headless machine), a
+// store is refused by name and the policy is left as it was — the person
+// asked to store the key, so nothing falls back to the variable quietly.
+// The variable-only path is unchanged, and the source is recorded when
+// the caller names it for a key stored elsewhere.
+func TestApplySetupStoresTheKeyBeforeThePolicy(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	t.Setenv("AGENTRY_NO_KEYRING", "1")
+	var log strings.Builder
+	err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", StoreKey: "sk-live-secret"}, &log)
+	if err == nil || !strings.Contains(err.Error(), "AGENTRY_NO_KEYRING") {
+		t.Fatalf("err = %v", err)
+	}
+	path, _ := policy.DefaultPath()
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("a refused store wrote the policy: %s", path)
+	}
+	if strings.Contains(log.String(), "sk-live") {
+		t.Fatalf("the key reached the log: %q", log.String())
+	}
+	// The variable path, untouched.
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	st, err := GetStatus(context.Background())
+	if err != nil || st.APIKeySource != "" || st.KeyStored || st.KeyStoreErr == "" {
+		t.Fatalf("status = %+v err %v (the switch must be reported, not read as 'not stored')", st, err)
+	}
+	// A keyring source with nothing behind it is refused: under the switch
+	// the keychain cannot even be asked, and that is the reason given.
+	err = ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", APIKeySource: "keyring"}, &log)
+	if err == nil || !strings.Contains(err.Error(), "AGENTRY_NO_KEYRING") {
+		t.Fatalf("keyring source with no key: %v", err)
+	}
+	raw, _ := os.ReadFile(path)
+	if strings.Contains(string(raw), "apiKeySource: keyring") {
+		t.Fatalf("a refused source was recorded:\n%s", raw)
+	}
+	// Forget under the switch is refused by name too, and changes nothing.
+	before, _ := os.ReadFile(path)
+	err = ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", ForgetKey: true}, &log)
+	if err == nil || !strings.Contains(err.Error(), "AGENTRY_NO_KEYRING") {
+		t.Fatalf("forget: %v", err)
+	}
+	after, _ := os.ReadFile(path)
+	if string(before) != string(after) {
+		t.Fatal("a refused forget changed the policy")
+	}
+	// StoreModelKey is ApplySetup's store path under a name of its own.
+	err = StoreModelKey(context.Background(), "anthropic", "sk-live-secret", &log)
+	if err == nil || !strings.Contains(err.Error(), "AGENTRY_NO_KEYRING") || strings.Contains(log.String(), "sk-live") {
+		t.Fatalf("StoreModelKey: %v log=%q", err, log.String())
+	}
+}
+
+// TestHomeFollowsTheRunnerHome: the desktop's runner home is the CLI's
+// (policy.Home), so the two cannot resolve differently (agentry-cli#149).
+func TestHomeFollowsTheRunnerHome(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", dir)
+	h, err := Home()
+	if err != nil || h != dir {
+		t.Fatalf("Home = %q %v", h, err)
+	}
+	p, _ := policy.DefaultPath()
+	if p != filepath.Join(dir, "policy.yaml") {
+		t.Fatalf("policy path %q is not under the runner home", p)
+	}
+}

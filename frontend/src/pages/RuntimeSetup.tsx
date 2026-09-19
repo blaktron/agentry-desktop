@@ -31,6 +31,14 @@ export function RuntimeSetup({ heading, intro }: {
   const [model, setModel] = useState("");
   const [apiKeyEnv, setApiKeyEnv] = useState("");
   const [baseURL, setBaseURL] = useState("");
+  // The model key (plan desktop-installers.md §9, D12; agentry-desktop#90):
+  // "I set the variable myself" (the environment only) or "store the key
+  // on this machine" (the OS keychain, read when the variable is unset).
+  // The typed key lives in this component's state until Save sends it to
+  // the keychain through the backend, and is cleared on the way.
+  const [keyMode, setKeyMode] = useState<"env" | "keyring">("env");
+  const [apiKey, setApiKey] = useState("");
+  const [forgetKey, setForgetKey] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
 
@@ -42,6 +50,7 @@ export function RuntimeSetup({ heading, intro }: {
         setModel(s.model);
         setApiKeyEnv(s.apiKeyEnv);
         setBaseURL(s.baseUrl ?? "");
+        setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
       })
       .catch((e) => setError(String(e)));
   }, []);
@@ -72,8 +81,24 @@ export function RuntimeSetup({ heading, intro }: {
     setNotice(null);
     if (pullImages) setLog([]);
     try {
-      const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURL.trim(), pullImages);
+      // A typed key travels once, in its own small call, straight to the
+      // keychain (desktop#102); the field is cleared before the call, so a
+      // stale value never lingers on screen — a refused store means typing
+      // it again, and the error says so.
+      const key = keyMode === "keyring" && !forgetKey ? apiKey : "";
+      const source = keyMode === "keyring" ? "keyring" : "env";
+      setApiKey("");
+      if (key) {
+        try {
+          await RunAPI.StoreModelKey(provider, key);
+        } catch (e) {
+          throw new Error(`${e} — the key you typed was cleared; type it again to retry.`);
+        }
+      }
+      const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURL.trim(), pullImages, source, forgetKey);
+      setForgetKey(false);
       setStatus(s);
+      setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
       setNotice(pullImages
         ? "Setup complete — gateway, harness, and runner images ready; BriefAgents can run."
         : `Provider preference written to ${s.policyPath}.`);
@@ -85,6 +110,9 @@ export function RuntimeSetup({ heading, intro }: {
   }
 
   const needsBaseURL = provider === "custom";
+  // A keyring source needs a key behind it: one typed now, or one stored
+  // already; the backend refuses the same case, this just says so first.
+  const needsKey = keyMode === "keyring" && !forgetKey && !apiKey.trim() && !status?.keyStored;
 
   return (
     <div>
@@ -157,18 +185,52 @@ export function RuntimeSetup({ heading, intro }: {
             </label>
           </div>
         )}
+        <div className="key-source">
+          <label className="row" style={{ gap: 6 }}>
+            <input type="radio" name="keyMode" checked={keyMode === "env"} disabled={!!busy} onChange={() => setKeyMode("env")} />
+            <span>I set <span className="mono">${apiKeyEnv || "the variable"}</span> myself — the key stays in the environment this app was launched from</span>
+          </label>
+          <label className="row" style={{ gap: 6 }}>
+            <input type="radio" name="keyMode" checked={keyMode === "keyring"} disabled={!!busy} onChange={() => setKeyMode("keyring")} />
+            <span>Store the key on this machine — in the OS keychain, read when the variable is unset (a dock- or menu-launched app has no shell environment). Anything running as you while your session is unlocked can read the keychain, as it can your registry sign-in.</span>
+          </label>
+          {keyMode === "keyring" && (
+            <div className="key-store">
+              {status?.keyStored ? (
+                <p className="muted small">
+                  A key for <span className="mono">{provider}</span> is in the OS keychain (<span className="mono">provider:{provider}</span>); it is never shown here.
+                  Type a new one to replace it, or{" "}
+                  <label className="inline"><input type="checkbox" checked={forgetKey} disabled={!!busy} onChange={(e) => { setForgetKey(e.target.checked); if (e.target.checked) setApiKey(""); }} /> forget it on save</label>.
+                </p>
+              ) : status?.keyStoreErr ? (
+                <Notice tone="warn">The OS keychain could not be asked: {status.keyStoreErr}</Notice>
+              ) : (
+                <p className="muted small">No key stored for <span className="mono">{provider}</span> yet.</p>
+              )}
+              {!forgetKey && (
+                <label className="row grow" style={{ gap: 6 }}>
+                  <span className="muted small nowrap">api key</span>
+                  <Input
+                    type="password" className="grow mono" autoComplete="off" placeholder={status?.keyStored ? "(unchanged unless you type a new one)" : "paste the key — it goes to the OS keychain; the policy never holds it"}
+                    value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={!!busy}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+        </div>
         <p className="muted small">
-          Only the env var NAME is stored; the key itself stays in your environment. The agent
-          container&apos;s only egress is the model endpoint this derives.
+          The policy records only the variable&apos;s NAME and, if you store the key, that the keychain is
+          the source — never the key. The agent container&apos;s only egress is the model endpoint this derives.
         </p>
         <div className="row" style={{ justifyContent: "flex-end" }}>
-          <Button disabled={!!busy || (needsBaseURL && !baseURL.trim())} onClick={() => apply(false)}>
+          <Button disabled={!!busy || (needsBaseURL && !baseURL.trim()) || needsKey} title={needsKey ? "type the key, or choose the variable" : ""} onClick={() => apply(false)}>
             Save provider settings
           </Button>
           <Button
             variant="primary"
-            disabled={!!busy || !status?.dockerOk || (needsBaseURL && !baseURL.trim())}
-            title={status?.dockerOk ? "" : "docker must be available first"}
+            disabled={!!busy || !status?.dockerOk || (needsBaseURL && !baseURL.trim()) || needsKey}
+            title={!status?.dockerOk ? "docker must be available first" : needsKey ? "type the key, or choose the variable" : ""}
             onClick={() => apply(true)}
           >
             Prepare images now

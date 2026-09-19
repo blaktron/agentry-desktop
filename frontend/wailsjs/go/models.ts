@@ -708,6 +708,7 @@ export namespace main {
 	}
 	export class HarnessView {
 	    name: string;
+	    displayName: string;
 	    executable: string;
 	    installUrl: string;
 	    found: boolean;
@@ -727,6 +728,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
+	        this.displayName = source["displayName"];
 	        this.executable = source["executable"];
 	        this.installUrl = source["installUrl"];
 	        this.found = source["found"];
@@ -1393,6 +1395,9 @@ export namespace main {
 	    provider: string;
 	    model: string;
 	    apiKeyEnv: string;
+	    apiKeySource?: string;
+	    keyStored: boolean;
+	    keyStoreErr?: string;
 	    baseUrl?: string;
 	    imagesReady: boolean;
 	    timeoutSeconds: number;
@@ -1412,6 +1417,9 @@ export namespace main {
 	        this.provider = source["provider"];
 	        this.model = source["model"];
 	        this.apiKeyEnv = source["apiKeyEnv"];
+	        this.apiKeySource = source["apiKeySource"];
+	        this.keyStored = source["keyStored"];
+	        this.keyStoreErr = source["keyStoreErr"];
 	        this.baseUrl = source["baseUrl"];
 	        this.imagesReady = source["imagesReady"];
 	        this.timeoutSeconds = source["timeoutSeconds"];

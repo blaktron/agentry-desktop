@@ -6,7 +6,7 @@ export function AddSessionInput(arg1:string):Promise<void>;
 
 export function AddToDockerGroup():Promise<main.PrereqView>;
 
-export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<main.SetupStatusView>;
+export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:string,arg7:boolean):Promise<main.SetupStatusView>;
 
 export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStartView>;
 
@@ -14,7 +14,7 @@ export function CancelHostedRun():Promise<main.HostedRunView>;
 
 export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
-export function ChosenHarnesses():Promise<Array<string>>;
+export function ChosenHarnesses():Promise<Array<main.HarnessView>>;
 
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
@@ -43,3 +43,5 @@ export function SetupStatus():Promise<main.SetupStatusView>;
 export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>):Promise<main.HostedStartView>;
 
 export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean):Promise<main.SessionView>;
+
+export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusView>;

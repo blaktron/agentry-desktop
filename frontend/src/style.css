@@ -664,3 +664,8 @@ button.ghost:hover, .btn.ghost:hover {
 .wizard-command { margin: 0; padding: 8px 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; user-select: all; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); }
 .setup-banner { padding: 16px 16px 0; }
 .setup-banner-list { margin: 6px 0 10px; padding-left: 18px; }
+.key-source { display: grid; gap: 6px; margin: 4px 0 8px; }
+.key-source > label.row { flex-wrap: nowrap; align-items: flex-start; }
+.key-source > label.row input[type="radio"] { margin-top: 4px; flex: none; }
+.key-source label.inline { display: inline; }
+.key-store { margin: 4px 0 4px 22px; display: grid; gap: 6px; }
