@@ -26,7 +26,10 @@ Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:
 the run surfaces in `modals.html` (`#runpanel | #toolspanel | #chat`) and
 the first-run wizard in `wizard.html` (`#0` welcome, `#1` sign-in, `#2`
-runtime, `#3` done).
+runtime, `#3` coding agent, `#4` done; `#3-missing` shows neither coding
+agent on the machine, `#3-unprobed` the step before "Look for coding
+agents" is clicked, `#4-nothing` the Nothing set up ending when every step
+was skipped — agentry-desktop#89).
 
 The run panel's **In Agentry** states (hosted runs M6, agentry-desktop#77)
 are hashes of the same entry: `#runpanel-hosted` (the mode chosen, with the

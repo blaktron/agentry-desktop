@@ -7,25 +7,34 @@
 import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/main/App";
+import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
-import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
+import { Button, ErrorBox, Input, Mark, Notice, Spinner } from "../ui";
 import { RuntimeSetup } from "./RuntimeSetup";
 
-const STEPS = ["Welcome", "Sign in", "Runtime", "Done"];
+const STEPS = ["Welcome", "Sign in", "Runtime", "Coding agent", "Done"];
 
 const norm = (u: string) => u.trim().replace(/\/+$/, "");
 
+// How the wizard closed (plan desktop-installers.md D10). Either way the
+// App marks onboarding done (D-019); "later" also raises the Browse banner
+// naming what is missing, for this session only.
+export type WizardOutcome = { kind: "done" } | { kind: "later"; missing: string[] };
+
 export default function Wizard({
-  settings, activeRegistry, onChanged, onSelectRegistry, onFinish, initialStep = 0,
+  settings, activeRegistry, onChanged, onSelectRegistry, onFinish, initialStep = 0, probeOnEntry = false,
 }: {
   settings: main.SettingsView;
   activeRegistry: string;
   onChanged: () => Promise<main.SettingsView>;
   onSelectRegistry: (url: string) => void;
   // Dismiss the wizard; the App marks onboarding done so it does not reopen.
-  onFinish: () => void;
-  // Harness-only: render straight to a given step for screenshots.
+  onFinish: (outcome: WizardOutcome) => void;
+  // Harness-only: render straight to a given step for screenshots, and
+  // let the Coding agent step probe on entry so its results can be shown.
   initialStep?: number;
+  probeOnEntry?: boolean;
 }) {
   const [step, setStep] = useState(initialStep);
 
@@ -44,7 +53,7 @@ export default function Wizard({
           </div>
         </div>
 
-        {step === 0 && <Welcome onSetUp={() => setStep(1)} onSkip={onFinish} />}
+        {step === 0 && <Welcome onSetUp={() => setStep(1)} onSkip={() => onFinish({ kind: "done" })} />}
         {step === 1 && (
           <SignInStep
             settings={settings}
@@ -56,7 +65,16 @@ export default function Wizard({
           />
         )}
         {step === 2 && <RuntimeStep onBack={() => setStep(1)} onNext={() => setStep(3)} />}
-        {step === 3 && <DoneStep settings={settings} activeRegistry={activeRegistry} onBack={() => setStep(2)} onFinish={onFinish} />}
+        {step === 3 && <CodingAgentStep onBack={() => setStep(2)} onNext={() => setStep(4)} probeOnEntry={probeOnEntry} />}
+        {step === 4 && (
+          <DoneStep
+            settings={settings}
+            activeRegistry={activeRegistry}
+            onBack={() => setStep(3)}
+            onStartOver={() => setStep(1)}
+            onFinish={onFinish}
+          />
+        )}
       </div>
     </div>
   );
@@ -241,22 +259,208 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
   );
 }
 
+// The coding agents the CLI's adapters can drive as a process on this
+// machine (plan runner-m-r4-adapters D2), by their product names; an
+// adapter this table does not know is shown by its name, capitalised
+// (agentry-cli#151 moves the label into the adapter itself).
+const HARNESS_LABEL: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
+const harnessLabel = (name: string) => HARNESS_LABEL[name] ?? name.charAt(0).toUpperCase() + name.slice(1);
+
+// Recap is the wizard's list of where things stand: a check for what is
+// true, a bullet for what is not.
+function Recap({ rows }: { rows: { ok: boolean; text: string }[] }) {
+  return (
+    <ul className="wizard-recap">
+      {rows.map((r, i) => (
+        <li key={i} className={r.ok ? "ok" : "pending"}>
+          <span className="wizard-recap-mark">{r.ok ? "✓" : "•"}</span>
+          {r.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// CodingAgentStep (agentry-desktop#89, plan desktop-installers.md §9, D9):
+// which of Claude Code and Codex are on this machine, per the same probe
+// `agentry doctor --adapter` runs; choosing one records where it lives in
+// the operator policy so `agentry run --adapter <name>` finds it. The
+// agentry-mcp hook-up — the harness driving Agentry — is shown as the one
+// documented command to copy, because it needs Node and the agentry CLI,
+// which this app neither ships nor installs (D14).
+//
+// Looking is a click, not the step opening (review of #89): the probe runs
+// each harness's version flag, and a binary named claude on the PATH of a
+// person who never asked for coding agents should not run just because the
+// wizard reached this page — the CLI's doctor probes only when asked, too.
+// Until then the step shows what the policy already records, read without
+// executing anything.
+function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () => void; onNext: () => void; probeOnEntry?: boolean }) {
+  const [chosenNames, setChosenNames] = useState<string[] | null>(null);
+  const [harnesses, setHarnesses] = useState<main.HarnessView[] | null>(null);
+  const [looking, setLooking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    RunAPI.ChosenHarnesses().then(setChosenNames).catch(() => setChosenNames([]));
+  }, []);
+
+  async function look() {
+    setLooking(true); setError(null);
+    try {
+      setHarnesses(await RunAPI.HarnessStatus());
+    } catch (e) {
+      setError(String(e)); setHarnesses([]);
+    } finally {
+      setLooking(false);
+    }
+  }
+
+  useEffect(() => {
+    if (probeOnEntry) void look();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [probeOnEntry]);
+
+  async function choose(name: string) {
+    setBusy(name); setError(null);
+    try {
+      setHarnesses(await RunAPI.ChooseHarness(name));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function copy(name: string, text: string) {
+    // The webview's clipboard through the Wails runtime; the command stays
+    // selectable on screen whatever happens.
+    const ok = await ClipboardSetText(text).catch(() => false);
+    setCopied(ok ? name : null);
+    if (ok) setTimeout(() => setCopied((c) => (c === name ? null : c)), 2000);
+    else setError("Could not reach the clipboard — select the line and copy it.");
+  }
+
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>Your coding agent</h1>
+        <p className="page-sub">
+          Agentry can run BriefAgents through a coding agent you already have — Claude Code or Codex
+          — with <span className="mono">agentry run --adapter claude</span> (or{" "}
+          <span className="mono">codex</span>). Choosing one here records where it lives in the runner
+          policy; this app's own runs use the container harness either way. Skip if you have neither,
+          or want to decide later.
+        </p>
+        <ErrorBox error={error} />
+        {harnesses === null && (
+          <div className="card wizard-harness">
+            {chosenNames && chosenNames.length > 0 ? (
+              <p className="muted">
+                The runner policy already records {chosenNames.map(harnessLabel).join(" and ")}. Looking again
+                checks it is still there and lets you pick another.
+              </p>
+            ) : (
+              <p className="muted">
+                Nothing is recorded yet. Looking runs each coding agent's own version command, once, and
+                nothing else.
+              </p>
+            )}
+            <div className="row mt">
+              <Button variant="primary" disabled={looking} onClick={() => void look()}>
+                {looking ? "Looking…" : "Look for coding agents on this machine"}
+              </Button>
+              {looking && <Spinner />}
+            </div>
+          </div>
+        )}
+        {harnesses?.map((h) => (
+          <div key={h.name} className={`card wizard-harness${h.chosen ? " chosen" : ""}`}>
+            <div className="row">
+              <strong>{harnessLabel(h.name)}</strong>
+              <span className="muted mono">{h.executable}</span>
+              <div className="grow" />
+              {h.found ? (
+                <Button
+                  variant={h.chosen ? "ghost" : "primary"}
+                  disabled={busy !== null || h.chosen}
+                  onClick={() => void choose(h.name)}
+                >
+                  {h.chosen ? "Chosen ✓" : busy === h.name ? "Recording…" : "Use this one"}
+                </Button>
+              ) : (
+                <Button variant="link" onClick={() => void OpenExternal(h.installUrl)}>Get {harnessLabel(h.name)}</Button>
+              )}
+            </div>
+            {h.found ? (
+              <p className="muted">
+                Found at <span className="mono">{h.path}</span>
+                {h.version ? <> — {h.version}</> : null}
+                {h.pathFromPolicy ? <> (from the policy)</> : null}
+              </p>
+            ) : (
+              <p className="muted">Not on this machine. {h.reason}</p>
+            )}
+            {h.warnings?.map((w, i) => <Notice key={i} tone="warn">{w}</Notice>)}
+          </div>
+        ))}
+
+        {harnesses && harnesses.length > 0 && (
+          <div className="mt">
+            <h2>Let your coding agent drive Agentry</h2>
+            <p className="muted">
+              The other direction: Claude Code or Codex searching, verifying, installing and running
+              BriefAgents through the <span className="mono">agentry-mcp</span> server. It needs Node
+              20 or newer, the <span className="mono">agentry</span> CLI on your PATH and{" "}
+              <span className="mono">python3</span>; this app installs none of them and runs nothing
+              here — copy the line for your host and run it yourself, with the path to your build of
+              the server.
+            </p>
+            {harnesses.filter((h) => h.mcpCommand).map((h) => (
+              <div key={h.name} className="row mt">
+                <pre className="mono grow wizard-command" tabIndex={0}>{h.mcpCommand}</pre>
+                <Button onClick={() => void copy(h.name, h.mcpCommand)}>{copied === h.name ? "Copied" : "Copy"}</Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <div className="grow" />
+        {!harnesses?.some((h) => h.chosen) && !chosenNames?.length && <Button onClick={onNext} disabled={busy !== null}>Skip</Button>}
+        <Button variant="primary" onClick={onNext} disabled={busy !== null}>Continue</Button>
+      </div>
+    </>
+  );
+}
+
 function DoneStep({
-  settings, activeRegistry, onBack, onFinish,
+  settings, activeRegistry, onBack, onStartOver, onFinish,
 }: {
   settings: main.SettingsView;
   activeRegistry: string;
   onBack: () => void;
-  onFinish: () => void;
+  onStartOver: () => void;
+  onFinish: (outcome: WizardOutcome) => void;
 }) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
   const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
+  // Read from the policy, never probed: the recap runs no harness.
+  const [chosenNames, setChosenNames] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    RunAPI.SetupStatus().then(setStatus).catch(() => setStatus(null));
-    RunAPI.PrereqStatus().then(setPrereq).catch(() => setPrereq(null));
+    Promise.allSettled([
+      RunAPI.SetupStatus().then(setStatus).catch(() => setStatus(null)),
+      RunAPI.PrereqStatus().then(setPrereq).catch(() => setPrereq(null)),
+      RunAPI.ChosenHarnesses().then(setChosenNames).catch(() => setChosenNames([])),
+    ]).then(() => setLoaded(true));
   }, []);
 
   const signedReg = settings.registries.find((r) => r.hasToken);
+  const chosen = chosenNames.length > 0 ? chosenNames.map(harnessLabel).join(" and ") : null;
   const rows: { ok: boolean; text: string }[] = [
     signedReg
       ? { ok: true, text: `Signed in to ${signedReg.url}` }
@@ -276,27 +480,51 @@ function DoneStep({
     status?.imagesReady
       ? { ok: true, text: "Runtime images are prepared" }
       : { ok: false, text: "Runtime images will be prepared on your first run" },
+    chosen
+      ? { ok: true, text: `Coding agent: ${chosen} recorded in the runner policy` }
+      : { ok: false, text: "No coding agent chosen — runs use the container harness; choose one any time by running setup again" },
   ];
+
+  // Nothing set up (D10): the person did none of the three things this
+  // wizard is for — a sign-in, a provider written, a coding agent chosen.
+  // Docker being present is the machine's doing, not theirs, so it does
+  // not count. Until the reads settle the recap is the ordinary one.
+  const nothing = loaded && !signedReg && !status?.policyExists && !chosen;
+  const missing = rows.filter((r) => !r.ok).map((r) => r.text);
+
+  if (nothing) {
+    return (
+      <>
+        <div className="wizard-body">
+          <h1>Nothing is set up yet</h1>
+          <p className="page-sub">
+            Agentry Desktop can browse a public registry as it is, but it cannot sign in, run or build
+            anything until setup is done. Every step is still here, and Settings has them all too.
+          </p>
+          <Recap rows={rows} />
+        </div>
+        <div className="wizard-foot">
+          <Button variant="ghost" onClick={onBack}>Back</Button>
+          <div className="grow" />
+          <Button onClick={() => onFinish({ kind: "later", missing })}>I'll do it later</Button>
+          <Button variant="primary" onClick={onStartOver}>Set up now</Button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <div className="wizard-body">
         <h1>You're set up</h1>
         <p className="page-sub">Here's where things stand. Anything deferred happens on your first run, or from Settings.</p>
-        <ul className="wizard-recap">
-          {rows.map((r, i) => (
-            <li key={i} className={r.ok ? "ok" : "pending"}>
-              <span className="wizard-recap-mark">{r.ok ? "✓" : "•"}</span>
-              {r.text}
-            </li>
-          ))}
-        </ul>
+        <Recap rows={rows} />
         {!activeRegistry && <Notice tone="info">No active registry yet — pick one from Settings to browse.</Notice>}
       </div>
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack}>Back</Button>
         <div className="grow" />
-        <Button variant="primary" onClick={onFinish}>Finish</Button>
+        <Button variant="primary" onClick={() => onFinish({ kind: "done" })}>Finish</Button>
       </div>
     </>
   );

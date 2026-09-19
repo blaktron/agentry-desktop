@@ -12,9 +12,15 @@ export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStar
 
 export function CancelHostedRun():Promise<main.HostedRunView>;
 
+export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;
+
+export function ChosenHarnesses():Promise<Array<string>>;
+
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
+
+export function HarnessStatus():Promise<Array<main.HarnessView>>;
 
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedAvailabilityView>;
 

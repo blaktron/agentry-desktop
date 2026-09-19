@@ -655,3 +655,12 @@ button.ghost:hover, .btn.ghost:hover {
 .wizard-recap li.pending {
   color: var(--color-muted);
 }
+
+/* The wizard's Coding agent step (agentry-desktop#89) and the setup banner. */
+.wizard-body h2 { font-size: 15px; margin: 18px 0 4px; }
+.wizard-harness { padding: 12px 14px; margin-top: 10px; }
+.wizard-harness.chosen { border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); }
+.wizard-harness p { margin: 6px 0 0; }
+.wizard-command { margin: 0; padding: 8px 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; user-select: all; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); }
+.setup-banner { padding: 16px 16px 0; }
+.setup-banner-list { margin: 6px 0 10px; padding-left: 18px; }
