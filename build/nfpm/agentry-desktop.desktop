@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Agentry Desktop
+GenericName=Agent registry client
+Comment=Browse, verify, install and run agents from an Agentry registry
+Exec=agentry-desktop
+Icon=agentry-desktop
+Terminal=false
+Categories=Development;
+Keywords=agentry;agents;registry;
+StartupWMClass=agentry-desktop

@@ -1,0 +1,99 @@
+# The Linux packages of Agentry Desktop: one description, a .deb and an .rpm
+# (agentry-desktop#84; plan agentry-notes/plans/desktop-installers.md §5, §8;
+# D2, D7, D8). Built by nfpm from the binary scripts/build-linux.sh produced
+# (make package-linux; the release workflow's linux job), then installed in a
+# clean container of each family by scripts/acceptance/linux-packages.sh.
+#
+# What a package owns: the binary at /usr/bin, a desktop entry and the icon
+# at the hicolor sizes. Nothing under anyone's home, and no maintainer
+# scripts: an upgrade or a removal by the package manager cannot reach
+# ~/.config/agentry, ~/.agentry/runner or the session keyring (plan §3's
+# invariant; the acceptance script proves it by reinstalling and removing
+# around a populated home). Elevation stays with the package manager; the
+# app itself asks through pkexec (D-014) and never through a package script.
+#
+# Runtime dependencies are exactly the packages that own the libraries the
+# binary's ELF NEEDED entries name, on each family — nothing the binary does
+# not link, nothing it links left out; the acceptance script checks both
+# directions against the installed system (Fedora 44 splits
+# javascriptcoregtk4.1 out of webkit2gtk4.1; the smoke found it). The
+# Debian names are the old ones on purpose: Ubuntu 24.04's *t64 renames
+# Provide them, and the smoke installs there too. The glibc floor is the
+# newest symbol version the binary imports (objdump -T | grep GLIBC_: 2.34),
+# not the build container's glibc, so the package refuses a distribution
+# that would fail at first launch and admits every one that would not.
+#
+# The icons are build/appicon.png rendered at the hicolor sizes with
+# ImageMagick (`make linux-icons`); re-render and commit them when the app
+# icon changes — nothing regenerates them at build time.
+#
+# ${DESKTOP_VERSION} is what the Makefile stamps into the binary (git
+# describe without the tag's v: 0.1.0 on a tag, 0.1.0-9-g<sha> past it);
+# nfpm reads it as semver and spells a pre-release the way each format
+# orders it below the release it precedes. nfpm expands variables in the
+# version but not in a content's src, so the caller stages the binary at the
+# fixed path below (scripts/package-linux.sh). The package file names are the
+# download manifest's grammar and are given by the caller (--target).
+name: agentry-desktop
+arch: amd64
+platform: linux
+version: ${DESKTOP_VERSION}
+version_schema: semver
+section: utils
+priority: optional
+maintainer: SecureAgentry <chris@secureagentry.net>
+vendor: SecureAgentry
+homepage: https://secureagentry.net
+license: MIT
+description: |
+  Desktop client for Agentry registries.
+  Browse scanned and signed agents, install them with digest and signature
+  verification on this machine, track what this machine accepted, and run
+  agents through the agentry runner.
+
+contents:
+  - src: build/linux/stage/agentry-desktop
+    dst: /usr/bin/agentry-desktop
+    file_info:
+      mode: 0755
+  - src: build/nfpm/agentry-desktop.desktop
+    dst: /usr/share/applications/agentry-desktop.desktop
+    file_info:
+      mode: 0644
+  - src: build/nfpm/icons/agentry-desktop-16.png
+    dst: /usr/share/icons/hicolor/16x16/apps/agentry-desktop.png
+  - src: build/nfpm/icons/agentry-desktop-32.png
+    dst: /usr/share/icons/hicolor/32x32/apps/agentry-desktop.png
+  - src: build/nfpm/icons/agentry-desktop-48.png
+    dst: /usr/share/icons/hicolor/48x48/apps/agentry-desktop.png
+  - src: build/nfpm/icons/agentry-desktop-64.png
+    dst: /usr/share/icons/hicolor/64x64/apps/agentry-desktop.png
+  - src: build/nfpm/icons/agentry-desktop-128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/agentry-desktop.png
+  - src: build/nfpm/icons/agentry-desktop-256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/agentry-desktop.png
+  - src: build/nfpm/icons/agentry-desktop-512.png
+    dst: /usr/share/icons/hicolor/512x512/apps/agentry-desktop.png
+
+overrides:
+  deb:
+    depends:
+      - libc6 (>= 2.34)
+      - libglib2.0-0
+      - libgdk-pixbuf-2.0-0
+      - libgtk-3-0
+      - libsoup-3.0-0
+      - libjavascriptcoregtk-4.1-0
+      - libwebkit2gtk-4.1-0
+  rpm:
+    depends:
+      - glibc >= 2.34
+      - glib2
+      - gdk-pixbuf2
+      - gtk3
+      - libsoup3
+      - javascriptcoregtk4.1
+      - webkit2gtk4.1
+
+rpm:
+  summary: Desktop client for Agentry registries
