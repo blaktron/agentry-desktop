@@ -8,8 +8,9 @@
 # was enforced, and never calls a BriefAgent, a run or a registry "safe",
 # "secure", "guaranteed" or "trusted". The site's prose gate holds the same
 # line for the website (agentry-web scripts/prose/); this is the desktop's
-# half, over the copy this app ships — the frontend's own sources and the
-# Go files the bound surfaces return their sentences from.
+# half, over the copy this app ships — the frontend's own sources, the
+# Go files the bound surfaces return their sentences from, and the Windows
+# installer's pages.
 #
 # A word that is there because the rule is what the sentence is about — a
 # comment quoting the rule, a protocol value named "safe" — passes by being
@@ -34,6 +35,9 @@ copy_files() {
   [ -d "$ROOT/frontend/src" ] && find "$ROOT/frontend/src" -type f \( -name '*.ts' -o -name '*.tsx' \) -print
   find "$ROOT" -maxdepth 1 -type f -name '*.go' ! -name '*_test.go' -print
   [ -d "$ROOT/internal" ] && find "$ROOT/internal" -type f -name '*.go' ! -name '*_test.go' -print
+  # The Windows installer's pages (desktop#83); wails_tools.nsh is generated
+  # and carries no sentence of ours.
+  [ -d "$ROOT/build/windows/installer" ] && find "$ROOT/build/windows/installer" -maxdepth 1 -type f -name '*.nsi' -print
   return 0
 }
 

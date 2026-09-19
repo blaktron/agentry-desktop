@@ -1,8 +1,11 @@
 # CI gate for the desktop client: frontend type-check + the dist bundle the
 # Go binary embeds, then gofmt/vet/lint/tests/build (`make check`), and
 # dependency hygiene, on the Linux runners — no wails CLI or webkit2gtk
-# needed, they compile the app library, not the platform bundle. The macos
-# job below is the exception: it builds the universal bundle on the Mac.
+# needed, they compile the app library, not the platform bundle. Two jobs
+# build a platform package: `windows` cross-builds the Windows target and
+# its per-user installer on the Linux runner (a broken Windows build fails
+# the gate, desktop#53/#83), and `macos` builds the universal bundle on the
+# Mac.
 name: ci
 on:
   push:
@@ -85,6 +88,81 @@ jobs:
           drift=$(git status --porcelain -- frontend/wailsjs)
           if [ -n "$drift" ]; then echo "$drift"; echo "::error::the checked-in bindings differ from what the Go types generate: run make bindings and commit"; exit 1; fi
           echo "bindings are current"
+      - name: Remove the job-scoped git credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gitconfig"
+
+  # The Windows target and its per-user installer, cross-built on the Linux
+  # runner the way the release workflow does it (desktop#83, absorbing #53):
+  # a change that breaks the Windows build, or the installer, turns this
+  # red. makensis and 7z come from Ubuntu's packages; the runner container
+  # runs as root and keeps them until it is recreated, so the install is a
+  # one-off per container (the runner image itself carries neither).
+  # scripts/check-windows-installer.sh reads the installer back — asInvoker,
+  # two installed files, the same binary as the zip — which is as far as
+  # Linux can check a Windows package; the install-over-install check is by
+  # hand until #55 gives CI a Windows machine. The package is kept as a
+  # workflow artifact so a PR's Windows build can be tried without a release.
+  windows:
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # Shared persistent host module cache; see check (agentry#225).
+          cache: false
+      - name: Authenticate for the private blaktron modules (job-scoped)
+        env:
+          AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
+          echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
+          git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: makensis and 7z from Ubuntu's packages
+        run: |
+          set -euo pipefail
+          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null; then
+            sudo=""; [ "$(id -u)" = 0 ] || sudo=sudo
+            $sudo apt-get update -qq
+            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full
+          fi
+          makensis -VERSION; 7z | sed -n 2p
+      - name: Build the embedded frontend bundle
+        run: cd frontend && npm ci --no-audit --no-fund && npx vite build
+      - name: Install the wails CLI at the version go.mod pins
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
+      # The Go side first, on its own: vet for the Windows target says which
+      # file broke it, where a wails failure says only that it did.
+      - name: go vet for windows/amd64
+        run: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet ./...
+      - name: Windows amd64 package and per-user installer (unsigned)
+        run: PATH="$HOME/go/bin:$PATH" make package-windows WAILS_FLAGS='-m -s -skipbindings'
+      # wails build -nsis rewrites wails_tools.nsh from wails.json on every
+      # build; the checked-in copy is that output, so a productVersion bump
+      # that forgot to rebuild shows up here, not as a -dirty tree at release.
+      - name: The checked-in NSIS tools file is what the build writes
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- build/windows/installer/wails_tools.nsh; then
+            echo "::error::build/windows/installer/wails_tools.nsh differs from what wails build -nsis writes for this wails.json: run make package-windows and commit the file"
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentry-desktop-windows-amd64
+          path: |
+            build/bin/agentry-desktop-*-windows-amd64-setup.exe
+            build/bin/agentry-desktop-*-windows-amd64.zip
+          if-no-files-found: error
+          retention-days: 7
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"

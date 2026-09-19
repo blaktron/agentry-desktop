@@ -143,7 +143,7 @@ away at the flip.
 | lint + tests + tsc | `make check` |
 | regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
 | macOS universal .app (zipped) | `make package-darwin` |
-| Windows amd64 (cross-compiled, unsigned) | `make package-windows` |
+| Windows amd64 exe, zip and per-user installer (cross-compiled, unsigned) | `make package-windows` |
 | Linux amd64 (in a container) | `make package-linux` |
 | the version every target stamps | `make version` |
 | does this tag name `wails.json`'s version? | `make version-check RELEASE_TAG=v0.1.0` |
@@ -161,6 +161,26 @@ apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev npm golang
 wails build -platform linux/amd64 -tags webkit2_41
 ```
 
+**Windows** is cross-compiled from any host with Go, Node and the Wails
+CLI: Wails loads WebView2 through a pure-Go loader, so `windows/amd64`
+builds with cgo off (DEV-097). `make package-windows` also builds the
+per-user installer, `agentry-desktop-<version>-windows-amd64-setup.exe`,
+from the NSIS script in `build/windows/installer/project.nsi` with
+`makensis` (`apt-get install nsis`, `dnf install mingw32-nsis`) and reads it
+back with `scripts/check-windows-installer.sh` (needs `7z`): it installs
+under the person's own programs directory without elevation, writes a Start
+Menu shortcut and an Apps & features entry, and carries the same exe the
+zip does. An upgrade replaces only the installed files; the uninstaller
+leaves `%USERPROFILE%\.config\agentry`, `%USERPROFILE%\.agentry\runner`
+and the Credential Manager entries alone unless its one optional box is
+ticked, which runs `agentry-desktop.exe --remove-my-settings`
+(`internal/uninstall`) before the files go. Both outputs are unsigned
+(agentry-desktop#54). The `windows` CI job builds all of this on every PR;
+what Linux cannot check — install N over N-1 with settings in place, the
+default uninstall keeping them, the box removing them — is
+`scripts/acceptance/windows-install.ps1`, run by hand in a plain user
+session on a Windows machine until #55 gives CI one.
+
 **macOS** cannot be cross-built (the macOS front end is Objective-C behind
 cgo), so the universal bundle is built on a Mac that carries the Command
 Line Tools, Go, Node and the Wails CLI. `scripts/build-darwin.sh [user@host]`
@@ -175,12 +195,15 @@ needs the build user logged in at the Mac's console; without one it is
 reported as skipped, not failed. The estate's Mac and the plan behind it:
 `agentry-notes/plans/macos-build-host.md`.
 
-CI (`ci.yaml`: `check` and `govulncheck`) runs on the project's own
-runners. Those two jobs need neither the Wails CLI nor the WebKit headers:
-they compile the app library, not the platform bundle. A third job,
-`macos`, builds the universal bundle on the Mac build host, runs the tests
-and the Keychain round trip there, and uploads the bundle as a workflow
-artifact; it does not block the merge (`continue-on-error`).
+CI (`ci.yaml`: `check`, `govulncheck` and `windows`) runs on the project's
+own runners. The first two need neither the Wails CLI nor the WebKit
+headers: they compile the app library, not the platform bundle. `windows`
+cross-builds the Windows exe and its installer on the Linux runner and
+keeps them as a workflow artifact, so a broken Windows build fails the
+gate. A fourth job, `macos`, builds the universal bundle on the Mac build
+host, runs the tests and the Keychain round trip there, and uploads the
+bundle as a workflow artifact; it does not block the merge
+(`continue-on-error`).
 
 ## Releasing
 

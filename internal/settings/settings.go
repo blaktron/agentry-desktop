@@ -14,6 +14,7 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -33,10 +34,12 @@ import (
 // from a site's /download page starts pointed at that site.
 var DefaultRegistryURL = "https://secureagentry.net"
 
-// keyringService matches the CLI's go-keyring service name; the account key
+// KeyringService matches the CLI's go-keyring service name; the account key
 // is the registry host, so multiple registries coexist and both clients see
-// the same credential.
-const keyringService = "agentry"
+// the same credential. The CLI's model keys live under the same service as
+// provider:<name> (its DR-24), so the service names everything an uninstall
+// with "also remove my sign-in" takes (ForgetKeychain).
+const KeyringService = "agentry"
 
 // Registry is one configured registry.
 type Registry struct {
@@ -202,7 +205,7 @@ func ValidateURL(regURL string) error {
 func TokenFor(regURL string) string {
 	host, err := Host(regURL)
 	if err == nil {
-		if token, err := keyring.Get(keyringService, host); err == nil && token != "" {
+		if token, err := keyring.Get(KeyringService, host); err == nil && token != "" {
 			return token
 		}
 	}
@@ -219,7 +222,7 @@ func TokenFor(regURL string) string {
 func TokenSource(regURL string) string {
 	host, err := Host(regURL)
 	if err == nil {
-		if token, err := keyring.Get(keyringService, host); err == nil && token != "" {
+		if token, err := keyring.Get(KeyringService, host); err == nil && token != "" {
 			return "keyring"
 		}
 	}
@@ -238,7 +241,7 @@ func StoreToken(regURL, token string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if kerr := keyring.Set(keyringService, host, token); kerr == nil {
+	if kerr := keyring.Set(KeyringService, host, token); kerr == nil {
 		// A stale file-fallback copy must not linger once the keychain works.
 		s, err := Load()
 		if err == nil {
@@ -272,7 +275,7 @@ func DeleteToken(regURL string) error {
 	if host, err := Host(regURL); err == nil {
 		// ErrNotFound is fine; any other keychain error still lets the file
 		// fallback be cleared below.
-		_ = keyring.Delete(keyringService, host)
+		_ = keyring.Delete(KeyringService, host)
 	}
 	s, err := Load()
 	if err != nil {
@@ -283,4 +286,16 @@ func DeleteToken(regURL string) error {
 		return Save(s)
 	}
 	return nil
+}
+
+// ForgetKeychain removes every keychain entry under KeyringService: the
+// registry tokens of both clients and the CLI's model keys. Nothing stored
+// is not an error. It is the uninstaller's "also remove my sign-in"
+// (internal/uninstall) and nothing in the running app calls it.
+func ForgetKeychain() error {
+	err := keyring.DeleteAll(KeyringService)
+	if err == nil || errors.Is(err, keyring.ErrNotFound) {
+		return nil
+	}
+	return err
 }
