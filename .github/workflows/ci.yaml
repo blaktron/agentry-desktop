@@ -241,12 +241,21 @@ jobs:
       # -skipbindings: the checked-in bindings are what the check job
       # type-checks and the drift step keeps current; a build never
       # regenerates them (desktop#97). -m: skip wails' own go mod tidy.
+      # Derived once and passed to every step below, the way the release
+      # workflow derives it once in preflight and for the same reason: a wails
+      # build rewrites tracked files (frontend/package.json.md5 and the
+      # runtime bindings), so the tree is dirty by the time the next step
+      # runs, and a second `git describe` would say <sha>-dirty where the
+      # first said <sha> — two names for one build, and the second step
+      # looking for a file the first did not write.
+      - name: The version this job names its artifacts for
+        run: echo "VERSION=$(make -s version)" >> "$GITHUB_ENV"
       # package-darwin builds the bundle, the zip and the dmg, and reads the
       # dmg back (scripts/check-darwin-dmg.sh); this job is where that runs
       # on every change, since the Mac is the only host that can mount one.
       - name: Build the universal bundle, its zip and its dmg
         run: |
-          make package-darwin WAILS_FLAGS='-m -skipbindings'
+          make package-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings'
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           shasum -a 256 build/bin/*.zip build/bin/*.dmg
       # Uploaded before the smoke, not after: a smoke that goes red is exactly
@@ -264,7 +273,7 @@ jobs:
       # bundle installed from the image launches where a console session
       # allows it (agentry-desktop#85, plan §8).
       - name: Install-over-install smoke of the dmg
-        run: make smoke-darwin-dmg
+        run: make smoke-darwin-dmg VERSION="$VERSION"
       # frontend/dist exists after the wails build, so the Go tools run on the
       # embedded bundle the app ships with.
       - name: Go tests, natively on macOS
