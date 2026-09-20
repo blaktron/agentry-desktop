@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main, trust } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, Spinner, Textarea, shortDigest } from "../ui";

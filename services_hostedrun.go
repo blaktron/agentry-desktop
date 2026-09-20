@@ -88,9 +88,8 @@ type HostedAvailabilityView struct {
 	Caps            *HostedCapsView `json:"caps,omitempty"`
 	// Balance is the account's credits; BalanceKnown is false when the
 	// registry has no billing extension or the read failed.
-	Balance      int64  `json:"balance"`
-	BalanceKnown bool   `json:"balanceKnown"`
-	UpgradeURL   string `json:"upgradeUrl,omitempty"`
+	Balance      int64 `json:"balance"`
+	BalanceKnown bool  `json:"balanceKnown"`
 
 	MaxInputFiles int   `json:"maxInputFiles"`
 	MaxInputBytes int64 `json:"maxInputBytes"`
@@ -171,14 +170,14 @@ type HostedStartView struct {
 	// secrets-declared, mode-not-declared…); Detail the sentence.
 	Refusal string `json:"refusal,omitempty"`
 	Detail  string `json:"detail,omitempty"`
-	// Balance and ResetsAt come from a credits-exhausted refusal;
-	// UpgradeURL is where this account's subscription is managed, as the
-	// registry named it: the organization's console for a member, the
-	// subscription page for a person. It is shown, never built here.
-	Balance    int64  `json:"balance,omitempty"`
-	Hold       int64  `json:"hold,omitempty"`
-	ResetsAt   string `json:"resetsAt,omitempty"`
-	UpgradeURL string `json:"upgradeUrl,omitempty"`
+	// Balance and ResetsAt come from a credits-exhausted refusal. Where
+	// the subscription is managed is deliberately not here: the panel asks
+	// SettingsAPI.OpenUpgrade at the moment a person clicks, so the
+	// registry's answer is checked against its own origin before anything
+	// opens (agentry-enterprise#41).
+	Balance  int64  `json:"balance,omitempty"`
+	Hold     int64  `json:"hold,omitempty"`
+	ResetsAt string `json:"resetsAt,omitempty"`
 }
 
 // HostedAvailability answers the panel's first question about a release:
@@ -230,7 +229,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		}
 	}
 	if sub, err := fetchSubscription(ctx, reg, token); err == nil && sub != nil {
-		v.Balance, v.BalanceKnown, v.UpgradeURL = sub.Balance, true, sub.Upgrade.URL
+		v.Balance, v.BalanceKnown = sub.Balance, true
 	}
 
 	o := hostedrun.Decide(facts)
@@ -262,14 +261,14 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	ids, err := client.UploadInputs(ctx, files, func(line string) { _, _ = fmt.Fprintln(logw, line) })
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
-			return r.refusalView(reg, refusal), nil
+			return r.refusalView(refusal), nil
 		}
 		return nil, err
 	}
 	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids})
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
-			return r.refusalView(reg, refusal), nil
+			return r.refusalView(refusal), nil
 		}
 		return nil, err
 	}
@@ -422,22 +421,16 @@ func (r *RunAPI) ctx() context.Context {
 
 // refusalView renders a refusal the way the Build page renders the
 // allowance's: a slug, a sentence, and — for credits — the way onward.
-func (r *RunAPI) refusalView(reg string, refusal *hostedrun.Refusal) *HostedStartView {
+func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 	v := &HostedStartView{
 		Refusal: refusal.Slug, Detail: refusal.Sentence(),
 		Balance: refusal.Balance, Hold: refusal.Hold, ResetsAt: refusal.ResetsAt,
 	}
-	// Where the subscription is managed is the registry's answer, not a
-	// path this app builds (agentry-enterprise#41): a member belongs on
-	// their organization's console. Read it, and leave the field empty if
-	// it cannot be read — the sentence above still says what happened.
-	if refusal.Slug == "credits-exhausted" {
-		if token := settings.TokenFor(reg); token != "" {
-			if sub, err := fetchSubscription(r.app.ctx, reg, token); err == nil && sub != nil {
-				v.UpgradeURL = sub.Upgrade.URL
-			}
-		}
-	}
+	// No destination here: the panel asks SettingsAPI.OpenUpgrade for it
+	// at the moment a person clicks, so the registry's answer is checked
+	// against its own origin before anything opens (agentry-enterprise#41).
+	// Carrying the URL in the view would put an unchecked one in the front
+	// end for nobody to use.
 	return v
 }
 

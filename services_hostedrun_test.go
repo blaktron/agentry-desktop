@@ -505,9 +505,10 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	if !strings.Contains(start.Detail, "a run holds 20 credits") || strings.Contains(start.Detail, "{") {
 		t.Fatalf("detail = %q", start.Detail)
 	}
-	if start.UpgradeURL != settings.Normalize(reg)+"/settings/subscription" {
-		t.Fatalf("upgrade = %q", start.UpgradeURL)
-	}
+	// No destination travels in the view: the panel asks
+	// SettingsAPI.OpenUpgrade for it when a person clicks, so what opens
+	// has been checked against the registry's own origin first
+	// (agentry-enterprise#41).
 
 	f.mu.Lock()
 	f.refuse = func(w http.ResponseWriter) {
@@ -521,7 +522,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if start.Refusal != "run-active" || start.UpgradeURL != "" {
+	if start.Refusal != "run-active" {
 		t.Fatalf("refusal = %+v", start)
 	}
 }

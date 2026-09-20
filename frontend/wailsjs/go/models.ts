@@ -884,7 +884,6 @@ export namespace main {
 	    caps?: HostedCapsView;
 	    balance: number;
 	    balanceKnown: boolean;
-	    upgradeUrl?: string;
 	    maxInputFiles: number;
 	    maxInputBytes: number;
 	
@@ -909,7 +908,6 @@ export namespace main {
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
-	        this.upgradeUrl = source["upgradeUrl"];
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
 	    }
@@ -1032,7 +1030,6 @@ export namespace main {
 	    balance?: number;
 	    hold?: number;
 	    resetsAt?: string;
-	    upgradeUrl?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedStartView(source);
@@ -1046,7 +1043,6 @@ export namespace main {
 	        this.balance = source["balance"];
 	        this.hold = source["hold"];
 	        this.resetsAt = source["resetsAt"];
-	        this.upgradeUrl = source["upgradeUrl"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

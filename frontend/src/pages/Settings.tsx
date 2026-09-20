@@ -237,6 +237,25 @@ const STANDING_NOTE: Record<string, string> = {
   decommissioning: "the organization is closing and admits nothing",
 };
 
+// creditsPhrase says what this account has to spend. A member spends from
+// the organization's shared pool rather than their own credits, so the
+// word changes with the thing.
+//
+// The order of the tests matters: a standing that is not active is
+// answered first, because the extension grants an allowance only while
+// the organization is paid for, and an unmetered organization that has
+// lapsed still admits nothing — saying "not metered" there would promise
+// work the registry will refuse.
+function creditsPhrase(sub: main.SubscriptionView): string {
+  const reset = `(a submission costs ${sub.submissionCost}; resets on ${dayOf(sub.periodEnd)})`;
+  if (!sub.memberOf) return `${sub.balance} of ${sub.allowance} credits ${reset}`;
+  if (sub.standing && sub.standing !== "active") {
+    return `pool ${sub.balance} credits, and no allowance while the subscription is not active`;
+  }
+  if (sub.unmetered) return "pool not metered";
+  return `pool ${sub.balance} of ${sub.allowance} credits ${reset}`;
+}
+
 // OrgLine: the memberships the registry reports. They are the core's own
 // facts, so a registry that sells nothing still says which organization a
 // person belongs to and in what role; a membership an admin has yet to
@@ -277,7 +296,6 @@ function OrgLine({ user }: { user: main.UserView }) {
 // subscription page for a person — and the app takes no payment.
 function AccountLine({ account, onUpgrade }: { account: main.AccountView; onUpgrade: () => void }) {
   const sub = account.subscription;
-  const pool = !!sub?.memberOf;
   return (
     <div className="muted small" style={{ marginTop: 4 }}>
       <span className="selectable">{account.user.handle}</span>
@@ -285,15 +303,8 @@ function AccountLine({ account, onUpgrade }: { account: main.AccountView; onUpgr
       {sub && (
         <>
           {" "}· {tierLabel(sub.tier)}
-          {sub.memberOf && <> , through <span className="selectable">{sub.memberOf}</span></>}
-          {" "}·{" "}
-          {pool && sub.unmetered
-            ? "pool not metered"
-            : pool && sub.standing !== "active"
-              ? `pool ${sub.balance} credits, and no allowance while the subscription is not active`
-              : pool
-                ? `pool ${sub.balance} of ${sub.allowance} credits (a submission costs ${sub.submissionCost}; resets on ${dayOf(sub.periodEnd)})`
-                : `${sub.balance} of ${sub.allowance} credits (a submission costs ${sub.submissionCost}; resets on ${dayOf(sub.periodEnd)})`}
+          {sub.memberOf && <>, through <span className="selectable">{sub.memberOf}</span></>}
+          {" "}· {creditsPhrase(sub)}
           {sub.seats && <> · {sub.seats.max > 0 ? `${sub.seats.used} of ${sub.seats.max} seats` : `${sub.seats.used} seats (no cap)`}</>}
           {sub.standing && <> · {STANDING_NOTE[sub.standing] ?? sub.standing}</>}
           {sub.pendingTier && <> · {tierLabel(sub.pendingTier)} from {dayOf(sub.periodEnd)}</>}
@@ -308,7 +319,7 @@ function AccountLine({ account, onUpgrade }: { account: main.AccountView; onUpgr
                     : "Opens the subscription page of the registry's site in your browser"
                 }
               >
-                {sub.upgrade.available ? "Upgrade" : "Manage"}
+                {sub.upgrade.available ? "Upgrade" : sub.upgrade.manage ? "Manage billing" : "The subscription"}
               </Button>
             </>
           )}

@@ -6,6 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // The account on Settings (agentry-desktop#74): the credential's user;
@@ -128,9 +131,56 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 		t.Fatalf("a pending fold-in is sent to %q (%v)", got, err)
 	}
 
+	// End to end, through the method the front end actually calls: it
+	// resolves the destination and opens it, and the front end never names
+	// one. A member is back on the organization's account for this.
+	userDoc = `{"id":"00000000-0000-0000-0000-000000000002","handle":"chris","email":"c@example.test","displayName":"Chris","emailVerified":true,"totpEnabled":false,"createdAt":"2026-01-02T03:04:05Z","orgs":[{"handle":"acme","role":"admin","state":"active"}]}`
+	accountDoc = `{"kind":"org","tier":"business","standing":"active","memberOf":"acme","seats":{"used":3,"max":10},"balance":3960,"allowance":5000,"submissionCost":10,"periodStart":"2026-09-11T00:00:00Z","periodEnd":"2026-10-11T00:00:00Z","tierSince":"2026-09-11T00:00:00Z","privateAgents":{"max":0,"used":4},"upgrade":{"available":false,"manage":true,"url":"` + srv.URL + `/orgs/acme/admin"}}`
 	opened := make(chan string, 1)
-	s := &SettingsAPI{app: app, open: func(u string) error { opened <- u; return nil }}
-	_ = s
+	sapi := &SettingsAPI{app: app, open: func(u string) error { opened <- u; return nil }}
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sapi.OpenUpgrade(srv.URL + "/"); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-opened; got != srv.URL+"/orgs/acme/admin" {
+		t.Fatalf("OpenUpgrade opened %q", got)
+	}
+}
+
+// A registry that sells nothing still reports the memberships, so the app
+// can say which organization a person belongs to and in what role without
+// a word about tiers (the issue: "a core registry shows the organization
+// and role without tier words").
+func TestACoreRegistryStillShowsTheOrganization(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"1","apiVersion":"v1","features":{}}`))
+	})
+	mux.HandleFunc("GET /api/v1/user", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000002","handle":"chris","email":"c@example.test","displayName":"Chris","emailVerified":true,"totpEnabled":false,"createdAt":"2026-01-02T03:04:05Z","orgs":[{"handle":"acme","role":"admin","state":"active"}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	app := &App{ctx: context.Background()}
+
+	u, err := whoami(app, srv.URL, "agy_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(u.Orgs) != 1 || u.Orgs[0].Handle != "acme" || u.Orgs[0].Role != "admin" {
+		t.Fatalf("memberships = %+v", u.Orgs)
+	}
+	// No billing extension, so no subscription and nothing to say about a
+	// tier; the organization above still stands.
+	sub, err := fetchSubscription(context.Background(), srv.URL, "agy_test")
+	if err != nil || sub != nil {
+		t.Fatalf("a core registry: sub=%+v err=%v; want none", sub, err)
+	}
 }
 
 // A registry names the page, so the app checks it before opening it: a

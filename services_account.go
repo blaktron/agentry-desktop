@@ -118,26 +118,40 @@ func (s *SettingsAPI) OpenUpgrade(url string) error {
 	if err != nil {
 		return err
 	}
-	return s.open(page)
+	return s.openExternal(page)
 }
 
 // upgradeDestination asks the registry where this account's subscription
 // is managed and checks the answer before anything opens it.
 func upgradeDestination(ctx context.Context, registryURL, token string) (string, error) {
+	// A registry may be configured with userinfo in its URL, and these
+	// errors are rendered on Settings: name the registry by origin, never
+	// by the credential someone typed into it.
+	named := originOf(registryURL)
 	if token == "" {
-		return "", fmt.Errorf("not signed in to %s", registryURL)
+		return "", fmt.Errorf("not signed in to %s", named)
 	}
 	sub, err := fetchSubscription(ctx, registryURL, token)
 	if err != nil {
 		return "", err
 	}
 	if sub == nil || sub.Upgrade.URL == "" {
-		return "", fmt.Errorf("%s names no page for this subscription", registryURL)
+		return "", fmt.Errorf("%s names no page for this subscription", named)
 	}
 	if !sameOrigin(registryURL, sub.Upgrade.URL) {
-		return "", fmt.Errorf("%s named a subscription page on another site; not opening it", registryURL)
+		return "", fmt.Errorf("%s named a subscription page on another site; not opening it", named)
 	}
 	return sub.Upgrade.URL, nil
+}
+
+// originOf is a URL with any userinfo dropped, for a message a person
+// reads.
+func originOf(raw string) string {
+	u, err := neturl.Parse(raw)
+	if err != nil {
+		return "the registry"
+	}
+	return u.Scheme + "://" + u.Host
 }
 
 // sameOrigin reports whether a registry-named page belongs to that

@@ -73,13 +73,55 @@ g.go = { main: {
   InstallAPI: { ListInstalled: async () => (fresh ? [] : installedRecs), CheckUpdates: async () => [], Forget: async () => undefined },
   BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
   ValidateAPI: { Run: async () => validateResult },
-  // The account line on a signed-in registry's card (agentry-desktop#74):
-  // a Standard account on a registry with subscription tiers.
+  // The account line on a signed-in registry's card (agentry-desktop#74,
+  // and the organization of agentry-desktop#79). The hash picks which
+  // state Settings previews: #account-org is a member of an organization,
+  // whose tier, pool, seats and standing are the organization's;
+  // #account-pending is a fold-in an admin has yet to approve, who still
+  // spends from their own account; anything else is a person on Standard.
+  // The page the Upgrade button opens is the registry's answer, never a
+  // path built here, so the fixture answers one as a registry would.
   SettingsAPI: {
-    Account: async () => ({
-      user: { handle: "chris", displayName: "Chris", email: "chris@example.test" },
-      subscription: { tier: "standard", balance: 40, allowance: 50, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z", privateAgents: { max: 10, used: 4 }, upgradeUrl: "https://secureagentry.net/settings/subscription?upgrade=pro" },
-    }),
+    Account: async () => {
+      const page = "https://secureagentry.net/settings/subscription";
+      if (location.hash === "#account-org") {
+        return {
+          user: {
+            handle: "chris", displayName: "Chris", email: "chris@acme.example",
+            orgs: [{ handle: "acme", role: "admin", state: "active" }],
+          },
+          subscription: {
+            tier: "business", standing: "active", memberOf: "acme",
+            seats: { used: 3, max: 10 },
+            balance: 3960, allowance: 5000, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z",
+            privateAgents: { max: 0, used: 4 },
+            upgrade: { available: false, manage: true, url: "https://secureagentry.net/orgs/acme/admin" },
+          },
+        };
+      }
+      if (location.hash === "#account-pending") {
+        return {
+          user: {
+            handle: "chris", displayName: "Chris", email: "chris@acme.example",
+            orgs: [{ handle: "acme", role: "member", state: "pending" }],
+            pendingOrg: { handle: "acme", displayName: "Acme", via: "domain" },
+          },
+          subscription: {
+            tier: "standard", balance: 40, allowance: 50, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z",
+            privateAgents: { max: 10, used: 4 },
+            upgrade: { available: true, manage: false, url: page },
+          },
+        };
+      }
+      return {
+        user: { handle: "chris", displayName: "Chris", email: "chris@example.test" },
+        subscription: {
+          tier: "standard", balance: 40, allowance: 50, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z",
+          privateAgents: { max: 10, used: 4 },
+          upgrade: { available: true, manage: false, url: page },
+        },
+      };
+    },
     OpenUpgrade: async () => undefined,
   },
   // The "a newer Agentry Desktop" card (agentry-desktop#87). The hash picks
