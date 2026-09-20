@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
+import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } from "../ui";
 import { RuntimeSetup } from "./RuntimeSetup";
@@ -173,6 +174,9 @@ export default function Settings({
         />
         <Button variant="primary" disabled={busy || !newURL.trim()} onClick={addRegistry}>Add</Button>
       </Toolbar>
+      <h2>Agentry Desktop</h2>
+      <SelfUpdateCard />
+
       <p className="muted small selectable">
         Settings file: <span className="mono">{settings.configPath}</span>. Install records and pinned
         signing keys are shared with the CLI under the same directory.
@@ -244,3 +248,89 @@ export function dayOf(iso: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
+
+
+// SelfUpdateCard shows whether a newer Agentry Desktop exists and lets the
+// person stop the app looking (agentry-desktop#87).
+//
+// Notify only, deliberately: there is no Install button here. Applying an
+// update is M7 on Windows and macOS, and on Linux it stays the package
+// manager's job (D7) — so the card says where the release is and leaves the
+// choice where it already was.
+function SelfUpdateCard() {
+  const [view, setView] = useState<main.SelfUpdateView | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    SelfUpdateAPI.SelfUpdateStatus().then(setView).catch(() => setView(null));
+  }, []);
+
+  const run = async (fn: () => Promise<main.SelfUpdateView>) => {
+    setBusy(true);
+    try {
+      setView(await fn());
+    } catch {
+      // The card keeps what it had; a failed read is not worth a dialog.
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!view) return null;
+
+  // A build anyone can make from the open core has no channel to check, which
+  // is a fact to state rather than a failure to report.
+  if (!view.channel) {
+    return (
+      <Card>
+        <div className="muted small">
+          This build has no update channel, so it does not check for a newer Agentry Desktop.
+          Builds from the open core are like this; the ones on the download page are not.
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <label className="row gap">
+        <input
+          type="checkbox"
+          checked={view.enabled}
+          disabled={busy}
+          onChange={(e) => run(() => SelfUpdateAPI.SetSelfUpdateCheckEnabled(e.target.checked))}
+        />
+        <span>Check for newer versions</span>
+      </label>
+      <div className="muted small">
+        On launch and once a day, from <span className="mono">{view.channel}</span>. The signature on
+        a release is checked against the key this build carries before anything is shown.
+      </div>
+
+      {view.available && (
+        <Notice>
+          <strong>Agentry Desktop {view.available.version} is available.</strong>{" "}
+          You are running {view.current}. Signed with the {view.available.signedBy} key
+          {view.available.retired && <> — which has since been retired, so this release is genuine but out of date</>}
+          {"."}{" "}
+          {view.downloadUrl
+            ? <>Get it from <span className="mono selectable">{view.downloadUrl}</span>.</>
+            : <>Get it from the site you downloaded this copy from.</>}{" "}
+          This version does not install it for you.
+        </Notice>
+      )}
+
+      {view.err && <ErrorBox error={`The last check did not complete: ${view.err}`} />}
+
+      {view.enabled && !view.available && !view.err && view.checked && (
+        <div className="muted small">No newer version when last checked.</div>
+      )}
+
+      <Toolbar>
+        <Button disabled={busy || !view.enabled} onClick={() => run(SelfUpdateAPI.SelfUpdateCheckNow)}>
+          {busy ? "Checking…" : "Check now"}
+        </Button>
+      </Toolbar>
+    </Card>
+  );
+}

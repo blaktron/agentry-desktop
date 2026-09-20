@@ -410,7 +410,8 @@ jobs:
             | env -u AGENTRY_UPDATE_SIGNING_KEY "$RUNNER_TEMP/signrelease" \
                 -key - \
                 -in bundle/SHA256SUMS \
-                -comment "agentry-desktop $VERSION (commit ${GITHUB_SHA})"
+                -version "$VERSION" \
+                -commit "${GITHUB_SHA}"
           ls -la bundle/SHA256SUMS.minisig
           cat bundle/SHA256SUMS.minisig
       - name: Remove the signing binary

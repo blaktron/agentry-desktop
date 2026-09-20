@@ -19,7 +19,7 @@
 // argument or an environment variable so it does not reach a process listing.
 //
 //	go run ./internal/cmd/signrelease -key <secret-key-file> -in SHA256SUMS \
-//	  -comment "agentry-desktop 0.2.0 (commit abc1234)"
+//	  -version 0.2.0 -commit abc1234
 //
 // Writes <in>.minisig beside <in>.
 package main
@@ -50,13 +50,24 @@ func run() error {
 		keyPath  = flag.String("key", "", `file holding the minisign secret key, or "-" for standard input (required)`)
 		passPath = flag.String("password-file", "", "file holding the key's password, when the key is password-protected")
 		in       = flag.String("in", "", "file to sign, normally SHA256SUMS (required)")
-		comment  = flag.String("comment", "", "the trusted comment, which is signed along with the file")
+		version  = flag.String("version", "", "the version this release is (required)")
+		commit   = flag.String("commit", "", "the commit it was built from (required)")
 		out      = flag.String("out", "", "signature file to write (default: <in>.minisig)")
 	)
 	flag.Parse()
-	if *keyPath == "" || *in == "" {
+	if *keyPath == "" || *in == "" || *version == "" || *commit == "" {
 		flag.Usage()
-		return errors.New("-key and -in are both required")
+		return errors.New("-key, -in, -version and -commit are all required")
+	}
+	// The comment is formatted by internal/selfupdate, not here and not by the
+	// workflow's shell, because the application PARSES it to learn which
+	// release it is being offered — the manifest is unsigned, so this comment
+	// is the only version statement the key covers. One function writes it and
+	// one reads it, so the two cannot drift; a round-trip check here means a
+	// release cannot be signed with a comment the app would not understand.
+	comment := selfupdate.TrustedComment(*version, *commit)
+	if v, c, err := selfupdate.ParseTrustedComment(comment); err != nil || v != *version || c != *commit {
+		return fmt.Errorf("refusing to sign: %q would not be read back as version %q from commit %q (%v)", comment, *version, *commit, err)
 	}
 	if *out == "" {
 		*out = *in + ".minisig"
@@ -82,7 +93,7 @@ func run() error {
 		return fmt.Errorf("the committed key set is not readable, so this release could not be checked: %w", err)
 	}
 
-	sig, key, err := signAndVerify(priv, message, *comment, carried)
+	sig, key, err := signAndVerify(priv, message, comment, carried)
 	if err != nil {
 		return err
 	}

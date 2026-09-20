@@ -1339,6 +1339,50 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SelfUpdateView {
+	    channel: string;
+	    current: string;
+	    enabled: boolean;
+	    checked?: string;
+	    available?: selfupdate.Release;
+	    err?: string;
+	    downloadUrl?: string;
+	    dismissed?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SelfUpdateView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.channel = source["channel"];
+	        this.current = source["current"];
+	        this.enabled = source["enabled"];
+	        this.checked = source["checked"];
+	        this.available = this.convertValues(source["available"], selfupdate.Release);
+	        this.err = source["err"];
+	        this.downloadUrl = source["downloadUrl"];
+	        this.dismissed = source["dismissed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SessionView {
 	    ref: string;
 	
@@ -1527,6 +1571,29 @@ export namespace mcpvuln {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace selfupdate {
+	
+	export class Release {
+	    version: string;
+	    commit: string;
+	    signedBy: string;
+	    retired: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Release(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.commit = source["commit"];
+	        this.signedBy = source["signedBy"];
+	        this.retired = source["retired"];
+	    }
 	}
 
 }

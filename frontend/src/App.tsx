@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as SettingsAPI from "../wailsjs/go/main/SettingsAPI";
 import { AppVersion } from "../wailsjs/go/main/App";
+import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/main/SelfUpdateAPI";
 import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
@@ -26,6 +27,10 @@ export default function App() {
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
+  // A newer Agentry Desktop, when the last check found one (#87). Reading the
+  // status never starts a check: the app looks on launch and daily in the
+  // background, and this only renders what it found.
+  const [newer, setNewer] = useState<main.SelfUpdateView | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   // The "nothing set up" reminder (plan desktop-installers.md D10): raised
   // when the wizard closed with "I'll do it later", shown on Browse until
@@ -54,6 +59,16 @@ export default function App() {
       .catch(() => setSettings(null));
     AppVersion().then(setVersion).catch(() => {});
   }, [refreshSettings]);
+
+  // The background check writes its result as it finishes, so the chrome asks
+  // again on a slow cadence rather than once: a line that only ever appeared
+  // on the next launch would be a line most people never saw.
+  useEffect(() => {
+    const read = () => SelfUpdateStatus().then(setNewer).catch(() => {});
+    read();
+    const t = setInterval(read, 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Closing the wizard (finished or skipped) marks onboarding done so it
   // does not reopen on the next start; Settings can reopen it on demand.
@@ -91,6 +106,26 @@ export default function App() {
         {navItem("Settings", "settings")}
         <div className="foot">
           {version && <div>v{version}</div>}
+          {newer?.available && !newer.dismissed && (
+            <div className="update-line">
+              <button
+                type="button"
+                onClick={() => setRoute({ page: "settings" })}
+                title={`Agentry Desktop ${newer.available.version} is available — open Settings`}
+              >
+                {newer.available.version} is available
+              </button>
+              <button
+                type="button"
+                className="dismiss"
+                aria-label="Not now"
+                title="Not now — this comes back next time the app starts"
+                onClick={() => DismissSelfUpdate().then(setNewer).catch(() => {})}
+              >
+                ×
+              </button>
+            </div>
+          )}
           <div className="nowrap" title={registry}>{registry.replace(/^https?:\/\//, "")}</div>
         </div>
       </div>

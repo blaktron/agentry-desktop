@@ -58,6 +58,19 @@ type Settings struct {
 	// explicitly skipped. While it is false and no registry is signed in,
 	// the desktop app opens the guided setup on start (agentry-desktop#41).
 	Onboarded bool `yaml:"onboarded,omitempty" json:"onboarded"`
+	// CheckForUpdates is Settings → "Check for newer versions"
+	// (agentry-desktop#87). A POINTER because the default is on and this file
+	// is parsed leniently: absent must mean "on", and a plain bool cannot
+	// tell an absent field from a deliberate false. Read it through
+	// UpdateCheckEnabled rather than dereferencing it.
+	CheckForUpdates *bool `yaml:"checkForUpdates,omitempty" json:"checkForUpdates,omitempty"`
+}
+
+// UpdateCheckEnabled says whether the app should look for a newer Agentry
+// Desktop. Unset means yes: a person who has never opened Settings should
+// still be told a release exists.
+func (s Settings) UpdateCheckEnabled() bool {
+	return s.CheckForUpdates == nil || *s.CheckForUpdates
 }
 
 // Path returns the settings file path.
