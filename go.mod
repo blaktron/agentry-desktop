@@ -3,6 +3,7 @@ module github.com/blaktron/agentry-desktop
 go 1.27.0
 
 require (
+	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.0.0-20260919104125-b92069e21092
 	github.com/blaktron/agentry-cli v0.0.0-20260919181049-6c34d8161ecf

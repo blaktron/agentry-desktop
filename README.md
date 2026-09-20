@@ -147,6 +147,8 @@ away at the flip.
 | Linux amd64 binary, .deb and .rpm (in a container) | `make package-linux` |
 | install both Linux packages in clean containers | `make smoke-linux-packages` |
 | drag the dmg's bundle over an installed copy (macOS) | `make smoke-darwin-dmg` |
+| what update-signing keys this build trusts | `go run ./internal/cmd/keyset list` |
+| load a new update-signing key (operator) | `scripts/operator/update-signing-key.sh` |
 | the version every target stamps | `make version` |
 | does this tag name `wails.json`'s version? | `make version-check RELEASE_TAG=v0.1.0` |
 
@@ -256,7 +258,8 @@ version in `wails.json`, and a tag whose pins of the core or the CLI are
 behind their default branches (the desktop reads files the CLI writes;
 D-020). It then builds every platform artifact — Windows and Linux on the
 Linux runner, the universal macOS bundle and its dmg on the Mac — writes
-`SHA256SUMS` over them, and uploads the set as one workflow artifact named
+`SHA256SUMS` over them, signs those sums with the estate's own update-signing
+key (below), and uploads the set as one workflow artifact named
 `agentry-desktop-<version>`. `BUILD-INFO`, covered by the sums, names the
 commit, the event (a tag push, or a `workflow_dispatch` dry run the site's
 importer refuses), `signed=false`, and the registry the build connects to
@@ -265,6 +268,51 @@ the jobs check the URL is really in the binaries). Between tags the bundle
 metadata keeps the last `productVersion` while the binary reports the
 describe string; only a tagged build has one version everywhere, which is
 what a release is.
+
+### The release is signed with our own key
+
+`SHA256SUMS` in the bundle is signed, and `SHA256SUMS.minisig` travels beside
+it. That signature is the trust root for "a newer Agentry Desktop": the app will
+check it before it replaces itself (M6, #87). It is **our** key, not the
+operating system's — independent of Developer ID signing (#6) and
+Authenticode (#54), which secure a different thing and are not needed for this
+to work. The site's downloads importer does **not** verify it yet; that is
+blaktron/agentry-web#154, and it has to land before the first signed release
+is published, because the importer as it stands refuses a bundle carrying a
+file it does not know.
+
+- `internal/selfupdate/keys.json` is the set of keys a build trusts: each with
+  a name, its public half, its key id and whether it is retired. A retired key
+  still *verifies*, so an old release stays checkable, and callers refuse to
+  *install* from one — that is what makes a rotation a release rather than a
+  reinstall. A build with an empty set trusts nothing and refuses every update,
+  which is the correct state for the open core.
+- `internal/cmd/signrelease` signs in the release job and then verifies what it
+  wrote against that committed key set, using `internal/selfupdate` — the same
+  code the app uses. A release whose signature a shipped app would refuse
+  therefore fails the release instead of shipping, which is the mistake a
+  rotation invites: a new secret without the matching public half committed.
+- The private half is a repository Actions secret,
+  `AGENTRY_UPDATE_SIGNING_KEY`. It is an environment variable on the signing
+  step — as an Actions secret must be to reach a step at all — and from there
+  it is piped to the signer on standard input, so it is never written to the
+  runner's disk; `env -u` drops it from the signer's own environment, and it
+  reaches no command-line flag, so it is not in a process listing. Nothing on
+  the Mac ever sees it: the macOS job builds, it does not sign.
+- **`scripts/operator/update-signing-key.sh`** is how a key is loaded, and the
+  only supported way: it generates the pair on the machine running it, sets the
+  secret, writes the public half into the key set with
+  `internal/cmd/keyset`, and never prints the private half. It also offers a
+  password-protected backup, which matters for `prod`: a GitHub secret can be
+  replaced but never read back, so without one the private half exists nowhere
+  reachable. Run it once for `dev` (#110) and again for `prod` on
+  operator-held hardware at launch (#111, labelled `launch-prerequisite`),
+  retiring `dev` in the same run.
+
+Until a key has been loaded, `internal/selfupdate/keys.json` is empty and the
+release workflow **refuses every tag** — it will not publish a release no
+shipped app could check. A `workflow_dispatch` dry run warns and skips signing
+instead, so the rest of the release path stays exercisable.
 
 No GitHub Release is created before 1.0 (operator, 2026-09-19): the site's
 downloads builder imports the bundle from the run and the download page is
