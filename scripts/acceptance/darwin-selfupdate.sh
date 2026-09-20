@@ -49,10 +49,21 @@ printf 'defaultAdapter: docker-agent\n' > "$AGENTRY_RUNNER_HOME/policy.yaml"
 snapshot() { (cd "$work" && find config runner -type f -exec shasum -a 256 {} + | sort); }
 before=$(snapshot)
 
-echo "== 3. the swap, exactly as internal/selfupdate does it"
-# ditto to unpack and a rename to swap: the same two operations
-# apply_darwin.go performs, driven here so the acceptance tests the shape the
-# code has rather than a shape of its own.
+echo "== 3. the swap, by the code that ships"
+# go test, not a re-implementation. An earlier version of this script did its
+# own ditto and its own two renames, and would have passed with
+# apply_darwin.go deleted — which makes it a description of the design rather
+# than a test of it. internal/selfupdate's darwin tests drive the real
+# darwinApplier against a real ad-hoc-signed bundle: the swap, that it
+# replaces rather than merges, that nothing is left in the Applications
+# folder, that an unwritable parent is refused, that an archive holding two
+# applications is refused, and that quitting does not relaunch.
+go test ./internal/selfupdate/ -run TestDarwinApplier -count=1 -v 2>&1 \
+  | sed -n 's/^--- /   /p' || fail "the applier's own tests did not pass"
+
+# The swap once more, here, so that steps 5 and 6 observe a real application
+# being replaced beside a real configuration. A second observation of the same
+# operation, not the proof of it — step 3 is the proof.
 stage="$apps/.staged"
 rm -rf "$stage"; mkdir "$stage"
 ditto -x -k "$new_zip" "$stage"
@@ -87,25 +98,12 @@ echo "== 6. nothing is left beside the application"
 outside=$(cd "$apps" && find . -name '*.app' -prune -o -print | grep -v '^\.$' || true)
 [ -z "$outside" ] || { printf '%s\n' "$outside" >&2; fail "the swap left something beside the bundle"; }
 
-echo "== 7. a copy the person cannot replace is refused, not elevated"
-# The refusal the invariant turns on: read-only parent, so creating the
-# staging directory fails. The app must say so; it must never ask for a
-# password. Run as root this cannot be observed, and says so.
-if [ "$(id -u)" = 0 ]; then
-  echo "   SKIPPED: running as root, which can write anything"
-else
-  ro="$work/ReadOnlyApplications"
-  mkdir -p "$ro"
-  ditto "$old_app" "$ro/$(basename "$old_app")"
-  chmod 500 "$ro"
-  if ( mktemp "$ro/.probe.XXXXXX" >/dev/null 2>&1 ); then
-    chmod 700 "$ro"
-    fail "a read-only Applications folder was writable, so the refusal could not be tested"
-  fi
-  chmod 700 "$ro"
-  echo "   a read-only parent refuses the staging directory, which is what Ready() reports"
-fi
+# The unwritable parent, the two-bundle archive and "do not relaunch on quit"
+# are covered by the Go tests step 3 ran, against the real applier. They are
+# not restated in bash here: a bash restatement would prove nothing the Go
+# tests did not, and would be one more thing that could pass while the code
+# was wrong.
 
 echo
-echo "darwin-selfupdate: ok — the swap replaced the bundle, the settings, the installed agents, the pinned key and the runner policy are byte-identical, nothing was left beside the application, and an unwritable parent refuses."
-echo "NOT proven here: the relaunch. Applying ends with 'open -n' on the new bundle, which needs a console session; this runner has none (agentry-desktop#106), so the app was never launched and never quit."
+echo "darwin-selfupdate: ok — internal/selfupdate's darwin tests passed against the REAL applier (swap, replace not merge, nothing left behind, unwritable parent refused, two-bundle archive refused, no relaunch when not asked), and a swap in a real Applications folder left the settings, the installed agents, the pinned key and the runner policy byte-identical."
+echo "NOT proven here: the relaunch. Applying ends with 'open -n' on the new bundle, which needs a console session; this runner has none (agentry-desktop#106). The Go test observes the exec that WOULD have run, not the window that would have opened."

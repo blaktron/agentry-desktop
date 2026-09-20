@@ -17,6 +17,6 @@ func newApplier() Applier { return notApplicable{} }
 
 func (notApplicable) Ready() error { return ErrNotApplicable }
 
-func (notApplicable) Apply(string) error {
+func (notApplicable) Apply(string, bool) error {
 	return fmt.Errorf("%w", ErrNotApplicable)
 }

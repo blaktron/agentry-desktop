@@ -14,7 +14,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -318,23 +317,40 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 // On success this does not return: the platform applier replaces the
 // application and relaunches it.
 func (u *SelfUpdateAPI) InstallSelfUpdate() (*SelfUpdateView, error) {
+	return u.install(true)
+}
+
+func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
+	// Claimed under ONE lock: reading "am I busy" and then setting it under a
+	// second lock lets two presses — or a press racing the quit hook — both
+	// see false and both proceed.
 	u.mu.Lock()
 	rel := u.last.Available
-	busy := u.applying
-	u.mu.Unlock()
-
-	if busy {
+	if u.applying {
+		u.mu.Unlock()
 		return u.SelfUpdateStatus()
 	}
+	u.applying = true
+	u.mu.Unlock()
+	defer func() {
+		u.mu.Lock()
+		u.applying = false
+		u.mu.Unlock()
+	}()
+
 	if rel == nil {
 		return nil, errors.New("there is no newer Agentry Desktop to install; check again first")
 	}
-	// A retired key proves an old release genuine and authorises nothing.
-	// This is the second place that rule is enforced — signrelease is the
-	// first — because this is the place where getting it wrong installs
-	// something.
-	if rel.Retired {
-		return nil, fmt.Errorf("this release was signed with the %s key, which has since been retired: it is genuine but out of date, and this version will not install from it", rel.SignedBy)
+	// The whole verification again, over the same bytes, through the call
+	// that refuses a retired key on its own. Not a read of rel.Retired: that
+	// was decided when the check ran, and this is the operation where
+	// forgetting to read it installs something (D-026).
+	keys, err := u.keys()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := rel.AuthoriseInstall(keys); err != nil {
+		return nil, err
 	}
 	if err := u.applier.Ready(); err != nil {
 		return nil, err
@@ -343,15 +359,6 @@ func (u *SelfUpdateAPI) InstallSelfUpdate() (*SelfUpdateView, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	u.mu.Lock()
-	u.applying = true
-	u.mu.Unlock()
-	defer func() {
-		u.mu.Lock()
-		u.applying = false
-		u.mu.Unlock()
-	}()
 
 	dir, err := os.MkdirTemp("", "agentry-selfupdate-*")
 	if err != nil {
@@ -367,7 +374,7 @@ func (u *SelfUpdateAPI) InstallSelfUpdate() (*SelfUpdateView, error) {
 	}
 	// Past here the application is replaced and this process ends, so there
 	// is no view to return on success.
-	if err := u.applier.Apply(path); err != nil {
+	if err := u.applier.Apply(path, relaunch); err != nil {
 		return nil, err
 	}
 	return u.SelfUpdateStatus()
@@ -400,7 +407,10 @@ func (u *SelfUpdateAPI) applyOnQuit() {
 	if err != nil || !s.InstallUpdatesOnQuit {
 		return
 	}
-	if _, err := u.InstallSelfUpdate(); err != nil {
+	// relaunch=false: the person is quitting. Reopening the application they
+	// just closed, because it happened to install an update on the way out,
+	// would be the opposite of what they asked for.
+	if _, err := u.install(false); err != nil {
 		return
 	}
 }

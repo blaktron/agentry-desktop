@@ -62,7 +62,7 @@ func (a *darwinApplier) Ready() error {
 	return writableDir(filepath.Dir(bundle))
 }
 
-func (a *darwinApplier) Apply(zipPath string) error {
+func (a *darwinApplier) Apply(zipPath string, relaunch bool) error {
 	bundle, err := a.bundlePath()
 	if err != nil {
 		return err
@@ -111,6 +111,14 @@ func (a *darwinApplier) Apply(zipPath string) error {
 		return err
 	}
 
+	// Removed here, not by the defer above: the exec below replaces this
+	// process, so no defer of ours runs and the staging directory would be
+	// left inside the Applications folder after every successful update.
+	_ = os.RemoveAll(stage)
+
+	if !relaunch {
+		return nil
+	}
 	// Relaunch by execing `open`, which starts the new copy as a fresh
 	// application and lets this process exit. Not exec of the new binary
 	// directly: that would inherit this process's session and the window

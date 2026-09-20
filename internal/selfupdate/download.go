@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -161,4 +162,21 @@ func Download(ctx context.Context, client *http.Client, manifestURL string, a Ar
 // has a verified release in hand.
 func (r *Release) ThisPlatform() (Artifact, error) {
 	return ArtifactFor(r.Checksums, r.Version, runtime.GOOS, runtime.GOARCH)
+}
+
+// AuthoriseInstall re-runs the whole verification and returns the key that
+// authorises installing this release.
+//
+// Re-running it rather than reading Release.Retired is the point. That field
+// was set when the check ran, which may have been a day ago in a process that
+// has been asleep; and a boolean a caller has to remember to read is the
+// shape D-026 replaced with a function precisely because it is forgettable.
+// Installing is the operation where forgetting it installs something, so the
+// question is asked again, of the same bytes, through the call that refuses a
+// retired key on its own.
+func (r *Release) AuthoriseInstall(keys *KeySet) (Key, error) {
+	if r.Checksums == "" || r.Signature == "" {
+		return Key{}, errors.New("this release was not carried with its checksums and signature, so it cannot be re-verified before installing")
+	}
+	return keys.VerifyForInstall([]byte(r.Checksums), []byte(r.Signature))
 }

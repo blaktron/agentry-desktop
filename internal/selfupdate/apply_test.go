@@ -111,7 +111,7 @@ func TestLinuxApplierRefuses(t *testing.T) {
 	if err := a.Ready(); !errors.Is(err, ErrNotApplicable) {
 		t.Errorf("Ready() = %v, want ErrNotApplicable", err)
 	}
-	if err := a.Apply("/tmp/whatever"); !errors.Is(err, ErrNotApplicable) {
+	if err := a.Apply("/tmp/whatever", true); !errors.Is(err, ErrNotApplicable) {
 		t.Errorf("Apply() = %v, want ErrNotApplicable", err)
 	}
 }

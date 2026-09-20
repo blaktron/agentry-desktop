@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // windowsApplier runs the release's per-user setup executable silently.
@@ -51,7 +52,7 @@ func (a *windowsApplier) Ready() error {
 	return writableDir(dir)
 }
 
-func (a *windowsApplier) Apply(setupPath string) error {
+func (a *windowsApplier) Apply(setupPath string, relaunch bool) error {
 	dir, err := a.dir()
 	if err != nil {
 		return err
@@ -65,9 +66,21 @@ func (a *windowsApplier) Apply(setupPath string) error {
 
 	// /S is NSIS's silent flag, and /D sets the install directory so the
 	// update lands where this copy already is rather than at the default —
-	// the same reason the installer records InstallLocation (M2). /D must be
-	// last and unquoted: that is NSIS's rule, not a style choice.
-	cmd := exec.Command(setupPath, "/S", "/D="+dir) //nolint:gosec // a path this process verified and wrote
+	// the same reason the installer records InstallLocation (M2).
+	//
+	// The command line is built by hand because NSIS requires /D to be LAST,
+	// UNQUOTED and absolute, and Go's argument escaping does the opposite:
+	// the default install directory is %LOCALAPPDATA%\Programs\Agentry
+	// Desktop, which contains a space, so exec.Command would emit
+	// "/D=C:\...\Agentry Desktop" — quoted, which NSIS documents as
+	// unsupported and silently ignores. Ignoring it would install to the
+	// default location instead of over this copy, leaving two installations.
+	// A trailing backslash would also break it, so it is trimmed.
+	target := strings.TrimRight(dir, `\`)
+	cmd := exec.Command(setupPath) //nolint:gosec // a path this process verified and wrote
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CmdLine: fmt.Sprintf(`"%s" /S /D=%s`, setupPath, target),
+	}
 	cmd.Dir = filepath.Dir(setupPath)
 
 	start := a.start
@@ -82,11 +95,21 @@ func (a *windowsApplier) Apply(setupPath string) error {
 	// that is about to run, and Windows holds a running executable open. It
 	// is written under the user's temp directory, which Windows cleans.
 	//
-	// The installer replaces this executable, so this process gets out of the
-	// way rather than waiting: it cannot be running from the file being
-	// overwritten. The installer relaunches the app when it finishes, which
-	// is what the "Launch Agentry Desktop" page of the NSIS script does under
-	// /S as well.
-	os.Exit(0)
+	// This process then gets out of the way rather than waiting, because
+	// Windows will not let the installer overwrite an executable that is
+	// still running — and the installer relaunches the app itself, from the
+	// .onInstSuccess of project.nsi, which fires under /S where the finish
+	// page does not. Without relaunch, it is the caller's business to exit;
+	// the app is quitting anyway.
+	//
+	// UNVERIFIED, and this is the honest statement of it: none of this has
+	// run on Windows. The estate has no Windows runner (#55, a launch
+	// prerequisite), so the sequence above — silent install over a running
+	// copy, then relaunch — is reasoned from NSIS's documented behaviour and
+	// has never been observed. The acceptance in
+	// scripts/acceptance/windows-install.ps1 is where it gets observed.
+	if relaunch {
+		os.Exit(0)
+	}
 	return nil
 }

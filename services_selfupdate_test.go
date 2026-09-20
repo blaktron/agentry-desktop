@@ -345,11 +345,13 @@ type fakeApplier struct {
 	// appliers consume the file and never return, so a test that read it
 	// afterwards would be reading something that no longer exists.
 	bytes    []byte
+	relaunch bool
 	applyErr error
 }
 
 func (f *fakeApplier) Ready() error { return f.ready }
-func (f *fakeApplier) Apply(path string) error {
+func (f *fakeApplier) Apply(path string, relaunch bool) error {
+	f.relaunch = relaunch
 	f.applied = path
 	f.bytes, _ = os.ReadFile(path)
 	return f.applyErr

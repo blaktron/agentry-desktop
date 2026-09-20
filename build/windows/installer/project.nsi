@@ -61,6 +61,18 @@ ManifestDPIAware true
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch ${INFO_PRODUCTNAME}"
 
+# A SILENT install is the application updating itself (agentry-desktop#88).
+# /S skips every page, including the finish page whose MUI_FINISHPAGE_RUN
+# above is what normally reopens the app — so without this the person who
+# pressed "Install and relaunch" would be left with nothing running. The
+# relaunch has to happen here instead, and only when silent, or an
+# interactive install would open the app twice.
+Function .onInstSuccess
+  ${If} ${Silent}
+    Exec '"$INSTDIR\${PRODUCT_EXECUTABLE}"'
+  ${EndIf}
+FunctionEnd
+
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
 # No EULA page: the licence is the repository's; the installer asks only installer-shaped questions (plan §4).
 !insertmacro MUI_PAGE_DIRECTORY # In which folder install page.

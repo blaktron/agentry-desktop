@@ -59,9 +59,15 @@ type Release struct {
 	// Retired is true when that key has been replaced. The release is still
 	// genuinely ours; M7 will refuse to install from it.
 	Retired bool `json:"retired"`
-	// Checksums is the release's SHA256SUMS, verified, kept so that M7 can
-	// check a downloaded artifact against it without fetching it again.
+	// Checksums is the release's SHA256SUMS, verified, kept so that the
+	// install can check a downloaded artifact against it without fetching it
+	// again.
 	Checksums string `json:"-"`
+	// Signature is the signature over those checksums, kept for the same
+	// reason and for a better one: installing re-runs the verification rather
+	// than trusting Retired, a field set when the check ran. See
+	// AuthoriseInstall.
+	Signature string `json:"-"`
 }
 
 // Manifest is the part of the downloads manifest an update check reads.
@@ -199,6 +205,7 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 		SignedBy:  key.Name,
 		Retired:   key.Retired,
 		Checksums: string(sums),
+		Signature: string(sig),
 	}, nil
 }
 

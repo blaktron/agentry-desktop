@@ -43,9 +43,12 @@ type Applier interface {
 	// it could not. Called before anything is downloaded, so that a person is
 	// not made to wait for a download that was never going to be installable.
 	Ready() error
-	// Apply installs the verified artifact at path and relaunches. It does not
-	// return on success.
-	Apply(path string) error
+	// Apply installs the verified artifact at path. With relaunch it reopens
+	// the application and does not return on success; without it the
+	// application is replaced and this process is left to exit, which is what
+	// "install when I quit" wants — reopening what the person just closed
+	// would be the opposite of what they asked.
+	Apply(path string, relaunch bool) error
 }
 
 // writableDir reports whether this process can create and remove a file in
@@ -77,8 +80,15 @@ func writableDir(dir string) error {
 // new directory over the old one is not a single operation on any platform
 // this runs on, so the old one is moved ASIDE first: if putting the new one
 // in place then fails, the old one is moved back and the person still has a
-// working application. The alternative — delete then copy — has a window in
-// which a failure leaves no application at all.
+// working application. The alternative — delete then copy — leaves nothing
+// at all if it fails partway.
+//
+// It is not atomic, and nothing here can make it so. If the process is killed
+// between the two renames, dst does not exist and the old copy is sitting at
+// dst+".replaced-*"; the message on the rollback path names that location for
+// exactly this reason. Two renames is the smallest window available without a
+// filesystem that can exchange directories, which neither APFS nor NTFS
+// offers through Go.
 //
 // Both paths must be on the same filesystem, which they are: the caller
 // stages the new copy beside the old one for exactly this reason.
