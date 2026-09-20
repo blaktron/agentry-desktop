@@ -120,6 +120,7 @@ export namespace build {
 	    digest: string;
 	    detail?: string;
 	    refusal?: string;
+	    account?: string;
 	    findingCounts?: {[key: string]: number};
 	
 	    static createFrom(source: any = {}) {
@@ -133,6 +134,7 @@ export namespace build {
 	        this.digest = source["digest"];
 	        this.detail = source["detail"];
 	        this.refusal = source["refusal"];
+	        this.account = source["account"];
 	        this.findingCounts = source["findingCounts"];
 	    }
 	}
@@ -459,8 +461,42 @@ export namespace installed {
 
 export namespace main {
 	
+	export class UpgradeRef {
+	    available: boolean;
+	    manage: boolean;
+	    url?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpgradeRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.manage = source["manage"];
+	        this.url = source["url"];
+	    }
+	}
+	export class Seats {
+	    used: number;
+	    max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Seats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.used = source["used"];
+	        this.max = source["max"];
+	    }
+	}
 	export class SubscriptionView {
 	    tier: string;
+	    standing?: string;
+	    unmetered?: boolean;
+	    seats?: Seats;
+	    memberOf?: string;
 	    balance: number;
 	    allowance: number;
 	    submissionCost: number;
@@ -468,7 +504,7 @@ export namespace main {
 	    pendingTier?: string;
 	    // Go type: struct { Max int64 "json:\"max\""; Used int64 "json:\"used\"" }
 	    privateAgents: any;
-	    upgradeUrl?: string;
+	    upgrade: UpgradeRef;
 	
 	    static createFrom(source: any = {}) {
 	        return new SubscriptionView(source);
@@ -477,13 +513,17 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.tier = source["tier"];
+	        this.standing = source["standing"];
+	        this.unmetered = source["unmetered"];
+	        this.seats = this.convertValues(source["seats"], Seats);
+	        this.memberOf = source["memberOf"];
 	        this.balance = source["balance"];
 	        this.allowance = source["allowance"];
 	        this.submissionCost = source["submissionCost"];
 	        this.periodEnd = source["periodEnd"];
 	        this.pendingTier = source["pendingTier"];
 	        this.privateAgents = this.convertValues(source["privateAgents"], Object);
-	        this.upgradeUrl = source["upgradeUrl"];
+	        this.upgrade = this.convertValues(source["upgrade"], UpgradeRef);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -504,10 +544,44 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class PendingOrgView {
+	    handle: string;
+	    displayName: string;
+	    via: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingOrgView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.displayName = source["displayName"];
+	        this.via = source["via"];
+	    }
+	}
+	export class OrgMembership {
+	    handle: string;
+	    role: string;
+	    state?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OrgMembership(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.role = source["role"];
+	        this.state = source["state"];
+	    }
+	}
 	export class UserView {
 	    handle: string;
 	    displayName: string;
 	    email: string;
+	    orgs?: OrgMembership[];
+	    pendingOrg?: PendingOrgView;
 	
 	    static createFrom(source: any = {}) {
 	        return new UserView(source);
@@ -518,7 +592,27 @@ export namespace main {
 	        this.handle = source["handle"];
 	        this.displayName = source["displayName"];
 	        this.email = source["email"];
+	        this.orgs = this.convertValues(source["orgs"], OrgMembership);
+	        this.pendingOrg = this.convertValues(source["pendingOrg"], PendingOrgView);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class AccountView {
 	    user: UserView;
@@ -790,7 +884,6 @@ export namespace main {
 	    caps?: HostedCapsView;
 	    balance: number;
 	    balanceKnown: boolean;
-	    upgradeUrl?: string;
 	    maxInputFiles: number;
 	    maxInputBytes: number;
 	
@@ -815,7 +908,6 @@ export namespace main {
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
-	        this.upgradeUrl = source["upgradeUrl"];
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
 	    }
@@ -938,7 +1030,6 @@ export namespace main {
 	    balance?: number;
 	    hold?: number;
 	    resetsAt?: string;
-	    upgradeUrl?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedStartView(source);
@@ -952,7 +1043,6 @@ export namespace main {
 	        this.balance = source["balance"];
 	        this.hold = source["hold"];
 	        this.resetsAt = source["resetsAt"];
-	        this.upgradeUrl = source["upgradeUrl"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1075,6 +1165,8 @@ export namespace main {
 	        this.features = source["features"];
 	    }
 	}
+	
+	
 	export class PrereqView {
 	    dockerOk: boolean;
 	    dockerErr?: string;
@@ -1339,6 +1431,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class SelfUpdateView {
 	    channel: string;
 	    current: string;
@@ -1515,6 +1608,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	
 

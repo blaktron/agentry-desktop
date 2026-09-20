@@ -130,11 +130,37 @@ func (s *SettingsAPI) SetDefault(url string) (*SettingsView, error) {
 	return settingsView()
 }
 
-// UserView is the signed-in identity.
+// UserView is the signed-in identity, with the organizations it belongs
+// to. Those are the core's own facts — every registry answers them,
+// whether or not it sells anything — so a membership shows on Settings
+// even where there are no tiers to speak of (plan
+// organization-subscriptions.md §8, M12).
 type UserView struct {
+	Handle      string          `json:"handle"`
+	DisplayName string          `json:"displayName"`
+	Email       string          `json:"email"`
+	Orgs        []OrgMembership `json:"orgs,omitempty"`
+	// PendingOrg is the organization waiting to approve this person: its
+	// domain folded them in, or its directory provisioned them. They hold
+	// no seat and spend from their own account until an admin approves
+	// them, so the app says so rather than showing a membership.
+	PendingOrg *PendingOrgView `json:"pendingOrg,omitempty"`
+}
+
+// OrgMembership is one membership: the organization, the role in it, and
+// whether it is in force ("active") or waiting for an admin ("pending").
+type OrgMembership struct {
+	Handle string `json:"handle"`
+	Role   string `json:"role"`
+	State  string `json:"state,omitempty"`
+}
+
+// PendingOrgView names the door a pending fold-in came through, so the
+// app can say why this organization is asking for them.
+type PendingOrgView struct {
 	Handle      string `json:"handle"`
 	DisplayName string `json:"displayName"`
-	Email       string `json:"email"`
+	Via         string `json:"via"`
 }
 
 // SignInResult reports a completed sign-in.
@@ -207,7 +233,20 @@ func whoami(app *App, url, token string) (*UserView, error) {
 		return nil, registry.Problem("sign in", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
 	}
 	u := resp.JSON200
-	return &UserView{Handle: u.Handle, DisplayName: u.DisplayName, Email: u.Email}, nil
+	v := &UserView{Handle: u.Handle, DisplayName: u.DisplayName, Email: u.Email}
+	if u.Orgs != nil {
+		for _, o := range *u.Orgs {
+			m := OrgMembership{Handle: o.Handle, Role: o.Role}
+			if o.State != nil {
+				m.State = string(*o.State)
+			}
+			v.Orgs = append(v.Orgs, m)
+		}
+	}
+	if u.PendingOrg != nil {
+		v.PendingOrg = &PendingOrgView{Handle: u.PendingOrg.Handle, DisplayName: u.PendingOrg.DisplayName, Via: string(u.PendingOrg.Via)}
+	}
+	return v, nil
 }
 
 // MetaView is a registry's self-description.

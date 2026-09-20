@@ -36,7 +36,7 @@ const availability = {
   signedIn: true, extension: true, enabled: true, workersOnline: 1, queued: 2,
   tier: "standard", holdCredits: 20, tokensPerCredit: 1000,
   caps: { timeoutSeconds: 300, maxTurns: 20, maxTokens: 20000 },
-  balance: 46, balanceKnown: true, upgradeUrl: "https://secureagentry.net/settings/subscription?upgrade=pro",
+  balance: 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
 };
 
