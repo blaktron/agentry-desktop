@@ -21,10 +21,10 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +53,8 @@ func main() {
 		err = list()
 	case "add":
 		err = add(os.Args[2:])
+	case "protect":
+		err = protect(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -72,50 +74,31 @@ func usage() {
   keyset generate -name <name> -out <dir>    generate a pair; the private half is written 0600 and never printed
   keyset list                                 print the keys this build trusts
   keyset add -name <name> -public <line> [-note <text>] [-retire-current]
+  keyset protect -key <file> -out <file> -password-stdin    write a password-protected backup of a key
 
 scripts/operator/update-signing-key.sh drives these in the right order.
 `)
 }
 
-// doc mirrors keys.json. The comment block is kept as raw JSON so that
-// rewriting the file preserves the explanation at the top of it verbatim: a
-// tool that silently ate the documentation of the thing it edits would be worse
-// than hand-editing.
-type doc struct {
-	Comment json.RawMessage `json:"_comment,omitempty"`
-	Keys    []entry         `json:"keys"`
-}
+// The file's shape is internal/selfupdate's, not this command's: one definition
+// means a new field cannot be added to the reader and forgotten in the writer.
 
-type entry struct {
-	Name      string `json:"name"`
-	PublicKey string `json:"publicKey"`
-	KeyID     string `json:"keyID"`
-	Retired   bool   `json:"retired"`
-	AddedAt   string `json:"addedAt,omitempty"`
-	Note      string `json:"note,omitempty"`
-}
-
-func readDoc() (*doc, error) {
+func readDoc() (*selfupdate.KeyFile, error) {
 	raw, err := os.ReadFile(keysPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s (run this from the root of an agentry-desktop clone): %w", keysPath, err)
 	}
-	var d doc
-	if err := json.Unmarshal(raw, &d); err != nil {
-		return nil, fmt.Errorf("%s is not readable: %w", keysPath, err)
-	}
-	return &d, nil
+	return selfupdate.ParseFile(raw)
 }
 
-// writeDoc validates before it writes. The parser it validates with is the one
-// the application uses, so "keyset wrote it" and "the app can read it" are the
-// same statement rather than two hopes.
-func writeDoc(d *doc) error {
-	out, err := json.MarshalIndent(d, "", "  ")
+// writeDoc validates before it writes, with the parser the application uses, so
+// that "keyset wrote it" and "the app can read it" are one statement rather
+// than two hopes.
+func writeDoc(d *selfupdate.KeyFile) error {
+	out, err := d.Marshal()
 	if err != nil {
 		return err
 	}
-	out = append(out, '\n')
 	if _, err := selfupdate.NewKeySet(out); err != nil {
 		return fmt.Errorf("refusing to write a key set the application could not read: %w", err)
 	}
@@ -185,13 +168,21 @@ func generate(args []string) error {
 }
 
 func list() error {
-	set, err := selfupdate.Carried()
+	// The file on disk, not selfupdate.Carried(): `add` writes the file, so a
+	// `list` that read the embedded copy would report on a different source
+	// than it edits — true only for as long as `go run` happens to rebuild
+	// after the embed changes, and quietly wrong for a compiled binary.
+	doc, err := readDoc()
+	if err != nil {
+		return err
+	}
+	set, err := doc.KeySet()
 	if err != nil {
 		return err
 	}
 	keys := set.Keys()
 	if len(keys) == 0 {
-		fmt.Println("  (none: this build trusts no release, and the release workflow refuses every tag)")
+		fmt.Printf("  (none in %s: a build made from this tree accepts no release, and the release workflow refuses every tag)\n", keysPath)
 		return nil
 	}
 	for _, k := range keys {
@@ -243,7 +234,7 @@ func add(args []string) error {
 			d.Keys[i].Retired = true
 		}
 	}
-	d.Keys = append(d.Keys, entry{
+	d.Keys = append(d.Keys, selfupdate.KeyEntry{
 		Name:      *name,
 		PublicKey: pub.String(),
 		KeyID:     fmt.Sprintf("%016X", pub.ID()),
@@ -256,6 +247,59 @@ func add(args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "keyset: added %q (%016X) to %s\n", *name, pub.ID(), keysPath)
 	return nil
+}
+
+// protect writes a password-protected copy of an existing secret key, for the
+// backup the wizard offers. It matters most for the production key: a GitHub
+// Actions secret can be replaced but never read back, so without a copy the
+// private half exists nowhere reachable, and losing it means every installed
+// copy of the app stops accepting releases until its owner downloads a fresh
+// one by hand.
+//
+// The password arrives on standard input, never as a flag (a process listing)
+// or an environment variable (inherited by every child).
+func protect(args []string) error {
+	fs := flag.NewFlagSet("protect", flag.ExitOnError)
+	keyPath := fs.String("key", "", "the unencrypted secret key to protect (required)")
+	out := fs.String("out", "", "where to write the password-protected copy (required)")
+	stdin := fs.Bool("password-stdin", false, "read the password from standard input (required)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *keyPath == "" || *out == "" || !*stdin {
+		return errors.New("-key, -out and -password-stdin are all required")
+	}
+
+	raw, err := os.ReadFile(*keyPath)
+	if err != nil {
+		return fmt.Errorf("reading the key to protect: %w", err)
+	}
+	var priv minisign.PrivateKey
+	if err := priv.UnmarshalText([]byte(strings.TrimSpace(string(raw)))); err != nil {
+		return fmt.Errorf("%s is not an unencrypted minisign secret key: %w", filepath.Base(*keyPath), err)
+	}
+	pass, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("reading the password: %w", err)
+	}
+	password := strings.TrimRight(string(pass), "\r\n")
+	if password == "" {
+		return errors.New("an empty password would protect nothing")
+	}
+	sealed, err := minisign.EncryptKey(password, priv)
+	if err != nil {
+		return fmt.Errorf("protecting the key: %w", err)
+	}
+	// O_EXCL: never silently replace a backup that is already there.
+	f, err := os.OpenFile(*out, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("creating the backup: %w", err)
+	}
+	if _, err := f.Write(sealed); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("writing the backup: %w", err)
+	}
+	return f.Close()
 }
 
 func validName(name string) error {

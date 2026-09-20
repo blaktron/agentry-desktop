@@ -3,6 +3,7 @@ module github.com/blaktron/agentry-desktop
 go 1.27.0
 
 require (
+	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.0.0-20260919104125-b92069e21092
 	github.com/blaktron/agentry-cli v0.0.0-20260919181049-6c34d8161ecf
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	aead.dev/minisign v0.3.0 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect

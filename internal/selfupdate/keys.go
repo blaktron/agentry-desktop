@@ -92,24 +92,59 @@ var (
 	ErrBadSignature = errors.New("the signature does not match the bytes it covers")
 )
 
+// KeyEntry is one key as keys.json carries it. It is the ONE definition of that
+// file's shape: internal/cmd/keyset reads and writes through this type too, so
+// a field cannot be added in one place and forgotten in the other.
+type KeyEntry struct {
+	Name      string `json:"name"`
+	PublicKey string `json:"publicKey"`
+	KeyID     string `json:"keyID"`
+	Retired   bool   `json:"retired"`
+	AddedAt   string `json:"addedAt,omitempty"`
+	Note      string `json:"note,omitempty"`
+}
+
+// KeyFile is keys.json itself. The comment block is kept as raw JSON so that a
+// tool rewriting the file preserves the explanation at the top of it verbatim.
+type KeyFile struct {
+	Comment json.RawMessage `json:"_comment,omitempty"`
+	Keys    []KeyEntry      `json:"keys"`
+}
+
+// ParseFile reads keys.json without interpreting it, for a tool that means to
+// edit it. Use NewKeySet to get something that can verify.
+func ParseFile(data []byte) (*KeyFile, error) {
+	var f KeyFile
+	if err := json.Unmarshal(data, &f); err != nil {
+		return nil, fmt.Errorf("the update-signing key set is not readable: %w", err)
+	}
+	return &f, nil
+}
+
+// Marshal writes the file back in the shape it is committed in.
+func (f *KeyFile) Marshal() ([]byte, error) {
+	out, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
+}
+
 // NewKeySet parses a key set from the JSON shape keys.json documents. It is
 // exported so a test can build a set from keys it generated, and so the site's
 // tooling has one definition of the file to read.
 func NewKeySet(data []byte) (*KeySet, error) {
-	var doc struct {
-		Keys []struct {
-			Name      string `json:"name"`
-			PublicKey string `json:"publicKey"`
-			KeyID     string `json:"keyID"`
-			Retired   bool   `json:"retired"`
-			AddedAt   string `json:"addedAt"`
-			Note      string `json:"note"`
-		} `json:"keys"`
+	doc, err := ParseFile(data)
+	if err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("the update-signing key set is not readable: %w", err)
-	}
+	return doc.KeySet()
+}
 
+// KeySet turns a parsed file into something that can verify, refusing a file
+// that contradicts itself.
+func (f *KeyFile) KeySet() (*KeySet, error) {
+	doc := f
 	set := &KeySet{}
 	seenName := map[string]bool{}
 	seenID := map[string]bool{}
@@ -183,6 +218,15 @@ func (s *KeySet) Verify(message, signature []byte) (Key, error) {
 	if err := sig.UnmarshalText(signature); err != nil {
 		return Key{}, fmt.Errorf("the signature file is not a minisign signature: %w", err)
 	}
+	// The algorithm byte is not covered by either signature in the file, and
+	// minisign's verifier reacts to it: a signature marked HashEdDSA is checked
+	// against BLAKE2b-512 of the message instead of the message. We only ever
+	// emit EdDSA, so anything else is either a file we did not make or a byte
+	// somebody changed, and the cheapest correct answer to both is to refuse
+	// before any of it is interpreted.
+	if sig.Algorithm != minisign.EdDSA {
+		return Key{}, fmt.Errorf("%w: it is marked algorithm %#04x, and releases of this product are signed with EdDSA (%#04x)", ErrBadSignature, sig.Algorithm, minisign.EdDSA)
+	}
 	for _, k := range s.keys {
 		if minisign.Verify(k.pub, message, signature) {
 			return k, nil
@@ -195,6 +239,31 @@ func (s *KeySet) Verify(message, signature []byte) (Key, error) {
 		}
 	}
 	return Key{}, fmt.Errorf("%w: it claims key %s, and this build carries %s", ErrUnknownKey, claimed, s.describe())
+}
+
+// ErrRetiredKey means the signature is genuine but was made by a key that has
+// been replaced. It is its own error because the two answers are different: the
+// release is really ours, and it must still not be installed.
+var ErrRetiredKey = errors.New("the signature was made by a key that has since been retired")
+
+// VerifyForInstall is Verify plus the one policy decision this package is
+// willing to make: a retired key may prove an old release genuine, and may
+// never authorise installing anything.
+//
+// It exists so that authorising an install is a DIFFERENT CALL from checking a
+// signature, rather than a field a caller has to remember to look at. Verify
+// returning (Key, error) makes `if _, err := Verify(...); err == nil { install }`
+// compile and silently accept a retired key; that shape is the bug this
+// function is here to make unwritable.
+func (s *KeySet) VerifyForInstall(message, signature []byte) (Key, error) {
+	key, err := s.Verify(message, signature)
+	if err != nil {
+		return key, err
+	}
+	if key.Retired {
+		return key, fmt.Errorf("%w: %s", ErrRetiredKey, key)
+	}
+	return key, nil
 }
 
 // describe names the keys a build carries, for the one error message where a

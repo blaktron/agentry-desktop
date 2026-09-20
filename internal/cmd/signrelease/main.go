@@ -28,6 +28,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,7 +47,7 @@ func main() {
 
 func run() error {
 	var (
-		keyPath  = flag.String("key", "", "file holding the minisign secret key (required)")
+		keyPath  = flag.String("key", "", `file holding the minisign secret key, or "-" for standard input (required)`)
 		passPath = flag.String("password-file", "", "file holding the key's password, when the key is password-protected")
 		in       = flag.String("in", "", "file to sign, normally SHA256SUMS (required)")
 		comment  = flag.String("comment", "", "the trusted comment, which is signed along with the file")
@@ -106,15 +107,17 @@ func run() error {
 func signAndVerify(priv minisign.PrivateKey, message []byte, comment string, carried *selfupdate.KeySet) ([]byte, selfupdate.Key, error) {
 	sig := minisign.SignWithComments(priv, message, comment, "signed by the agentry-desktop release workflow")
 
-	key, err := carried.Verify(message, sig)
-	if err != nil {
-		if errors.Is(err, selfupdate.ErrNoKeys) {
-			return nil, key, fmt.Errorf("this release was signed, but internal/selfupdate/keys.json carries no public key, so no build of the app could verify it: run scripts/operator/update-signing-key.sh and commit the key set (%w)", err)
-		}
+	// VerifyForInstall, not Verify: a release is exactly the thing a retired key
+	// must not authorise, and asking through this call means the rule is not a
+	// field this function has to remember to read.
+	key, err := carried.VerifyForInstall(message, sig)
+	switch {
+	case errors.Is(err, selfupdate.ErrNoKeys):
+		return nil, key, fmt.Errorf("this release was signed, but internal/selfupdate/keys.json carries no public key, so no build of the app could verify it: run scripts/operator/update-signing-key.sh and commit the key set (%w)", err)
+	case errors.Is(err, selfupdate.ErrRetiredKey):
+		return nil, key, fmt.Errorf("this release was signed with %s, which internal/selfupdate/keys.json marks retired: a retired key may prove an old release genuine, never authorise a new one (%w)", key, err)
+	case err != nil:
 		return nil, key, fmt.Errorf("the signature this just wrote does not verify against the committed key set: the signing key and internal/selfupdate/keys.json are not two halves of one pair (%w)", err)
-	}
-	if key.Retired {
-		return nil, key, fmt.Errorf("this release was signed with %s, which internal/selfupdate/keys.json marks retired: a retired key may prove an old release genuine, never authorise a new one", key)
 	}
 	return sig, key, nil
 }
@@ -136,11 +139,27 @@ func signAndVerify(priv minisign.PrivateKey, message []byte, comment string, car
 // child process and most crash reporters.
 func readKey(keyPath, passPath string) (minisign.PrivateKey, error) {
 	var priv minisign.PrivateKey
-	raw, err := os.ReadFile(keyPath)
+	var raw []byte
+	var err error
+	name := filepath.Base(keyPath)
+	if keyPath == "-" {
+		// "-" is standard input, which is how the release workflow hands the
+		// key over: piped in, so it is never written to the runner host's disk
+		// and never sits in a file some later step could read.
+		name = "the key on standard input"
+		raw, err = io.ReadAll(os.Stdin)
+	} else {
+		raw, err = os.ReadFile(keyPath)
+	}
 	if err != nil {
 		return priv, fmt.Errorf("reading the signing key: %w", err)
 	}
-	name := filepath.Base(keyPath)
+	// A key that has been through a file, a clipboard or a secret store usually
+	// has a newline on it that the key itself does not.
+	raw = []byte(strings.TrimSpace(string(raw)))
+	if len(raw) == 0 {
+		return priv, fmt.Errorf("%s is empty", name)
+	}
 
 	if !minisign.IsEncrypted(raw) {
 		if passPath != "" {

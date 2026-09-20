@@ -123,7 +123,7 @@ finish() {
 # Set TOTAL_STAGES to the number of stages you wrote.
 
 
-TOTAL_STAGES=6
+TOTAL_STAGES=7
 
 # ---------------------------------------------------------------------------
 # Agentry Desktop: load an update-signing key.
@@ -150,8 +150,11 @@ REPO="blaktron/agentry-desktop"
 SECRET_NAME="AGENTRY_UPDATE_SIGNING_KEY"
 WORK=""
 
-cleanup_keys() { [ -n "$WORK" ] && rm -rf "$WORK"; }
-trap cleanup_keys EXIT INT TERM
+cleanup_keys() { [ -n "$WORK" ] && rm -rf "$WORK"; return 0; }
+# INT and TERM must EXIT, not just clean up: a bare handler would delete the
+# pair and let the script carry on to `gh secret set` with nothing to read.
+trap cleanup_keys EXIT
+trap 'cleanup_keys; printf "\n"; die "interrupted; nothing was changed"' INT TERM
 
 stage "Where you are, and what you are about to make"
 [ -f "$KEYS_JSON" ] || die "run this from the root of an agentry-desktop clone ($KEYS_JSON is not here)"
@@ -179,18 +182,19 @@ case "$KEY_NAME" in
   *[!a-z0-9-]*) die "a key name is lower-case letters, digits and hyphens: '$KEY_NAME' is not" ;;
 esac
 
-stage "Password on the private half?"
-say "The private half is about to become a GitHub Actions secret. A password on"
-say "it would be a SECOND Actions secret in the same store, and anything able to"
-say "read one can read the other — so for a key that lives in CI a password adds"
-say "ceremony rather than protection, and the release workflow expects none."
+stage "Why the copy in CI carries no password"
+say "The private half is about to become a GitHub Actions secret, which the"
+say "release workflow reads with nobody present. A password on it would have to"
+say "be a SECOND Actions secret in the same store, and anything able to read one"
+say "can read the other, so it would add ceremony rather than protection. What"
+say "protects that copy instead: it is piped to the signer on standard input,"
+say "never written to the runner's disk, and dropped from the signer's own"
+say "environment."
 say ""
-say "If you are making a key that will ALSO live on your own hardware and you"
-say "want it password-protected there, say no here and protect your own copy"
-say "separately; the copy in CI still has to be password-free."
+say "The next stage offers you a SEPARATE backup copy, and that one can carry a"
+say "password. Nothing here is a choice you have to make now."
 say ""
-KEY_PASSWORD=""
-confirm "generate the CI copy WITHOUT a password (recommended)?"
+confirm "understood — generate the key?"
 
 stage "Generate the pair"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/agentry-signing.XXXXXX")
@@ -203,6 +207,42 @@ say ""
 step "public key: $PUBLIC_LINE"
 step "key id:     $KEY_ID"
 note "the private half is in $WORK and has not been printed"
+
+stage "Keep a backup of the private half"
+say "The wizard is about to hand this key to GitHub, where it can be REPLACED"
+say "but never read back, and then delete its own copy. If you keep nothing"
+say "here, the private half exists nowhere you can reach."
+say ""
+say "For 'dev' that is an accepted loss: losing it costs a rotation and a"
+say "re-release, nothing more. For 'prod' it is not — losing it means every"
+say "installed copy of the app stops accepting new releases until its owner"
+say "downloads a fresh one by hand."
+say ""
+BACKUP_PATH=""
+read -r -p "  path for a password-protected backup (empty to keep none): " BACKUP_PATH
+if [ -n "$BACKUP_PATH" ]; then
+  [ -e "$BACKUP_PATH" ] && die "$BACKUP_PATH already exists; move it aside and re-run"
+  ask_secret "password for the backup" BACKUP_PASSWORD
+  BACKUP_PASSWORD2=""
+  ask_secret "password again" BACKUP_PASSWORD2
+  [ "$BACKUP_PASSWORD" = "$BACKUP_PASSWORD2" ] || die "the two passwords differ"
+  ( umask 077; go run ./internal/cmd/keyset protect \
+      -key "$WORK/$KEY_NAME.key" -out "$BACKUP_PATH" -password-stdin <<<"$BACKUP_PASSWORD" ) \
+    || die "could not write the backup"
+  step "wrote $BACKUP_PATH (0600, password-protected)"
+  note "Keep it somewhere that survives the loss of this machine."
+  note "To use it later: internal/cmd/signrelease -key $BACKUP_PATH -password-file <file>"
+  SUMMARY+=("password-protected backup -> $BACKUP_PATH")
+  BACKUP_PASSWORD=""; BACKUP_PASSWORD2=""
+else
+  if [ "$KEY_NAME" != "dev" ]; then
+    warn "No backup of a key named '$KEY_NAME'. If you lose the Actions secret,"
+    warn "every installed copy needs a manual download to get moving again."
+    confirm "really keep no backup?"
+  else
+    note "no backup kept; for 'dev' that loss is accepted (D15)"
+  fi
+fi
 
 stage "Load the private half into GitHub"
 say "This replaces the current $SECRET_NAME secret on $REPO."

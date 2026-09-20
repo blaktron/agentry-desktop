@@ -376,10 +376,15 @@ jobs:
       # — the mistake rotation invites, a new secret without the matching
       # public half committed.
       #
-      # The key reaches a job-scoped file and nothing else: not a flag, not an
-      # environment variable a child process would inherit. It is removed in
-      # an always() step below, and nothing after this uses it. No signing key
-      # ever reaches the runner host or the Mac.
+      # Where the key goes, precisely, because the loose version of this
+      # sentence is the kind that ages into a lie. The secret is an env var on
+      # THIS STEP, as an Actions secret must be to reach a step at all. From
+      # there it is piped on standard input to signrelease and never written to
+      # disk, so nothing on the runner host holds it and no later step could
+      # read a file it left; `env -u` drops it from the signing process's own
+      # environment, so the compiled child and anything it might run cannot
+      # read it either. It reaches no flag, so it is not in a process listing.
+      # After this step ends, the variable is gone with the step's shell.
       #
       # SHA256SUMS.minisig is deliberately NOT inside SHA256SUMS: a signature
       # cannot cover itself. The completeness loop above ran before this step,
@@ -390,26 +395,27 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${AGENTRY_UPDATE_SIGNING_KEY}" ]; then
-            msg="No AGENTRY_UPDATE_SIGNING_KEY secret, so this release could not be signed and no app would install it. Run scripts/operator/update-signing-key.sh to create the key, load the secret and commit the public half (agentry-desktop#86)."
+            msg="No AGENTRY_UPDATE_SIGNING_KEY secret, so this release could not be signed and no app would install it. Run scripts/operator/update-signing-key.sh to create the key, load the secret and commit the public half (agentry-desktop#86, #110)."
             if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
               echo "::warning::dry run without a signing key: $msg"
               exit 0
             fi
             echo "::error::$msg"; exit 1
           fi
-          umask 077
-          keyfile="$RUNNER_TEMP/update-signing.key"
-          printf '%s' "${AGENTRY_UPDATE_SIGNING_KEY}" > "$keyfile"
-          go run ./internal/cmd/signrelease \
-            -key "$keyfile" \
-            -in bundle/SHA256SUMS \
-            -comment "agentry-desktop $VERSION (commit ${GITHUB_SHA})"
-          rm -f "$keyfile"
+          # Built first, so that `go run`'s own compile output cannot interleave
+          # with the key on the pipe, and so the pipeline below is one process
+          # reading one thing.
+          go build -o "$RUNNER_TEMP/signrelease" ./internal/cmd/signrelease
+          printf '%s' "${AGENTRY_UPDATE_SIGNING_KEY}" \
+            | env -u AGENTRY_UPDATE_SIGNING_KEY "$RUNNER_TEMP/signrelease" \
+                -key - \
+                -in bundle/SHA256SUMS \
+                -comment "agentry-desktop $VERSION (commit ${GITHUB_SHA})"
           ls -la bundle/SHA256SUMS.minisig
           cat bundle/SHA256SUMS.minisig
-      - name: Remove the job-scoped signing key
+      - name: Remove the signing binary
         if: always()
-        run: rm -f "$RUNNER_TEMP/update-signing.key"
+        run: rm -f "$RUNNER_TEMP/signrelease"
       - uses: actions/upload-artifact@v4
         with:
           name: agentry-desktop-${{ needs.preflight.outputs.version }}

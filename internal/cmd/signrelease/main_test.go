@@ -2,9 +2,7 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +11,7 @@ import (
 	"aead.dev/minisign"
 
 	"github.com/blaktron/agentry-desktop/internal/selfupdate"
+	"github.com/blaktron/agentry-desktop/internal/selfupdate/keystest"
 )
 
 // These cover what the release workflow's signing step cannot be made to prove
@@ -20,41 +19,11 @@ import (
 // loaded one there is nothing in CI to exercise it with. Generated keys let the
 // same logic run on every change.
 
-func keyAnd(t *testing.T, name string, retired bool) (minisign.PrivateKey, map[string]any) {
-	t.Helper()
-	pub, priv, err := minisign.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("GenerateKey: %v", err)
-	}
-	return priv, map[string]any{
-		"name":      name,
-		"publicKey": pub.String(),
-		"keyID":     fmt.Sprintf("%016X", pub.ID()),
-		"retired":   retired,
-	}
-}
-
-func setOf(t *testing.T, entries ...map[string]any) *selfupdate.KeySet {
-	t.Helper()
-	if entries == nil {
-		entries = []map[string]any{}
-	}
-	raw, err := json.Marshal(map[string]any{"keys": entries})
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	set, err := selfupdate.NewKeySet(raw)
-	if err != nil {
-		t.Fatalf("NewKeySet: %v", err)
-	}
-	return set
-}
-
 var sums = []byte("aa1f56ffcb84076209f4e5cf3eb0282c  agentry-desktop-0.2.0-darwin-universal.dmg\n")
 
 func TestSignAndVerifyProducesASignatureTheAppAccepts(t *testing.T) {
-	priv, entry := keyAnd(t, "prod", false)
-	set := setOf(t, entry)
+	priv, entry := keystest.Key(t, "prod", false)
+	set := keystest.Set(t, entry)
 
 	sig, key, err := signAndVerify(priv, sums, "agentry-desktop 0.2.0 (commit abc1234)", set)
 	if err != nil {
@@ -82,9 +51,9 @@ func TestSignAndVerifyProducesASignatureTheAppAccepts(t *testing.T) {
 // secret while the matching public half was never committed. Signing succeeds;
 // the release is useless. This must fail the release, not ship it.
 func TestSignAndVerifyRefusesAKeyThatIsNotTheCommittedOnesOtherHalf(t *testing.T) {
-	stranger, _ := keyAnd(t, "not-committed", false)
-	_, committed := keyAnd(t, "prod", false)
-	set := setOf(t, committed)
+	stranger, _ := keystest.Key(t, "not-committed", false)
+	_, committed := keystest.Key(t, "prod", false)
+	set := keystest.Set(t, committed)
 
 	_, _, err := signAndVerify(stranger, sums, "x", set)
 	if err == nil {
@@ -98,8 +67,8 @@ func TestSignAndVerifyRefusesAKeyThatIsNotTheCommittedOnesOtherHalf(t *testing.T
 // A retired key may prove an OLD release genuine; it must never authorise a new
 // one, or retiring a key would mean nothing.
 func TestSignAndVerifyRefusesARetiredKey(t *testing.T) {
-	priv, entry := keyAnd(t, "dev", true)
-	set := setOf(t, entry)
+	priv, entry := keystest.Key(t, "dev", true)
+	set := keystest.Set(t, entry)
 
 	_, _, err := signAndVerify(priv, sums, "x", set)
 	if err == nil {
@@ -111,9 +80,9 @@ func TestSignAndVerifyRefusesARetiredKey(t *testing.T) {
 }
 
 func TestSignAndVerifyRefusesWhenTheBuildCarriesNoKey(t *testing.T) {
-	priv, _ := keyAnd(t, "prod", false)
+	priv, _ := keystest.Key(t, "prod", false)
 
-	_, _, err := signAndVerify(priv, sums, "x", setOf(t))
+	_, _, err := signAndVerify(priv, sums, "x", keystest.Set(t))
 	if !errors.Is(err, selfupdate.ErrNoKeys) {
 		t.Fatalf("err = %v, want ErrNoKeys", err)
 	}
@@ -130,9 +99,9 @@ func TestNoSignatureIsWrittenWhenVerificationFails(t *testing.T) {
 	if err := os.WriteFile(in, sums, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	stranger, _ := keyAnd(t, "stranger", false)
+	stranger, _ := keystest.Key(t, "stranger", false)
 
-	sig, _, err := signAndVerify(stranger, sums, "x", setOf(t))
+	sig, _, err := signAndVerify(stranger, sums, "x", keystest.Set(t))
 	if err == nil {
 		t.Fatal("expected a refusal")
 	}
@@ -217,4 +186,53 @@ func TestReadKeyHandlesBothKeyShapes(t *testing.T) {
 			t.Error("a password was silently ignored, which hides a mismatched key")
 		}
 	})
+}
+
+// The release workflow pipes the key on standard input so it never reaches the
+// runner host's disk. That path has no secret to exercise it in CI, so it is
+// exercised here.
+func TestReadKeyFromStandardInput(t *testing.T) {
+	_, priv, err := minisign.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := priv.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// With the trailing newline a shell, a secret store or an editor adds, and
+	// which the key itself does not carry.
+	for _, suffix := range []string{"", "\n", "\r\n"} {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			_, _ = w.Write(append(append([]byte{}, text...), []byte(suffix)...))
+			_ = w.Close()
+		}()
+		saved := os.Stdin
+		os.Stdin = r
+		got, err := readKey("-", "")
+		os.Stdin = saved
+		_ = r.Close()
+		if err != nil {
+			t.Fatalf("readKey(\"-\") with suffix %q: %v", suffix, err)
+		}
+		if !got.Equal(priv) {
+			t.Errorf("suffix %q: the key read back is not the key written", suffix)
+		}
+	}
+}
+
+func TestReadKeyRefusesAnEmptyKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.key")
+	if err := os.WriteFile(path, []byte("   \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readKey(path, ""); err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("err = %v, want an empty-key refusal", err)
+	}
 }
