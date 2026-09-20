@@ -152,7 +152,14 @@ jobs:
           set -a; . build/release.env; set +a
           : "${AGENTRY_DEFAULT_REGISTRY:?build/release.env must set AGENTRY_DEFAULT_REGISTRY}"
           echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
-          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
+          # The update channel is the same site's downloads manifest: on
+          # SecureAgentry the edge serves the registry and the downloads from
+          # one host (plan §7, D5), so one line decides both and they cannot
+          # drift apart. A build that baked a registry but no channel would
+          # check nothing and say nothing, which is the quietest way for this
+          # feature not to exist (agentry-desktop#87).
+          echo "AGENTRY_UPDATE_CHANNEL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
+          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins
@@ -199,6 +206,7 @@ jobs:
           # -X on a symbol that moved fails silently; the URL must be in the binaries.
           for f in dist/agentry-desktop-"$VERSION"-linux-amd64 dist/agentry-desktop-"$VERSION"-windows-amd64.exe; do
             grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" "$f" || { echo "::error::$f does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
+            grep -q -a -F "$AGENTRY_UPDATE_CHANNEL" "$f" || { echo "::error::$f does not carry the update channel $AGENTRY_UPDATE_CHANNEL, so it would never look for a newer release"; exit 1; }
           done
           # The installer carries the same exe (make package-windows checked
           # the bytes) and the deb and rpm carry the same Linux binary (the
@@ -263,7 +271,14 @@ jobs:
           set -a; . build/release.env; set +a
           : "${AGENTRY_DEFAULT_REGISTRY:?build/release.env must set AGENTRY_DEFAULT_REGISTRY}"
           echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
-          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
+          # The update channel is the same site's downloads manifest: on
+          # SecureAgentry the edge serves the registry and the downloads from
+          # one host (plan §7, D5), so one line decides both and they cannot
+          # drift apart. A build that baked a registry but no channel would
+          # check nothing and say nothing, which is the quietest way for this
+          # feature not to exist (agentry-desktop#87).
+          echo "AGENTRY_UPDATE_CHANNEL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
+          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       # -skipbindings: the checked-in bindings, checked current in
@@ -280,6 +295,7 @@ jobs:
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/bin/agentry-desktop.app/Contents/Info.plist
           grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
+          grep -q -a -F "$AGENTRY_UPDATE_CHANNEL" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry the update channel $AGENTRY_UPDATE_CHANNEL, so it would never look for a newer release"; exit 1; }
       # Uploaded before the smoke, not after: a smoke that goes red fails the
       # release, and that is exactly when someone wants the image to look at.
       # The bundle job needs this one to have succeeded, so nothing a failed

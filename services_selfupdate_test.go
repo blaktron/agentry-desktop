@@ -306,3 +306,30 @@ func TestDownloadPageIsDerivedFromTheChannel(t *testing.T) {
 		}
 	}
 }
+
+// A channel that answers but publishes nothing signed is its own state. It is
+// what a site with nothing released yet looks like, and also what a channel
+// withholding a release looks like — so it is shown rather than folded into
+// "up to date" (D-027).
+func TestSelfUpdateReportsAChannelWithNothingSigned(t *testing.T) {
+	configHome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"desktop": map[string]any{"version": "0.1.0"}})
+	}))
+	defer srv.Close()
+
+	u := api(t, srv.URL+"/downloads/manifest.json", keystest.Set(t), srv.Client())
+	got, err := u.SelfUpdateCheckNow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Nothing {
+		t.Error("a channel with nothing signed was not reported as such")
+	}
+	if got.Err != "" {
+		t.Errorf("it was shown as a failure instead: %q", got.Err)
+	}
+	if got.Available != nil {
+		t.Error("a release was offered")
+	}
+}

@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"sync"
@@ -33,8 +34,8 @@ const (
 )
 
 // SelfUpdateView is what the chrome line and the Settings card render. It is
-// a snapshot of the last check, never a live one: the frontend asking must
-// not be able to start network traffic on the interface thread.
+// a snapshot of the last check: SelfUpdateStatus never starts one, so a paint
+// costs nothing. "Check now" does start one, because the person asked.
 type SelfUpdateView struct {
 	// Channel is the manifest URL this build checks, empty in a build of the
 	// open core — which is a state Settings shows, not a failure.
@@ -59,6 +60,10 @@ type SelfUpdateView struct {
 	// this build checks, derived from the channel rather than configured
 	// separately — one fewer thing to point at the wrong place.
 	DownloadURL string `json:"downloadUrl,omitempty"`
+	// Nothing is set when the channel answered but publishes no signed
+	// release at all. Distinct from "nothing newer", because they are
+	// different facts and only one of them means the channel is working.
+	Nothing bool `json:"nothing,omitempty"`
 	// Dismissed is set by "Not now": the chrome line goes until the next
 	// launch. Deliberately not written to the settings file — a person saying
 	// "not now" is saying it about today, and D-019's banner has the same
@@ -90,6 +95,12 @@ type SelfUpdateAPI struct {
 
 	channel string
 	keys    func() (*selfupdate.KeySet, error)
+
+	// checking serialises checks. Without it the daily round and a "Check
+	// now" race to finish, and the one that happens to finish LAST wins —
+	// so a slow failure could overwrite a fresh success and the card would
+	// show an error that is no longer true.
+	checking sync.Mutex
 
 	mu   sync.Mutex
 	last SelfUpdateView
@@ -203,7 +214,10 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 	if !u.enabled() {
 		return
 	}
-	v := SelfUpdateView{Checked: u.now().UTC().Format(time.RFC3339)}
+	u.checking.Lock()
+	defer u.checking.Unlock()
+
+	var v SelfUpdateView
 
 	keys, err := u.keys()
 	if err != nil {
@@ -212,16 +226,29 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 		// Not an error to show as one: a build of the open core has no
 		// channel by design, and Settings says so from Channel being empty.
 		v = SelfUpdateView{}
-	} else {
+	} else { //nolint:revive // the branch below is the whole of the work
 		ctx, cancel := context.WithTimeout(ctx, selfUpdateTimeout)
 		defer cancel()
 		rel, cerr := selfupdate.Check(ctx, u.client, u.channel, version.Version, keys)
 		switch {
+		case errors.Is(cerr, selfupdate.ErrNothingSigned):
+			// Said plainly rather than shown as a failure: a site with
+			// nothing signed yet is the ordinary case today, and a person
+			// should still be able to tell it apart from "you are up to
+			// date" (D-027).
+			v.Nothing = true
 		case cerr != nil:
 			v.Err = cerr.Error()
 		case rel != nil:
 			v.Available = rel
 		}
+	}
+
+	// Stamped when the round FINISHED, not when it started: "checked at" is a
+	// statement about an answer, and an answer that took three seconds to
+	// arrive did not arrive three seconds ago.
+	if v.Channel != "" || v.Err != "" || v.Available != nil || u.channel != "" {
+		v.Checked = u.now().UTC().Format(time.RFC3339)
 	}
 
 	u.mu.Lock()

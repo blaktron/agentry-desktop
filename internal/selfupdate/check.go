@@ -9,10 +9,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
 	"crypto/sha256"
+
+	"aead.dev/minisign"
 )
 
 // ManifestURL is the update channel this build was made for: the downloads
@@ -29,6 +32,12 @@ var ManifestURL = ""
 // ErrNoChannel means this build has no update channel, which is a state to
 // report rather than a failure to retry.
 var ErrNoChannel = errors.New("this build has no update channel, so it cannot check for a newer Agentry Desktop")
+
+// ErrNothingSigned means the channel answered but published no signed
+// release. Ordinarily that is simply a site with nothing to offer yet; it is
+// also indistinguishable from a channel withholding one, which is why it is
+// reported rather than treated as "up to date".
+var ErrNothingSigned = errors.New("the update channel publishes no signed release")
 
 // Release is a release the channel is offering, as far as the signature
 // proves it. Version and Commit are covered by the estate's key; the rest
@@ -100,6 +109,11 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 	if client == nil {
 		client = &http.Client{Timeout: 3 * time.Second}
 	}
+	// Redirects are followed only within the channel's own origin. Without
+	// this, every check below binds the FIRST hop and nothing else: a 302 from
+	// the channel would send the app to any host, over any scheme, and the
+	// careful refusals above would have bound nothing at all.
+	client = withSameOriginRedirects(client, base)
 
 	var m Manifest
 	body, err := fetch(ctx, client, base.String())
@@ -110,9 +124,17 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 		return nil, fmt.Errorf("the update channel did not answer with a manifest: %w", err)
 	}
 	if m.Desktop.Checksums == nil || m.Desktop.Signature == nil {
-		// The site publishes both or neither (agentry-web#154). Neither means
-		// there is nothing signed to offer, which is not an error to show.
-		return nil, nil
+		// The site publishes both or neither (agentry-web#154), so neither
+		// normally means there is nothing signed yet — not an error.
+		//
+		// It is also what a hostile channel would serve to keep someone on an
+		// old version for ever: withholding is the one thing a signature
+		// cannot prevent, here and in every update channel that has ever
+		// existed. ErrNothingSigned rather than a silent "up to date" is what
+		// this package can do about it — Settings shows the state, so a
+		// channel that has gone quiet is visible instead of indistinguishable
+		// from good news. D-027 records the limit.
+		return nil, ErrNothingSigned
 	}
 
 	sums, err := fetchSidecar(ctx, client, base, m.Desktop.Checksums.File)
@@ -123,26 +145,30 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 	// catches a truncated or mis-served file early, with a clearer message
 	// than a signature failure would give. It proves nothing on its own — the
 	// manifest is unsigned — which is why the signature is checked too.
-	if want := strings.ToLower(strings.TrimSpace(m.Desktop.Checksums.SHA256)); want != "" {
-		got := sha256.Sum256(sums)
-		if hex.EncodeToString(got[:]) != want {
-			return nil, fmt.Errorf("the release's checksums are not the file the channel describes")
-		}
+	if err := describes(sums, m.Desktop.Checksums.Size, m.Desktop.Checksums.SHA256, "checksums"); err != nil {
+		return nil, err
 	}
 	sig, err := fetchSidecar(ctx, client, base, m.Desktop.Signature.File)
 	if err != nil {
 		return nil, fmt.Errorf("reading the release's signature: %w", err)
+	}
+	if err := describes(sig, m.Desktop.Signature.Size, "", "signature"); err != nil {
+		return nil, err
 	}
 
 	key, err := keys.Verify(sums, sig)
 	if err != nil {
 		return nil, fmt.Errorf("the release the channel offers is not one this build accepts: %w", err)
 	}
-	comment, err := trustedComment(sig)
-	if err != nil {
-		return nil, err
+	// The library already parsed the comment while verifying its signature;
+	// reading the file a second time here would be a second parser to
+	// disagree with the first, which is how a verifier and its caller end up
+	// believing different things about the same bytes.
+	var parsed minisign.Signature
+	if err := parsed.UnmarshalText(sig); err != nil {
+		return nil, fmt.Errorf("the release's signature verified but could not be read back: %w", err)
 	}
-	version, commit, err := ParseTrustedComment(comment)
+	version, commit, err := ParseTrustedComment(parsed.TrustedComment)
 	if err != nil {
 		return nil, err
 	}
@@ -174,20 +200,74 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 // manifest is unsigned input, so a name in it that climbed to another host or
 // another path would be the manifest choosing what this app fetches.
 func fetchSidecar(ctx context.Context, client *http.Client, base *url.URL, name string) ([]byte, error) {
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		return nil, errors.New("the channel names no file")
-	}
-	if strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
-		return nil, fmt.Errorf("the channel names %q, which is not a plain file name beside the manifest", name)
 	}
 	ref, err := base.Parse(name)
 	if err != nil {
 		return nil, fmt.Errorf("the channel names %q, which is not a usable file name: %w", name, err)
 	}
-	if ref.Host != base.Host || ref.Scheme != base.Scheme {
+	// Containment is checked on the DECODED path, and the decoded path must
+	// already be clean. Neither half is optional, and the reason is worth
+	// keeping because it is not obvious:
+	//
+	// Go resolves a reference against the ESCAPED path, so "%2e%2e%2fSUMS"
+	// stays one literal segment here and looks perfectly contained — while
+	// the server that receives it decodes it to "../SUMS" and serves
+	// something else. Comparing directories on the escaped form therefore
+	// proves nothing about what will actually be fetched. Comparing on the
+	// decoded form (url.Path) sees "/downloads/../SUMS", whose cleaned
+	// directory is "/", and refuses it.
+	//
+	// Requiring the decoded path to equal its own cleaned form then refuses
+	// anything that needed normalising at all — "SUMS%2f..%2fother" resolves
+	// inside the directory but is not the file it appears to name, and a
+	// manifest has no reason to name a file that way.
+	if ref.Scheme != base.Scheme || ref.Host != base.Host {
 		return nil, fmt.Errorf("the channel names %q, which is not on the channel's own host", name)
 	}
+	if ref.RawQuery != "" || ref.Fragment != "" {
+		return nil, fmt.Errorf("the channel names %q, which carries a query or a fragment; a file beside the manifest has neither", name)
+	}
+	if ref.Path != path.Clean(ref.Path) || path.Dir(ref.Path) != path.Dir(base.Path) {
+		return nil, fmt.Errorf("the channel names %q, which is not a plain file beside the manifest", name)
+	}
 	return fetch(ctx, client, ref.String())
+}
+
+// describes checks a fetched file against the size and digest the manifest
+// states for it. The manifest is unsigned, so this proves nothing about who
+// made the file — the signature does that. What it catches is the ordinary
+// failure the signature would report as a mystery: a truncated download, a
+// proxy's error page served with a 200, a stale file behind a cache.
+func describes(body []byte, size int64, sha string, what string) error {
+	if size > 0 && int64(len(body)) != size {
+		return fmt.Errorf("the release's %s is %d bytes and the channel describes %d", what, len(body), size)
+	}
+	if want := strings.ToLower(strings.TrimSpace(sha)); want != "" {
+		got := sha256.Sum256(body)
+		if hex.EncodeToString(got[:]) != want {
+			return fmt.Errorf("the release's %s is not the file the channel describes", what)
+		}
+	}
+	return nil
+}
+
+// withSameOriginRedirects returns a copy of client that refuses any redirect
+// leaving the channel's origin. A copy, because the caller's client is not
+// this package's to reconfigure.
+func withSameOriginRedirects(client *http.Client, base *url.URL) *http.Client {
+	c := *client
+	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return errors.New("the update channel redirected too many times")
+		}
+		if req.URL.Scheme != base.Scheme || req.URL.Host != base.Host {
+			return fmt.Errorf("the update channel redirected to %s://%s, which is not where this build looks", req.URL.Scheme, req.URL.Host)
+		}
+		return nil
+	}
+	return &c
 }
 
 func fetch(ctx context.Context, client *http.Client, u string) ([]byte, error) {
@@ -204,15 +284,4 @@ func fetch(ctx context.Context, client *http.Client, u string) ([]byte, error) {
 		return nil, fmt.Errorf("%s answered %s", u, resp.Status)
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, maxSidecar))
-}
-
-// trustedComment pulls the trusted comment line out of a signature file. The
-// signature over it has already been checked by Verify; this only reads it.
-func trustedComment(sig []byte) (string, error) {
-	for _, line := range strings.Split(string(sig), "\n") {
-		if after, ok := strings.CutPrefix(line, "trusted comment: "); ok {
-			return strings.TrimRight(after, "\r"), nil
-		}
-	}
-	return "", errors.New("the release's signature carries no trusted comment, so it says which release it is nowhere this build can check")
 }

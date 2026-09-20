@@ -322,7 +322,13 @@ function SelfUpdateCard() {
 
       {view.err && <ErrorBox error={`The last check did not complete: ${view.err}`} />}
 
-      {view.enabled && !view.available && !view.err && view.checked && (
+      {view.nothing && (
+        <div className="muted small">
+          This channel publishes no signed release yet, so there is nothing to compare against.
+        </div>
+      )}
+
+      {view.enabled && !view.available && !view.err && !view.nothing && view.checked && (
         <div className="muted small">No newer version when last checked.</div>
       )}
 

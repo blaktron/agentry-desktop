@@ -41,11 +41,10 @@ func ParseTrustedComment(s string) (version, commit string, err error) {
 	return m[1], m[2], nil
 }
 
-// release is the X.Y.Z of a version string, and whether the build is past
-// that tag rather than on it.
+// release is the X.Y.Z of a version string. What follows the triple — the
+// describe suffix, -dirty — is deliberately not kept: see parseVersion.
 type release struct {
 	major, minor, patch int
-	past                bool
 }
 
 var versionRE = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)(.*)$`)
@@ -74,7 +73,6 @@ func parseVersion(s string) (release, error) {
 		}
 		*into = n
 	}
-	r.past = m[4] != ""
 	return r, nil
 }
 
@@ -106,9 +104,9 @@ func IsNewer(offered, current string) (bool, error) {
 	case o.patch != c.patch:
 		return o.patch > c.patch, nil
 	default:
-		// Same triple: the offered release is only newer if THIS build is a
-		// tagged one and the offered one is somehow past it, which the site
-		// never publishes. In practice this is "no".
+		// The same triple is never an upgrade. That covers the case worth
+		// naming: a build at 0.1.0-11-g5ac8c0d offered 0.1.0 is being offered
+		// the tag it is already past, and says no.
 		return false, nil
 	}
 }

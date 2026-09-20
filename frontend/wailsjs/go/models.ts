@@ -1347,6 +1347,7 @@ export namespace main {
 	    available?: selfupdate.Release;
 	    err?: string;
 	    downloadUrl?: string;
+	    nothing?: boolean;
 	    dismissed?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -1362,6 +1363,7 @@ export namespace main {
 	        this.available = this.convertValues(source["available"], selfupdate.Release);
 	        this.err = source["err"];
 	        this.downloadUrl = source["downloadUrl"];
+	        this.nothing = source["nothing"];
 	        this.dismissed = source["dismissed"];
 	    }
 	

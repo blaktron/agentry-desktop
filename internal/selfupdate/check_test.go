@@ -248,6 +248,10 @@ func TestCheckRefusesASidecarNameThatLeavesTheChannel(t *testing.T) {
 	}
 }
 
+// A channel publishing nothing signed is reported as that, not as "up to
+// date". Withholding a release is the one thing a signature cannot prevent,
+// so the state a hostile channel would produce has to be visible rather than
+// indistinguishable from good news.
 func TestCheckOffersNothingWhenTheChannelPublishesNoSignature(t *testing.T) {
 	priv, entry := keystest.Key(t, "prod", false)
 	set := keystest.Set(t, entry)
@@ -256,8 +260,8 @@ func TestCheckOffersNothingWhenTheChannelPublishesNoSignature(t *testing.T) {
 	srv := c.serve()
 
 	rel, err := check(t, srv, "0.1.0", set)
-	if err != nil {
-		t.Fatalf("a channel with nothing signed to offer is not an error: %v", err)
+	if !errors.Is(err, selfupdate.ErrNothingSigned) {
+		t.Fatalf("err = %v, want ErrNothingSigned", err)
 	}
 	if rel != nil {
 		t.Fatal("a release was offered with no signature to back it")
@@ -388,5 +392,74 @@ func TestIsNewerRefusesAVersionItCannotOrder(t *testing.T) {
 		if _, err := selfupdate.IsNewer(tc[0], tc[1]); err == nil {
 			t.Errorf("IsNewer(%q, %q) claimed an ordering it cannot have", tc[0], tc[1])
 		}
+	}
+}
+
+// The host and scheme checks bind the first hop only unless redirects are
+// bound too. A channel that answers 302 to another origin must not be
+// followed, or every refusal above it means nothing.
+func TestCheckDoesNotFollowARedirectOffTheChannel(t *testing.T) {
+	_, entry := keystest.Key(t, "prod", false)
+	set := keystest.Set(t, entry)
+
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("the check followed a redirect to another host")
+		http.NotFound(w, r)
+	}))
+	defer elsewhere.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+r.URL.Path, http.StatusFound)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := selfupdate.Check(ctx, srv.Client(), srv.URL+"/downloads/manifest.json", "0.1.0", set)
+	if err == nil {
+		t.Fatal("a redirect to another host was followed")
+	}
+	if !strings.Contains(err.Error(), "not where this build looks") {
+		t.Errorf("message %q does not name the redirect", err)
+	}
+}
+
+// A percent-encoded slash carries no slash to a string check and is still a
+// path traversal once a server has decoded it, so containment is checked on
+// the resolved path.
+func TestCheckRefusesAnEncodedTraversalInASidecarName(t *testing.T) {
+	priv, entry := keystest.Key(t, "prod", false)
+	set := keystest.Set(t, entry)
+
+	for _, name := range []string{
+		"SHA256SUMS%2f..%2fother",
+		"%2e%2e%2fSHA256SUMS",
+		"SHA256SUMS?x=1",
+		"SHA256SUMS#frag",
+		"   ",
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := newChannel(t, priv, "0.2.0", "abc1234", sumsBody)
+			c.manifest["desktop"].(map[string]any)["checksums"].(map[string]any)["file"] = name
+			srv := c.serve()
+			if _, err := check(t, srv, "0.1.0", set); err == nil {
+				t.Fatalf("the channel named %q and it was fetched", name)
+			}
+		})
+	}
+}
+
+// The manifest states a size as well as a digest; a file that is not the
+// length it claims is caught before the signature, with a message that says
+// which of the two files was wrong.
+func TestCheckRefusesASidecarOfTheWrongLength(t *testing.T) {
+	priv, entry := keystest.Key(t, "prod", false)
+	set := keystest.Set(t, entry)
+	c := newChannel(t, priv, "0.2.0", "abc1234", sumsBody)
+	c.manifest["desktop"].(map[string]any)["signature"].(map[string]any)["size"] = 99999
+	srv := c.serve()
+
+	_, err := check(t, srv, "0.1.0", set)
+	if err == nil || !strings.Contains(err.Error(), "signature is") {
+		t.Fatalf("err = %v, want the wrong-length signature refused by name", err)
 	}
 }
