@@ -16,6 +16,8 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -31,6 +33,10 @@ import (
 const (
 	selfUpdateInterval = 24 * time.Hour
 	selfUpdateTimeout  = 3 * time.Second
+	// Downloading is a different question from checking: tens of megabytes
+	// over whatever connection the person has, started because they pressed a
+	// button. Three seconds would be absurd here.
+	selfUpdateDownloadTimeout = 10 * time.Minute
 )
 
 // SelfUpdateView is what the chrome line and the Settings card render. It is
@@ -64,6 +70,20 @@ type SelfUpdateView struct {
 	// release at all. Distinct from "nothing newer", because they are
 	// different facts and only one of them means the channel is working.
 	Nothing bool `json:"nothing,omitempty"`
+	// CanApply is true when this platform installs a newer Agentry Desktop
+	// from inside the app AND this copy is somewhere the person can replace.
+	// False on Linux always (D7), and on a copy installed for everyone by an
+	// administrator — in which case Why says so.
+	CanApply bool `json:"canApply"`
+	// CannotApplyWhy is the sentence to show when CanApply is false and the
+	// person might reasonably expect otherwise. Empty on Linux, where the
+	// card simply does not offer to install.
+	CannotApplyWhy string `json:"cannotApplyWhy,omitempty"`
+	// OnQuit is Settings → "Install automatically when I quit".
+	OnQuit bool `json:"onQuit"`
+	// Applying is set while a download or a swap is in flight, so the button
+	// can say so and cannot be pressed twice.
+	Applying bool `json:"applying,omitempty"`
 	// Dismissed is set by "Not now": the chrome line goes until the next
 	// launch. Deliberately not written to the settings file — a person saying
 	// "not now" is saying it about today, and D-019's banner has the same
@@ -95,6 +115,14 @@ type SelfUpdateAPI struct {
 
 	channel string
 	keys    func() (*selfupdate.KeySet, error)
+	// applier installs a verified artifact. A field so a test can observe
+	// what would have been installed rather than replacing the test binary.
+	applier selfupdate.Applier
+	// goos and goarch name the platform whose artifact is chosen. Fields, not
+	// runtime constants, so that the install path can be exercised on a
+	// machine that does not install — otherwise the two most important tests
+	// here would skip on Linux, and a skip reads as a pass.
+	goos, goarch string
 
 	// checking serialises checks. Without it the daily round and a "Check
 	// now" race to finish, and the one that happens to finish LAST wins —
@@ -106,6 +134,8 @@ type SelfUpdateAPI struct {
 	last SelfUpdateView
 	// dismissed is "Not now", for this run of the app only.
 	dismissed bool
+	// applying is set while a download or swap is in flight.
+	applying bool
 	// client is replaced in tests; nil means the default with its own timeout.
 	client *http.Client
 	now    func() time.Time
@@ -116,6 +146,9 @@ func newSelfUpdateAPI(app *App) *SelfUpdateAPI {
 		app:     app,
 		channel: selfupdate.ManifestURL,
 		keys:    selfupdate.Carried,
+		applier: selfupdate.ApplierFor(),
+		goos:    runtime.GOOS,
+		goarch:  runtime.GOARCH,
 		now:     time.Now,
 	}
 }
@@ -130,9 +163,19 @@ func (u *SelfUpdateAPI) SelfUpdateStatus() (*SelfUpdateView, error) {
 	v.Current = version.Version
 	v.Enabled = u.enabled()
 	v.Dismissed = u.dismissed
+	v.Applying = u.applying
 	if v.Available != nil {
 		v.DownloadURL = downloadPage(u.channel)
 	}
+	if err := u.applier.Ready(); err != nil {
+		if !errors.Is(err, selfupdate.ErrNotApplicable) {
+			v.CannotApplyWhy = err.Error()
+		}
+	} else {
+		v.CanApply = true
+	}
+	s, serr := settings.Load()
+	v.OnQuit = serr == nil && s.InstallUpdatesOnQuit
 	return &v, nil
 }
 
@@ -260,4 +303,114 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 	}
 	u.last = v
 	u.mu.Unlock()
+}
+
+// InstallSelfUpdate downloads the release this build was offered and installs
+// it: the "Install and relaunch" button (agentry-desktop#88).
+//
+// Every refusal below happens BEFORE a byte is downloaded where it can, so a
+// person is not made to wait for a download that was never going to be
+// installable. The download itself is verified against the digest in the
+// release's signed checksums (internal/selfupdate.Download) and removed if it
+// does not match, so nothing unverified ever reaches the applier.
+//
+// On success this does not return: the platform applier replaces the
+// application and relaunches it.
+func (u *SelfUpdateAPI) InstallSelfUpdate() (*SelfUpdateView, error) {
+	return u.install(true)
+}
+
+func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
+	// Claimed under ONE lock: reading "am I busy" and then setting it under a
+	// second lock lets two presses — or a press racing the quit hook — both
+	// see false and both proceed.
+	u.mu.Lock()
+	rel := u.last.Available
+	if u.applying {
+		u.mu.Unlock()
+		return u.SelfUpdateStatus()
+	}
+	u.applying = true
+	u.mu.Unlock()
+	defer func() {
+		u.mu.Lock()
+		u.applying = false
+		u.mu.Unlock()
+	}()
+
+	if rel == nil {
+		return nil, errors.New("there is no newer Agentry Desktop to install; check again first")
+	}
+	// The whole verification again, over the same bytes, through the call
+	// that refuses a retired key on its own. Not a read of rel.Retired: that
+	// was decided when the check ran, and this is the operation where
+	// forgetting to read it installs something (D-026).
+	keys, err := u.keys()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := rel.AuthoriseInstall(keys); err != nil {
+		return nil, err
+	}
+	if err := u.applier.Ready(); err != nil {
+		return nil, err
+	}
+	artifact, err := selfupdate.ArtifactFor(rel.Checksums, rel.Version, u.goos, u.goarch)
+	if err != nil {
+		return nil, err
+	}
+
+	dir, err := os.MkdirTemp("", "agentry-selfupdate-*")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), selfUpdateDownloadTimeout)
+	defer cancel()
+	path, err := selfupdate.Download(ctx, u.client, u.channel, artifact, dir)
+	if err != nil {
+		return nil, err
+	}
+	// Past here the application is replaced and this process ends, so there
+	// is no view to return on success.
+	if err := u.applier.Apply(path, relaunch); err != nil {
+		return nil, err
+	}
+	return u.SelfUpdateStatus()
+}
+
+// SetInstallOnQuit writes Settings → "Install automatically when I quit".
+//
+// Off by default and off until someone says otherwise (D6): an application
+// that replaced itself without ever having been asked would be a surprise
+// the next time it opened, however well the bytes verified.
+func (u *SelfUpdateAPI) SetInstallOnQuit(on bool) (*SelfUpdateView, error) {
+	s, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	s.InstallUpdatesOnQuit = on
+	if err := settings.Save(s); err != nil {
+		return nil, err
+	}
+	return u.SelfUpdateStatus()
+}
+
+// applyOnQuit is called as the app shuts down. It installs a release only if
+// the person asked for that, one is waiting, and it would have been
+// installable anyway — and it swallows every failure, because a shutdown is
+// not a place to show anything: the release is still there at the next
+// launch, and the card will say so then.
+func (u *SelfUpdateAPI) applyOnQuit() {
+	s, err := settings.Load()
+	if err != nil || !s.InstallUpdatesOnQuit {
+		return
+	}
+	// relaunch=false: the person is quitting. Reopening the application they
+	// just closed, because it happened to install an update on the way out,
+	// would be the opposite of what they asked for.
+	if _, err := u.install(false); err != nil {
+		return
+	}
 }

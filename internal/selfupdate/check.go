@@ -39,6 +39,13 @@ var ErrNoChannel = errors.New("this build has no update channel, so it cannot ch
 // reported rather than treated as "up to date".
 var ErrNothingSigned = errors.New("the update channel publishes no signed release")
 
+// ErrNotApplicable means this platform does not install a newer Agentry
+// Desktop from inside the app. On Linux that is permanent (D7): a .deb or
+// .rpm belongs to the package manager, and an app that overwrote a file dpkg
+// owns would leave the package database describing something that is no
+// longer there.
+var ErrNotApplicable = errors.New("this platform does not install a newer Agentry Desktop from inside the app")
+
 // Release is a release the channel is offering, as far as the signature
 // proves it. Version and Commit are covered by the estate's key; the rest
 // describes the key that covered them.
@@ -52,9 +59,15 @@ type Release struct {
 	// Retired is true when that key has been replaced. The release is still
 	// genuinely ours; M7 will refuse to install from it.
 	Retired bool `json:"retired"`
-	// Checksums is the release's SHA256SUMS, verified, kept so that M7 can
-	// check a downloaded artifact against it without fetching it again.
+	// Checksums is the release's SHA256SUMS, verified, kept so that the
+	// install can check a downloaded artifact against it without fetching it
+	// again.
 	Checksums string `json:"-"`
+	// Signature is the signature over those checksums, kept for the same
+	// reason and for a better one: installing re-runs the verification rather
+	// than trusting Retired, a field set when the check ran. See
+	// AuthoriseInstall.
+	Signature string `json:"-"`
 }
 
 // Manifest is the part of the downloads manifest an update check reads.
@@ -192,6 +205,7 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 		SignedBy:  key.Name,
 		Retired:   key.Retired,
 		Checksums: string(sums),
+		Signature: string(sig),
 	}, nil
 }
 
@@ -200,6 +214,18 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 // manifest is unsigned input, so a name in it that climbed to another host or
 // another path would be the manifest choosing what this app fetches.
 func fetchSidecar(ctx context.Context, client *http.Client, base *url.URL, name string) ([]byte, error) {
+	ref, err := sidecarURL(base, name)
+	if err != nil {
+		return nil, err
+	}
+	return fetch(ctx, client, ref.String())
+}
+
+// sidecarURL resolves a file name the channel gave, beside the manifest, and
+// refuses anything that would reach elsewhere. Shared by the sums, the
+// signature and the downloaded artifact so that one rule governs every fetch
+// this package makes.
+func sidecarURL(base *url.URL, name string) (*url.URL, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, errors.New("the channel names no file")
 	}
@@ -232,7 +258,7 @@ func fetchSidecar(ctx context.Context, client *http.Client, base *url.URL, name 
 	if ref.Path != path.Clean(ref.Path) || path.Dir(ref.Path) != path.Dir(base.Path) {
 		return nil, fmt.Errorf("the channel names %q, which is not a plain file beside the manifest", name)
 	}
-	return fetch(ctx, client, ref.String())
+	return ref, nil
 }
 
 // describes checks a fetched file against the size and digest the manifest

@@ -687,3 +687,6 @@ button.ghost:hover, .btn.ghost:hover {
 .key-source > label.row input[type="radio"] { margin-top: 4px; flex: none; }
 .key-source label.inline { display: inline; }
 .key-store { margin: 4px 0 4px 22px; display: grid; gap: 6px; }
+
+/* The "Install and relaunch" row inside the newer-version notice (#88). */
+.install-row { margin-top: 10px; }

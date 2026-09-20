@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -331,5 +333,212 @@ func TestSelfUpdateReportsAChannelWithNothingSigned(t *testing.T) {
 	}
 	if got.Available != nil {
 		t.Error("a release was offered")
+	}
+}
+
+// fakeApplier records what it was asked to install instead of replacing the
+// test binary.
+type fakeApplier struct {
+	ready   error
+	applied string
+	// bytes is what was handed over, read while Apply holds it. The real
+	// appliers consume the file and never return, so a test that read it
+	// afterwards would be reading something that no longer exists.
+	bytes    []byte
+	relaunch bool
+	applyErr error
+}
+
+func (f *fakeApplier) Ready() error { return f.ready }
+func (f *fakeApplier) Apply(path string, relaunch bool) error {
+	f.relaunch = relaunch
+	f.applied = path
+	f.bytes, _ = os.ReadFile(path)
+	return f.applyErr
+}
+
+// installable builds a channel whose release carries a real artifact, so the
+// download and its digest check run for real.
+func installable(t *testing.T, version string, retired bool) (*httptest.Server, *selfupdate.KeySet, []byte) {
+	t.Helper()
+	priv, entry := keystest.Key(t, "prod", retired)
+	artifact := []byte("the installer bytes for " + version)
+	name := "agentry-desktop-" + version + "-" + testArtifactSuffix
+	digest := sha256.Sum256(artifact)
+	sums := []byte(hex.EncodeToString(digest[:]) + "  " + name + "\n")
+	sig := minisign.SignWithComments(priv, sums, selfupdate.TrustedComment(version, "abc1234"), "x")
+	sumsDigest := sha256.Sum256(sums)
+	manifest := map[string]any{"desktop": map[string]any{
+		"version":   version,
+		"checksums": map[string]any{"file": "SUMS", "size": len(sums), "sha256": hex.EncodeToString(sumsDigest[:])},
+		"signature": map[string]any{"file": "SUMS.minisig", "size": len(sig)},
+	}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "manifest.json"):
+			_ = json.NewEncoder(w).Encode(manifest)
+		case strings.HasSuffix(r.URL.Path, ".minisig"):
+			_, _ = w.Write(sig)
+		case strings.HasSuffix(r.URL.Path, "/SUMS"):
+			_, _ = w.Write(sums)
+		case strings.HasSuffix(r.URL.Path, name):
+			_, _ = w.Write(artifact)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, keystest.Set(t, entry), artifact
+}
+
+// The tests below drive the darwin artifact whatever they are running on:
+// the service takes the platform as a field precisely so the install path is
+// exercised everywhere rather than skipped on the machine that runs CI.
+const testArtifactSuffix = "darwin-universal.zip"
+
+// installs points the service at a platform that installs, so the whole path
+// runs on any machine.
+func installs(u *SelfUpdateAPI) *SelfUpdateAPI {
+	u.goos, u.goarch = "darwin", "arm64"
+	return u
+}
+
+func TestInstallDownloadsAndAppliesAVerifiedRelease(t *testing.T) {
+	configHome(t)
+	srv, keys, want := installable(t, "9.9.9", false)
+	u := installs(api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client()))
+	fake := &fakeApplier{}
+	u.applier = fake
+
+	if _, err := u.SelfUpdateCheckNow(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := u.InstallSelfUpdate(); err != nil {
+		t.Fatalf("InstallSelfUpdate: %v", err)
+	}
+	if fake.applied == "" {
+		t.Fatal("nothing was applied")
+	}
+	if string(fake.bytes) != string(want) {
+		t.Error("what was applied is not what the release signed")
+	}
+	// The download is not left lying in the temp directory afterwards.
+	if _, err := os.Stat(fake.applied); !os.IsNotExist(err) {
+		t.Errorf("the downloaded artifact is still at %s", fake.applied)
+	}
+}
+
+// A retired key proves an old release genuine and authorises nothing. This is
+// the place where getting it wrong would install something.
+func TestInstallRefusesARetiredKey(t *testing.T) {
+	configHome(t)
+	srv, keys, _ := installable(t, "9.9.9", true)
+	u := installs(api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client()))
+	fake := &fakeApplier{}
+	u.applier = fake
+
+	if _, err := u.SelfUpdateCheckNow(); err != nil {
+		t.Fatal(err)
+	}
+	_, err := u.InstallSelfUpdate()
+	if err == nil {
+		t.Fatal("a release signed by a retired key was installed")
+	}
+	if !strings.Contains(err.Error(), "retired") {
+		t.Errorf("message %q does not name the reason", err)
+	}
+	if fake.applied != "" {
+		t.Error("something was applied anyway")
+	}
+}
+
+// Somewhere the person cannot write is a refusal with a way forward, never a
+// prompt for an administrator password (plan §3).
+func TestInstallRefusesWhenTheCopyCannotBeReplaced(t *testing.T) {
+	configHome(t)
+	srv, keys, _ := installable(t, "9.9.9", false)
+	u := installs(api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client()))
+	fake := &fakeApplier{ready: selfupdate.ErrNotWritable}
+	u.applier = fake
+
+	if _, err := u.SelfUpdateCheckNow(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := u.InstallSelfUpdate(); !errors.Is(err, selfupdate.ErrNotWritable) {
+		t.Fatalf("err = %v, want ErrNotWritable", err)
+	}
+	if fake.applied != "" {
+		t.Error("it installed anyway")
+	}
+
+	// And the status says so, so the card can explain instead of offering a
+	// button that would fail.
+	got, _ := u.SelfUpdateStatus()
+	if got.CanApply {
+		t.Error("the card would offer to install")
+	}
+	if got.CannotApplyWhy == "" {
+		t.Error("the card has nothing to explain with")
+	}
+}
+
+func TestInstallRefusesWhenNothingWasOffered(t *testing.T) {
+	configHome(t)
+	u := api(t, "", keystest.Set(t), nil)
+	u.applier = &fakeApplier{}
+	if _, err := u.InstallSelfUpdate(); err == nil {
+		t.Fatal("installing with nothing offered reported success")
+	}
+}
+
+func TestInstallOnQuitIsOffUntilAsked(t *testing.T) {
+	configHome(t)
+	u := api(t, "", keystest.Set(t), nil)
+	u.applier = &fakeApplier{}
+
+	got, err := u.SelfUpdateStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.OnQuit {
+		t.Fatal("installing on quit is on for someone who never asked")
+	}
+
+	if _, err := u.SetInstallOnQuit(true); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := api(t, "", keystest.Set(t), nil).SelfUpdateStatus(); !got.OnQuit {
+		t.Fatal("the setting did not persist")
+	}
+	if _, err := u.SetInstallOnQuit(false); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := api(t, "", keystest.Set(t), nil).SelfUpdateStatus(); got.OnQuit {
+		t.Fatal("turning it off did not persist")
+	}
+}
+
+// Quitting installs nothing unless the person asked for it.
+func TestApplyOnQuitDoesNothingWhenTheSettingIsOff(t *testing.T) {
+	configHome(t)
+	srv, keys, _ := installable(t, "9.9.9", false)
+	u := installs(api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client()))
+	fake := &fakeApplier{}
+	u.applier = fake
+
+	if _, err := u.SelfUpdateCheckNow(); err != nil {
+		t.Fatal(err)
+	}
+	u.applyOnQuit()
+	if fake.applied != "" {
+		t.Fatal("quitting installed a release nobody asked it to")
+	}
+
+	if _, err := u.SetInstallOnQuit(true); err != nil {
+		t.Fatal(err)
+	}
+	u.applyOnQuit()
+	if fake.applied == "" {
+		t.Error("with the setting on, quitting installed nothing")
 	}
 }

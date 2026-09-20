@@ -318,6 +318,13 @@ jobs:
       # here is a release that does not complete.
       - name: Install-over-install smoke of the dmg
         run: make smoke-darwin-dmg VERSION="$VERSION"
+      # Applying a newer Agentry Desktop: the bundle swap, that the person's
+      # configuration is byte-identical afterwards, and that a copy they
+      # cannot replace is refused rather than elevated (agentry-desktop#88).
+      # The relaunch is not proven here — it needs a console session, which
+      # this runner has not got (#106) — and the script says so.
+      - name: Self-update bundle-swap acceptance
+        run: make smoke-darwin-selfupdate VERSION="$VERSION"
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$GIT_CONFIG_GLOBAL"

@@ -1348,6 +1348,10 @@ export namespace main {
 	    err?: string;
 	    downloadUrl?: string;
 	    nothing?: boolean;
+	    canApply: boolean;
+	    cannotApplyWhy?: string;
+	    onQuit: boolean;
+	    applying?: boolean;
 	    dismissed?: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -1364,6 +1368,10 @@ export namespace main {
 	        this.err = source["err"];
 	        this.downloadUrl = source["downloadUrl"];
 	        this.nothing = source["nothing"];
+	        this.canApply = source["canApply"];
+	        this.cannotApplyWhy = source["cannotApplyWhy"];
+	        this.onQuit = source["onQuit"];
+	        this.applying = source["applying"];
 	        this.dismissed = source["dismissed"];
 	    }
 	
