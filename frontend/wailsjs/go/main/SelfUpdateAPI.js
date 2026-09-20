@@ -6,12 +6,20 @@ export function DismissSelfUpdate() {
   return window['go']['main']['SelfUpdateAPI']['DismissSelfUpdate']();
 }
 
+export function InstallSelfUpdate() {
+  return window['go']['main']['SelfUpdateAPI']['InstallSelfUpdate']();
+}
+
 export function SelfUpdateCheckNow() {
   return window['go']['main']['SelfUpdateAPI']['SelfUpdateCheckNow']();
 }
 
 export function SelfUpdateStatus() {
   return window['go']['main']['SelfUpdateAPI']['SelfUpdateStatus']();
+}
+
+export function SetInstallOnQuit(arg1) {
+  return window['go']['main']['SelfUpdateAPI']['SetInstallOnQuit'](arg1);
 }
 
 export function SetSelfUpdateCheckEnabled(arg1) {

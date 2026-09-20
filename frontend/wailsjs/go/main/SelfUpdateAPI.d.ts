@@ -4,8 +4,12 @@ import {main} from '../models';
 
 export function DismissSelfUpdate():Promise<main.SelfUpdateView>;
 
+export function InstallSelfUpdate():Promise<main.SelfUpdateView>;
+
 export function SelfUpdateCheckNow():Promise<main.SelfUpdateView>;
 
 export function SelfUpdateStatus():Promise<main.SelfUpdateView>;
+
+export function SetInstallOnQuit(arg1:boolean):Promise<main.SelfUpdateView>;
 
 export function SetSelfUpdateCheckEnabled(arg1:boolean):Promise<main.SelfUpdateView>;

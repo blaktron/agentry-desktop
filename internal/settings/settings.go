@@ -64,6 +64,12 @@ type Settings struct {
 	// tell an absent field from a deliberate false. Read it through
 	// UpdateCheckEnabled rather than dereferencing it.
 	CheckForUpdates *bool `yaml:"checkForUpdates,omitempty" json:"checkForUpdates,omitempty"`
+	// InstallUpdatesOnQuit is Settings → "Install automatically when I quit"
+	// (agentry-desktop#88, plan D6). A plain bool, not a pointer, because
+	// this one defaults OFF: absent and false mean the same thing, and the
+	// operator's D6 asked for off by default so that nothing replaces the
+	// application without the person having said so at least once.
+	InstallUpdatesOnQuit bool `yaml:"installUpdatesOnQuit,omitempty" json:"installUpdatesOnQuit,omitempty"`
 }
 
 // UpdateCheckEnabled says whether the app should look for a newer Agentry

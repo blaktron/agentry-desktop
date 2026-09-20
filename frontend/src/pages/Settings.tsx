@@ -278,6 +278,10 @@ function SelfUpdateCard() {
 
   if (!view) return null;
 
+  // Installing needs a platform that installs AND a copy this person can
+  // replace; the Go side has already decided both.
+  const canInstall = view.canApply && !view.available?.retired;
+
   // A build anyone can make from the open core has no channel to check, which
   // is a fact to state rather than a failure to report.
   if (!view.channel) {
@@ -311,13 +315,46 @@ function SelfUpdateCard() {
         <Notice>
           <strong>Agentry Desktop {view.available.version} is available.</strong>{" "}
           You are running {view.current}. Signed with the {view.available.signedBy} key
-          {view.available.retired && <> — which has since been retired, so this release is genuine but out of date</>}
-          {"."}{" "}
-          {view.downloadUrl
-            ? <>Get it from <span className="mono selectable">{view.downloadUrl}</span>.</>
-            : <>Get it from the site you downloaded this copy from.</>}{" "}
-          This version does not install it for you.
+          {view.available.retired && <> — which has since been retired, so this release is genuine but out of date and will not be installed</>}
+          {"."}
+          {/* Installing is offered only where the app can do it: not on Linux,
+              where the package manager owns the installed files (D7), and not
+              on a copy an administrator installed for everyone — there the
+              card explains instead of offering a button that would fail. */}
+          {canInstall && (
+            <div className="row gap install-row">
+              <Button variant="primary" disabled={busy} onClick={() => run(SelfUpdateAPI.InstallSelfUpdate)}>
+                {view.applying ? "Installing…" : "Install and relaunch"}
+              </Button>
+              <span className="muted small">The app closes and reopens on the new version.</span>
+            </div>
+          )}
+          {!canInstall && view.cannotApplyWhy && (
+            <div className="muted small">{view.cannotApplyWhy} Download it instead:{" "}
+              <span className="mono selectable">{view.downloadUrl}</span>.
+            </div>
+          )}
+          {!canInstall && !view.cannotApplyWhy && (
+            <div className="muted small">
+              {view.downloadUrl
+                ? <>Get it from <span className="mono selectable">{view.downloadUrl}</span>.</>
+                : <>Get it from the site you downloaded this copy from.</>}{" "}
+              On this platform a newer version is installed by your package manager, not by the app.
+            </div>
+          )}
         </Notice>
+      )}
+
+      {canInstall && (
+        <label className="row gap">
+          <input
+            type="checkbox"
+            checked={view.onQuit}
+            disabled={busy}
+            onChange={(e) => run(() => SelfUpdateAPI.SetInstallOnQuit(e.target.checked))}
+          />
+          <span>Install automatically when I quit</span>
+        </label>
       )}
 
       {view.err && <ErrorBox error={`The last check did not complete: ${view.err}`} />}

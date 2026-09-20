@@ -274,6 +274,9 @@ jobs:
       # allows it (agentry-desktop#85, plan §8).
       - name: Install-over-install smoke of the dmg
         run: make smoke-darwin-dmg VERSION="$VERSION"
+      # The bundle swap and what survives it (agentry-desktop#88).
+      - name: Self-update bundle-swap acceptance
+        run: make smoke-darwin-selfupdate VERSION="$VERSION"
       # frontend/dist exists after the wails build, so the Go tools run on the
       # embedded bundle the app ships with.
       - name: Go tests, natively on macOS

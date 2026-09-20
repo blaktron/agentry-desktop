@@ -54,6 +54,12 @@ func main() {
 			// (agentry-desktop#87).
 			selfUpdateAPI.start(ctx)
 		},
+		// "Install automatically when I quit" (agentry-desktop#88, D6). Off
+		// by default; does nothing unless a verified release is waiting and
+		// the person turned it on. OnShutdown rather than OnBeforeClose: by
+		// here the window is going anyway, so replacing the application
+		// cannot interrupt anything the person is still doing.
+		OnShutdown: func(context.Context) { selfUpdateAPI.applyOnQuit() },
 		Bind: []interface{}{
 			app,
 			settingsAPI,

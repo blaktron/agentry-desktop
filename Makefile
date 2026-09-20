@@ -21,7 +21,7 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # graph past vendor/ and asks GitHub for the private modules.
 WAILS_FLAGS ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux smoke-linux-packages smoke-darwin-dmg linux-icons version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate linux-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -104,6 +104,14 @@ package-darwin:
 # the machine. The release workflow runs it after package-darwin.
 smoke-darwin-dmg:
 	scripts/acceptance/darwin-dmg-install.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
+
+# Applying a newer Agentry Desktop on macOS: the bundle swap, what survives
+# it, and the refusal when the copy is somewhere the person cannot replace
+# (agentry-desktop#88; plan §7, §8). macOS only; installs nothing on the
+# machine and launches nothing. The release workflow runs it after
+# package-darwin.
+smoke-darwin-selfupdate:
+	scripts/acceptance/darwin-selfupdate.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 
 # Windows: cross-compiled from any host (DEV-097: Wails v2 loads WebView2
 # through a pure-Go loader, so windows/amd64 builds with cgo off on Linux
