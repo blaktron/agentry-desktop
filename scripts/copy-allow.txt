@@ -18,3 +18,9 @@ the API's own status value, named not claimed :: Status is safe, vulnerable, err
 # A comment about shell quoting on the prereqs path — "safe to place in a
 # root shell" is about a username's characters, not about a BriefAgent.
 a comment about shell metacharacters in a username :: whether it is safe to place in
+
+# minisign's own field name. A .minisig file carries an "untrusted comment"
+# (not signed) and a "trusted comment" (signed with the message); those are the
+# names in the format and in the -t flag, so the word is naming a field rather
+# than making a claim about anything. Same case as the API status value above.
+minisign's own signed-comment field, named not claimed :: the trusted comment, which is signed along with the file

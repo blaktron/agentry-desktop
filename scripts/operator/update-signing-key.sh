@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# Agentry operator wizard.
+#
+# Everything above the "STAGES" marker is the library and is identical in every
+# wizard: do not hand-edit it. Author your procedure below the marker, one
+# `stage` per step, and set TOTAL_STAGES to the number you wrote.
+#
+#   bash -n <this file>     # syntax check
+#   shellcheck <this file>  # if available
+#   ./<this file>           # run it (a human runs this, not an agent)
+
+set -uo pipefail
+
+# ---------------------------------------------------------------- library ---
+
+TOTAL_STAGES=${TOTAL_STAGES:-0}
+STAGE_NO=0
+ENV_FILE=${ENV_FILE:-.env}
+SUMMARY=()
+
+c_reset=$'\033[0m'; c_dim=$'\033[2m'; c_bold=$'\033[1m'
+c_green=$'\033[32m'; c_yellow=$'\033[33m'; c_red=$'\033[31m'; c_blue=$'\033[36m'
+
+say()  { printf '%s\n' "$*"; }
+step() { printf '  %s->%s %s\n' "$c_blue" "$c_reset" "$*"; }
+note() { printf '  %s%s%s\n' "$c_dim" "$*" "$c_reset"; }
+warn() { printf '  %s! %s%s\n' "$c_yellow" "$*" "$c_reset"; }
+die()  { printf '\n%serror:%s %s\n' "$c_red" "$c_reset" "$*" >&2; exit 1; }
+
+# stage "<title>": clear the screen and start a numbered stage.
+stage() {
+  STAGE_NO=$((STAGE_NO + 1))
+  clear 2>/dev/null || true
+  printf '%s[%d/%d] %s%s\n\n' "$c_bold" "$STAGE_NO" "$TOTAL_STAGES" "$1" "$c_reset"
+}
+
+# open_url "<url>": open it in the human's browser, on Linux, macOS or WSL.
+open_url() {
+  local url=$1
+  step "opening $url"
+  if command -v xdg-open >/dev/null 2>&1;      then xdg-open "$url" >/dev/null 2>&1 &
+  elif command -v open >/dev/null 2>&1;        then open "$url" >/dev/null 2>&1 &
+  elif command -v wslview >/dev/null 2>&1;     then wslview "$url" >/dev/null 2>&1 &
+  elif [ -x /mnt/c/Windows/System32/cmd.exe ]; then /mnt/c/Windows/System32/cmd.exe /c start "" "$url" >/dev/null 2>&1 &
+  else note "open it yourself: $url"; fi
+  sleep 1
+}
+
+# ask "<prompt>" VARNAME [default]: read a visible value.
+ask() {
+  local prompt=$1 var=$2 def=${3:-} val=""
+  if [ -n "$def" ]; then read -r -p "  $prompt [$def]: " val; val=${val:-$def}
+  else while [ -z "$val" ]; do read -r -p "  $prompt: " val; done; fi
+  printf -v "$var" '%s' "$val"
+}
+
+# ask_secret "<prompt>" VARNAME: read a value without echoing it.
+ask_secret() {
+  local prompt=$1 var=$2 val=""
+  while [ -z "$val" ]; do read -r -s -p "  $prompt: " val; printf '\n'; done
+  printf -v "$var" '%s' "$val"
+}
+
+# confirm "<question>": yes/no gate. Anything but y/yes aborts the wizard.
+confirm() {
+  local ans=""
+  read -r -p "  $1 [y/N]: " ans
+  case "$ans" in y|Y|yes|YES) return 0 ;; *) die "stopped at stage $STAGE_NO by the operator" ;; esac
+}
+
+# pause: wait for the human to finish something in the browser.
+pause() { read -r -p "  press enter when done "; }
+
+# write_env KEY "<value>": idempotent upsert into $ENV_FILE (0600).
+write_env() {
+  local key=$1 value=$2
+  [ -f "$ENV_FILE" ] || { : > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
+  if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    local tmp; tmp=$(mktemp)
+    # grep exits 1 when it removes the only line, so never chain mv on its status
+    grep -v "^${key}=" "$ENV_FILE" > "$tmp" || true
+    mv "$tmp" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+  fi
+  printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  step "wrote $key to $ENV_FILE"
+  SUMMARY+=("$key -> $ENV_FILE")
+}
+
+# set_secret NAME "<value>" [owner/repo]: a GitHub Actions secret.
+set_secret() {
+  local name=$1 value=$2 repo=${3:-}
+  command -v gh >/dev/null 2>&1 || { warn "gh not installed; skipped secret $name"; return 0; }
+  if [ -n "$repo" ]; then printf '%s' "$value" | gh secret set "$name" -R "$repo" --body - >/dev/null
+  else printf '%s' "$value" | gh secret set "$name" --body - >/dev/null; fi \
+    && { step "set GitHub secret $name"; SUMMARY+=("$name -> GitHub secret ${repo:-current repo}"); } \
+    || warn "could not set secret $name"
+}
+
+# set_var NAME "<value>" [owner/repo]: a GitHub Actions variable (not secret).
+set_var() {
+  local name=$1 value=$2 repo=${3:-}
+  command -v gh >/dev/null 2>&1 || { warn "gh not installed; skipped variable $name"; return 0; }
+  if [ -n "$repo" ]; then gh variable set "$name" -R "$repo" --body "$value" >/dev/null
+  else gh variable set "$name" --body "$value" >/dev/null; fi \
+    && { step "set GitHub variable $name"; SUMMARY+=("$name -> GitHub variable ${repo:-current repo}"); } \
+    || warn "could not set variable $name"
+}
+
+finish() {
+  clear 2>/dev/null || true
+  printf '%s%sdone%s\n\n' "$c_bold" "$c_green" "$c_reset"
+  if [ ${#SUMMARY[@]} -gt 0 ]; then
+    say "What this wizard wrote:"
+    printf '  - %s\n' "${SUMMARY[@]}"
+    printf '\n'
+  fi
+  say "Nothing above printed a secret value. Keep $ENV_FILE out of git."
+}
+
+# ------------------------------------------------------------------ STAGES ---
+# Author below this line. One `stage` per step, in dependency order.
+# Set TOTAL_STAGES to the number of stages you wrote.
+
+
+TOTAL_STAGES=6
+
+# ---------------------------------------------------------------------------
+# Agentry Desktop: load an update-signing key.
+#
+# This is the key the application checks a release against before it replaces
+# itself — the estate's own key, not the operating system's (agentry-desktop#86,
+# register D-026, plan desktop-installers.md §7, D5, D15). Run it twice in the
+# life of the product:
+#
+#   dev   once, now, so pre-launch releases are signed at all;
+#   prod  at launch, on hardware you hold, retiring dev in the same run.
+#
+# What it does: generates the pair HERE, on this machine, so no agent and no
+# server ever holds the private half; loads the private half into the
+# agentry-desktop Actions secret; writes the public half into
+# internal/selfupdate/keys.json; and leaves you to commit that file. The two
+# halves only ever meet in this script.
+#
+# Run it from a clone of agentry-desktop, on a machine with `gh` signed in.
+# ---------------------------------------------------------------------------
+
+KEYS_JSON="internal/selfupdate/keys.json"
+REPO="blaktron/agentry-desktop"
+SECRET_NAME="AGENTRY_UPDATE_SIGNING_KEY"
+WORK=""
+
+cleanup_keys() { [ -n "$WORK" ] && rm -rf "$WORK"; }
+trap cleanup_keys EXIT INT TERM
+
+stage "Where you are, and what you are about to make"
+[ -f "$KEYS_JSON" ] || die "run this from the root of an agentry-desktop clone ($KEYS_JSON is not here)"
+command -v go >/dev/null 2>&1 || die "go is needed to generate the key and write the key set"
+command -v gh >/dev/null 2>&1 || die "gh is needed to load the Actions secret; install it and sign in first"
+gh auth status >/dev/null 2>&1 || die "gh is not signed in: run 'gh auth login'"
+say "This machine will generate an ed25519 (minisign) key pair."
+say ""
+step "the PRIVATE half goes into the $SECRET_NAME secret of $REPO and nowhere else"
+step "the PUBLIC half goes into $KEYS_JSON, which you commit"
+step "nothing is written to any server, and the private half is never printed"
+say ""
+note "Existing keys in $KEYS_JSON:"
+go run ./internal/cmd/keyset list || die "could not read $KEYS_JSON"
+say ""
+confirm "continue?"
+
+stage "Name this key"
+say "A key's name is how the record and every error message refers to it, and"
+say "it never changes. Use 'dev' for the pre-launch key and 'prod' for the one"
+say "you generate on your own hardware at launch."
+say ""
+ask "name for this key" KEY_NAME "prod"
+case "$KEY_NAME" in
+  *[!a-z0-9-]*) die "a key name is lower-case letters, digits and hyphens: '$KEY_NAME' is not" ;;
+esac
+
+stage "Password on the private half?"
+say "The private half is about to become a GitHub Actions secret. A password on"
+say "it would be a SECOND Actions secret in the same store, and anything able to"
+say "read one can read the other — so for a key that lives in CI a password adds"
+say "ceremony rather than protection, and the release workflow expects none."
+say ""
+say "If you are making a key that will ALSO live on your own hardware and you"
+say "want it password-protected there, say no here and protect your own copy"
+say "separately; the copy in CI still has to be password-free."
+say ""
+KEY_PASSWORD=""
+confirm "generate the CI copy WITHOUT a password (recommended)?"
+
+stage "Generate the pair"
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/agentry-signing.XXXXXX")
+chmod 700 "$WORK"
+step "generating in $WORK (removed when this wizard exits)"
+PUBLIC_LINE=$(go run ./internal/cmd/keyset generate -name "$KEY_NAME" -out "$WORK") \
+  || die "key generation failed"
+KEY_ID=$(head -1 "$WORK/$KEY_NAME.pub" | sed 's/.*: //')
+say ""
+step "public key: $PUBLIC_LINE"
+step "key id:     $KEY_ID"
+note "the private half is in $WORK and has not been printed"
+
+stage "Load the private half into GitHub"
+say "This replaces the current $SECRET_NAME secret on $REPO."
+say ""
+if [ "$KEY_NAME" != "dev" ]; then
+  warn "Releases signed by the PREVIOUS key stay verifiable, because the next"
+  warn "stage keeps its public half in the key set and marks it retired."
+fi
+confirm "set the $SECRET_NAME secret on $REPO now?"
+gh secret set "$SECRET_NAME" -R "$REPO" < "$WORK/$KEY_NAME.key" \
+  || die "could not set the secret; nothing has been committed, so re-run this wizard"
+step "set $SECRET_NAME on $REPO"
+SUMMARY+=("$SECRET_NAME -> GitHub secret on $REPO (key '$KEY_NAME', id $KEY_ID)")
+
+stage "Write the public half into the key set"
+say "Every key the product has ever used stays in $KEYS_JSON. Old ones are"
+say "marked retired: they still prove an OLD release genuine, and the app"
+say "refuses to install anything they signed. That is what makes a rotation a"
+say "release rather than a reinstall."
+say ""
+RETIRE_ARGS=""
+if go run ./internal/cmd/keyset list 2>/dev/null | grep -q 'current'; then
+  say "There is already a current key. Retiring it is almost always right:"
+  say "two current keys means two keys that can authorise an install."
+  read -r -p "  retire the current key(s)? [Y/n]: " ans
+  case "$ans" in n|N|no|NO) warn "leaving the previous key current: two keys can now authorise an install" ;; *) RETIRE_ARGS="-retire-current" ;; esac
+fi
+go run ./internal/cmd/keyset add \
+  -name "$KEY_NAME" \
+  -public "$PUBLIC_LINE" \
+  -note "private half: the $SECRET_NAME secret of $REPO" \
+  $RETIRE_ARGS || die "could not write $KEYS_JSON"
+say ""
+go run ./internal/cmd/keyset list
+SUMMARY+=("public half of '$KEY_NAME' -> $KEYS_JSON (commit it)")
+say ""
+warn "NOT DONE until you commit and push $KEYS_JSON:"
+note "  git add $KEYS_JSON && git commit -m 'chore(release): trust the $KEY_NAME update-signing key' && git push"
+note "Until that lands, the release workflow refuses every tag: it verifies its"
+note "own signature against the committed key set and will not publish a release"
+note "no shipped app could check."
+
+finish
