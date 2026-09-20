@@ -41,7 +41,7 @@ version: ${DESKTOP_VERSION}
 version_schema: semver
 section: utils
 priority: optional
-maintainer: SecureAgentry <chris@secureagentry.net>
+maintainer: Chris Dupres <chris@secureagentry.net>
 vendor: SecureAgentry
 homepage: https://secureagentry.net
 license: MIT
