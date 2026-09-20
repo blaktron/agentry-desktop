@@ -30,5 +30,14 @@
     "the wizard is what keeps the committed public half and the Actions secret",
     "the two halves of one pair."
   ],
-  "keys": []
+  "keys": [
+    {
+      "name": "dev",
+      "publicKey": "RWTLvF/i/YZI/zxXA03MOH7dx7sf/xwr0ihs8bkvz/geDhwAN8YIwiLM",
+      "keyID": "FF4886FDE25FBCCB",
+      "retired": false,
+      "addedAt": "2026-09-20",
+      "note": "private half: the AGENTRY_UPDATE_SIGNING_KEY secret of blaktron/agentry-desktop"
+    }
+  ]
 }
