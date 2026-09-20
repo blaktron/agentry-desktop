@@ -147,6 +147,24 @@ code, pre, .mono {
 
 .sidebar .foot { margin-top: auto; padding: 8px 10px; font-size: 11px; color: var(--color-muted); }
 
+/* "0.2.0 is available" beside the version, when a check found a newer
+   Agentry Desktop (#87). A button, not a link: it opens Settings, where the
+   card explains what it is and where to get it — nothing here downloads. */
+.sidebar .foot .update-line { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.sidebar .foot .update-line button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--color-accent, inherit);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sidebar .foot .update-line button:hover { text-decoration: none; }
+.sidebar .foot .update-line .dismiss { color: var(--color-muted); text-decoration: none; font-size: 13px; line-height: 1; }
+.sidebar .foot .update-line .dismiss:hover { color: inherit; }
+
 .content {
   flex: 1;
   min-width: 0;

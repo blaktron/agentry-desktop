@@ -82,6 +82,26 @@ g.go = { main: {
     }),
     OpenUpgrade: async () => undefined,
   },
+  // The "a newer Agentry Desktop" card (agentry-desktop#87). The hash picks
+  // which state Settings previews: #selfupdate-none (nothing newer),
+  // #selfupdate-nochannel (a build of the open core), #selfupdate-failed (the
+  // last check could not be believed); anything else offers a release.
+  SelfUpdateAPI: {
+    SelfUpdateStatus: async () => {
+      const state = (window.location.hash.match(/^#selfupdate-([\w-]+)/) || [])[1] || "available";
+      const base = { channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, checked: "2026-09-20T11:00:00Z" };
+      switch (state) {
+        case "nochannel": return { channel: "", current: "0.1.0", enabled: true };
+        case "none": return base;
+        case "failed": return { ...base, err: "the release the channel offers is not one this build accepts: the signature was made by a key this build does not trust: it claims key 7B0FF069B8E68A7B, and this build carries dev (BE6E950FCAA6286C)" };
+        case "retired": return { ...base, downloadUrl: "https://dev.secureagentry.net/download", available: { version: "0.2.0", commit: "a7d2e603", signedBy: "dev", retired: true } };
+        default: return { ...base, downloadUrl: "https://dev.secureagentry.net/download", available: { version: "0.2.0", commit: "a7d2e603", signedBy: "prod", retired: false } };
+      }
+    },
+    SelfUpdateCheckNow: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, checked: new Date().toISOString() }),
+    SetSelfUpdateCheckEnabled: async (on: boolean) => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: on, checked: "2026-09-20T11:00:00Z" }),
+    DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
+  },
   RunAPI: {
     GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
     // pages.html#docker-<state> previews the docker card in that state

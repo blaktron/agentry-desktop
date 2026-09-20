@@ -23,4 +23,12 @@ a comment about shell metacharacters in a username :: whether it is safe to plac
 # (not signed) and a "trusted comment" (signed with the message); those are the
 # names in the format and in the -t flag, so the word is naming a field rather
 # than making a claim about anything. Same case as the API status value above.
-minisign's own signed-comment field, named not claimed :: the trusted comment, which is signed along with the file
+minisign's own signed-comment field, named not claimed :: trusted comment
+
+# Two more spans of the same field's name. internal/selfupdate reads the
+# release's version out of it, so the phrase appears wherever that is
+# explained; "trusted comment" is minisign's term for the part of a signature
+# file that is covered by its own signature, and naming a field is not a claim
+# about anything.
+minisign's signed-comment field, in the update check :: TrustedComment
+minisign's signed-comment field, in the update check :: trustedComment

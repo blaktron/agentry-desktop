@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"os"
 
@@ -35,6 +36,7 @@ func main() {
 	validateAPI := &ValidateAPI{app: app}
 	runAPI := &RunAPI{app: app}
 	buildAPI := &BuildAPI{app: app}
+	selfUpdateAPI := newSelfUpdateAPI(app)
 
 	err := wails.Run(&options.App{
 		Title:     "Agentry Desktop",
@@ -45,7 +47,13 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		OnStartup: app.startup,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			// Last, and in its own goroutine: the check for a newer Agentry
+			// Desktop must not delay the first paint or the first-run wizard
+			// (agentry-desktop#87).
+			selfUpdateAPI.start(ctx)
+		},
 		Bind: []interface{}{
 			app,
 			settingsAPI,
@@ -54,6 +62,7 @@ func main() {
 			validateAPI,
 			runAPI,
 			buildAPI,
+			selfUpdateAPI,
 		},
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{

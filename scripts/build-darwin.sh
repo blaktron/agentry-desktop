@@ -17,9 +17,11 @@
 #
 # Environment:
 #   AGENTRY_DEFAULT_REGISTRY  registry URL the built app connects to when the
-#                             user configures nothing (empty: the source default,
-#                             the production site). The downloads builder sets
-#                             the same variable for the same reason.
+#                             user configures nothing, and the site whose
+#                             downloads manifest it checks for a newer release
+#                             (empty: the source default, the production site,
+#                             and no update channel at all). The downloads
+#                             builder sets the same variable for the same reason.
 #   SSHPASS                   read by sshpass -e; if unset, ssh asks (or uses a key).
 #   BUILD_DARWIN_SMOKE        1 (default) to launch the built app on the Mac for a
 #                             few seconds after the build; 0 to skip.
@@ -57,7 +59,12 @@ tar --exclude=.git --exclude=node_modules --exclude=build/bin --exclude=frontend
 echo "== building on $HOST"
 EXTRA_LDFLAGS="-w -s"
 if [ -n "${AGENTRY_DEFAULT_REGISTRY:-}" ]; then
+  # The registry and the update channel are baked together: the same site
+  # serves both (plan §7, D5), and a build that carried one without the other
+  # would either talk to the wrong place or never look for a newer release
+  # (agentry-desktop#87).
   EXTRA_LDFLAGS="$EXTRA_LDFLAGS -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}"
+  EXTRA_LDFLAGS="$EXTRA_LDFLAGS -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json"
 fi
 # The remote shell is zsh; ~/.zshenv puts Go, Node and the Wails CLI on PATH
 # for non-interactive sessions (plan M1). VERSION overrides the Makefile's
