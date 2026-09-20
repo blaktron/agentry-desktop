@@ -274,6 +274,7 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	if err := Save(dir, model()); err != nil {
 		t.Fatal(err)
 	}
+	var refusal string
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/agents/acme/hello-build", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -282,11 +283,12 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	mux.HandleFunc("POST /api/v1/agents/acme/hello-build/versions", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(http.StatusPaymentRequired)
-		_, _ = w.Write([]byte(`{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"A submission costs 10 credits; this account has 0, and its allowance resets on 11 October 2026.","balance":0,"resetsAt":"2026-10-11T00:00:00Z"}`))
+		_, _ = w.Write([]byte(refusal))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
+	refusal = `{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"A submission costs 10 credits; this account has 0, and its allowance resets on 11 October 2026.","balance":0,"resetsAt":"2026-10-11T00:00:00Z"}`
 	var log strings.Builder
 	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, "private", &log)
 	if err != nil {
@@ -298,7 +300,37 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	if !strings.Contains(res.Detail, "A submission costs 10 credits; this account has 0") || !strings.HasPrefix(res.Detail, "Not enough credits for this submission: ") {
 		t.Fatalf("detail = %q", res.Detail)
 	}
+	if res.Account != "" {
+		t.Fatalf("a refusal naming no account carried %q", res.Account)
+	}
 	if !strings.Contains(log.String(), "refused:") {
 		t.Fatalf("log lacks the refusal:\n%s", log.String())
+	}
+
+	// A refusal that names an account (plan organization-subscriptions.md
+	// D22): the pool that is short is the organization's, not the
+	// publisher's, so the page can say whose it is — the sentence names an
+	// organization this person never typed.
+	refusal = `{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"a submission costs 10 credits; the acme organization's pool has 0, and its allowance resets on 11 October 2026.","account":"acme","balance":0,"tier":"business"}`
+	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, "private", &log)
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if res.Refusal != "credits-exhausted" || res.Account != "acme" {
+		t.Fatalf("a refusal naming an organization = %+v", res)
+	}
+
+	// An organization whose subscription never started is its own
+	// refusal, not an empty balance, and the page offers the same way on.
+	refusal = `{"type":"https://agentry.dev/problems/subscription-inactive","title":"The organization's subscription is not active","status":402,"detail":"the acme organization is awaiting payment: nothing is admitted until its subscription starts","account":"acme","standing":"pending","tier":"business"}`
+	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, "private", &log)
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if res.Status != StatusRefused || res.Refusal != "subscription-inactive" || res.Account != "acme" {
+		t.Fatalf("an inactive subscription = %+v", res)
+	}
+	if !strings.Contains(res.Detail, "awaiting payment") {
+		t.Fatalf("detail = %q", res.Detail)
 	}
 }

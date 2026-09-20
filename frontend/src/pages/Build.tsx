@@ -413,16 +413,29 @@ export default function Build({ registry }: { registry: string }) {
                 {pubResult.status === "refused" && "refused — the registry stored nothing"}
               </strong>
               {pubResult.detail && <p className="muted small">{pubResult.detail}</p>}
-              {pubResult.status === "refused" && pubResult.refusal === "credits-exhausted" && (
-                // The allowance's refusal (plan subscription-tiers.md §8): the
-                // sentence above names the balance and the reset date; the
-                // way onward is the site's subscription page.
-                <p className="small">
-                  <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>
-                    Credits and upgrade
-                  </Button>
-                </p>
+              {pubResult.status === "refused" && pubResult.account && (
+                // Whose subscription the refusal is about (plan
+                // organization-subscriptions.md D22): a member publishes to
+                // their own namespace but spends from the organization's
+                // pool, so the account that is short is often not the one
+                // signed in, and the sentence above may name an
+                // organization this person has never typed.
+                <p className="muted small">the account is <span className="selectable">{pubResult.account}</span></p>
               )}
+              {pubResult.status === "refused" &&
+                (pubResult.refusal === "credits-exhausted" || pubResult.refusal === "subscription-inactive") && (
+                  // The refusal (plan subscription-tiers.md §8,
+                  // organization-subscriptions.md §6): the sentence above
+                  // names the balance and the reset, or why the
+                  // subscription admits nothing; the way onward is the page
+                  // the registry named — the organization's console for a
+                  // member, the subscription page for a person.
+                  <p className="small">
+                    <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>
+                      {pubResult.refusal === "subscription-inactive" ? "The subscription" : "Credits and upgrade"}
+                    </Button>
+                  </p>
+                )}
               {pubResult.findingCounts && Object.keys(pubResult.findingCounts).length > 0 && (
                 <p className="muted small">
                   findings: {Object.entries(pubResult.findingCounts).map(([s, n]) => `${s} ${n}`).join(" · ")}

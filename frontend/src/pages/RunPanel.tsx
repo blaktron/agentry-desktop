@@ -7,6 +7,7 @@
 // stream live; the §R8 envelope renders at the end, receipts included.
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main, trust } from "../../wailsjs/go/models";
@@ -616,7 +617,10 @@ export default function RunPanel({
             <span className="selectable">{hostedRefusal.detail}</span>
             {hostedRefusal.refusal === "credits-exhausted" && (
               <p className="small" style={{ marginBottom: 0 }}>
-                <Button onClick={() => hostedRefusal.upgradeUrl && OpenExternal(hostedRefusal.upgradeUrl).catch((e) => setRunErr(String(e)))}>
+                {/* The destination is the registry's to name and the app's
+                    to check, so this asks for the registry and never hands
+                    a URL to be opened (agentry-enterprise#41). */}
+                <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e)))}>
                   Credits and upgrade
                 </Button>
               </p>

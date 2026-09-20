@@ -99,10 +99,13 @@ func (f *hostedFake) start(t *testing.T) string {
 			"version": "1.0.0", "yanked": false,
 		})
 	})
-	mux.HandleFunc("GET /api/v1/x/billing/account", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/v1/x/billing/account", func(w http.ResponseWriter, r *http.Request) {
+		// The registry names where its subscription is managed
+		// (agentry-enterprise#41); the app never builds that path.
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"tier": "standard", "balance": 40, "allowance": 50, "submissionCost": 10,
 			"periodEnd": "2026-10-11T00:00:00Z", "privateAgents": map[string]any{"max": 10, "used": 1},
+			"upgrade": map[string]any{"available": true, "manage": false, "url": "http://" + r.Host + "/settings/subscription"},
 		})
 	})
 	mux.HandleFunc("GET /api/v1/x/runs/status", func(w http.ResponseWriter, _ *http.Request) {
@@ -502,7 +505,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	if !strings.Contains(start.Detail, "a run holds 20 credits") || strings.Contains(start.Detail, "{") {
 		t.Fatalf("detail = %q", start.Detail)
 	}
-	if start.UpgradeURL != upgradeURL(settings.Normalize(reg)) {
+	if start.UpgradeURL != settings.Normalize(reg)+"/settings/subscription" {
 		t.Fatalf("upgrade = %q", start.UpgradeURL)
 	}
 

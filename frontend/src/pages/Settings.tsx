@@ -105,7 +105,10 @@ export default function Settings({
                   : <span className="badge warn">anonymous</span>}
               </div>
               {accounts[r.url] && (
-                <AccountLine account={accounts[r.url]} onUpgrade={() => wrap(() => SettingsAPI.OpenUpgrade(r.url))} />
+                <>
+                  <AccountLine account={accounts[r.url]} onUpgrade={() => wrap(() => SettingsAPI.OpenUpgrade(r.url))} />
+                  <OrgLine user={accounts[r.url].user} />
+                </>
               )}
             </div>
             <div className="row nowrap">
@@ -212,25 +215,100 @@ export default function Settings({
   );
 }
 
+// TIER_LABEL is the product's name for each tier — the two a person may
+// hold and the two an organization may (plan
+// organization-subscriptions.md §4).
+const TIER_LABEL: Record<string, string> = {
+  standard: "Standard",
+  pro: "Pro",
+  business: "Business",
+  enterprise: "Enterprise",
+};
+
+const tierLabel = (t: string) => TIER_LABEL[t] ?? t;
+
+// STANDING_NOTE glosses an organization's standing with the consequence
+// the registry's own refusal gives it, so "restricted" reaches a person as
+// what it means rather than as a column value.
+const STANDING_NOTE: Record<string, string> = {
+  active: "active",
+  pending: "awaiting payment — nothing is admitted until the subscription starts",
+  restricted: "the subscription has lapsed — nothing is admitted until it is paid again",
+  decommissioning: "the organization is closing and admits nothing",
+};
+
+// OrgLine: the memberships the registry reports. They are the core's own
+// facts, so a registry that sells nothing still says which organization a
+// person belongs to and in what role; a membership an admin has yet to
+// approve says so and names the door, because until then they hold no
+// seat and spend from their own account.
+function OrgLine({ user }: { user: main.UserView }) {
+  if (!user.orgs?.length) return null;
+  return (
+    <>
+      {user.orgs.map((o) => {
+        const pending = o.state === "pending";
+        const via = user.pendingOrg?.handle === o.handle ? user.pendingOrg.via : "";
+        return (
+          <div key={o.handle} className="muted small">
+            organization <span className="selectable">{o.handle}</span> · {o.role}
+            {pending && (
+              <>
+                {" "}· <span className="badge warn">pending</span>{" "}
+                {via === "domain"
+                  ? "your address is at the organization's domain; an admin has yet to approve you"
+                  : via === "scim"
+                    ? "the organization's directory provisioned you; an admin has yet to approve you"
+                    : "an admin has yet to approve you"}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // AccountLine: the handle and email of the credential and, where the
-// registry has tiers, the subscription; Upgrade opens the site in the
-// browser — the app takes no payment.
+// registry has tiers, the subscription. For a member of an organization
+// that is the organization's: the tier names it, the balance is the
+// shared pool's, and the seats and the standing come with them. Manage
+// opens the page the registry named — its console for a member, the
+// subscription page for a person — and the app takes no payment.
 function AccountLine({ account, onUpgrade }: { account: main.AccountView; onUpgrade: () => void }) {
   const sub = account.subscription;
-  const tier = sub ? (sub.tier === "pro" ? "Pro" : "Standard") : null;
+  const pool = !!sub?.memberOf;
   return (
     <div className="muted small" style={{ marginTop: 4 }}>
       <span className="selectable">{account.user.handle}</span>
       {account.user.email && <> · <span className="selectable">{account.user.email}</span></>}
       {sub && (
         <>
-          {" "}· {tier} · {sub.balance} of {sub.allowance} credits (a submission costs {sub.submissionCost}; resets on {dayOf(sub.periodEnd)})
-          {sub.pendingTier && <> · {sub.pendingTier === "pro" ? "Pro" : "Standard"} from {dayOf(sub.periodEnd)}</>}
-          {sub.upgradeUrl && (
+          {" "}· {tierLabel(sub.tier)}
+          {sub.memberOf && <> , through <span className="selectable">{sub.memberOf}</span></>}
+          {" "}·{" "}
+          {pool && sub.unmetered
+            ? "pool not metered"
+            : pool && sub.standing !== "active"
+              ? `pool ${sub.balance} credits, and no allowance while the subscription is not active`
+              : pool
+                ? `pool ${sub.balance} of ${sub.allowance} credits (a submission costs ${sub.submissionCost}; resets on ${dayOf(sub.periodEnd)})`
+                : `${sub.balance} of ${sub.allowance} credits (a submission costs ${sub.submissionCost}; resets on ${dayOf(sub.periodEnd)})`}
+          {sub.seats && <> · {sub.seats.max > 0 ? `${sub.seats.used} of ${sub.seats.max} seats` : `${sub.seats.used} seats (no cap)`}</>}
+          {sub.standing && <> · {STANDING_NOTE[sub.standing] ?? sub.standing}</>}
+          {sub.pendingTier && <> · {tierLabel(sub.pendingTier)} from {dayOf(sub.periodEnd)}</>}
+          {sub.upgrade?.url && (
             <>
               {" "}
-              <Button onClick={onUpgrade} title="Opens the subscription page of the registry's site in your browser">
-                Upgrade
+              <Button
+                onClick={onUpgrade}
+                title={
+                  sub.memberOf
+                    ? "Opens the organization's console on the registry's site in your browser"
+                    : "Opens the subscription page of the registry's site in your browser"
+                }
+              >
+                {sub.upgrade.available ? "Upgrade" : "Manage"}
               </Button>
             </>
           )}

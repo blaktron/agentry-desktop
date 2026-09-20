@@ -576,10 +576,15 @@ type PublishResult struct {
 	// before storing anything (a spent credit allowance: 402
 	// credits-exhausted, plan subscription-tiers.md §8); Detail then
 	// carries the refusal's sentence and Refusal its slug.
-	Status        string         `json:"status"`
-	Digest        string         `json:"digest"`
-	Detail        string         `json:"detail,omitempty"`
-	Refusal       string         `json:"refusal,omitempty"`
+	Status  string `json:"status"`
+	Digest  string `json:"digest"`
+	Detail  string `json:"detail,omitempty"`
+	Refusal string `json:"refusal,omitempty"`
+	// Account names whose subscription the refusal is about. A member
+	// publishes to their own namespace but spends from their
+	// organization's pool (plan organization-subscriptions.md D22), so
+	// the account that is short is often not the one that signed in.
+	Account       string         `json:"account,omitempty"`
 	FindingCounts map[string]int `json:"findingCounts,omitempty"`
 }
 
@@ -680,9 +685,9 @@ func Publish(ctx context.Context, regURL, token, dir, visibility string, logw io
 			// The allowance's refusal is a result the page renders with the
 			// way onward, not a failure: the registry stored nothing and
 			// says why.
-			slug, msg := refusalOf(sresp.Body)
+			slug, msg, account := refusalOf(sresp.Body)
 			_, _ = fmt.Fprintf(logw, "refused: %s\n", msg)
-			return &PublishResult{Status: StatusRefused, Refusal: slug, Detail: msg}, nil
+			return &PublishResult{Status: StatusRefused, Refusal: slug, Detail: msg, Account: account}, nil
 		}
 		return nil, registry.Problem("submit version", sresp.StatusCode(), sresp.ApplicationproblemJSONDefault, sresp.Body)
 	}
@@ -757,14 +762,17 @@ SOFTWARE.
 }
 
 // refusalOf reads a problem body's slug and sentence.
-func refusalOf(body []byte) (slug, msg string) {
+func refusalOf(body []byte) (slug, msg, account string) {
 	var p struct {
 		Type   string `json:"type"`
 		Title  string `json:"title"`
 		Detail string `json:"detail"`
+		// Account is the billing extension's own member on a 402: the
+		// subscription the refusal is about.
+		Account string `json:"account"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
-		return "", strings.TrimSpace(string(body))
+		return "", strings.TrimSpace(string(body)), ""
 	}
 	slug = p.Type
 	if i := strings.LastIndex(slug, "/"); i >= 0 {
@@ -774,5 +782,5 @@ func refusalOf(body []byte) (slug, msg string) {
 	if p.Detail != "" {
 		msg += ": " + p.Detail
 	}
-	return slug, msg
+	return slug, msg, p.Account
 }

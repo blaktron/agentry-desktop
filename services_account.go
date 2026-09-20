@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"strings"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
@@ -23,7 +24,14 @@ import (
 // (agentry-enterprise/schemas/x-billing.yaml). The route is the closed
 // build's, so it is read by hand rather than through the generated client.
 type SubscriptionView struct {
-	Tier           string `json:"tier"`
+	Tier      string `json:"tier"`
+	Standing  string `json:"standing,omitempty"`
+	Unmetered bool   `json:"unmetered,omitempty"`
+	Seats     *Seats `json:"seats,omitempty"`
+	// MemberOf names the organization whose pool this person spends from
+	// (D22). When it is set, everything above is the organization's
+	// account and not this person's own.
+	MemberOf       string `json:"memberOf,omitempty"`
 	Balance        int64  `json:"balance"`
 	Allowance      int64  `json:"allowance"`
 	SubmissionCost int64  `json:"submissionCost"`
@@ -33,9 +41,28 @@ type SubscriptionView struct {
 		Max  int64 `json:"max"`
 		Used int64 `json:"used"`
 	} `json:"privateAgents"`
-	// UpgradeURL is the site's subscription page for this registry, or ""
-	// when the account is already Pro.
-	UpgradeURL string `json:"upgradeUrl,omitempty"`
+	// Upgrade is the registry's own answer about buying and managing:
+	// whether either is possible here and, in URL, the page to open — the
+	// organization's console for a member, the subscription page for a
+	// person (agentry-enterprise#41, D28). The app never derives it.
+	Upgrade UpgradeRef `json:"upgrade"`
+}
+
+// Seats is the organization's seats: held against the allowance, where 0
+// means no cap.
+type Seats struct {
+	Used int64 `json:"used"`
+	Max  int64 `json:"max"`
+}
+
+// UpgradeRef mirrors the extension's. URL says *where* the subscription is
+// managed and the booleans say *whether* anything can be done there, so
+// the app shows the console to a member whose organization is fully paid
+// for without offering them a purchase.
+type UpgradeRef struct {
+	Available bool   `json:"available"`
+	Manage    bool   `json:"manage"`
+	URL       string `json:"url,omitempty"`
 }
 
 // AccountView is the signed-in account with its subscription where the
@@ -69,21 +96,58 @@ func (s *SettingsAPI) Account(url string) (*AccountView, error) {
 	return out, nil
 }
 
-// OpenUpgrade opens the site's subscription page for a registry in the
-// browser. The product's site fronts the registry's own origin (the edge
-// sends /api/ to the server and everything else to the site), which is
-// why the page is the registry URL plus a path; a core registry has no
-// billing extension and never shows the button.
+// OpenUpgrade opens the page where this account's subscription is
+// managed. The destination is the registry's to name — the organization's
+// console for a member, the subscription page for a person — because it
+// turns on a membership only the registry knows; an app deriving it from
+// the registry URL would send every member to a page about an account
+// that does not pay for them (agentry-enterprise#41). So this reads the
+// account and opens what it answered.
+//
+// The caller names a registry, never a destination: the app will not open
+// a URL the front end chose, and the one the registry named is opened
+// only if it is on that registry's own origin, which is where the site
+// lives (the edge sends /api/ to the server and everything else to the
+// site). A registry cannot use this to send a person anywhere else.
 func (s *SettingsAPI) OpenUpgrade(url string) error {
 	url = settings.Normalize(url)
 	if err := settings.ValidateURL(url); err != nil {
 		return err
 	}
-	return s.open(upgradeURL(url))
+	page, err := upgradeDestination(s.app.ctx, url, settings.TokenFor(url))
+	if err != nil {
+		return err
+	}
+	return s.open(page)
 }
 
-func upgradeURL(registryURL string) string {
-	return strings.TrimRight(registryURL, "/") + "/settings/subscription?upgrade=pro"
+// upgradeDestination asks the registry where this account's subscription
+// is managed and checks the answer before anything opens it.
+func upgradeDestination(ctx context.Context, registryURL, token string) (string, error) {
+	if token == "" {
+		return "", fmt.Errorf("not signed in to %s", registryURL)
+	}
+	sub, err := fetchSubscription(ctx, registryURL, token)
+	if err != nil {
+		return "", err
+	}
+	if sub == nil || sub.Upgrade.URL == "" {
+		return "", fmt.Errorf("%s names no page for this subscription", registryURL)
+	}
+	if !sameOrigin(registryURL, sub.Upgrade.URL) {
+		return "", fmt.Errorf("%s named a subscription page on another site; not opening it", registryURL)
+	}
+	return sub.Upgrade.URL, nil
+}
+
+// sameOrigin reports whether a registry-named page belongs to that
+// registry: same scheme, same host, same port. The site and the server
+// share an origin, so anything else is a registry pointing the app off
+// its own ground, which the app declines to follow.
+func sameOrigin(registryURL, page string) bool {
+	a, err1 := neturl.Parse(registryURL)
+	b, err2 := neturl.Parse(page)
+	return err1 == nil && err2 == nil && a.Scheme == b.Scheme && a.Host == b.Host
 }
 
 // fetchSubscription returns nil, nil for a registry without the billing
@@ -128,9 +192,6 @@ func fetchSubscription(ctx context.Context, url, token string) (*SubscriptionVie
 	var sub SubscriptionView
 	if err := json.Unmarshal(body, &sub); err != nil {
 		return nil, fmt.Errorf("read subscription: %w", err)
-	}
-	if sub.Tier != "pro" {
-		sub.UpgradeURL = upgradeURL(url)
 	}
 	return &sub, nil
 }
