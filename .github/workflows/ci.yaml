@@ -126,15 +126,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: makensis, 7z and osslsigncode from Ubuntu's packages
+      - name: makensis, 7z, osslsigncode and openssl from Ubuntu's packages
         run: |
           set -euo pipefail
-          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null || ! command -v osslsigncode >/dev/null; then
+          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null || ! command -v osslsigncode >/dev/null || ! command -v openssl >/dev/null; then
             sudo=""; [ "$(id -u)" = 0 ] || sudo=sudo
             $sudo apt-get update -qq
-            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full osslsigncode
+            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full osslsigncode openssl
           fi
-          makensis -VERSION; 7z | sed -n 2p; osslsigncode --version 2>&1 | head -1
+          makensis -VERSION; 7z | sed -n 2p; osslsigncode --version 2>&1 | sed -n 1p
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx vite build
       - name: Install the wails CLI at the version go.mod pins
@@ -148,8 +148,10 @@ jobs:
       # The release signs (agentry-desktop#54); a PR proves the seam with a
       # throwaway CA instead of the key: the NSIS hooks sign the installer
       # and the uninstaller, the exe signed before makensis is the one
-      # embedded, and the --signed check accepts that set and refuses an
-      # unsigned exe and a foreign root.
+      # embedded, a failing signer fails the build, and the --signed check
+      # accepts that set and refuses an unsigned exe, a foreign root and an
+      # unexpected CN. It timestamps against a public TSA (two tried), so it
+      # needs the network the rest of this job already needs.
       - name: Windows signing seam, with a throwaway CA
         run: scripts/acceptance/windows-signing.sh build/bin/agentry-desktop.exe
       # wails build -nsis rewrites wails_tools.nsh from wails.json on every

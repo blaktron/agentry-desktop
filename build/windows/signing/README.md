@@ -10,6 +10,10 @@ because it is not in the Mozilla bundle Ubuntu's `ca-certificates` ships,
 so `osslsigncode verify` has to be handed it; `scripts/check-windows-installer.sh
 --signed` refuses to use a file whose fingerprint differs from the one above.
 
-`scripts/sign-windows.sh` pins the `jsign` release that produces the
-signature (version and SHA-256 of the jar, in the script). Changing either
-pin is a pull request, like every other pin in this repository.
+The fingerprint is enforced in `scripts/check-windows-installer.sh`
+(`pinned_fp`); `scripts/acceptance/windows-signing.sh` checks that this file
+and that pin agree; the README above is the human copy. `scripts/sign-windows.sh`
+pins the `jsign` release that produces the signature (version and SHA-256 of
+the jar, in the script; the digest was computed from the jar GitHub serves
+for that release tag on 2026-09-21). Changing any pin is a pull request,
+like every other pin in this repository.

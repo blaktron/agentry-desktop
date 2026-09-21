@@ -26,11 +26,13 @@
 #      carries and the uninstaller it embeds each carry an Authenticode
 #      signature that osslsigncode verifies to the pinned Microsoft Identity
 #      Verification root (build/windows/signing/), timestamped, all three by
-#      the same subject — and the subject's CN is the one build/release.env
-#      names, when it names one. --report FILE writes what was found
-#      (cn=, timestamp=, root=) for the release's BUILD-INFO. Without
-#      --signed the package is reported unsigned and nothing is asserted
-#      about signatures, which is what a PR build is.
+#      the same subject — and the subject's CN is AGENTRY_WINDOWS_SIGNING_CN
+#      when that is in the environment (the release exports it from
+#      build/release.env). --report FILE writes what was found (cn=,
+#      timestamp=, root=) for the release's BUILD-INFO. Without --signed the
+#      package is reported unsigned and nothing is asserted about
+#      signatures, which is what a PR build is. Needs osslsigncode 2.7 or
+#      later (both spellings of its timestamp line are read).
 #      Overrides for a test harness only: SIGNING_CAFILE (the root to verify
 #      against; the fingerprint pin is then skipped) and SIGNING_TSA_CAFILE
 #      (the timestamp chain's root, default: the same file).
@@ -137,7 +139,7 @@ verify_pe() {
   printf '%s\n' "$out" | grep -q 'Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "osslsigncode did not report the $label's signature ok"; }
   cn=$(printf '%s\n' "$out" | awk '/Signer.s certificate/{on=1} on && /Subject:/{print; exit}' | sed -n 's#.*/CN=\([^/]*\).*#\1#p' | head -1)
   [ -n "$cn" ] || { printf '%s\n' "$out" >&2; fail "could not read the signer's CN from osslsigncode's report on the $label"; }
-  ts=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*Timestamp time: //p' | head -1)
+  ts=$(printf '%s\n' "$out" | sed -n -e 's/^[[:space:]]*Timestamp time: //p' -e 's/^The signature is timestamped: //p' | head -1)
   [ -n "$ts" ] || { printf '%s\n' "$out" >&2; fail "the signature on the $label is not timestamped — an Artifact Signing certificate lives three days, so the signature would die with it"; }
   printf '%s\n' "$out" | grep -q 'Timestamp Server Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "the timestamp on the $label does not verify"; }
   printf '%s|%s\n' "$cn" "$ts"
@@ -151,15 +153,14 @@ uninst_sig=$(verify_pe "$work/uninstall.exe" "embedded uninstaller")
 cn=${setup_sig%%|*}
 [ "${exe_sig%%|*}" = "$cn" ] || fail "the application binary is signed by '${exe_sig%%|*}', the installer by '$cn'"
 [ "${uninst_sig%%|*}" = "$cn" ] || fail "the uninstaller is signed by '${uninst_sig%%|*}', the installer by '$cn'"
-# The CN the release environment names, when it names one (build/release.env,
-# AGENTRY_WINDOWS_SIGNING_CN): the certificate says who signed, this says who
-# was meant to.
-expected_cn=""
-if [ -f "$root_dir/build/release.env" ]; then
-  expected_cn=$(sed -n 's/^AGENTRY_WINDOWS_SIGNING_CN=//p' "$root_dir/build/release.env" | head -1 | sed -e 's/^"//' -e 's/"$//')
-fi
+# The CN the release expects, when it names one (AGENTRY_WINDOWS_SIGNING_CN,
+# exported from build/release.env by the release job): the certificate says
+# who signed, this says who was meant to. The pinned root is shared by every
+# Artifact Signing customer, so without it the check proves "an Artifact
+# Signing subject, one CN across three", not "ours".
+expected_cn="${AGENTRY_WINDOWS_SIGNING_CN:-}"
 if [ -n "$expected_cn" ] && [ "$expected_cn" != "$cn" ]; then
-  fail "signed by CN='$cn' but build/release.env expects AGENTRY_WINDOWS_SIGNING_CN='$expected_cn'"
+  fail "signed by CN='$cn' but AGENTRY_WINDOWS_SIGNING_CN expects '$expected_cn'"
 fi
 
 if [ -n "$report" ]; then

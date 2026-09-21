@@ -16,8 +16,9 @@
 #   ARTIFACT_SIGNING_PROFILE    the Public Trust certificate profile name
 #   JSIGN_JAR                   the jar `fetch` wrote (defaults to $RUNNER_TEMP/jsign.jar)
 #
-# The key never leaves Microsoft's HSM: jsign sends the file's digest and gets
-# the signature back. Artifact Signing's certificates live three days, so
+# Microsoft's statement of the service is that the key never leaves its HSM
+# and the certificate "is never given to you"; jsign sends the file's digest
+# and gets the signature back. Artifact Signing's certificates live three days, so
 # every signature is timestamped by Microsoft's own TSA or it dies with the
 # certificate. makensis calls this script through the !finalize and
 # !uninstfinalize hooks in project.nsi for the installer and the uninstaller;

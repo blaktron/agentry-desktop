@@ -100,9 +100,11 @@ FunctionEnd
 ## on the uninstaller before it is embedded — NSIS 3.08+ generates the whole
 ## uninstaller at compile time for this — and !finalize on the installer once
 ## it is written. %1 is the path NSIS hands over.
+## "= 0": a signer that exits non-zero fails the compilation instead of leaving
+## an unsigned file for the checker to find.
 !ifdef SIGN_CMD
-!uninstfinalize '"${SIGN_CMD}" "%1"'
-!finalize '"${SIGN_CMD}" "%1"'
+!uninstfinalize '"${SIGN_CMD}" "%1"' = 0
+!finalize '"${SIGN_CMD}" "%1"' = 0
 !endif
 
 Name "${INFO_PRODUCTNAME}"

@@ -20,8 +20,12 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # credential builds in vendor mode on its own, but tidy walks the whole module
 # graph past vendor/ and asks GitHub for the private modules.
 WAILS_FLAGS ?=
+# SIGN_CMD: a command that Authenticode-signs the one PE file it is given, in
+# place (the release workflow passes scripts/sign-windows.sh). Empty means an
+# unsigned Windows package, which PR and workstation builds are.
+SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate linux-icons version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate linux-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -128,31 +132,35 @@ smoke-darwin-selfupdate:
 # exe's does. scripts/check-windows-installer.sh reads the result back
 # (needs 7z: p7zip-full / p7zip-plugins).
 #
-# Authenticode (agentry-desktop#54): SIGN_CMD, when set, is a command that
-# signs one PE file in place (the release workflow passes
-# scripts/sign-windows.sh with the Artifact Signing token in its
-# environment). The exe is signed BEFORE the installer embeds it, so the
-# check's byte comparison still holds; the installer and its uninstaller are
-# signed by makensis itself through project.nsi's !finalize hooks, which only
-# exist when SIGN_CMD is defined. wails runs makensis once without the
-# define (its own -nsis step: it also writes the WebView2 bootstrapper and
-# wails_tools.nsh, which is why -nsis stays), so a signed build runs makensis
-# a second time with it and the signed exe; the unsigned installer of the
-# first run is overwritten. Without SIGN_CMD nothing here changes and the
-# check reports the package unsigned, as PR builds are.
-# Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe, its zip,
-# and build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe; with
-# SIGN_CMD also build/bin/windows-signing.txt, the checker's report (cn=,
-# timestamp=, root=) that the release writes into BUILD-INFO. The seam's
-# acceptance, with a throwaway CA in place of the real key:
+# Authenticode (agentry-desktop#54) is three targets so the release can hand
+# the signing token to the one that signs and to nothing else: build-windows
+# (wails: the exe, and an unsigned installer as a side effect of -nsis, which
+# also writes the WebView2 bootstrapper and wails_tools.nsh), sign-windows
+# (SIGN_CMD on the exe BEFORE the installer embeds it, so the check's byte
+# comparison still holds, then makensis again with -DSIGN_CMD, under which
+# project.nsi's !finalize hooks sign the uninstaller and the installer and
+# overwrite the unsigned one), finish-windows (the zip and the setup name,
+# then the check — --signed with a report when SIGN_CMD is set). package-windows
+# runs all three; without SIGN_CMD sign-windows is a no-op and the check
+# reports the package unsigned, as PR builds are. With SIGN_CMD also
+# build/bin/windows-signing.txt, the checker's report (cn=, timestamp=,
+# root=) that the release writes into BUILD-INFO. The seam's acceptance,
+# with a throwaway CA in place of the real key:
 # scripts/acceptance/windows-signing.sh build/bin/agentry-desktop.exe.
-SIGN_CMD ?=
-package-windows:
+# Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe, its zip,
+# and build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe.
+package-windows: build-windows sign-windows finish-windows
+
+build-windows:
 	wails build $(WAILS_FLAGS) -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
+
+sign-windows:
 ifneq ($(strip $(SIGN_CMD)),)
 	$(SIGN_CMD) build/bin/agentry-desktop.exe
 	cd build/windows/installer && makensis -DARG_WAILS_AMD64_BINARY='$(abspath build/bin/agentry-desktop.exe)' -DSIGN_CMD='$(abspath $(SIGN_CMD))' project.nsi
 endif
+
+finish-windows:
 	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
 	scripts/check-windows-installer.sh $(if $(strip $(SIGN_CMD)),--signed --report build/bin/windows-signing.txt,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
