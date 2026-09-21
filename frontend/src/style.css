@@ -146,6 +146,7 @@ code, pre, .mono {
   cursor: pointer;
 }
 .nav-item:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.nav-item .nav-count { float: right; font-size: 11px; padding: 0 6px; line-height: 18px; }
 .nav-item.active {
   background: color-mix(in srgb, var(--color-accent) 14%, transparent);
   color: var(--color-accent);

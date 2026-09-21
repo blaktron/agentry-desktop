@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as SettingsAPI from "../wailsjs/go/main/SettingsAPI";
 import { AppVersion } from "../wailsjs/go/main/App";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/main/SelfUpdateAPI";
+import { UpdatesStatus } from "../wailsjs/go/main/InstallAPI";
 import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
@@ -31,6 +32,10 @@ export default function App() {
   // status never starts a check: the app looks on launch and daily in the
   // background, and this only renders what it found.
   const [newer, setNewer] = useState<main.SelfUpdateView | null>(null);
+  // How many installed BriefAgents have a newer version, from the launch
+  // check and the agent page's own checks (agentry-desktop#147, D8): the
+  // number on Installed. Reading it never starts a check.
+  const [installedUpdates, setBriefUpdates] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
   // The "nothing set up" reminder (plan desktop-installers.md D10): raised
   // when the wizard closed with "I'll do it later", shown on Browse until
@@ -64,7 +69,10 @@ export default function App() {
   // again on a slow cadence rather than once: a line that only ever appeared
   // on the next launch would be a line most people never saw.
   useEffect(() => {
-    const read = () => SelfUpdateStatus().then(setNewer).catch(() => {});
+    const read = () => {
+      SelfUpdateStatus().then(setNewer).catch(() => {});
+      UpdatesStatus().then((v) => setBriefUpdates(v.available)).catch(() => {});
+    };
     read();
     const t = setInterval(read, 60_000);
     return () => clearInterval(t);
@@ -84,12 +92,13 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
-  const navItem = (label: string, page: Route["page"]) => (
+  const navItem = (label: string, page: Route["page"], count = 0) => (
     <button
       className={`nav-item ${route.page === page || (page === "browse" && route.page === "agent") ? "active" : ""}`}
       onClick={() => nav({ page } as Route)}
     >
       {label}
+      {count > 0 && <span className="badge warn nav-count" title={`${count} installed BriefAgent${count === 1 ? " has" : "s have"} a newer version`}>{count}</span>}
     </button>
   );
 
@@ -100,7 +109,7 @@ export default function App() {
           <Wordmark sub="Desktop" />
         </div>
         {navItem("Browse", "browse")}
-        {navItem("Installed", "installed")}
+        {navItem("Installed", "installed", installedUpdates)}
         {navItem("Build", "build")}
         {navItem("Validate", "validate")}
         {navItem("Settings", "settings")}

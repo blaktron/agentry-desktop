@@ -6,6 +6,10 @@ export function Cancel(arg1) {
   return window['go']['main']['InstallAPI']['Cancel'](arg1);
 }
 
+export function CheckUpdate(arg1, arg2) {
+  return window['go']['main']['InstallAPI']['CheckUpdate'](arg1, arg2);
+}
+
 export function CheckUpdates() {
   return window['go']['main']['InstallAPI']['CheckUpdates']();
 }
@@ -36,4 +40,8 @@ export function Uninstall(arg1) {
 
 export function UpdateDir(arg1) {
   return window['go']['main']['InstallAPI']['UpdateDir'](arg1);
+}
+
+export function UpdatesStatus() {
+  return window['go']['main']['InstallAPI']['UpdatesStatus']();
 }

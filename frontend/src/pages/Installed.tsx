@@ -29,6 +29,14 @@ export default function Installed({
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
+    // What the launch check (and the agent pages since) found, so the
+    // badges are there without a click (agentry-desktop#147); "Check for
+    // updates" asks again.
+    InstallAPI.UpdatesStatus().then((v) => {
+      const map: UpdateMap = {};
+      for (const u of v.updates) map[keyOf(u.key)] = u;
+      setUpdates(map);
+    }).catch(() => {});
   }, []);
   useEffect(refresh, [refresh]);
 
@@ -87,8 +95,9 @@ export default function Installed({
       setUpdatingRunner(keyOf(rec));
       try {
         await InstallAPI.InstallRunner(rec.origin, ref);
+        // The snapshot took the row before the call returned: refresh
+        // reads it, and nothing is cleared underneath it.
         refresh();
-        setUpdates({});
       } catch (e) {
         setError(String(e));
       } finally {
@@ -237,7 +246,7 @@ export default function Installed({
           presetTarget={updating.rec.target}
           presetDir={updating.dir}
           onClose={() => setUpdating(null)}
-          onInstalled={() => { refresh(); setUpdates({}); }}
+          onInstalled={() => refresh()}
         />
       )}
     </div>
