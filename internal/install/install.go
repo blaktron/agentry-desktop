@@ -133,6 +133,13 @@ type Plan struct {
 	// Unsigned is true when the registry offers no attestation; Confirm then
 	// requires acceptUnsigned, mirroring the CLI's --allow-unsigned.
 	Unsigned bool `json:"unsigned"`
+	// Unscanned is true when the registry admitted the version without a
+	// scan (a private organization agent its administrator took off the
+	// pipeline; plan organization-subscriptions §4): no findings, no report
+	// and no attestation stand behind it. Confirm then requires
+	// acceptUnscanned — its own consent, which acceptUnsigned does not give
+	// — mirroring the CLI's --allow-unscanned.
+	Unscanned bool `json:"unscanned"`
 
 	Capabilities installed.CapSnapshot `json:"capabilities"`
 	// NeedsCapabilityConfirm: first install declaring egress or exec (§11).
@@ -233,9 +240,10 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	// against the digest just computed from the actual bytes.
 	att := verifyAttestation(ctx, regURL, token, res, computed)
 	switch att.State {
-	case trust.StateVerified, trust.StateUnsigned:
+	case trust.StateVerified, trust.StateUnsigned, trust.StateUnscanned:
 		// verified proceeds; unsigned proceeds only behind acceptUnsigned at
-		// Confirm — the plan carries the state either way.
+		// Confirm, unscanned only behind acceptUnscanned — the plan carries
+		// the state either way.
 	default: // mismatch, unverifiable
 		hint := ""
 		if att.KeyRotated {
@@ -285,6 +293,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 
 		Attestation: att,
 		Unsigned:    att.State == trust.StateUnsigned,
+		Unscanned:   att.State == trust.StateUnscanned,
 
 		Capabilities: installed.Snapshot(m.Capabilities),
 		Target:       target,
@@ -320,8 +329,14 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 }
 
 // verifyAttestation resolves the attestation URL (falling back to the
-// canonical path when the resolve result omits it) and verifies.
+// canonical path when the resolve result omits it) and verifies — unless
+// the registry admitted the version without a scan, which is its own
+// outcome, read before any attestation is looked for: the absence is the
+// fact, not a missing signature.
 func verifyAttestation(ctx context.Context, regURL, token string, res *apiclient.ResolveResult, computed string) trust.AttestationResult {
+	if registry.Unscanned(res) {
+		return trust.Unscanned()
+	}
 	attURL := ""
 	if res.AttestationUrl != nil {
 		attURL = *res.AttestationUrl
@@ -332,15 +347,21 @@ func verifyAttestation(ctx context.Context, regURL, token string, res *apiclient
 	return trust.VerifyAttestation(ctx, registry.HTTPClient, regURL, token, attURL, computed)
 }
 
-// Confirm applies the consent gates and writes the install. Both booleans
-// are explicit decisions the UI collected from the user; nothing defaults on.
-func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities bool) (*Result, error) {
+// Confirm applies the consent gates and writes the install. The booleans
+// are explicit decisions the UI collected from the user; nothing defaults
+// on, and none stands in for another: an unscanned release is not an
+// unsigned one, and accepting unsigned says nothing about it.
+func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUnscanned bool) (*Result, error) {
 	p, ok := e.pending[id]
 	if !ok {
 		return nil, fmt.Errorf("install plan %s not found (already confirmed or cancelled)", id)
 	}
 	plan := p.plan
 
+	if plan.Unscanned && !acceptUnscanned {
+		return nil, fmt.Errorf("unscanned — the registry admitted %s/%s@%s without a scan: no findings, no report and no attestation stand behind it; installing requires explicitly accepting an unscanned release",
+			plan.Namespace, plan.Name, plan.Version)
+	}
 	if plan.Unsigned && !acceptUnsigned {
 		return nil, fmt.Errorf("unsigned — the registry offers no attestation for %s/%s@%s; installing requires explicitly accepting an unsigned release",
 			plan.Namespace, plan.Name, plan.Version)

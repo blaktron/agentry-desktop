@@ -90,7 +90,7 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 	if plan.Target != manifest.InterfaceAgentsMD {
 		t.Fatalf("default target from interfaces = %q", plan.Target)
 	}
-	if _, err := e.Confirm(plan.ID, false, false); err != nil {
+	if _, err := e.Confirm(plan.ID, false, false, false); err != nil {
 		t.Fatal(err)
 	}
 	doc, err := os.ReadFile(filepath.Join(project, "AGENTS.md"))
@@ -113,7 +113,7 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 	if plan2.PrevVersion != "1.0.0" || plan2.Diff == nil || plan2.RequiresWidenedConfirm {
 		t.Fatalf("reinstall plan = %+v", plan2)
 	}
-	if _, err := e.Confirm(plan2.ID, false, false); err != nil {
+	if _, err := e.Confirm(plan2.ID, false, false, false); err != nil {
 		t.Fatal(err)
 	}
 	doc, err = os.ReadFile(filepath.Join(project, "AGENTS.md"))
@@ -158,10 +158,10 @@ func TestFirstInstallCapabilityGate(t *testing.T) {
 	if !plan.NeedsCapabilityConfirm {
 		t.Fatalf("first install with exec must gate: %+v", plan)
 	}
-	if _, err := e.Confirm(plan.ID, false, false); err == nil || !strings.Contains(err.Error(), "capability") {
+	if _, err := e.Confirm(plan.ID, false, false, false); err == nil || !strings.Contains(err.Error(), "capability") {
 		t.Fatalf("err = %v, want the capability gate", err)
 	}
-	if _, err := e.Confirm(plan.ID, false, true); err != nil {
+	if _, err := e.Confirm(plan.ID, false, true, false); err != nil {
 		t.Fatalf("acceptance must unlock the install: %v", err)
 	}
 }
@@ -202,7 +202,7 @@ func TestConfirmUnknownAndCancel(t *testing.T) {
 	reg := startRegistry(t, &fakeRegistry{})
 	e := NewEngine()
 
-	if _, err := e.Confirm("nope", true, true); err == nil || !strings.Contains(err.Error(), "not found") {
+	if _, err := e.Confirm("nope", true, true, true); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("err = %v, want not-found", err)
 	}
 
@@ -211,7 +211,7 @@ func TestConfirmUnknownAndCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Cancel(plan.ID)
-	if _, err := e.Confirm(plan.ID, true, true); err == nil {
+	if _, err := e.Confirm(plan.ID, true, true, false); err == nil {
 		t.Fatal("a cancelled plan must not confirm")
 	}
 
@@ -219,10 +219,10 @@ func TestConfirmUnknownAndCancel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Confirm(plan2.ID, false, false); err != nil {
+	if _, err := e.Confirm(plan2.ID, false, false, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Confirm(plan2.ID, false, false); err == nil {
+	if _, err := e.Confirm(plan2.ID, false, false, false); err == nil {
 		t.Fatal("a plan must be single-use")
 	}
 }
@@ -238,7 +238,7 @@ func TestConfirmMissingSkillEntrypoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Confirm(plan.ID, false, false); err == nil || !strings.Contains(err.Error(), "skill entrypoint") {
+	if _, err := e.Confirm(plan.ID, false, false, false); err == nil || !strings.Contains(err.Error(), "skill entrypoint") {
 		t.Fatalf("err = %v, want the entrypoint refusal", err)
 	}
 	st, err := installed.Load()

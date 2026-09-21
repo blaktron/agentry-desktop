@@ -76,6 +76,9 @@ type fakeRunRegistry struct {
 	// attStatus is the attestation endpoint's status (default 404 —
 	// unsigned; 500 exercises the unverifiable refusal).
 	attStatus int
+	// unscanned makes the resolve result say the version was admitted
+	// without a scan (scanStatus skipped, no attestationUrl).
+	unscanned bool
 
 	mu   sync.Mutex
 	hits map[string]int
@@ -173,12 +176,17 @@ func startRunRegistry(t *testing.T, f *fakeRunRegistry) string {
 	mux.HandleFunc("/api/v1/resolve", func(w http.ResponseWriter, _ *http.Request) {
 		f.count("/api/v1/resolve")
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		doc := map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": "/att",
 			"digest": f.digest, "manifest": f.manifestDoc,
 			"namespace": f.namespace, "name": f.name, "version": f.version,
-			"yanked": f.yanked,
-		})
+			"yanked": f.yanked, "scanStatus": "pipeline",
+		}
+		if f.unscanned {
+			delete(doc, "attestationUrl")
+			doc["scanStatus"] = "skipped"
+		}
+		_ = json.NewEncoder(w).Encode(doc)
 	})
 	mux.HandleFunc("/archive.tar.zst", func(w http.ResponseWriter, _ *http.Request) {
 		f.count("/archive.tar.zst")

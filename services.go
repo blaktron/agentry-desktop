@@ -384,6 +384,12 @@ type VersionView struct {
 	ArchiveDigest string `json:"archiveDigest,omitempty"`
 	Yanked        bool   `json:"yanked"`
 	YankReason    string `json:"yankReason,omitempty"`
+	// ScanStatus is how the registry admitted the version: `pipeline`, or
+	// `skipped` for one admitted without a scan (plan
+	// organization-subscriptions §4), which the page labels unscanned and
+	// the install and run surfaces ask consent for. Empty from a registry
+	// that predates the field, which never published unscanned.
+	ScanStatus string `json:"scanStatus,omitempty"`
 }
 
 // AgentView is the agent header.
@@ -408,6 +414,8 @@ type AgentDetailView struct {
 	LatestCapabilities map[string]interface{} `json:"latestCapabilities,omitempty"`
 	// LatestDigest is Latest's archive digest (provenance panel).
 	LatestDigest string `json:"latestDigest,omitempty"`
+	// LatestScanStatus is Latest's ScanStatus (provenance panel).
+	LatestScanStatus string `json:"latestScanStatus,omitempty"`
 	// DependencyAlerts are the signed-in viewer's open alerts on this agent
 	// (agentry#177): versions they published that declare an MCP server
 	// version with a newly known high or critical vulnerability. Empty for
@@ -496,12 +504,16 @@ func (b *BrowseAPI) Agent(reg, ns, name string) (*AgentDetailView, error) {
 		if ver.YankReason != nil {
 			vv.YankReason = *ver.YankReason
 		}
+		if ver.ScanStatus != nil {
+			vv.ScanStatus = string(*ver.ScanStatus)
+		}
 		out.Versions = append(out.Versions, vv)
 		if vv.Status == "published" && !vv.Yanked && out.Latest == "" {
 			// ListVersions returns newest-first; the first published,
 			// non-yanked row is the latest.
 			out.Latest = ver.Version
 			out.LatestDigest = vv.ArchiveDigest
+			out.LatestScanStatus = vv.ScanStatus
 			if ver.Capabilities != nil {
 				out.LatestCapabilities = *ver.Capabilities
 			}
@@ -546,8 +558,13 @@ type FindingView struct {
 // ReportView is the security report card (§10.3): findings by severity,
 // ruleset version, scan date — never a "safe" claim.
 type ReportView struct {
-	VersionStatus  string         `json:"versionStatus"`
-	ScanStatus     string         `json:"scanStatus,omitempty"`
+	VersionStatus string `json:"versionStatus"`
+	ScanStatus    string `json:"scanStatus,omitempty"`
+	// Verdict is what the report is (core M21): `scanned` where a run
+	// stands behind it, `unscanned` where the registry admitted the
+	// version without one — never conflated with a scan that found
+	// nothing — and empty while a scan is pending.
+	Verdict        string         `json:"verdict,omitempty"`
 	RulesetVersion string         `json:"rulesetVersion,omitempty"`
 	JudgeModel     string         `json:"judgeModel,omitempty"`
 	FinishedAt     string         `json:"finishedAt,omitempty"`
@@ -572,6 +589,9 @@ func (b *BrowseAPI) Report(reg, ns, name, version string) (*ReportView, error) {
 	out := &ReportView{VersionStatus: string(r.VersionStatus), Findings: []FindingView{}}
 	if r.ScanStatus != nil {
 		out.ScanStatus = *r.ScanStatus
+	}
+	if r.Verdict != nil {
+		out.Verdict = string(*r.Verdict)
 	}
 	if r.RulesetVersion != nil {
 		out.RulesetVersion = *r.RulesetVersion
@@ -613,8 +633,15 @@ func (b *BrowseAPI) Report(reg, ns, name, version string) (*ReportView, error) {
 // Provenance verifies the version's DSSE attestation against the DECLARED
 // archive digest — no download involved, so this is the browse-time badge:
 // "the registry's signing key vouches for this digest". Install re-verifies
-// against the actual downloaded bytes.
-func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest string) (*trust.AttestationResult, error) {
+// against the actual downloaded bytes. scanStatus is the version's as the
+// registry lists it: `skipped` is a version admitted without a scan (plan
+// organization-subscriptions §4), unscanned before any attestation is
+// looked for, because the absence is the fact and not a missing signature.
+func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatus string) (*trust.AttestationResult, error) {
+	if scanStatus == string(apiclient.AgentVersionScanStatusSkipped) {
+		att := trust.Unscanned()
+		return &att, nil
+	}
 	reg = settings.Normalize(reg)
 	attURL := fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", ns, name, version)
 	att := trust.VerifyAttestation(b.app.ctx, registry.HTTPClient, reg, settings.TokenFor(reg), attURL, declaredDigest)
@@ -635,9 +662,12 @@ func (i *InstallAPI) Prepare(reg, ref, target, dir string) (*install.Plan, error
 	return i.engine.Prepare(i.app.ctx, reg, ref, target, dir)
 }
 
-// Confirm applies the user's answers and writes the install.
-func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities bool) (*install.Result, error) {
-	return i.engine.Confirm(planID, acceptUnsigned, acceptCapabilities)
+// Confirm applies the user's answers and writes the install. Each boolean
+// is one consent the page collected; acceptUnscanned is the consent for a
+// release the registry admitted without a scan, which acceptUnsigned does
+// not give (M23).
+func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, acceptUnscanned bool) (*install.Result, error) {
+	return i.engine.Confirm(planID, acceptUnsigned, acceptCapabilities, acceptUnscanned)
 }
 
 // Cancel discards a pending plan.

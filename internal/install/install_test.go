@@ -54,6 +54,9 @@ type fakeRegistry struct {
 	omitAttURL bool
 	// corruptArchive flips one byte of the served archive bytes.
 	corruptArchive bool
+	// unscanned makes the resolve result say the version was admitted
+	// without a scan (scanStatus skipped, no attestationUrl).
+	unscanned bool
 }
 
 // newKey generates a P-256 signing key for the fake registry.
@@ -137,12 +140,17 @@ func startRegistry(t *testing.T, f *fakeRegistry) string {
 			att = ""
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		doc := map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": att,
 			"digest": f.digest, "manifest": f.manifestDoc,
 			"namespace": "acme", "name": "demo", "version": f.version,
-			"yanked": false,
-		})
+			"yanked": false, "scanStatus": "pipeline",
+		}
+		if f.unscanned {
+			delete(doc, "attestationUrl")
+			doc["scanStatus"] = "skipped"
+		}
+		_ = json.NewEncoder(w).Encode(doc)
 	})
 	mux.HandleFunc("/archive.tar.zst", func(w http.ResponseWriter, _ *http.Request) {
 		data := f.archive
@@ -214,7 +222,7 @@ func TestInstallHappyPathVerifiesAndExports(t *testing.T) {
 		t.Fatalf("no consent gates expected on a signed, capability-free first install: %+v", plan)
 	}
 
-	res, err := e.Confirm(plan.ID, false, false)
+	res, err := e.Confirm(plan.ID, false, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,10 +300,10 @@ func TestUnsignedRequiresExplicitAcceptance(t *testing.T) {
 	if !plan.Unsigned {
 		t.Fatalf("plan should be unsigned: %+v", plan.Attestation)
 	}
-	if _, err := e.Confirm(plan.ID, false, false); err == nil {
+	if _, err := e.Confirm(plan.ID, false, false, false); err == nil {
 		t.Fatal("unsigned install proceeded without acceptance")
 	}
-	if _, err := e.Confirm(plan.ID, true, false); err != nil {
+	if _, err := e.Confirm(plan.ID, true, false, false); err != nil {
 		t.Fatalf("unsigned install refused despite acceptance: %v", err)
 	}
 }
@@ -313,7 +321,7 @@ func TestWidenedCapabilitiesRequireAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Confirm(plan1.ID, false, false); err != nil {
+	if _, err := e.Confirm(plan1.ID, false, false, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -362,10 +370,38 @@ func TestWidenedCapabilitiesRequireAcceptance(t *testing.T) {
 	if !found {
 		t.Errorf("diff does not name the new egress host: %+v", plan2.Diff)
 	}
-	if _, err := e.Confirm(plan2.ID, false, false); err == nil {
+	if _, err := e.Confirm(plan2.ID, false, false, false); err == nil {
 		t.Fatal("widened contract installed without acceptance")
 	}
-	if _, err := e.Confirm(plan2.ID, false, true); err != nil {
+	if _, err := e.Confirm(plan2.ID, false, true, false); err != nil {
 		t.Fatalf("widened contract refused despite acceptance: %v", err)
+	}
+}
+
+// TestUnscannedRequiresItsOwnAcceptance mirrors the CLI's --allow-unscanned
+// (M23; the core's M21): a version the registry admitted without a scan is
+// its own outcome — not unsigned — and needs its own consent, which
+// accepting an unsigned release does not give.
+func TestUnscannedRequiresItsOwnAcceptance(t *testing.T) {
+	isolate(t)
+	reg := startRegistry(t, &fakeRegistry{unscanned: true})
+	dest := t.TempDir()
+
+	e := NewEngine()
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "claude-skill", dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Unscanned || plan.Unsigned || plan.Attestation.State != "unscanned" {
+		t.Fatalf("plan should be unscanned and not unsigned: unscanned=%t unsigned=%t %+v", plan.Unscanned, plan.Unsigned, plan.Attestation)
+	}
+	if _, err := e.Confirm(plan.ID, false, false, false); err == nil || !strings.Contains(err.Error(), "unscanned") {
+		t.Fatalf("unscanned install proceeded without acceptance: %v", err)
+	}
+	if _, err := e.Confirm(plan.ID, true, false, false); err == nil || !strings.Contains(err.Error(), "unscanned") {
+		t.Fatalf("accepting unsigned admitted an unscanned install: %v", err)
+	}
+	if _, err := e.Confirm(plan.ID, false, false, true); err != nil {
+		t.Fatalf("unscanned install refused despite acceptance: %v", err)
 	}
 }

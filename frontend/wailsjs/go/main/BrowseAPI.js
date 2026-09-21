@@ -6,8 +6,8 @@ export function Agent(arg1, arg2, arg3) {
   return window['go']['main']['BrowseAPI']['Agent'](arg1, arg2, arg3);
 }
 
-export function Provenance(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['BrowseAPI']['Provenance'](arg1, arg2, arg3, arg4, arg5);
+export function Provenance(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['BrowseAPI']['Provenance'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function Readme(arg1, arg2, arg3, arg4) {

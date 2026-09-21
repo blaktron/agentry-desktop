@@ -74,7 +74,7 @@ type SessionEventView struct {
 // consent-recorded contract, images, profile and intake as RunAgent, then
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP bool) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*SessionView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -89,6 +89,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		TimeoutSeconds:     timeoutSec,
 		MaxTurns:           maxTurns,
 		AcceptUnsigned:     acceptUnsigned,
+		AcceptUnscanned:    acceptUnscanned,
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
 	}, logw)
@@ -467,7 +468,10 @@ type RunResultView struct {
 // overrides the tool-call budget (0 = unlimited, -1 = policy default).
 // acceptUnsigned is the explicit consent for a release without an
 // attestation; without it such a run is refused in Go (desktop#3).
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP bool) (*RunResultView, error) {
+// acceptUnscanned is the consent for a release the registry admitted
+// without a scan (M23, D-029) — its own, which acceptUnsigned does not
+// give — enforced in Go the same way, on every run from the cache too.
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*RunResultView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -484,6 +488,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		TimeoutSeconds:     timeoutSec,
 		MaxTurns:           maxTurns,
 		AcceptUnsigned:     acceptUnsigned,
+		AcceptUnscanned:    acceptUnscanned,
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
 	}, logw)

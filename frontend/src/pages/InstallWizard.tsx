@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { install } from "../../wailsjs/go/models";
-import { ErrorBox, Spinner, shortDigest } from "../ui";
+import { ErrorBox, SignedBadge, Spinner, shortDigest } from "../ui";
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
@@ -33,6 +33,9 @@ export default function InstallWizard({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<install.Result | null>(null);
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
+  // Its own consent (M23): an unscanned release is not an unsigned one,
+  // and ticking the unsigned box says nothing about it.
+  const [acceptUnscanned, setAcceptUnscanned] = useState(false);
   const [acceptCaps, setAcceptCaps] = useState(false);
 
   const effectiveTarget = target || plan?.target || "claude-skill";
@@ -71,7 +74,7 @@ export default function InstallWizard({
     setBusy("Installing…");
     setError(null);
     try {
-      const r = await InstallAPI.Confirm(plan.id, acceptUnsigned, acceptCaps);
+      const r = await InstallAPI.Confirm(plan.id, acceptUnsigned, acceptCaps, acceptUnscanned);
       setResult(r);
       onInstalled?.();
     } catch (e) {
@@ -88,6 +91,7 @@ export default function InstallWizard({
 
   const gatesOK =
     (!plan?.unsigned || acceptUnsigned) &&
+    (!plan?.unscanned || acceptUnscanned) &&
     (!(plan?.needsCapabilityConfirm || plan?.requiresWidenedConfirm) || acceptCaps);
 
   return (
@@ -170,6 +174,24 @@ export default function InstallWizard({
               <p className="muted">Capability contract unchanged vs {plan.prevVersion}.</p>
             ) : null}
 
+            {plan.unscanned && (
+              <div className="notice notice-unscanned mark-unscanned">
+                <p style={{ margin: 0 }}>
+                  <SignedBadge att={plan.attestation} />{" "}
+                  <strong>The registry admitted this version without a scan.</strong>{" "}
+                  <span className="muted">
+                    Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation stand behind it. No scanner looked at its contents.
+                  </span>
+                </p>
+                <label className="check-row">
+                  <input type="checkbox" checked={acceptUnscanned} onChange={(e) => setAcceptUnscanned(e.target.checked)} />
+                  <span>
+                    <strong>Install an unscanned release.</strong>{" "}
+                    <span className="muted">Accepting an unsigned release does not cover this; it is its own decision.</span>
+                  </span>
+                </label>
+              </div>
+            )}
             {plan.unsigned && (
               <label className="check-row">
                 <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />

@@ -224,6 +224,7 @@ export namespace install {
 	    yanked: boolean;
 	    attestation: trust.AttestationResult;
 	    unsigned: boolean;
+	    unscanned: boolean;
 	    capabilities: installed.CapSnapshot;
 	    needsCapabilityConfirm: boolean;
 	    prevVersion?: string;
@@ -254,6 +255,7 @@ export namespace install {
 	        this.yanked = source["yanked"];
 	        this.attestation = this.convertValues(source["attestation"], trust.AttestationResult);
 	        this.unsigned = source["unsigned"];
+	        this.unscanned = source["unscanned"];
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
 	        this.prevVersion = source["prevVersion"];
@@ -687,6 +689,7 @@ export namespace main {
 	    archiveDigest?: string;
 	    yanked: boolean;
 	    yankReason?: string;
+	    scanStatus?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new VersionView(source);
@@ -702,6 +705,7 @@ export namespace main {
 	        this.archiveDigest = source["archiveDigest"];
 	        this.yanked = source["yanked"];
 	        this.yankReason = source["yankReason"];
+	        this.scanStatus = source["scanStatus"];
 	    }
 	}
 	export class AgentView {
@@ -736,6 +740,7 @@ export namespace main {
 	    latest: string;
 	    latestCapabilities?: {[key: string]: any};
 	    latestDigest?: string;
+	    latestScanStatus?: string;
 	    dependencyAlerts: DependencyAlertView[];
 	
 	    static createFrom(source: any = {}) {
@@ -749,6 +754,7 @@ export namespace main {
 	        this.latest = source["latest"];
 	        this.latestCapabilities = source["latestCapabilities"];
 	        this.latestDigest = source["latestDigest"];
+	        this.latestScanStatus = source["latestScanStatus"];
 	        this.dependencyAlerts = this.convertValues(source["dependencyAlerts"], DependencyAlertView);
 	    }
 	
@@ -1325,6 +1331,7 @@ export namespace main {
 	export class ReportView {
 	    versionStatus: string;
 	    scanStatus?: string;
+	    verdict?: string;
 	    rulesetVersion?: string;
 	    judgeModel?: string;
 	    finishedAt?: string;
@@ -1339,6 +1346,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.versionStatus = source["versionStatus"];
 	        this.scanStatus = source["scanStatus"];
+	        this.verdict = source["verdict"];
 	        this.rulesetVersion = source["rulesetVersion"];
 	        this.judgeModel = source["judgeModel"];
 	        this.finishedAt = source["finishedAt"];

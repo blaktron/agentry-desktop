@@ -22,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 )
 
 // resolveFixture resolves the fixture release against a fake registry.
@@ -73,7 +74,7 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	meta, installDir, err := materialize(context.Background(), sig, home, true, &log)
+	meta, installDir, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 		t.Fatalf("archive downloads after first materialize = %d", got)
 	}
 	log.Reset()
-	meta2, dir2, err := materialize(context.Background(), sig, home, true, &log)
+	meta2, dir2, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +133,22 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 	if got := fr.hitCount("/archive.tar.zst"); got != 1 {
 		t.Fatalf("cached install re-downloaded the archive (%d hits)", got)
 	}
-	if !strings.Contains(log.String(), "using verified install") {
-		t.Errorf("reuse must say so:\n%s", log.String())
+	// The fixture's registry publishes no attestation, so this install is
+	// unsigned; the reuse is narrated honestly — a cached unsigned release
+	// says so, and that the consent given now admits it — rather than
+	// calling itself verified (M23; the CLI's DR-21 shape), and without
+	// the consent it is refused.
+	if meta.Attestation.State != "unsigned" {
+		t.Fatalf("the fixture's install is %q, want unsigned", meta.Attestation.State)
+	}
+	if !strings.Contains(log.String(), "cached install") || !strings.Contains(log.String(), "unsigned") {
+		t.Errorf("reuse must say what it is doing with what:\n%s", log.String())
+	}
+	if meta2.Attestation.Consent != receipt.ConsentAllowUnsigned {
+		t.Errorf("a cached unsigned run carries consent %q, want %q", meta2.Attestation.Consent, receipt.ConsentAllowUnsigned)
+	}
+	if _, _, err := materialize(context.Background(), sig, home, false, false, &log); err == nil || !strings.Contains(err.Error(), "cached install") {
+		t.Fatalf("a cached unsigned install ran without the consent: %v", err)
 	}
 }
 
@@ -146,7 +161,7 @@ func TestMaterializeRefusesDigestMismatch(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, true, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err == nil || !strings.Contains(err.Error(), "digest mismatch") {
 		t.Fatalf("err = %v, want digest mismatch refusal", err)
 	}
@@ -166,7 +181,7 @@ func TestMaterializeRefusesUnverifiableAttestation(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, true, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err == nil || !strings.Contains(err.Error(), "refusing to run") {
 		t.Fatalf("err = %v, want attestation refusal", err)
 	}
@@ -666,7 +681,7 @@ func TestMaterializeRefusesBadArchive(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, true, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err == nil || !strings.Contains(err.Error(), "extract archive") {
 		t.Fatalf("err = %v, want the extract refusal", err)
 	}

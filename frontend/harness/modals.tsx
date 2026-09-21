@@ -9,6 +9,9 @@
 //   #runpanel-queued       a hosted run queued, with its position
 //   #runpanel-streaming    a hosted run streaming its log
 //   #runpanel-finished     a hosted run finished: receipt and artefacts
+//   #runpanel-unscanned    a release the registry admitted without a scan:
+//                          its own mark and consent, In Agentry not offered
+//   #install-unscanned     the install wizard on the same release (M23)
 //   #toolspanel | #chat    the other two run surfaces
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
@@ -94,6 +97,22 @@ g.go = { main: {
     StartHostedRun: async () => ({ run: hostedRuns.queued }),
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
   },
+  InstallAPI: {
+    // #install-unscanned: the plan the wizard shows for a release the
+    // registry admitted without a scan.
+    Prepare: async () => ({
+      id: "plan-1", registry: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: "1.2.0",
+      modes: ["autonomous"], summary: "Summarises an incident channel into a report card, redacting secrets first.",
+      digest: "sha256:9c356fd0d20fef07123ba7c4a1b2c3d4e5f6a7b8", yanked: false,
+      attestation: att, unsigned: false, unscanned: true,
+      capabilities: { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
+      needsCapabilityConfirm: true, prevVersion: "", diff: null, requiresWidenedConfirm: false,
+      vulnerabilities: [], vulnerabilityLine: "have no known high or critical advisories", vulnerabilityRefusal: "",
+      target: "agents-md", paths: { dest: "/home/chris/agents/incident-summarizer", managed: true, managedRoot: "/home/chris/agents", agentsMd: "/home/chris/agents/AGENTS.md" },
+    }),
+    Confirm: async () => ({ dir: "/home/chris/agents/incident-summarizer" }),
+    Cancel: async () => {},
+  },
   App: { OpenExternal: async () => {} },
 } };
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
@@ -112,10 +131,13 @@ g.runtime = {
 };
 
 import RunPanel from "../src/pages/RunPanel";
+import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";
 
-const att = { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified" } as any;
+const att = (hostedState === "unscanned" || view === "install-unscanned"
+  ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
+  : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified" }) as any;
 
 function Backdrop() {
   return (
@@ -148,7 +170,9 @@ function ChatSample() {
 }
 
 const el = document.getElementById("root")!;
-if (view === "chat") {
+if (view === "install-unscanned") {
+  createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
+} else if (view === "chat") {
   createRoot(el).render(<ChatSample />);
 } else if (view === "toolspanel") {
   createRoot(el).render(<><Backdrop /><ToolsPanel registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0" onClose={() => {}} /></>);

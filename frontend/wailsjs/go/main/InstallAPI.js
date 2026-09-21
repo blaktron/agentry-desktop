@@ -10,8 +10,8 @@ export function CheckUpdates() {
   return window['go']['main']['InstallAPI']['CheckUpdates']();
 }
 
-export function Confirm(arg1, arg2, arg3) {
-  return window['go']['main']['InstallAPI']['Confirm'](arg1, arg2, arg3);
+export function Confirm(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['InstallAPI']['Confirm'](arg1, arg2, arg3, arg4);
 }
 
 export function Forget(arg1) {

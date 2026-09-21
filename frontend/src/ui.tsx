@@ -40,6 +40,11 @@ export function SignedBadge({ att }: { att: trust.AttestationResult | null }) {
       return <span className="badge ok" title={att.detail}>DSSE-signed · key {att.keyId}</span>;
     case "unsigned":
       return <span className="badge warn" title={att.detail}>unsigned</span>;
+    case "unscanned":
+      // Its own verdict (plan organization-subscriptions §4): the registry
+      // admitted the version without a scan — not a missing signature, and
+      // not a scan with a known gap.
+      return <span className="badge unscanned" title={att.detail}>unscanned</span>;
     default:
       return <span className="badge bad" title={att.detail}>{att.state}</span>;
   }

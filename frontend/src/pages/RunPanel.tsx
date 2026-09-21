@@ -11,7 +11,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main, trust } from "../../wailsjs/go/models";
-import { Button, Card, ErrorBox, Notice, Spinner, Textarea, shortDigest } from "../ui";
+import { Button, Card, ErrorBox, Notice, SignedBadge, Spinner, Textarea, shortDigest } from "../ui";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "./HostedRun";
 
@@ -57,6 +57,8 @@ export default function RunPanel({
   const [timeoutSec, setTimeoutSec] = useState("");
   const [maxTurns, setMaxTurns] = useState("");
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
+  // Its own consent (M23): an unscanned release is not an unsigned one.
+  const [acceptUnscanned, setAcceptUnscanned] = useState(false);
   // The registry's verdict on the declared MCP servers (agentry#177): a
   // known high/critical advisory refuses the run unless this override
   // (recorded in the receipt) or the operator policy allows it.
@@ -140,7 +142,13 @@ export default function RunPanel({
   // side re-verifies the downloaded bytes and refuses those regardless.
   const provPending = attestation == null;
   const unsigned = attestation?.state === "unsigned";
-  const unverifiable = attestation != null && attestation.state !== "verified" && !unsigned;
+  // Unscanned: the registry admitted the version without a scan (plan
+  // organization-subscriptions §4) — its own verdict, its own checkbox,
+  // enforced in Go like the unsigned one. A run In Agentry is not
+  // offered for one: the platform records no such consent yet
+  // (agentry-enterprise#55).
+  const unscanned = attestation?.state === "unscanned";
+  const unverifiable = attestation != null && attestation.state !== "verified" && !unsigned && !unscanned;
   const refused = !!mcp?.refusal;
   const needsProfile = !!profile && profile.declaredSecrets.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
@@ -157,6 +165,7 @@ export default function RunPanel({
     !provPending &&
     !unverifiable &&
     (inAgentry || !unsigned || acceptUnsigned) &&
+    (!unscanned || (!inAgentry && acceptUnscanned)) &&
     (!refused || allowVulnerableMCP);
 
   const defaultOutHint = useMemo(
@@ -271,7 +280,7 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP);
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned);
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
@@ -449,7 +458,7 @@ export default function RunPanel({
                 <label className="check-row" style={{ margin: 0 }}>
                   <input
                     type="radio" name="run-mode" checked={inAgentry} onChange={() => setMode("hosted")}
-                    disabled={running || sessionActive || !hosted.available}
+                    disabled={running || sessionActive || !hosted.available || unscanned}
                   />
                   <span>
                     <strong>In Agentry</strong>{" "}
@@ -559,6 +568,29 @@ export default function RunPanel({
           </label>
         </div>
 
+        {unscanned && (
+          <div className="notice notice-unscanned mark-unscanned">
+            <p style={{ margin: 0 }}>
+              <SignedBadge att={attestation} />{" "}
+              <strong>The registry admitted this version without a scan.</strong>{" "}
+              <span className="muted">
+                Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no
+                attestation stand behind it. Nothing about its contents was checked.
+                {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
+              </span>
+            </p>
+            <label className="check-row">
+              <input type="checkbox" checked={acceptUnscanned} onChange={(e) => setAcceptUnscanned(e.target.checked)} />
+              <span>
+                <strong>Run an unscanned release.</strong>{" "}
+                <span className="muted">
+                  Its own decision — accepting an unsigned release does not cover it. The run&apos;s receipts are
+                  marked unscanned and name this consent.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
         {unsigned && !inAgentry && (
           <label className="check-row">
             <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />
@@ -657,6 +689,7 @@ export default function RunPanel({
             timeoutSec={timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0)}
             maxTurns={maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0)}
             acceptUnsigned={unsigned && acceptUnsigned}
+            acceptUnscanned={unscanned && acceptUnscanned}
             allowVulnerableMCP={refused && allowVulnerableMCP}
             intakeAnswers={intakeAnswers()}
             opening={profile?.opening ?? ""}

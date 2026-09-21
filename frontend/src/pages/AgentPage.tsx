@@ -90,7 +90,7 @@ export default function AgentPage({
       if (d.latest) {
         BrowseAPI.Readme(registry, ns, name, d.latest).then(setReadme).catch(() => setReadme(""));
         BrowseAPI.Report(registry, ns, name, d.latest).then(setReport).catch((e) => setReportErr(String(e)));
-        BrowseAPI.Provenance(registry, ns, name, d.latest, d.latestDigest ?? "").then(setProv).catch(() => {});
+        BrowseAPI.Provenance(registry, ns, name, d.latest, d.latestDigest ?? "", d.latestScanStatus ?? "").then(setProv).catch(() => {});
       }
     }).catch((e) => setError(String(e)));
   }, [registry, ns, name]);
@@ -234,7 +234,7 @@ export default function AgentPage({
             <tbody>
               {detail.versions.map((v) => (
                 <tr key={v.version}>
-                  <td className="mono">{v.version}{v.yanked && <span className="badge bad" style={{ marginLeft: 6 }}>yanked</span>}</td>
+                  <td className="mono">{v.version}{v.yanked && <span className="badge bad" style={{ marginLeft: 6 }}>yanked</span>}{v.scanStatus === "skipped" && <span className="badge unscanned" style={{ marginLeft: 6 }}>unscanned</span>}</td>
                   <td>{v.channel}</td>
                   <td>{v.status}</td>
                   <td>{fmtDate(v.publishedAt || v.createdAt)}</td>
@@ -247,7 +247,7 @@ export default function AgentPage({
       )}
 
       {tab === "provenance" && (
-        <Card className="selectable">
+        <Card className={`selectable${prov?.state === "unscanned" ? " mark-unscanned" : ""}`}>
           {!detail.latest && <div className="empty">No published version.</div>}
           {detail.latest && (
             <>
@@ -264,7 +264,15 @@ export default function AgentPage({
                   </p>
                 </>
               )}
-              {prov && prov.state !== "verified" && <p className="muted small">{prov.detail}</p>}
+              {prov?.state === "unscanned" && (
+                <p className="muted small">
+                  The registry admitted this version without a scan: its organization&apos;s administrator took the agent off
+                  the pipeline, so no findings, no report and no attestation stand behind it, and no scanner looked at its
+                  contents. Installing or running it asks for that consent, its own — accepting an unsigned release does not
+                  cover it.
+                </p>
+              )}
+              {prov && prov.state !== "verified" && prov.state !== "unscanned" && <p className="muted small">{prov.detail}</p>}
             </>
           )}
         </Card>
@@ -441,6 +449,24 @@ export function ReportCard({
   const counts = report.findingCounts ?? {};
   const total = Object.values(counts).reduce((n, v) => n + v, 0);
   const order = ["critical", "high", "medium", "low", "info"];
+
+  // Unscanned (core M21): the registry admitted the version without a
+  // scan, and an empty report must never read as "scanned, 0 findings".
+  if (report.verdict === "unscanned" || report.scanStatus === "skipped") {
+    return (
+      <div className="notice notice-unscanned mark-unscanned">
+        <div className="row">
+          <span className="badge unscanned">unscanned</span>
+          <strong>The registry admitted this version without a scan.</strong>
+        </div>
+        <p className="muted small" style={{ marginBottom: 0 }}>
+          Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation
+          stand behind it. No scanner looked at its contents. Installing or running it asks for that consent, its own.
+          Status {report.versionStatus}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
