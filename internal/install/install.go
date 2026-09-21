@@ -31,28 +31,25 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/export"
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// validTargets is the §5.6 closed set.
-// validTargets is the §5.6 closed set; the mcp target left with the withdrawn
-// v1 tool-server package kind (DEV-088).
-var validTargets = []string{manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD}
+// validTargets is the §5.6 closed set plus the runner home (the CLI's
+// DR-28, agentry-desktop#146): the directory a run reads, and the two
+// coding-agent exports. The mcp target left with the withdrawn v1
+// tool-server package kind (DEV-088).
+var validTargets = []string{installdir.Target, manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD}
 
-// DefaultTarget picks the §5.6 install target from runtime.interfaces (the
-// first one the desktop can emit; claude-skill when nothing usable is
-// listed). Interfaces are independent of run mode.
-func DefaultTarget(m *manifest.Manifest) string {
-	for _, it := range m.Runtime.Interfaces {
-		if manageable(it) {
-			return it
-		}
-	}
-	return manifest.InterfaceClaudeSkill
-}
+// DefaultTarget is the runner target (D-031, the CLI's DR-28): the release
+// laid down where a run reads it, whatever runtime.interfaces lists — those
+// name the coding-agent exports, which the install wizard asks for by name.
+func DefaultTarget(*manifest.Manifest) string { return installdir.Target }
 
 // modeStrings renders a mode set for a view.
 func modeStrings(modes []manifest.Mode) []string {
@@ -78,19 +75,36 @@ type Paths struct {
 	ManagedRoot string `json:"managedRoot,omitempty"`
 	// AgentsMD is the AGENTS.md to upsert (agents-md target only).
 	AgentsMD string `json:"agentsMd,omitempty"`
+	// ReleaseDir is the release's own directory under Dest (runner target
+	// only): <version>-<digest12>, the layout the CLI's run reads.
+	ReleaseDir string `json:"releaseDir,omitempty"`
 }
 
 // ResolvePaths computes the destination for a target.
 //
-// The desktop differs from the CLI in one deliberate way: the CLI's mcp and
-// agents-md defaults are relative to the process working directory, which a
-// GUI does not meaningfully have. Here those targets take a PROJECT directory
-// the user picked, and lay out <project>/agents/<name> + <project>/.mcp.json
-// or <project>/AGENTS.md — the exact layout the CLI produces when run at a
-// project root. claude-skill defaults to ~/.claude/skills/<name> like the
-// CLI; a picked parent dir yields <dir>/<name>, unmanaged.
-func ResolvePaths(target, dir, name string) (Paths, error) {
+// The runner target has one home (the CLI's, AGENTRY_RUNNER_HOME): the
+// agent's directory under it, managed, no directory to pick — a picked
+// one is refused, since the runner reads nowhere else (D-031). For the two
+// coding-agent exports the desktop differs from the CLI in one deliberate
+// way: the CLI's agents-md default is relative to the process working
+// directory, which a GUI does not meaningfully have. Here that target
+// takes a PROJECT directory the user picked, and lays out
+// <project>/agents/<name> + <project>/AGENTS.md — the exact layout the CLI
+// produces when run at a project root (D-002). claude-skill defaults to
+// ~/.claude/skills/<name> like the CLI; a picked parent dir yields
+// <dir>/<name>, unmanaged.
+func ResolvePaths(target, dir, namespace, name string) (Paths, error) {
 	switch target {
+	case installdir.Target:
+		if dir != "" {
+			return Paths{}, fmt.Errorf("the runner target has one home (the runner home, AGENTRY_RUNNER_HOME); a directory is for the Claude skill and AGENTS.md exports")
+		}
+		home, err := policy.Home()
+		if err != nil {
+			return Paths{}, err
+		}
+		return Paths{Dest: installdir.AgentDir(home, namespace, name), Managed: true, ManagedRoot: installdir.AgentsRoot(home)}, nil
+
 	case manifest.InterfaceClaudeSkill:
 		if dir != "" {
 			return Paths{Dest: filepath.Join(dir, name)}, nil
@@ -210,6 +224,13 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if target != "" && !manageable(target) {
 		return nil, fmt.Errorf("unknown target %q (want %s)", target, strings.Join(validTargets, ", "))
 	}
+	// The registry is the page's word (D-030): judged the way the settings
+	// writers judge one — https off loopback — before a token is looked up
+	// for its host, so a page cannot aim the keyring's PAT at a plain-http
+	// host by naming it here.
+	if err := settings.ValidateURL(regURL); err != nil {
+		return nil, err
+	}
 	regURL = settings.Normalize(regURL)
 	token := settings.TokenFor(regURL)
 	client, err := registry.New(regURL, token)
@@ -275,9 +296,16 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if target == "" {
 		target = DefaultTarget(m)
 	}
-	paths, err := ResolvePaths(target, dir, m.Name)
+	paths, err := ResolvePaths(target, dir, res.Namespace, m.Name)
 	if err != nil {
 		return nil, err
+	}
+	if target == installdir.Target {
+		home, herr := policy.Home()
+		if herr != nil {
+			return nil, herr
+		}
+		paths.ReleaseDir = installdir.ReleaseDir(home, res.Namespace, m.Name, res.Version, computed)
 	}
 
 	plan := Plan{
@@ -306,10 +334,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	vr := mcpvuln.Check(ctx, regURL, m.Capabilities.MCPServers)
 	plan.Vulnerabilities, plan.VulnerabilityLine, plan.VulnerabilityRefusal = vr.Statuses, vr.Line, vr.Refusal
 
-	key := installed.Key{
-		Registry: regURL, Namespace: res.Namespace, Name: m.Name,
-		Target: target, Dir: paths.Dest,
-	}
+	key := recordKey(plan)
 	state, serr := installed.Load()
 	if serr != nil {
 		// Bookkeeping trouble must not block an install; it costs a prompt.
@@ -370,6 +395,10 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 		return nil, fmt.Errorf("the declared capability contract requires explicit acceptance before installing")
 	}
 
+	// Past the gates the plan is spent whatever happens next: a failure
+	// while writing must not leave the archive's bytes pending under an id
+	// the page could confirm again.
+	defer delete(e.pending, id)
 	staging, err := os.MkdirTemp("", "agentry-install-*")
 	if err != nil {
 		return nil, fmt.Errorf("create staging dir: %w", err)
@@ -392,7 +421,17 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	}
 
 	res := &Result{Dest: plan.Paths.Dest}
+	// after runs once the record is saved: the runner target's replace of
+	// the older version (D9) waits for the record, so a failed save never
+	// leaves a directory gone and a record naming it.
+	var after func() error
 	switch plan.Target {
+	case installdir.Target:
+		var style string
+		style, err = installRunner(staging, plan.Paths.ReleaseDir, m, plan)
+		res.Dest = plan.Paths.ReleaseDir
+		res.Message = fmt.Sprintf("installed %s/%s@%s into the runner home: %s (export: %s)", plan.Namespace, plan.Name, plan.Version, plan.Paths.ReleaseDir, style)
+		after = func() error { return installdir.RemoveOtherVersions(plan.Paths.Dest, plan.Paths.ReleaseDir) }
 	case manifest.InterfaceClaudeSkill:
 		err = exportClaudeSkill(staging, plan.Paths, m)
 		res.Message = fmt.Sprintf("installed %s/%s@%s as Claude skill: %s", plan.Namespace, plan.Name, plan.Version, plan.Paths.Dest)
@@ -409,21 +448,95 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 
 	// Record only after the files actually landed: a record claiming an
 	// install that failed would suppress the next run's capability prompt.
-	key := installed.Key{
-		Registry: plan.Registry, Namespace: plan.Namespace, Name: plan.Name,
-		Target: plan.Target, Dir: plan.Paths.Dest,
-	}
 	state, serr := installed.Load()
 	if serr != nil {
 		state = installed.State{}
 	}
-	state.Upsert(key, plan.Version, plan.Capabilities, plan.Paths.Managed)
+	state.Upsert(recordKey(plan), plan.Version, plan.Capabilities, plan.Paths.Managed)
+	recorded := true
 	if err := installed.Save(state); err != nil {
+		recorded = false
 		res.Message += fmt.Sprintf(" — warning: %v (the next install of this agent will re-ask about capabilities)", err)
 	}
-
-	delete(e.pending, id)
+	if after != nil && recorded {
+		// The release and its record landed; an older version's directory
+		// that would not go is said, not an error that reads as a failed
+		// install.
+		if err := after(); err != nil {
+			res.Message += fmt.Sprintf(" — warning: %v", err)
+		}
+	}
 	return res, nil
+}
+
+// Plan returns a pending plan by id: what a caller that did not prepare it
+// (the bound Confirm) needs to know to raise the gates the plan owes.
+func (e *Engine) Plan(id string) (*Plan, bool) {
+	if e == nil {
+		return nil, false
+	}
+	p, ok := e.pending[id]
+	if !ok {
+		return nil, false
+	}
+	plan := p.plan
+	return &plan, true
+}
+
+// AddPendingForTest puts a plan into the engine as if Prepare had made it,
+// with no archive behind it, for a test of what the bound surface does
+// with a plan before Confirm writes.
+func (e *Engine) AddPendingForTest(plan Plan) { e.pending[plan.ID] = &pending{plan: plan} }
+
+// recordKey is the installed.yaml key a plan's install lives under: the
+// run's own consent key for the runner target (registry `runner`, the
+// agent's directory — so a consent given here covers a run, and there is
+// one record per BriefAgent), the registry and the destination for an
+// export.
+func recordKey(plan Plan) installed.Key {
+	if plan.Target == installdir.Target {
+		return installed.Key{
+			Registry: installdir.ConsentRegistry, Namespace: plan.Namespace, Name: plan.Name,
+			Target: installdir.Target, Dir: plan.Paths.Dest,
+		}
+	}
+	return installed.Key{
+		Registry: plan.Registry, Namespace: plan.Namespace, Name: plan.Name,
+		Target: plan.Target, Dir: plan.Paths.Dest,
+	}
+}
+
+// installRunner lays the verified release down in the runner home the way
+// a run's first fetch does (installdir.Write, so a run finds it by digest
+// and fetches nothing) and writes the coding-agent shape beside it in the
+// style the operator policy implies (installdir.StyleFor; no policy or one
+// that cannot be read: AGENTS.md). The cache holds the verdict and never
+// the consent, and says whether the verdict was a verified signature the
+// way a run's does. Returns the style written.
+func installRunner(staging, releaseDir string, m *manifest.Manifest, plan Plan) (string, error) {
+	meta := &installdir.Meta{
+		Ref:       fmt.Sprintf("%s/%s@%s", plan.Namespace, plan.Name, plan.Version),
+		Namespace: plan.Namespace, Name: plan.Name, Version: plan.Version,
+		Digest: plan.Digest, Source: "registry",
+		Attestation: receipt.Attestation{
+			State: string(plan.Attestation.State), KeyID: plan.Attestation.KeyID,
+			Verified: plan.Attestation.State == trust.StateVerified,
+		},
+	}
+	if err := installdir.Write(releaseDir, staging, meta); err != nil {
+		return "", err
+	}
+	var pol *policy.Policy
+	if path, err := policy.DefaultPath(); err == nil {
+		if loaded, _, err := policy.Load(path); err == nil {
+			pol = loaded
+		}
+	}
+	style := installdir.StyleFor(pol)
+	if err := installdir.WriteExport(releaseDir, style, m, meta); err != nil {
+		return "", err
+	}
+	return style, nil
 }
 
 // Cancel discards a pending plan.
@@ -544,7 +657,8 @@ func exportAgentsMD(staging string, p Paths, m *manifest.Manifest, ns, version s
 // undeclaredTargetWarning warns when runtime.interfaces exists but omits the
 // chosen target (§5.2: interfaces lists what §5.6 may emit).
 func undeclaredTargetWarning(m *manifest.Manifest, target string) string {
-	if len(m.Runtime.Interfaces) == 0 {
+	if len(m.Runtime.Interfaces) == 0 || target == installdir.Target {
+		// The runner target is not an interface a release declares.
 		return ""
 	}
 	for _, it := range m.Runtime.Interfaces {
@@ -608,6 +722,21 @@ func Uninstall(k installed.Key) (string, error) {
 	}
 	msg := ""
 	if rec.Managed {
+		if rec.Target == installdir.Target {
+			// The runner's record names the agent's directory under the
+			// runner home and nothing else: a record edited to point
+			// elsewhere — or to name a namespace or name that is a path
+			// — is refused, not swept.
+			home, herr := policy.Home()
+			if herr != nil {
+				return "", herr
+			}
+			want := installdir.AgentDir(home, rec.Namespace, rec.Name)
+			if !manifest.ValidNamespace(rec.Namespace) || !manifest.ValidName(rec.Name) ||
+				filepath.Clean(rec.Dir) != want || !pathguard.Under(installdir.AgentsRoot(home), filepath.Clean(rec.Dir)) {
+				return "", fmt.Errorf("refusing to remove %s: a runner install lives at %s", rec.Dir, want)
+			}
+		}
 		if err := os.RemoveAll(rec.Dir); err != nil {
 			return "", fmt.Errorf("remove %s: %w", rec.Dir, err)
 		}
@@ -742,22 +871,28 @@ func sortRecords(recs []installed.Record) {
 	})
 }
 
-// Item is one install record with the two facts the Installed page sorts
-// on (agentry-desktop#63): whether its directory is still there, and whether
-// this app can uninstall it. The state file is shared with the CLI, whose
-// `agentry run` writes run consents with target "runner" — records the
-// desktop can show but not manage — and directories go away under both.
+// Item is one install record with the facts the Installed page sorts on
+// (agentry-desktop#63): whether its directory is still there, whether this
+// app can uninstall it, and which registry to look it up at. The state
+// file is shared with the CLI; since D-031 a runner record — written by
+// an install here or by `agentry run`'s consent — is one this app manages.
 type Item struct {
 	installed.Record
+	// Origin is the registry this record's BriefAgent is looked up at: the
+	// record's own registry for an export, the app's default registry for
+	// a runner record, whose key names none (a run resolves through the
+	// configured registry; D-031).
+	Origin string `json:"origin"`
 	// Present is true when Dir exists and is a directory.
 	Present bool `json:"present"`
-	// Manageable is true for a target this app installs and uninstalls
-	// (the §5.6 set); a runner consent is not one.
+	// Manageable is true for a target this app installs and uninstalls:
+	// the runner home and the two exports. (A run's consent record shares
+	// the runner target's key since D-031, so it is the install's record.)
 	Manageable bool `json:"manageable"`
 }
 
-// manageable reports whether target is in the §5.6 set this app installs
-// and uninstalls; "runner", which the CLI writes for a run consent, is not.
+// manageable reports whether target is one this app installs and
+// uninstalls: the runner home (D-031) and the §5.6 exports.
 func manageable(target string) bool {
 	for _, t := range validTargets {
 		if t == target {
@@ -780,11 +915,25 @@ func List() ([]Item, error) {
 		info, statErr := os.Stat(rec.Dir)
 		items = append(items, Item{
 			Record:     rec,
+			Origin:     originFor(rec),
 			Present:    statErr == nil && info.IsDir(),
 			Manageable: manageable(rec.Target),
 		})
 	}
 	return items, nil
+}
+
+// originFor is the registry a record's BriefAgent is looked up at: the
+// record's own for an export; for a runner record, whose key names none,
+// the app's default registry — the one a run resolves through.
+func originFor(rec installed.Record) string {
+	if rec.Registry != installdir.ConsentRegistry {
+		return rec.Registry
+	}
+	if st, err := settings.Load(); err == nil && st.DefaultRegistry != "" {
+		return settings.Normalize(st.DefaultRegistry)
+	}
+	return settings.Normalize(settings.DefaultRegistryURL)
 }
 
 // Forget drops an install record and touches nothing on disk. It is for a

@@ -47,7 +47,11 @@ export default function AgentPage({
   const [report, setReport] = useState<main.ReportView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [prov, setProv] = useState<trust.AttestationResult | null>(null);
-  const [installing, setInstalling] = useState(false);
+  // The coding-agent export (the wizard) is the one-off behind a link;
+  // the primary Install is one click into the runner home (D-031).
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [installBusy, setInstallBusy] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
   const [runOpen, setRunOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
 
@@ -56,15 +60,39 @@ export default function AgentPage({
   const [installs, setInstalls] = useState<installed.Record[]>([]);
   const [confirmRemove, setConfirmRemove] = useState<installed.Record | null>(null);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
-  const refreshInstalls = useCallback(() => {
+  const refreshInstalls = useCallback(() =>
     InstallAPI.ListInstalled()
-      // Only what this app can uninstall and that is still on disk: run
-      // consents and gone directories belong to the Installed page's
-      // other sections (agentry-desktop#63).
+      // Only what this app can uninstall and that is still on disk — the
+      // runner-home install among them since D-031; gone directories
+      // belong to the Installed page's other section (agentry-desktop#63).
       .then((all) => setInstalls(all.filter((r) => r.namespace === ns && r.name === name && r.manageable && r.present)))
-      .catch(() => setInstalls([]));
-  }, [ns, name]);
-  useEffect(refreshInstalls, [refreshInstalls]);
+      .catch(() => setInstalls([])),
+  [ns, name]);
+  useEffect(() => { void refreshInstalls(); }, [refreshInstalls]);
+
+  // The runner-home record for this BriefAgent, if any: what the primary
+  // button reads to say Install, Installing…, or Update.
+  const runnerInstall = installs.find((r) => r.target === "runner");
+
+  // One click (D-031): resolve, verify, lay down in the runner home. The
+  // gates — an unsigned or unscanned release, a contract to accept — are
+  // native dialogs raised by the backend; a refusal or a failure is shown
+  // here, in place, and the button goes back to Install.
+  async function installOneClick() {
+    if (!detail?.latest) return;
+    setInstallBusy(true);
+    setInstallError(null);
+    try {
+      await InstallAPI.InstallRunner(registry, `${ns}/${name}@${detail.latest}`);
+      // Awaited, so the button reads Update as soon as it is enabled again
+      // rather than flashing Install first.
+      await refreshInstalls();
+    } catch (e) {
+      setInstallError(String(e));
+    } finally {
+      setInstallBusy(false);
+    }
+  }
 
   async function uninstall(rec: installed.Record) {
     setConfirmRemove(null);
@@ -106,6 +134,18 @@ export default function AgentPage({
   if (!detail) return <Spinner label={`Loading ${ns}/${name}…`} />;
 
   const a = detail.agent;
+  // The one primary button (D-031): Install, then Installing…, then Update
+  // — disabled when the installed version is the latest the page shows.
+  let installButton: React.ReactNode;
+  if (installBusy) {
+    installButton = <Button variant="primary" disabled>Installing…</Button>;
+  } else if (!runnerInstall) {
+    installButton = <Button variant="primary" onClick={installOneClick}>Install {detail.latest}</Button>;
+  } else if (runnerInstall.version !== detail.latest) {
+    installButton = <Button variant="primary" onClick={installOneClick} title={`installed ${runnerInstall.version}`}>Update to {detail.latest}</Button>;
+  } else {
+    installButton = <Button variant="primary" disabled title={`${runnerInstall.version} is installed on this machine; nothing newer is known`}>Update</Button>;
+  }
   const counts = report?.findingCounts ?? {};
   const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
 
@@ -123,7 +163,7 @@ export default function AgentPage({
               <>
                 <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
                 <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>
-                <Button variant="primary" onClick={() => setInstalling(true)}>Install {detail.latest}</Button>
+                {installButton}
               </>
             )
             : <span className="badge">no published version</span>}
@@ -132,7 +172,12 @@ export default function AgentPage({
       <div className="row" style={{ margin: "0 0 8px" }}>
         <CapabilityBadges caps={detail.latestCapabilities} />
         <SignedBadge att={prov} />
+        {detail.latest && (
+          <Button variant="link" onClick={() => setWizardOpen(true)} disabled={installBusy}>Install into a coding agent…</Button>
+        )}
       </div>
+      {installBusy && <p className="muted small">Resolving, verifying and installing into the runner home…</p>}
+      <ErrorBox error={installError} />
 
       {removeMsg && <Notice tone="info">{removeMsg}</Notice>}
       {detail.dependencyAlerts.length > 0 && (
@@ -178,9 +223,11 @@ export default function AgentPage({
       {confirmRemove && (
         <Modal title={`Remove ${confirmRemove.namespace}/${confirmRemove.name}?`} onClose={() => setConfirmRemove(null)}>
           <p>
-            {confirmRemove.managed
-              ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
-              : <>The directory was chosen by you, so its files are <strong>left in place</strong>; only the install record is removed.</>}
+            {confirmRemove.target === "runner"
+              ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> — the runner home's copy of this BriefAgent — and its record. The next Run fetches it again.</>
+              : confirmRemove.managed
+                ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
+                : <>The directory was chosen by you, so its files are <strong>left in place</strong>; only the install record is removed.</>}
           </p>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmRemove(null)}>Cancel</Button>
@@ -278,11 +325,11 @@ export default function AgentPage({
         </Card>
       )}
 
-      {installing && detail.latest && (
+      {wizardOpen && detail.latest && (
         <InstallWizard
           registry={registry}
           agentRef={`${ns}/${name}@${detail.latest}`}
-          onClose={() => setInstalling(false)}
+          onClose={() => setWizardOpen(false)}
           onInstalled={refreshInstalls}
         />
       )}

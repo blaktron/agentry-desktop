@@ -249,25 +249,25 @@ func TestRemoveMCPEntryEdgeCases(t *testing.T) {
 
 func TestResolvePathsRules(t *testing.T) {
 	// claude-skill: default is managed, picked dir is not.
-	def, err := ResolvePaths("claude-skill", "", "demo")
+	def, err := ResolvePaths("claude-skill", "", "acme", "demo")
 	if err != nil || !def.Managed || !strings.Contains(def.Dest, filepath.Join(".claude", "skills", "demo")) {
 		t.Errorf("default skill paths wrong: %+v err=%v", def, err)
 	}
-	picked, err := ResolvePaths("claude-skill", "/tmp/x", "demo")
+	picked, err := ResolvePaths("claude-skill", "/tmp/x", "acme", "demo")
 	if err != nil || picked.Managed || picked.Dest != filepath.Join("/tmp/x", "demo") {
 		t.Errorf("picked skill paths wrong: %+v err=%v", picked, err)
 	}
 	// agents-md refuses to guess a project directory.
-	if _, err := ResolvePaths("agents-md", "", "demo"); err == nil {
+	if _, err := ResolvePaths("agents-md", "", "acme", "demo"); err == nil {
 		t.Error("agents-md without a directory must refuse")
 	}
-	a, err := ResolvePaths("agents-md", "/proj", "demo")
+	a, err := ResolvePaths("agents-md", "/proj", "acme", "demo")
 	if err != nil || a.AgentsMD != filepath.Join("/proj", "AGENTS.md") || !a.Managed {
 		t.Errorf("agents-md paths wrong: %+v err=%v", a, err)
 	}
 	// The mcp target left with the withdrawn kind (DEV-088).
 	for _, bad := range []string{"mcp", "nope"} {
-		if _, err := ResolvePaths(bad, "/proj", "demo"); err == nil {
+		if _, err := ResolvePaths(bad, "/proj", "acme", "demo"); err == nil {
 			t.Errorf("target %q resolved", bad)
 		}
 	}

@@ -25,6 +25,7 @@ export default function Installed({
   const [confirmRemove, setConfirmRemove] = useState<install.Item | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
+  const [updatingRunner, setUpdatingRunner] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
@@ -78,10 +79,25 @@ export default function Installed({
 
   async function startUpdate(rec: install.Item) {
     setError(null);
+    const latest = updates[keyOf(rec)]?.latest;
+    const ref = latest ? `${rec.namespace}/${rec.name}@${latest}` : `${rec.namespace}/${rec.name}`;
+    if (rec.target === "runner") {
+      // A runner install updates the way it was installed: one click into
+      // the runner home, the gates as native dialogs (D-031).
+      setUpdatingRunner(keyOf(rec));
+      try {
+        await InstallAPI.InstallRunner(rec.origin, ref);
+        refresh();
+        setUpdates({});
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setUpdatingRunner(null);
+      }
+      return;
+    }
     try {
       const dir = await InstallAPI.UpdateDir(rec);
-      const latest = updates[keyOf(rec)]?.latest;
-      const ref = latest ? `${rec.namespace}/${rec.name}@${latest}` : `${rec.namespace}/${rec.name}`;
       setUpdating({ rec, dir, ref });
     } catch (e) {
       setError(String(e));
@@ -130,9 +146,10 @@ export default function Installed({
         </EmptyState>
       )}
 
-      {/* Three sections (agentry-desktop#63): what this app can manage, the
-          run consents the CLI wrote into the same file (shown, not managed),
-          and records whose directory is gone (Forget removes the line). */}
+      {/* Three sections (agentry-desktop#63): what this app can manage —
+          the runner home's installs among them since D-031 — records of a
+          target this app does not know (shown, not managed), and records
+          whose directory is gone (Forget removes the line). */}
       {records && records.length > 0 && (
         <>
           {section(
@@ -151,13 +168,13 @@ export default function Installed({
                     {u && !u.updateAvailable && !u.error && <span className="badge ok">up to date</span>}
                   </>}
                   summary={<span className="mono small selectable">{rec.dir}</span>}
-                  meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.registry.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}</>}
+                  meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} · {rec.origin.replace(/^https?:\/\//, "")}{u?.error ? ` · update check failed: ${u.error}` : ""}</>}
                   actions={<>
-                    <Button onClick={() => onOpenAgent(rec.registry, rec.namespace, rec.name)}>Details</Button>
-                    {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)}>Update</Button>}
+                    <Button onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}>Details</Button>
+                    {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)} busy={updatingRunner === keyOf(rec)} busyLabel="Updating…">Update</Button>}
                     <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
                   </>}
-                  onClick={() => onOpenAgent(rec.registry, rec.namespace, rec.name)}
+                  onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}
                 />
               );
             },
@@ -172,7 +189,7 @@ export default function Installed({
                 title={`${rec.namespace}/${rec.name}`}
                 badges={<><span className="mono small">v{rec.version}</span><span className="badge">{rec.target}</span></>}
                 summary={<span className="mono small selectable">{rec.dir}</span>}
-                meta={<>{capsSummary(rec)} · accepted {fmtDate(rec.installedAt as unknown as string)} · {rec.target === "runner" ? <>recorded by <span className="mono">agentry run</span></> : "installed by an older client"}; this app does not manage it</>}
+                meta={<>{capsSummary(rec)} · accepted {fmtDate(rec.installedAt as unknown as string)} · installed by an older client; this app does not manage it</>}
               />
             ),
           )}

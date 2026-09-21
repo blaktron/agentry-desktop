@@ -12,6 +12,7 @@ import (
 	"github.com/blaktron/agentry/pkg/apiclient"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
@@ -668,27 +669,124 @@ func (i *InstallAPI) Prepare(reg, ref, target, dir string) (*install.Plan, error
 // release the registry admitted without a scan, which acceptUnsigned does
 // not give (M23).
 func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, acceptUnscanned bool) (*install.Result, error) {
+	// A runner plan's record is the run's consent record: what the page
+	// says it accepted is not what a run will believe, so the plan's own
+	// gates are raised here as native dialogs and the page's booleans are
+	// not read (D-030, D-031) — a page could otherwise prepare a runner
+	// plan and confirm the contract on every future run's behalf.
+	if plan, ok := i.engine.Plan(planID); ok && plan.Target == installdir.Target {
+		if err := i.consentForRunner(plan); err != nil {
+			i.engine.Cancel(planID)
+			return nil, err
+		}
+		return i.engine.Confirm(planID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
+	}
 	// A consent the page passed is put to the person in a native dialog
 	// the page cannot answer (D-030); the capabilities acceptance is the
 	// wizard's own reading of the contract and stays the page's.
-	var accepting []string
-	if acceptUnsigned {
-		accepting = append(accepting, "a release with no attestation")
-	}
-	if acceptUnscanned {
-		accepting = append(accepting, "a release the registry admitted without a scan")
-	}
-	if len(accepting) > 0 {
-		if err := i.app.askConsent("Install anyway?", "This install accepts "+strings.Join(accepting, ", and ")+". Continue?"); err != nil {
-			return nil, err
-		}
+	if err := i.askProvenanceConsent(acceptUnsigned, acceptUnscanned); err != nil {
+		return nil, err
 	}
 	return i.engine.Confirm(planID, acceptUnsigned, acceptCapabilities, acceptUnscanned)
+}
+
+// askProvenanceConsent puts the provenance consents to the person: a
+// release with no attestation, one the registry admitted without a scan,
+// or both in one dialog. Nothing to accept raises nothing.
+func (i *InstallAPI) askProvenanceConsent(unsigned, unscanned bool) error {
+	var accepting []string
+	if unsigned {
+		accepting = append(accepting, "a release with no attestation")
+	}
+	if unscanned {
+		accepting = append(accepting, "a release the registry admitted without a scan")
+	}
+	if len(accepting) == 0 {
+		return nil
+	}
+	return i.app.askConsent("Install anyway?", "This install accepts "+strings.Join(accepting, ", and ")+". Continue?")
 }
 
 // Cancel discards a pending plan.
 func (i *InstallAPI) Cancel(planID string) {
 	i.engine.Cancel(planID)
+}
+
+// InstallRunner is the one-click install (D-031): the release resolved,
+// verified and laid down in the runner home — the directory a run reads —
+// with no target or directory to choose. The gates are the only
+// interruption, each put to the person in the native dialog the page
+// cannot answer (D-030): an unsigned release, one the registry admitted
+// without a scan, and the capability contract on a first install that
+// declares egress or exec or on an update that widens it — the contract
+// itself in the dialog, since no page is showing it. A declined dialog
+// installs nothing and says so.
+func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
+	plan, err := i.engine.Prepare(i.app.ctx, reg, ref, installdir.Target, "")
+	if err != nil {
+		return nil, err
+	}
+	if err := i.consentForRunner(plan); err != nil {
+		i.engine.Cancel(plan.ID)
+		return nil, err
+	}
+	return i.engine.Confirm(plan.ID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
+}
+
+// consentForRunner raises the gates a one-click install owes, each in the
+// native dialog, and returns the first refusal: nothing is written past a
+// No. A plan with no gate raises nothing.
+func (i *InstallAPI) consentForRunner(plan *install.Plan) error {
+	if err := i.askProvenanceConsent(plan.Unsigned, plan.Unscanned); err != nil {
+		return err
+	}
+	if plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm {
+		if err := i.app.askConsent("Accept what "+plan.Namespace+"/"+plan.Name+" may do?", contractConsentText(plan)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// contractConsentText is the capability contract as the consent dialog
+// states it: on a first install, what the release declares; on an update,
+// what widened since the installed version. The dialog is the one reading
+// of the contract the person gets on a one-click install.
+func contractConsentText(plan *install.Plan) string {
+	var lines []string
+	if plan.RequiresWidenedConfirm && plan.Diff != nil {
+		lines = append(lines, "Updating from "+plan.PrevVersion+" to "+plan.Version+" widens what it may do:")
+		for _, w := range plan.Diff.Widened {
+			lines = append(lines, "  • "+w)
+		}
+	} else {
+		lines = append(lines, "Version "+plan.Version+" declares:")
+		c := plan.Capabilities
+		if len(c.EgressHosts) > 0 {
+			lines = append(lines, "  • network egress to "+strings.Join(c.EgressHosts, ", "))
+		}
+		if len(c.ExecCommands) > 0 {
+			lines = append(lines, "  • exec: "+strings.Join(c.ExecCommands, ", "))
+		}
+		if c.FSRead != "" {
+			lines = append(lines, "  • filesystem read: "+c.FSRead+pathsNote(c.FSReadPaths))
+		}
+		if c.FSWrite != "" {
+			lines = append(lines, "  • filesystem write: "+c.FSWrite+pathsNote(c.FSWritePaths))
+		}
+		if len(c.Secrets) > 0 {
+			lines = append(lines, "  • secrets: "+strings.Join(c.Secrets, ", "))
+		}
+	}
+	lines = append(lines, "", "The runner is configured to enforce this contract. Install?")
+	return strings.Join(lines, "\n")
+}
+
+func pathsNote(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(paths, ", ") + ")"
 }
 
 // ListInstalled returns the shared install state (~/.config/agentry/

@@ -11,9 +11,9 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/runnerimage"
 	"io"
 	"os"
@@ -64,18 +64,6 @@ func runnerImageTag(pol *policy.Policy) string {
 	return pol.RunnerImageTag(runnerimage.ContentVersion())
 }
 
-// installMeta is <installDir>/install.json — field-for-field the CLI's
-// struct (cmd_run.go), because both clients read each other's installs.
-type installMeta struct {
-	Ref         string              `json:"ref"`
-	Namespace   string              `json:"namespace"`
-	Name        string              `json:"name"`
-	Version     string              `json:"version"`
-	Digest      string              `json:"digest"`
-	Source      string              `json:"source"`
-	Attestation receipt.Attestation `json:"attestation"`
-}
-
 // Signature is one resolved release: the identity (ns/name@version +
 // digest) the install cache and MCP profiles are keyed by (§P2).
 type Signature struct {
@@ -91,7 +79,7 @@ type Signature struct {
 }
 
 // DigestSuffix is the 12-char digest form used in directory names.
-func (s *Signature) DigestSuffix() string { return digestSuffix(s.Digest) }
+func (s *Signature) DigestSuffix() string { return installdir.DigestSuffix(s.Digest) }
 
 // Unscanned says whether the registry admitted the resolved version
 // without a scan (core M21): read from the resolve answer, before any
@@ -378,7 +366,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// the page and in the run panel, and the Run click is the acceptance
 	// the CLI collects as a prompt; record it under the same key so CLI
 	// and desktop runs share one consent history (D-010).
-	recordCapabilities(m, meta, installDir, logw)
+	recordCapabilities(m, meta, home, logw)
 
 	ad, err := adapter.Get(adapter.DefaultName)
 	if err != nil {
@@ -594,10 +582,9 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 // path applies, asked again on every run — and creating it (download →
 // digest check → DSSE verify → hardened extract) when not: the gate
 // `agentry install` and `agentry run` apply (§R1, DR-21, DR-27).
-func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (*installMeta, string, error) {
-	installDir := filepath.Join(home, "agents", sig.Namespace, sig.Name,
-		fmt.Sprintf("%s-%s", sig.Version, sig.DigestSuffix()))
-	if meta, ok := loadInstallMeta(installDir, sig.Digest); ok {
+func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (*installdir.Meta, string, error) {
+	installDir := installdir.ReleaseDir(home, sig.Namespace, sig.Name, sig.Version, sig.Digest)
+	if meta, ok := installdir.Load(installDir, sig.Digest); ok {
 		// The registry's word today outranks the cache's memory: an
 		// install cached before the unscanned state existed, against a
 		// registry that now says the version was admitted without a
@@ -640,7 +627,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 		return nil, "", fmt.Errorf("extract archive: %w", err)
 	}
 
-	meta := &installMeta{
+	meta := &installdir.Meta{
 		Ref:       sig.Ref,
 		Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version,
 		Digest: sig.Digest, Source: "registry", Attestation: att,
@@ -649,7 +636,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 	// run's alone.
 	cached := *meta
 	cached.Attestation.Consent = ""
-	if err := writeInstall(installDir, staging, &cached); err != nil {
+	if err := installdir.Write(installDir, staging, &cached); err != nil {
 		return nil, "", err
 	}
 	return meta, installDir, nil
@@ -659,7 +646,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 // cache already holds, and records on the receipt the consent given now:
 // a cached unsigned or unscanned release is not "verified", and the
 // consent is asked for on every run.
-func cachedAttestationGate(meta *installMeta, acceptUnsigned, acceptUnscanned bool, logw io.Writer) error {
+func cachedAttestationGate(meta *installdir.Meta, acceptUnsigned, acceptUnscanned bool, logw io.Writer) error {
 	switch meta.Attestation.State {
 	case trust.StateUnscanned:
 		if !acceptUnscanned {
@@ -734,57 +721,10 @@ func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest str
 	}
 }
 
-// writeInstall lands workspace + install.json under installDir — build
-// aside, then rename, so a half-written install never looks installed
-// (the CLI's exact procedure).
-func writeInstall(installDir, srcTree string, meta *installMeta) error {
-	if err := os.RemoveAll(installDir); err != nil {
-		return fmt.Errorf("clear install dir: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(installDir), 0o755); err != nil {
-		return fmt.Errorf("create install dir: %w", err)
-	}
-	tmp := installDir + ".partial"
-	if err := os.RemoveAll(tmp); err != nil {
-		return fmt.Errorf("clear partial install: %w", err)
-	}
-	if err := copyTree(srcTree, filepath.Join(tmp, "workspace")); err != nil {
-		return err
-	}
-	b, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal install metadata: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmp, "install.json"), append(b, '\n'), 0o644); err != nil { //nolint:gosec // metadata, not secret
-		return fmt.Errorf("write install metadata: %w", err)
-	}
-	if err := os.Rename(tmp, installDir); err != nil {
-		return fmt.Errorf("finalize install dir: %w", err)
-	}
-	return nil
-}
-
-// loadInstallMeta reuses a cached verified install iff its recorded digest
-// matches what the registry says now (the CLI's reuse rule).
-func loadInstallMeta(installDir, wantDigest string) (*installMeta, bool) {
-	b, err := os.ReadFile(filepath.Join(installDir, "install.json")) //nolint:gosec // our install layout
-	if err != nil {
-		return nil, false
-	}
-	var meta installMeta
-	if err := json.Unmarshal(b, &meta); err != nil || meta.Digest != wantDigest {
-		return nil, false
-	}
-	if _, err := os.Stat(filepath.Join(installDir, "workspace")); err != nil {
-		return nil, false
-	}
-	return &meta, true
-}
-
 // ensurePlan reuses the installed plan when nothing it depends on changed
 // (§R6/§R9), otherwise recompiles — the CLI's exact reuse rule: digest,
 // policy fingerprint, adapter, and file integrity all must hold.
-func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, installDir, workspaceDir string,
+func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installdir.Meta, installDir, workspaceDir string,
 	pol *policy.Policy, polSHA, adapterName string, serverSpecs []spec.MCPServerSpec, mode manifest.Mode,
 ) (*spec.Plan, string, error) {
 	// One plan per run mode (plan/<mode>/), exactly like the CLI; a
@@ -849,16 +789,22 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installMeta, install
 // recordCapabilities upserts the accepted contract under the same
 // installed-state key the CLI's run consent uses, so neither client
 // re-asks for a contract the operator already accepted on this machine.
-func recordCapabilities(m *manifest.Manifest, meta *installMeta, installDir string, logw io.Writer) {
-	key := installed.Key{
-		Registry: "runner", Namespace: meta.Namespace, Name: meta.Name,
-		Target: "runner", Dir: filepath.Dir(installDir),
-	}
+func recordCapabilities(m *manifest.Manifest, meta *installdir.Meta, home string, logw io.Writer) {
+	// The key names the agent's directory under the runner home, the way
+	// the CLI's run and an install (D-031) do, so all three share one record.
+	key := installdir.ConsentKey(home, meta.Namespace, meta.Name)
 	state, err := installed.Load()
 	if err != nil {
 		state = installed.State{}
 	}
-	state.Upsert(key, meta.Version, installed.Snapshot(m.Capabilities), false)
+	// An install owns the agent's directory (managed); a run that
+	// re-consents keeps that and records nothing managed of its own — its
+	// cache is not an install (the CLI's rule, DR-28).
+	managed := false
+	if prev := state.Find(key); prev != nil {
+		managed = prev.Managed
+	}
+	state.Upsert(key, meta.Version, installed.Snapshot(m.Capabilities), managed)
 	if err := installed.Save(state); err != nil {
 		_, _ = fmt.Fprintf(logw, "warning: %v — the accepted capability contract could not be recorded\n", err)
 	}
@@ -969,40 +915,4 @@ func loadPolicyForRead() *policy.Policy {
 		return policy.Default()
 	}
 	return pol
-}
-
-// digestSuffix shortens sha256:… for directory names (CLI parity).
-func digestSuffix(digest string) string {
-	s := strings.TrimPrefix(digest, "sha256:")
-	if len(s) > 12 {
-		s = s[:12]
-	}
-	return s
-}
-
-// copyTree copies src into dest preserving permission bits. Replicated
-// from internal/install rather than shared — the D-006 call, same reasons.
-func copyTree(src, dest string) error {
-	err := filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, rerr := filepath.Rel(src, p)
-		if rerr != nil {
-			return rerr
-		}
-		target := filepath.Join(dest, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, rerr := os.ReadFile(p) //nolint:gosec // reading our own staging dir
-		if rerr != nil {
-			return rerr
-		}
-		return os.WriteFile(target, data, info.Mode().Perm())
-	})
-	if err != nil {
-		return fmt.Errorf("copy files to %s: %w", dest, err)
-	}
-	return nil
 }

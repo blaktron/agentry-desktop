@@ -20,6 +20,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
@@ -46,7 +47,7 @@ func TestResolveSignature(t *testing.T) {
 	if sig.Ref != "acme/reporter@1.0.0" || sig.Namespace != "acme" || sig.Name != "reporter" || sig.Version != "1.0.0" {
 		t.Fatalf("signature identity = %+v", sig)
 	}
-	if sig.Digest != fr.digest || sig.DigestSuffix() != digestSuffix(fr.digest) {
+	if sig.Digest != fr.digest || sig.DigestSuffix() != installdir.DigestSuffix(fr.digest) {
 		t.Fatalf("digest = %q, want %q", sig.Digest, fr.digest)
 	}
 	if sig.Yanked {
@@ -188,7 +189,7 @@ func TestMaterializeRefusesUnverifiableAttestation(t *testing.T) {
 }
 
 // planFixture lays out an install (workspace + meta) for ensurePlan tests.
-func planFixture(t *testing.T) (*manifest.Manifest, *installMeta, string, string) {
+func planFixture(t *testing.T) (*manifest.Manifest, *installdir.Meta, string, string) {
 	t.Helper()
 	m, err := manifest.Parse([]byte(runManifestYAML))
 	if err != nil {
@@ -202,7 +203,7 @@ func planFixture(t *testing.T) (*manifest.Manifest, *installMeta, string, string
 	if err := os.WriteFile(filepath.Join(workspaceDir, "SKILL.md"), []byte("Do the fixture task.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := &installMeta{
+	meta := &installdir.Meta{
 		Ref: "acme/reporter@1.0.0", Namespace: "acme", Name: "reporter",
 		Version: "1.0.0", Digest: "sha256:feedface", Source: "registry",
 	}
@@ -455,7 +456,7 @@ func TestRunHappyPath(t *testing.T) {
 
 	// The install cache is the CLI's layout and the accepted capability
 	// contract was recorded under the shared consent key (D-010).
-	installDir := filepath.Join(home, "agents", "acme", "reporter", "1.0.0-"+digestSuffix(fr.digest))
+	installDir := filepath.Join(home, "agents", "acme", "reporter", "1.0.0-"+installdir.DigestSuffix(fr.digest))
 	if _, err := os.Stat(filepath.Join(installDir, "install.json")); err != nil {
 		t.Errorf("install cache missing: %v", err)
 	}
@@ -473,7 +474,7 @@ func TestRunHappyPath(t *testing.T) {
 
 	// No profile existed and none was created; the model key came from the
 	// environment and the secret from the env fallback.
-	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", digestSuffix(fr.digest))
+	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", installdir.DigestSuffix(fr.digest))
 	if p, err := profile.Load(profDir); err != nil || p != nil {
 		t.Errorf("no profile should exist after an env-secret run: %v %v", p, err)
 	}
@@ -500,7 +501,7 @@ func TestRunSecretFromProfile(t *testing.T) {
 	if res.Status != "ok" {
 		t.Fatalf("status = %s (%s)", res.Status, res.Error)
 	}
-	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", digestSuffix(fr.digest))
+	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", installdir.DigestSuffix(fr.digest))
 	kept, err := profile.Load(profDir)
 	if err != nil || kept == nil {
 		t.Fatalf("keep=true profile must survive the run: %v %v", kept, err)
@@ -516,7 +517,7 @@ func TestRunKeepProfilePrecedence(t *testing.T) {
 	fr, regURL, _, home := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
 	sig := resolveFixture(t, regURL)
-	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", digestSuffix(fr.digest))
+	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", installdir.DigestSuffix(fr.digest))
 	outDir := func() string { return filepath.Join(t.TempDir(), "out") }
 	saveProf := func(keep bool) {
 		t.Helper()

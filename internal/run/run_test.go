@@ -9,6 +9,7 @@ import (
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 )
@@ -54,11 +55,11 @@ func TestHome(t *testing.T) {
 }
 
 func TestDigestSuffix(t *testing.T) {
-	if got := digestSuffix("sha256:0123456789abcdef0123"); got != "0123456789ab" {
+	if got := installdir.DigestSuffix("sha256:0123456789abcdef0123"); got != "0123456789ab" {
 		t.Fatalf("digestSuffix = %q", got)
 	}
-	if got := digestSuffix("short"); got != "short" {
-		t.Fatalf("digestSuffix(short) = %q", got)
+	if got := installdir.DigestSuffix("short"); got != "short" {
+		t.Fatalf("installdir.DigestSuffix(short) = %q", got)
 	}
 }
 
@@ -180,18 +181,18 @@ func TestInstallMetaRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	installDir := filepath.Join(root, "agents", "acme", "reporter", "1.2.3-aaaabbbbcccc")
-	meta := &installMeta{
+	meta := &installdir.Meta{
 		Ref: "acme/reporter@1.2.3", Namespace: "acme", Name: "reporter",
 		Version: "1.2.3", Digest: "sha256:abc", Source: "registry",
 	}
-	if err := writeInstall(installDir, src, meta); err != nil {
+	if err := installdir.Write(installDir, src, meta); err != nil {
 		t.Fatal(err)
 	}
-	got, ok := loadInstallMeta(installDir, "sha256:abc")
+	got, ok := installdir.Load(installDir, "sha256:abc")
 	if !ok || got.Ref != meta.Ref || got.Source != "registry" {
 		t.Fatalf("reuse failed: %+v %v", got, ok)
 	}
-	if _, ok := loadInstallMeta(installDir, "sha256:different"); ok {
+	if _, ok := installdir.Load(installDir, "sha256:different"); ok {
 		t.Fatal("a digest mismatch must not reuse the cached install")
 	}
 }

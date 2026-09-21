@@ -41,14 +41,30 @@ const prov = unscanned
 // app manages, a run consent the CLI wrote into the same file, and a record
 // whose directory is gone.
 const installedRecs = [
-  { registry: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: "1.2.0", target: "agents-md", dir: "/home/me/work/oncall", managed: true, installedAt: "2026-09-02T09:00:00Z", capabilities: { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", secrets: ["PAGERDUTY_TOKEN"], execCommands: [] }, present: true, manageable: true },
-  { registry: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] }, present: true, manageable: true },
-  { registry: "runner", namespace: "agentry", name: "changelog-from-git", version: "1.2.1", target: "runner", dir: "/home/me/.agentry/runner/agentry/changelog-from-git", managed: false, installedAt: "2026-09-11T16:20:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["git"] }, present: true, manageable: false },
-  { registry: "https://secureagentry.net", namespace: "acme", name: "release-notes", version: "0.2.0", target: "claude-skill", dir: "/home/me/old-project", managed: true, installedAt: "2026-07-14T10:00:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: [] }, present: false, manageable: true },
+  { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: "1.2.0", target: "agents-md", dir: "/home/me/work/oncall", managed: true, installedAt: "2026-09-02T09:00:00Z", capabilities: { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", secrets: ["PAGERDUTY_TOKEN"], execCommands: [] }, present: true, manageable: true },
+  { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] }, present: true, manageable: true },
+  { registry: "runner", origin: "https://secureagentry.net", namespace: "agentry", name: "changelog-from-git", version: "1.2.1", target: "runner", dir: "/home/me/.agentry/runner/agents/agentry/changelog-from-git", managed: true, installedAt: "2026-09-11T16:20:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["git"] }, present: true, manageable: true },
+  { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "acme", name: "release-notes", version: "0.2.0", target: "claude-skill", dir: "/home/me/old-project", managed: true, installedAt: "2026-07-14T10:00:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: [] }, present: false, manageable: true },
 ];
 // pages.html#fresh previews a first run: nothing installed, and a registry
 // that sent no total (a core before agentry#290) gets a list with no count.
 const fresh = window.location.hash === "#fresh";
+// The agent page's one-click Install (agentry-desktop#146, D-031):
+// #agent-installed has the runner-home record for the shown BriefAgent at
+// its latest (Update, disabled); #agent-installed-older at an older
+// version (Update to <latest>); #agent-install-refused makes the one-click
+// call fail the way a declined gate does; #agent-installing never answers,
+// so the button reads Installing….
+const agentInstalled = window.location.hash.startsWith("#agent-installed");
+const agentInstalledOlder = window.location.hash === "#agent-installed-older";
+const agentInstallRefused = window.location.hash === "#agent-install-refused";
+const agentInstalling = window.location.hash === "#agent-installing";
+const runnerRecForShown = {
+  registry: "runner", origin: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: agentInstalledOlder ? "1.1.0" : "1.2.0",
+  target: "runner", dir: "/home/me/.agentry/runner/agents/demo1/incident-summarizer", managed: true, installedAt: "2026-09-21T12:00:00Z",
+  capabilities: { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", secrets: ["PAGERDUTY_TOKEN"], execCommands: [] }, present: true, manageable: true,
+};
+
 
 const buildModel = {
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
@@ -76,7 +92,16 @@ g.go = { main: {
     Report: async () => (unscanned ? { versionStatus: "published", scanStatus: "skipped", verdict: "unscanned", findings: [] } : report),
     Provenance: async () => prov,
   },
-  InstallAPI: { ListInstalled: async () => (fresh ? [] : installedRecs), CheckUpdates: async () => [], Forget: async () => undefined },
+  InstallAPI: {
+    ListInstalled: async () => (fresh ? [] : agentInstalled ? [...installedRecs, runnerRecForShown] : installedRecs),
+    CheckUpdates: async () => [],
+    Forget: async () => undefined,
+    InstallRunner: async () => {
+      if (agentInstalling) await new Promise(() => {});
+      if (agentInstallRefused) throw new Error("not confirmed: Accept what demo1/incident-summarizer may do?");
+      return { message: "installed demo1/incident-summarizer@1.2.0 into the runner home", dest: runnerRecForShown.dir };
+    },
+  },
   BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
   ValidateAPI: { Run: async () => validateResult },
   // The account line on a signed-in registry's card (agentry-desktop#74,

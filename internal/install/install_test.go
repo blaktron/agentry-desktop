@@ -30,6 +30,8 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 )
 
@@ -199,10 +201,15 @@ func hexEncode(b []byte) string {
 	return string(out)
 }
 
-// isolate points every agentry client file at a temp dir.
+// isolate points every agentry client file at a temp dir — the config
+// dir, the runner home, and HOME itself, so a test that exports a Claude
+// skill with no directory picked lands in a temp ~/.claude/skills and
+// never in the person's (one did, on 2026-09-21, before HOME was here).
 func isolate(t *testing.T) {
 	t.Helper()
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 }
 
 func TestInstallHappyPathVerifiesAndExports(t *testing.T) {
@@ -403,5 +410,128 @@ func TestUnscannedRequiresItsOwnAcceptance(t *testing.T) {
 	}
 	if _, err := e.Confirm(plan.ID, false, false, true); err != nil {
 		t.Fatalf("unscanned install refused despite acceptance: %v", err)
+	}
+}
+
+// TestRunnerTargetInstallsIntoTheRunnerHome (agentry-desktop#146, plan
+// desktop-one-click-install.md D3/D9/D10): the runner target — the
+// default — lays the verified release down in the runner home the CLI's
+// run reads (installdir), writes the export beside it in the style the
+// policy implies (no policy: AGENTS.md), records it under the run's own
+// consent key, managed; a newer version replaces the older once recorded;
+// uninstall removes the agent's directory and the record.
+func TestRunnerTargetInstallsIntoTheRunnerHome(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	reg := startRegistry(t, &fakeRegistry{})
+	e := NewEngine()
+
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Target != installdir.Target || plan.Paths.Dest != installdir.AgentDir(home, "acme", "demo") || !plan.Paths.Managed {
+		t.Fatalf("plan: target %q paths %+v", plan.Target, plan.Paths)
+	}
+	res, err := e.Confirm(plan.ID, false, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseDir := installdir.ReleaseDir(home, "acme", "demo", "1.0.0", plan.Digest)
+	meta, ok := installdir.Load(releaseDir, plan.Digest)
+	if !ok || meta.Export != "agents-md" || meta.Attestation.State != "verified" || !meta.Attestation.Verified || meta.Attestation.Consent != "" {
+		t.Fatalf("install.json: %+v ok=%v (result %+v)", meta, ok, res)
+	}
+	for _, want := range []string{"workspace/SKILL.md", "export/AGENTS.md", "export/agents/demo/SKILL.md"} {
+		if _, err := os.Stat(filepath.Join(releaseDir, filepath.FromSlash(want))); err != nil {
+			t.Fatalf("%s: %v", want, err)
+		}
+	}
+	st, err := installed.Load()
+	if err != nil || len(st.Records) != 1 {
+		t.Fatalf("records: %+v err %v", st.Records, err)
+	}
+	if rec := st.Records[0]; rec.Registry != installdir.ConsentRegistry || rec.Target != installdir.Target || rec.Dir != installdir.AgentDir(home, "acme", "demo") || !rec.Managed {
+		t.Fatalf("record: %+v", rec)
+	}
+	items, _ := List()
+	if len(items) != 1 || !items[0].Manageable || !items[0].Present {
+		t.Fatalf("List: %+v", items)
+	}
+
+	// v2 from another server: the key names no registry, so the record is
+	// found; the older release directory goes once the new one is recorded.
+	f2 := &fakeRegistry{version: "2.0.0"}
+	reg2 := startRegistry(t, f2)
+	plan2, err := e.Prepare(context.Background(), reg2, "acme/demo", installdir.Target, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan2.PrevVersion != "1.0.0" {
+		t.Fatalf("the installed version was not found for the diff: %+v", plan2)
+	}
+	if _, err := e.Confirm(plan2.ID, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(releaseDir); !os.IsNotExist(err) {
+		t.Fatal("1.0.0's directory survived the update")
+	}
+	if _, ok := installdir.Load(installdir.ReleaseDir(home, "acme", "demo", "2.0.0", plan2.Digest), plan2.Digest); !ok {
+		t.Fatal("2.0.0 is not installed")
+	}
+	st, _ = installed.Load()
+	if len(st.Records) != 1 || st.Records[0].Version != "2.0.0" {
+		t.Fatalf("records after update: %+v", st.Records)
+	}
+
+	// --dir is for the coding-agent targets.
+	if _, err := e.Prepare(context.Background(), reg2, "acme/demo", installdir.Target, t.TempDir()); err == nil || !strings.Contains(err.Error(), "runner home") {
+		t.Fatalf("a directory with the runner target: %v", err)
+	}
+
+	// Uninstall removes the agent's directory and the record.
+	msg, err := Uninstall(installdir.ConsentKey(home, "acme", "demo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(installdir.AgentDir(home, "acme", "demo")); !os.IsNotExist(err) {
+		t.Fatalf("uninstall left the agent's directory (%s)", msg)
+	}
+	if st, _ := installed.Load(); len(st.Records) != 0 {
+		t.Fatalf("uninstall left the record: %+v", st.Records)
+	}
+}
+
+// TestRunnerTargetExportFollowsThePolicy: the policy's coding agent, then
+// its provider, decide the export written beside the release (D2).
+func TestRunnerTargetExportFollowsThePolicy(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	reg := startRegistry(t, &fakeRegistry{})
+	pol := policy.Default()
+	pol.Harness = map[string]policy.HarnessPolicy{"claude": {}}
+	if err := policy.Save(filepath.Join(home, "policy.yaml"), pol); err != nil {
+		t.Fatal(err)
+	}
+	e := NewEngine()
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Confirm(plan.ID, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	releaseDir := installdir.ReleaseDir(home, "acme", "demo", "1.0.0", plan.Digest)
+	skill, err := os.ReadFile(filepath.Join(releaseDir, "export", "demo", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("the Claude skill export is missing: %v", err)
+	}
+	if !bytes.HasPrefix(skill, []byte("---\n")) {
+		t.Errorf("SKILL.md frontmatter not injected:\n%s", skill)
+	}
+	if meta, ok := installdir.Load(releaseDir, plan.Digest); !ok || meta.Export != "claude-skill" {
+		t.Fatalf("install.json export: %+v", meta)
 	}
 }

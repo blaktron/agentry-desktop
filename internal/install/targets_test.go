@@ -16,6 +16,7 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 )
 
 // buildArchiveFiles produces a real release archive holding the given
@@ -43,24 +44,14 @@ func buildArchiveFiles(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
-// TestDefaultTarget: the default install target follows runtime.interfaces
-// (first emittable entry), never the run modes; claude-skill otherwise.
+// TestDefaultTarget (D-031, the CLI's DR-28): the default install target
+// is the runner home whatever runtime.interfaces lists.
 func TestDefaultTarget(t *testing.T) {
-	cases := []struct {
-		interfaces []string
-		want       string
-	}{
-		{nil, manifest.InterfaceClaudeSkill},
-		{[]string{manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD}, manifest.InterfaceClaudeSkill},
-		{[]string{manifest.InterfaceAgentsMD, manifest.InterfaceClaudeSkill}, manifest.InterfaceAgentsMD},
-		{[]string{"mcp", manifest.InterfaceAgentsMD}, manifest.InterfaceAgentsMD}, // a v1 archive: the withdrawn target is skipped
-		{[]string{"mcp"}, manifest.InterfaceClaudeSkill},
-	}
-	for _, tc := range cases {
+	for _, interfaces := range [][]string{nil, {manifest.InterfaceClaudeSkill}, {manifest.InterfaceAgentsMD, manifest.InterfaceClaudeSkill}} {
 		m := &manifest.Manifest{}
-		m.Runtime.Interfaces = tc.interfaces
-		if got := DefaultTarget(m); got != tc.want {
-			t.Errorf("DefaultTarget(%v) = %q, want %q", tc.interfaces, got, tc.want)
+		m.Runtime.Interfaces = interfaces
+		if got := DefaultTarget(m); got != installdir.Target {
+			t.Errorf("DefaultTarget(%v) = %q, want %q", interfaces, got, installdir.Target)
 		}
 	}
 }
@@ -83,7 +74,7 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 	project := t.TempDir()
 
 	e := NewEngine()
-	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "", project)
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "agents-md", project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +97,7 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 
 	// Reinstall the same version: prev recorded, contract unchanged, no
 	// gates, and the section is upserted rather than appended twice.
-	plan2, err := e.Prepare(context.Background(), reg, "acme/demo", "", project)
+	plan2, err := e.Prepare(context.Background(), reg, "acme/demo", "agents-md", project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,6 +317,8 @@ func TestListPresentAndManageable(t *testing.T) {
 	gone := filepath.Join(t.TempDir(), "deleted-project")
 	var st installed.State
 	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "skill", Target: "claude-skill", Dir: here}, "1.0.0", installed.CapSnapshot{}, true)
+	// A runner record is an install this app manages since D-031 (it was a
+	// consent the CLI wrote and this app only showed).
 	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "consent", Target: "runner", Dir: here}, "1.0.0", installed.CapSnapshot{}, false)
 	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "vanished", Target: "agents-md", Dir: gone}, "1.0.0", installed.CapSnapshot{}, true)
 	if err := installed.Save(st); err != nil {
@@ -339,7 +332,7 @@ func TestListPresentAndManageable(t *testing.T) {
 	for _, it := range items {
 		got[it.Name] = [2]bool{it.Present, it.Manageable}
 	}
-	want := map[string][2]bool{"skill": {true, true}, "consent": {true, false}, "vanished": {false, true}}
+	want := map[string][2]bool{"skill": {true, true}, "consent": {true, true}, "vanished": {false, true}}
 	for name, w := range want {
 		if got[name] != w {
 			t.Fatalf("%s: present/manageable = %v, want %v", name, got[name], w)

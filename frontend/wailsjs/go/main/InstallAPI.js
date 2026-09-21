@@ -18,6 +18,10 @@ export function Forget(arg1) {
   return window['go']['main']['InstallAPI']['Forget'](arg1);
 }
 
+export function InstallRunner(arg1, arg2) {
+  return window['go']['main']['InstallAPI']['InstallRunner'](arg1, arg2);
+}
+
 export function ListInstalled() {
   return window['go']['main']['InstallAPI']['ListInstalled']();
 }
