@@ -31,9 +31,9 @@ const states = [
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
   { name: "runpanel-streaming", url: "/modals.html#runpanel-streaming", note: "streaming the log" },
   { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "finished: outcome, receipt, downloaded artefacts" },
-  { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own stripe and consent, In Agentry not offered (M23)" },
-  { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard's review of a release admitted without a scan: the stripe and the consent (M23)", click: "button:has-text('Verify')" },
-  { name: "agent-unscanned", url: "/pages.html#agent-unscanned", note: "the agent page's provenance tab: the unscanned badge and the stripe on the card (M23)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("provenance")' },
+  { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own mark and consent, In Agentry not offered (M23)" },
+  { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard's review of a release admitted without a scan: the mark and the consent (M23)", click: "button:has-text('Verify')" },
+  { name: "agent-unscanned", url: "/pages.html#agent-unscanned", note: "the agent page's provenance tab: the unscanned badge and the mark on the card (M23)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("provenance")' },
   { name: "agent-unscanned-report", url: "/pages.html#agent-unscanned", note: "the agent page's report tab: unscanned as its own verdict, never 'scanned, 0 findings' (M23)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("security report")' },
   // The welcome's runtime step (agentry-desktop#131): the three questions;
   // the model list Get models filled; the failed listing with the model

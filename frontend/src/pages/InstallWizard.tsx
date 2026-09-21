@@ -175,7 +175,7 @@ export default function InstallWizard({
             ) : null}
 
             {plan.unscanned && (
-              <div className="notice notice-unscanned stripe-unscanned">
+              <div className="notice notice-unscanned mark-unscanned">
                 <p style={{ margin: 0 }}>
                   <SignedBadge att={plan.attestation} />{" "}
                   <strong>The registry admitted this version without a scan.</strong>{" "}

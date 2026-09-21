@@ -275,11 +275,11 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--color-ac
 .badge.warn { color: var(--color-sev-medium); border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), var(--color-bg)); }
 .badge.bad { color: var(--color-sev-high); border-color: color-mix(in srgb, var(--color-sev-high) 50%, transparent); background: color-mix(in srgb, var(--color-sev-high) var(--badge-tint), var(--color-bg)); }
 .badge.unscanned { color: var(--color-unscanned); border-color: color-mix(in srgb, var(--color-unscanned) 50%, transparent); background: color-mix(in srgb, var(--color-unscanned) var(--badge-tint), var(--color-bg)); }
-/* The unscanned stripe: a panel about a version the registry admitted
+/* The unscanned mark: a panel about a version the registry admitted
    without a scan carries its verdict on its edge, the way the site's
    report card carries the worst severity — drawn inset so it follows the
    radius and moves nothing. */
-.stripe-unscanned { box-shadow: inset 3px 0 0 0 var(--color-unscanned); }
+.mark-unscanned { box-shadow: inset 3px 0 0 0 var(--color-unscanned); }
 
 .sev { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; }
 .sev.critical { color: var(--color-sev-critical); }

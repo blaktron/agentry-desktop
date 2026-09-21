@@ -247,7 +247,7 @@ export default function AgentPage({
       )}
 
       {tab === "provenance" && (
-        <Card className={`selectable${prov?.state === "unscanned" ? " stripe-unscanned" : ""}`}>
+        <Card className={`selectable${prov?.state === "unscanned" ? " mark-unscanned" : ""}`}>
           {!detail.latest && <div className="empty">No published version.</div>}
           {detail.latest && (
             <>
@@ -454,7 +454,7 @@ export function ReportCard({
   // scan, and an empty report must never read as "scanned, 0 findings".
   if (report.verdict === "unscanned" || report.scanStatus === "skipped") {
     return (
-      <div className="notice notice-unscanned stripe-unscanned">
+      <div className="notice notice-unscanned mark-unscanned">
         <div className="row">
           <span className="badge unscanned">unscanned</span>
           <strong>The registry admitted this version without a scan.</strong>

@@ -10,7 +10,7 @@
 //   #runpanel-streaming    a hosted run streaming its log
 //   #runpanel-finished     a hosted run finished: receipt and artefacts
 //   #runpanel-unscanned    a release the registry admitted without a scan:
-//                          its own stripe and consent, In Agentry not offered
+//                          its own mark and consent, In Agentry not offered
 //   #install-unscanned     the install wizard on the same release (M23)
 //   #toolspanel | #chat    the other two run surfaces
 import { createRoot } from "react-dom/client";

@@ -569,7 +569,7 @@ export default function RunPanel({
         </div>
 
         {unscanned && (
-          <div className="notice notice-unscanned stripe-unscanned">
+          <div className="notice notice-unscanned mark-unscanned">
             <p style={{ margin: 0 }}>
               <SignedBadge att={attestation} />{" "}
               <strong>The registry admitted this version without a scan.</strong>{" "}

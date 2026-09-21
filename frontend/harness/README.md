@@ -33,9 +33,9 @@ was skipped — agentry-desktop#89).
 
 The **unscanned** states (M23, agentry-desktop#80) are `#agent-unscanned`
 in `pages.html` — shot twice, on the provenance tab (the badge in the
-header, the stripe on the card) and on the report tab (unscanned as its
+header, the mark on the card) and on the report tab (unscanned as its
 own verdict, never "scanned, 0 findings") — and `#runpanel-unscanned` /
-`#install-unscanned` in `modals.html` (the notice with its own stripe and
+`#install-unscanned` in `modals.html` (the notice with its own mark and
 the consent checkbox; In Agentry not offered for such a release; the
 install shot is the wizard's review, one click past Prepare). A state
 behind a click names it in `shots.mjs` (`click`).

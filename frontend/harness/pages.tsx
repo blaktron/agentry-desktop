@@ -13,7 +13,7 @@ const hits = [
   { namespace: "labs", name: "log-explainer", summary: "An interactive session over a log bundle; no filesystem write, no network.", modes: ["interactive"], quarantine: "", installs30d: 0 },
 ];
 // #agent-unscanned (M23): the latest version was admitted without a scan
-// — its own verdict, its own stripe, no attestation to verify.
+// — its own verdict, its own mark, no attestation to verify.
 const unscanned = window.location.hash === "#agent-unscanned";
 const detail = {
   agent: { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "" },
