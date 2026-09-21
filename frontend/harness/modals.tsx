@@ -9,6 +9,10 @@
 //   #runpanel-queued       a hosted run queued, with its position
 //   #runpanel-streaming    a hosted run streaming its log
 //   #runpanel-finished     a hosted run finished: receipt and artefacts
+//   #runpanel-keys         pr-review-brief's shape: keys unsaved, no intake —
+//                          the line above Run names the keys, Input files
+//                          collapsed (agentry-desktop#167)
+//   #runpanel-file-intake  a release asking for a file up front
 //   #runpanel-unscanned    a release the registry admitted without a scan:
 //                          its own mark and consent, In Agentry not offered
 //   #install-unscanned     the install wizard on the same release (M23)
@@ -16,19 +20,42 @@
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
-const profile = {
-  ref: "demo1/incident-summarizer@1.2.0", digest: "sha256:9c356fd0d20fef07",
-  capabilityLines: ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
-  declaredSecrets: ["PAGERDUTY_TOKEN"], storedSecretNames: ["PAGERDUTY_TOKEN"], exists: true, keep: true,
-  modes: ["autonomous", "interactive"], intake: [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }], opening: "What incident should I look at?",
-};
-const setup = { dockerOk: true, imagesReady: true, timeoutSeconds: 900, maxTurns: 60, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" };
-const mcp = { refusal: "", vulnerabilityLine: "have no known high or critical advisories", toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [] };
-
 // In Agentry (hosted runs M6). The view is the panel's: what a run holds,
 // where it stands, and what it produced — the registry's numbers.
 const view = location.hash.replace("#", "") || "runpanel";
 const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length) : "";
+
+// The run form asks only for what the release declares (agentry-desktop#167).
+// #runpanel-keys is agentry/pr-review-brief's shape: one GitHub MCP server
+// with GITHUB_TOKEN, no intake, no filesystem — the keys unsaved, so the
+// line above Run names them and nothing else; #runpanel-file-intake a
+// release that asks for a file up front — the intake form shows and the
+// unanswered question is what the line names.
+const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved";
+const fileIntakeShape = view === "runpanel-file-intake";
+const profile = keysShape
+  ? {
+    ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
+    capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
+    declaredSecrets: ["GITHUB_TOKEN"], storedSecretNames: [], exists: false, keep: true,
+    modes: ["autonomous"], intake: [], opening: "",
+  }
+  : {
+    ref: "demo1/incident-summarizer@1.2.0", digest: "sha256:9c356fd0d20fef07",
+    capabilityLines: ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
+    declaredSecrets: ["PAGERDUTY_TOKEN"], storedSecretNames: ["PAGERDUTY_TOKEN"], exists: true, keep: true,
+    modes: ["autonomous", "interactive"],
+    intake: fileIntakeShape
+      ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
+      : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
+    opening: "What incident should I look at?",
+  };
+const setup = { dockerOk: true, imagesReady: true, timeoutSeconds: 900, maxTurns: 60, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" };
+const mcp = {
+  refusal: "", vulnerabilityLine: "have no known high or critical advisories", toolRows: [],
+  servers: keysShape ? ["github-mcp-server-js"] : [], vulnerabilities: [], dataAccess: keysShape ? ["code"] : [],
+  secretNames: keysShape ? ["GITHUB_TOKEN"] : [], embeddedTools: [],
+};
 
 const availability = {
   offered: true, available: hostedState !== "unavailable",
@@ -91,7 +118,10 @@ const g = window as any;
 g.go = { main: {
   RunAPI: {
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp,
-    ProfileStatus: async () => profile, SaveProfile: async () => profile,
+    ProfileStatus: async () => profile,
+    // Saving the keys makes the profile exist: the line above Run goes and
+    // Run enables (#runpanel-keys-saved, agentry-desktop#167).
+    SaveProfile: async () => ({ ...profile, exists: true, storedSecretNames: profile.declaredSecrets }),
     HostedAvailability: async () => availability,
     AttachHostedRun: async () => ({ run: hostedRun }),
     StartHostedRun: async () => ({ run: hostedRuns.queued }),
@@ -180,7 +210,8 @@ if (view === "install-unscanned") {
   createRoot(el).render(
     <><Backdrop />
       <RunPanel
-        registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0"
+        registry="https://secureagentry.net"
+        ns={keysShape ? "agentry" : "demo1"} name={keysShape ? "pr-review-brief" : "incident-summarizer"} version={keysShape ? "1.2.1" : "1.2.0"}
         attestation={att} onClose={() => {}}
         initialMode={hostedState === "hosted" || hostedState === "unavailable" ? "hosted" : undefined}
       />

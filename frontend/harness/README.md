@@ -48,6 +48,15 @@ with its position), `#runpanel-streaming` and `#runpanel-finished` (the
 outcome, the receipt listed verbatim, and the downloaded artefacts). The
 bindings are mocked in `modals.tsx`, so no registry is involved.
 
+The run form asks only for what the release declares (agentry-desktop#167):
+`#runpanel-keys` in `modals.html` is `agentry/pr-review-brief`'s shape — one
+GitHub MCP server with `GITHUB_TOKEN`, no intake — with the keys unsaved, so
+the line above the grey Run names them and Input files is a collapsed
+disclosure; `#runpanel-keys-saved` the same after Save keys (the line gone,
+Run enabled); `#runpanel-file-intake` a release that asks for a file up
+front. `shots.mjs` asserts the line, the button's state and the collapsed
+disclosure.
+
 The one-click install and its checks (agentry-desktop#146, #147) are
 `#agent-installed`, `#agent-installed-older`, `#agent-installed-unreachable`,
 `#agent-install-refused`, `#agent-installing` and `#installed-updates` in
