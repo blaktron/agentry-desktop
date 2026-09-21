@@ -1,0 +1,72 @@
+# Proves that a job of this repository running in the `release` environment
+# can obtain an Azure Artifact Signing access token with nothing but the OIDC
+# token GitHub mints for it (agentry-desktop#151; plan os-code-signing.md D6).
+#
+# No Azure secret exists: the Entra app registration carries one federated
+# credential whose subject is `repo:blaktron/agentry-desktop:environment:release`,
+# so only a job that names this environment gets a token, and a pull request's
+# CI or a fork never does. The exchange is the OAuth client-credentials grant
+# with the OIDC token as the client assertion — plain curl, no Azure CLI on the
+# runner. The release workflow's Windows signing (#54) does the same exchange
+# in its own job and hands the token to jsign; this workflow exists so the
+# credential can be proven before that lands, and stays as the diagnostic
+# when it fails later.
+#
+# Nothing here is printed but the outcome and the OIDC token's own subject
+# claim (which is public by construction). The access token is masked, lives
+# in a shell variable, and dies with the step.
+name: signing-oidc-probe
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  token:
+    runs-on: [self-hosted, linux, x64]
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - name: jq from Ubuntu's packages
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null; then
+            sudo=""; [ "$(id -u)" = 0 ] || sudo=sudo
+            $sudo apt-get update -qq
+            $sudo apt-get install -y -qq --no-install-recommends jq
+          fi
+          jq --version
+      - name: Exchange the job's OIDC token for an Artifact Signing access token
+        env:
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          : "${AZURE_TENANT_ID:?the AZURE_TENANT_ID repository variable is not set (scripts/operator/artifact-signing-setup.sh)}"
+          : "${AZURE_CLIENT_ID:?the AZURE_CLIENT_ID repository variable is not set (scripts/operator/artifact-signing-setup.sh)}"
+          : "${ACTIONS_ID_TOKEN_REQUEST_URL:?this job has no id-token permission}"
+          jwt=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | jq -r '.value // empty')
+          [ -n "$jwt" ] || { echo "::error::GitHub issued no OIDC token"; exit 1; }
+          echo "::add-mask::$jwt"
+          # The subject Azure will match, for the record: base64url → base64.
+          payload=$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+')
+          pad=$(( (4 - ${#payload} % 4) % 4 )); while [ "$pad" -gt 0 ]; do payload="$payload="; pad=$((pad - 1)); done
+          printf '%s' "$payload" | base64 -d | jq -r '"oidc subject: \(.sub)\noidc audience: \(.aud)"'
+          resp=$(curl -sS -X POST "https://login.microsoftonline.com/$AZURE_TENANT_ID/oauth2/v2.0/token" \
+            --data-urlencode "client_id=$AZURE_CLIENT_ID" \
+            --data-urlencode "grant_type=client_credentials" \
+            --data-urlencode "scope=https://codesigning.azure.net/.default" \
+            --data-urlencode "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+            --data-urlencode "client_assertion=$jwt")
+          token=$(printf '%s' "$resp" | jq -r '.access_token // empty')
+          if [ -z "$token" ]; then
+            printf '%s' "$resp" | jq '{error, error_description}'
+            echo "::error::Azure refused the exchange; the federated credential's subject must equal the oidc subject above, and the variables must name the right tenant and client"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          printf '%s' "$resp" | jq '{token_type, expires_in}'
+          echo "an Artifact Signing access token was issued to this job for https://codesigning.azure.net; it was not printed and is gone with this step"
