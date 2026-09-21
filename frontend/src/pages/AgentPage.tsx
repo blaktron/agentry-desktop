@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
+import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, installed, main, trust } from "../../wailsjs/go/models";
 import {
   Button, Card, CapabilityBadges, ErrorBox, Excerpt, Modal, ModeBadges,
   Notice, PageHeader, QuarantineBadge, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
+import { codingAgentName } from "./CodingAgents";
 import RunPanel from "./RunPanel";
 import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
@@ -50,8 +52,18 @@ export default function AgentPage({
   // The coding-agent export (the wizard) is the one-off behind a link;
   // the primary Install is one click into the runner home (D-031).
   const [wizardOpen, setWizardOpen] = useState(false);
+  // The link is named for the coding agent Settings → Coding agents holds
+  // and opens the wizard on the export it implies (agentry-desktop#148);
+  // read once, since nothing on this page changes that setting.
+  const [codingAgents, setCodingAgents] = useState<main.CodingAgentsView | null>(null);
+  useEffect(() => {
+    SettingsAPI.CodingAgents().then(setCodingAgents).catch(() => setCodingAgents(null));
+  }, []);
   const [installBusy, setInstallBusy] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
+  // What a successful one-click install did not do (the coding-agent
+  // export it could not write): a page with no result screen says it here.
+  const [installWarning, setInstallWarning] = useState<string | null>(null);
   const [runOpen, setRunOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
 
@@ -97,12 +109,14 @@ export default function AgentPage({
     if (!detail?.latest) return;
     setInstallBusy(true);
     setInstallError(null);
+    setInstallWarning(null);
     try {
       // An update goes to the version the check named, from the registry
       // the check asked (the record's origin); a first install to the
       // latest this page shows, from this page's registry.
       const update = runnerInstall && runnerUpdate?.updateAvailable;
-      await InstallAPI.InstallRunner(update ? runnerInstall.origin : registry, `${ns}/${name}@${update ? runnerUpdate.latest : detail.latest}`);
+      const res = await InstallAPI.InstallRunner(update ? runnerInstall.origin : registry, `${ns}/${name}@${update ? runnerUpdate.latest : detail.latest}`);
+      if (res.warning) setInstallWarning(res.warning);
       // Awaited, so the button reads Update as soon as it is enabled again
       // rather than flashing Install first.
       await refreshInstalls();
@@ -167,6 +181,7 @@ export default function AgentPage({
   }
   const counts = report?.findingCounts ?? {};
   const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
+  const codingAgent = codingAgentName(codingAgents);
 
   return (
     <div>
@@ -192,12 +207,13 @@ export default function AgentPage({
         <CapabilityBadges caps={detail.latestCapabilities} />
         <SignedBadge att={prov} />
         {detail.latest && (
-          <Button variant="link" onClick={() => setWizardOpen(true)} disabled={installBusy}>Install into a coding agent…</Button>
+          <Button variant="link" onClick={() => setWizardOpen(true)} disabled={installBusy}>Install into {codingAgent}…</Button>
         )}
       </div>
       {installBusy && <p className="muted small">Resolving, verifying and installing into the runner home…</p>}
       {runnerInstall && runnerUpdateErr && !installBusy && <p className="muted small">Installed {runnerInstall.version}; could not check for a newer version: {runnerUpdateErr}</p>}
       <ErrorBox error={installError} />
+      {installWarning && <Notice tone="warn">{installWarning}</Notice>}
 
       {removeMsg && <Notice tone="info">{removeMsg}</Notice>}
       {detail.dependencyAlerts.length > 0 && (
@@ -349,6 +365,8 @@ export default function AgentPage({
         <InstallWizard
           registry={registry}
           agentRef={`${ns}/${name}@${detail.latest}`}
+          presetTarget={codingAgents?.export.target}
+          presetDir={codingAgents?.export.target === "agents-md" ? codingAgents.export.dir : undefined}
           onClose={() => setWizardOpen(false)}
           onInstalled={refreshInstalls}
         />

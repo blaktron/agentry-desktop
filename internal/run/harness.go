@@ -131,6 +131,28 @@ func ChooseHarness(ctx context.Context, name string) error {
 	return policy.Save(policyPath, pol)
 }
 
+// ForgetHarness removes harness.<name> from the operator policy — the
+// person un-choosing a coding agent in Settings (agentry-desktop#148), so
+// the export the policy implies can change: a chosen Claude Code outranks
+// Codex there, and only its absence lets AGENTS.md through. Every other
+// block is preserved; a name that is not chosen, or no policy at all, is
+// nothing to do and creates nothing.
+func ForgetHarness(name string) error {
+	pol, err := loadPolicyIfPresent()
+	if err != nil || pol == nil {
+		return err
+	}
+	if _, chosen := pol.Harness[name]; !chosen {
+		return nil
+	}
+	delete(pol.Harness, name)
+	policyPath, err := policy.DefaultPath()
+	if err != nil {
+		return err
+	}
+	return policy.Save(policyPath, pol)
+}
+
 // ChosenHarnesses names the harnesses the operator policy carries an
 // entry for, in order — what the person picked, here or in the CLI — by
 // reading the policy alone: nothing is executed, so a recap can ask

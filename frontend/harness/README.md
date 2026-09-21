@@ -48,7 +48,18 @@ with its position), `#runpanel-streaming` and `#runpanel-finished` (the
 outcome, the receipt listed verbatim, and the downloaded artefacts). The
 bindings are mocked in `modals.tsx`, so no registry is involved.
 
-`shots/` holds those six states in light and dark, re-made by
+The one-click install and its checks (agentry-desktop#146, #147) are
+`#agent-installed`, `#agent-installed-older`, `#agent-installed-unreachable`,
+`#agent-install-refused`, `#agent-installing` and `#installed-updates` in
+`pages.html`. **Settings → Coding agents** (agentry-desktop#148) reads
+`#coding-<state>` there: the default has Claude Code chosen (the Claude
+skill, the switch off — which also names the agent page's link),
+`#coding-codex` Codex alone (AGENTS.md in a chosen project folder, the
+switch on), `#coding-none` nothing chosen and no folder (the switch cannot
+go on). `shots.mjs` asserts the last, and that the link opens the wizard on
+the Claude skill.
+
+`shots/` holds those states in light and dark, re-made by
 `node harness/shots.mjs` — it starts the harness itself, shoots each state
 and stops it again. Playwright is not a dependency of this app; point
 `PLAYWRIGHT_MODULE` at an installation that has it:

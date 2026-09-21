@@ -65,6 +65,19 @@ const states = [
   { name: "wizard-runtime-prepared", url: "/wizard.html#2-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "wizard-runtime-prepare-refused", url: "/wizard.html#2-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "settings-agent-runs-advanced", url: "/pages.html", note: "Settings → Agent runs with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
+  // Settings → Coding agents (agentry-desktop#148, D6): the coding agent,
+  // the export it implies, its folder, the switch off by default; and
+  // the agent page's one-off link, named for the coding agent, opening
+  // the wizard on that export.
+  { name: "settings-coding-agents", url: "/pages.html", note: "Settings → Coding agents: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
+  { name: "settings-coding-agents-codex", url: "/pages.html#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
+  { name: "settings-coding-agents-none", url: "/pages.html#coding-none", note: "nothing chosen, no folder: AGENTS.md needs a project, the switch cannot go on", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectDisabledSwitch: true },
+  { name: "settings-coding-agents-both", url: "/pages.html#coding-both", note: "both chosen: the Claude skill is what is written, so the switch names Claude Code alone", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectSwitchLabel: "Also install into Claude Code" },
+  { name: "agent-install-coding-agent", url: "/pages.html", note: "the agent page's one-off link opens the wizard preset to the Claude skill", locator: ".modal", click: '[data-preview="agent"] button:has-text("Install into Claude Code")' },
+  // The Welcome's Coding agent step, on the same list Settings uses
+  // (agentry-desktop#148 moved it): unchanged for the person.
+  { name: "wizard-coding-agent", url: "/wizard.html#3", note: "the welcome's coding agent step after Look: Claude Code found and chosen, Codex missing", locator: ".wizard" },
+  { name: "wizard-coding-agent-unprobed", url: "/wizard.html#3-unprobed", note: "the step as it opens: what the policy records, nothing run", locator: ".wizard" },
 ];
 
 const wanted = process.env.STATES ? process.env.STATES.split(",").map((s) => s.trim()) : null;
@@ -132,6 +145,21 @@ try {
         // reached the way a person reaches it.
         await page.locator(state.click).first().click();
         await page.waitForTimeout(400);
+      }
+      if (state.expectSwitchLabel) {
+        const label = await page.locator(state.locator).locator('label:has(input[type="checkbox"])').last().innerText();
+        if (label.trim() !== state.expectSwitchLabel) throw new Error(`${state.name}: the switch reads "${label.trim()}"`);
+      }
+      if (state.expectDisabledSwitch) {
+        // The switch cannot go on while AGENTS.md has nowhere to go: the
+        // script says so, not only the shot.
+        const box = page.locator(state.locator).locator('input[type="checkbox"]').last();
+        if (await box.isEnabled()) throw new Error(`${state.name}: the switch is enabled with no project folder`);
+      }
+      if (state.name === "agent-install-coding-agent") {
+        const checked = await page.locator('.modal input[type="radio"]:checked').getAttribute("value").catch(() => null);
+        const label = await page.locator('.modal label.check-row:has(input:checked)').innerText();
+        if (!label.includes("Claude skill")) throw new Error(`${state.name}: the wizard did not open on the Claude skill (${label}, ${checked})`);
       }
       if (state.saveCustom) {
         // The custom provider, its URL, a key and a model typed, then

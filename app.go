@@ -24,13 +24,21 @@ type App struct {
 	// filesystem path is accepted only when a native picker in this
 	// process returned it (picked).
 	confirm func(ctx context.Context, title, message string) (bool, error)
-	mu      sync.Mutex
-	picked  map[string]bool
+	// pickDirectory is the native directory picker ("" when cancelled);
+	// a test substitutes one, the way it does for confirm.
+	pickDirectory func(ctx context.Context, title string) (string, error)
+	mu            sync.Mutex
+	picked        map[string]bool
 }
 
 // NewApp creates the application struct.
 func NewApp() *App {
-	return &App{confirm: nativeConfirm}
+	return &App{confirm: nativeConfirm, pickDirectory: nativePickDirectory}
+}
+
+// nativePickDirectory is the OS directory dialog.
+func nativePickDirectory(ctx context.Context, title string) (string, error) {
+	return runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{Title: title})
 }
 
 // nativeConfirm is the OS question dialog, No by default and on cancel.
@@ -113,7 +121,18 @@ func (a *App) AppVersion() string {
 // ChooseDirectory opens the native directory picker and returns the chosen
 // path ("" when the user cancelled).
 func (a *App) ChooseDirectory(title string) (string, error) {
-	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
+	return a.chooseDirectory(title)
+}
+
+// chooseDirectory is the picker behind ChooseDirectory and behind the
+// bindings that store a directory themselves (Settings → Coding agents'
+// project directory), through the seam a test substitutes: what it
+// returns is the picker's by construction, never a path the page passed.
+func (a *App) chooseDirectory(title string) (string, error) {
+	if a.pickDirectory == nil {
+		return "", fmt.Errorf("no directory picker is available")
+	}
+	dir, err := a.pickDirectory(a.ctx, title)
 	if err == nil {
 		a.markPicked(dir)
 	}

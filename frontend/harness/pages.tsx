@@ -65,6 +65,27 @@ const agentInstalledUnreachable = window.location.hash === "#agent-installed-unr
 const installedUpdates = window.location.hash === "#installed-updates" ? 2 : 0;
 const agentInstallRefused = window.location.hash === "#agent-install-refused";
 const agentInstalling = window.location.hash === "#agent-installing";
+// Settings → Coding agents (agentry-desktop#148): the hash picks the
+// coding agent the policy records. #coding-codex has Codex alone, so the
+// export is AGENTS.md in the chosen project folder, and the switch on;
+// #coding-none has nothing chosen and no folder, so the switch cannot go
+// on; anything else has Claude Code, the Claude skill, the switch off —
+// which is also what names the agent page's one-off link.
+const codingState = (window.location.hash.match(/^#coding-(\w+)/) || [])[1] || "claude";
+const claudeCode = { name: "claude", displayName: "Claude Code", executable: "claude", installUrl: "https://claude.ai/code", found: true, path: "/home/me/.local/bin/claude", pathFromPolicy: true, version: "2.1.263 (Claude Code)", versionMatches: true, chosen: true, mcpCommand: "claude mcp add agentry -- node /path/to/agentry-mcp/dist/index.js" };
+const codex = { name: "codex", displayName: "Codex", executable: "codex", installUrl: "https://github.com/openai/codex", found: true, path: "/usr/local/bin/codex", pathFromPolicy: true, version: "0.42.0", versionMatches: true, chosen: true, mcpCommand: "codex mcp add agentry -- node /path/to/agentry-mcp/dist/index.js" };
+// #coding-both has both chosen: only the Claude skill is written, so the
+// switch and the link name Claude Code alone.
+const codingChosen = codingState === "codex" ? [codex] : codingState === "none" ? [] : codingState === "both" ? [claudeCode, codex] : [claudeCode];
+let codingSwitch = codingState === "codex";
+const codingView = () => ({
+  chosen: codingChosen,
+  export: codingState === "codex"
+    ? { target: "agents-md", dir: "/home/me/work/oncall", needsDir: false, enabled: codingSwitch }
+    : codingState === "none"
+      ? { target: "agents-md", dir: "", needsDir: true, enabled: false }
+      : { target: "claude-skill", dir: "/home/me/.claude/skills", needsDir: false, enabled: codingSwitch },
+});
 const runnerRecForShown = {
   registry: "runner", origin: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: agentInstalledOlder ? "1.1.0" : "1.2.0",
   target: "runner", dir: "/home/me/.agentry/runner/agents/demo1/incident-summarizer", managed: true, installedAt: "2026-09-21T12:00:00Z",
@@ -165,6 +186,9 @@ g.go = { main: {
       };
     },
     OpenUpgrade: async () => undefined,
+    CodingAgents: async () => codingView(),
+    SetInstallIntoCodingAgent: async (on: boolean) => { codingSwitch = on; return codingView(); },
+    ChooseCodingAgentProjectDir: async () => codingView(),
   },
   // The "a newer Agentry Desktop" card (agentry-desktop#87). The hash picks
   // which state Settings previews: #selfupdate-none (nothing newer),
@@ -187,6 +211,10 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    ChosenHarnesses: async () => codingChosen,
+    HarnessStatus: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: codingChosen.some((c) => c.name === h.name) })),
+    ChooseHarness: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: true })),
+    ForgetHarness: async () => [],
     GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
     // pages.html#docker-<state> previews the docker card in that state
     // (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.

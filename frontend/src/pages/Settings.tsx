@@ -4,6 +4,7 @@ import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } from "../ui";
 import { RuntimeSetup } from "./RuntimeSetup";
+import { CodingAgentsCard } from "./CodingAgents";
 
 export default function Settings({
   settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup,
@@ -191,6 +192,9 @@ export default function Settings({
           open a BriefAgent; Update on its page is yours to click.
         </div>
       </Card>
+
+      <h2>Coding agents</h2>
+      <CodingAgentsCard />
 
       <p className="muted small selectable">
         Settings file: <span className="mono">{settings.configPath}</span>. Install records and pinned

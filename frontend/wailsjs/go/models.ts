@@ -143,6 +143,24 @@ export namespace build {
 
 export namespace install {
 	
+	export class CodingAgentExport {
+	    target: string;
+	    dir: string;
+	    needsDir: boolean;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CodingAgentExport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.target = source["target"];
+	        this.dir = source["dir"];
+	        this.needsDir = source["needsDir"];
+	        this.enabled = source["enabled"];
+	    }
+	}
 	export class Item {
 	    registry: string;
 	    namespace: string;
@@ -296,6 +314,7 @@ export namespace install {
 	    message: string;
 	    dest: string;
 	    secretsNote?: string;
+	    warning?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Result(source);
@@ -306,6 +325,7 @@ export namespace install {
 	        this.message = source["message"];
 	        this.dest = source["dest"];
 	        this.secretsNote = source["secretsNote"];
+	        this.warning = source["warning"];
 	    }
 	}
 	export class UpdateInfo {
@@ -835,37 +855,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	
-	export class FindingView {
-	    scanner: string;
-	    severity: string;
-	    confidence: string;
-	    title: string;
-	    filePath?: string;
-	    lineStart?: number;
-	    lineEnd?: number;
-	    excerpt?: string;
-	    verdict: string;
-	    verdictReason?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new FindingView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.scanner = source["scanner"];
-	        this.severity = source["severity"];
-	        this.confidence = source["confidence"];
-	        this.title = source["title"];
-	        this.filePath = source["filePath"];
-	        this.lineStart = source["lineStart"];
-	        this.lineEnd = source["lineEnd"];
-	        this.excerpt = source["excerpt"];
-	        this.verdict = source["verdict"];
-	        this.verdictReason = source["verdictReason"];
-	    }
-	}
 	export class HarnessView {
 	    name: string;
 	    displayName: string;
@@ -904,6 +893,70 @@ export namespace main {
 	        this.mcpCommand = source["mcpCommand"];
 	    }
 	}
+	export class CodingAgentsView {
+	    chosen: HarnessView[];
+	    export: install.CodingAgentExport;
+	
+	    static createFrom(source: any = {}) {
+	        return new CodingAgentsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.chosen = this.convertValues(source["chosen"], HarnessView);
+	        this.export = this.convertValues(source["export"], install.CodingAgentExport);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class FindingView {
+	    scanner: string;
+	    severity: string;
+	    confidence: string;
+	    title: string;
+	    filePath?: string;
+	    lineStart?: number;
+	    lineEnd?: number;
+	    excerpt?: string;
+	    verdict: string;
+	    verdictReason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FindingView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scanner = source["scanner"];
+	        this.severity = source["severity"];
+	        this.confidence = source["confidence"];
+	        this.title = source["title"];
+	        this.filePath = source["filePath"];
+	        this.lineStart = source["lineStart"];
+	        this.lineEnd = source["lineEnd"];
+	        this.excerpt = source["excerpt"];
+	        this.verdict = source["verdict"];
+	        this.verdictReason = source["verdictReason"];
+	    }
+	}
+	
 	export class HostedArtefactView {
 	    name: string;
 	    bytes: number;

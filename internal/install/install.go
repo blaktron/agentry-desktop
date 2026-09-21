@@ -109,11 +109,10 @@ func ResolvePaths(target, dir, namespace, name string) (Paths, error) {
 		if dir != "" {
 			return Paths{Dest: filepath.Join(dir, name)}, nil
 		}
-		home, err := os.UserHomeDir()
+		root, err := claudeSkillsRoot()
 		if err != nil {
-			return Paths{}, fmt.Errorf("locate home directory (pick a directory instead): %w", err)
+			return Paths{}, fmt.Errorf("%w (pick a directory instead)", err)
 		}
-		root := filepath.Join(home, ".claude", "skills")
 		return Paths{Dest: filepath.Join(root, name), Managed: true, ManagedRoot: root}, nil
 
 	case manifest.InterfaceAgentsMD:
@@ -129,6 +128,16 @@ func ResolvePaths(target, dir, namespace, name string) (Paths, error) {
 	default:
 		return Paths{}, fmt.Errorf("unknown target %q (want %s)", target, strings.Join(validTargets, ", "))
 	}
+}
+
+// claudeSkillsRoot is where Claude Code reads skills, the Claude skill
+// target's default layout (the CLI's too).
+func claudeSkillsRoot() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate home directory: %w", err)
+	}
+	return filepath.Join(home, ".claude", "skills"), nil
 }
 
 // Plan is everything a human needs to see before an install writes anything.
@@ -186,6 +195,10 @@ type Result struct {
 	Dest    string `json:"dest"`
 	// SecretsNote reminds about empty env placeholders (mcp target).
 	SecretsNote string `json:"secretsNote,omitempty"`
+	// Warning is what the install did not do although it succeeded —
+	// the coding-agent export it could not write (agentry-desktop#148) —
+	// for a page with no result screen to show beside the button.
+	Warning string `json:"warning,omitempty"`
 }
 
 // pending holds the verified bytes between Prepare and Confirm.
@@ -334,13 +347,22 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	vr := mcpvuln.Check(ctx, regURL, m.Capabilities.MCPServers)
 	plan.Vulnerabilities, plan.VulnerabilityLine, plan.VulnerabilityRefusal = vr.Statuses, vr.Line, vr.Refusal
 
-	key := recordKey(plan)
+	readRecord(&plan, m)
+
+	e.pending[plan.ID] = &pending{plan: plan, archive: archive, manifest: m}
+	return &plan, nil
+}
+
+// readRecord fills what the plan owes to the record already at its key:
+// the installed version and the capability diff against it, or on a first
+// install the consent a declared egress or exec owes.
+func readRecord(plan *Plan, m *manifest.Manifest) {
 	state, serr := installed.Load()
 	if serr != nil {
 		// Bookkeeping trouble must not block an install; it costs a prompt.
 		state = installed.State{}
 	}
-	if prev := state.Find(key); prev != nil {
+	if prev := state.Find(recordKey(*plan)); prev != nil {
 		plan.PrevVersion = prev.Version
 		d := installed.DiffCapabilities(prev.Capabilities, plan.Capabilities)
 		plan.Diff = &d
@@ -348,8 +370,38 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	} else {
 		plan.NeedsCapabilityConfirm = len(m.Capabilities.Network.Egress.Hosts) > 0 || len(m.Capabilities.Exec.Commands) > 0
 	}
+}
 
-	e.pending[plan.ID] = &pending{plan: plan, archive: archive, manifest: m}
+// PrepareExport derives a coding-agent export from a pending runner plan
+// (agentry-desktop#148): the same resolved, downloaded and verified bytes
+// — one download, one attestation verdict — laid down where the coding
+// agent reads (the Claude skill, or AGENTS.md in a project directory), as
+// its own plan with its own record, so a one-click install with Settings'
+// "also install into <coding agent>" on writes both. The export plan owes
+// the gates its own record owes: a first export of a release that
+// declares egress or exec needs the capability consent even when the
+// runner record already carries it, since the coding agent enforces
+// nothing. The runner plan stays pending; each is confirmed on its own.
+func (e *Engine) PrepareExport(runnerPlanID, target, dir string) (*Plan, error) {
+	p, ok := e.pending[runnerPlanID]
+	if !ok || p.manifest == nil {
+		return nil, fmt.Errorf("install plan %s not found (already confirmed or cancelled)", runnerPlanID)
+	}
+	if target != manifest.InterfaceClaudeSkill && target != manifest.InterfaceAgentsMD {
+		return nil, fmt.Errorf("unknown coding-agent export %q (want %s or %s)", target, manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD)
+	}
+	paths, err := ResolvePaths(target, dir, p.plan.Namespace, p.plan.Name)
+	if err != nil {
+		return nil, err
+	}
+	plan := p.plan
+	plan.ID = newPlanID()
+	plan.Target = target
+	plan.Paths = paths
+	plan.PrevVersion, plan.Diff, plan.RequiresWidenedConfirm, plan.NeedsCapabilityConfirm = "", nil, false, false
+	plan.TargetWarning = undeclaredTargetWarning(p.manifest, target)
+	readRecord(&plan, p.manifest)
+	e.pending[plan.ID] = &pending{plan: plan, archive: p.archive, manifest: p.manifest}
 	return &plan, nil
 }
 
@@ -526,13 +578,7 @@ func installRunner(staging, releaseDir string, m *manifest.Manifest, plan Plan) 
 	if err := installdir.Write(releaseDir, staging, meta); err != nil {
 		return "", err
 	}
-	var pol *policy.Policy
-	if path, err := policy.DefaultPath(); err == nil {
-		if loaded, _, err := policy.Load(path); err == nil {
-			pol = loaded
-		}
-	}
-	style := installdir.StyleFor(pol)
+	style := installdir.StyleFor(loadPolicyForStyle())
 	if err := installdir.WriteExport(releaseDir, style, m, meta); err != nil {
 		return "", err
 	}

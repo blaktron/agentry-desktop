@@ -71,6 +71,20 @@ type Settings struct {
 	// operator's D6 asked for off by default so that nothing replaces the
 	// application without the person having said so at least once.
 	InstallUpdatesOnQuit bool `yaml:"installUpdatesOnQuit,omitempty" json:"installUpdatesOnQuit,omitempty"`
+	// InstallIntoCodingAgent is Settings → Coding agents → "Also install
+	// into <coding agent>" (agentry-desktop#148, plan
+	// desktop-one-click-install.md D6): with it on, a one-click Install
+	// also writes the coding-agent export — the Claude skill or AGENTS.md,
+	// whichever the operator policy implies — beside the runner-home
+	// install. A plain bool because it defaults OFF: nothing is written
+	// outside the runner home until the person has said so once.
+	InstallIntoCodingAgent bool `yaml:"installIntoCodingAgent,omitempty" json:"installIntoCodingAgent,omitempty"`
+	// CodingAgentProjectDir is the project directory the AGENTS.md export
+	// is written to (<dir>/AGENTS.md and <dir>/agents/<name>, D-002),
+	// chosen through the native picker and nowhere else (D-030); "" means
+	// none chosen yet. The Claude skill has no such setting: it lives in
+	// ~/.claude/skills, where Claude Code reads.
+	CodingAgentProjectDir string `yaml:"codingAgentProjectDir,omitempty" json:"codingAgentProjectDir,omitempty"`
 }
 
 // UpdateCheckEnabled says whether the app should look for a newer Agentry

@@ -14,6 +14,14 @@ export function CancelBrowserSignIn() {
   return window['go']['main']['SettingsAPI']['CancelBrowserSignIn']();
 }
 
+export function ChooseCodingAgentProjectDir() {
+  return window['go']['main']['SettingsAPI']['ChooseCodingAgentProjectDir']();
+}
+
+export function CodingAgents() {
+  return window['go']['main']['SettingsAPI']['CodingAgents']();
+}
+
 export function Get() {
   return window['go']['main']['SettingsAPI']['Get']();
 }
@@ -36,6 +44,10 @@ export function RemoveRegistry(arg1) {
 
 export function SetDefault(arg1) {
   return window['go']['main']['SettingsAPI']['SetDefault'](arg1);
+}
+
+export function SetInstallIntoCodingAgent(arg1) {
+  return window['go']['main']['SettingsAPI']['SetInstallIntoCodingAgent'](arg1);
 }
 
 export function SignIn(arg1, arg2) {

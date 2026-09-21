@@ -245,6 +245,7 @@ export default function Installed({
           agentRef={updating.ref}
           presetTarget={updating.rec.target}
           presetDir={updating.dir}
+          startAtReview
           onClose={() => setUpdating(null)}
           onInstalled={() => refresh()}
         />

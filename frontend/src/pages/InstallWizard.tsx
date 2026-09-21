@@ -15,13 +15,18 @@ const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] 
 ];
 
 export default function InstallWizard({
-  registry, agentRef, onClose, presetTarget, presetDir, onInstalled,
+  registry, agentRef, onClose, presetTarget, presetDir, startAtReview = false, onInstalled,
 }: {
   registry: string;
   agentRef: string;
   onClose: () => void;
+  // presetTarget and presetDir fill the first step: the agent page's
+  // one-off link opens it on the export Settings → Coding agents implies
+  // and its folder (agentry-desktop#148); Installed's Update passes the
+  // record's own and, with startAtReview, goes straight to Prepare.
   presetTarget?: string;
   presetDir?: string;
+  startAtReview?: boolean;
   onInstalled?: () => void;
 }) {
   // The wizard is the coding-agent export (D-031: the one-click Install
@@ -42,9 +47,10 @@ export default function InstallWizard({
   const effectiveTarget = target;
   const targetInfo = useMemo(() => TARGETS.find((t) => t.id === effectiveTarget) ?? TARGETS[0], [effectiveTarget]);
 
-  // A preset flow (update from Installed) can go straight to Prepare.
+  // An update from Installed goes straight to Prepare: its target and
+  // directory are the record's.
   useEffect(() => {
-    if (presetTarget && (presetDir !== undefined)) void prepare(presetTarget, presetDir);
+    if (startAtReview && presetTarget) void prepare(presetTarget, presetDir ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

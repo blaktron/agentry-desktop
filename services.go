@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
+	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/registry"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/validate"
 )
@@ -83,6 +85,77 @@ func (s *SettingsAPI) MarkOnboarded() (*SettingsView, error) {
 		return nil, err
 	}
 	return settingsView()
+}
+
+// CodingAgentsView is Settings → Coding agents (agentry-desktop#148, plan
+// desktop-one-click-install.md §6, D6): the coding agents the operator
+// policy records as chosen (read, never probed — the page has Look for
+// that), and the export they imply with its folder and the switch.
+type CodingAgentsView struct {
+	Chosen []HarnessView             `json:"chosen"`
+	Export install.CodingAgentExport `json:"export"`
+}
+
+func codingAgentsView() (*CodingAgentsView, error) {
+	chosen, err := run.ChosenHarnesses()
+	if err != nil {
+		return nil, err
+	}
+	x, err := install.ExportSettings()
+	if err != nil {
+		return nil, err
+	}
+	return &CodingAgentsView{Chosen: harnessViews(chosen), Export: x}, nil
+}
+
+// CodingAgents reads the section.
+func (s *SettingsAPI) CodingAgents() (*CodingAgentsView, error) { return codingAgentsView() }
+
+// SetInstallIntoCodingAgent is the switch "also install into <coding
+// agent>": on, a one-click Install also writes the export. It will not go
+// on while the export is AGENTS.md with no project directory chosen,
+// since nothing could be written.
+func (s *SettingsAPI) SetInstallIntoCodingAgent(on bool) (*CodingAgentsView, error) {
+	if on {
+		x, err := install.ExportSettings()
+		if err != nil {
+			return nil, err
+		}
+		if x.NeedsDir {
+			return nil, fmt.Errorf("choose the project directory for AGENTS.md first")
+		}
+	}
+	st, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	st.InstallIntoCodingAgent = on
+	if err := settings.Save(st); err != nil {
+		return nil, err
+	}
+	return codingAgentsView()
+}
+
+// ChooseCodingAgentProjectDir opens the native picker for the project
+// directory AGENTS.md is written to and stores what it returned — the
+// binding takes no path, so the directory is the picker's and never the
+// page's (D-030). A cancelled picker changes nothing.
+func (s *SettingsAPI) ChooseCodingAgentProjectDir() (*CodingAgentsView, error) {
+	dir, err := s.app.chooseDirectory("Choose the project directory for AGENTS.md")
+	if err != nil {
+		return nil, err
+	}
+	if dir != "" {
+		st, err := settings.Load()
+		if err != nil {
+			return nil, err
+		}
+		st.CodingAgentProjectDir = dir
+		if err := settings.Save(st); err != nil {
+			return nil, err
+		}
+	}
+	return codingAgentsView()
 }
 
 // AddRegistry records a new registry.
@@ -848,68 +921,141 @@ func (i *InstallAPI) Cancel(planID string) {
 
 // InstallRunner is the one-click install (D-031): the release resolved,
 // verified and laid down in the runner home — the directory a run reads —
-// with no target or directory to choose. The gates are the only
-// interruption, each put to the person in the native dialog the page
-// cannot answer (D-030): an unsigned release, one the registry admitted
-// without a scan, and the capability contract on a first install that
-// declares egress or exec or on an update that widens it — the contract
-// itself in the dialog, since no page is showing it. A declined dialog
-// installs nothing and says so.
+// with no target or directory to choose. With Settings → Coding agents'
+// "also install into <coding agent>" on (agentry-desktop#148, plan D6),
+// the same verified bytes are also written where the coding agent reads
+// — the Claude skill or AGENTS.md, whichever the policy implies — as an
+// export with its own record. The gates are the only interruption, each
+// put to the person in the native dialog the page cannot answer (D-030):
+// an unsigned release, one the registry admitted without a scan, and the
+// capability contract on a first install that declares egress or exec or
+// on an update that widens it — the contract itself in the dialog, since
+// no page is showing it, and where the export goes too, since the coding
+// agent enforces none of it. A declined dialog installs nothing and says
+// so; an export that cannot be written is the result's warning, not a
+// failed install.
 func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
 	plan, err := i.engine.Prepare(i.app.ctx, reg, ref, installdir.Target, "")
 	if err != nil {
 		return nil, err
 	}
-	if err := i.consentForRunner(plan); err != nil {
+	export, exportNote := i.exportPlanFor(plan)
+	cancelExport := func() {
+		if export != nil {
+			i.engine.Cancel(export.ID)
+		}
+	}
+	if err := i.consentForInstall(plan, export); err != nil {
 		i.engine.Cancel(plan.ID)
+		cancelExport()
 		return nil, err
 	}
 	res, err := i.engine.Confirm(plan.ID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
-	if err == nil {
-		// The record changed: the badge must not go on counting an update
-		// that was just applied, and the page reads the snapshot next.
-		i.refreshRow(installdir.ConsentKey(runnerHomeOr(plan.Paths.Dest), plan.Namespace, plan.Name))
+	if err != nil {
+		cancelExport()
+		return nil, err
 	}
-	return res, err
+	// The record changed: the badge must not go on counting an update
+	// that was just applied, and the page reads the snapshot next.
+	i.refreshRow(installdir.ConsentKey(runnerHomeOr(plan.Paths.Dest), plan.Namespace, plan.Name))
+	if export != nil {
+		eres, eerr := i.engine.Confirm(export.ID, export.Unsigned, export.NeedsCapabilityConfirm || export.RequiresWidenedConfirm, export.Unscanned)
+		if eerr != nil {
+			exportNote = fmt.Sprintf("not installed into %s: %v", exportLabel(export.Target), eerr)
+		} else {
+			res.Message += "; " + eres.Message
+			i.refreshRow(installed.Key{Registry: export.Registry, Namespace: export.Namespace, Name: export.Name, Target: export.Target, Dir: export.Paths.Dest})
+		}
+	}
+	if exportNote != "" {
+		res.Warning = exportNote
+		res.Message += " — " + exportNote
+	}
+	return res, nil
 }
 
-// runnerHomeOr is the runner home a runner plan's agent directory sits
-// under (the key's home), from the directory itself when the policy's
-// home cannot be read.
-func runnerHomeOr(agentDir string) string {
-	if home, err := policy.Home(); err == nil {
-		return home
+// exportPlanFor derives the coding-agent export a one-click install also
+// writes when Settings says so: nil with the switch off; nil with the
+// sentence for the result when the export cannot be prepared (no project
+// directory chosen for AGENTS.md, a settings file that will not read).
+func (i *InstallAPI) exportPlanFor(runner *install.Plan) (*install.Plan, string) {
+	x, err := install.ExportSettings()
+	if err != nil {
+		return nil, "the coding-agent export was not written: " + err.Error()
 	}
-	return filepath.Dir(filepath.Dir(filepath.Dir(agentDir)))
+	if !x.Enabled {
+		return nil, ""
+	}
+	if x.NeedsDir {
+		return nil, "not installed into " + exportLabel(x.Target) + ": no project directory is chosen in Settings → Coding agents"
+	}
+	export, err := i.engine.PrepareExport(runner.ID, x.Target, x.PlanDir())
+	if err != nil {
+		return nil, "not installed into " + exportLabel(x.Target) + ": " + err.Error()
+	}
+	return export, ""
 }
 
-// consentForRunner raises the gates a one-click install owes, each in the
+// exportLabel names a coding-agent export the way the page does.
+func exportLabel(target string) string {
+	if target == manifest.InterfaceClaudeSkill {
+		return "the Claude skill"
+	}
+	return "AGENTS.md"
+}
+
+// consentForInstall raises the gates a one-click install owes, each in the
 // native dialog, and returns the first refusal: nothing is written past a
-// No. A plan with no gate raises nothing.
-func (i *InstallAPI) consentForRunner(plan *install.Plan) error {
+// No. The provenance consent is one question for the one release, whatever
+// it is written as; the contract dialog is raised when the runner install
+// or the export owes it, and names the export when there is one, since a
+// coding agent enforces nothing of the contract. A plan with no gate
+// raises nothing.
+func (i *InstallAPI) consentForInstall(plan, export *install.Plan) error {
 	if err := i.askProvenanceConsent(plan.Unsigned, plan.Unscanned); err != nil {
 		return err
 	}
-	if plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm {
-		if err := i.app.askConsent("Accept what "+plan.Namespace+"/"+plan.Name+" may do?", contractConsentText(plan)); err != nil {
+	owes := func(p *install.Plan) bool {
+		return p != nil && (p.NeedsCapabilityConfirm || p.RequiresWidenedConfirm)
+	}
+	if owes(plan) || owes(export) {
+		contract := plan
+		if !owes(plan) {
+			contract = export
+		}
+		if err := i.app.askConsent("Accept what "+plan.Namespace+"/"+plan.Name+" may do?", contractConsentText(contract, export)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// consentForRunner is consentForInstall with no export.
+func (i *InstallAPI) consentForRunner(plan *install.Plan) error {
+	return i.consentForInstall(plan, nil)
+}
+
 // contractConsentText is the capability contract as the consent dialog
-// states it: on a first install, what the release declares; on an update,
-// what widened since the installed version. The dialog is the one reading
-// of the contract the person gets on a one-click install.
-func contractConsentText(plan *install.Plan) string {
+// states it: on an update, what widened since the installed version; on a
+// first install, what the release declares — both when the runner home is
+// updated and the export is a first install, since the export's record
+// will carry the whole declaration. The dialog is the one reading of the
+// contract the person gets on a one-click install; with an export it says
+// where else the release goes, and that nothing enforces the contract
+// there.
+func contractConsentText(plan, export *install.Plan) string {
 	var lines []string
+	widened := export
 	if plan.RequiresWidenedConfirm && plan.Diff != nil {
-		lines = append(lines, "Updating from "+plan.PrevVersion+" to "+plan.Version+" widens what it may do:")
-		for _, w := range plan.Diff.Widened {
+		widened = plan
+	}
+	if widened != nil && widened.RequiresWidenedConfirm && widened.Diff != nil {
+		lines = append(lines, "Updating from "+widened.PrevVersion+" to "+widened.Version+" widens what it may do:")
+		for _, w := range widened.Diff.Widened {
 			lines = append(lines, "  • "+w)
 		}
-	} else {
+	}
+	if plan.NeedsCapabilityConfirm || (export != nil && export.NeedsCapabilityConfirm) {
 		lines = append(lines, "Version "+plan.Version+" declares:")
 		c := plan.Capabilities
 		if len(c.EgressHosts) > 0 {
@@ -928,8 +1074,22 @@ func contractConsentText(plan *install.Plan) string {
 			lines = append(lines, "  • secrets: "+strings.Join(c.Secrets, ", "))
 		}
 	}
-	lines = append(lines, "", "The runner is configured to enforce this contract. Install?")
+	closing := "The runner is configured to enforce this contract."
+	if export != nil {
+		closing += " It is also installed as " + exportLabel(export.Target) + " (" + export.Paths.Dest + "), which does not enforce it."
+	}
+	lines = append(lines, "", closing+" Install?")
 	return strings.Join(lines, "\n")
+}
+
+// runnerHomeOr is the runner home a runner plan's agent directory sits
+// under (the key's home), from the directory itself when the policy's
+// home cannot be read.
+func runnerHomeOr(agentDir string) string {
+	if home, err := policy.Home(); err == nil {
+		return home
+	}
+	return filepath.Dir(filepath.Dir(filepath.Dir(agentDir)))
 }
 
 func pathsNote(paths []string) string {

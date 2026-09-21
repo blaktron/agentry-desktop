@@ -7,11 +7,11 @@
 import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
-import { Button, ErrorBox, Input, Mark, Notice, Spinner } from "../ui";
+import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
 import { RuntimeSetup } from "./RuntimeSetup";
+import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
 
 const STEPS = ["Welcome", "Sign in", "Runtime", "Coding agent", "Done"];
 
@@ -262,10 +262,6 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
   );
 }
 
-// harnessLabel is the product's name the adapter carries ("Claude Code",
-// agentry-cli#151), with the adapter's own name as the fallback.
-const harnessLabel = (h: { name: string; displayName?: string }) => h.displayName || h.name;
-
 // Recap is the wizard's list of where things stand: a check for what is
 // true, a bullet for what is not.
 function Recap({ rows }: { rows: { ok: boolean; text: string }[] }) {
@@ -296,43 +292,10 @@ function Recap({ rows }: { rows: { ok: boolean; text: string }[] }) {
 // Until then the step shows what the policy already records, read without
 // executing anything.
 function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () => void; onNext: () => void; probeOnEntry?: boolean }) {
-  const [chosenNames, setChosenNames] = useState<main.HarnessView[] | null>(null);
-  const [harnesses, setHarnesses] = useState<main.HarnessView[] | null>(null);
-  const [looking, setLooking] = useState(false);
+  const [state, setState] = useState<HarnessState>({ harnesses: null, chosen: null, busy: false });
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-
-  useEffect(() => {
-    RunAPI.ChosenHarnesses().then(setChosenNames).catch(() => setChosenNames([]));
-  }, []);
-
-  async function look() {
-    setLooking(true); setError(null);
-    try {
-      setHarnesses(await RunAPI.HarnessStatus());
-    } catch (e) {
-      setError(String(e)); setHarnesses([]);
-    } finally {
-      setLooking(false);
-    }
-  }
-
-  useEffect(() => {
-    if (probeOnEntry) void look();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [probeOnEntry]);
-
-  async function choose(name: string) {
-    setBusy(name); setError(null);
-    try {
-      setHarnesses(await RunAPI.ChooseHarness(name));
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(null);
-    }
-  }
+  const { harnesses, chosen, busy } = state;
 
   async function copy(name: string, text: string) {
     // The webview's clipboard through the Wails runtime; the command stays
@@ -355,57 +318,7 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
           or want to decide later.
         </p>
         <ErrorBox error={error} />
-        {harnesses === null && (
-          <div className="card wizard-harness">
-            {chosenNames && chosenNames.length > 0 ? (
-              <p className="muted">
-                The runner policy already records {chosenNames.map(harnessLabel).join(" and ")}. Looking again
-                checks it is still there and lets you pick another.
-              </p>
-            ) : (
-              <p className="muted">
-                Nothing is recorded yet. Looking runs each coding agent's own version command, once, and
-                nothing else.
-              </p>
-            )}
-            <div className="row mt">
-              <Button variant="primary" disabled={looking} onClick={() => void look()}>
-                {looking ? "Looking…" : "Look for coding agents on this machine"}
-              </Button>
-              {looking && <Spinner />}
-            </div>
-          </div>
-        )}
-        {harnesses?.map((h) => (
-          <div key={h.name} className={`card wizard-harness${h.chosen ? " chosen" : ""}`}>
-            <div className="row">
-              <strong>{harnessLabel(h)}</strong>
-              <span className="muted mono">{h.executable}</span>
-              <div className="grow" />
-              {h.found ? (
-                <Button
-                  variant={h.chosen ? "ghost" : "primary"}
-                  disabled={busy !== null || h.chosen}
-                  onClick={() => void choose(h.name)}
-                >
-                  {h.chosen ? "Chosen ✓" : busy === h.name ? "Recording…" : "Use this one"}
-                </Button>
-              ) : (
-                <Button variant="link" onClick={() => void OpenExternal(h.installUrl)}>Get {harnessLabel(h)}</Button>
-              )}
-            </div>
-            {h.found ? (
-              <p className="muted">
-                Found at <span className="mono">{h.path}</span>
-                {h.version ? <> — {h.version}</> : null}
-                {h.pathFromPolicy ? <> (from the policy)</> : h.source === "known location" ? <> (a usual install location, not on this app's PATH)</> : null}
-              </p>
-            ) : (
-              <p className="muted">Not on this machine. {h.reason}</p>
-            )}
-            {h.warnings?.map((w, i) => <Notice key={i} tone="warn">{w}</Notice>)}
-          </div>
-        ))}
+        <HarnessChooser probeOnEntry={probeOnEntry} onState={setState} />
 
         {harnesses && harnesses.length > 0 && (
           <div className="mt">
@@ -430,8 +343,8 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack}>Back</Button>
         <div className="grow" />
-        {!harnesses?.some((h) => h.chosen) && !chosenNames?.length && <Button onClick={onNext} disabled={busy !== null}>Skip</Button>}
-        <Button variant="primary" onClick={onNext} disabled={busy !== null}>Continue</Button>
+        {!harnesses?.some((h) => h.chosen) && !chosen?.length && <Button onClick={onNext} disabled={busy}>Skip</Button>}
+        <Button variant="primary" onClick={onNext} disabled={busy}>Continue</Button>
       </div>
     </>
   );
