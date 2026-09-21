@@ -265,8 +265,8 @@ func TestApplySetupStoresTheKeyBeforeThePolicy(t *testing.T) {
 	if string(before) != string(after) {
 		t.Fatal("a refused forget changed the policy")
 	}
-	// StoreModelKey is ApplySetup's store path under a name of its own.
-	err = StoreModelKey(context.Background(), "anthropic", "sk-live-secret", &log)
+	// The form's key-only call is refused by name the same way.
+	err = StoreModelKey("anthropic", "sk-live-secret", &log)
 	if err == nil || !strings.Contains(err.Error(), "AGENTRY_NO_KEYRING") || strings.Contains(log.String(), "sk-live") {
 		t.Fatalf("StoreModelKey: %v log=%q", err, log.String())
 	}
@@ -442,5 +442,96 @@ func TestApplySetupRefusesPlainHTTPOffLoopback(t *testing.T) {
 		if err := ApplySetup(context.Background(), SetupOpts{Provider: "custom", Model: "m", BaseURL: u}, &strings.Builder{}); err != nil {
 			t.Fatalf("base URL %q refused: %v", u, err)
 		}
+	}
+}
+
+// TestStoreModelKeyThenApplySetupForTheCustomProvider (agentry-desktop#139):
+// the form saves in two calls — the typed key alone (StoreModelKey), then
+// the rest of the form (ApplySetup). The key-only call must not need the
+// model or the URL the second call carries: for the custom provider there
+// is no table default to fill them, and the save used to die there with
+// "no model chosen" before the policy was ever written. The kind of the
+// key (agentry-cli#171) still lands, read from what the keychain holds at
+// the moment the policy is written — even across a provider switch, where
+// the policy has no kind to keep.
+func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	entries := fakeKeychain(t, map[string]string{})
+	var log strings.Builder
+	path, _ := policy.DefaultPath()
+
+	// The source the second call records needs a key behind it (D-024):
+	// with nothing stored for the provider, it is refused by name.
+	err := ApplySetup(context.Background(), SetupOpts{
+		Provider: "custom", Model: "qwen3.8-flash", BaseURL: "https://llm.example.net/v1", APIKeySource: "keyring",
+	}, &log)
+	if err == nil || !strings.Contains(err.Error(), "holds no key for custom") {
+		t.Fatalf("keyring source with nothing stored: %v", err)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("a refused source wrote the policy: %s", path)
+	}
+
+	// The key, alone.
+	if err := StoreModelKey("custom", "typed-secret", &log); err != nil {
+		t.Fatalf("StoreModelKey(custom): %v", err)
+	}
+	if entries["custom"] != "typed-secret" {
+		t.Fatalf("stored = %v", entries)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		// A policy that names a provider it cannot yet describe (no
+		// model, no URL) would be a broken policy on disk if the second
+		// call never came.
+		t.Fatalf("the key-only call wrote the policy: %s", path)
+	}
+
+	// The rest of the form.
+	err = ApplySetup(context.Background(), SetupOpts{
+		Provider: "custom", Model: "qwen3.8-flash", BaseURL: "https://llm.example.net/v1", APIKeySource: "keyring",
+	}, &log)
+	if err != nil {
+		t.Fatalf("ApplySetup(custom): %v", err)
+	}
+	st, err := GetStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Provider != "custom" || st.Model != "qwen3.8-flash" || st.BaseURL != "https://llm.example.net/v1" || st.APIKeySource != "keyring" || !st.KeyStored || st.APIKeyKind != "" || st.KeyNotice != "" {
+		t.Fatalf("status = %+v", st)
+	}
+	raw, _ := os.ReadFile(path)
+	for _, want := range []string{"provider: custom", "name: qwen3.8-flash", "baseUrl: https://llm.example.net/v1", "apiKeySource: keyring", "llm.example.net:443"} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("policy lacks %q:\n%s", want, raw)
+		}
+	}
+
+	// A subscription token stored in the key-only call keeps its kind
+	// through the second call, on a switch to a provider the policy has
+	// no kind for.
+	if err := StoreModelKey("anthropic", "sk-ant-oat01-secret", &log); err != nil {
+		t.Fatalf("StoreModelKey(anthropic): %v", err)
+	}
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", Model: "claude-opus-5", APIKeySource: "keyring"}, &log); err != nil {
+		t.Fatalf("ApplySetup(anthropic): %v", err)
+	}
+	st, err = GetStatus(context.Background())
+	if err != nil || st.Provider != "anthropic" || st.Model != "claude-opus-5" || st.APIKeySource != "keyring" || st.APIKeyKind != "subscription" || !strings.Contains(st.KeyNotice, "Claude Code only") || !st.KeyStored {
+		t.Fatalf("status = %+v err %v", st, err)
+	}
+	raw, _ = os.ReadFile(path)
+	if !strings.Contains(string(raw), "apiKeyKind: subscription") {
+		t.Fatalf("policy:\n%s", raw)
+	}
+	// The values reached the keychain and nothing else.
+	for _, secret := range []string{"typed-secret", "sk-ant-oat01"} {
+		if strings.Contains(log.String(), secret) || strings.Contains(string(raw), secret) {
+			t.Fatalf("%q leaked: log=%q policy=%q", secret, log.String(), raw)
+		}
+	}
+	if !strings.Contains(log.String(), "Claude Code only") {
+		t.Fatalf("the subscription sentence was not said: %q", log.String())
 	}
 }

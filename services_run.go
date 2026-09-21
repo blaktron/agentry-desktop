@@ -355,10 +355,12 @@ func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error)
 	return v, nil
 }
 
-// StoreModelKey puts the model key for provider into the OS keychain and
-// records the keychain as the policy's source — the one call that carries
-// a key, kept to two arguments so a dispatch error's log line (desktop#102)
-// has as little to carry as possible. The key is written nowhere else.
+// StoreModelKey puts the model key for provider into the OS keychain — the
+// one call that carries a key, kept to two arguments so a dispatch error's
+// log line (desktop#102) has as little to carry as possible. The key is
+// written nowhere else, and the policy is untouched: the ApplySetup the
+// form makes next records the keyring as the source, beside the model and
+// the URL this call does not carry (agentry-desktop#139).
 func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
@@ -366,7 +368,7 @@ func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	defer r.mu.Unlock()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
-	if err := run.StoreModelKey(r.app.ctx, provider, key, logw); err != nil {
+	if err := run.StoreModelKey(provider, key, logw); err != nil {
 		return nil, err
 	}
 	return r.SetupStatus()

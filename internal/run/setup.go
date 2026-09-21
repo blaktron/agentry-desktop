@@ -136,10 +136,10 @@ type SetupOpts struct {
 	APIKeyEnv string
 	// APIKeySource is "" (keep the policy's for the same provider), "env"
 	// or "keyring". StoreKey, when set, is the key to put into the OS
-	// keychain for Provider first — the one moment the value passes
-	// through this process, on its way to the keychain and nowhere else;
-	// storing makes the source keyring. ForgetKey removes the stored key
-	// and makes the source env.
+	// keychain for Provider first, on its way to the keychain and nowhere
+	// else; storing makes the source keyring (the form stores through
+	// StoreModelKey instead, ahead of this call). ForgetKey removes the
+	// stored key and makes the source env.
 	APIKeySource string
 	StoreKey     string
 	ForgetKey    bool
@@ -184,22 +184,20 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	if err := checkBaseURL(provider, opts.BaseURL); err != nil {
 		return err
 	}
-	// The kind (agentry-cli#171) is read from the value at the one moment
-	// this process holds it — a stored key; a forgotten key takes its
-	// kind with it; the variable path knows nothing and keeps what the
-	// policy has (setup.ConfigureModel's rule for the same provider).
+	// The kind (agentry-cli#171) is read from the value while this
+	// process holds it — a key stored now, or below the one the keychain
+	// holds; a forgotten key takes its kind with it; the variable path
+	// knows nothing and keeps what the policy has (setup.ConfigureModel's
+	// rule for the same provider).
 	kind := ""
 	switch {
 	case opts.StoreKey != "":
-		if err := keychainStore(provider, opts.StoreKey); err != nil {
+		k, err := storeModelKey(provider, opts.StoreKey, logw)
+		if err != nil {
 			return err
 		}
 		source = modelkey.SourceKeyring
-		kind = policy.CredentialKindOf(provider, opts.StoreKey)
-		_, _ = fmt.Fprintf(logw, "model key stored in the OS keychain as %s\n", modelkey.Account(provider))
-		if kind == policy.KeyKindSubscription {
-			_, _ = fmt.Fprintln(logw, policy.SubscriptionTokenSentence)
-		}
+		kind = k
 	case opts.ForgetKey:
 		if err := keychainDelete(provider); err != nil {
 			return err
@@ -212,6 +210,9 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	}
 	// A keyring source with nothing behind it would record a fallback a
 	// run cannot honour: refuse unless a key is stored (or was just now).
+	// When one is, its kind is read from the stored value — the key came
+	// through StoreModelKey in a call of its own (agentry-desktop#139),
+	// and on a provider switch the policy has no kind to keep.
 	if source == modelkey.SourceKeyring && opts.StoreKey == "" {
 		present, perr := keychainPresent(provider)
 		switch {
@@ -220,6 +221,11 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		case !present:
 			return fmt.Errorf("the OS keychain holds no key for %s: type the key to store it, or choose the environment variable", provider)
 		}
+		stored, lerr := keychainLookup(provider)
+		if lerr != nil {
+			return lerr
+		}
+		kind = policy.CredentialKindOf(provider, stored)
 	}
 	pol, _, err := policy.EnsureDefault(policyPath)
 	if err != nil {
@@ -326,14 +332,32 @@ func keyFromPolicyVariable(provider string) string {
 	return strings.TrimSpace(os.Getenv(pol.Model.APIKeyEnv))
 }
 
-// StoreModelKey puts key into the OS keychain for provider and records the
-// keychain as the source in the operator policy — its own call, so the key
-// crosses the app's IPC in the smallest message that can carry it, never
-// beside the rest of the form (desktop#102). The key is written nowhere
-// else; a keychain that cannot be reached is a named refusal and the
-// policy is untouched.
-func StoreModelKey(ctx context.Context, provider, key string, logw io.Writer) error {
-	return ApplySetup(ctx, SetupOpts{Provider: provider, StoreKey: key}, logw)
+// StoreModelKey puts key into the OS keychain for provider — its own call,
+// so the key crosses the app's IPC in the smallest message that can carry
+// it, never beside the rest of the form (desktop#102). The key is written
+// nowhere else, and the policy is not touched: the custom provider has no
+// table defaults to fill a key-only call's gaps, so the model, the URL and
+// the keyring source travel in the ApplySetup the form makes next, which
+// records them (agentry-desktop#139). A keychain that cannot be reached is
+// a named refusal.
+func StoreModelKey(provider, key string, logw io.Writer) error {
+	_, err := storeModelKey(provider, key, logw)
+	return err
+}
+
+// storeModelKey is the one store path: the keychain write, the line that
+// says so, and the kind of what was stored (agentry-cli#171) with its
+// sentence for a subscription token.
+func storeModelKey(provider, key string, logw io.Writer) (string, error) {
+	if err := keychainStore(provider, key); err != nil {
+		return "", err
+	}
+	_, _ = fmt.Fprintf(logw, "model key stored in the OS keychain as %s\n", modelkey.Account(provider))
+	kind := policy.CredentialKindOf(provider, key)
+	if kind == policy.KeyKindSubscription {
+		_, _ = fmt.Fprintln(logw, policy.SubscriptionTokenSentence)
+	}
+	return kind, nil
 }
 
 // SetListModelsForTest points the listing at a stand-in for the test's
