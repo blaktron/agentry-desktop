@@ -16,8 +16,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
+	"github.com/blaktron/agentry-desktop/internal/pathguard"
 	"os"
 	"path/filepath"
 	"sort"
@@ -69,6 +71,11 @@ type Paths struct {
 	// layout. Only a managed directory is cleared on reinstall or removed on
 	// uninstall — a directory the user picked is theirs.
 	Managed bool `json:"managed"`
+	// ManagedRoot is the directory a managed Dest sits directly under
+	// (~/.claude/skills, or the project's agents/): the one shape a
+	// managed clear may have, so a Dest derived from a bad name cannot be
+	// cleared whatever it resolved to.
+	ManagedRoot string `json:"managedRoot,omitempty"`
 	// AgentsMD is the AGENTS.md to upsert (agents-md target only).
 	AgentsMD string `json:"agentsMd,omitempty"`
 }
@@ -92,14 +99,16 @@ func ResolvePaths(target, dir, name string) (Paths, error) {
 		if err != nil {
 			return Paths{}, fmt.Errorf("locate home directory (pick a directory instead): %w", err)
 		}
-		return Paths{Dest: filepath.Join(home, ".claude", "skills", name), Managed: true}, nil
+		root := filepath.Join(home, ".claude", "skills")
+		return Paths{Dest: filepath.Join(root, name), Managed: true, ManagedRoot: root}, nil
 
 	case manifest.InterfaceAgentsMD:
 		if dir == "" {
 			return Paths{}, fmt.Errorf("the agents-md target needs a project directory — pick one")
 		}
+		root := filepath.Join(dir, "agents")
 		return Paths{
-			Dest: filepath.Join(dir, "agents", name), Managed: true,
+			Dest: filepath.Join(root, name), Managed: true, ManagedRoot: root,
 			AgentsMD: filepath.Join(dir, "AGENTS.md"),
 		}, nil
 
@@ -236,6 +245,25 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 			att.State, res.Namespace, res.Name, res.Version, att.Detail, hint)
 	}
 
+	// The resolve response's manifest is not covered by the digest or the
+	// attestation (both are over the archive), and the paths below are
+	// derived from it: hold it to the publish rules before any path is,
+	// so a name of "../../.." or an entrypoint of "../../.bashrc" is a
+	// refusal here, not a directory cleared or a file written (security
+	// review 2026-09-20 §8.1, §8.2).
+	if blocking := manifest.Blocking(manifest.Validate(m)); len(blocking) > 0 {
+		msgs := make([]string, 0, len(blocking))
+		for _, e := range blocking {
+			msgs = append(msgs, e.Error())
+		}
+		return nil, fmt.Errorf("the registry's manifest for %s/%s@%s fails validation — refusing to install:\n  %s",
+			res.Namespace, res.Name, res.Version, strings.Join(msgs, "\n  "))
+	}
+	if m.Name != res.Name || m.Namespace != res.Namespace {
+		return nil, fmt.Errorf("the registry's manifest names %s/%s but the release is %s/%s — refusing to install",
+			m.Namespace, m.Name, res.Namespace, res.Name)
+	}
+
 	if target == "" {
 		target = DefaultTarget(m)
 	}
@@ -334,13 +362,21 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities bool) (*R
 		return nil, fmt.Errorf("extract archive: %w", err)
 	}
 
+	// The archive is the verified bytes; when it carries its manifest, that
+	// is the one the export reads (a v1 release may ship without one, and
+	// then the resolve manifest validated at Prepare stands).
+	m, err := manifestFromArchive(staging, p.manifest, plan)
+	if err != nil {
+		return nil, err
+	}
+
 	res := &Result{Dest: plan.Paths.Dest}
 	switch plan.Target {
 	case manifest.InterfaceClaudeSkill:
-		err = exportClaudeSkill(staging, plan.Paths, p.manifest)
+		err = exportClaudeSkill(staging, plan.Paths, m)
 		res.Message = fmt.Sprintf("installed %s/%s@%s as Claude skill: %s", plan.Namespace, plan.Name, plan.Version, plan.Paths.Dest)
 	case manifest.InterfaceAgentsMD:
-		err = exportAgentsMD(staging, plan.Paths, p.manifest, plan.Namespace, plan.Version)
+		err = exportAgentsMD(staging, plan.Paths, m, plan.Namespace, plan.Version)
 		res.Message = fmt.Sprintf("installed %s/%s@%s as prompt agent: %s (section updated in %s)",
 			plan.Namespace, plan.Name, plan.Version, plan.Paths.Dest, plan.Paths.AgentsMD)
 	default:
@@ -379,10 +415,52 @@ func prepareDest(p Paths) error {
 	if !p.Managed {
 		return nil
 	}
-	if err := os.RemoveAll(p.Dest); err != nil {
+	// A managed destination is one directory directly under its managed
+	// root and nothing else: never the root, never the home directory or
+	// an ancestor of it (the refusal uninstall applies), never a directory
+	// a relative or traversing name resolved to.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("locate home directory: %w", err)
+	}
+	if err := pathguard.RefuseDangerousDir(p.Dest, home); err != nil {
+		return fmt.Errorf("refusing to clear %s: %v", p.Dest, err)
+	}
+	clean := filepath.Clean(p.Dest)
+	if p.ManagedRoot == "" || !filepath.IsAbs(p.ManagedRoot) || filepath.Dir(clean) != filepath.Clean(p.ManagedRoot) ||
+		filepath.Base(clean) == "." || filepath.Base(clean) == ".." {
+		return fmt.Errorf("refusing to clear %s: a managed install lives directly under its managed root (%q)", p.Dest, p.ManagedRoot)
+	}
+	if err := os.RemoveAll(clean); err != nil {
 		return fmt.Errorf("clear %s: %w", p.Dest, err)
 	}
 	return nil
+}
+
+// manifestFromArchive reads agent.yaml out of the extracted archive when it
+// is there, validates it, and requires it to name the release the plan
+// was for; absent (a legacy v1 release), the resolve manifest the plan was
+// prepared from is returned.
+func manifestFromArchive(staging string, fromResolve *manifest.Manifest, plan Plan) (*manifest.Manifest, error) {
+	b, err := os.ReadFile(filepath.Join(staging, "agent.yaml")) //nolint:gosec // the extracted archive's root
+	if errors.Is(err, os.ErrNotExist) {
+		return fromResolve, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read the archive's agent.yaml: %w", err)
+	}
+	m, err := manifest.Parse(b)
+	if err != nil {
+		return nil, fmt.Errorf("the archive's agent.yaml does not parse — refusing to install: %w", err)
+	}
+	if blocking := manifest.Blocking(manifest.Validate(m)); len(blocking) > 0 {
+		return nil, fmt.Errorf("the archive's agent.yaml fails validation — refusing to install: %v", blocking[0])
+	}
+	if m.Name != plan.Name || m.Namespace != plan.Namespace {
+		return nil, fmt.Errorf("the archive's manifest names %s/%s but the release is %s/%s — refusing to install",
+			m.Namespace, m.Name, plan.Namespace, plan.Name)
+	}
+	return m, nil
 }
 
 // exportClaudeSkill writes the archive into Dest, guaranteeing SKILL.md
@@ -398,13 +476,19 @@ func exportClaudeSkill(staging string, p Paths, m *manifest.Manifest) error {
 	if skillRel == "" {
 		skillRel = "SKILL.md"
 	}
+	// The entrypoint is a manifest string (validated at Prepare, and taken
+	// from the archive's own manifest when it carries one); the file it
+	// names must be inside the directory just written, whatever the string.
 	skillPath := filepath.Join(p.Dest, filepath.FromSlash(skillRel))
-	content, err := os.ReadFile(skillPath) //nolint:gosec // path derives from the verified archive
+	if !pathguard.Under(p.Dest, skillPath) {
+		return fmt.Errorf("skill entrypoint %q resolves outside the install directory — refusing to write it", skillRel)
+	}
+	content, err := os.ReadFile(skillPath) //nolint:gosec // under p.Dest, checked just above
 	if err != nil {
 		return fmt.Errorf("read skill entrypoint %s: %w", skillRel, err)
 	}
 	withFM := export.EnsureSkillFrontmatter(content, m.Name, m.Summary)
-	if err := os.WriteFile(skillPath, withFM, 0o644); err != nil { //nolint:gosec // skill files are world-readable content
+	if err := os.WriteFile(skillPath, withFM, 0o644); err != nil { //nolint:gosec // under p.Dest, checked above; skill files are world-readable content
 		return fmt.Errorf("write skill entrypoint: %w", err)
 	}
 	return nil

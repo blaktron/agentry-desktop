@@ -197,6 +197,7 @@ export namespace install {
 	export class Paths {
 	    dest: string;
 	    managed: boolean;
+	    managedRoot?: string;
 	    agentsMd?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -207,6 +208,7 @@ export namespace install {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dest = source["dest"];
 	        this.managed = source["managed"];
+	        this.managedRoot = source["managedRoot"];
 	        this.agentsMd = source["agentsMd"];
 	    }
 	}
