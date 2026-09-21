@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,6 +174,16 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 			provider = policy.Default().Model.Provider
 		}
 	}
+	// A base URL repoints the model call — the key goes wherever it says,
+	// and the agent's only egress becomes that host — so it is judged
+	// before anything is stored: the custom provider only (the page shows
+	// the field for that one; Go enforced nothing, so script in the
+	// webview could aim a known provider at any host), and https, or
+	// plain http to loopback for a local server (security review
+	// 2026-09-20 §8.4; D-030).
+	if err := checkBaseURL(provider, opts.BaseURL); err != nil {
+		return err
+	}
 	// The kind (agentry-cli#171) is read from the value at the one moment
 	// this process holds it — a stored key; a forgotten key takes its
 	// kind with it; the variable path knows nothing and keeps what the
@@ -330,4 +342,39 @@ func SetListModelsForTest(t interface{ Cleanup(func()) }, f func(context.Context
 	old := listModels
 	listModels = f
 	t.Cleanup(func() { listModels = old })
+}
+
+// checkBaseURL is ApplySetup's rule for a model base URL: none for a known
+// provider (its endpoint is the provider's), and for the custom provider
+// https, or http to loopback.
+func checkBaseURL(provider, baseURL string) error {
+	if baseURL == "" {
+		return nil
+	}
+	if provider != "custom" {
+		return fmt.Errorf("a base URL is for the custom provider only; %q reaches its own endpoint", provider)
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Host == "" || u.Hostname() == "" {
+		return fmt.Errorf("the base URL must be an absolute https URL: %q", baseURL)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if isLoopbackHost(u.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("the base URL must use https off this machine: %q would send the model key in clear", baseURL)
+	default:
+		return fmt.Errorf("the base URL must use https: %q", baseURL)
+	}
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

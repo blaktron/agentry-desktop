@@ -58,6 +58,11 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 	if dir == "" {
 		return fmt.Errorf("pick a folder to save into")
 	}
+	// The folder came from the native picker (D-030): the page names no
+	// path of its own.
+	if err := b.app.requirePicked("folder", dir); err != nil {
+		return err
+	}
 	return build.Save(dir, &m)
 }
 

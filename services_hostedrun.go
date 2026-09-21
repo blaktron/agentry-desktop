@@ -250,6 +250,15 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	if err := r.hostedIdle(); err != nil {
 		return nil, err
 	}
+	// The paths came from a native picker, or they are not used (D-030).
+	for _, p := range inputPaths {
+		if err := r.app.requirePicked("input", p); err != nil {
+			return nil, err
+		}
+	}
+	if err := r.app.requirePicked("output directory", outDir); err != nil {
+		return nil, err
+	}
 	// A release the registry admitted without a scan is not run In
 	// Agentry from here (M23, D-029): the platform records no consent for
 	// it yet (agentry-enterprise#55), and a run nobody consented to would
