@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
@@ -10,6 +10,16 @@ import {
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
 import ToolsPanel from "./ToolsPanel";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+
+/** A README link goes to the OS browser (http/https) or nowhere; never this window. */
+function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
+  const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+  if (!a) return;
+  e.preventDefault();
+  const href = a.getAttribute("href") ?? "";
+  if (/^https?:\/\//i.test(href)) BrowserOpenURL(href);
+}
 
 type Tab = "readme" | "mcp" | "report" | "versions" | "provenance";
 
@@ -193,8 +203,13 @@ export default function AgentPage({
           {readme === "" && <div className="empty">No README.</div>}
           {/* Server-sanitized HTML (§10.3): the API strips scripts/handlers
               and marks invisible characters; the client never parses raw
-              markdown from the archive. */}
-          {readme && <div className="readme selectable" dangerouslySetInnerHTML={{ __html: readme }} />}
+              markdown from the archive. The window's CSP (internal/webview)
+              is the second layer. Links never navigate this window: an
+              http(s) link opens in the OS browser, anything else is
+              inert — the page that runs here has the machine as its API. */}
+          {readme && (
+            <div className="readme selectable" onClick={openReadmeLinkOutside} dangerouslySetInnerHTML={{ __html: readme }} />
+          )}
         </Card>
       )}
 
