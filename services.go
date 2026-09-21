@@ -5,14 +5,19 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
@@ -656,6 +661,126 @@ func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatu
 type InstallAPI struct {
 	app    *App
 	engine *install.Engine
+	// The last check's result (agentry-desktop#147, D8): read by the chrome
+	// for the Installed badge, never started by a read. checking keeps a
+	// slow launch round from landing after a later one and overwriting it
+	// with the older answer.
+	checking sync.Mutex
+	mu       sync.Mutex
+	updates  InstallUpdatesView
+}
+
+// InstallUpdatesView is a snapshot of the last check of the installed
+// BriefAgents for newer versions: UpdatesStatus never starts one, so a
+// paint costs nothing. The app checks once on launch and when a
+// BriefAgent's page is opened (that one through CheckUpdate); nothing is
+// applied on its own — Update is the person's click.
+type InstallUpdatesView struct {
+	// Checked is when the last check finished; zero means none has.
+	Checked string `json:"checked,omitempty"`
+	// Available is how many records this app manages, whose directory is
+	// still there, have a newer version on their registry: the badge's
+	// number — the rows the Installed page would offer Update for.
+	Available int `json:"available"`
+	// Updates is every record's answer, errors included per record.
+	Updates []install.UpdateInfo `json:"updates"`
+	// Err is why the state file could not be read; per-record trouble is
+	// on the record.
+	Err string `json:"err,omitempty"`
+}
+
+// start runs the launch check in its own goroutine, once (D8: on launch and
+// on opening a BriefAgent's page; a person's "Check for updates" asks
+// again; nothing on a timer). It must not delay the first paint.
+func (i *InstallAPI) start(ctx context.Context) {
+	go i.check(ctx)
+}
+
+// check runs one round over every record and stores the result: whatever
+// this round concluded is what the badge shows. Rounds do not overlap.
+func (i *InstallAPI) check(ctx context.Context) []install.UpdateInfo {
+	i.checking.Lock()
+	defer i.checking.Unlock()
+	view := InstallUpdatesView{Updates: []install.UpdateInfo{}}
+	infos, err := install.CheckUpdates(ctx)
+	if err != nil {
+		view.Err = err.Error()
+	} else {
+		view.Updates = infos
+	}
+	view.Checked = time.Now().UTC().Format(time.RFC3339)
+	i.mu.Lock()
+	i.updates = view
+	i.recount()
+	i.mu.Unlock()
+	return infos
+}
+
+// recount sets Available from the rows; the caller holds mu.
+func (i *InstallAPI) recount() {
+	i.updates.Available = 0
+	for _, u := range i.updates.Updates {
+		if u.UpdateAvailable && u.Manageable && u.Present {
+			i.updates.Available++
+		}
+	}
+}
+
+// refreshRow re-asks about one record after this app changed it — an
+// install, an update, a removal — so the badge and the page agree at
+// once rather than after the next round. A record that is gone loses its
+// row.
+func (i *InstallAPI) refreshRow(key installed.Key) {
+	info, err := install.CheckUpdateForKey(i.app.ctx, key)
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	rows := i.updates.Updates[:0:0]
+	for _, u := range i.updates.Updates {
+		if u.Key != key {
+			rows = append(rows, u)
+		}
+	}
+	if err == nil && info != nil {
+		rows = append(rows, *info)
+	}
+	i.updates.Updates = rows
+	i.recount()
+}
+
+// UpdatesStatus returns the last check's result without starting one.
+func (i *InstallAPI) UpdatesStatus() InstallUpdatesView {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	v := i.updates
+	if v.Updates == nil {
+		v.Updates = []install.UpdateInfo{}
+	}
+	return v
+}
+
+// CheckUpdate asks about one BriefAgent's runner-home record, the way the
+// agent page does on opening (D8): nil when nothing is installed for it.
+// The stored view takes the answer, so the badge agrees with the page.
+func (i *InstallAPI) CheckUpdate(namespace, name string) (*install.UpdateInfo, error) {
+	info, err := install.CheckUpdateFor(i.app.ctx, namespace, name)
+	if err != nil || info == nil {
+		return info, err
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	replaced := false
+	for n := range i.updates.Updates {
+		if i.updates.Updates[n].Key == info.Key {
+			i.updates.Updates[n] = *info
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		i.updates.Updates = append(i.updates.Updates, *info)
+	}
+	i.recount()
+	return info, nil
 }
 
 // Prepare resolves, downloads, and verifies; nothing is written. The plan
@@ -674,12 +799,17 @@ func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, 
 	// gates are raised here as native dialogs and the page's booleans are
 	// not read (D-030, D-031) — a page could otherwise prepare a runner
 	// plan and confirm the contract on every future run's behalf.
-	if plan, ok := i.engine.Plan(planID); ok && plan.Target == installdir.Target {
+	plan, ok := i.engine.Plan(planID)
+	if ok && plan.Target == installdir.Target {
 		if err := i.consentForRunner(plan); err != nil {
 			i.engine.Cancel(planID)
 			return nil, err
 		}
-		return i.engine.Confirm(planID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
+		res, err := i.engine.Confirm(planID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
+		if err == nil {
+			i.refreshRow(installdir.ConsentKey(runnerHomeOr(plan.Paths.Dest), plan.Namespace, plan.Name))
+		}
+		return res, err
 	}
 	// A consent the page passed is put to the person in a native dialog
 	// the page cannot answer (D-030); the capabilities acceptance is the
@@ -687,7 +817,11 @@ func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, 
 	if err := i.askProvenanceConsent(acceptUnsigned, acceptUnscanned); err != nil {
 		return nil, err
 	}
-	return i.engine.Confirm(planID, acceptUnsigned, acceptCapabilities, acceptUnscanned)
+	res, err := i.engine.Confirm(planID, acceptUnsigned, acceptCapabilities, acceptUnscanned)
+	if err == nil && ok {
+		i.refreshRow(installed.Key{Registry: plan.Registry, Namespace: plan.Namespace, Name: plan.Name, Target: plan.Target, Dir: plan.Paths.Dest})
+	}
+	return res, err
 }
 
 // askProvenanceConsent puts the provenance consents to the person: a
@@ -730,7 +864,23 @@ func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
 		i.engine.Cancel(plan.ID)
 		return nil, err
 	}
-	return i.engine.Confirm(plan.ID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
+	res, err := i.engine.Confirm(plan.ID, plan.Unsigned, plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm, plan.Unscanned)
+	if err == nil {
+		// The record changed: the badge must not go on counting an update
+		// that was just applied, and the page reads the snapshot next.
+		i.refreshRow(installdir.ConsentKey(runnerHomeOr(plan.Paths.Dest), plan.Namespace, plan.Name))
+	}
+	return res, err
+}
+
+// runnerHomeOr is the runner home a runner plan's agent directory sits
+// under (the key's home), from the directory itself when the policy's
+// home cannot be read.
+func runnerHomeOr(agentDir string) string {
+	if home, err := policy.Home(); err == nil {
+		return home
+	}
+	return filepath.Dir(filepath.Dir(filepath.Dir(agentDir)))
 }
 
 // consentForRunner raises the gates a one-click install owes, each in the
@@ -798,17 +948,31 @@ func (i *InstallAPI) ListInstalled() ([]install.Item, error) {
 // Forget drops a record whose directory is gone; nothing on disk is touched
 // (agentry-desktop#63).
 func (i *InstallAPI) Forget(k installed.Key) error {
-	return install.Forget(k)
+	if err := install.Forget(k); err != nil {
+		return err
+	}
+	i.refreshRow(k)
+	return nil
 }
 
-// CheckUpdates resolves the latest version for every installed record.
+// CheckUpdates asks every record's registry now — the person's "Check for
+// updates" — and the snapshot takes the round, so the badge agrees with
+// the page that asked.
 func (i *InstallAPI) CheckUpdates() ([]install.UpdateInfo, error) {
-	return install.CheckUpdates(i.app.ctx)
+	infos := i.check(i.app.ctx)
+	if v := i.UpdatesStatus(); v.Err != "" {
+		return nil, errors.New(v.Err)
+	}
+	return infos, nil
 }
 
 // Uninstall removes one installation (managed dirs only; see engine docs).
 func (i *InstallAPI) Uninstall(k installed.Key) (string, error) {
-	return install.Uninstall(k)
+	msg, err := install.Uninstall(k)
+	if err == nil {
+		i.refreshRow(k)
+	}
+	return msg, err
 }
 
 // UpdateDir reconstructs the directory argument an update needs so it lands

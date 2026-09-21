@@ -180,6 +180,18 @@ export default function Settings({
       <h2>Agentry Desktop</h2>
       <SelfUpdateCard />
 
+      <h2>BriefAgents</h2>
+      <Card>
+        <label className="row gap">
+          <input type="checkbox" checked={false} disabled onChange={() => {}} />
+          <span>Update BriefAgents automatically</span>
+        </label>
+        <div className="muted small">
+          Not offered yet. The app checks the ones installed here for newer versions on launch and when you
+          open a BriefAgent; Update on its page is yours to click.
+        </div>
+      </Card>
+
       <p className="muted small selectable">
         Settings file: <span className="mono">{settings.configPath}</span>. Install records and pinned
         signing keys are shared with the CLI under the same directory.

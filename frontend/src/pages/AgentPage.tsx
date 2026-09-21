@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
-import { installed, main, trust } from "../../wailsjs/go/models";
+import { install, installed, main, trust } from "../../wailsjs/go/models";
 import {
   Button, Card, CapabilityBadges, ErrorBox, Excerpt, Modal, ModeBadges,
   Notice, PageHeader, QuarantineBadge, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
@@ -57,8 +57,8 @@ export default function AgentPage({
 
   // What THIS machine has accepted for this agent (shared install state) —
   // the installed strip below, with uninstall in place.
-  const [installs, setInstalls] = useState<installed.Record[]>([]);
-  const [confirmRemove, setConfirmRemove] = useState<installed.Record | null>(null);
+  const [installs, setInstalls] = useState<install.Item[]>([]);
+  const [confirmRemove, setConfirmRemove] = useState<install.Item | null>(null);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
   const refreshInstalls = useCallback(() =>
     InstallAPI.ListInstalled()
@@ -71,8 +71,23 @@ export default function AgentPage({
   useEffect(() => { void refreshInstalls(); }, [refreshInstalls]);
 
   // The runner-home record for this BriefAgent, if any: what the primary
-  // button reads to say Install, Installing…, or Update.
+  // button reads to say Install, Installing…, or Update. Whether Update is
+  // enabled is the check's answer (agentry-desktop#147, D8): opening the
+  // page asks the record's registry once, with the one "newer" rule the
+  // app has (semver, through the record's origin) — never a string compare
+  // against the version this page happens to show.
   const runnerInstall = installs.find((r) => r.target === "runner");
+  const installedVersion = runnerInstall?.version;
+  const [runnerUpdate, setRunnerUpdate] = useState<install.UpdateInfo | null>(null);
+  const [runnerUpdateErr, setRunnerUpdateErr] = useState<string | null>(null);
+  useEffect(() => {
+    setRunnerUpdate(null);
+    setRunnerUpdateErr(null);
+    if (!installedVersion) return;
+    InstallAPI.CheckUpdate(ns, name)
+      .then((u) => { setRunnerUpdate(u); setRunnerUpdateErr(u?.error ?? null); })
+      .catch((e) => setRunnerUpdateErr(String(e)));
+  }, [ns, name, installedVersion]);
 
   // One click (D-031): resolve, verify, lay down in the runner home. The
   // gates — an unsigned or unscanned release, a contract to accept — are
@@ -83,7 +98,11 @@ export default function AgentPage({
     setInstallBusy(true);
     setInstallError(null);
     try {
-      await InstallAPI.InstallRunner(registry, `${ns}/${name}@${detail.latest}`);
+      // An update goes to the version the check named, from the registry
+      // the check asked (the record's origin); a first install to the
+      // latest this page shows, from this page's registry.
+      const update = runnerInstall && runnerUpdate?.updateAvailable;
+      await InstallAPI.InstallRunner(update ? runnerInstall.origin : registry, `${ns}/${name}@${update ? runnerUpdate.latest : detail.latest}`);
       // Awaited, so the button reads Update as soon as it is enabled again
       // rather than flashing Install first.
       await refreshInstalls();
@@ -94,7 +113,7 @@ export default function AgentPage({
     }
   }
 
-  async function uninstall(rec: installed.Record) {
+  async function uninstall(rec: install.Item) {
     setConfirmRemove(null);
     try {
       const msg = await InstallAPI.Uninstall(
@@ -135,16 +154,16 @@ export default function AgentPage({
 
   const a = detail.agent;
   // The one primary button (D-031): Install, then Installing…, then Update
-  // — disabled when the installed version is the latest the page shows.
+  // — enabled only when the check named a newer version (#147).
   let installButton: React.ReactNode;
   if (installBusy) {
     installButton = <Button variant="primary" disabled>Installing…</Button>;
   } else if (!runnerInstall) {
     installButton = <Button variant="primary" onClick={installOneClick}>Install {detail.latest}</Button>;
-  } else if (runnerInstall.version !== detail.latest) {
-    installButton = <Button variant="primary" onClick={installOneClick} title={`installed ${runnerInstall.version}`}>Update to {detail.latest}</Button>;
+  } else if (runnerUpdate?.updateAvailable) {
+    installButton = <Button variant="primary" onClick={installOneClick} title={`installed ${runnerInstall.version}`}>Update to {runnerUpdate.latest}</Button>;
   } else {
-    installButton = <Button variant="primary" disabled title={`${runnerInstall.version} is installed on this machine; nothing newer is known`}>Update</Button>;
+    installButton = <Button variant="primary" disabled title={runnerUpdateErr ? `${runnerInstall.version} is installed on this machine; the registry could not be asked: ${runnerUpdateErr}` : `${runnerInstall.version} is installed on this machine; nothing newer is known`}>Update</Button>;
   }
   const counts = report?.findingCounts ?? {};
   const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
@@ -177,6 +196,7 @@ export default function AgentPage({
         )}
       </div>
       {installBusy && <p className="muted small">Resolving, verifying and installing into the runner home…</p>}
+      {runnerInstall && runnerUpdateErr && !installBusy && <p className="muted small">Installed {runnerInstall.version}; could not check for a newer version: {runnerUpdateErr}</p>}
       <ErrorBox error={installError} />
 
       {removeMsg && <Notice tone="info">{removeMsg}</Notice>}

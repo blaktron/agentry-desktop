@@ -59,6 +59,8 @@ func main() {
 			// Desktop must not delay the first paint or the first-run wizard
 			// (agentry-desktop#87).
 			selfUpdateAPI.start(ctx)
+			// And the installed BriefAgents' check, once (agentry-desktop#147).
+			installAPI.start(ctx)
 		},
 		// "Install automatically when I quit" (agentry-desktop#88, D6). Off
 		// by default; does nothing unless a verified release is waiting and

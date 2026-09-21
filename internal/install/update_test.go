@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 func TestNewerThan(t *testing.T) {
@@ -91,5 +93,48 @@ func TestCheckUpdates(t *testing.T) {
 	}
 	if u := byDir["/d3"]; u.Error == "" || u.UpdateAvailable || u.Latest != "" {
 		t.Errorf("unreachable row must carry its error: %+v", u)
+	}
+}
+
+// TestCheckUpdateForTheRunnerRecord (agentry-desktop#147): opening a
+// BriefAgent's page asks about its runner-home record alone — through the
+// record's origin, the app's default registry — and answers with the one
+// "newer" rule (semver); no record, no question.
+func TestCheckUpdateForTheRunnerRecord(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	reg := startRegistry(t, &fakeRegistry{version: "2.0.0"})
+	if err := settings.Save(settings.Settings{DefaultRegistry: reg, Registries: []settings.Registry{{URL: reg}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := CheckUpdateFor(context.Background(), "acme", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info != nil {
+		t.Fatalf("no record, yet an answer: %+v", info)
+	}
+	var st installed.State
+	st.Upsert(installdir.ConsentKey(home, "acme", "demo"), "1.0.0", installed.CapSnapshot{}, true)
+	st.Upsert(installed.Key{Registry: reg, Namespace: "acme", Name: "demo", Target: "claude-skill", Dir: "/d1"}, "0.1.0", installed.CapSnapshot{}, true)
+	if err := installed.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	info, err = CheckUpdateFor(context.Background(), "acme", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info == nil || !info.UpdateAvailable || info.Latest != "2.0.0" || info.Current != "1.0.0" || info.Key.Target != installdir.Target || info.Error != "" {
+		t.Fatalf("runner record's check: %+v", info)
+	}
+	// A registry that cannot be reached is the answer's error, not a failure.
+	if err := settings.Save(settings.Settings{DefaultRegistry: "http://127.0.0.1:1", Registries: []settings.Registry{{URL: "http://127.0.0.1:1"}}}); err != nil {
+		t.Fatal(err)
+	}
+	info, err = CheckUpdateFor(context.Background(), "acme", "demo")
+	if err != nil || info == nil || info.Error == "" || info.UpdateAvailable {
+		t.Fatalf("unreachable: %+v err %v", info, err)
 	}
 }

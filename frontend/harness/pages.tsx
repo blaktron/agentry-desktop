@@ -57,6 +57,12 @@ const fresh = window.location.hash === "#fresh";
 // so the button reads Installing….
 const agentInstalled = window.location.hash.startsWith("#agent-installed");
 const agentInstalledOlder = window.location.hash === "#agent-installed-older";
+// #agent-installed-unreachable: the record's registry cannot be asked, so
+// Update stays disabled and the page says why (agentry-desktop#147).
+const agentInstalledUnreachable = window.location.hash === "#agent-installed-unreachable";
+// #installed-updates: the launch check found two newer versions — the
+// number on Installed in the sidebar (agentry-desktop#147).
+const installedUpdates = window.location.hash === "#installed-updates" ? 2 : 0;
 const agentInstallRefused = window.location.hash === "#agent-install-refused";
 const agentInstalling = window.location.hash === "#agent-installing";
 const runnerRecForShown = {
@@ -96,6 +102,11 @@ g.go = { main: {
     ListInstalled: async () => (fresh ? [] : agentInstalled ? [...installedRecs, runnerRecForShown] : installedRecs),
     CheckUpdates: async () => [],
     Forget: async () => undefined,
+    CheckUpdate: async () => {
+      if (agentInstalledUnreachable) return { key: {}, current: "1.2.0", error: "dial tcp 127.0.0.1:1: connect: connection refused" };
+      return { key: {}, current: runnerRecForShown.version, latest: "1.2.0", updateAvailable: agentInstalledOlder };
+    },
+    UpdatesStatus: async () => ({ checked: "2026-09-21T12:00:00Z", available: installedUpdates, updates: [] }),
     InstallRunner: async () => {
       if (agentInstalling) await new Promise(() => {});
       if (agentInstallRefused) throw new Error("not confirmed: Accept what demo1/incident-summarizer may do?");
@@ -221,7 +232,12 @@ function Shell({ active, children }: { active: string; children: React.ReactNode
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        {nav.map((n) => <button key={n} className={`nav-item ${n === active ? "active" : ""}`}>{n}</button>)}
+        {nav.map((n) => (
+          <button key={n} className={`nav-item ${n === active ? "active" : ""}`}>
+            {n}
+            {n === "Installed" && installedUpdates > 0 && <span className="badge warn nav-count">{installedUpdates}</span>}
+          </button>
+        ))}
         <div className="foot"><div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>

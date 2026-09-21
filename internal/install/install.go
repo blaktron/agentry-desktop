@@ -855,6 +855,11 @@ type UpdateInfo struct {
 	Latest          string        `json:"latest,omitempty"`
 	UpdateAvailable bool          `json:"updateAvailable"`
 	Error           string        `json:"error,omitempty"`
+	// Manageable and Present are the record's (Item): an update is offered
+	// only for a record this app manages whose directory is still there,
+	// so only those count toward the badge.
+	Manageable bool `json:"manageable"`
+	Present    bool `json:"present"`
 }
 
 // sortRecords orders records for stable display.
