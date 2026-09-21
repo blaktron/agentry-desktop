@@ -9,6 +9,7 @@ package run
 import (
 	"context"
 	"encoding/json"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,7 +74,7 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	meta, installDir, err := materialize(context.Background(), sig, home, true, &log)
+	meta, installDir, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +123,7 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 		t.Fatalf("archive downloads after first materialize = %d", got)
 	}
 	log.Reset()
-	meta2, dir2, err := materialize(context.Background(), sig, home, true, &log)
+	meta2, dir2, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +133,14 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 	if got := fr.hitCount("/archive.tar.zst"); got != 1 {
 		t.Fatalf("cached install re-downloaded the archive (%d hits)", got)
 	}
-	if !strings.Contains(log.String(), "using verified install") {
-		t.Errorf("reuse must say so:\n%s", log.String())
+	// The reuse is narrated honestly: a cached unsigned release says so,
+	// and that the consent given now admits it, rather than calling
+	// itself verified (M23; the CLI's DR-21 shape).
+	if !strings.Contains(log.String(), "cached install") || !strings.Contains(log.String(), meta.Attestation.State) {
+		t.Errorf("reuse must say what it is doing with what:\n%s", log.String())
+	}
+	if meta.Attestation.State == "unsigned" && meta2.Attestation.Consent != receipt.ConsentAllowUnsigned {
+		t.Errorf("a cached unsigned run carries consent %q, want %q", meta2.Attestation.Consent, receipt.ConsentAllowUnsigned)
 	}
 }
 
@@ -146,7 +153,7 @@ func TestMaterializeRefusesDigestMismatch(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, true, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err == nil || !strings.Contains(err.Error(), "digest mismatch") {
 		t.Fatalf("err = %v, want digest mismatch refusal", err)
 	}
@@ -166,7 +173,7 @@ func TestMaterializeRefusesUnverifiableAttestation(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, true, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err == nil || !strings.Contains(err.Error(), "refusing to run") {
 		t.Fatalf("err = %v, want attestation refusal", err)
 	}
@@ -666,7 +673,7 @@ func TestMaterializeRefusesBadArchive(t *testing.T) {
 	sig := resolveFixture(t, regURL)
 
 	var log strings.Builder
-	_, _, err := materialize(context.Background(), sig, home, true, &log)
+	_, _, err := materialize(context.Background(), sig, home, true, false, &log)
 	if err == nil || !strings.Contains(err.Error(), "extract archive") {
 		t.Fatalf("err = %v, want the extract refusal", err)
 	}

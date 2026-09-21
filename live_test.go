@@ -92,7 +92,7 @@ func TestLiveEndToEnd(t *testing.T) {
 		}
 	}()
 	accept := plan.NeedsCapabilityConfirm || plan.RequiresWidenedConfirm
-	if _, err := eng.Confirm(plan.ID, false, accept); err != nil {
+	if _, err := eng.Confirm(plan.ID, false, accept, false); err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
 	skill := filepath.Join(plan.Paths.Dest, "SKILL.md")

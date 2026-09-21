@@ -279,6 +279,12 @@ type Request struct {
 	// method meets the same gate (desktop#3, D-011 closure). Digest
 	// mismatch and unverifiable attestations refuse regardless.
 	AcceptUnsigned bool
+	// AcceptUnscanned is the explicit consent to run a release the registry
+	// admitted without a scan (the CLI's --allow-unscanned; plan
+	// organization-subscriptions §4): its own consent, which AcceptUnsigned
+	// does not give. Enforced here, as AcceptUnsigned is, and on every run
+	// from the cache — the cache remembers the verdict, not the consent.
+	AcceptUnscanned bool
 	// Intake answers the manifest's up-front questions by id (plan §3.5);
 	// a required question without an answer refuses the run.
 	Intake map[string]string
@@ -346,7 +352,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		_, _ = fmt.Fprintf(logw, "warning: %s is YANKED — running only because the version was pinned exactly\n", sig.Ref)
 	}
 
-	meta, installDir, err := materialize(ctx, sig, home, req.AcceptUnsigned, logw)
+	meta, installDir, err := materialize(ctx, sig, home, req.AcceptUnsigned, req.AcceptUnscanned, logw)
 	if err != nil {
 		return nil, err
 	}
@@ -562,11 +568,23 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 // CLI's cache when the digest matches and creating it (download → digest
 // check → DSSE verify → hardened extract) when not — the same gate
 // `agentry install` and `agentry run` apply (§R1).
-func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned bool, logw io.Writer) (*installMeta, string, error) {
+func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (*installMeta, string, error) {
 	installDir := filepath.Join(home, "agents", sig.Namespace, sig.Name,
 		fmt.Sprintf("%s-%s", sig.Version, sig.DigestSuffix()))
 	if meta, ok := loadInstallMeta(installDir, sig.Digest); ok {
-		_, _ = fmt.Fprintf(logw, "using verified install %s\n", installDir)
+		// The registry's word today outranks the cache's memory: an
+		// install cached before the unscanned state existed, against a
+		// registry that now says the version was admitted without a
+		// scan, is unscanned.
+		if sig.resolve != nil && sig.resolve.ScanStatus != nil && *sig.resolve.ScanStatus == apiclient.ResolveResultScanStatusSkipped && meta.Attestation.State != trust.StateUnscanned {
+			meta.Attestation = receipt.Attestation{State: trust.StateUnscanned}
+		}
+		// The cache remembers the verdict, not the consent: the gate is
+		// asked again on every run (the CLI's DR-21), and the receipt
+		// carries the consent given now.
+		if err := cachedAttestationGate(meta, acceptUnsigned, acceptUnscanned, logw); err != nil {
+			return nil, "", err
+		}
 		return meta, installDir, nil
 	}
 
@@ -580,7 +598,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 	if computed != sig.Digest {
 		return nil, "", fmt.Errorf("digest mismatch: registry says %s, archive is %s — refusing to run", sig.Digest, computed)
 	}
-	att, err := verifyRunAttestation(ctx, sig, computed, acceptUnsigned, logw)
+	att, err := verifyRunAttestation(ctx, sig, computed, acceptUnsigned, acceptUnscanned, logw)
 	if err != nil {
 		return nil, "", err
 	}
@@ -601,36 +619,78 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 		Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version,
 		Digest: sig.Digest, Source: "registry", Attestation: att,
 	}
-	if err := writeInstall(installDir, staging, meta); err != nil {
+	// The cache holds the verdict and never the consent, which is this
+	// run's alone.
+	cached := *meta
+	cached.Attestation.Consent = ""
+	if err := writeInstall(installDir, staging, &cached); err != nil {
 		return nil, "", err
 	}
 	return meta, installDir, nil
 }
 
+// cachedAttestationGate re-applies the consent gates to an install the
+// cache already holds, and records on the receipt the consent given now:
+// a cached unsigned or unscanned release is not "verified", and the
+// consent is asked for on every run.
+func cachedAttestationGate(meta *installMeta, acceptUnsigned, acceptUnscanned bool, logw io.Writer) error {
+	switch meta.Attestation.State {
+	case trust.StateUnscanned:
+		if !acceptUnscanned {
+			return fmt.Errorf("unscanned — the registry admitted %s without a scan (cached install); tick \"Run an unscanned release\" to run it anyway", meta.Ref)
+		}
+		meta.Attestation.Consent = receipt.ConsentAllowUnscanned
+		_, _ = fmt.Fprintf(logw, "warning: unscanned — running %s (cached install), which the registry admitted without a scan, because it was explicitly accepted; the run is marked unscanned in its receipts\n", meta.Ref)
+	case trust.StateUnsigned, "local":
+		if !acceptUnsigned {
+			return fmt.Errorf("unsigned — the registry offers no attestation for %s (cached install); tick \"Run an unsigned release\" to run it anyway", meta.Ref)
+		}
+		meta.Attestation.Consent = receipt.ConsentAllowUnsigned
+		_, _ = fmt.Fprintf(logw, "warning: unsigned — running %s (cached install) because it was explicitly accepted; the run is marked unsigned in its receipts\n", meta.Ref)
+	default:
+		_, _ = fmt.Fprintf(logw, "using verified install %s\n", meta.Ref)
+	}
+	return nil
+}
+
 // verifyRunAttestation mirrors the CLI's run gate: verified proceeds;
 // unsigned proceeds MARKED only with acceptUnsigned (the panel's checkbox,
 // now enforced in Go — desktop#3 closes D-011) and refuses otherwise;
-// mismatch/unverifiable always refuses — there is no override for a
-// signature that fails to verify.
-func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest string, acceptUnsigned bool, logw io.Writer) (receipt.Attestation, error) {
-	attURL := ""
-	if sig.resolve.AttestationUrl != nil {
-		attURL = *sig.resolve.AttestationUrl
+// unscanned — a version the registry admitted without a scan, read from
+// the resolve answer before any attestation is looked for — proceeds
+// MARKED only with acceptUnscanned, its own consent; mismatch/unverifiable
+// always refuses — there is no override for a signature that fails to
+// verify. The receipt names the consent that admitted the release.
+func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (receipt.Attestation, error) {
+	var att trust.AttestationResult
+	if sig.resolve.ScanStatus != nil && *sig.resolve.ScanStatus == apiclient.ResolveResultScanStatusSkipped {
+		att = trust.Unscanned()
+	} else {
+		attURL := ""
+		if sig.resolve.AttestationUrl != nil {
+			attURL = *sig.resolve.AttestationUrl
+		}
+		if attURL == "" {
+			attURL = fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", sig.Namespace, sig.Name, sig.Version)
+		}
+		att = trust.VerifyAttestation(ctx, registry.HTTPClient, sig.Registry, settings.TokenFor(sig.Registry), attURL, archiveDigest)
 	}
-	if attURL == "" {
-		attURL = fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", sig.Namespace, sig.Name, sig.Version)
-	}
-	att := trust.VerifyAttestation(ctx, registry.HTTPClient, sig.Registry, settings.TokenFor(sig.Registry), attURL, archiveDigest)
 	switch att.State {
 	case trust.StateVerified:
 		_, _ = fmt.Fprintf(logw, "attestation: verified (key %s)\n", att.KeyID)
-		return receipt.Attestation{State: "verified", KeyID: att.KeyID, Verified: true}, nil
+		return receipt.Attestation{State: trust.StateVerified, KeyID: att.KeyID, Verified: true}, nil
 	case trust.StateUnsigned:
 		if !acceptUnsigned {
 			return receipt.Attestation{}, fmt.Errorf("unsigned — the registry offers no attestation for %s (%s); tick \"Run an unsigned release\" to run it anyway", sig.Ref, att.Detail)
 		}
 		_, _ = fmt.Fprintf(logw, "warning: unsigned — the registry offers no attestation for %s; running because it was explicitly accepted; the run is marked unsigned in its receipts\n", sig.Ref)
-		return receipt.Attestation{State: "unsigned"}, nil
+		return receipt.Attestation{State: trust.StateUnsigned, Consent: receipt.ConsentAllowUnsigned}, nil
+	case trust.StateUnscanned:
+		if !acceptUnscanned {
+			return receipt.Attestation{}, fmt.Errorf("unscanned — the registry admitted %s without a scan: no findings, no report and no attestation stand behind it; tick \"Run an unscanned release\" to run it anyway", sig.Ref)
+		}
+		_, _ = fmt.Fprintf(logw, "warning: unscanned — running %s, which the registry admitted without a scan, because it was explicitly accepted; the run is marked unscanned in its receipts\n", sig.Ref)
+		return receipt.Attestation{State: trust.StateUnscanned, Consent: receipt.ConsentAllowUnscanned}, nil
 	default:
 		hint := ""
 		if att.KeyRotated {

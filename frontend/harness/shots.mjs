@@ -31,6 +31,9 @@ const states = [
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
   { name: "runpanel-streaming", url: "/modals.html#runpanel-streaming", note: "streaming the log" },
   { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "finished: outcome, receipt, downloaded artefacts" },
+  { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own stripe and consent, In Agentry not offered (M23)" },
+  { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard on a release admitted without a scan (M23)" },
+  { name: "agent-unscanned", url: "/pages.html#agent-unscanned", note: "the agent page: the unscanned badge and stripe on the provenance card (M23)", locator: '[data-preview="agent"]' },
   // The welcome's runtime step (agentry-desktop#131): the three questions;
   // the model list Get models filled; the failed listing with the model
   // still typeable; a stored subscription token and its sentence.

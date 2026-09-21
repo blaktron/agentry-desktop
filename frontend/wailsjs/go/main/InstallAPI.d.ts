@@ -7,7 +7,7 @@ export function Cancel(arg1:string):Promise<void>;
 
 export function CheckUpdates():Promise<Array<install.UpdateInfo>>;
 
-export function Confirm(arg1:string,arg2:boolean,arg3:boolean):Promise<install.Result>;
+export function Confirm(arg1:string,arg2:boolean,arg3:boolean,arg4:boolean):Promise<install.Result>;
 
 export function Forget(arg1:installed.Key):Promise<void>;
 
