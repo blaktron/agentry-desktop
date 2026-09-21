@@ -13,6 +13,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
@@ -34,8 +35,9 @@ func CheckUpdates(ctx context.Context) ([]UpdateInfo, error) {
 			},
 			Current: rec.Version,
 		}
-		token := settings.TokenFor(rec.Registry)
-		client, cerr := registry.New(rec.Registry, token)
+		origin := originFor(rec.Record)
+		token := settings.TokenFor(origin)
+		client, cerr := registry.New(origin, token)
 		if cerr != nil {
 			info.Error = cerr.Error()
 			out = append(out, info)
@@ -76,6 +78,8 @@ func DirForRecord(rec installed.Record) (string, error) {
 			return "", nil // the default ~/.claude/skills layout
 		}
 		return filepath.Dir(rec.Dir), nil
+	case installdir.Target:
+		return "", nil // one home; the update is the one-click install
 	case manifest.InterfaceMCP, manifest.InterfaceAgentsMD:
 		// Managed layout is <project>/agents/<name>.
 		return filepath.Dir(filepath.Dir(rec.Dir)), nil

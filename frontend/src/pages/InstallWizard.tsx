@@ -24,9 +24,10 @@ export default function InstallWizard({
   presetDir?: string;
   onInstalled?: () => void;
 }) {
-  // "" = the release's own default (the first of its runtime.interfaces the
-  // desktop can emit), decided by the Go side at Prepare time.
-  const [target, setTarget] = useState(presetTarget || "");
+  // The wizard is the coding-agent export (D-031: the one-click Install
+  // on the agent page is the runner home); its default is the Claude skill,
+  // said here rather than left to Go, whose default is the runner target.
+  const [target, setTarget] = useState(presetTarget || TARGETS[0].id);
   const [dir, setDir] = useState(presetDir ?? "");
   const [plan, setPlan] = useState<install.Plan | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export default function InstallWizard({
   const [acceptUnscanned, setAcceptUnscanned] = useState(false);
   const [acceptCaps, setAcceptCaps] = useState(false);
 
-  const effectiveTarget = target || plan?.target || "claude-skill";
+  const effectiveTarget = target;
   const targetInfo = useMemo(() => TARGETS.find((t) => t.id === effectiveTarget) ?? TARGETS[0], [effectiveTarget]);
 
   // A preset flow (update from Installed) can go straight to Prepare.

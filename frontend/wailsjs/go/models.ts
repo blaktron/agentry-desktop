@@ -154,6 +154,7 @@ export namespace install {
 	    installedAt: any;
 	    capabilities: installed.CapSnapshot;
 	    managed?: boolean;
+	    origin: string;
 	    present: boolean;
 	    manageable: boolean;
 	
@@ -172,6 +173,7 @@ export namespace install {
 	        this.installedAt = this.convertValues(source["installedAt"], null);
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
 	        this.managed = source["managed"];
+	        this.origin = source["origin"];
 	        this.present = source["present"];
 	        this.manageable = source["manageable"];
 	    }
@@ -199,6 +201,7 @@ export namespace install {
 	    managed: boolean;
 	    managedRoot?: string;
 	    agentsMd?: string;
+	    releaseDir?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Paths(source);
@@ -210,6 +213,7 @@ export namespace install {
 	        this.managed = source["managed"];
 	        this.managedRoot = source["managedRoot"];
 	        this.agentsMd = source["agentsMd"];
+	        this.releaseDir = source["releaseDir"];
 	    }
 	}
 	export class Plan {

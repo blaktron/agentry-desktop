@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry/pkg/apiclient"
 )
@@ -74,7 +75,7 @@ func TestUnscannedIsItsOwnConsent(t *testing.T) {
 	if !strings.Contains(log.String(), "warning: unscanned") {
 		t.Fatalf("an accepted unscanned run must say so:\n%s", log.String())
 	}
-	if cached, ok := loadInstallMeta(installDir, sig.Digest); !ok || cached.Attestation.State != "unscanned" || cached.Attestation.Consent != "" {
+	if cached, ok := installdir.Load(installDir, sig.Digest); !ok || cached.Attestation.State != "unscanned" || cached.Attestation.Consent != "" {
 		t.Fatalf("the cache must hold the verdict and no consent: %+v", cached)
 	}
 
@@ -91,7 +92,7 @@ func TestUnscannedIsItsOwnConsent(t *testing.T) {
 
 	// A cache written before the state existed: unsigned in the file, and
 	// the registry says skipped now — unscanned, whatever the file says.
-	stale := &installMeta{Ref: sig.Ref, Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version, Digest: sig.Digest, Source: "registry", Attestation: receipt.Attestation{State: "unsigned"}}
+	stale := &installdir.Meta{Ref: sig.Ref, Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version, Digest: sig.Digest, Source: "registry", Attestation: receipt.Attestation{State: "unsigned"}}
 	raw, err := json.MarshalIndent(stale, "", "  ")
 	if err != nil {
 		t.Fatal(err)
