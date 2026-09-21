@@ -93,10 +93,17 @@ FunctionEnd
 
 !insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
 
-## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
-## Unsigned today (agentry-desktop#54).
-#!uninstfinalize 'signtool --file "%1"'
-#!finalize 'signtool --file "%1"'
+## Authenticode (agentry-desktop#54). SIGN_CMD is a command that signs the PE
+## file given as its one argument in place; the Makefile passes it only for a
+## release build (scripts/sign-windows.sh), so a PR build or a workstation
+## build compiles exactly what it compiles without it. !uninstfinalize runs
+## on the uninstaller before it is embedded — NSIS 3.08+ generates the whole
+## uninstaller at compile time for this — and !finalize on the installer once
+## it is written. %1 is the path NSIS hands over.
+!ifdef SIGN_CMD
+!uninstfinalize '"${SIGN_CMD}" "%1"'
+!finalize '"${SIGN_CMD}" "%1"'
+!endif
 
 Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file; the Makefile renames it to the manifest's grammar.

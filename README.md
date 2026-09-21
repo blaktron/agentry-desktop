@@ -146,7 +146,7 @@ away at the flip.
 | lint + tests + tsc | `make check` |
 | regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
 | macOS universal .app, zipped and as a .dmg | `make package-darwin` |
-| Windows amd64 exe, zip and per-user installer (cross-compiled, unsigned) | `make package-windows` |
+| Windows amd64 exe, zip and per-user installer (cross-compiled; `SIGN_CMD=scripts/sign-windows.sh` signs, the release does) | `make package-windows` |
 | Linux amd64 binary, .deb and .rpm (in a container) | `make package-linux` |
 | install both Linux packages in clean containers | `make smoke-linux-packages` |
 | drag the dmg's bundle over an installed copy (macOS) | `make smoke-darwin-dmg` |
@@ -200,8 +200,9 @@ zip does. An upgrade replaces only the installed files; the uninstaller
 leaves `%USERPROFILE%\.config\agentry`, `%USERPROFILE%\.agentry\runner`
 and the Credential Manager entries alone unless its one optional box is
 ticked, which runs `agentry-desktop.exe --remove-my-settings`
-(`internal/uninstall`) before the files go. Both outputs are unsigned
-(agentry-desktop#54). The `windows` CI job builds all of this on every PR;
+(`internal/uninstall`) before the files go. A release signs both outputs
+and the uninstaller inside the installer (#54, "OS code signing" below); a
+PR build does not. The `windows` CI job builds all of this on every PR;
 what Linux cannot check — install N over N-1 with settings in place, the
 default uninstall keeping them, the box removing them — is
 `scripts/acceptance/windows-install.ps1`, run by hand in a plain user
@@ -324,9 +325,23 @@ Authenticode on Windows and Developer ID with notarization on macOS are what
 the *operating system* checks, and they are being added as two independent
 tracks (`agentry-notes/plans/os-code-signing.md`; epics #153 and #154). The
 Windows half signs on the Linux runner against **Azure Artifact Signing**,
-whose HSM holds the key: the job proves who it is with the OIDC token GitHub
-mints for a job in the `release` environment, Azure answers with an access
-token that lives for the job, and no Azure secret exists anywhere.
+whose HSM holds the key: the release workflow's `linux-windows` job runs in
+the `release` environment, proves who it is with the OIDC token GitHub mints
+for it, gets an access token that lives for the job, and hands it to `jsign`
+through the environment (`scripts/sign-windows.sh`, which pins jsign's
+version and digest). The exe is signed before `makensis` embeds it; the
+installer and its uninstaller are signed by `makensis` itself through the
+`!finalize` hooks in `project.nsi`, which exist only when `SIGN_CMD` is
+defined, so a PR build stays unsigned. `scripts/check-windows-installer.sh
+--signed` then verifies all three with `osslsigncode` to the Microsoft root
+pinned in `build/windows/signing/`, insists on the timestamp (the certificate
+lives three days), and writes the report the bundle puts in `BUILD-INFO` as
+`signed_windows=…`. There is no unsigned fallback: a missing token or a
+signature that does not verify is a release that does not complete, and a
+`workflow_dispatch` dry run signs too, from `main` or a `v*` tag (the
+environment admits nothing else). `scripts/acceptance/windows-signing.sh`
+proves the seam on every PR with a throwaway CA in place of the key. No
+Azure secret exists anywhere.
 **`scripts/operator/artifact-signing-setup.sh`** is how the operator connects
 the repository to their validated identity — it creates the Entra app
 registration and its one federated credential (whose subject it reads from
@@ -347,8 +362,9 @@ No GitHub Release is created before 1.0 (operator, 2026-09-19): the site's
 downloads builder imports the bundle from the run and the download page is
 where a release lives. `workflow_dispatch` runs the same jobs on any ref as
 a dry run, named by the describe string instead of a tag. Every artifact
-is unsigned (D-001 for macOS, agentry-desktop#54 for Windows) and the
-download page says so. The plan behind this and the installers that
+on Windows is Authenticode-signed (#54, below); the macOS bundle is ad-hoc
+signed only (D-001, #6) and the Linux packages carry no OS signature, and the
+download page says which is which. The plan behind this and the installers that
 follow: `agentry-notes/plans/desktop-installers.md`.
 
 ## The registry it talks to

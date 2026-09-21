@@ -119,12 +119,27 @@ jobs:
   # in a .deb and an .rpm by nfpm (desktop#84), from the
   # tree vendored here with the job's credential — the container itself gets
   # no credential: the checkout token is not persisted and the job-scoped
-  # git config is not mounted. Every artifact is unsigned (agentry-desktop#54).
+  # git config is not mounted. The Windows artifacts are Authenticode-signed
+  # here (agentry-desktop#54); the Linux ones carry no OS signature.
   linux-windows:
     needs: preflight
     runs-on: [self-hosted, linux, x64]
+    # The `release` environment is what the Windows signing credential is
+    # scoped to (agentry-desktop#151, #54; plan os-code-signing.md D6): the
+    # Entra federated credential matches a job of this repository in this
+    # environment and nothing else, and the environment admits only main and
+    # v* tags, so a dry run starts from main or a tag or does not start.
+    # id-token lets the job mint the OIDC token it exchanges; contents: read
+    # is what checkout needs and is repeated here because a job-level
+    # permissions block replaces the workflow's.
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
+    outputs:
+      signed_windows: ${{ steps.package.outputs.signed_windows }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -167,23 +182,91 @@ jobs:
       # The installer's toolchain, from Ubuntu's packages: the runner
       # container runs as root and keeps them until it is recreated (see the
       # ci workflow's windows job).
-      - name: makensis and 7z from Ubuntu's packages
+      - name: makensis, 7z, java, osslsigncode and jq from Ubuntu's packages
         run: |
           set -euo pipefail
-          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null; then
+          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null || ! command -v java >/dev/null || ! command -v osslsigncode >/dev/null || ! command -v jq >/dev/null; then
             sudo=""; [ "$(id -u)" = 0 ] || sudo=sudo
             $sudo apt-get update -qq
-            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full
+            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full default-jre-headless osslsigncode jq
           fi
-          makensis -VERSION; 7z | sed -n 2p
-      # -m: no go mod tidy (the module graph is already resolved); -s: the
-      # frontend bundle was just built; -skipbindings: the checked-in
-      # TypeScript bindings stay as they are. VERSION overrides the
-      # Makefile's own describe so every job names one version. The target
-      # builds the exe, its zip and the per-user setup exe, and reads the
-      # installer back (scripts/check-windows-installer.sh).
-      - name: Windows amd64 package and per-user installer (unsigned)
-        run: PATH="$HOME/go/bin:$PATH" make package-windows VERSION="$VERSION" WAILS_FLAGS='-m -s -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+          makensis -VERSION; 7z | sed -n 2p; java -version 2>&1 | head -1; osslsigncode --version 2>&1 | head -1
+      # jsign, the signer, at the version and digest scripts/sign-windows.sh
+      # pins; a jar with another digest is refused before it runs.
+      - name: jsign at the pinned digest
+        run: scripts/sign-windows.sh fetch "$RUNNER_TEMP"
+      # Authenticode (agentry-desktop#54; plan os-code-signing.md §4). The
+      # job proves who it is with the OIDC token GitHub minted for it and
+      # gets an Azure access token for the signing service in return — the
+      # client-credentials grant with the OIDC token as the assertion, the
+      # same exchange signing-oidc-probe.yaml proves on its own. Both tokens
+      # reach curl through a config on standard input (never argv), are
+      # masked, live in this step's shell and die with it; the access token
+      # reaches jsign through the environment (`--storepass env:`), so it is
+      # in no process listing. No Azure secret exists: the identity is the
+      # federated credential #151 created for this environment.
+      #
+      # Then the package: -m no go mod tidy (the module graph is already
+      # resolved); -s the frontend bundle was just built; -skipbindings the
+      # checked-in TypeScript bindings stay as they are; VERSION overrides
+      # the Makefile's own describe so every job names one version. With
+      # SIGN_CMD the target signs the exe before makensis embeds it, makensis
+      # signs the installer and the uninstaller through project.nsi's
+      # hooks, and scripts/check-windows-installer.sh --signed verifies all
+      # three to the pinned Microsoft root and writes the report this job
+      # hands the bundle for BUILD-INFO. There is no unsigned fallback: a
+      # missing token, a refused exchange or a signature that does not verify
+      # is a release that does not complete.
+      - name: Windows amd64 package and per-user installer, Authenticode-signed
+        id: package
+        env:
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: |
+          set -euo pipefail
+          for v in AZURE_TENANT_ID AZURE_CLIENT_ID ARTIFACT_SIGNING_ENDPOINT ARTIFACT_SIGNING_ACCOUNT ARTIFACT_SIGNING_PROFILE; do
+            [ -n "${!v:-}" ] || { echo "::error::the $v repository variable is not set: run scripts/operator/artifact-signing-setup.sh (agentry-desktop#151)"; exit 1; }
+          done
+          : "${ACTIONS_ID_TOKEN_REQUEST_URL:?this job has no id-token permission}"
+          show() { if printf '%s' "$1" | jq -e . >/dev/null 2>&1; then printf '%s' "$1" | jq "$2"; else printf '%s\n' "$1" | head -c 2000; echo; fi; }
+          jwt=$(curl -sSf -K - <<CURL
+          url = "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange"
+          header = "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
+          CURL
+          ) || { echo "::error::GitHub did not issue an OIDC token"; exit 1; }
+          jwt=$(printf '%s' "$jwt" | jq -r '.value // empty')
+          [ -n "$jwt" ] || { echo "::error::GitHub issued no OIDC token"; exit 1; }
+          echo "::add-mask::$jwt"
+          resp=$(curl -sS -K - <<CURL
+          url = "https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token"
+          data-urlencode = "client_id=${AZURE_CLIENT_ID}"
+          data-urlencode = "grant_type=client_credentials"
+          data-urlencode = "scope=https://codesigning.azure.net/.default"
+          data-urlencode = "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+          data-urlencode = "client_assertion=${jwt}"
+          CURL
+          )
+          token=$(printf '%s' "$resp" | jq -r '.access_token // empty' 2>/dev/null || true)
+          if [ -z "$token" ]; then
+            show "$resp" '{error, error_description}'
+            echo "::error::Azure refused the token exchange; the release environment's federated credential (agentry-desktop#151) must match this job's OIDC subject"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          unset jwt resp
+          echo "signing as $ARTIFACT_SIGNING_ACCOUNT/$ARTIFACT_SIGNING_PROFILE at $ARTIFACT_SIGNING_ENDPOINT"
+          AGENTRY_SIGNING_TOKEN="$token" JSIGN_JAR="$RUNNER_TEMP/jsign.jar" PATH="$HOME/go/bin:$PATH" \
+            make package-windows VERSION="$VERSION" WAILS_FLAGS='-m -s -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS" SIGN_CMD=scripts/sign-windows.sh
+          unset token
+          # The checker's report, for BUILD-INFO: who signed, when, to which root.
+          [ -f build/bin/windows-signing.txt ] || { echo "::error::the installer check wrote no signing report"; exit 1; }
+          cn=$(sed -n 's/^cn=//p' build/bin/windows-signing.txt); ts=$(sed -n 's/^timestamp=//p' build/bin/windows-signing.txt)
+          [ -n "$cn" ] && [ -n "$ts" ] || { cat build/bin/windows-signing.txt; echo "::error::the signing report is incomplete"; exit 1; }
+          echo "signed_windows=authenticode CN=$cn profile=$ARTIFACT_SIGNING_ACCOUNT/$ARTIFACT_SIGNING_PROFILE timestamp=$ts verified=osslsigncode root=Microsoft Identity Verification Root Certificate Authority 2020" >> "$GITHUB_OUTPUT"
+          cat build/bin/windows-signing.txt
       # The binary, then the .deb and .rpm from build/nfpm/nfpm.yaml
       # (desktop#84): the bare binary stays as its own artifact.
       - name: Linux amd64 binary and packages, in the container that carries the GTK headers
@@ -356,6 +439,8 @@ jobs:
           merge-multiple: true
           path: bundle
       - name: BUILD-INFO
+        env:
+          SIGNED_WINDOWS: ${{ needs.linux-windows.outputs.signed_windows }}
         run: |
           set -euo pipefail
           set -a; . build/release.env; set +a
@@ -366,7 +451,13 @@ jobs:
             echo "ref=${GITHUB_REF}"
             echo "commit=${GITHUB_SHA}"
             echo "default_registry=${AGENTRY_DEFAULT_REGISTRY}"
+            # signed= is true only when EVERY artifact is OS-signed; the
+            # per-platform lines say which are. Windows since #54; macOS is
+            # #6, so until it lands this stays false and the page keeps
+            # saying so for the macOS artifacts.
             echo "signed=false"
+            : "${SIGNED_WINDOWS:?the linux-windows job reported no Windows signature, and a release without one does not complete}"
+            echo "signed_windows=${SIGNED_WINDOWS}"
             echo "built_by=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > bundle/BUILD-INFO
           cat bundle/BUILD-INFO
