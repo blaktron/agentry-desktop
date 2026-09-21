@@ -243,10 +243,9 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
           intro={
             <>
               BriefAgents run in isolated containers with tools served by a per-run Docker MCP
-              Gateway. Pick the LLM provider those runs drive, and where the key comes from: the
-              variable you set, or the OS keychain on this machine — the policy records the name and
-              the source, never the key. Preparing the images is optional now; your first run
-              prepares them if you skip it.
+              Gateway. Choose the LLM provider those runs use and paste its key — it is kept on this
+              machine — then Get models asks the endpoint what it serves. Preparing the images is
+              optional now; your first run prepares them if you skip it.
             </>
           }
         />
@@ -396,7 +395,7 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
               <p className="muted">
                 Found at <span className="mono">{h.path}</span>
                 {h.version ? <> — {h.version}</> : null}
-                {h.pathFromPolicy ? <> (from the policy)</> : null}
+                {h.pathFromPolicy ? <> (from the policy)</> : h.source === "known location" ? <> (a usual install location, not on this app's PATH)</> : null}
               </p>
             ) : (
               <p className="muted">Not on this machine. {h.reason}</p>

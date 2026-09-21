@@ -10,12 +10,23 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
+)
+
+// The keychain and the models listing, as seams: the tests have no
+// keychain and no provider to ask, and a test must never touch a person's.
+var (
+	keychainStore   = modelkey.Store
+	keychainDelete  = modelkey.Delete
+	keychainPresent = modelkey.Present
+	keychainLookup  = modelkey.Lookup
+	listModels      = setup.ListModels
 )
 
 // Status is the setup state of this machine: can it run BriefAgents, and
@@ -37,6 +48,12 @@ type Status struct {
 	// Neither ever carries the value.
 	KeyStored   bool
 	KeyStoreErr string
+	// APIKeyKind is the policy's apiKeyKind (agentry-cli#171): "" or
+	// "api", or "subscription" for an Anthropic subscription token, which
+	// drives Claude Code alone; KeyNotice is the sentence to show beside
+	// the field for that kind, "" otherwise.
+	APIKeyKind  string
+	KeyNotice   string
 	BaseURL     string
 	ImagesReady bool
 	// Budget defaults, for the run form's placeholders.
@@ -72,7 +89,11 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.Model = pol.Model.Name
 	st.APIKeyEnv = pol.Model.APIKeyEnv
 	st.APIKeySource = pol.Model.APIKeySource
-	if stored, kerr := modelkey.Present(pol.Model.Provider); kerr != nil {
+	st.APIKeyKind = pol.Model.APIKeyKind
+	if st.APIKeyKind == policy.KeyKindSubscription {
+		st.KeyNotice = policy.SubscriptionTokenSentence
+	}
+	if stored, kerr := keychainPresent(pol.Model.Provider); kerr != nil {
 		st.KeyStoreErr = kerr.Error()
 	} else {
 		st.KeyStored = stored
@@ -151,24 +172,36 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 			provider = policy.Default().Model.Provider
 		}
 	}
+	// The kind (agentry-cli#171) is read from the value at the one moment
+	// this process holds it — a stored key; a forgotten key takes its
+	// kind with it; the variable path knows nothing and keeps what the
+	// policy has (setup.ConfigureModel's rule for the same provider).
+	kind := ""
 	switch {
 	case opts.StoreKey != "":
-		if err := modelkey.Store(provider, opts.StoreKey); err != nil {
+		if err := keychainStore(provider, opts.StoreKey); err != nil {
 			return err
 		}
 		source = modelkey.SourceKeyring
+		kind = policy.CredentialKindOf(provider, opts.StoreKey)
 		_, _ = fmt.Fprintf(logw, "model key stored in the OS keychain as %s\n", modelkey.Account(provider))
+		if kind == policy.KeyKindSubscription {
+			_, _ = fmt.Fprintln(logw, policy.SubscriptionTokenSentence)
+		}
 	case opts.ForgetKey:
-		if err := modelkey.Delete(provider); err != nil {
+		if err := keychainDelete(provider); err != nil {
 			return err
 		}
 		source = modelkey.SourceEnv
+		// "api" is the default the policy leaves unwritten
+		// (setup.ConfigureModel), so this is how the kind is dropped.
+		kind = policy.KeyKindAPI
 		_, _ = fmt.Fprintf(logw, "model key removed from the OS keychain (%s)\n", modelkey.Account(provider))
 	}
 	// A keyring source with nothing behind it would record a fallback a
 	// run cannot honour: refuse unless a key is stored (or was just now).
 	if source == modelkey.SourceKeyring && opts.StoreKey == "" {
-		present, perr := modelkey.Present(provider)
+		present, perr := keychainPresent(provider)
 		switch {
 		case perr != nil:
 			return perr
@@ -185,6 +218,7 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		Model:        opts.Model,
 		APIKeyEnv:    opts.APIKeyEnv,
 		APIKeySource: source,
+		APIKeyKind:   kind,
 		BaseURL:      opts.BaseURL,
 		Yes:          true, // a form never mid-flight-prompts; gaps fill from the table
 	}); err != nil {
@@ -222,6 +256,64 @@ func (f *formPrompter) AskSecret(string) (string, error)         { return "", ni
 func (f *formPrompter) Confirm(_ string, def bool) (bool, error) { return def, nil }
 func (f *formPrompter) Say(text string)                          { _, _ = fmt.Fprintln(f.log, text) }
 
+// Catalog is what ListModels returns: the provider's models, and what the
+// key turned out to be (agentry-cli#171) with the sentence for a
+// subscription token, so the form can say it before anything is stored.
+type Catalog struct {
+	Provider string
+	Models   []setup.Model
+	Kind     string
+	Notice   string
+}
+
+// ListModels asks provider's models listing with key — the typed key, or
+// when none is typed the one a run would read (the saved policy's
+// variable, else the OS keychain's entry for the provider) — and
+// returns what it listed (agentry-cli#170, agentry-desktop#131). The key
+// crosses this call inward and reaches nothing but the provider's endpoint
+// (setup.ListModels: https only off loopback, no redirect followed, the
+// key in no error); the catalog carries names, never the key.
+func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	key = strings.TrimSpace(key)
+	if key == "" {
+		// Nothing typed: the order a run resolves in (engine hostSecret)
+		// — the variable the saved policy names, from the environment
+		// this app was launched from, then the keychain.
+		if v := keyFromPolicyVariable(provider); v != "" {
+			key = v
+		} else {
+			stored, err := keychainLookup(provider)
+			if err != nil {
+				return nil, fmt.Errorf("no key typed, the saved policy's variable is unset, and %w", err)
+			}
+			key = stored
+		}
+	}
+	cat, err := listModels(ctx, provider, baseURL, key)
+	if err != nil {
+		// setup.ListModels scrubs the key from what it returns; this
+		// wrapper says so by doing it again over anything it passes on.
+		return nil, errors.New(strings.ReplaceAll(err.Error(), key, "<key>"))
+	}
+	out := &Catalog{Provider: cat.Provider, Models: cat.Models, Kind: policy.CredentialKindOf(provider, key)}
+	if out.Kind == policy.KeyKindSubscription {
+		out.Notice = policy.SubscriptionTokenSentence
+	}
+	return out, nil
+}
+
+// keyFromPolicyVariable is the value of the variable the policy names for
+// provider, from this process's environment; "" when the policy names
+// another provider, no variable, or the variable is unset.
+func keyFromPolicyVariable(provider string) string {
+	pol, err := loadPolicyIfPresent()
+	if err != nil || pol == nil || strings.ToLower(pol.Model.Provider) != provider || pol.Model.APIKeyEnv == "" {
+		return ""
+	}
+	return strings.TrimSpace(os.Getenv(pol.Model.APIKeyEnv))
+}
+
 // StoreModelKey puts key into the OS keychain for provider and records the
 // keychain as the source in the operator policy — its own call, so the key
 // crosses the app's IPC in the smallest message that can carry it, never
@@ -230,4 +322,12 @@ func (f *formPrompter) Say(text string)                          { _, _ = fmt.Fp
 // policy is untouched.
 func StoreModelKey(ctx context.Context, provider, key string, logw io.Writer) error {
 	return ApplySetup(ctx, SetupOpts{Provider: provider, StoreKey: key}, logw)
+}
+
+// SetListModelsForTest points the listing at a stand-in for the test's
+// duration (the bound surface's tests have no provider to ask).
+func SetListModelsForTest(t interface{ Cleanup(func()) }, f func(context.Context, string, string, string) (*setup.Catalog, error)) {
+	old := listModels
+	listModels = f
+	t.Cleanup(func() { listModels = old })
 }

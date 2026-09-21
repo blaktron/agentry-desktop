@@ -6,22 +6,37 @@ import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 
 // The §P1 provider table, mirrored for form prefills; the Go side
-// (pkg/runner/setup) holds the authoritative copy and fills any gaps.
-const PROVIDERS: { id: string; model: string; apiKeyEnv: string }[] = [
-  { id: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY" },
-  { id: "openai", model: "gpt-5.2", apiKeyEnv: "OPENAI_API_KEY" },
-  { id: "google", model: "gemini-3-pro", apiKeyEnv: "GEMINI_API_KEY" },
-  { id: "custom", model: "", apiKeyEnv: "" },
+// (pkg/runner/setup) holds the authoritative copy and fills any gaps. The
+// label is the product's name — a person picks "Anthropic", not a
+// provider id (agentry-desktop#131).
+const PROVIDERS: { id: string; label: string; model: string; apiKeyEnv: string }[] = [
+  { id: "anthropic", label: "Anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY" },
+  { id: "openai", label: "OpenAI", model: "gpt-5.2", apiKeyEnv: "OPENAI_API_KEY" },
+  { id: "google", label: "Google", model: "gemini-3-pro", apiKeyEnv: "GEMINI_API_KEY" },
+  { id: "custom", label: "Custom endpoint (OpenAI-compatible)", model: "", apiKeyEnv: "CUSTOM_API_KEY" },
 ];
+
+const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label ?? id;
 
 /** "Agent runs" (RUNNER-PLAN-2 §P1, req 5): the LLM provider BriefAgent
  * runs use, written into the same operator policy the CLI reads
  * (~/.agentry/runner/policy.yaml), plus one-click preparation of the
- * docker MCP gateway plane. Only the env var NAME of the api key is ever
- * stored — never the key. */
-export function RuntimeSetup({ heading, intro }: {
+ * docker MCP gateway plane.
+ *
+ * The form asks three things (agentry-desktop#131, D-028): the provider,
+ * the key, and — for a custom endpoint — its URL. The key goes to this
+ * machine's keychain (the app's own store, D-024) and the policy records
+ * only that the keychain is the source, never the value. "Get models"
+ * asks the endpoint what it serves with that key, which is also the
+ * endpoint test; the answer fills the model list. Settings (`advanced`)
+ * keeps the environment-variable path under Advanced, where a person who
+ * sets variables will look and one who does not never has to. */
+export function RuntimeSetup({ heading, intro, advanced = false }: {
   heading?: React.ReactNode;
   intro?: React.ReactNode;
+  // Settings shows the advanced choices (the variable, forgetting the
+  // stored key); the welcome does not.
+  advanced?: boolean;
 } = {}) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,14 +46,20 @@ export function RuntimeSetup({ heading, intro }: {
   const [model, setModel] = useState("");
   const [apiKeyEnv, setApiKeyEnv] = useState("");
   const [baseURL, setBaseURL] = useState("");
-  // The model key (plan desktop-installers.md §9, D12; agentry-desktop#90):
-  // "I set the variable myself" (the environment only) or "store the key
-  // on this machine" (the OS keychain, read when the variable is unset).
-  // The typed key lives in this component's state until Save sends it to
-  // the keychain through the backend, and is cleared on the way.
-  const [keyMode, setKeyMode] = useState<"env" | "keyring">("env");
+  // The typed key lives in this component's state until Save or Get
+  // models sends it to the backend (StoreModelKey / ListModels, each a
+  // call of its own, desktop#102), and is cleared on the way out of Save.
   const [apiKey, setApiKey] = useState("");
+  // keyMode is the source the policy will record: the keychain (the
+  // default, and the only choice the welcome offers) or the variable
+  // (Settings → Advanced).
+  const [keyMode, setKeyMode] = useState<"keyring" | "env">("keyring");
   const [forgetKey, setForgetKey] = useState(false);
+  // What the endpoint listed, for the provider and URL it was asked
+  // about; cleared when either changes so a stale list never offers the
+  // wrong endpoint's models.
+  const [catalog, setCatalog] = useState<main.CatalogView | null>(null);
+  const [keyNotice, setKeyNotice] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
 
@@ -50,9 +71,16 @@ export function RuntimeSetup({ heading, intro }: {
         setModel(s.model);
         setApiKeyEnv(s.apiKeyEnv);
         setBaseURL(s.baseUrl ?? "");
-        setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
+        // The keychain, unless this is Settings and the policy chose the
+        // variable: a fresh machine has no source recorded, and the
+        // welcome — which offers only the keychain — must not read that
+        // as "the variable" and hide the key field (the review of #131
+        // caught exactly that).
+        setKeyMode(advanced && s.apiKeySource === "env" ? "env" : "keyring");
+        setKeyNotice(s.keyNotice ?? null);
       })
       .catch((e) => setError(String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -68,10 +96,53 @@ export function RuntimeSetup({ heading, intro }: {
 
   function pickProvider(id: string) {
     setProvider(id);
+    // A key is the provider's: one typed for Anthropic must not reach
+    // OpenAI's endpoint on Get models, nor be stored under it on Save.
+    setApiKey("");
+    setForgetKey(false);
+    setCatalog(null);
+    setKeyNotice(null);
     const row = PROVIDERS.find((p) => p.id === id);
-    if (row && row.model) {
+    if (row) {
       setModel(row.model);
       setApiKeyEnv(row.apiKeyEnv);
+    }
+  }
+
+  function changeBaseURL(v: string) {
+    setBaseURL(v);
+    setCatalog(null);
+  }
+
+  const needsBaseURL = provider === "custom";
+  // A stored key counts for the provider the status reports; a switch of
+  // provider needs a key typed.
+  const keyStoredForProvider = !!status?.keyStored && status?.provider === provider;
+  const hasKey = !!apiKey.trim() || keyStoredForProvider;
+
+  // Get models: the endpoint, asked with the typed key (or the stored
+  // one), fills the model list — and proves the endpoint and the key.
+  async function getModels() {
+    setBusy("Asking the endpoint which models it serves…");
+    setError(null);
+    setNotice(null);
+    try {
+      const cat = await RunAPI.ListModels(provider, baseURL.trim(), apiKey);
+      setCatalog(cat);
+      setKeyNotice(cat.notice || null);
+      // The current model stays if the endpoint lists it; the table's
+      // default or nothing yet becomes the first listed; an id the person
+      // typed themselves is kept as its own entry rather than replaced.
+      const typed = model.trim() && !PROVIDERS.some((p) => p.model === model);
+      if (!typed && !cat.models.some((m) => m.id === model)) {
+        setModel(cat.models[0]?.id ?? model);
+      }
+      setNotice(`${cat.models.length} model${cat.models.length === 1 ? "" : "s"} listed — the endpoint and the key work.`);
+    } catch (e) {
+      setCatalog(null);
+      setError(`Could not list models: ${e instanceof Error ? e.message : e}. You can still type a model id and save.`);
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -99,9 +170,10 @@ export function RuntimeSetup({ heading, intro }: {
       setForgetKey(false);
       setStatus(s);
       setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
+      setKeyNotice(s.keyNotice ?? null);
       setNotice(pullImages
         ? "Setup complete — gateway, harness, and runner images ready; BriefAgents can run."
-        : `Provider preference written to ${s.policyPath}.`);
+        : `Provider settings written to ${s.policyPath}.`);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -109,10 +181,13 @@ export function RuntimeSetup({ heading, intro }: {
     }
   }
 
-  const needsBaseURL = provider === "custom";
-  // A keyring source needs a key behind it: one typed now, or one stored
-  // already; the backend refuses the same case, this just says so first.
-  const needsKey = keyMode === "keyring" && !forgetKey && !apiKey.trim() && !status?.keyStored;
+  // Save needs a key behind the source it records: one typed now or one
+  // stored already for the keychain, the variable's name for the
+  // variable. The backend refuses the same cases; this just says so first.
+  const needsKey = keyMode === "keyring" && !forgetKey && !hasKey;
+  const needsVar = keyMode === "env" && !apiKeyEnv.trim();
+  const canSave = !busy && !(needsBaseURL && !baseURL.trim()) && !needsKey && !needsVar && !!model.trim();
+  const saveHint = needsKey ? "paste your API key first" : needsVar ? "name the variable" : needsBaseURL && !baseURL.trim() ? "enter the endpoint's URL" : !model.trim() ? "pick or type a model" : "";
 
   return (
     <div>
@@ -121,8 +196,8 @@ export function RuntimeSetup({ heading, intro }: {
         {intro ?? (
           <>
             BriefAgent runs happen in isolated containers with tools served by a per-run Docker MCP
-            Gateway. Configure the LLM provider those runs drive — written to the same operator
-            policy the <span className="mono">agentry</span> CLI uses.
+            Gateway. Choose the LLM provider those runs use and paste its key — the same operator
+            policy the <span className="mono">agentry</span> CLI reads.
           </>
         )}
       </p>
@@ -153,84 +228,104 @@ export function RuntimeSetup({ heading, intro }: {
       )}
 
       <Card>
-        <div className="row" style={{ marginBottom: 8 }}>
-          <label className="row" style={{ gap: 6 }}>
-            <span className="muted small">provider</span>
-            <Select value={provider} onChange={(e) => pickProvider(e.target.value)} disabled={!!busy}>
-              {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
-            </Select>
-          </label>
-          <label className="row grow" style={{ gap: 6 }}>
-            <span className="muted small">model</span>
-            <Input type="text" className="grow mono" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
-          </label>
-        </div>
-        <div className="row" style={{ marginBottom: 8 }}>
-          <label className="row grow" style={{ gap: 6 }}>
-            <span className="muted small nowrap">api key env var</span>
-            <Input
-              type="text" className="grow mono" placeholder="e.g. ANTHROPIC_API_KEY"
-              value={apiKeyEnv} onChange={(e) => setApiKeyEnv(e.target.value)} disabled={!!busy}
-            />
-          </label>
-        </div>
+        <label className="field">
+          <span className="field-label">Provider</span>
+          <Select value={provider} onChange={(e) => pickProvider(e.target.value)} disabled={!!busy}>
+            {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </Select>
+        </label>
+
         {needsBaseURL && (
-          <div className="row" style={{ marginBottom: 8 }}>
-            <label className="row grow" style={{ gap: 6 }}>
-              <span className="muted small nowrap">base URL</span>
-              <Input
-                type="text" className="grow mono" placeholder="https://llm.internal:8443/v1"
-                value={baseURL} onChange={(e) => setBaseURL(e.target.value)} disabled={!!busy}
-              />
-            </label>
-          </div>
+          <label className="field">
+            <span className="field-label">Endpoint URL</span>
+            <Input
+              type="text" className="mono" placeholder="https://llm.example.net/v1"
+              value={baseURL} onChange={(e) => changeBaseURL(e.target.value)} disabled={!!busy}
+            />
+            <span className="muted small field-hint">The base URL of an OpenAI-compatible endpoint; the run can reach this host and nothing else.</span>
+          </label>
         )}
-        <div className="key-source">
-          <label className="row" style={{ gap: 6 }}>
-            <input type="radio" name="keyMode" checked={keyMode === "env"} disabled={!!busy} onChange={() => setKeyMode("env")} />
-            <span>I set <span className="mono">${apiKeyEnv || "the variable"}</span> myself — the key stays in the environment this app was launched from</span>
+
+        {keyMode === "keyring" && (
+          <label className="field">
+            <span className="field-label">API key</span>
+            <div className="row">
+              <Input
+                type="password" className="grow mono" autoComplete="off"
+                placeholder={keyStoredForProvider ? "stored on this machine — paste a new one to replace it" : "Paste your API key"}
+                value={apiKey} onChange={(e) => { setApiKey(e.target.value); setKeyNotice(status?.keyNotice ?? null); }} disabled={!!busy || forgetKey}
+              />
+              <Button
+                disabled={!!busy || !hasKey || (needsBaseURL && !baseURL.trim())}
+                title={!hasKey ? "paste the key first" : needsBaseURL && !baseURL.trim() ? "enter the endpoint's URL first" : "ask the endpoint which models it serves"}
+                onClick={getModels}
+              >
+                Get models
+              </Button>
+            </div>
+            <span className="muted small field-hint">
+              Kept in this machine's keychain, next to your registry sign-in — not in a file, and never shown here.
+              {status?.keyStoreErr && keyMode === "keyring" ? <> The keychain could not be asked: {status.keyStoreErr}.</> : null}
+            </span>
           </label>
-          <label className="row" style={{ gap: 6 }}>
-            <input type="radio" name="keyMode" checked={keyMode === "keyring"} disabled={!!busy} onChange={() => setKeyMode("keyring")} />
-            <span>Store the key on this machine — in the OS keychain, read when the variable is unset (a dock- or menu-launched app has no shell environment). Anything running as you while your session is unlocked can read the keychain, as it can your registry sign-in.</span>
-          </label>
-          {keyMode === "keyring" && (
-            <div className="key-store">
-              {status?.keyStored ? (
-                <p className="muted small">
-                  A key for <span className="mono">{provider}</span> is in the OS keychain (<span className="mono">provider:{provider}</span>); it is never shown here.
-                  Type a new one to replace it, or{" "}
-                  <label className="inline"><input type="checkbox" checked={forgetKey} disabled={!!busy} onChange={(e) => { setForgetKey(e.target.checked); if (e.target.checked) setApiKey(""); }} /> forget it on save</label>.
-                </p>
-              ) : status?.keyStoreErr ? (
-                <Notice tone="warn">The OS keychain could not be asked: {status.keyStoreErr}</Notice>
-              ) : (
-                <p className="muted small">No key stored for <span className="mono">{provider}</span> yet.</p>
+        )}
+        {keyNotice && <Notice tone="warn">{keyNotice.charAt(0).toUpperCase() + keyNotice.slice(1)}.</Notice>}
+
+        <label className="field">
+          <span className="field-label">Model</span>
+          {catalog && catalog.models.length > 0 ? (
+            <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
+              {catalog.models.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName ? `${m.displayName} — ${m.id}` : m.id}</option>
+              ))}
+              {!catalog.models.some((m) => m.id === model) && model && <option value={model}>{model}</option>}
+            </Select>
+          ) : (
+            <Input type="text" className="mono" placeholder="pick one with Get models, or type a model id" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
+          )}
+        </label>
+
+        {advanced && (
+          <details className="advanced">
+            <summary className="muted small">Advanced</summary>
+            <div className="key-source">
+              <label className="row" style={{ gap: 6 }}>
+                <input type="radio" name="keyMode" checked={keyMode === "keyring"} disabled={!!busy} onChange={() => setKeyMode("keyring")} />
+                <span>Keep the key on this machine (the keychain). Anything running as you while your session is unlocked can read it, as it can your registry sign-in.</span>
+              </label>
+              <label className="row" style={{ gap: 6 }}>
+                <input type="radio" name="keyMode" checked={keyMode === "env"} disabled={!!busy} onChange={() => { setKeyMode("env"); setApiKey(""); }} />
+                <span>Read the key from an environment variable instead — for a key you set yourself in the environment this app is launched from (a dock- or menu-launched app has none).</span>
+              </label>
+              {keyMode === "env" && (
+                <label className="row grow key-store" style={{ gap: 6 }}>
+                  <span className="muted small nowrap">variable name</span>
+                  <Input type="text" className="grow mono" placeholder="e.g. ANTHROPIC_API_KEY" value={apiKeyEnv} onChange={(e) => setApiKeyEnv(e.target.value)} disabled={!!busy} />
+                  <Button disabled={!!busy || !apiKeyEnv.trim() || (needsBaseURL && !baseURL.trim())} title="ask the endpoint with the saved policy's variable, as a run would (save first after renaming it)" onClick={getModels}>Get models</Button>
+                </label>
               )}
-              {!forgetKey && (
-                <label className="row grow" style={{ gap: 6 }}>
-                  <span className="muted small nowrap">api key</span>
-                  <Input
-                    type="password" className="grow mono" autoComplete="off" placeholder={status?.keyStored ? "(unchanged unless you type a new one)" : "paste the key — it goes to the OS keychain; the policy never holds it"}
-                    value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={!!busy}
-                  />
+              {keyStoredForProvider && (
+                <label className="inline muted small key-store">
+                  <input type="checkbox" checked={forgetKey} disabled={!!busy} onChange={(e) => { setForgetKey(e.target.checked); if (e.target.checked) setApiKey(""); }} />{" "}
+                  Forget the stored key for {providerLabel(provider)} on save
                 </label>
               )}
             </div>
-          )}
-        </div>
+          </details>
+        )}
+
         <p className="muted small">
-          The policy records only the variable&apos;s NAME and, if you store the key, that the keychain is
-          the source — never the key. The agent container&apos;s only egress is the model endpoint this derives.
+          The policy records the provider, the model and where the key comes from — never the key. The agent
+          container&apos;s only route out is the endpoint this names.
         </p>
         <div className="row" style={{ justifyContent: "flex-end" }}>
-          <Button disabled={!!busy || (needsBaseURL && !baseURL.trim()) || needsKey} title={needsKey ? "type the key, or choose the variable" : ""} onClick={() => apply(false)}>
+          <Button disabled={!canSave} title={saveHint} onClick={() => apply(false)}>
             Save provider settings
           </Button>
           <Button
             variant="primary"
-            disabled={!!busy || !status?.dockerOk || (needsBaseURL && !baseURL.trim()) || needsKey}
-            title={!status?.dockerOk ? "docker must be available first" : needsKey ? "type the key, or choose the variable" : ""}
+            disabled={!canSave || !status?.dockerOk}
+            title={!status?.dockerOk ? "docker must be available first" : saveHint}
             onClick={() => apply(true)}
           >
             Prepare images now

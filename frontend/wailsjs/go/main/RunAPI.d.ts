@@ -26,6 +26,8 @@ export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedA
 
 export function InstallDocker():Promise<main.PrereqView>;
 
+export function ListModels(arg1:string,arg2:string,arg3:string):Promise<main.CatalogView>;
+
 export function PrereqStatus():Promise<main.PrereqView>;
 
 export function ProfileStatus(arg1:string,arg2:string):Promise<main.ProfileStatusView>;

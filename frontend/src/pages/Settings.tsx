@@ -185,7 +185,7 @@ export default function Settings({
         signing keys are shared with the CLI under the same directory.
       </p>
 
-      <RuntimeSetup />
+      <RuntimeSetup advanced />
 
       {signIn && (
         <Modal title={`Sign in to ${signIn.url}`} onClose={() => setSignIn(null)}>
