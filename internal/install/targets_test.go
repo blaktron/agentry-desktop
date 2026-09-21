@@ -74,7 +74,8 @@ func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
 		manifestDoc: map[string]any{
 			"schemaVersion": "2", "name": "demo", "namespace": "acme",
 			"modes": []string{"autonomous"}, "version": "1.0.0", "summary": "Prompt agent",
-			"runtime": map[string]any{"interfaces": []string{"agents-md", "claude-skill"}},
+			"runtime":     map[string]any{"interfaces": []string{"agents-md", "claude-skill"}},
+			"entrypoints": map[string]any{"instruction": "AGENT.md"}, "publish": map[string]any{"include": []string{"AGENT.md"}},
 		},
 		archive: buildArchiveFiles(t, map[string]string{"AGENT.md": "Do the agents-md thing.\n"}),
 	}
@@ -143,6 +144,7 @@ func TestFirstInstallCapabilityGate(t *testing.T) {
 		manifestDoc: map[string]any{
 			"schemaVersion": "1", "name": "demo", "namespace": "acme",
 			"kind": "skill", "version": "1.0.0", "summary": "Test agent",
+			"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md"}},
 			"capabilities": map[string]any{"exec": map[string]any{"commands": []string{"jq"}}},
 		},
 	}

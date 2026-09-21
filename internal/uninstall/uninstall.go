@@ -19,16 +19,13 @@
 package uninstall
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-desktop/internal/pathguard"
 
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -97,26 +94,6 @@ func Remove() (removed []string, problems []error) {
 	return removed, problems
 }
 
-// guard refuses a directory this code must never delete recursively: one
-// that is not absolute, a filesystem root, the home directory itself, or an
-// ancestor of it. The relocation variables are the person's to set, so a
-// directory anywhere else is theirs to lose.
-func guard(dir, home string) error {
-	if dir == "" || !filepath.IsAbs(dir) {
-		return errors.New("not an absolute path")
-	}
-	clean := filepath.Clean(dir)
-	if filepath.Dir(clean) == clean {
-		return errors.New("a filesystem root")
-	}
-	home = filepath.Clean(home)
-	if runtime.GOOS == "windows" {
-		// Paths compare case-insensitively there: c:\users\bob is C:\Users\Bob.
-		clean, home = strings.ToLower(clean), strings.ToLower(home)
-	}
-	rel, err := filepath.Rel(clean, home)
-	if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return errors.New("the home directory or one of its ancestors")
-	}
-	return nil
-}
+// guard is pathguard.RefuseDangerousDir: the refusal install's managed
+// clear shares (agentry-desktop#121).
+func guard(dir, home string) error { return pathguard.RefuseDangerousDir(dir, home) }

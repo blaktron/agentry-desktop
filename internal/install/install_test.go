@@ -107,6 +107,7 @@ func startRegistry(t *testing.T, f *fakeRegistry) string {
 		f.manifestDoc = map[string]any{
 			"schemaVersion": "1", "name": "demo", "namespace": "acme",
 			"kind": "skill", "version": f.version, "summary": "Test agent",
+			"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md"}},
 		}
 	}
 	if f.archive == nil {
@@ -324,6 +325,7 @@ func TestWidenedCapabilitiesRequireAcceptance(t *testing.T) {
 		manifestDoc: map[string]any{
 			"schemaVersion": "1", "name": "demo", "namespace": "acme",
 			"kind": "skill", "version": "2.0.0", "summary": "Test agent",
+			"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md"}},
 			"capabilities": map[string]any{
 				"network": map[string]any{"egress": []string{"api.example"}},
 			},
