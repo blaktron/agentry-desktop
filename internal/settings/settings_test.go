@@ -106,3 +106,29 @@ func TestValidateURLRefusesPlainHTTPOffLoopback(t *testing.T) {
 		}
 	}
 }
+
+// TestCodingAgentExportIsOffByDefault (agentry-desktop#148, plan D6): a
+// fresh settings file has "also install into <coding agent>" off and no
+// project directory for AGENTS.md; both round-trip through Save.
+func TestCodingAgentExportIsOffByDefault(t *testing.T) {
+	isolate(t)
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.InstallIntoCodingAgent || s.CodingAgentProjectDir != "" {
+		t.Fatalf("defaults: %+v", s)
+	}
+	s.InstallIntoCodingAgent = true
+	s.CodingAgentProjectDir = "/home/me/work/oncall"
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.InstallIntoCodingAgent || again.CodingAgentProjectDir != "/home/me/work/oncall" {
+		t.Fatalf("round trip: %+v", again)
+	}
+}

@@ -34,6 +34,10 @@ export function EndSession(arg1) {
   return window['go']['main']['RunAPI']['EndSession'](arg1);
 }
 
+export function ForgetHarness(arg1) {
+  return window['go']['main']['RunAPI']['ForgetHarness'](arg1);
+}
+
 export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
 }

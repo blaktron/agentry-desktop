@@ -18,6 +18,8 @@ export function ChosenHarnesses():Promise<Array<main.HarnessView>>;
 
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
+export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
+
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
 
 export function HarnessStatus():Promise<Array<main.HarnessView>>;

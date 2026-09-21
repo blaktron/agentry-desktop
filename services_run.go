@@ -322,6 +322,21 @@ func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
 	return r.HarnessStatus()
 }
 
+// ForgetHarness removes harness.<name> from the operator policy — Settings
+// → Coding agents un-choosing one (agentry-desktop#148), so the export the
+// policy implies can change — and reads the policy back. Nothing is
+// executed. The policy write takes the run lock like ChooseHarness's.
+func (r *RunAPI) ForgetHarness(name string) ([]HarnessView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	if err := run.ForgetHarness(name); err != nil {
+		return nil, err
+	}
+	return r.ChosenHarnesses()
+}
+
 // CatalogView is what ListModels returns: the provider's models by id
 // (with a display name where the provider gives one), what the key
 // turned out to be, and the sentence for a subscription token.

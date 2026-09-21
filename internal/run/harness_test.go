@@ -174,3 +174,44 @@ func TestHarnessStatusSurfacesABrokenPolicy(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// TestForgetHarnessRemovesTheChoiceAndNothingElse (agentry-desktop#148):
+// Settings → Coding agents un-chooses a coding agent by removing its
+// harness.<name> entry, so the export the policy implies can change (a
+// chosen Claude Code outranks Codex); every other block stays, forgetting
+// what is not chosen is a no-op, and a missing policy is not created.
+func TestForgetHarnessRemovesTheChoiceAndNothingElse(t *testing.T) {
+	isolateRunEnv(t)
+	path, _ := policy.DefaultPath()
+	if err := ForgetHarness("claude"); err != nil {
+		t.Fatalf("forgetting with no policy: %v", err)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("ForgetHarness created %s", path)
+	}
+	pol := policy.Default()
+	pol.Model = policy.Model{Provider: "custom", Name: "qwen", APIKeyEnv: "OPENAI_API_KEY", BaseURL: "https://llm.example.test/v1", ProxyAllow: []string{"llm.example.test:443"}}
+	pol.Exec.Packages = map[string]string{"jq": "jq"}
+	pol.Harness = map[string]policy.HarnessPolicy{"claude": {Path: "/opt/claude"}, "codex": {Path: "/opt/codex"}}
+	if err := policy.Save(path, pol); err != nil {
+		t.Fatal(err)
+	}
+	if err := ForgetHarness("claude"); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := policy.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, still := got.Harness["claude"]; still || got.Harness["codex"].Path != "/opt/codex" || got.Model.Name != "qwen" ||
+		len(got.Model.ProxyAllow) != 1 || got.Model.ProxyAllow[0] != "llm.example.test:443" || got.Exec.Packages["jq"] != "jq" {
+		t.Fatalf("after forgetting claude: %+v", got)
+	}
+	chosen, err := ChosenHarnesses()
+	if err != nil || len(chosen) != 1 || chosen[0].Name != "codex" {
+		t.Fatalf("chosen: %+v %v", chosen, err)
+	}
+	if err := ForgetHarness("goose"); err != nil {
+		t.Fatalf("forgetting what was never chosen: %v", err)
+	}
+}

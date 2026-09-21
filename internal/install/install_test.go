@@ -33,6 +33,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/trust"
+
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // fakeRegistry is one test registry serving a single agent version.
@@ -533,5 +535,149 @@ func TestRunnerTargetExportFollowsThePolicy(t *testing.T) {
 	}
 	if meta, ok := installdir.Load(releaseDir, plan.Digest); !ok || meta.Export != "claude-skill" {
 		t.Fatalf("install.json export: %+v", meta)
+	}
+}
+
+// TestExportPlanDerivesFromTheRunnerPlan (agentry-desktop#148): with
+// Settings' "also install into <coding agent>" on, a one-click install
+// writes the coding-agent export from the same verified bytes as the
+// runner-home install — one download, one attestation verdict, two
+// destinations, two records — and the export plan owes the gates its own
+// record owes.
+func TestExportPlanDerivesFromTheRunnerPlan(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	userHome := os.Getenv("HOME")
+	reg := startRegistry(t, &fakeRegistry{})
+	e := NewEngine()
+
+	runner, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	export, err := e.PrepareExport(runner.ID, "claude-skill", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if export.ID == runner.ID || export.Target != "claude-skill" || export.Paths.Dest != filepath.Join(userHome, ".claude", "skills", "demo") || !export.Paths.Managed {
+		t.Fatalf("export plan: %+v", export)
+	}
+	if export.Digest != runner.Digest || export.Attestation.State != runner.Attestation.State || export.Version != runner.Version || export.Registry != runner.Registry {
+		t.Fatalf("the export plan is not the runner plan's bytes: %+v vs %+v", export, runner)
+	}
+	if _, err := e.Confirm(runner.ID, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Confirm(export.ID, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(userHome, ".claude", "skills", "demo", "SKILL.md")); err != nil {
+		t.Fatalf("the Claude skill was not written: %v", err)
+	}
+	if _, ok := installdir.Load(installdir.ReleaseDir(home, "acme", "demo", "1.0.0", runner.Digest), runner.Digest); !ok {
+		t.Fatal("the runner-home install was not written")
+	}
+	st, _ := installed.Load()
+	if len(st.Records) != 2 {
+		t.Fatalf("two records expected: %+v", st.Records)
+	}
+	targets := map[string]bool{}
+	for _, r := range st.Records {
+		targets[r.Target] = true
+	}
+	if !targets[installdir.Target] || !targets["claude-skill"] {
+		t.Fatalf("records: %+v", st.Records)
+	}
+
+	// The export plan reads its own record: a second one-click install of
+	// the same version is an update for the export too, with the version
+	// it found; a first export of an egress-declaring release owes the
+	// capability consent even when the runner record already has it.
+	runner2, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	export2, err := e.PrepareExport(runner2.ID, "claude-skill", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if export2.PrevVersion != "1.0.0" || export2.NeedsCapabilityConfirm {
+		t.Fatalf("the export's own record was not read: %+v", export2)
+	}
+	project := t.TempDir()
+	agentsMD, err := e.PrepareExport(runner2.ID, "agents-md", project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agentsMD.PrevVersion != "" || agentsMD.Paths.AgentsMD != filepath.Join(project, "AGENTS.md") {
+		t.Fatalf("a first AGENTS.md export: %+v", agentsMD)
+	}
+	e.Cancel(runner2.ID)
+	e.Cancel(export2.ID)
+	e.Cancel(agentsMD.ID)
+
+	// An export needs a pending runner plan to derive from, and is one of
+	// the two coding-agent exports.
+	if _, err := e.PrepareExport(runner2.ID, "claude-skill", ""); err == nil {
+		t.Fatal("an export from a spent plan")
+	}
+	runner3, _ := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if _, err := e.PrepareExport(runner3.ID, installdir.Target, ""); err == nil {
+		t.Fatal("the runner target is not an export")
+	}
+	if _, err := e.PrepareExport(runner3.ID, "agents-md", ""); err == nil {
+		t.Fatal("AGENTS.md with no project directory")
+	}
+}
+
+// TestExportSettingsFollowThePolicyAndTheSwitch (agentry-desktop#148):
+// what Settings → Coding agents shows and what a one-click install with
+// the switch on writes — the export the operator policy implies (the same
+// rule as the runner home's export/), its folder, and whether a folder is
+// still to be chosen.
+func TestExportSettingsFollowThePolicyAndTheSwitch(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	userHome := os.Getenv("HOME")
+	skills := filepath.Join(userHome, ".claude", "skills")
+
+	// No policy, nothing set: AGENTS.md, no folder yet, off.
+	x, err := ExportSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x.Target != "agents-md" || x.Dir != "" || !x.NeedsDir || x.Enabled {
+		t.Fatalf("defaults: %+v", x)
+	}
+
+	pol := policy.Default()
+	pol.Harness = map[string]policy.HarnessPolicy{"claude": {}}
+	if err := policy.Save(filepath.Join(home, "policy.yaml"), pol); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := settings.Load()
+	s.InstallIntoCodingAgent = true
+	s.CodingAgentProjectDir = "/home/me/work/oncall"
+	if err := settings.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	x, err = ExportSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x.Target != "claude-skill" || x.Dir != skills || x.NeedsDir || !x.Enabled {
+		t.Fatalf("claude chosen: %+v", x)
+	}
+
+	// Codex alone: AGENTS.md in the project directory Settings holds.
+	pol.Harness = map[string]policy.HarnessPolicy{"codex": {}}
+	if err := policy.Save(filepath.Join(home, "policy.yaml"), pol); err != nil {
+		t.Fatal(err)
+	}
+	x, _ = ExportSettings()
+	if x.Target != "agents-md" || x.Dir != "/home/me/work/oncall" || x.NeedsDir {
+		t.Fatalf("codex chosen: %+v", x)
 	}
 }
