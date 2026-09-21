@@ -87,8 +87,14 @@ func pubPEM(t *testing.T, key *ecdsa.PrivateKey) string {
 // SKILL.md without frontmatter (so the exporter's injection is observable).
 func buildTestArchive(t *testing.T) []byte {
 	t.Helper()
+	return buildArchiveWith(t, "SKILL.md", "# Demo\n\nDo the demo thing.\n")
+}
+
+// buildArchiveWith packs a workspace holding one file.
+func buildArchiveWith(t *testing.T, name, body string) []byte {
+	t.Helper()
 	ws := t.TempDir()
-	if err := os.WriteFile(filepath.Join(ws, "SKILL.md"), []byte("# Demo\n\nDo the demo thing.\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(ws, name), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	files, err := pkgarchive.WalkWorkspace(ws)
@@ -679,5 +685,63 @@ func TestExportSettingsFollowThePolicyAndTheSwitch(t *testing.T) {
 	x, _ = ExportSettings()
 	if x.Target != "agents-md" || x.Dir != "/home/me/work/oncall" || x.NeedsDir {
 		t.Fatalf("codex chosen: %+v", x)
+	}
+}
+
+// TestClaudeSkillExportOfAnInstructionOnlyRelease (agentry-desktop#162):
+// the desktop's Claude-skill export is the CLI's writer — a prompt agent
+// (AGENT.md, no SKILL.md) gets a SKILL.md made from its instruction with
+// the contract's allowed-tools, as the CLI writes it (agentry-cli#193);
+// a release that names a skill file it does not carry is still refused.
+func TestClaudeSkillExportOfAnInstructionOnlyRelease(t *testing.T) {
+	isolate(t)
+	archive := buildArchiveWith(t, "AGENT.md", "# Changelog\n\nRead the git log.\n")
+	doc := map[string]any{
+		"schemaVersion": "2", "name": "demo", "namespace": "acme", "version": "1.0.0", "summary": "Drafts a changelog.",
+		"license": "Apache-2.0", "modes": []string{"autonomous"},
+		"entrypoints":  map[string]any{"instruction": "AGENT.md"},
+		"runtime":      map[string]any{"interfaces": []string{"agents-md"}},
+		"capabilities": map[string]any{"exec": map[string]any{"commands": []string{"git"}}},
+		"publish":      map[string]any{"include": []string{"AGENT.md"}},
+	}
+	reg := startRegistry(t, &fakeRegistry{archive: archive, manifestDoc: doc})
+	e := NewEngine()
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "claude-skill", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Confirm(plan.ID, false, true, false); err != nil {
+		t.Fatalf("the Claude-skill export of an instruction-only release: %v", err)
+	}
+	skill, err := os.ReadFile(filepath.Join(plan.Paths.Dest, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("SKILL.md was not written: %v", err)
+	}
+	for _, want := range []string{"name: demo", "description: Drafts a changelog.", "allowed-tools: Bash(git:*)", "# Changelog\n\nRead the git log.\n"} {
+		if !strings.Contains(string(skill), want) {
+			t.Fatalf("SKILL.md lacks %q:\n%s", want, skill)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(plan.Paths.Dest, "AGENT.md")); err != nil {
+		t.Fatalf("the instruction stays beside the skill: %v", err)
+	}
+	st, _ := installed.Load()
+	if len(st.Records) != 1 || st.Records[0].Target != "claude-skill" {
+		t.Fatalf("record: %+v", st.Records)
+	}
+
+	// A named skill file the release does not carry: refused by name.
+	doc2 := map[string]any{
+		"schemaVersion": "1", "name": "demo", "namespace": "acme", "kind": "skill", "version": "1.0.0", "summary": "s",
+		"entrypoints": map[string]any{"skill": "skills/LIAR.md"}, "publish": map[string]any{"include": []string{"AGENT.md"}},
+	}
+	reg2 := startRegistry(t, &fakeRegistry{archive: archive, manifestDoc: doc2})
+	plan2, err := e.Prepare(context.Background(), reg2, "acme/demo", "claude-skill", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.Confirm(plan2.ID, false, false, false)
+	if err == nil || !strings.Contains(err.Error(), "skills/LIAR.md") {
+		t.Fatalf("a named skill file the release does not carry: %v", err)
 	}
 }

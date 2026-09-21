@@ -643,35 +643,15 @@ func manifestFromArchive(staging string, fromResolve *manifest.Manifest, plan Pl
 	return m, nil
 }
 
-// exportClaudeSkill writes the archive into Dest, guaranteeing SKILL.md
-// frontmatter (§5.6 claude-skill row).
+// exportClaudeSkill lays the release down as the Claude skill with the
+// CLI's writer, so the two clients' installs of one release are the same
+// bytes (§5.6; agentry-desktop#162). prepareDest — the managed clear and
+// its guards — runs first.
 func exportClaudeSkill(staging string, p Paths, m *manifest.Manifest) error {
 	if err := prepareDest(p); err != nil {
 		return err
 	}
-	if err := copyTree(staging, p.Dest); err != nil {
-		return err
-	}
-	skillRel := m.Entrypoints.Skill
-	if skillRel == "" {
-		skillRel = "SKILL.md"
-	}
-	// The entrypoint is a manifest string (validated at Prepare, and taken
-	// from the archive's own manifest when it carries one); the file it
-	// names must be inside the directory just written, whatever the string.
-	skillPath := filepath.Join(p.Dest, filepath.FromSlash(skillRel))
-	if !pathguard.Under(p.Dest, skillPath) {
-		return fmt.Errorf("skill entrypoint %q resolves outside the install directory — refusing to write it", skillRel)
-	}
-	content, err := os.ReadFile(skillPath) //nolint:gosec // under p.Dest, checked just above
-	if err != nil {
-		return fmt.Errorf("read skill entrypoint %s: %w", skillRel, err)
-	}
-	withFM := export.EnsureSkillFrontmatter(content, m.Name, m.Summary)
-	if err := os.WriteFile(skillPath, withFM, 0o644); err != nil { //nolint:gosec // under p.Dest, checked above; skill files are world-readable content
-		return fmt.Errorf("write skill entrypoint: %w", err)
-	}
-	return nil
+	return export.WriteClaudeSkillTree(staging, p.Dest, m)
 }
 
 // exportAgentsMD extracts to Dest and upserts the agent's section in
@@ -680,7 +660,7 @@ func exportAgentsMD(staging string, p Paths, m *manifest.Manifest, ns, version s
 	if err := prepareDest(p); err != nil {
 		return err
 	}
-	if err := copyTree(staging, p.Dest); err != nil {
+	if err := export.CopyTree(staging, p.Dest); err != nil {
 		return err
 	}
 	existing, err := os.ReadFile(p.AgentsMD) //nolint:gosec // fixed doc name under a user-chosen dir
@@ -713,33 +693,6 @@ func undeclaredTargetWarning(m *manifest.Manifest, target string) string {
 		}
 	}
 	return fmt.Sprintf("manifest runtime.interfaces %v does not list target %q", m.Runtime.Interfaces, target)
-}
-
-// copyTree copies the extracted archive into dest, preserving each file's
-// permission bits (the archive normalizes modes, D-15).
-func copyTree(src, dest string) error {
-	err := filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, rerr := filepath.Rel(src, p)
-		if rerr != nil {
-			return rerr
-		}
-		target := filepath.Join(dest, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, rerr := os.ReadFile(p) //nolint:gosec // reading our own staging dir
-		if rerr != nil {
-			return rerr
-		}
-		return os.WriteFile(target, data, info.Mode().Perm())
-	})
-	if err != nil {
-		return fmt.Errorf("copy files to %s: %w", dest, err)
-	}
-	return nil
 }
 
 // newPlanID returns a random 16-hex-char id.
