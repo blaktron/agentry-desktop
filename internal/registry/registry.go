@@ -179,3 +179,12 @@ func Readme(ctx context.Context, client *apiclient.ClientWithResponses, ns, name
 	}
 	return string(resp.Body), nil
 }
+
+// Unscanned says whether the registry admitted the resolved version
+// without a scan (core M21): `scanStatus: skipped`, read before any
+// attestation is looked for, because the absence is the fact and not a
+// missing signature. A registry that predates the field never published
+// one, so an absent answer is "no".
+func Unscanned(res *apiclient.ResolveResult) bool {
+	return res != nil && res.ScanStatus != nil && *res.ScanStatus == apiclient.ResolveResultScanStatusSkipped
+}

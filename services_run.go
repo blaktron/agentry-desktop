@@ -468,6 +468,9 @@ type RunResultView struct {
 // overrides the tool-call budget (0 = unlimited, -1 = policy default).
 // acceptUnsigned is the explicit consent for a release without an
 // attestation; without it such a run is refused in Go (desktop#3).
+// acceptUnscanned is the consent for a release the registry admitted
+// without a scan (M23, D-029) — its own, which acceptUnsigned does not
+// give — enforced in Go the same way, on every run from the cache too.
 func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*RunResultView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy

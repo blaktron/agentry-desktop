@@ -558,8 +558,13 @@ type FindingView struct {
 // ReportView is the security report card (§10.3): findings by severity,
 // ruleset version, scan date — never a "safe" claim.
 type ReportView struct {
-	VersionStatus  string         `json:"versionStatus"`
-	ScanStatus     string         `json:"scanStatus,omitempty"`
+	VersionStatus string `json:"versionStatus"`
+	ScanStatus    string `json:"scanStatus,omitempty"`
+	// Verdict is what the report is (core M21): `scanned` where a run
+	// stands behind it, `unscanned` where the registry admitted the
+	// version without one — never conflated with a scan that found
+	// nothing — and empty while a scan is pending.
+	Verdict        string         `json:"verdict,omitempty"`
 	RulesetVersion string         `json:"rulesetVersion,omitempty"`
 	JudgeModel     string         `json:"judgeModel,omitempty"`
 	FinishedAt     string         `json:"finishedAt,omitempty"`
@@ -584,6 +589,9 @@ func (b *BrowseAPI) Report(reg, ns, name, version string) (*ReportView, error) {
 	out := &ReportView{VersionStatus: string(r.VersionStatus), Findings: []FindingView{}}
 	if r.ScanStatus != nil {
 		out.ScanStatus = *r.ScanStatus
+	}
+	if r.Verdict != nil {
+		out.Verdict = string(*r.Verdict)
 	}
 	if r.RulesetVersion != nil {
 		out.RulesetVersion = *r.RulesetVersion

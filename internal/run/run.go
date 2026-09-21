@@ -93,6 +93,13 @@ type Signature struct {
 // DigestSuffix is the 12-char digest form used in directory names.
 func (s *Signature) DigestSuffix() string { return digestSuffix(s.Digest) }
 
+// Unscanned says whether the registry admitted the resolved version
+// without a scan (core M21): read from the resolve answer, before any
+// attestation is looked for, because the absence is the fact and not a
+// missing signature. A registry that predates the field never published
+// one, so a nil answer is "no".
+func (s *Signature) Unscanned() bool { return registry.Unscanned(s.resolve) }
+
 // ResolveSignature resolves a ref against a registry and decodes the
 // manifest the resolve result carries. installIntent adds the CLI's
 // X-Agentry-Install hint (a run is an install, §R5).
@@ -564,10 +571,11 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 	}
 }
 
-// materialize resolves the verified install for a signature, reusing the
-// CLI's cache when the digest matches and creating it (download → digest
-// check → DSSE verify → hardened extract) when not — the same gate
-// `agentry install` and `agentry run` apply (§R1).
+// materialize resolves the install for a signature, reusing the CLI's
+// cache when the digest matches — under the same consent gate the fresh
+// path applies, asked again on every run — and creating it (download →
+// digest check → DSSE verify → hardened extract) when not: the gate
+// `agentry install` and `agentry run` apply (§R1, DR-21, DR-27).
 func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (*installMeta, string, error) {
 	installDir := filepath.Join(home, "agents", sig.Namespace, sig.Name,
 		fmt.Sprintf("%s-%s", sig.Version, sig.DigestSuffix()))
@@ -576,7 +584,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 		// install cached before the unscanned state existed, against a
 		// registry that now says the version was admitted without a
 		// scan, is unscanned.
-		if sig.resolve != nil && sig.resolve.ScanStatus != nil && *sig.resolve.ScanStatus == apiclient.ResolveResultScanStatusSkipped && meta.Attestation.State != trust.StateUnscanned {
+		if sig.Unscanned() && meta.Attestation.State != trust.StateUnscanned {
 			meta.Attestation = receipt.Attestation{State: trust.StateUnscanned}
 		}
 		// The cache remembers the verdict, not the consent: the gate is
@@ -637,18 +645,25 @@ func cachedAttestationGate(meta *installMeta, acceptUnsigned, acceptUnscanned bo
 	switch meta.Attestation.State {
 	case trust.StateUnscanned:
 		if !acceptUnscanned {
-			return fmt.Errorf("unscanned — the registry admitted %s without a scan (cached install); tick \"Run an unscanned release\" to run it anyway", meta.Ref)
+			return fmt.Errorf("unscanned — the registry admitted %s without a scan (cached install): no findings, no report and no attestation stand behind it; tick \"Run an unscanned release\" to run it anyway", meta.Ref)
 		}
 		meta.Attestation.Consent = receipt.ConsentAllowUnscanned
 		_, _ = fmt.Fprintf(logw, "warning: unscanned — running %s (cached install), which the registry admitted without a scan, because it was explicitly accepted; the run is marked unscanned in its receipts\n", meta.Ref)
 	case trust.StateUnsigned, "local":
+		// "local" is the CLI's record of an unpublished directory it ran;
+		// the two share this cache, and the CLI spells the state without
+		// a constant.
 		if !acceptUnsigned {
 			return fmt.Errorf("unsigned — the registry offers no attestation for %s (cached install); tick \"Run an unsigned release\" to run it anyway", meta.Ref)
 		}
 		meta.Attestation.Consent = receipt.ConsentAllowUnsigned
 		_, _ = fmt.Fprintf(logw, "warning: unsigned — running %s (cached install) because it was explicitly accepted; the run is marked unsigned in its receipts\n", meta.Ref)
-	default:
+	case trust.StateVerified:
 		_, _ = fmt.Fprintf(logw, "using verified install %s\n", meta.Ref)
+	default:
+		// mismatch and unverifiable never reach the cache; a state this
+		// build does not know is not run on the strength of a cache file.
+		return fmt.Errorf("attestation %s for %s (cached install) — refusing to run", meta.Attestation.State, meta.Ref)
 	}
 	return nil
 }
@@ -663,7 +678,7 @@ func cachedAttestationGate(meta *installMeta, acceptUnsigned, acceptUnscanned bo
 // verify. The receipt names the consent that admitted the release.
 func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (receipt.Attestation, error) {
 	var att trust.AttestationResult
-	if sig.resolve.ScanStatus != nil && *sig.resolve.ScanStatus == apiclient.ResolveResultScanStatusSkipped {
+	if sig.Unscanned() {
 		att = trust.Unscanned()
 	} else {
 		attURL := ""

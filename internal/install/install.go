@@ -334,7 +334,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 // outcome, read before any attestation is looked for: the absence is the
 // fact, not a missing signature.
 func verifyAttestation(ctx context.Context, regURL, token string, res *apiclient.ResolveResult, computed string) trust.AttestationResult {
-	if res.ScanStatus != nil && *res.ScanStatus == apiclient.ResolveResultScanStatusSkipped {
+	if registry.Unscanned(res) {
 		return trust.Unscanned()
 	}
 	attURL := ""

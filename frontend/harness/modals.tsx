@@ -108,7 +108,7 @@ g.go = { main: {
       capabilities: { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
       needsCapabilityConfirm: true, prevVersion: "", diff: null, requiresWidenedConfirm: false,
       vulnerabilities: [], vulnerabilityLine: "have no known high or critical advisories", vulnerabilityRefusal: "",
-      target: "agents-md", dir: "/home/chris/agents/incident-summarizer", managed: true,
+      target: "agents-md", paths: { dest: "/home/chris/agents/incident-summarizer", managed: true, managedRoot: "/home/chris/agents", agentsMd: "/home/chris/agents/AGENTS.md" },
     }),
     Confirm: async () => ({ dir: "/home/chris/agents/incident-summarizer" }),
     Cancel: async () => {},

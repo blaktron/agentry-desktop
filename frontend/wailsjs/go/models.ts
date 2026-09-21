@@ -1331,6 +1331,7 @@ export namespace main {
 	export class ReportView {
 	    versionStatus: string;
 	    scanStatus?: string;
+	    verdict?: string;
 	    rulesetVersion?: string;
 	    judgeModel?: string;
 	    finishedAt?: string;
@@ -1345,6 +1346,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.versionStatus = source["versionStatus"];
 	        this.scanStatus = source["scanStatus"];
+	        this.verdict = source["verdict"];
 	        this.rulesetVersion = source["rulesetVersion"];
 	        this.judgeModel = source["judgeModel"];
 	        this.finishedAt = source["finishedAt"];

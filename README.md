@@ -25,8 +25,11 @@ The product never claims an agent is "safe". The language is always:
   capability contract → export → record. The app diffs that contract
   against what this machine previously accepted, and any widening needs
   explicit confirmation; an unsigned release requires an explicit checkbox,
-  mirroring the CLI's `--allow-unsigned`, and a signature that fails to
-  verify aborts — there is no override for that. The wizard shows the
+  mirroring the CLI's `--allow-unsigned`; an unscanned release — one the
+  registry admitted without a scan — requires its own checkbox, mirroring
+  `--allow-unscanned`, which the unsigned one does not give, and a run of
+  one names that consent in its receipt; a signature that fails to verify
+  aborts — there is no override for that. The wizard shows the
   registry's verdict on each declared MCP server, and a known high or
   critical advisory refuses runs by default. The run panel's "allow
   vulnerable MCP servers" override lifts that for one run and is recorded in

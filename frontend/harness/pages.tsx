@@ -12,14 +12,17 @@ const hits = [
   { namespace: "acme", name: "pr-triage", summary: "Reads an open PR and drafts a triage note under a strict egress allowlist.", modes: ["autonomous", "interactive"], quarantine: "", installs30d: 7 },
   { namespace: "labs", name: "log-explainer", summary: "An interactive session over a log bundle; no filesystem write, no network.", modes: ["interactive"], quarantine: "", installs30d: 0 },
 ];
+// #agent-unscanned (M23): the latest version was admitted without a scan
+// — its own verdict, its own stripe, no attestation to verify.
+const unscanned = window.location.hash === "#agent-unscanned";
 const detail = {
   agent: { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "" },
   latest: "1.2.0", latestDigest: "sha256:9c356fd0d20fef07123ba7c4a1b2c3d4e5f6a7b8",
   latestCapabilities: { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
   dependencyAlerts: [],
-  latestScanStatus: window.location.hash === "#agent-unscanned" ? "skipped" : "pipeline",
+  latestScanStatus: unscanned ? "skipped" : "pipeline",
   versions: [
-    { version: "1.2.0", channel: "stable", status: "published", publishedAt: "2026-09-01T10:00:00Z", createdAt: "2026-09-01T10:00:00Z", archiveDigest: "sha256:9c356fd0", yanked: false, scanStatus: window.location.hash === "#agent-unscanned" ? "skipped" : "pipeline" },
+    { version: "1.2.0", channel: "stable", status: "published", publishedAt: "2026-09-01T10:00:00Z", createdAt: "2026-09-01T10:00:00Z", archiveDigest: "sha256:9c356fd0", yanked: false, scanStatus: unscanned ? "skipped" : "pipeline" },
     { version: "1.1.0", channel: "stable", status: "published", publishedAt: "2026-08-20T10:00:00Z", createdAt: "2026-08-20T10:00:00Z", archiveDigest: "sha256:d20fef07", yanked: false },
   ],
 };
@@ -31,9 +34,6 @@ const report = {
     { severity: "low", scanner: "S1", title: "Large vendored file", filePath: "vendor/data.bin", lineStart: 0, excerpt: "", verdict: "open", verdictReason: "" },
   ],
 };
-// #agent-unscanned (M23): the latest version was admitted without a scan
-// — its own verdict, its own stripe, no attestation to verify.
-const unscanned = window.location.hash === "#agent-unscanned";
 const prov = unscanned
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
   : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified", rulesetVersion: "2026.09.1", judgeModel: "claude-sonnet-4-5" };
@@ -73,7 +73,7 @@ g.go = { main: {
     Search: async () => (fresh ? { results: hits } : { total: hits.length, results: hits }),
     Agent: async () => detail,
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
-    Report: async () => report,
+    Report: async () => (unscanned ? { versionStatus: "published", scanStatus: "skipped", verdict: "unscanned", findings: [] } : report),
     Provenance: async () => prov,
   },
   InstallAPI: { ListInstalled: async () => (fresh ? [] : installedRecs), CheckUpdates: async () => [], Forget: async () => undefined },

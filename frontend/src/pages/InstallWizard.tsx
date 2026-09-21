@@ -180,7 +180,7 @@ export default function InstallWizard({
                   <SignedBadge att={plan.attestation} />{" "}
                   <strong>The registry admitted this version without a scan.</strong>{" "}
                   <span className="muted">
-                    Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation stand behind it. Nothing about its contents was checked.
+                    Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation stand behind it. No scanner looked at its contents.
                   </span>
                 </p>
                 <label className="check-row">

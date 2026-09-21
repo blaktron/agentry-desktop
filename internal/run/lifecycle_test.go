@@ -9,7 +9,6 @@ package run
 import (
 	"context"
 	"encoding/json"
-	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 )
 
 // resolveFixture resolves the fixture release against a fake registry.
@@ -133,14 +133,22 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 	if got := fr.hitCount("/archive.tar.zst"); got != 1 {
 		t.Fatalf("cached install re-downloaded the archive (%d hits)", got)
 	}
-	// The reuse is narrated honestly: a cached unsigned release says so,
-	// and that the consent given now admits it, rather than calling
-	// itself verified (M23; the CLI's DR-21 shape).
-	if !strings.Contains(log.String(), "cached install") || !strings.Contains(log.String(), meta.Attestation.State) {
+	// The fixture's registry publishes no attestation, so this install is
+	// unsigned; the reuse is narrated honestly — a cached unsigned release
+	// says so, and that the consent given now admits it — rather than
+	// calling itself verified (M23; the CLI's DR-21 shape), and without
+	// the consent it is refused.
+	if meta.Attestation.State != "unsigned" {
+		t.Fatalf("the fixture's install is %q, want unsigned", meta.Attestation.State)
+	}
+	if !strings.Contains(log.String(), "cached install") || !strings.Contains(log.String(), "unsigned") {
 		t.Errorf("reuse must say what it is doing with what:\n%s", log.String())
 	}
-	if meta.Attestation.State == "unsigned" && meta2.Attestation.Consent != receipt.ConsentAllowUnsigned {
+	if meta2.Attestation.Consent != receipt.ConsentAllowUnsigned {
 		t.Errorf("a cached unsigned run carries consent %q, want %q", meta2.Attestation.Consent, receipt.ConsentAllowUnsigned)
+	}
+	if _, _, err := materialize(context.Background(), sig, home, false, false, &log); err == nil || !strings.Contains(err.Error(), "cached install") {
+		t.Fatalf("a cached unsigned install ran without the consent: %v", err)
 	}
 }
 

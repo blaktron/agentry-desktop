@@ -250,6 +250,14 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	if err := r.hostedIdle(); err != nil {
 		return nil, err
 	}
+	// A release the registry admitted without a scan is not run In
+	// Agentry from here (M23, D-029): the platform records no consent for
+	// it yet (agentry-enterprise#55), and a run nobody consented to would
+	// carry a receipt that says nothing of it. The page withholds the
+	// mode; this is the same rule in Go, for any caller of the binding.
+	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil && sig.Unscanned() {
+		return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
+	}
 	files, err := hostedrun.StageInputs(inputPaths)
 	if err != nil {
 		return nil, err

@@ -32,10 +32,13 @@ agents" is clicked, `#4-nothing` the Nothing set up ending when every step
 was skipped — agentry-desktop#89).
 
 The **unscanned** states (M23, agentry-desktop#80) are `#agent-unscanned`
-in `pages.html` (the badge in the header, the stripe on the provenance
-card) and `#runpanel-unscanned` / `#install-unscanned` in `modals.html`
-(the notice with its own stripe and the consent checkbox; In Agentry not
-offered for such a release).
+in `pages.html` — shot twice, on the provenance tab (the badge in the
+header, the stripe on the card) and on the report tab (unscanned as its
+own verdict, never "scanned, 0 findings") — and `#runpanel-unscanned` /
+`#install-unscanned` in `modals.html` (the notice with its own stripe and
+the consent checkbox; In Agentry not offered for such a release; the
+install shot is the wizard's review, one click past Prepare). A state
+behind a click names it in `shots.mjs` (`click`).
 
 The run panel's **In Agentry** states (hosted runs M6, agentry-desktop#77)
 are hashes of the same entry: `#runpanel-hosted` (the mode chosen, with the

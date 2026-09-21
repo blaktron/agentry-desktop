@@ -280,7 +280,6 @@ input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--color-ac
    report card carries the worst severity — drawn inset so it follows the
    radius and moves nothing. */
 .stripe-unscanned { box-shadow: inset 3px 0 0 0 var(--color-unscanned); }
-.notice-unscanned { border-color: color-mix(in srgb, var(--color-unscanned) 50%, transparent); background: color-mix(in srgb, var(--color-unscanned) var(--badge-tint), var(--color-bg)); }
 
 .sev { font-weight: 700; font-size: 11px; letter-spacing: 0.03em; }
 .sev.critical { color: var(--color-sev-critical); }
@@ -509,6 +508,7 @@ button.ghost:hover, .btn.ghost:hover {
 .notice-info { border-color: var(--color-border); background: var(--color-surface); }
 .notice-ok { border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); background: color-mix(in srgb, var(--color-ok) var(--badge-tint), var(--color-bg)); }
 .notice-warn { border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), var(--color-bg)); }
+.notice-unscanned { border-color: color-mix(in srgb, var(--color-unscanned) 50%, transparent); background: color-mix(in srgb, var(--color-unscanned) var(--badge-tint), var(--color-bg)); }
 
 /* Result / list card (the website's AgentRow). A calm surface panel that
    lifts to the accent border on hover when it is clickable. */

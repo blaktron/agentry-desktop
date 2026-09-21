@@ -267,8 +267,9 @@ export default function AgentPage({
               {prov?.state === "unscanned" && (
                 <p className="muted small">
                   The registry admitted this version without a scan: its organization&apos;s administrator took the agent off
-                  the pipeline, so no findings, no report and no attestation stand behind it. Installing or running it asks
-                  for that consent, its own — accepting an unsigned release does not cover it.
+                  the pipeline, so no findings, no report and no attestation stand behind it, and no scanner looked at its
+                  contents. Installing or running it asks for that consent, its own — accepting an unsigned release does not
+                  cover it.
                 </p>
               )}
               {prov && prov.state !== "verified" && prov.state !== "unscanned" && <p className="muted small">{prov.detail}</p>}
@@ -448,6 +449,24 @@ export function ReportCard({
   const counts = report.findingCounts ?? {};
   const total = Object.values(counts).reduce((n, v) => n + v, 0);
   const order = ["critical", "high", "medium", "low", "info"];
+
+  // Unscanned (core M21): the registry admitted the version without a
+  // scan, and an empty report must never read as "scanned, 0 findings".
+  if (report.verdict === "unscanned" || report.scanStatus === "skipped") {
+    return (
+      <div className="notice notice-unscanned stripe-unscanned">
+        <div className="row">
+          <span className="badge unscanned">unscanned</span>
+          <strong>The registry admitted this version without a scan.</strong>
+        </div>
+        <p className="muted small" style={{ marginBottom: 0 }}>
+          Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation
+          stand behind it. No scanner looked at its contents. Installing or running it asks for that consent, its own.
+          Status {report.versionStatus}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
