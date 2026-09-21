@@ -89,3 +89,20 @@ func TestSetOnboardedPreservesRegistries(t *testing.T) {
 		t.Fatalf("registries changed: got %d, want %d", len(s.Registries), len(want.Registries))
 	}
 }
+
+// A registry over plain http off loopback would carry the keychain PAT in
+// clear, and the token is keyed by host: http://secureagentry.net resolves
+// the same entry as https://secureagentry.net (security review 2026-09-20
+// §8.6; D-030). Loopback keeps http for a dev stack.
+func TestValidateURLRefusesPlainHTTPOffLoopback(t *testing.T) {
+	for _, u := range []string{"http://secureagentry.net", "http://10.0.0.5:8080", "http://agentry:8080", "ftp://registry.example", "https://"} {
+		if err := ValidateURL(u); err == nil {
+			t.Errorf("%q accepted", u)
+		}
+	}
+	for _, u := range []string{"https://dev.secureagentry.net", "http://localhost:8080", "http://127.0.0.1:8080", "http://[::1]:8080"} {
+		if err := ValidateURL(u); err != nil {
+			t.Errorf("%q refused: %v", u, err)
+		}
+	}
+}

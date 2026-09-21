@@ -11,6 +11,7 @@ import (
 	"errors"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,6 +76,9 @@ type SessionEventView struct {
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
 func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*SessionView, error) {
+	if err := r.runGates(ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
+		return nil, err
+	}
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -92,6 +96,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		AcceptUnscanned:    acceptUnscanned,
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
+		PathPicked:         r.app.requirePicked,
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -472,6 +477,9 @@ type RunResultView struct {
 // without a scan (M23, D-029) — its own, which acceptUnsigned does not
 // give — enforced in Go the same way, on every run from the cache too.
 func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*RunResultView, error) {
+	if err := r.runGates(ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
+		return nil, err
+	}
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
@@ -491,6 +499,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		AcceptUnscanned:    acceptUnscanned,
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
+		PathPicked:         r.app.requirePicked,
 	}, logw)
 	if err != nil {
 		return nil, err
@@ -632,3 +641,34 @@ func (w *lineEventWriter) emit(line string) {
 
 // Compile-time check: the engine hands us an io.Writer contract.
 var _ io.Writer = (*lineEventWriter)(nil)
+
+// runGates is what RunAgent and StartSession check before the engine is
+// asked for anything (D-030): every path came from a native picker, and a
+// consent the page passed is put to the person in a native dialog. The
+// page's checkboxes remain what they were — the record of what is being
+// accepted — and the dialog is the gate.
+func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned bool) error {
+	for _, p := range inputPaths {
+		if err := r.app.requirePicked("input", p); err != nil {
+			return err
+		}
+	}
+	if err := r.app.requirePicked("output directory", outDir); err != nil {
+		return err
+	}
+	var accepting []string
+	if acceptUnsigned {
+		accepting = append(accepting, "a release with no attestation")
+	}
+	if acceptUnscanned {
+		accepting = append(accepting, "a release the registry admitted without a scan")
+	}
+	if allowVulnerableMCP {
+		accepting = append(accepting, "a declared MCP server with a known vulnerability")
+	}
+	if len(accepting) == 0 {
+		return nil
+	}
+	return r.app.askConsent("Run "+ref+" anyway?",
+		"This run accepts "+strings.Join(accepting, ", and ")+". The receipt will record the consent. Continue?")
+}

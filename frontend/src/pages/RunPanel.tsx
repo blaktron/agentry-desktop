@@ -407,7 +407,7 @@ export default function RunPanel({
                     </select>
                   ) : q.type === "file" ? (
                     <>
-                      <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} placeholder="path on this machine" disabled={running} />
+                      <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} readOnly placeholder="a file on this machine — choose it" disabled={running} />
                       <Button
                         disabled={running}
                         onClick={async () => {
@@ -535,15 +535,18 @@ export default function RunPanel({
           </p>
         )}
         <div className="row">
+          {/* Filled by the picker only: Go accepts a path a native dialog
+              returned in this process and refuses one the page typed (D-030). */}
           <input
             type="text"
             className="grow mono"
             placeholder={`output folder — default ${defaultOutHint}`}
             value={outDir}
-            onChange={(e) => setOutDir(e.target.value)}
+            readOnly
             disabled={running}
           />
           <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
+          {outDir && <Button onClick={() => setOutDir("")} disabled={running}>Default</Button>}
         </div>
         <div className="row" style={{ marginTop: 8 }}>
           <label className="row" style={{ gap: 6 }}>

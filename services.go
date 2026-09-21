@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
@@ -667,6 +668,21 @@ func (i *InstallAPI) Prepare(reg, ref, target, dir string) (*install.Plan, error
 // release the registry admitted without a scan, which acceptUnsigned does
 // not give (M23).
 func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, acceptUnscanned bool) (*install.Result, error) {
+	// A consent the page passed is put to the person in a native dialog
+	// the page cannot answer (D-030); the capabilities acceptance is the
+	// wizard's own reading of the contract and stays the page's.
+	var accepting []string
+	if acceptUnsigned {
+		accepting = append(accepting, "a release with no attestation")
+	}
+	if acceptUnscanned {
+		accepting = append(accepting, "a release the registry admitted without a scan")
+	}
+	if len(accepting) > 0 {
+		if err := i.app.askConsent("Install anyway?", "This install accepts "+strings.Join(accepting, ", and ")+". Continue?"); err != nil {
+			return nil, err
+		}
+	}
 	return i.engine.Confirm(planID, acceptUnsigned, acceptCapabilities, acceptUnscanned)
 }
 

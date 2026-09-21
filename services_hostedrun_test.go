@@ -410,6 +410,7 @@ func TestStartHostedRunStreamsAndDownloads(t *testing.T) {
 		t.Fatal(err)
 	}
 	outDir := t.TempDir()
+	r.app.markPicked(inputDir, outDir) // what the native pickers record (D-030)
 
 	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"})
 	if err != nil {
@@ -495,7 +496,9 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
 
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, t.TempDir(), nil)
+	out1 := t.TempDir()
+	r.app.markPicked(out1)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil)
 	if err != nil {
 		t.Fatalf("a refusal is a result, not an error: %v", err)
 	}
@@ -518,7 +521,9 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 			`"detail":"One hosted run at a time per account: wait for it to finish, or cancel it."}`))
 	}
 	f.mu.Unlock()
-	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, t.TempDir(), nil)
+	out2 := t.TempDir()
+	r.app.markPicked(out2)
+	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

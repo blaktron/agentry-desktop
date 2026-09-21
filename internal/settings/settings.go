@@ -16,6 +16,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -210,13 +211,26 @@ func ValidateURL(regURL string) error {
 	if err != nil {
 		return fmt.Errorf("invalid registry URL: %w", err)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("registry URL must be http(s), got %q", regURL)
-	}
-	if u.Host == "" {
+	if u.Host == "" || u.Hostname() == "" {
 		return fmt.Errorf("registry URL %q has no host", regURL)
 	}
-	return nil
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		// The keychain token is keyed by host, so a plain-http registry at
+		// a real host would carry the same PAT in clear (security review
+		// 2026-09-20 §8.6; D-030). A dev stack on this machine keeps http.
+		if h := u.Hostname(); h == "localhost" || strings.HasSuffix(h, ".localhost") {
+			return nil
+		}
+		if ip := net.ParseIP(u.Hostname()); ip != nil && ip.IsLoopback() {
+			return nil
+		}
+		return fmt.Errorf("registry URL %q must use https off this machine: the token would travel in clear", regURL)
+	default:
+		return fmt.Errorf("registry URL must be https (or http on this machine), got %q", regURL)
+	}
 }
 
 // TokenFor resolves the PAT for a registry: the OS keychain first, then the

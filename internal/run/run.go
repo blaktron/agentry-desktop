@@ -295,6 +295,11 @@ type Request struct {
 	// Intake answers the manifest's up-front questions by id (plan §3.5);
 	// a required question without an answer refuses the run.
 	Intake map[string]string
+	// PathPicked, when set, judges every host path the request carries
+	// that the caller did not already judge — a file-typed intake answer
+	// — before it is staged: the desktop passes the native picker's
+	// record, since a page can type a path as easily as pick one (D-030).
+	PathPicked func(what, path string) error
 }
 
 // Result is the envelope-derived outcome. It is populated on failure too:
@@ -493,6 +498,19 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		task = strings.NewReader(req.Task)
 	}
 
+	if req.PathPicked != nil {
+		for _, q := range m.Intake {
+			if q.Type != manifest.IntakeFile {
+				continue
+			}
+			if v := req.Intake[q.ID]; v != "" {
+				if err := req.PathPicked("intake "+q.ID, v); err != nil {
+					finishProfile(logw, prof, profDir, keep)
+					return nil, engine.Classify(engine.ExitUsage, err)
+				}
+			}
+		}
+	}
 	answers, err := intake.Collect(nil, m.Intake, req.Intake, m.Capabilities.Secrets)
 	if err != nil {
 		finishProfile(logw, prof, profDir, keep)
