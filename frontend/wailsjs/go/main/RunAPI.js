@@ -50,6 +50,10 @@ export function InstallDocker() {
   return window['go']['main']['RunAPI']['InstallDocker']();
 }
 
+export function ListModels(arg1, arg2, arg3) {
+  return window['go']['main']['RunAPI']['ListModels'](arg1, arg2, arg3);
+}
+
 export function PrereqStatus() {
   return window['go']['main']['RunAPI']['PrereqStatus']();
 }

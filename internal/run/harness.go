@@ -41,6 +41,10 @@ type Harness struct {
 	Found          bool
 	Path           string
 	PathFromPolicy bool
+	// Source says where Path was found — the policy, PATH, or a usual
+	// install location such as a desktop app's bundled build
+	// (agentry-cli#167); the wizard shows the last.
+	Source         string
 	Version        string
 	VersionMatches bool
 	Warnings       []string
@@ -75,7 +79,7 @@ func HarnessStatus(ctx context.Context) ([]Harness, error) {
 		}
 		h := Harness{
 			Name: name, DisplayName: r.DisplayName, Executable: r.Executable, InstallURL: r.InstallURL,
-			Found: r.Found, Path: r.Path, PathFromPolicy: r.PathFromPolicy,
+			Found: r.Found, Path: r.Path, PathFromPolicy: r.PathFromPolicy, Source: string(r.Source),
 			Version: r.Version, VersionMatches: r.VersionMatches, Warnings: r.Warnings, Reason: r.Reason,
 			MCPCommand: r.MCPCommand,
 		}

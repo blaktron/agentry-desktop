@@ -15,7 +15,23 @@ import "../src/style.css";
 // wizard.html#2-pendingRestart (or #3-pendingRestart) previews the runtime
 // step's docker card, and the done recap, in that docker state
 // (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.
+// #2-models previews the runtime step after Get models filled the list;
+// #2-nomodels the failed listing (the model stays typeable); #2-subscription
+// a stored Anthropic subscription token and its sentence
+// (agentry-desktop#131).
 const suffix = (location.hash.match(/-(\w+)$/) || [])[1] || "";
+const modelsFail = suffix === "nomodels";
+const subscription = suffix === "subscription";
+const catalog = {
+  provider: "anthropic", kind: subscription ? "subscription" : "api",
+  notice: subscription ? "an Anthropic subscription token works with Claude Code only (agentry run --adapter claude); runs in the container harness need a Console API key (sk-ant-api…)" : "",
+  models: [
+    { id: "claude-opus-5", displayName: "Claude Opus 5" },
+    { id: "claude-sonnet-5", displayName: "Claude Sonnet 5" },
+    { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" },
+    { id: "claude-haiku-4-5", displayName: "Claude Haiku 4.5" },
+  ],
+};
 const nothing = suffix === "nothing";
 const harnessesMissing = suffix === "missing" || nothing;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
@@ -24,6 +40,7 @@ const setup = {
   policyPath: "~/.agentry/runner/policy.yaml",
   provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
   apiKeySource: nothing ? "" : "keyring", keyStored: !nothing, keyStoreErr: "",
+  apiKeyKind: subscription ? "subscription" : "", keyNotice: subscription ? catalog.notice : "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
 };
 
@@ -40,14 +57,14 @@ const harnesses = [
   {
     name: "claude", displayName: "Claude Code", executable: "claude", installUrl: "https://github.com/anthropics/claude-code",
     found: !harnessesMissing, path: harnessesMissing ? "" : "/home/me/.local/bin/claude",
-    pathFromPolicy: false, version: harnessesMissing ? "" : "2.1.263 (Claude Code)", versionMatches: !harnessesMissing,
+    pathFromPolicy: false, source: harnessesMissing ? "" : "known location", version: harnessesMissing ? "" : "2.1.263 (Claude Code)", versionMatches: !harnessesMissing,
     warnings: [], reason: harnessesMissing ? "claude is not installed on this machine (not on PATH) — install it, or set harness.claude.path in the policy" : "",
     chosen: !harnessesMissing && !nothing,
     mcpCommand: "claude mcp add agentry -- node /path/to/agentry-mcp/dist/index.js",
   },
   {
     name: "codex", displayName: "Codex", executable: "codex", installUrl: "https://github.com/openai/codex",
-    found: false, path: "", pathFromPolicy: false, version: "", versionMatches: false, warnings: [],
+    found: false, path: "", pathFromPolicy: false, source: "", version: "", versionMatches: false, warnings: [],
     reason: "codex is not installed on this machine (not on PATH) — install it, or set harness.codex.path in the policy",
     chosen: false,
     mcpCommand: "codex mcp add agentry -- node /path/to/agentry-mcp/dist/index.js",
@@ -74,6 +91,10 @@ g.go = { main: {
     HarnessStatus: async () => harnesses,
     ChosenHarnesses: async () => harnesses.filter((h) => h.chosen),
     StoreModelKey: async () => ({ ...setup, apiKeySource: "keyring", keyStored: true }),
+    ListModels: async () => {
+      if (modelsFail) throw new Error("custom: list models: 404 Not Found");
+      return catalog;
+    },
     ChooseHarness: async (name: string) => harnesses.map((h) => ({ ...h, chosen: h.name === name, pathFromPolicy: h.name === name })),
   },
   SettingsAPI: {

@@ -6,6 +6,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 )
 
 // TestGetStatusReadOnlyDefaults pins req 5's status read: no policy file
@@ -282,5 +284,131 @@ func TestHomeFollowsTheRunnerHome(t *testing.T) {
 	p, _ := policy.DefaultPath()
 	if p != filepath.Join(dir, "policy.yaml") {
 		t.Fatalf("policy path %q is not under the runner home", p)
+	}
+}
+
+// fakeKeychain stands in for the OS keychain: a map of provider → key,
+// with Present, Lookup, Store and Delete over it.
+func fakeKeychain(t *testing.T, entries map[string]string) map[string]string {
+	t.Helper()
+	oldStore, oldDelete, oldPresent, oldLookup := keychainStore, keychainDelete, keychainPresent, keychainLookup
+	keychainStore = func(provider, key string) error { entries[provider] = key; return nil }
+	keychainDelete = func(provider string) error { delete(entries, provider); return nil }
+	keychainPresent = func(provider string) (bool, error) { _, ok := entries[provider]; return ok, nil }
+	keychainLookup = func(provider string) (string, error) {
+		if v, ok := entries[provider]; ok {
+			return v, nil
+		}
+		return "", errors.New("the OS keychain has no entry provider:" + provider)
+	}
+	t.Cleanup(func() {
+		keychainStore, keychainDelete, keychainPresent, keychainLookup = oldStore, oldDelete, oldPresent, oldLookup
+	})
+	return entries
+}
+
+// The credential's kind (agentry-cli#171) is read from the value at the
+// one moment this process holds it: a stored subscription token records
+// apiKeyKind subscription and the status carries the sentence; a stored
+// API key records nothing; forgetting the key takes its kind with it;
+// the variable path keeps what the policy has. The value is in no log.
+func TestApplySetupRecordsTheCredentialKindFromTheStoredKey(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	entries := fakeKeychain(t, map[string]string{})
+	var log strings.Builder
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", StoreKey: "sk-ant-oat01-secret"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if entries["anthropic"] != "sk-ant-oat01-secret" {
+		t.Fatalf("stored = %v", entries)
+	}
+	st, err := GetStatus(context.Background())
+	if err != nil || st.APIKeySource != "keyring" || st.APIKeyKind != "subscription" || !strings.Contains(st.KeyNotice, "Claude Code only") || !st.KeyStored {
+		t.Fatalf("status = %+v err %v", st, err)
+	}
+	if !strings.Contains(log.String(), "Claude Code only") || strings.Contains(log.String(), "sk-ant-oat01") {
+		t.Fatalf("log = %q", log.String())
+	}
+	path, _ := policy.DefaultPath()
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "apiKeyKind: subscription") || strings.Contains(string(raw), "sk-ant-oat01") {
+		t.Fatalf("policy:\n%s", raw)
+	}
+	// The variable path keeps the kind the policy has.
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", Model: "claude-opus-5"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ = GetStatus(context.Background()); st.APIKeyKind != "subscription" {
+		t.Fatalf("kept: %+v", st)
+	}
+	// Forgetting the key takes its kind with it.
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", ForgetKey: true}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ = GetStatus(context.Background()); st.APIKeyKind != "" || st.KeyNotice != "" || st.KeyStored {
+		t.Fatalf("forgotten: %+v", st)
+	}
+	// An API key records nothing.
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", StoreKey: "sk-ant-api03-secret"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ = GetStatus(context.Background()); st.APIKeyKind != "" || st.KeyNotice != "" {
+		t.Fatalf("api key: %+v", st)
+	}
+}
+
+// ListModels asks with the typed key, else what a run would read — the
+// saved policy's variable, else the keychain's entry — and returns names
+// and the kind; the key is in no error (agentry-desktop#131).
+func TestListModelsUsesTheTypedKeyElseTheKeychains(t *testing.T) {
+	isolateRunEnv(t)
+	fakeKeychain(t, map[string]string{"anthropic": "sk-ant-oat01-stored"})
+	var asked []string
+	old := listModels
+	listModels = func(_ context.Context, provider, baseURL, key string) (*setup.Catalog, error) {
+		asked = append(asked, provider+"|"+baseURL+"|"+key)
+		if key == "bad-key" {
+			return nil, errors.New("custom: list models: 401 Unauthorized: key bad-key rejected")
+		}
+		return &setup.Catalog{Provider: provider, Models: []setup.Model{{ID: "m1", DisplayName: "One"}, {ID: "m2"}}}, nil
+	}
+	t.Cleanup(func() { listModels = old })
+
+	cat, err := ListModels(context.Background(), "custom", "https://llm.example.net/v1", "typed-key")
+	if err != nil || len(cat.Models) != 2 || cat.Models[0].DisplayName != "One" || cat.Kind != "api" || cat.Notice != "" {
+		t.Fatalf("typed: %+v %v", cat, err)
+	}
+	cat, err = ListModels(context.Background(), "anthropic", "", "")
+	if err != nil || cat.Kind != "subscription" || !strings.Contains(cat.Notice, "Claude Code only") {
+		t.Fatalf("keychain: %+v %v", cat, err)
+	}
+	if len(asked) != 2 || asked[0] != "custom|https://llm.example.net/v1|typed-key" || asked[1] != "anthropic||sk-ant-oat01-stored" {
+		t.Fatalf("asked = %v", asked)
+	}
+	if _, err := ListModels(context.Background(), "openai", "", ""); err == nil || !strings.Contains(err.Error(), "no key typed") {
+		t.Fatalf("nothing anywhere: %v", err)
+	}
+	// The variable path: nothing typed, the policy names a variable that
+	// is set — the value a run would read, before the keychain.
+	var log strings.Builder
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "openai", APIKeyEnv: "TEST_OPENAI_KEY_131"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TEST_OPENAI_KEY_131", "from-the-variable")
+	if cat, err := ListModels(context.Background(), "openai", "", ""); err != nil || cat.Kind != "api" || asked[len(asked)-1] != "openai||from-the-variable" {
+		t.Fatalf("variable: %+v %v asked=%v", cat, err, asked)
+	}
+	// With the variable unset, the keychain — and the policy's provider
+	// must be the one asked about, or its variable is not consulted.
+	t.Setenv("TEST_OPENAI_KEY_131", "")
+	if _, err := ListModels(context.Background(), "openai", "", ""); err == nil || !strings.Contains(err.Error(), "variable is unset") {
+		t.Fatalf("unset variable, nothing stored: %v", err)
+	}
+	// The fake echoes the key on purpose: the wrapper scrubs it from
+	// anything it passes on, whatever the listing did.
+	_, err = ListModels(context.Background(), "custom", "https://x/v1", "bad-key")
+	if err == nil || !strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "bad-key") || !strings.Contains(err.Error(), "<key>") {
+		t.Fatalf("error: %v", err)
 	}
 }

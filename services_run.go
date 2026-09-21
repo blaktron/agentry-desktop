@@ -164,8 +164,13 @@ type SetupStatusView struct {
 	APIKeySource string `json:"apiKeySource,omitempty"`
 	KeyStored    bool   `json:"keyStored"`
 	KeyStoreErr  string `json:"keyStoreErr,omitempty"`
-	BaseURL      string `json:"baseUrl,omitempty"`
-	ImagesReady  bool   `json:"imagesReady"`
+	// APIKeyKind is "subscription" for a stored Anthropic subscription
+	// token (agentry-cli#171), and KeyNotice the sentence to show beside
+	// the field for it; both empty for an API key.
+	APIKeyKind  string `json:"apiKeyKind,omitempty"`
+	KeyNotice   string `json:"keyNotice,omitempty"`
+	BaseURL     string `json:"baseUrl,omitempty"`
+	ImagesReady bool   `json:"imagesReady"`
 	// Policy budget defaults, shown as the run form's placeholders.
 	TimeoutSeconds int `json:"timeoutSeconds"`
 	MaxTurns       int `json:"maxTurns"`
@@ -185,6 +190,8 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 		APIKeySource:          s.APIKeySource,
 		KeyStored:             s.KeyStored,
 		KeyStoreErr:           s.KeyStoreErr,
+		APIKeyKind:            s.APIKeyKind,
+		KeyNotice:             s.KeyNotice,
 		BaseURL:               s.BaseURL,
 		ImagesReady:           s.ImagesReady,
 		TimeoutSeconds:        s.TimeoutSeconds,
@@ -237,13 +244,17 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 // as the wizard's Coding agent step shows it (agentry-desktop#89). Facts
 // from the CLI's harnessprobe; no secret is anywhere near this surface.
 type HarnessView struct {
-	Name           string   `json:"name"`
-	DisplayName    string   `json:"displayName"`
-	Executable     string   `json:"executable"`
-	InstallURL     string   `json:"installUrl"`
-	Found          bool     `json:"found"`
-	Path           string   `json:"path,omitempty"`
-	PathFromPolicy bool     `json:"pathFromPolicy"`
+	Name           string `json:"name"`
+	DisplayName    string `json:"displayName"`
+	Executable     string `json:"executable"`
+	InstallURL     string `json:"installUrl"`
+	Found          bool   `json:"found"`
+	Path           string `json:"path,omitempty"`
+	PathFromPolicy bool   `json:"pathFromPolicy"`
+	// Source says where the executable was found: "policy", "PATH" or
+	// "known location" (a usual install directory, a desktop app's
+	// bundled build — agentry-cli#167).
+	Source         string   `json:"source,omitempty"`
 	Version        string   `json:"version,omitempty"`
 	VersionMatches bool     `json:"versionMatches"`
 	Warnings       []string `json:"warnings,omitempty"`
@@ -257,7 +268,7 @@ func harnessViews(hs []run.Harness) []HarnessView {
 	for _, h := range hs {
 		out = append(out, HarnessView{
 			Name: h.Name, DisplayName: h.DisplayName, Executable: h.Executable, InstallURL: h.InstallURL,
-			Found: h.Found, Path: h.Path, PathFromPolicy: h.PathFromPolicy,
+			Found: h.Found, Path: h.Path, PathFromPolicy: h.PathFromPolicy, Source: h.Source,
 			Version: h.Version, VersionMatches: h.VersionMatches, Warnings: h.Warnings, Reason: h.Reason,
 			Chosen: h.Chosen, MCPCommand: h.MCPCommand,
 		})
@@ -301,6 +312,41 @@ func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
 		return nil, err
 	}
 	return r.HarnessStatus()
+}
+
+// CatalogView is what ListModels returns: the provider's models by id
+// (with a display name where the provider gives one), what the key
+// turned out to be, and the sentence for a subscription token.
+type CatalogView struct {
+	Provider string      `json:"provider"`
+	Models   []ModelView `json:"models"`
+	Kind     string      `json:"kind"`
+	Notice   string      `json:"notice,omitempty"`
+}
+
+// ModelView is one listed model.
+type ModelView struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName,omitempty"`
+}
+
+// ListModels asks the provider's models listing with the typed key (or,
+// when none is typed, the one the keychain holds) and returns the ids —
+// the Get models button, which is also the endpoint test
+// (agentry-desktop#131). Like StoreModelKey, the one call besides it that
+// carries a key: three arguments, so a dispatch error's log line
+// (desktop#102) has as little to carry as possible. The key reaches the
+// provider's endpoint and nothing else; the answer carries names.
+func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error) {
+	cat, err := run.ListModels(r.app.ctx, provider, baseURL, key)
+	if err != nil {
+		return nil, err
+	}
+	v := &CatalogView{Provider: cat.Provider, Models: make([]ModelView, 0, len(cat.Models)), Kind: cat.Kind, Notice: cat.Notice}
+	for _, m := range cat.Models {
+		v.Models = append(v.Models, ModelView{ID: m.ID, DisplayName: m.DisplayName})
+	}
+	return v, nil
 }
 
 // StoreModelKey puts the model key for provider into the OS keychain and

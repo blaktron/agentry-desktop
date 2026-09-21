@@ -31,6 +31,15 @@ const states = [
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
   { name: "runpanel-streaming", url: "/modals.html#runpanel-streaming", note: "streaming the log" },
   { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "finished: outcome, receipt, downloaded artefacts" },
+  // The welcome's runtime step (agentry-desktop#131): the three questions;
+  // the model list Get models filled; the failed listing with the model
+  // still typeable; a stored subscription token and its sentence.
+  { name: "wizard-runtime", url: "/wizard.html#2", note: "the runtime step: provider, key, model", locator: ".wizard" },
+  { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — the key field is there", locator: ".wizard" },
+  { name: "wizard-runtime-models", url: "/wizard.html#2-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
+  { name: "wizard-runtime-nomodels", url: "/wizard.html#2-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
+  { name: "wizard-runtime-subscription", url: "/wizard.html#2-subscription", note: "a stored Anthropic subscription token: what it drives", locator: ".wizard" },
+  { name: "settings-agent-runs-advanced", url: "/pages.html", note: "Settings → Agent runs with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
 ];
 
 const wanted = process.env.STATES ? process.env.STATES.split(",").map((s) => s.trim()) : null;
@@ -89,8 +98,19 @@ try {
       // The panel fills itself from the mocked bindings and the scripted
       // log; a beat is enough for both.
       await page.waitForTimeout(500);
+      if (state.openAdvanced) {
+        await page.locator("details.advanced > summary").first().click();
+        await page.waitForTimeout(200);
+      }
+      if (state.getModels) {
+        // The listing needs a key typed and the button pressed, as a
+        // person would; the mock answers by the hash.
+        await page.locator('input[type="password"]').first().fill("sk-ant-api03-preview");
+        await page.getByRole("button", { name: "Get models" }).click();
+        await page.waitForTimeout(300);
+      }
       const file = path.join(outDir, `${state.name}-${scheme}.png`);
-      const modal = page.locator(".modal").first();
+      const modal = page.locator(state.locator ?? ".modal").first();
       await ((await modal.count()) ? modal : page).screenshot({ path: file });
       console.log(`${file}  — ${state.note}`);
       await page.close();
