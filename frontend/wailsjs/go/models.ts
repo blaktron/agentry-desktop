@@ -1606,7 +1606,7 @@ export namespace main {
 	    model: string;
 	    apiKeyEnv: string;
 	    apiKeySource?: string;
-	    keyStored: boolean;
+	    keysStored: string[];
 	    keyStoreErr?: string;
 	    apiKeyKind?: string;
 	    keyNotice?: string;
@@ -1630,7 +1630,7 @@ export namespace main {
 	        this.model = source["model"];
 	        this.apiKeyEnv = source["apiKeyEnv"];
 	        this.apiKeySource = source["apiKeySource"];
-	        this.keyStored = source["keyStored"];
+	        this.keysStored = source["keysStored"];
 	        this.keyStoreErr = source["keyStoreErr"];
 	        this.apiKeyKind = source["apiKeyKind"];
 	        this.keyNotice = source["keyNotice"];

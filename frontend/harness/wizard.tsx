@@ -18,7 +18,9 @@ import "../src/style.css";
 // #2-models previews the runtime step after Get models filled the list;
 // #2-nomodels the failed listing (the model stays typeable); #2-subscription
 // a stored Anthropic subscription token and its sentence
-// (agentry-desktop#131).
+// (agentry-desktop#131); #2-refused a save the backend refuses after the
+// key was stored — the shot script types the custom provider's form and
+// clicks Save (agentry-desktop#141).
 const suffix = (location.hash.match(/-(\w+)$/) || [])[1] || "";
 const modelsFail = suffix === "nomodels";
 const subscription = suffix === "subscription";
@@ -33,13 +35,16 @@ const catalog = {
   ],
 };
 const nothing = suffix === "nothing";
+// The save refused after the key was stored (desktop#141): the shot script
+// switches to the custom provider and types a bad URL.
+const refused = suffix === "refused";
 const harnessesMissing = suffix === "missing" || nothing;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
 const setup = {
   dockerOk: dockerState === "", imagesReady: !nothing, policyExists: !nothing,
   policyPath: "~/.agentry/runner/policy.yaml",
   provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
-  apiKeySource: nothing ? "" : "keyring", keyStored: !nothing, keyStoreErr: "",
+  apiKeySource: nothing ? "" : "keyring", keysStored: nothing ? [] : ["anthropic"], keyStoreErr: "",
   apiKeyKind: subscription ? "subscription" : "", keyNotice: subscription ? catalog.notice : "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
 };
@@ -75,7 +80,10 @@ const g = window as any;
 g.go = { main: {
   RunAPI: {
     SetupStatus: async () => setup,
-    ApplySetup: async () => ({ ...setup, apiKeySource: "keyring", keyStored: true }),
+    ApplySetup: async () => {
+      if (refused) throw new Error("the base URL must be an absolute https URL: \"llm.example.net/v1\"");
+      return { ...setup, apiKeySource: "keyring", keysStored: ["anthropic"] };
+    },
     PrereqStatus: async () => ({
       dockerOk: dockerState === "", state: dockerState || "ready", os: "linux", distro: "fedora",
       canInstall: dockerState !== "manual", engineInstalled: dockerState !== "installable" && dockerState !== "",
@@ -90,7 +98,9 @@ g.go = { main: {
     RestartNow: async () => undefined,
     HarnessStatus: async () => harnesses,
     ChosenHarnesses: async () => harnesses.filter((h) => h.chosen),
-    StoreModelKey: async () => ({ ...setup, apiKeySource: "keyring", keyStored: true }),
+    // The key-only call answers with the provider it stored under listed,
+    // the policy untouched (desktop#139, #141).
+    StoreModelKey: async (provider: string) => ({ ...setup, keysStored: [...setup.keysStored, provider] }),
     ListModels: async () => {
       if (modelsFail) throw new Error("custom: list models: 404 Not Found");
       return catalog;

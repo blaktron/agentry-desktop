@@ -166,7 +166,7 @@ g.go = { main: {
     },
     AddToDockerGroup: async () => ({ state: "pendingRestart" }),
     RestartNow: async () => undefined,
-    SetupStatus: async () => ({ dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keyStored: true, baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+    SetupStatus: async () => ({ dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" }] }),
   },
 } };

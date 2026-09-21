@@ -46,3 +46,18 @@ func TestListModelsReturnsNamesNeverTheKey(t *testing.T) {
 		t.Fatalf("subscription: %+v %v", v, err)
 	}
 }
+
+// The setup view carries which providers have a stored key (desktop#141)
+// as names only — the badge's fact for whichever provider the form shows;
+// the policy-provider boolean it carried is not on the wire any more. An
+// empty list is a list, not an absent field, so the page's includes() has
+// something to ask.
+func TestSetupStatusViewListsStoredKeyProviders(t *testing.T) {
+	v := setupStatusView(&run.Status{Provider: "openai", KeysStored: []string{"anthropic", "custom"}})
+	if strings.Join(v.KeysStored, ",") != "anthropic,custom" {
+		t.Fatalf("view = %+v", v)
+	}
+	if v := setupStatusView(&run.Status{Provider: "anthropic"}); v.KeysStored == nil || len(v.KeysStored) != 0 {
+		t.Fatalf("an empty list must still be a list: %+v", v.KeysStored)
+	}
+}

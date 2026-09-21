@@ -115,9 +115,10 @@ export function RuntimeSetup({ heading, intro, advanced = false }: {
   }
 
   const needsBaseURL = provider === "custom";
-  // A stored key counts for the provider the status reports; a switch of
-  // provider needs a key typed.
-  const keyStoredForProvider = !!status?.keyStored && status?.provider === provider;
+  // A stored key counts for the provider it is stored under — the status
+  // lists them all (desktop#141) — so a switch of provider needs a key
+  // typed unless one is on this machine for the new one too.
+  const keyStoredForProvider = !!status?.keysStored.includes(provider);
   const hasKey = !!apiKey.trim() || keyStoredForProvider;
 
   // Get models: the endpoint, asked with the typed key (or the stored
@@ -155,13 +156,16 @@ export function RuntimeSetup({ heading, intro, advanced = false }: {
       // A typed key travels once, in its own small call, straight to the
       // keychain (desktop#102); the field is cleared before the call, so a
       // stale value never lingers on screen — a refused store means typing
-      // it again, and the error says so.
+      // it again, and the error says so. A store that succeeded is kept
+      // as the status says it: the key is on this machine for this
+      // provider, so a refusal of the save that follows does not ask for
+      // it again (desktop#141).
       const key = keyMode === "keyring" && !forgetKey ? apiKey : "";
       const source = keyMode === "keyring" ? "keyring" : "env";
       setApiKey("");
       if (key) {
         try {
-          await RunAPI.StoreModelKey(provider, key);
+          setStatus(await RunAPI.StoreModelKey(provider, key));
         } catch (e) {
           throw new Error(`${e} — the key you typed was cleared; type it again to retry.`);
         }

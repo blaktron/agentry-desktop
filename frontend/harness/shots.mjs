@@ -43,6 +43,10 @@ const states = [
   { name: "wizard-runtime-models", url: "/wizard.html#2-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-nomodels", url: "/wizard.html#2-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-subscription", url: "/wizard.html#2-subscription", note: "a stored Anthropic subscription token: what it drives", locator: ".wizard" },
+  // The save refused after the key was stored (agentry-desktop#141): the
+  // custom provider, a URL the backend refuses — the refusal shown, the
+  // key field saying the key is on this machine, Save still offered.
+  { name: "wizard-runtime-refused", url: "/wizard.html#2-refused", note: "a refused save after the key was stored: the key stays, no re-typing", locator: ".wizard", saveCustom: true },
   { name: "settings-agent-runs-advanced", url: "/pages.html", note: "Settings → Agent runs with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
 ];
 
@@ -111,6 +115,16 @@ try {
         // reached the way a person reaches it.
         await page.locator(state.click).first().click();
         await page.waitForTimeout(400);
+      }
+      if (state.saveCustom) {
+        // The custom provider, its URL, a key and a model typed, then
+        // Save: the mock stores the key and refuses the save.
+        await page.locator("select").first().selectOption("custom");
+        await page.locator('input[placeholder="https://llm.example.net/v1"]').fill("llm.example.net/v1");
+        await page.locator('input[type="password"]').first().fill("sk-preview-key");
+        await page.locator('input[placeholder^="pick one with Get models"]').fill("qwen3.8-flash");
+        await page.getByRole("button", { name: "Save provider settings" }).click();
+        await page.waitForTimeout(300);
       }
       if (state.getModels) {
         // The listing needs a key typed and the button pressed, as a
