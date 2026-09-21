@@ -31,7 +31,13 @@ const states = [
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
   { name: "runpanel-streaming", url: "/modals.html#runpanel-streaming", note: "streaming the log" },
   { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "finished: outcome, receipt, downloaded artefacts" },
-  { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own mark and consent, In Agentry not offered (M23)" },
+  { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own mark and consent, In Agentry not offered (M23); the line above Run names the consent (agentry-desktop#167)", expectBlocker: "Tick \u201cRun an unscanned release\u201d", expectRunDisabled: true },
+  // The form asks only for what the release declares (agentry-desktop#167):
+  // the keys line names the server and its secret with Run grey; a file
+  // intake question shows as the form; Input files stays a disclosure.
+  { name: "runpanel-keys", url: "/modals.html#runpanel-keys", note: "pr-review-brief's shape: keys unsaved — the line above Run names them; Input files an optional disclosure", expectBlocker: "Save the keys for github-mcp-server-js: GITHUB_TOKEN", expectRunDisabled: true, expectCollapsed: "details.input-files" },
+  { name: "runpanel-keys-saved", url: "/modals.html#runpanel-keys-saved", note: "the keys saved: the line above Run is gone and Run is enabled", click: 'button:has-text("Save keys")', expectNoBlocker: true, expectRunEnabled: true },
+  { name: "runpanel-file-intake", url: "/modals.html#runpanel-file-intake", note: "a release that asks for a file up front: the intake form, and the line names the unanswered question", expectBlocker: "The incident channel's export (a file)", expectRunDisabled: true },
   { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard's review of a release admitted without a scan: the mark and the consent (M23)", click: "button:has-text('Verify')" },
   { name: "agent-unscanned", url: "/pages.html#agent-unscanned", note: "the agent page's provenance tab: the unscanned badge and the mark on the card (M23)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("provenance")' },
   { name: "agent-unscanned-report", url: "/pages.html#agent-unscanned", note: "the agent page's report tab: unscanned as its own verdict, never 'scanned, 0 findings' (M23)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("security report")' },
@@ -145,6 +151,22 @@ try {
         // reached the way a person reaches it.
         await page.locator(state.click).first().click();
         await page.waitForTimeout(400);
+      }
+      if (state.expectBlocker) {
+        // The line above Run is the same condition the button reads.
+        const line = await page.locator(".run-blockers").innerText();
+        if (!line.includes(state.expectBlocker)) throw new Error(`${state.name}: the line above Run reads "${line}"`);
+        if (state.expectRunDisabled) {
+          const run = page.getByRole("button", { name: /^Run$|^Start session$/ }).first();
+          if (await run.isEnabled()) throw new Error(`${state.name}: Run is enabled with a blocker showing`);
+        }
+      }
+      if (state.expectNoBlocker) {
+        if (await page.locator(".run-blockers").count() !== 0) throw new Error(`${state.name}: a blocker line is showing`);
+        if (state.expectRunEnabled && !(await page.getByRole("button", { name: /^Run$/ }).first().isEnabled())) throw new Error(`${state.name}: Run is disabled with nothing missing`);
+      }
+      if (state.expectCollapsed) {
+        if (await page.locator(state.expectCollapsed).first().getAttribute("open") !== null) throw new Error(`${state.name}: ${state.expectCollapsed} is open with nothing chosen`);
       }
       if (state.expectSwitchLabel) {
         const label = await page.locator(state.locator).locator('label:has(input[type="checkbox"])').last().innerText();

@@ -156,17 +156,36 @@ export default function RunPanel({
   // machine: the setup status gates the local modes only.
   const inAgentry = mode === "hosted";
   const hostedActive = !!hostedRun && (hostedRun.status === "queued" || hostedRun.status === "claimed" || hostedRun.status === "running");
-  const canRun =
-    !running &&
-    !sessionActive &&
-    (inAgentry ? !!hosted?.available && !starting && !hostedActive : !!setup?.dockerOk) &&
-    !needsProfile &&
-    intakeMissing.length === 0 &&
-    !provPending &&
-    !unverifiable &&
-    (inAgentry || !unsigned || acceptUnsigned) &&
-    (!unscanned || (!inAgentry && acceptUnscanned)) &&
-    (!refused || allowVulnerableMCP);
+  // What still stands between this form and a run, each in a sentence the
+  // line above the button shows (agentry-desktop#167): the same conditions
+  // the button reads, so the two cannot disagree. Busy is not a blocker.
+  const busy = running || sessionActive || (inAgentry && (starting || hostedActive));
+  const blockers: string[] = [];
+  if (inAgentry) {
+    if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
+    else if (!hosted.available) blockers.push(hosted.reason || "A run In Agentry is not available for this release.");
+  } else if (!setup) {
+    blockers.push("Checking this machine's setup.");
+  } else if (!setup.dockerOk) {
+    blockers.push("Docker is not ready — set it up in Settings → Agent runs" + (hosted?.offered ? ", or run this release In Agentry." : "."));
+  }
+  if (needsProfile && profile) {
+    const servers = mcp?.servers ?? [];
+    const server = servers.length === 1 ? servers[0] : "this release";
+    blockers.push(`Save the keys for ${server}: ${profile.declaredSecrets.join(", ")} (or leave them to the environment).`);
+  }
+  if (intakeMissing.length > 0 && profile) {
+    for (const q of profile.intake.filter((q) => intakeMissing.includes(q.id))) {
+      blockers.push(`${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`);
+    }
+  }
+  if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
+  if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
+  if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
+  if (unscanned && inAgentry) blockers.push("A run In Agentry is not offered for an unscanned release.");
+  if (unscanned && !inAgentry && !acceptUnscanned) blockers.push("Tick \u201cRun an unscanned release\u201d.");
+  if (refused && !allowVulnerableMCP) blockers.push("Tick \u201cAllow vulnerable MCP servers for this run\u201d.");
+  const canRun = !busy && blockers.length === 0;
 
   const defaultOutHint = useMemo(
     () => `~/Downloads/agentry-out/${ns}-${name}-<runid>`,
@@ -503,31 +522,37 @@ export default function RunPanel({
           disabled={running}
         />
 
-        <h3>Input files</h3>
-        <p className="muted small" style={{ margin: "2px 0 6px" }}>
-          Provided read-only under <span className="mono">/inputs</span> in the tool container —
-          the BriefAgent reads them with <span className="mono">list_inputs</span> / <span className="mono">read_input</span>.
-          {inAgentry && hosted && (
-            <> In Agentry they are uploaded before the run is created: at most {hosted.maxInputFiles} files,{" "}
-            {Math.round(hosted.maxInputBytes / (1024 * 1024))} MB together.</>
+        {/* Input files are never required: no manifest declares a need for
+            them, and a release that needs one asks a file intake question.
+            So they are a disclosure, opened when a file is chosen and left
+            to the person otherwise (agentry-desktop#167). */}
+        <details className="advanced input-files" open={inputs.length > 0 || undefined}>
+          <summary className="muted small">Input files (optional)</summary>
+          <p className="muted small" style={{ margin: "2px 0 6px" }}>
+            Provided read-only under <span className="mono">/inputs</span> in the tool container —
+            the BriefAgent reads them with <span className="mono">list_inputs</span> / <span className="mono">read_input</span>.
+            {inAgentry && hosted && (
+              <> In Agentry they are uploaded before the run is created: at most {hosted.maxInputFiles} files,{" "}
+              {Math.round(hosted.maxInputBytes / (1024 * 1024))} MB together.</>
+            )}
+          </p>
+          {inputs.length > 0 && (
+            <div>
+              {inputs.map((p) => (
+                <div key={p} className="row" style={{ marginBottom: 4 }}>
+                  <span className="mono small grow selectable">{p}</span>
+                  <Button disabled={running} onClick={() => setInputs(inputs.filter((x) => x !== p))}>Remove</Button>
+                </div>
+              ))}
+            </div>
           )}
-        </p>
-        {inputs.length > 0 && (
-          <div>
-            {inputs.map((p) => (
-              <div key={p} className="row" style={{ marginBottom: 4 }}>
-                <span className="mono small grow selectable">{p}</span>
-                <Button disabled={running} onClick={() => setInputs(inputs.filter((x) => x !== p))}>Remove</Button>
-              </div>
-            ))}
+          <div className="row">
+            <Button onClick={addFiles} disabled={running}>Add files…</Button>
+            <Button onClick={addFolder} disabled={running}>Add folder…</Button>
           </div>
-        )}
-        <div className="row">
-          <Button onClick={addFiles} disabled={running}>Add files…</Button>
-          <Button onClick={addFolder} disabled={running}>Add folder…</Button>
-        </div>
+        </details>
 
-        <h3>Output &amp; limits</h3>
+        <h3>Output</h3>
         {inAgentry && (
           <p className="muted small" style={{ margin: "2px 0 6px" }}>
             The run&apos;s result, reports, receipts and outputs download into this folder when it finishes. The time and
@@ -548,7 +573,12 @@ export default function RunPanel({
           <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
           {outDir && <Button onClick={() => setOutDir("")} disabled={running}>Default</Button>}
         </div>
-        <div className="row" style={{ marginTop: 8 }}>
+        {/* The ceilings have the policy's defaults and the keep toggle its
+            recorded choice: none is needed for a run, so they sit under
+            Advanced (agentry-desktop#167). */}
+        <details className="advanced">
+          <summary className="muted small">Advanced</summary>
+        <div className="row">
           <label className="row" style={{ gap: 6 }}>
             <span className="muted small">timeout (s)</span>
             <input
@@ -570,6 +600,7 @@ export default function RunPanel({
             <span>keep the MCP profile after this run{profile && profile.declaredSecrets.length === 0 ? " (no keys declared; ticking records the choice)" : ""}</span>
           </label>
         </div>
+        </details>
 
         {unscanned && (
           <div className="notice notice-unscanned mark-unscanned">
@@ -626,17 +657,18 @@ export default function RunPanel({
             executing and refuses a release whose signature cannot be verified.
           </div>
         )}
-        {provPending && (
-          <p className="muted small">
-            Waiting for the provenance check on this version — if this persists, the registry
-            could not answer; close and reopen the page.
-          </p>
-        )}
-        {needsProfile && (
-          <p className="muted small">Save the declared keys above (or leave them to the environment) before running.</p>
-        )}
-
         <ErrorBox error={runErr} />
+
+        {/* A grey button explains itself: what is still missing, from the
+            conditions the button reads (agentry-desktop#167). */}
+        {!busy && blockers.length > 0 && (
+          <div className="muted small run-blockers">
+            <strong>Before you can run:</strong>
+            <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
+              {blockers.map((b) => <li key={b}>{b}</li>)}
+            </ul>
+          </div>
+        )}
 
         {/* A refused create, as a sentence — and, for credits, the way
             onward the Build page already offers (desktop#74). */}
