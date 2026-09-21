@@ -31,12 +31,18 @@ const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label 
  * endpoint test; the answer fills the model list. Settings (`advanced`)
  * keeps the environment-variable path under Advanced, where a person who
  * sets variables will look and one who does not never has to. */
-export function RuntimeSetup({ heading, intro, advanced = false }: {
+export function RuntimeSetup({ heading, intro, advanced = false, onBusy }: {
   heading?: React.ReactNode;
   intro?: React.ReactNode;
   // Settings shows the advanced choices (the variable, forgetting the
   // stored key); the welcome does not.
   advanced?: boolean;
+  // Told when an image pull starts and ends, so a wizard around the form
+  // can hold its own Continue and Back for the pull (desktop#145): leaving
+  // mid-pull unmounts the form while the Go side keeps pulling with nobody
+  // watching the log. The shorter calls (Get models, the policy write)
+  // orphan nothing and are not reported.
+  onBusy?: (busy: boolean) => void;
 } = {}) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +157,10 @@ export function RuntimeSetup({ heading, intro, advanced = false }: {
     setBusy(pullImages ? "Preparing images — pulls and a local build can take minutes…" : "Writing policy…");
     setError(null);
     setNotice(null);
-    if (pullImages) setLog([]);
+    if (pullImages) {
+      setLog([]);
+      onBusy?.(true);
+    }
     try {
       // A typed key travels once, in its own small call, straight to the
       // keychain (desktop#102); the field is cleared before the call, so a
@@ -182,6 +191,7 @@ export function RuntimeSetup({ heading, intro, advanced = false }: {
       setError(String(e));
     } finally {
       setBusy(null);
+      if (pullImages) onBusy?.(false);
     }
   }
 
