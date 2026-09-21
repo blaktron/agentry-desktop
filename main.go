@@ -12,6 +12,8 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+
+	"github.com/blaktron/agentry-desktop/internal/webview"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
@@ -46,6 +48,10 @@ func main() {
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+			// Every response carries the Content-Security-Policy: the one
+			// HTML sink renders registry-supplied README HTML, and the
+			// bindings are the local machine (internal/webview).
+			Middleware: webview.Middleware,
 		},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
