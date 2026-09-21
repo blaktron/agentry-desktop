@@ -235,10 +235,13 @@ function SignInStep({
 }
 
 function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  // Held here while the images prepare (RuntimeSetup's onBusy, desktop#145).
+  const [busy, setBusy] = useState(false);
   return (
     <>
       <div className="wizard-body">
         <RuntimeSetup
+          onBusy={setBusy}
           heading="Set up the runtime"
           intro={
             <>
@@ -251,9 +254,9 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
         />
       </div>
       <div className="wizard-foot">
-        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <Button variant="ghost" onClick={onBack} disabled={busy}>Back</Button>
         <div className="grow" />
-        <Button variant="primary" onClick={onNext}>Continue</Button>
+        <Button variant="primary" onClick={onNext} disabled={busy}>Continue</Button>
       </div>
     </>
   );

@@ -47,6 +47,11 @@ const states = [
   // custom provider, a URL the backend refuses — the refusal shown, the
   // key field saying the key is on this machine, Save still offered.
   { name: "wizard-runtime-refused", url: "/wizard.html#2-refused", note: "a refused save after the key was stored: the key stays, no re-typing", locator: ".wizard", saveCustom: true },
+  // The image pull (agentry-desktop#145): the step holds its Continue and
+  // Back while it runs, and releases them when it ends or is refused.
+  { name: "wizard-runtime-preparing", url: "/wizard.html#2-preparing", note: "images preparing: Continue and Back held until the pull ends", locator: ".wizard", prepare: "held" },
+  { name: "wizard-runtime-prepared", url: "/wizard.html#2-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
+  { name: "wizard-runtime-prepare-refused", url: "/wizard.html#2-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "settings-agent-runs-advanced", url: "/pages.html", note: "Settings → Agent runs with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
 ];
 
@@ -125,6 +130,17 @@ try {
         await page.locator('input[placeholder^="pick one with Get models"]').fill("qwen3.8-flash");
         await page.getByRole("button", { name: "Save provider settings" }).click();
         await page.waitForTimeout(300);
+      }
+      if (state.prepare) {
+        // Prepare images now, then a look at the foot: held while the
+        // mock's pull runs, released once it ends or is refused. The
+        // script says which, so the shot is not the only record.
+        await page.getByRole("button", { name: "Prepare images now" }).click();
+        await page.waitForTimeout(state.prepare === "held" ? 300 : 1200);
+        const foot = await page.locator(".wizard-foot button").evaluateAll((bs) => bs.map((b) => `${b.textContent.trim()}:${b.disabled ? "disabled" : "enabled"}`));
+        console.log(`  wizard-foot (${state.prepare}): ${foot.join(" ")}`);
+        const want = state.prepare === "held" ? ":disabled" : ":enabled";
+        if (!foot.every((f) => f.endsWith(want))) throw new Error(`a wizard-foot button is not ${want.slice(1)} in state ${state.name}`);
       }
       if (state.getModels) {
         // The listing needs a key typed and the button pressed, as a

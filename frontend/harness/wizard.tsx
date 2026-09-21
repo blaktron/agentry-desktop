@@ -20,7 +20,10 @@ import "../src/style.css";
 // a stored Anthropic subscription token and its sentence
 // (agentry-desktop#131); #2-refused a save the backend refuses after the
 // key was stored — the shot script types the custom provider's form and
-// clicks Save (agentry-desktop#141).
+// clicks Save (agentry-desktop#141); #2-preparing an image pull that never
+// ends in the harness, #2-prepared one that ends, #2-prepare-refused one the
+// backend refuses — the shot script clicks Prepare images now and shoots the
+// step holding, then releasing, its Continue and Back (agentry-desktop#145).
 const suffix = (location.hash.match(/-(\w+)$/) || [])[1] || "";
 const modelsFail = suffix === "nomodels";
 const subscription = suffix === "subscription";
@@ -38,6 +41,11 @@ const nothing = suffix === "nothing";
 // The save refused after the key was stored (desktop#141): the shot script
 // switches to the custom provider and types a bad URL.
 const refused = suffix === "refused";
+// The image pull (desktop#145): in flight and never answering in the
+// harness; answered after a beat; refused by the backend.
+const preparing = suffix === "preparing";
+const prepared = suffix === "prepared";
+const prepareRefused = location.hash.endsWith("-prepare-refused");
 const harnessesMissing = suffix === "missing" || nothing;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
 const setup = {
@@ -82,6 +90,9 @@ g.go = { main: {
     SetupStatus: async () => setup,
     ApplySetup: async () => {
       if (refused) throw new Error("the base URL must be an absolute https URL: \"llm.example.net/v1\"");
+      if (preparing) await new Promise(() => {});
+      if (prepared) await new Promise((r) => setTimeout(r, 400));
+      if (prepareRefused) throw new Error("gateway/docker environment: pull docker/mcp-gateway: permission denied while trying to connect to the docker daemon socket");
       return { ...setup, apiKeySource: "keyring", keysStored: ["anthropic"] };
     },
     PrereqStatus: async () => ({
