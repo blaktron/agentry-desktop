@@ -119,12 +119,27 @@ jobs:
   # in a .deb and an .rpm by nfpm (desktop#84), from the
   # tree vendored here with the job's credential — the container itself gets
   # no credential: the checkout token is not persisted and the job-scoped
-  # git config is not mounted. Every artifact is unsigned (agentry-desktop#54).
+  # git config is not mounted. The Windows artifacts are Authenticode-signed
+  # here (agentry-desktop#54); the Linux ones carry no OS signature.
   linux-windows:
     needs: preflight
     runs-on: [self-hosted, linux, x64]
+    # The `release` environment is what the Windows signing credential is
+    # scoped to (agentry-desktop#151, #54; plan os-code-signing.md D6): the
+    # Entra federated credential matches a job of this repository in this
+    # environment and nothing else, and the environment admits only main and
+    # v* tags, so a dry run starts from main or a tag or does not start.
+    # id-token lets the job mint the OIDC token it exchanges; contents: read
+    # is what checkout needs and is repeated here because a job-level
+    # permissions block replaces the workflow's.
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
+    outputs:
+      signed_windows: ${{ steps.package.outputs.signed_windows }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -160,6 +175,9 @@ jobs:
           # feature not to exist (agentry-desktop#87).
           echo "AGENTRY_UPDATE_CHANNEL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
           echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
+          # The CN the Windows signature must carry, when release.env names
+          # one (agentry-desktop#54): the installer check refuses any other.
+          [ -z "${AGENTRY_WINDOWS_SIGNING_CN:-}" ] || echo "AGENTRY_WINDOWS_SIGNING_CN=${AGENTRY_WINDOWS_SIGNING_CN}" >> "$GITHUB_ENV"
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins
@@ -167,23 +185,79 @@ jobs:
       # The installer's toolchain, from Ubuntu's packages: the runner
       # container runs as root and keeps them until it is recreated (see the
       # ci workflow's windows job).
-      - name: makensis and 7z from Ubuntu's packages
+      - name: makensis, 7z, java, osslsigncode, jq and openssl from Ubuntu's packages
         run: |
           set -euo pipefail
-          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null; then
+          if ! command -v makensis >/dev/null || ! command -v 7z >/dev/null || ! command -v java >/dev/null || ! command -v osslsigncode >/dev/null || ! command -v jq >/dev/null || ! command -v openssl >/dev/null; then
             sudo=""; [ "$(id -u)" = 0 ] || sudo=sudo
             $sudo apt-get update -qq
-            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full
+            $sudo apt-get install -y -qq --no-install-recommends nsis p7zip-full default-jre-headless osslsigncode jq openssl
           fi
-          makensis -VERSION; 7z | sed -n 2p
-      # -m: no go mod tidy (the module graph is already resolved); -s: the
-      # frontend bundle was just built; -skipbindings: the checked-in
-      # TypeScript bindings stay as they are. VERSION overrides the
-      # Makefile's own describe so every job names one version. The target
-      # builds the exe, its zip and the per-user setup exe, and reads the
-      # installer back (scripts/check-windows-installer.sh).
-      - name: Windows amd64 package and per-user installer (unsigned)
-        run: PATH="$HOME/go/bin:$PATH" make package-windows VERSION="$VERSION" WAILS_FLAGS='-m -s -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+          makensis -VERSION; 7z | sed -n 2p; java -version 2>&1 | sed -n 1p; osslsigncode --version 2>&1 | sed -n 1p
+      # jsign, the signer, at the version and digest scripts/sign-windows.sh
+      # pins; a jar with another digest is refused before it runs.
+      - name: jsign at the pinned digest
+        run: scripts/sign-windows.sh fetch "$RUNNER_TEMP"
+      # Authenticode (agentry-desktop#54; plan os-code-signing.md §4), in
+      # three make targets so the signing token reaches the signer and
+      # nothing else. build-windows: wails builds the exe (and, as a side
+      # effect of -nsis, an unsigned installer, the WebView2 bootstrapper and
+      # wails_tools.nsh). -m: no go mod tidy (the module graph is already
+      # resolved); -s: the frontend bundle was just built; -skipbindings: the
+      # checked-in TypeScript bindings stay as they are; VERSION overrides
+      # the Makefile's own describe so every job names one version.
+      - name: Windows amd64 exe (wails)
+        run: PATH="$HOME/go/bin:$PATH" make build-windows VERSION="$VERSION" WAILS_FLAGS='-m -s -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+      # sign-windows: the job proves who it is with the OIDC token GitHub
+      # minted for it and gets an Azure access token for the signing service
+      # in return (scripts/signing-token.sh, the exchange the
+      # signing-oidc-probe workflow proves on its own: no Azure secret, both
+      # tokens via curl's stdin config, never argv). The access token is
+      # masked, lives in this step's shell, and reaches jsign through the
+      # environment of this one make target (`--storepass env:`), so it is
+      # in no process listing and touches no build tool. The target signs
+      # the exe before makensis embeds it, and makensis signs the installer
+      # and the uninstaller through project.nsi's hooks. There is no
+      # unsigned fallback: a missing variable, a refused exchange, a jsign
+      # failure or a signer that exits non-zero fails the release.
+      - name: Sign the exe, then the installer and its uninstaller (Artifact Signing over OIDC)
+        env:
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARTIFACT_SIGNING_ENDPOINT: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: |
+          set -euo pipefail
+          for v in AZURE_TENANT_ID AZURE_CLIENT_ID ARTIFACT_SIGNING_ENDPOINT ARTIFACT_SIGNING_ACCOUNT ARTIFACT_SIGNING_PROFILE; do
+            [ -n "${!v:-}" ] || { echo "::error::the $v repository variable is not set: run scripts/operator/artifact-signing-setup.sh (agentry-desktop#151)"; exit 1; }
+          done
+          token=$(scripts/signing-token.sh) || { echo "::error::no signing token: the release environment's federated credential (agentry-desktop#151) must match this job's OIDC subject"; exit 1; }
+          [ -n "$token" ] || { echo "::error::signing-token.sh printed no token"; exit 1; }
+          echo "::add-mask::$token"
+          echo "signing as $ARTIFACT_SIGNING_ACCOUNT/$ARTIFACT_SIGNING_PROFILE at $ARTIFACT_SIGNING_ENDPOINT"
+          AGENTRY_SIGNING_TOKEN="$token" JSIGN_JAR="$RUNNER_TEMP/jsign.jar" \
+            make sign-windows VERSION="$VERSION" SIGN_CMD=scripts/sign-windows.sh
+      # finish-windows: the zip and the setup name, then
+      # scripts/check-windows-installer.sh --signed verifies all three
+      # signatures to the pinned Microsoft root, insists on the timestamp,
+      # and writes the report this job hands the bundle for BUILD-INFO.
+      - name: "Windows package: zip, setup name, and the signed read-back"
+        id: package
+        env:
+          ARTIFACT_SIGNING_ACCOUNT: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          ARTIFACT_SIGNING_PROFILE: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+        run: |
+          set -euo pipefail
+          make finish-windows VERSION="$VERSION" SIGN_CMD=scripts/sign-windows.sh
+          [ -f build/bin/windows-signing.txt ] || { echo "::error::the installer check wrote no signing report"; exit 1; }
+          cn=$(sed -n 's/^cn=//p' build/bin/windows-signing.txt); ts=$(sed -n 's/^timestamp=//p' build/bin/windows-signing.txt); root=$(sed -n 's/^root=//p' build/bin/windows-signing.txt)
+          [ -n "$cn" ] && [ -n "$ts" ] && [ -n "$root" ] || { cat build/bin/windows-signing.txt; echo "::error::the signing report is incomplete"; exit 1; }
+          # The grammar the site's importer reads (agentry-web#187): the
+          # tokens, in this order, each `key=value` with the value running to
+          # the next known key; CN, timestamp and root carry spaces.
+          echo "signed_windows=authenticode CN=$cn profile=$ARTIFACT_SIGNING_ACCOUNT/$ARTIFACT_SIGNING_PROFILE timestamp=$ts verified=osslsigncode root=$root" >> "$GITHUB_OUTPUT"
+          cat build/bin/windows-signing.txt
       # The binary, then the .deb and .rpm from build/nfpm/nfpm.yaml
       # (desktop#84): the bare binary stays as its own artifact.
       - name: Linux amd64 binary and packages, in the container that carries the GTK headers
@@ -356,6 +430,8 @@ jobs:
           merge-multiple: true
           path: bundle
       - name: BUILD-INFO
+        env:
+          SIGNED_WINDOWS: ${{ needs.linux-windows.outputs.signed_windows }}
         run: |
           set -euo pipefail
           set -a; . build/release.env; set +a
@@ -366,7 +442,13 @@ jobs:
             echo "ref=${GITHUB_REF}"
             echo "commit=${GITHUB_SHA}"
             echo "default_registry=${AGENTRY_DEFAULT_REGISTRY}"
+            # signed= is true only when EVERY artifact is OS-signed; the
+            # per-platform lines say which are. Windows since #54; macOS is
+            # #6, so until it lands this stays false and the page keeps
+            # saying so for the macOS artifacts.
             echo "signed=false"
+            : "${SIGNED_WINDOWS:?the linux-windows job reported no Windows signature, and a release without one does not complete}"
+            echo "signed_windows=${SIGNED_WINDOWS}"
             echo "built_by=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > bundle/BUILD-INFO
           cat bundle/BUILD-INFO

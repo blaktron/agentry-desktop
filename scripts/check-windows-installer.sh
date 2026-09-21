@@ -5,7 +5,7 @@
 # without Windows: the install-over-install and uninstall checks run by hand
 # on a Windows machine until #55 gives CI one.
 #
-#   scripts/check-windows-installer.sh <setup.exe> <agentry-desktop.exe> [project.nsi]
+#   scripts/check-windows-installer.sh [--signed] [--report FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]
 #
 # What it proves:
 #   1. the file name is one the site's manifest admits
@@ -21,12 +21,37 @@
 #      carries: the installer is not a different build;
 #   5. the script's install section reaches nothing under the person's
 #      profile, the settings section is off by default, and the application
-#      section cannot be unticked.
+#      section cannot be unticked;
+#   6. with --signed (agentry-desktop#54): the installer, the application it
+#      carries and the uninstaller it embeds each carry an Authenticode
+#      signature that osslsigncode verifies to the pinned Microsoft Identity
+#      Verification root (build/windows/signing/), timestamped, all three by
+#      the same subject — and the subject's CN is AGENTRY_WINDOWS_SIGNING_CN
+#      when that is in the environment (the release exports it from
+#      build/release.env). --report FILE writes what was found (cn=,
+#      timestamp=, root=) for the release's BUILD-INFO. Without --signed the
+#      package is reported unsigned and nothing is asserted about
+#      signatures, which is what a PR build is. Needs osslsigncode 2.7 or
+#      later (both spellings of its timestamp line are read).
+#      Overrides for a test harness only: SIGNING_CAFILE (the root to verify
+#      against; the fingerprint pin is then skipped) and SIGNING_TSA_CAFILE
+#      (the timestamp chain's root, default: the same file).
 set -euo pipefail
 
-setup="${1:?usage: $0 <setup.exe> <agentry-desktop.exe> [project.nsi]}"
-exe="${2:?usage: $0 <setup.exe> <agentry-desktop.exe> [project.nsi]}"
-nsi="${3:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/build/windows/installer/project.nsi}"
+signed=0; report=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --signed) signed=1; shift ;;
+    --report) report="${2:?--report needs a file}"; shift 2 ;;
+    --) shift; break ;;
+    -*) echo "check-windows-installer: unknown option $1" >&2; exit 2 ;;
+    *) break ;;
+  esac
+done
+setup="${1:?usage: $0 [--signed] [--report FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
+exe="${2:?usage: $0 [--signed] [--report FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]}"
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+nsi="${3:-$root_dir/build/windows/installer/project.nsi}"
 
 fail() { echo "check-windows-installer: $*" >&2; exit 1; }
 
@@ -78,4 +103,71 @@ grep -q -E '^Section /o "un\.Also remove my Agentry settings and sign-in"' "$nsi
 awk '/^Section "un\./{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi" | grep -q 'SectionIn RO' || fail "the application section can be unticked"
 grep -q -- '--remove-my-settings' "$nsi" || fail "the settings section does not hand the removal to the app"
 
-echo "check-windows-installer: $name ok — asInvoker, installs agentry-desktop.exe + uninstall.exe, same binary as $(basename "$exe"), install section stays in \$INSTDIR"
+if [ "$signed" -eq 0 ]; then
+  echo "check-windows-installer: $name ok — asInvoker, installs agentry-desktop.exe + uninstall.exe, same binary as $(basename "$exe"), install section stays in \$INSTDIR; unsigned (no --signed)"
+  exit 0
+fi
+
+# 6. The three signatures. osslsigncode is handed the pinned Microsoft root
+# because Ubuntu's ca-certificates does not carry it; the pin is the
+# fingerprint in build/windows/signing/README.md, checked before the file is
+# trusted with anything.
+command -v osslsigncode >/dev/null 2>&1 || fail "osslsigncode is needed to verify the signatures (apt-get install osslsigncode)"
+command -v openssl >/dev/null 2>&1 || fail "openssl is needed to check the pinned root"
+pinned_root="$root_dir/build/windows/signing/microsoft-identity-verification-root-2020.pem"
+pinned_fp="53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"
+ca="${SIGNING_CAFILE:-$pinned_root}"
+tsa_ca="${SIGNING_TSA_CAFILE:-$ca}"
+[ -f "$ca" ] || fail "$ca does not exist"
+if [ -z "${SIGNING_CAFILE:-}" ]; then
+  fp=$(openssl x509 -in "$ca" -noout -fingerprint -sha256 | sed 's/^.*=//')
+  [ "$fp" = "$pinned_fp" ] || fail "$ca is not the pinned Microsoft Identity Verification root (fingerprint $fp)"
+fi
+root_subject=$(openssl x509 -in "$ca" -noout -subject | sed 's/^subject=//')
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# verify_pe <file> <label>: osslsigncode verify against the pinned root and
+# the timestamp root; prints "<cn>|<timestamp>" on success.
+verify_pe() {
+  local f=$1 label=$2 out cn ts
+  if ! out=$(osslsigncode verify -in "$f" -CAfile "$ca" -TSA-CAfile "$tsa_ca" 2>&1); then
+    printf '%s\n' "$out" >&2
+    fail "the signature on the $label does not verify to $root_subject"
+  fi
+  printf '%s\n' "$out" | grep -q 'Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "osslsigncode did not report the $label's signature ok"; }
+  cn=$(printf '%s\n' "$out" | awk '/Signer.s certificate/{on=1} on && /Subject:/{print; exit}' | sed -n 's#.*/CN=\([^/]*\).*#\1#p' | head -1)
+  [ -n "$cn" ] || { printf '%s\n' "$out" >&2; fail "could not read the signer's CN from osslsigncode's report on the $label"; }
+  ts=$(printf '%s\n' "$out" | sed -n -e 's/^[[:space:]]*Timestamp time: //p' -e 's/^The signature is timestamped: //p' | head -1)
+  [ -n "$ts" ] || { printf '%s\n' "$out" >&2; fail "the signature on the $label is not timestamped — an Artifact Signing certificate lives three days, so the signature would die with it"; }
+  printf '%s\n' "$out" | grep -q 'Timestamp Server Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "the timestamp on the $label does not verify"; }
+  printf '%s|%s\n' "$cn" "$ts"
+}
+
+setup_sig=$(verify_pe "$setup" "installer")
+exe_sig=$(verify_pe "$exe" "application binary")
+7z e -so "$setup" uninstall.exe > "$work/uninstall.exe" 2>/dev/null || fail "could not extract uninstall.exe from the installer"
+[ -s "$work/uninstall.exe" ] || fail "the extracted uninstall.exe is empty"
+uninst_sig=$(verify_pe "$work/uninstall.exe" "embedded uninstaller")
+cn=${setup_sig%%|*}
+[ "${exe_sig%%|*}" = "$cn" ] || fail "the application binary is signed by '${exe_sig%%|*}', the installer by '$cn'"
+[ "${uninst_sig%%|*}" = "$cn" ] || fail "the uninstaller is signed by '${uninst_sig%%|*}', the installer by '$cn'"
+# The CN the release expects, when it names one (AGENTRY_WINDOWS_SIGNING_CN,
+# exported from build/release.env by the release job): the certificate says
+# who signed, this says who was meant to. The pinned root is shared by every
+# Artifact Signing customer, so without it the check proves "an Artifact
+# Signing subject, one CN across three", not "ours".
+expected_cn="${AGENTRY_WINDOWS_SIGNING_CN:-}"
+if [ -n "$expected_cn" ] && [ "$expected_cn" != "$cn" ]; then
+  fail "signed by CN='$cn' but AGENTRY_WINDOWS_SIGNING_CN expects '$expected_cn'"
+fi
+
+if [ -n "$report" ]; then
+  {
+    printf 'cn=%s\n' "$cn"
+    printf 'timestamp=%s\n' "${setup_sig#*|}"
+    printf 'root=%s\n' "$root_subject"
+  } > "$report"
+fi
+echo "check-windows-installer: $name ok — asInvoker, installs agentry-desktop.exe + uninstall.exe, same binary as $(basename "$exe"), install section stays in \$INSTDIR; signed by CN=$cn (installer, application and uninstaller), timestamped ${setup_sig#*|}, chain to $root_subject"
