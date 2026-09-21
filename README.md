@@ -329,13 +329,19 @@ mints for a job in the `release` environment, Azure answers with an access
 token that lives for the job, and no Azure secret exists anywhere.
 **`scripts/operator/artifact-signing-setup.sh`** is how the operator connects
 the repository to their validated identity — it creates the Entra app
-registration and its one federated credential, assigns the Certificate
-Profile Signer role on the signing account, creates the `release` environment
-and sets six repository *variables* (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+registration and its one federated credential (whose subject it reads from
+the repository's own OIDC settings, since a subject carries the owner and
+repository ids now), assigns the Certificate Profile Signer role on the
+signing account and nowhere wider, creates the `release` environment with a
+deployment policy that admits only `main` and `v*` tags, and sets six
+repository *variables* (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
 `AZURE_SUBSCRIPTION_ID`, `ARTIFACT_SIGNING_ENDPOINT`, `ARTIFACT_SIGNING_ACCOUNT`,
-`ARTIFACT_SIGNING_PROFILE`) — and the `signing-oidc-probe` workflow proves the
-exchange from a real job before any signing step exists (#151). The signing
-step itself is #54.
+`ARTIFACT_SIGNING_PROFILE`; `ENDPOINT=<host>` in the wizard's environment
+overrides the endpoint it derives). The `signing-oidc-probe` workflow proves
+the exchange from a real job in that environment before any signing step
+exists (#151). The signing step itself is #54: its `linux-windows` job joins
+the `release` environment with `id-token: write`, which also means a
+`workflow_dispatch` dry run must start from `main` or a `v*` tag once it does.
 
 No GitHub Release is created before 1.0 (operator, 2026-09-19): the site's
 downloads builder imports the bundle from the run and the download page is

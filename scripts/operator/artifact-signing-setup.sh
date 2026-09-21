@@ -139,17 +139,21 @@ TOTAL_STAGES=8
 # "Completed", and one Public Trust certificate profile. Everything after that
 # is here, and none of it is a secret:
 #
-#   - an Entra app registration with a FEDERATED credential for this repository's
-#     release environment, so a release job exchanges GitHub's OIDC token for an
-#     Azure access token at run time and no client secret exists anywhere;
-#   - the "Certificate Profile Signer" role for that identity on your account;
-#   - the GitHub environment `release` and six repository VARIABLES (identifiers,
-#     not secrets) the release workflow reads.
+#   - an Entra app registration with ONE federated credential for this
+#     repository's `release` environment, so a job in that environment exchanges
+#     GitHub's OIDC token for an Azure access token at run time and no client
+#     secret exists anywhere;
+#   - the Certificate Profile Signer role for that identity on your account;
+#   - the GitHub environment `release`, admitting only `main` and `v*` tags, and
+#     six repository VARIABLES (identifiers, not secrets) the release workflow reads.
 #
 # It signs you in to Azure with a device code, finds the account and profile
 # you made, and creates what is missing; re-running it changes nothing that
 # already exists. Run it from a clone of agentry-desktop on a machine where
 # `gh` is signed in as someone who can administer the repository.
+#
+# Overrides, for the odd case: ENDPOINT=<host> if the account does not state
+# its signing endpoint and its region is not in the table below.
 # ---------------------------------------------------------------------------
 
 REPO="blaktron/agentry-desktop"
@@ -158,23 +162,40 @@ APP_NAME="agentry-desktop-release-signing"
 FIC_NAME="agentry-desktop-release-environment"
 ISSUER="https://token.actions.githubusercontent.com"
 AUDIENCE="api://AzureADTokenExchange"
-SUBJECT="repo:${REPO}:environment:${GH_ENV}"
 RESOURCE="https://codesigning.azure.net"
 PROBE_WORKFLOW="signing-oidc-probe.yaml"
 VENV="${XDG_DATA_HOME:-$HOME/.local/share}/agentry/azure-cli"
 WORK=""
 
+# The temp directory only ever holds the federated credential's parameters
+# (issuer, subject, audience: all public), so an interrupt loses nothing.
 cleanup_work() { [ -n "$WORK" ] && rm -rf "$WORK"; return 0; }
 trap cleanup_work EXIT
 trap 'cleanup_work; printf "\n"; die "interrupted; what was already created stays, and re-running picks it up"' INT TERM
 
-# azj <args…>: az with JSON output, or a clear death.
+# azj <args…>: az with JSON output and stderr silenced. The library runs
+# without -e, so every call whose output feeds a test carries its own || die:
+# an az failure must never read as "already exists".
 azj() { az "$@" -o json 2>/dev/null; }
+# count <json-array>: its length, or 0 for empty input (a failed call).
+count() { printf '%s' "$1" | jq -r 'if type=="array" then length else 0 end' 2>/dev/null || echo 0; }
+# flat <json>: lift ARM's `properties` up beside the top-level fields, so one
+# jq path reads a field whichever shape this az version returns.
+flat() { jq 'if type=="array" then map(. + (.properties // {})) else . + (.properties // {}) end'; }
 
 stage "Where you are, and what you are about to connect"
 [ -f "wails.json" ] || die "run this from the root of an agentry-desktop clone (wails.json is not here)"
-for t in gh curl jq python3; do command -v "$t" >/dev/null 2>&1 || die "$t is needed; install it first"; done
+for t in gh jq python3; do command -v "$t" >/dev/null 2>&1 || die "$t is needed; install it first"; done
 gh auth status >/dev/null 2>&1 || die "gh is not signed in: run 'gh auth login'"
+# The federated credential must equal the subject GitHub puts in the job's
+# OIDC token, character for character. Since 2026-07-15 that subject carries
+# the owner and repository ids ("immutable subject"), and a repository can
+# customise it; so the prefix is read from the repository, never assumed.
+OIDC=$(gh api "repos/$REPO/actions/oidc/customization/sub" 2>/dev/null) || die "could not read the repository's OIDC subject settings (gh needs admin on $REPO)"
+[ "$(printf '%s' "$OIDC" | jq -r .use_default)" = "true" ] || die "$REPO uses a customised OIDC subject template; this wizard supports the default one — reset it or edit SUBJECT here"
+SUB_PREFIX=$(printf '%s' "$OIDC" | jq -r '.sub_claim_prefix // empty')
+[ -n "$SUB_PREFIX" ] || SUB_PREFIX="repo:$REPO"
+SUBJECT="$SUB_PREFIX:environment:$GH_ENV"
 say "In the Azure portal you have already completed an Individual identity"
 say "validation and created a Public Trust certificate profile. This wizard"
 say "connects the release workflow of $REPO to that profile:"
@@ -184,12 +205,12 @@ note "    issuer   $ISSUER"
 note "    subject  $SUBJECT"
 note "    audience $AUDIENCE"
 step "the Certificate Profile Signer role for it, scoped to your signing account"
-step "the GitHub environment '$GH_ENV' and six repository variables (not secrets)"
+step "the GitHub environment '$GH_ENV', admitting only main and v* tags, and six repository variables (not secrets)"
 say ""
 say "No secret is created by any stage: the app registration gets no client"
-say "secret and no certificate, and nothing is written to a runner. A release"
-say "job proves who it is with the OIDC token GitHub mints for it, and Azure"
-say "answers with an access token that lives for the job."
+say "secret and no certificate, and nothing is written to a runner. A job in"
+say "the '$GH_ENV' environment proves who it is with the OIDC token GitHub mints"
+say "for it, and Azure answers with an access token that lives for the job."
 say ""
 confirm "continue?"
 
@@ -236,15 +257,16 @@ if [ ${#SUBS[@]} -gt 1 ]; then
   ask "subscription id that holds the Artifact Signing account" SUBSCRIPTION_ID
   az account set -s "$SUBSCRIPTION_ID" || die "could not select $SUBSCRIPTION_ID"
 fi
-SUBSCRIPTION_ID=$(azj account show | jq -r .id)
-TENANT_ID=$(azj account show | jq -r .tenantId)
+ACCOUNT_CTX=$(azj account show) || die "az account show failed"
+SUBSCRIPTION_ID=$(printf '%s' "$ACCOUNT_CTX" | jq -r .id)
+TENANT_ID=$(printf '%s' "$ACCOUNT_CTX" | jq -r .tenantId)
 step "subscription $SUBSCRIPTION_ID"
 step "tenant       $TENANT_ID"
 
 stage "The signing account and its certificate profile"
-ACCOUNTS=$(azj "$AZ_GROUP" list) || die "could not list signing accounts (is the Microsoft.CodeSigning provider registered?)"
-[ "$(printf '%s' "$ACCOUNTS" | jq 'length')" -gt 0 ] || die "no Artifact Signing account in subscription $SUBSCRIPTION_ID: create one in the portal first"
-if [ "$(printf '%s' "$ACCOUNTS" | jq 'length')" -gt 1 ]; then
+ACCOUNTS=$(azj "$AZ_GROUP" list | flat) || die "could not list signing accounts (is the Microsoft.CodeSigning provider registered?)"
+[ "$(count "$ACCOUNTS")" -gt 0 ] || die "no Artifact Signing account in subscription $SUBSCRIPTION_ID: create one in the portal first"
+if [ "$(count "$ACCOUNTS")" -gt 1 ]; then
   say "Accounts:"; printf '%s' "$ACCOUNTS" | jq -r '.[] | "    \(.name)  (\(.resourceGroup), \(.location))"'
   ask "account name" ACCOUNT_NAME
 else
@@ -255,58 +277,74 @@ ACCOUNT=$(printf '%s' "$ACCOUNTS" | jq --arg n "$ACCOUNT_NAME" '.[] | select(.na
 ACCOUNT_ID=$(printf '%s' "$ACCOUNT" | jq -r .id)
 RESOURCE_GROUP=$(printf '%s' "$ACCOUNT" | jq -r .resourceGroup)
 LOCATION=$(printf '%s' "$ACCOUNT" | jq -r '.location | ascii_downcase')
-# The signing endpoint: the account states it, or it follows the region code
-# (the table in Microsoft's quickstart).
-ENDPOINT=$(printf '%s' "$ACCOUNT" | jq -r '.accountUri // .properties.accountUri // empty' | sed -e 's#^https://##' -e 's#/$##')
+# The signing endpoint: the account states it (accountUri), or it follows the
+# region code (the table in Microsoft's quickstart), or the operator gave it.
+# Which of the first two this az returns has not been observed yet; both are
+# kept until one run says.
+if [ -z "${ENDPOINT:-}" ]; then
+  ENDPOINT=$(printf '%s' "$ACCOUNT" | jq -r '.accountUri // empty' | sed -e 's#^https://##' -e 's#/$##')
+fi
 if [ -z "$ENDPOINT" ]; then
   case "$LOCATION" in
     brazilsouth) code=brs;; centralus) code=cus;; eastus) code=eus;; japaneast) code=jpe;;
     koreacentral) code=krc;; northcentralus) code=ncus;; northeurope) code=neu;; polandcentral) code=plc;;
     southcentralus) code=scus;; switzerlandnorth) code=swn;; westcentralus) code=wcus;; westeurope) code=weu;;
     westus) code=wus;; westus2) code=wus2;; westus3) code=wus3;;
-    *) die "no known signing endpoint for region '$LOCATION'; look it up in the quickstart and re-run with ENDPOINT set" ;;
+    *) die "no known signing endpoint for region '$LOCATION'; look it up in the quickstart and re-run with ENDPOINT=<host>" ;;
   esac
   ENDPOINT="$code.codesigning.azure.net"
 fi
-step "account   $ACCOUNT_NAME  ($RESOURCE_GROUP, $LOCATION, $(printf '%s' "$ACCOUNT" | jq -r '.sku.name // .properties.sku.name // "sku ?"'))"
+step "account   $ACCOUNT_NAME  ($RESOURCE_GROUP, $LOCATION, $(printf '%s' "$ACCOUNT" | jq -r '.sku.name // "sku ?"'), provisioning $(printf '%s' "$ACCOUNT" | jq -r '.provisioningState // "?"'))"
 step "endpoint  $ENDPOINT"
-PROFILES=$(azj "$AZ_GROUP" certificate-profile list --account-name "$ACCOUNT_NAME" -g "$RESOURCE_GROUP") || die "could not list certificate profiles"
-PUBLIC=$(printf '%s' "$PROFILES" | jq '[.[] | select((.profileType // .properties.profileType) == "PublicTrust")]')
-[ "$(printf '%s' "$PUBLIC" | jq 'length')" -gt 0 ] || die "no Public Trust certificate profile on $ACCOUNT_NAME: create one in the portal first (it needs a Completed identity validation)"
-if [ "$(printf '%s' "$PUBLIC" | jq 'length')" -gt 1 ]; then
-  say "Public Trust profiles:"; printf '%s' "$PUBLIC" | jq -r '.[] | "    \(.name)  (\(.status // .properties.status))"'
+PROFILES=$(azj "$AZ_GROUP" certificate-profile list --account-name "$ACCOUNT_NAME" -g "$RESOURCE_GROUP" | flat) || die "could not list certificate profiles"
+PUBLIC=$(printf '%s' "$PROFILES" | jq '[.[] | select(.profileType == "PublicTrust")]')
+[ "$(count "$PUBLIC")" -gt 0 ] || die "no Public Trust certificate profile on $ACCOUNT_NAME: create one in the portal first (it needs a Completed identity validation)"
+if [ "$(count "$PUBLIC")" -gt 1 ]; then
+  say "Public Trust profiles:"; printf '%s' "$PUBLIC" | jq -r '.[] | "    \(.name)  (\(.status // "?"))"'
   ask "profile name" PROFILE_NAME
 else
   PROFILE_NAME=$(printf '%s' "$PUBLIC" | jq -r '.[0].name')
 fi
 PROFILE=$(printf '%s' "$PUBLIC" | jq --arg n "$PROFILE_NAME" '.[] | select(.name==$n)')
 [ -n "$PROFILE" ] || die "no Public Trust profile named '$PROFILE_NAME'"
-PROFILE_STATUS=$(printf '%s' "$PROFILE" | jq -r '.status // .properties.status // "?"')
+PROFILE_STATUS=$(printf '%s' "$PROFILE" | jq -r '.status // "?"')
 step "profile   $PROFILE_NAME  (status $PROFILE_STATUS)"
-SUBJECT_CN=$(printf '%s' "$PROFILE" | jq -r '.commonName // .properties.commonName // empty')
-[ -n "$SUBJECT_CN" ] && step "subject   CN=$SUBJECT_CN — this is the name Windows will show as the publisher"
-[ "$PROFILE_STATUS" = "Active" ] || { warn "the profile is not Active; signing will fail until it is"; confirm "continue anyway?"; }
+SUBJECT_CN=$(printf '%s' "$PROFILE" | jq -r '.commonName // empty')
+[ -n "$SUBJECT_CN" ] && step "subject   CN=$SUBJECT_CN — the name Windows will show as the publisher"
+# The CLI does not expose identity validations; an Active Public Trust profile
+# can only exist over a Completed one, which is the evidence this stage has.
+if [ "$PROFILE_STATUS" = "Active" ]; then
+  note "an Active Public Trust profile means its identity validation completed"
+else
+  warn "the profile is not Active; signing will fail until it is"; confirm "continue anyway?"
+fi
 
 stage "The identity a release job will present"
-APP_ID=$(azj ad app list --display-name "$APP_NAME" --query '[0].appId' | jq -r '. // empty')
+# --display-name is a prefix match in the CLI; select the exact name.
+APPS=$(azj ad app list --display-name "$APP_NAME") || die "could not list app registrations"
+APP_ID=$(printf '%s' "$APPS" | jq -r --arg n "$APP_NAME" '[.[] | select(.displayName==$n)] | .[0].appId // empty')
 if [ -z "$APP_ID" ]; then
-  APP_ID=$(azj ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMyOrg | jq -r .appId) \
-    || die "could not create the app registration (your account may not be allowed to register applications)"
+  APP_ID=$(azj ad app create --display-name "$APP_NAME" --sign-in-audience AzureADMyOrg | jq -r '.appId // empty')
+  [ -n "$APP_ID" ] || die "could not create the app registration (your account may not be allowed to register applications)"
   step "created app registration '$APP_NAME'"
   SUMMARY+=("Entra app registration '$APP_NAME' (client id $APP_ID)")
 else
   step "app registration '$APP_NAME' exists"
 fi
-SP_OBJECT_ID=$(azj ad sp show --id "$APP_ID" --query id 2>/dev/null | jq -r '. // empty')
+SP_OBJECT_ID=$(azj ad sp show --id "$APP_ID" | jq -r '.id // empty')
 if [ -z "$SP_OBJECT_ID" ]; then
-  SP_OBJECT_ID=$(azj ad sp create --id "$APP_ID" | jq -r .id) || die "could not create the service principal"
+  SP_OBJECT_ID=$(azj ad sp create --id "$APP_ID" | jq -r '.id // empty')
+  [ -n "$SP_OBJECT_ID" ] || die "could not create the service principal"
   step "created its service principal"
 else
   step "its service principal exists"
 fi
 step "client id  $APP_ID"
-FIC=$(azj ad app federated-credential list --id "$APP_ID" | jq --arg s "$SUBJECT" '[.[] | select(.subject==$s)]')
-if [ "$(printf '%s' "$FIC" | jq 'length')" -eq 0 ]; then
+FICS=$(azj ad app federated-credential list --id "$APP_ID") || die "could not list the app's federated credentials"
+FIC=$(printf '%s' "$FICS" | jq --arg s "$SUBJECT" '[.[] | select(.subject==$s)]')
+if [ "$(count "$FIC")" -eq 0 ]; then
+  OTHER=$(printf '%s' "$FICS" | jq -r --arg n "$FIC_NAME" '[.[] | select(.name==$n)] | .[0].subject // empty')
+  [ -z "$OTHER" ] || die "a federated credential named '$FIC_NAME' exists with subject '$OTHER', not '$SUBJECT' (the repository's subject prefix changed?); delete it in Entra and re-run"
   WORK=$(mktemp -d "${TMPDIR:-/tmp}/agentry-artifact-signing.XXXXXX")
   jq -n --arg n "$FIC_NAME" --arg i "$ISSUER" --arg s "$SUBJECT" --arg a "$AUDIENCE" \
     '{name:$n, issuer:$i, subject:$s, audiences:[$a], description:"agentry-desktop release workflow, environment release (agentry-desktop#151)"}' \
@@ -318,22 +356,26 @@ if [ "$(printf '%s' "$FIC" | jq 'length')" -eq 0 ]; then
 else
   step "a federated credential for subject $SUBJECT exists"
 fi
-# The whole point: no secret. Say so with evidence.
-NSECRETS=$(azj ad app credential list --id "$APP_ID" | jq 'length')
-NCERTS=$(azj ad app credential list --id "$APP_ID" --cert | jq 'length')
-if [ "$NSECRETS" = "0" ] && [ "$NCERTS" = "0" ]; then
-  step "the registration holds no client secret and no certificate"
+# The whole point: no secret. Say so with evidence, on the application AND
+# its service principal, each of which can carry passwords and certificates.
+NSECRETS=$(count "$(azj ad app credential list --id "$APP_ID")")
+NCERTS=$(count "$(azj ad app credential list --id "$APP_ID" --cert)")
+NSPSECRETS=$(count "$(azj ad sp credential list --id "$SP_OBJECT_ID")")
+NSPCERTS=$(count "$(azj ad sp credential list --id "$SP_OBJECT_ID" --cert)")
+if [ "$((NSECRETS + NCERTS + NSPSECRETS + NSPCERTS))" -eq 0 ]; then
+  step "neither the registration nor its service principal holds a client secret or a certificate"
 else
-  warn "the registration holds $NSECRETS client secret(s) and $NCERTS certificate(s); the release path needs neither — remove them"
+  warn "found $NSECRETS/$NCERTS secret(s)/certificate(s) on the registration and $NSPSECRETS/$NSPCERTS on the service principal; the release path needs none — remove them"
 fi
 
 stage "The role on your signing account"
 ROLE=""
 for name in "Artifact Signing Certificate Profile Signer" "Trusted Signing Certificate Profile Signer"; do
-  if [ "$(azj role definition list --name "$name" | jq 'length')" -gt 0 ]; then ROLE=$name; break; fi
+  if [ "$(count "$(azj role definition list --name "$name")")" -gt 0 ]; then ROLE=$name; break; fi
 done
 [ -n "$ROLE" ] || die "the Certificate Profile Signer role definition was not found in this tenant"
-if [ "$(azj role assignment list --assignee "$SP_OBJECT_ID" --scope "$ACCOUNT_ID" --role "$ROLE" | jq 'length')" -gt 0 ]; then
+HAVE=$(azj role assignment list --assignee "$SP_OBJECT_ID" --scope "$ACCOUNT_ID" --role "$ROLE") || die "could not list role assignments"
+if [ "$(count "$HAVE")" -gt 0 ]; then
   step "'$ROLE' is already assigned on $ACCOUNT_NAME"
 else
   azj role assignment create --role "$ROLE" --assignee-object-id "$SP_OBJECT_ID" \
@@ -342,18 +384,45 @@ else
   step "assigned '$ROLE' on $ACCOUNT_NAME, and nowhere wider"
   SUMMARY+=("role '$ROLE' -> $APP_NAME on account $ACCOUNT_NAME")
 fi
+# "Nowhere wider" is only true if nothing else was granted earlier.
+ALL=$(azj role assignment list --assignee "$SP_OBJECT_ID" --all) || die "could not list the principal's role assignments"
+EXTRA=$(printf '%s' "$ALL" | jq -r --arg s "$ACCOUNT_ID" '[.[] | select((.scope | ascii_downcase) != ($s | ascii_downcase))] | .[] | "\(.roleDefinitionName) on \(.scope)"')
+if [ -n "$EXTRA" ]; then
+  warn "this identity also holds role assignments outside the signing account:"; printf '%s\n' "$EXTRA" | sed 's/^/      /'
+  warn "the release path needs only the one above — remove the others"
+else
+  step "this identity holds no role assignment outside $ACCOUNT_NAME"
+fi
 note "Role assignments take a minute or two to propagate; the probe at the end may need one retry."
 
 stage "GitHub: the environment and the variables"
 say "The federated credential above matches ONE subject: a job of $REPO that"
-say "runs in the '$GH_ENV' environment. Any other job in this repository — a"
-say "pull request's CI, a fork — presents a different subject and gets no token."
+say "runs in the '$GH_ENV' environment. GitHub lets a job enter that environment"
+say "only from the refs its deployment policy admits — main, for dry runs, and"
+say "v* tags, for releases — so a job on any other branch, a pull request, or a"
+say "fork presents no such subject and gets no token."
 say ""
-if gh api -X PUT "repos/$REPO/environments/$GH_ENV" >/dev/null 2>&1; then
-  step "environment '$GH_ENV' exists on $REPO"
+if gh api -X PUT "repos/$REPO/environments/$GH_ENV" --input - >/dev/null 2>&1 <<'JSON'
+{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
+JSON
+then
+  step "environment '$GH_ENV' exists on $REPO with a custom deployment policy"
+  POLICIES=$(gh api "repos/$REPO/environments/$GH_ENV/deployment-branch-policies" 2>/dev/null | jq -c '[.branch_policies[] | {name, type: (.type // "branch")}]' 2>/dev/null || echo '[]')
+  for want in 'main branch' 'v* tag'; do
+    pname=${want% *}; ptype=${want#* }
+    if printf '%s' "$POLICIES" | jq -e --arg n "$pname" --arg t "$ptype" '.[] | select(.name==$n and .type==$t)' >/dev/null; then
+      step "policy: $ptype $pname admitted"
+    elif gh api -X POST "repos/$REPO/environments/$GH_ENV/deployment-branch-policies" -f "name=$pname" -f "type=$ptype" >/dev/null 2>&1; then
+      step "policy: $ptype $pname admitted (added)"
+      SUMMARY+=("environment '$GH_ENV' admits $ptype $pname")
+    else
+      warn "could not add the deployment policy for $ptype $pname; add it by hand: Settings → Environments → $GH_ENV"
+    fi
+  done
 else
   warn "could not create the '$GH_ENV' environment with this gh sign-in (it needs repository admin)."
-  warn "Create it by hand: $REPO → Settings → Environments → New environment → '$GH_ENV'."
+  warn "Create it by hand: $REPO → Settings → Environments → New environment → '$GH_ENV',"
+  warn "deployment branches and tags: 'Selected', add the branch 'main' and the tag 'v*'."
   pause
 fi
 set_var AZURE_TENANT_ID            "$TENANT_ID"       "$REPO"
@@ -362,13 +431,21 @@ set_var AZURE_SUBSCRIPTION_ID      "$SUBSCRIPTION_ID" "$REPO"
 set_var ARTIFACT_SIGNING_ENDPOINT  "$ENDPOINT"        "$REPO"
 set_var ARTIFACT_SIGNING_ACCOUNT   "$ACCOUNT_NAME"    "$REPO"
 set_var ARTIFACT_SIGNING_PROFILE   "$PROFILE_NAME"    "$REPO"
+# No Azure secret belongs in the repository either; say what the list holds.
+AZSECRETS=$(gh secret list -R "$REPO" --json name --jq '[.[].name | select(test("^(AZURE|ARTIFACT_SIGNING)_"))] | join(", ")' 2>/dev/null || true)
+if [ -n "$AZSECRETS" ]; then
+  warn "repository secrets named for Azure exist: $AZSECRETS — the release path reads none; remove them"
+else
+  step "no repository secret is named for Azure"
+fi
 
 stage "Proof"
 say "Two proofs. The first is yours: your own sign-in can obtain a token for"
-say "the signing service, which shows the service is reachable and the profile"
-say "is real. The second is the release job's: the '$PROBE_WORKFLOW' workflow"
+say "the signing service, which shows the service is reachable. The second is"
+say "the job's, and it is the one that counts: the '$PROBE_WORKFLOW' workflow"
 say "runs a job in the '$GH_ENV' environment on the Linux runner, exchanges its"
 say "OIDC token for an Azure access token, and prints nothing but the outcome."
+say "(The release workflow's own Windows job joins that environment with #54.)"
 say ""
 EXPIRES=$(az account get-access-token --resource "$RESOURCE" --query expiresOn -o tsv 2>/dev/null) \
   && step "your sign-in obtained a token for $RESOURCE (expires $EXPIRES)" \
@@ -378,22 +455,32 @@ read -r -p "  run the $PROBE_WORKFLOW workflow on $REPO now and wait for it? [Y/
 case "$ans" in
   n|N|no|NO) note "run it later: gh workflow run $PROBE_WORKFLOW -R $REPO && gh run watch --exit-status" ;;
   *)
-    if gh workflow run "$PROBE_WORKFLOW" -R "$REPO" 2>/dev/null; then
-      sleep 5
-      RUN_ID=$(gh run list -R "$REPO" --workflow "$PROBE_WORKFLOW" -L 1 --json databaseId --jq '.[0].databaseId')
-      if [ -n "$RUN_ID" ] && gh run watch "$RUN_ID" -R "$REPO" --exit-status >/dev/null 2>&1; then
-        step "the probe job obtained an Artifact Signing access token: run $RUN_ID"
-        SUMMARY+=("probe run $RUN_ID green: the release environment can obtain a signing token")
+    BEFORE=$(gh run list -R "$REPO" --workflow "$PROBE_WORKFLOW" -L 20 --json databaseId --jq '[.[].databaseId]' 2>/dev/null || echo '[]')
+    if gh workflow run "$PROBE_WORKFLOW" -R "$REPO" --ref main 2>/dev/null; then
+      RUN_ID=""; tries=0
+      while [ -z "$RUN_ID" ] && [ $tries -lt 12 ]; do
+        sleep 5; tries=$((tries + 1))
+        RUN_ID=$(gh run list -R "$REPO" --workflow "$PROBE_WORKFLOW" -L 20 --json databaseId 2>/dev/null \
+          | jq -r --argjson b "$BEFORE" '[.[].databaseId | select(. as $id | $b | index($id) | not)] | .[0] // empty' 2>/dev/null || true)
+      done
+      if [ -z "$RUN_ID" ]; then
+        warn "the run did not appear within a minute; find it with: gh run list -R $REPO --workflow $PROBE_WORKFLOW"
       else
-        warn "the probe did not pass (run ${RUN_ID:-?}); read its log with: gh run view ${RUN_ID:-<id>} -R $REPO --log"
-        warn "a fresh role assignment can take a couple of minutes to propagate — re-run the probe before anything else"
+        note "waiting for run $RUN_ID (a self-hosted job queues until the desktop runner is free)…"
+        if gh run watch "$RUN_ID" -R "$REPO" --exit-status >/dev/null 2>&1; then
+          step "the probe job obtained an Artifact Signing access token: run $RUN_ID"
+          SUMMARY+=("probe run $RUN_ID green: the release environment can obtain a signing token")
+        else
+          warn "the probe did not pass (run $RUN_ID); read its log with: gh run view $RUN_ID -R $REPO --log"
+          warn "a fresh role assignment can take a couple of minutes to propagate — re-run the probe before anything else"
+        fi
       fi
     else
-      warn "could not start $PROBE_WORKFLOW: it exists only once the branch carrying it is on main"
+      warn "could not start $PROBE_WORKFLOW: it exists on main only once the branch carrying it is merged"
     fi ;;
 esac
 say ""
 read -r -p "  sign out of Azure on this machine now? [Y/n]: " ans
-case "$ans" in n|N|no|NO) note "signed in; 'az logout' when you are done" ;; *) az logout >/dev/null 2>&1 && step "signed out of Azure" ;; esac
+case "$ans" in n|N|no|NO) note "still signed in: this machine keeps a refresh token under ~/.azure until 'az logout'" ;; *) az logout >/dev/null 2>&1 && step "signed out of Azure" ;; esac
 
 finish
