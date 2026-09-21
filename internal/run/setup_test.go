@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -242,7 +243,7 @@ func TestApplySetupStoresTheKeyBeforeThePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	st, err := GetStatus(context.Background())
-	if err != nil || st.APIKeySource != "" || st.KeyStored || st.KeyStoreErr == "" {
+	if err != nil || st.APIKeySource != "" || len(st.KeysStored) != 0 || st.KeyStoreErr == "" {
 		t.Fatalf("status = %+v err %v (the switch must be reported, not read as 'not stored')", st, err)
 	}
 	// A keyring source with nothing behind it is refused: under the switch
@@ -324,7 +325,7 @@ func TestApplySetupRecordsTheCredentialKindFromTheStoredKey(t *testing.T) {
 		t.Fatalf("stored = %v", entries)
 	}
 	st, err := GetStatus(context.Background())
-	if err != nil || st.APIKeySource != "keyring" || st.APIKeyKind != "subscription" || !strings.Contains(st.KeyNotice, "Claude Code only") || !st.KeyStored {
+	if err != nil || st.APIKeySource != "keyring" || st.APIKeyKind != "subscription" || !strings.Contains(st.KeyNotice, "Claude Code only") || !slices.Contains(st.KeysStored, "anthropic") {
 		t.Fatalf("status = %+v err %v", st, err)
 	}
 	if !strings.Contains(log.String(), "Claude Code only") || strings.Contains(log.String(), "sk-ant-oat01") {
@@ -346,7 +347,7 @@ func TestApplySetupRecordsTheCredentialKindFromTheStoredKey(t *testing.T) {
 	if err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", ForgetKey: true}, &log); err != nil {
 		t.Fatal(err)
 	}
-	if st, _ = GetStatus(context.Background()); st.APIKeyKind != "" || st.KeyNotice != "" || st.KeyStored {
+	if st, _ = GetStatus(context.Background()); st.APIKeyKind != "" || st.KeyNotice != "" || len(st.KeysStored) != 0 {
 		t.Fatalf("forgotten: %+v", st)
 	}
 	// An API key records nothing.
@@ -498,7 +499,7 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Provider != "custom" || st.Model != "qwen3.8-flash" || st.BaseURL != "https://llm.example.net/v1" || st.APIKeySource != "keyring" || !st.KeyStored || st.APIKeyKind != "" || st.KeyNotice != "" {
+	if st.Provider != "custom" || st.Model != "qwen3.8-flash" || st.BaseURL != "https://llm.example.net/v1" || st.APIKeySource != "keyring" || !slices.Contains(st.KeysStored, "custom") || st.APIKeyKind != "" || st.KeyNotice != "" {
 		t.Fatalf("status = %+v", st)
 	}
 	raw, _ := os.ReadFile(path)
@@ -518,7 +519,7 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 		t.Fatalf("ApplySetup(anthropic): %v", err)
 	}
 	st, err = GetStatus(context.Background())
-	if err != nil || st.Provider != "anthropic" || st.Model != "claude-opus-5" || st.APIKeySource != "keyring" || st.APIKeyKind != "subscription" || !strings.Contains(st.KeyNotice, "Claude Code only") || !st.KeyStored {
+	if err != nil || st.Provider != "anthropic" || st.Model != "claude-opus-5" || st.APIKeySource != "keyring" || st.APIKeyKind != "subscription" || !strings.Contains(st.KeyNotice, "Claude Code only") || !slices.Contains(st.KeysStored, "anthropic") {
 		t.Fatalf("status = %+v err %v", st, err)
 	}
 	raw, _ = os.ReadFile(path)
@@ -533,5 +534,63 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	}
 	if !strings.Contains(log.String(), "Claude Code only") {
 		t.Fatalf("the subscription sentence was not said: %q", log.String())
+	}
+}
+
+// TestGetStatusListsTheProvidersWithAStoredKey (agentry-desktop#141): the
+// form can show any provider in the table, so the status says which have
+// a key in the keychain — a stored key is a fact about the machine, not
+// about the policy's provider; the key-only call's answer lists the
+// provider it stored under while the policy still names another. A
+// keychain that cannot be asked ends the asking and is said once.
+func TestGetStatusListsTheProvidersWithAStoredKey(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	fakeKeychain(t, map[string]string{"custom": "typed-secret", "anthropic": "sk-ant-api03-x"})
+	st, err := GetStatus(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(st.KeysStored, ",") != "anthropic,custom" || st.KeyStoreErr != "" {
+		t.Fatalf("status = %+v", st)
+	}
+	// The policy names openai: nothing stored for it, the two others still listed.
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "openai"}, &strings.Builder{}); err != nil {
+		t.Fatal(err)
+	}
+	st, err = GetStatus(context.Background())
+	if err != nil || strings.Join(st.KeysStored, ",") != "anthropic,custom" {
+		t.Fatalf("status = %+v err %v", st, err)
+	}
+	// A key stored in the key-only call is listed at once, the policy untouched.
+	if err := StoreModelKey("google", "AIza-secret", &strings.Builder{}); err != nil {
+		t.Fatal(err)
+	}
+	st, err = GetStatus(context.Background())
+	if err != nil || st.Provider != "openai" || strings.Join(st.KeysStored, ",") != "anthropic,google,custom" {
+		t.Fatalf("status = %+v err %v", st, err)
+	}
+	// The keychain fails on the third ask: what was listed before stays,
+	// the asking ends there (no fourth or fifth prompt on a locked
+	// keychain), and the reason is said.
+	asked := 0
+	keychainPresent = func(provider string) (bool, error) {
+		asked++
+		if asked == 3 {
+			return false, errors.New("look for " + provider + " in the OS keychain: the collection is locked")
+		}
+		return provider == "anthropic", nil
+	}
+	st, err = GetStatus(context.Background())
+	if err != nil || asked != 3 || strings.Join(st.KeysStored, ",") != "anthropic" || !strings.Contains(st.KeyStoreErr, "locked") {
+		t.Fatalf("asked %d, status = %+v err %v", asked, st, err)
+	}
+	// No keychain at all: said once, nothing listed.
+	keychainPresent = func(provider string) (bool, error) {
+		return false, errors.New("keychain disabled (AGENTRY_NO_KEYRING) for " + provider)
+	}
+	st, err = GetStatus(context.Background())
+	if err != nil || len(st.KeysStored) != 0 || !strings.Contains(st.KeyStoreErr, "AGENTRY_NO_KEYRING") {
+		t.Fatalf("status = %+v err %v", st, err)
 	}
 }

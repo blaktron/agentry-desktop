@@ -45,10 +45,12 @@ type Status struct {
 	// an unset variable; "" when the environment is the only source
 	// (plan desktop-installers.md §9, D12; agentry-cli#148).
 	APIKeySource string
-	// KeyStored says whether the keychain holds a key for Provider;
-	// KeyStoreErr is why that could not be asked (no keychain, disabled).
-	// Neither ever carries the value.
-	KeyStored   bool
+	// KeysStored lists every provider the setup form can show that has a
+	// key in the keychain, so the form's badge is right for the provider
+	// chosen and not only for the policy's (agentry-desktop#141);
+	// KeyStoreErr is why the keychain could not be asked (none, disabled),
+	// in which case the list is not complete. Neither carries a value.
+	KeysStored  []string
 	KeyStoreErr string
 	// APIKeyKind is the policy's apiKeyKind (agentry-cli#171): "" or
 	// "api", or "subscription" for an Anthropic subscription token, which
@@ -95,10 +97,20 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	if st.APIKeyKind == policy.KeyKindSubscription {
 		st.KeyNotice = policy.SubscriptionTokenSentence
 	}
-	if stored, kerr := keychainPresent(pol.Model.Provider); kerr != nil {
-		st.KeyStoreErr = kerr.Error()
-	} else {
-		st.KeyStored = stored
+	// One ask per provider (each reads the value to answer, agentry-cli#156).
+	// An absent entry is an answer; an error is the keychain itself — none,
+	// disabled, locked — and would be the same error, and on a locked
+	// Secret Service the same prompt, for every provider after it, so the
+	// first one ends the asking and is said.
+	for _, provider := range providersToAsk(pol.Model.Provider) {
+		stored, kerr := keychainPresent(provider)
+		if kerr != nil {
+			st.KeyStoreErr = kerr.Error()
+			break
+		}
+		if stored {
+			st.KeysStored = append(st.KeysStored, provider)
+		}
 	}
 	st.BaseURL = pol.Model.BaseURL
 	st.TimeoutSeconds = pol.Budgets.TimeoutSeconds
@@ -113,6 +125,19 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.DockerOK = true
 	st.ImagesReady = imagesReady(ctx, docker, pol)
 	return st, nil
+}
+
+// providersToAsk is the setup table plus custom (setup.Providers), and the
+// policy's provider when the table does not list it (the policy admits a
+// name the harness knows), so a key stored under it is listed too.
+func providersToAsk(policyProvider string) []string {
+	out := setup.Providers()
+	for _, p := range out {
+		if p == policyProvider {
+			return out
+		}
+	}
+	return append(out, policyProvider)
 }
 
 // imagesReady reports whether the three images a run needs are present:

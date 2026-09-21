@@ -165,11 +165,13 @@ type SetupStatusView struct {
 	Model        string `json:"model"`
 	APIKeyEnv    string `json:"apiKeyEnv"`
 	// APIKeySource is "keyring" when the OS keychain is the fallback for
-	// an unset variable; KeyStored whether it holds a key for the
-	// provider; KeyStoreErr why that could not be asked. No value, ever.
-	APIKeySource string `json:"apiKeySource,omitempty"`
-	KeyStored    bool   `json:"keyStored"`
-	KeyStoreErr  string `json:"keyStoreErr,omitempty"`
+	// an unset variable; KeysStored which of the providers the form can
+	// show have a key in it, so the badge follows the provider chosen and
+	// not the policy's (desktop#141); KeyStoreErr why the keychain could
+	// not be asked. No value, ever.
+	APIKeySource string   `json:"apiKeySource,omitempty"`
+	KeysStored   []string `json:"keysStored"`
+	KeyStoreErr  string   `json:"keyStoreErr,omitempty"`
 	// APIKeyKind is "subscription" for a stored Anthropic subscription
 	// token (agentry-cli#171), and KeyNotice the sentence to show beside
 	// the field for it; both empty for an API key.
@@ -194,7 +196,7 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 		Model:                 s.Model,
 		APIKeyEnv:             s.APIKeyEnv,
 		APIKeySource:          s.APIKeySource,
-		KeyStored:             s.KeyStored,
+		KeysStored:            emptyNotNil(s.KeysStored),
 		KeyStoreErr:           s.KeyStoreErr,
 		APIKeyKind:            s.APIKeyKind,
 		KeyNotice:             s.KeyNotice,
@@ -360,7 +362,9 @@ func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error)
 // log line (desktop#102) has as little to carry as possible. The key is
 // written nowhere else, and the policy is untouched: the ApplySetup the
 // form makes next records the keyring as the source, beside the model and
-// the URL this call does not carry (agentry-desktop#139).
+// the URL this call does not carry (agentry-desktop#139). The status it
+// returns lists the provider just stored under, so the form knows the key
+// is on this machine even when that next call is refused (desktop#141).
 func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	if !r.mu.TryLock() {
 		return nil, errBusy
