@@ -51,7 +51,7 @@ jobs:
             github.com/blaktron/agentry github.com/blaktron/agentry-cli)
           if [ -n "$behind" ]; then
             echo "$behind"
-            echo "::error::A pinned dependency is behind its default branch. The desktop reads files the CLI writes, so a stale pin ships as a broken build (desktop#60). Bump with: go get github.com/blaktron/agentry@main github.com/blaktron/agentry-cli@main, then fix any call sites the API moved under."
+            echo "::error::A pinned dependency is behind its default branch. The desktop reads files the CLI writes, so a stale pin ships as a broken build (desktop#60). Bump with: go get github.com/blaktron/agentry@dev github.com/blaktron/agentry-cli@dev on dev (@main on main; the estate's branch model, agentry-notes#156), then fix any call sites the API moved under."
             exit 1
           fi
           echo "pins are current"
