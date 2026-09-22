@@ -52,6 +52,7 @@ func run() error {
 		in       = flag.String("in", "", "file to sign, normally SHA256SUMS (required)")
 		version  = flag.String("version", "", "the version this release is (required)")
 		commit   = flag.String("commit", "", "the commit it was built from (required)")
+		product  = flag.String("product", selfupdate.ThisProduct, "the product this release is of, as its repository is named (agentry-desktop, agentry-cli)")
 		out      = flag.String("out", "", "signature file to write (default: <in>.minisig)")
 	)
 	flag.Parse()
@@ -59,15 +60,9 @@ func run() error {
 		flag.Usage()
 		return errors.New("-key, -in, -version and -commit are all required")
 	}
-	// The comment is formatted by internal/selfupdate, not here and not by the
-	// workflow's shell, because the application PARSES it to learn which
-	// release it is being offered — the manifest is unsigned, so this comment
-	// is the only version statement the key covers. One function writes it and
-	// one reads it, so the two cannot drift; a round-trip check here means a
-	// release cannot be signed with a comment the app would not understand.
-	comment := selfupdate.TrustedComment(*version, *commit)
-	if v, c, err := selfupdate.ParseTrustedComment(comment); err != nil || v != *version || c != *commit {
-		return fmt.Errorf("refusing to sign: %q would not be read back as version %q from commit %q (%v)", comment, *version, *commit, err)
+	comment, err := checkedComment(*product, *version, *commit)
+	if err != nil {
+		return err
 	}
 	if *out == "" {
 		*out = *in + ".minisig"
@@ -79,6 +74,9 @@ func run() error {
 	}
 	if len(message) == 0 {
 		return fmt.Errorf("%s is empty: a signature over nothing proves nothing", *in)
+	}
+	if err := sumsNameProduct(message, *product); err != nil {
+		return err
 	}
 
 	priv, err := readKey(*keyPath, *passPath)
@@ -103,6 +101,55 @@ func run() error {
 
 	fmt.Printf("signrelease: %s signed with %s and verified against the committed key set\n", filepath.Base(*out), key)
 	return nil
+}
+
+// sumsNameProduct refuses to sign one product's SHA256SUMS with another
+// product's comment. The artifact names are the estate's product contract —
+// the site's importer reads the product off them: agentry-desktop-<v>-… is
+// the desktop, agentry-<v>-… anything else is the CLI — so a sums file whose
+// names are the other product's is the misuse this catches: a CLI release
+// signed with the default product would carry a signed statement calling it
+// the desktop, the site would import it, and the app would offer it and then
+// find no artifact to download. BUILD-INFO is the one line that is not an
+// artifact.
+func sumsNameProduct(sums []byte, product string) error {
+	for _, line := range strings.Split(string(sums), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		name := strings.TrimPrefix(fields[1], "*")
+		if name == "BUILD-INFO" {
+			continue
+		}
+		isDesktop := strings.HasPrefix(name, "agentry-desktop-")
+		isCLI := strings.HasPrefix(name, "agentry-") && !isDesktop
+		switch {
+		case product == "agentry-desktop" && !isDesktop, product == "agentry-cli" && !isCLI:
+			return fmt.Errorf("refusing to sign: %s lists %q, which is not an artifact of %s — the wrong -product, or the wrong sums", "SHA256SUMS", name, product)
+		case product != "agentry-desktop" && product != "agentry-cli" && !strings.HasPrefix(name, product+"-"):
+			return fmt.Errorf("refusing to sign: %s lists %q, which does not carry the product name %s-", "SHA256SUMS", name, product)
+		}
+	}
+	return nil
+}
+
+// checkedComment is the signed comment for a release of product, after a
+// round trip through the reader. It is formatted by internal/selfupdate and
+// not here and not by a workflow's shell, because the application PARSES its
+// own product's comment to learn which release it is being offered — the
+// manifest is unsigned, so this comment is the only version statement the
+// key covers; one function writes it and one reads it, so the two cannot
+// drift. A release cannot be signed with a comment that would not be read
+// back as exactly this product, version and commit — a product name outside
+// the format, a version with a space in it, a commit that is not hex.
+func checkedComment(product, version, commit string) (string, error) {
+	comment := selfupdate.TrustedCommentFor(product, version, commit)
+	p, v, c, err := selfupdate.ParseAnyTrustedComment(comment)
+	if err != nil || p != product || v != version || c != commit {
+		return "", fmt.Errorf("refusing to sign: %q would not be read back as product %q, version %q, commit %q (%v)", comment, product, version, commit, err)
+	}
+	return comment, nil
 }
 
 // signAndVerify signs message and then checks the result against the key set a
