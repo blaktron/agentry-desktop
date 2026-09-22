@@ -43,15 +43,22 @@ set -euo pipefail
 # the tool prints — 2.8's OpenSSL slash form (/C=CA/…/CN=Name, the Ubuntu
 # runner's) and 2.12's RFC 2253 comma form (CN=Name,O=…,C=CA, Fedora 44's;
 # a comma inside a value is escaped with a backslash and a component
-# boundary is an unescaped comma). Empty when the subject carries no CN in
-# the form it uses — never a guess from the other form (agentry-desktop#171;
-# the site's manifest.py and the CLI's check-windows-binary.sh read the same).
+# boundary is an unescaped comma). The two forms list components in
+# opposite orders (RFC 2253 reverses), so both branches pick the same
+# component: the certificate's first CN — the last in the slash form, the
+# first in the comma form. Empty when the subject carries no CN in the form
+# it uses — never a guess from the other form (agentry-desktop#171; the
+# site's manifest.py and the CLI's check-windows-binary.sh read the same).
 signer_cn() {
   local subject cn
   subject=$(printf '%s\n' "$1" | awk '/Signer.s certificate/{on=1} on && /Subject:/{sub(/^[[:space:]]*Subject:[[:space:]]*/, ""); print; exit}')
   case "$subject" in
     /*) cn=$(printf '%s\n' "$subject" | sed -n 's#.*/CN=\([^/]*\).*#\1#p') ;;
-    *)  cn=$(printf '%s\n' "$subject" | sed -E -n 's/^(.*[^\\],)?[[:space:]]*CN=((\\.|[^,])+).*$/\2/p' | sed -E 's/\\(.)/\1/g') ;;
+    *)  # Escaped commas are hidden from the split (\x01), then the first
+        # component that is a CN wins and the value is unescaped.
+        cn=$(printf '%s\n' "$subject" | sed 's/\\,/\x01/g' \
+          | awk -F',' '{for (i = 1; i <= NF; i++) {f = $i; sub(/^[[:space:]]+/, "", f); if (f ~ /^CN=/) {print substr(f, 4); exit}}}' \
+          | sed -e 's/\x01/,/g' -e 's/\\\(.\)/\1/g') ;;
   esac
   printf '%s' "$cn" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
@@ -72,6 +79,9 @@ if [ "${1:-}" = "--self-test" ]; then
   check "" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: OU=CN=notacn,O=x\n'
   check "" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: /C=CA/O=Nobody\n'
   check "" $'Number of verified signatures: 1\n'
+  # Two CNs: the certificate's first, in both orders.
+  check "First" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: /C=CA/CN=Second/O=x/CN=First\n'
+  check "First" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: CN=First,O=x,CN=Second,C=CA\n'
   [ "$fails" -eq 0 ] || exit 1
   echo "check-windows-installer --self-test: ok (the signer's CN in both osslsigncode subject forms; no CN is no CN)"
   exit 0

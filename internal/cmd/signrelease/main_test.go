@@ -54,9 +54,9 @@ func TestSignAndVerifyProducesASignatureTheAppAccepts(t *testing.T) {
 func TestSignAndVerifyCarriesAnotherProductsComment(t *testing.T) {
 	priv, entry := keystest.Key(t, "prod", false)
 	set := keystest.Set(t, entry)
-	comment := commentFor("agentry-cli", "0.1.0", "abc1234")
-	if comment != "agentry-cli 0.1.0 (commit abc1234)" {
-		t.Fatalf("commentFor = %q", comment)
+	comment, err := checkedComment("agentry-cli", "0.1.0", "abc1234")
+	if err != nil || comment != "agentry-cli 0.1.0 (commit abc1234)" {
+		t.Fatalf("checkedComment = %q, %v", comment, err)
 	}
 	sig, _, err := signAndVerify(priv, sums, comment, set)
 	if err != nil {
@@ -78,8 +78,8 @@ func TestSignAndVerifyCarriesAnotherProductsComment(t *testing.T) {
 	if _, _, err := selfupdate.ParseTrustedComment(parsed.TrustedComment); err == nil {
 		t.Errorf("the desktop's update path read a CLI release's comment as its own")
 	}
-	if commentFor("agentry-desktop", "0.2.0", "abc1234") != "agentry-desktop 0.2.0 (commit abc1234)" {
-		t.Errorf("the default product's comment changed shape")
+	if c, err := checkedComment("agentry-desktop", "0.2.0", "abc1234"); err != nil || c != "agentry-desktop 0.2.0 (commit abc1234)" {
+		t.Errorf("the default product's comment changed shape: %q, %v", c, err)
 	}
 	for _, bad := range []string{"", "Agentry", "agentry desktop", "agentry_cli"} {
 		if _, err := checkedComment(bad, "0.1.0", "abc1234"); err == nil {

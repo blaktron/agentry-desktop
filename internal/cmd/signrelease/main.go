@@ -52,7 +52,7 @@ func run() error {
 		in       = flag.String("in", "", "file to sign, normally SHA256SUMS (required)")
 		version  = flag.String("version", "", "the version this release is (required)")
 		commit   = flag.String("commit", "", "the commit it was built from (required)")
-		product  = flag.String("product", selfupdate.Product, "the product this release is of, as its repository is named (agentry-desktop, agentry-cli)")
+		product  = flag.String("product", selfupdate.ThisProduct, "the product this release is of, as its repository is named (agentry-desktop, agentry-cli)")
 		out      = flag.String("out", "", "signature file to write (default: <in>.minisig)")
 	)
 	flag.Parse()
@@ -100,22 +100,17 @@ func run() error {
 	return nil
 }
 
-// commentFor is the signed comment for a release of product, formatted by
-// internal/selfupdate and not here and not by a workflow's shell, because
-// the application PARSES its own product's comment to learn which release it
-// is being offered — the manifest is unsigned, so this comment is the only
-// version statement the key covers. One function writes it and one reads it,
-// so the two cannot drift.
-func commentFor(product, version, commit string) string {
-	return selfupdate.TrustedCommentFor(product, version, commit)
-}
-
-// checkedComment is commentFor after a round trip through the reader: a
-// release cannot be signed with a comment that would not be read back as
-// exactly this product, version and commit — a product name outside the
-// format, a version with a space in it, a commit that is not hex.
+// checkedComment is the signed comment for a release of product, after a
+// round trip through the reader. It is formatted by internal/selfupdate and
+// not here and not by a workflow's shell, because the application PARSES its
+// own product's comment to learn which release it is being offered — the
+// manifest is unsigned, so this comment is the only version statement the
+// key covers; one function writes it and one reads it, so the two cannot
+// drift. A release cannot be signed with a comment that would not be read
+// back as exactly this product, version and commit — a product name outside
+// the format, a version with a space in it, a commit that is not hex.
 func checkedComment(product, version, commit string) (string, error) {
-	comment := commentFor(product, version, commit)
+	comment := selfupdate.TrustedCommentFor(product, version, commit)
 	p, v, c, err := selfupdate.ParseAnyTrustedComment(comment)
 	if err != nil || p != product || v != version || c != commit {
 		return "", fmt.Errorf("refusing to sign: %q would not be read back as product %q, version %q, commit %q (%v)", comment, product, version, commit, err)

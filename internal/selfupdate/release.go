@@ -27,17 +27,17 @@ import (
 // `agentry-desktop 0.2.0 (commit …)` for ours. The update check reads ONLY
 // this product's (ParseTrustedComment); a CLI release's signature therefore
 // never reads as a desktop update, whatever manifest offers it.
-const Product = "agentry-desktop"
+const ThisProduct = "agentry-desktop"
 
-var (
-	productRE        = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
-	trustedCommentRE = regexp.MustCompile(`^([a-z][a-z0-9-]*) ([^\s(]+) \(commit ([0-9a-fA-F]{7,64})\)$`)
-)
+// A product is lower-case letters, digits and hyphens, as the repositories
+// are named; the comment's shape admits nothing else, so a product name
+// outside it is refused by the reader rather than accepted and mis-read.
+var trustedCommentRE = regexp.MustCompile(`^([a-z][a-z0-9-]*) ([^\s(]+) \(commit ([0-9a-fA-F]{7,64})\)$`)
 
 // TrustedComment is the signed comment for a release of this application at
 // this version built from this commit.
 func TrustedComment(version, commit string) string {
-	return TrustedCommentFor(Product, version, commit)
+	return TrustedCommentFor(ThisProduct, version, commit)
 }
 
 // TrustedCommentFor is the signed comment for a release of any of the
@@ -56,24 +56,21 @@ func ParseTrustedComment(s string) (version, commit string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	if product != Product {
-		return "", "", fmt.Errorf("the signature's trusted comment is %q, a release of %s, not of %s", s, product, Product)
+	if product != ThisProduct {
+		return "", "", fmt.Errorf("the signature's trusted comment is %q, a release of %s, not of %s", s, product, ThisProduct)
 	}
 	return version, commit, nil
 }
 
 // ParseAnyTrustedComment reads the product, version and commit out of a
 // signed comment in the shape TrustedCommentFor writes, for whichever product
-// it names. The signer's round-trip check and the site's importer read every
-// product; the application's update check does not use this — it reads its
-// own with ParseTrustedComment.
+// it names. The signer's round-trip check is its caller; the application's
+// update check does not use this — it reads its own product's comment with
+// ParseTrustedComment, and the site's importer has its own reading.
 func ParseAnyTrustedComment(s string) (product, version, commit string, err error) {
 	m := trustedCommentRE.FindStringSubmatch(strings.TrimSpace(s))
 	if m == nil {
 		return "", "", "", fmt.Errorf("the signature's trusted comment is %q, which is not %q", s, TrustedCommentFor("<product>", "<version>", "<commit>"))
-	}
-	if !productRE.MatchString(m[1]) {
-		return "", "", "", fmt.Errorf("the signature's trusted comment names product %q, which is not a name the estate uses", m[1])
 	}
 	return m[1], m[2], m[3], nil
 }
