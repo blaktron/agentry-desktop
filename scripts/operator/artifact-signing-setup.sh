@@ -123,7 +123,7 @@ finish() {
 # Set TOTAL_STAGES to the number of stages you wrote.
 
 
-TOTAL_STAGES=8
+TOTAL_STAGES=9
 
 # ---------------------------------------------------------------------------
 # Agentry Desktop: connect the release workflow to Azure Artifact Signing.
@@ -150,16 +150,44 @@ TOTAL_STAGES=8
 # It signs you in to Azure with a device code, finds the account and profile
 # you made, and creates what is missing; re-running it changes nothing that
 # already exists. Run it from a clone of agentry-desktop on a machine where
-# `gh` is signed in as someone who can administer the repository.
+# `gh` is signed in as someone who administers the TARGET repository (this
+# one, or the one --repo names); the wizard refuses any other.
+#
+#   scripts/operator/artifact-signing-setup.sh [--repo OWNER/NAME]
+#
+# --repo connects ANOTHER repository of the estate to the same identity
+# (agentry-desktop#173; the CLI's release, agentry-cli#197, plan
+# cli-release-signing.md D3): one more federated credential on the same app
+# registration, named for that repository and matching its own `release`
+# environment; that repository's environment, deployment policy, variables
+# and probe. The app registration, the role and the profile are the same and
+# are reported as existing. Without --repo it is this repository's run.
 #
 # Overrides, for the odd case: ENDPOINT=<host> if the account does not state
 # its signing endpoint and its region is not in the table below.
 # ---------------------------------------------------------------------------
 
-REPO="blaktron/agentry-desktop"
+DEFAULT_REPO="blaktron/agentry-desktop"
+REPO="$DEFAULT_REPO"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo) [ $# -ge 2 ] && [ -n "$2" ] || die "--repo needs OWNER/NAME"; REPO=$2; shift 2 ;;
+    --repo=*) REPO=${1#--repo=}; shift ;;
+    -h|--help) sed -n '/^# Agentry Desktop: connect/,/^# Overrides/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown argument $1 (usage: $0 [--repo OWNER/NAME])" ;;
+  esac
+done
+case "$REPO" in
+  */*/*|*/|/*|""|*[!A-Za-z0-9_./-]*) die "--repo is OWNER/NAME (letters, digits, . _ -), got '$REPO'" ;;
+  */*) ;;
+  *) die "--repo is OWNER/NAME, got '$REPO' (no owner)" ;;
+esac
+REPO_NAME=${REPO#*/}
 GH_ENV="release"
+# One registration for every repository of the estate; one federated
+# credential per repository, named for it, matching its own environment.
 APP_NAME="agentry-desktop-release-signing"
-FIC_NAME="agentry-desktop-release-environment"
+FIC_NAME="${REPO_NAME}-release-environment"
 ISSUER="https://token.actions.githubusercontent.com"
 AUDIENCE="api://AzureADTokenExchange"
 RESOURCE="https://codesigning.azure.net"
@@ -187,11 +215,18 @@ stage "Where you are, and what you are about to connect"
 [ -f "wails.json" ] || die "run this from the root of an agentry-desktop clone (wails.json is not here)"
 for t in gh jq python3; do command -v "$t" >/dev/null 2>&1 || die "$t is needed; install it first"; done
 gh auth status >/dev/null 2>&1 || die "gh is not signed in: run 'gh auth login'"
+# Only a repository this sign-in administers may be joined to the signing
+# identity: the credential the wizard creates lets a job of that repository's
+# `release` environment sign as the operator, and the environment's policy is
+# what bounds it — both need admin, and the OIDC settings below are readable
+# without it, so this is the gate, before anything is created anywhere.
+ADMIN=$(gh api "repos/$REPO" --jq '.permissions.admin // false' 2>/dev/null) || die "could not read $REPO (does it exist, and is gh signed in as someone who can see it?)"
+[ "$ADMIN" = "true" ] || die "this gh sign-in does not administer $REPO; only a repository you administer may sign with your identity"
 # The federated credential must equal the subject GitHub puts in the job's
 # OIDC token, character for character. Since 2026-07-15 that subject carries
 # the owner and repository ids ("immutable subject"), and a repository can
 # customise it; so the prefix is read from the repository, never assumed.
-OIDC=$(gh api "repos/$REPO/actions/oidc/customization/sub" 2>/dev/null) || die "could not read the repository's OIDC subject settings (gh needs admin on $REPO)"
+OIDC=$(gh api "repos/$REPO/actions/oidc/customization/sub" 2>/dev/null) || die "could not read the OIDC subject settings of $REPO"
 [ "$(printf '%s' "$OIDC" | jq -r .use_default)" = "true" ] || die "$REPO uses a customised OIDC subject template; this wizard supports the default one — reset it or edit SUBJECT here"
 SUB_PREFIX=$(printf '%s' "$OIDC" | jq -r '.sub_claim_prefix // empty')
 [ -n "$SUB_PREFIX" ] || SUB_PREFIX="repo:$REPO"
@@ -200,12 +235,16 @@ say "In the Azure portal you have already completed an Individual identity"
 say "validation and created a Public Trust certificate profile. This wizard"
 say "connects the release workflow of $REPO to that profile:"
 say ""
-step "an Entra app registration '$APP_NAME' with ONE federated credential:"
+if [ "$REPO" = "$DEFAULT_REPO" ]; then
+  step "an Entra app registration '$APP_NAME' with ONE federated credential:"
+else
+  step "on the Entra app registration '$APP_NAME' (the desktop's, created if it is missing), ONE more federated credential '$FIC_NAME':"
+fi
 note "    issuer   $ISSUER"
 note "    subject  $SUBJECT"
 note "    audience $AUDIENCE"
 step "the Certificate Profile Signer role for it, scoped to your signing account"
-step "the GitHub environment '$GH_ENV', admitting only main and v* tags, and six repository variables (not secrets)"
+step "the GitHub environment '$GH_ENV' of $REPO, admitting only main and v* tags — created BEFORE the credential that names it — and six repository variables (not secrets)"
 say ""
 say "No secret is created by any stage: the app registration gets no client"
 say "secret and no certificate, and nothing is written to a runner. A job in"
@@ -319,6 +358,33 @@ else
   warn "the profile is not Active; signing will fail until it is"; confirm "continue anyway?"
 fi
 
+stage "GitHub: the release environment, before the credential that names it"
+say "The credential the next stage creates matches ONE subject: a job of $REPO"
+say "that runs in the '$GH_ENV' environment. GitHub lets a job enter that"
+say "environment only from the refs its deployment policy admits — main, for"
+say "dry runs, and v* tags, for releases — so a job on any other branch, a pull"
+say "request, or a fork presents no such subject and gets no token. The"
+say "environment and its policy exist first, so there is no moment at which a"
+say "credential names an environment any ref could enter."
+say ""
+gh api -X PUT "repos/$REPO/environments/$GH_ENV" --input - >/dev/null 2>&1 <<'JSON' \
+  || die "could not create the '$GH_ENV' environment on $REPO with this gh sign-in (it needs repository admin); nothing has been created in Azure"
+{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
+JSON
+step "environment '$GH_ENV' exists on $REPO with a custom deployment policy"
+POLICIES=$(gh api "repos/$REPO/environments/$GH_ENV/deployment-branch-policies" 2>/dev/null | jq -c '[.branch_policies[] | {name, type: (.type // "branch")}]' 2>/dev/null || echo '[]')
+for want in 'main branch' 'v* tag'; do
+  pname=${want% *}; ptype=${want#* }
+  if printf '%s' "$POLICIES" | jq -e --arg n "$pname" --arg t "$ptype" '.[] | select(.name==$n and .type==$t)' >/dev/null; then
+    step "policy: $ptype $pname admitted"
+  elif gh api -X POST "repos/$REPO/environments/$GH_ENV/deployment-branch-policies" -f "name=$pname" -f "type=$ptype" >/dev/null 2>&1; then
+    step "policy: $ptype $pname admitted (added)"
+    SUMMARY+=("environment '$GH_ENV' of $REPO admits $ptype $pname")
+  else
+    die "could not add the deployment policy for $ptype $pname on $REPO; nothing has been created in Azure — fix the environment (Settings → Environments → $GH_ENV) and re-run"
+  fi
+done
+
 stage "The identity a release job will present"
 # --display-name is a prefix match in the CLI; select the exact name.
 APPS=$(azj ad app list --display-name "$APP_NAME") || die "could not list app registrations"
@@ -347,7 +413,8 @@ if [ "$(count "$FIC")" -eq 0 ]; then
   [ -z "$OTHER" ] || die "a federated credential named '$FIC_NAME' exists with subject '$OTHER', not '$SUBJECT' (the repository's subject prefix changed?); delete it in Entra and re-run"
   WORK=$(mktemp -d "${TMPDIR:-/tmp}/agentry-artifact-signing.XXXXXX")
   jq -n --arg n "$FIC_NAME" --arg i "$ISSUER" --arg s "$SUBJECT" --arg a "$AUDIENCE" \
-    '{name:$n, issuer:$i, subject:$s, audiences:[$a], description:"agentry-desktop release workflow, environment release (agentry-desktop#151)"}' \
+    --arg d "$REPO release workflow, environment $GH_ENV (agentry-desktop#151, #173)" \
+    '{name:$n, issuer:$i, subject:$s, audiences:[$a], description:$d}' \
     > "$WORK/fic.json"
   azj ad app federated-credential create --id "$APP_ID" --parameters "@$WORK/fic.json" >/dev/null \
     || die "could not create the federated credential"
@@ -395,36 +462,10 @@ else
 fi
 note "Role assignments take a minute or two to propagate; the probe at the end may need one retry."
 
-stage "GitHub: the environment and the variables"
-say "The federated credential above matches ONE subject: a job of $REPO that"
-say "runs in the '$GH_ENV' environment. GitHub lets a job enter that environment"
-say "only from the refs its deployment policy admits — main, for dry runs, and"
-say "v* tags, for releases — so a job on any other branch, a pull request, or a"
-say "fork presents no such subject and gets no token."
+stage "GitHub: the variables"
+say "Six identifiers the release workflow of $REPO reads (not secrets: a tenant,"
+say "a client, a subscription, an endpoint, an account and a profile name)."
 say ""
-if gh api -X PUT "repos/$REPO/environments/$GH_ENV" --input - >/dev/null 2>&1 <<'JSON'
-{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
-JSON
-then
-  step "environment '$GH_ENV' exists on $REPO with a custom deployment policy"
-  POLICIES=$(gh api "repos/$REPO/environments/$GH_ENV/deployment-branch-policies" 2>/dev/null | jq -c '[.branch_policies[] | {name, type: (.type // "branch")}]' 2>/dev/null || echo '[]')
-  for want in 'main branch' 'v* tag'; do
-    pname=${want% *}; ptype=${want#* }
-    if printf '%s' "$POLICIES" | jq -e --arg n "$pname" --arg t "$ptype" '.[] | select(.name==$n and .type==$t)' >/dev/null; then
-      step "policy: $ptype $pname admitted"
-    elif gh api -X POST "repos/$REPO/environments/$GH_ENV/deployment-branch-policies" -f "name=$pname" -f "type=$ptype" >/dev/null 2>&1; then
-      step "policy: $ptype $pname admitted (added)"
-      SUMMARY+=("environment '$GH_ENV' admits $ptype $pname")
-    else
-      warn "could not add the deployment policy for $ptype $pname; add it by hand: Settings → Environments → $GH_ENV"
-    fi
-  done
-else
-  warn "could not create the '$GH_ENV' environment with this gh sign-in (it needs repository admin)."
-  warn "Create it by hand: $REPO → Settings → Environments → New environment → '$GH_ENV',"
-  warn "deployment branches and tags: 'Selected', add the branch 'main' and the tag 'v*'."
-  pause
-fi
 set_var AZURE_TENANT_ID            "$TENANT_ID"       "$REPO"
 set_var AZURE_CLIENT_ID            "$APP_ID"          "$REPO"
 set_var AZURE_SUBSCRIPTION_ID      "$SUBSCRIPTION_ID" "$REPO"
@@ -445,15 +486,28 @@ say "the signing service, which shows the service is reachable. The second is"
 say "the job's, and it is the one that counts: the '$PROBE_WORKFLOW' workflow"
 say "runs a job in the '$GH_ENV' environment on the Linux runner, exchanges its"
 say "OIDC token for an Azure access token, and prints nothing but the outcome."
-say "(The release workflow's own Windows job joins that environment with #54.)"
+say "(The release workflow's own signing job runs in that environment.)"
 say ""
 EXPIRES=$(az account get-access-token --resource "$RESOURCE" --query expiresOn -o tsv 2>/dev/null) \
   && step "your sign-in obtained a token for $RESOURCE (expires $EXPIRES)" \
   || warn "your sign-in could not obtain a token for $RESOURCE; the job's proof below is the one that matters"
 say ""
-read -r -p "  run the $PROBE_WORKFLOW workflow on $REPO now and wait for it? [Y/n]: " ans
+# The probe is offered only where it exists: a repository whose main has no
+# probe workflow is told so, never silently left unproven — and a failure to
+# ask GitHub is reported as that, not as the file's absence.
+PROBE_STATUS=$(gh api "repos/$REPO/contents/.github/workflows/$PROBE_WORKFLOW?ref=main" --silent --include 2>&1 | sed -n '1s/^HTTP\/[0-9.]* \([0-9]*\).*/\1/p')
+case "$PROBE_STATUS" in
+  200) read -r -p "  run the $PROBE_WORKFLOW workflow on $REPO now and wait for it? [Y/n]: " ans ;;
+  404) warn "$REPO has no .github/workflows/$PROBE_WORKFLOW on main, so the credential cannot be proven from a job yet:"
+       warn "merge that repository's release work first (it carries the probe), then run the probe by hand (below)."
+       SUMMARY+=("probe NOT run: $REPO has no $PROBE_WORKFLOW on main yet")
+       ans="n" ;;
+  *)   warn "could not ask GitHub whether $REPO carries $PROBE_WORKFLOW (HTTP ${PROBE_STATUS:-none}); run the probe by hand (below)."
+       SUMMARY+=("probe NOT run: GitHub could not be asked about $PROBE_WORKFLOW on $REPO")
+       ans="n" ;;
+esac
 case "$ans" in
-  n|N|no|NO) note "run it later: gh workflow run $PROBE_WORKFLOW -R $REPO && gh run watch --exit-status" ;;
+  n|N|no|NO) note "by hand: gh workflow run $PROBE_WORKFLOW -R $REPO --ref main && gh run watch -R $REPO --exit-status" ;;
   *)
     BEFORE=$(gh run list -R "$REPO" --workflow "$PROBE_WORKFLOW" -L 20 --json databaseId --jq '[.[].databaseId]' 2>/dev/null || echo '[]')
     if gh workflow run "$PROBE_WORKFLOW" -R "$REPO" --ref main 2>/dev/null; then
@@ -466,7 +520,7 @@ case "$ans" in
       if [ -z "$RUN_ID" ]; then
         warn "the run did not appear within a minute; find it with: gh run list -R $REPO --workflow $PROBE_WORKFLOW"
       else
-        note "waiting for run $RUN_ID (a self-hosted job queues until the desktop runner is free)…"
+        note "waiting for run $RUN_ID (a self-hosted job queues until that repository's runner is free)…"
         if gh run watch "$RUN_ID" -R "$REPO" --exit-status >/dev/null 2>&1; then
           step "the probe job obtained an Artifact Signing access token: run $RUN_ID"
           SUMMARY+=("probe run $RUN_ID green: the release environment can obtain a signing token")

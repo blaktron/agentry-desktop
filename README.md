@@ -153,6 +153,7 @@ away at the flip.
 | what update-signing keys this build trusts | `go run ./internal/cmd/keyset list` |
 | load a new update-signing key (operator) | `scripts/operator/update-signing-key.sh` |
 | connect the release workflow to Azure Artifact Signing (operator) | `scripts/operator/artifact-signing-setup.sh` |
+| connect another repository's release (the CLI) to the same signing identity (operator) | `scripts/operator/artifact-signing-setup.sh --repo blaktron/agentry-cli` |
 | the version every target stamps | `make version` |
 | does this tag name `wails.json`'s version? | `make version-check RELEASE_TAG=v0.1.0` |
 
@@ -368,7 +369,10 @@ signed_windows=authenticode CN=<subject CN> profile=<account>/<profile> timestam
 timestamp and the root carry spaces. The site's importer reads this line
 (blaktron/agentry-web#187).
 **`scripts/operator/artifact-signing-setup.sh`** is how the operator connects
-the repository to their validated identity — it creates the Entra app
+the repository to their validated identity (and, with `--repo OWNER/NAME`,
+another repository this sign-in administers — the CLI's release will sign
+with the same identity through its own federated credential and `release`
+environment once agentry-cli#197 runs it) — it creates the Entra app
 registration and its one federated credential (whose subject it reads from
 the repository's own OIDC settings, since a subject carries the owner and
 repository ids now), assigns the Certificate Profile Signer role on the
