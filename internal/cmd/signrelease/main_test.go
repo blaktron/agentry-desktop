@@ -88,6 +88,31 @@ func TestSignAndVerifyCarriesAnotherProductsComment(t *testing.T) {
 	}
 }
 
+// The misuse the product flag invites: one product's sums signed under the
+// other's comment. The artifact names say which product a sums file is.
+func TestSumsNameProduct(t *testing.T) {
+	desktop := []byte("aa1f56ffcb84076209f4e5cf3eb0282c  agentry-desktop-0.2.0-darwin-universal.dmg\nbb  BUILD-INFO\n")
+	cli := []byte("cc  agentry-0.1.0-linux-amd64\ndd  agentry-0.1.0-windows-amd64.exe\nee  BUILD-INFO\n")
+	if err := sumsNameProduct(desktop, "agentry-desktop"); err != nil {
+		t.Errorf("the desktop's sums refused for the desktop: %v", err)
+	}
+	if err := sumsNameProduct(cli, "agentry-cli"); err != nil {
+		t.Errorf("the CLI's sums refused for the CLI: %v", err)
+	}
+	if err := sumsNameProduct(cli, "agentry-desktop"); err == nil {
+		t.Errorf("the CLI's sums were accepted under the desktop's comment")
+	}
+	if err := sumsNameProduct(desktop, "agentry-cli"); err == nil {
+		t.Errorf("the desktop's sums were accepted under the CLI's comment")
+	}
+	if err := sumsNameProduct([]byte("ff  other-thing-1.0\n"), "other-thing"); err != nil {
+		t.Errorf("a future product's own sums refused: %v", err)
+	}
+	if err := sumsNameProduct([]byte("ff  agentry-0.1.0-linux-amd64\n"), "other-thing"); err == nil {
+		t.Errorf("the CLI's sums were accepted under a future product's comment")
+	}
+}
+
 // The mistake a rotation invites: a new private half loaded into the Actions
 // secret while the matching public half was never committed. Signing succeeds;
 // the release is useless. This must fail the release, not ship it.

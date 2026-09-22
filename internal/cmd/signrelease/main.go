@@ -75,6 +75,9 @@ func run() error {
 	if len(message) == 0 {
 		return fmt.Errorf("%s is empty: a signature over nothing proves nothing", *in)
 	}
+	if err := sumsNameProduct(message, *product); err != nil {
+		return err
+	}
 
 	priv, err := readKey(*keyPath, *passPath)
 	if err != nil {
@@ -97,6 +100,37 @@ func run() error {
 	}
 
 	fmt.Printf("signrelease: %s signed with %s and verified against the committed key set\n", filepath.Base(*out), key)
+	return nil
+}
+
+// sumsNameProduct refuses to sign one product's SHA256SUMS with another
+// product's comment. The artifact names are the estate's product contract —
+// the site's importer reads the product off them: agentry-desktop-<v>-… is
+// the desktop, agentry-<v>-… anything else is the CLI — so a sums file whose
+// names are the other product's is the misuse this catches: a CLI release
+// signed with the default product would carry a signed statement calling it
+// the desktop, the site would import it, and the app would offer it and then
+// find no artifact to download. BUILD-INFO is the one line that is not an
+// artifact.
+func sumsNameProduct(sums []byte, product string) error {
+	for _, line := range strings.Split(string(sums), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		name := strings.TrimPrefix(fields[1], "*")
+		if name == "BUILD-INFO" {
+			continue
+		}
+		isDesktop := strings.HasPrefix(name, "agentry-desktop-")
+		isCLI := strings.HasPrefix(name, "agentry-") && !isDesktop
+		switch {
+		case product == "agentry-desktop" && !isDesktop, product == "agentry-cli" && !isCLI:
+			return fmt.Errorf("refusing to sign: %s lists %q, which is not an artifact of %s — the wrong -product, or the wrong sums", "SHA256SUMS", name, product)
+		case product != "agentry-desktop" && product != "agentry-cli" && !strings.HasPrefix(name, product+"-"):
+			return fmt.Errorf("refusing to sign: %s lists %q, which does not carry the product name %s-", "SHA256SUMS", name, product)
+		}
+	}
 	return nil
 }
 
