@@ -152,14 +152,39 @@ TOTAL_STAGES=8
 # already exists. Run it from a clone of agentry-desktop on a machine where
 # `gh` is signed in as someone who can administer the repository.
 #
+#   scripts/operator/artifact-signing-setup.sh [--repo OWNER/NAME]
+#
+# --repo connects ANOTHER repository of the estate to the same identity
+# (agentry-desktop#173; the CLI's release, agentry-cli#197, plan
+# cli-release-signing.md D3): one more federated credential on the same app
+# registration, named for that repository and matching its own `release`
+# environment; that repository's environment, deployment policy, variables
+# and probe. The app registration, the role and the profile are the same and
+# are reported as existing. Without --repo it is this repository's run.
+#
 # Overrides, for the odd case: ENDPOINT=<host> if the account does not state
 # its signing endpoint and its region is not in the table below.
 # ---------------------------------------------------------------------------
 
 REPO="blaktron/agentry-desktop"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo) [ $# -ge 2 ] && [ -n "$2" ] || die "--repo needs OWNER/NAME"; REPO=$2; shift 2 ;;
+    --repo=*) REPO=${1#--repo=}; shift ;;
+    -h|--help) sed -n '/^# Agentry Desktop: connect/,/^# ------/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown argument $1 (usage: $0 [--repo OWNER/NAME])" ;;
+  esac
+done
+case "$REPO" in
+  */*/*|*/|/*|"") die "--repo is OWNER/NAME, got '$REPO'" ;;
+  *[!A-Za-z0-9_./-]*) die "--repo carries a character a GitHub repository name cannot: '$REPO'" ;;
+esac
+REPO_NAME=${REPO#*/}
 GH_ENV="release"
+# One registration for every repository of the estate; one federated
+# credential per repository, named for it, matching its own environment.
 APP_NAME="agentry-desktop-release-signing"
-FIC_NAME="agentry-desktop-release-environment"
+FIC_NAME="${REPO_NAME}-release-environment"
 ISSUER="https://token.actions.githubusercontent.com"
 AUDIENCE="api://AzureADTokenExchange"
 RESOURCE="https://codesigning.azure.net"
@@ -200,7 +225,11 @@ say "In the Azure portal you have already completed an Individual identity"
 say "validation and created a Public Trust certificate profile. This wizard"
 say "connects the release workflow of $REPO to that profile:"
 say ""
-step "an Entra app registration '$APP_NAME' with ONE federated credential:"
+if [ "$REPO" = "blaktron/agentry-desktop" ]; then
+  step "an Entra app registration '$APP_NAME' with ONE federated credential:"
+else
+  step "on the Entra app registration '$APP_NAME' (the desktop's; reported as existing), ONE more federated credential '$FIC_NAME':"
+fi
 note "    issuer   $ISSUER"
 note "    subject  $SUBJECT"
 note "    audience $AUDIENCE"
@@ -445,15 +474,24 @@ say "the signing service, which shows the service is reachable. The second is"
 say "the job's, and it is the one that counts: the '$PROBE_WORKFLOW' workflow"
 say "runs a job in the '$GH_ENV' environment on the Linux runner, exchanges its"
 say "OIDC token for an Azure access token, and prints nothing but the outcome."
-say "(The release workflow's own Windows job joins that environment with #54.)"
+say "(The release workflow's own signing job runs in that environment.)"
 say ""
 EXPIRES=$(az account get-access-token --resource "$RESOURCE" --query expiresOn -o tsv 2>/dev/null) \
   && step "your sign-in obtained a token for $RESOURCE (expires $EXPIRES)" \
   || warn "your sign-in could not obtain a token for $RESOURCE; the job's proof below is the one that matters"
 say ""
-read -r -p "  run the $PROBE_WORKFLOW workflow on $REPO now and wait for it? [Y/n]: " ans
+# The probe is offered only where it exists: a repository whose main has no
+# probe workflow is told so, never silently left unproven.
+if ! gh api "repos/$REPO/contents/.github/workflows/$PROBE_WORKFLOW?ref=main" >/dev/null 2>&1; then
+  warn "$REPO has no .github/workflows/$PROBE_WORKFLOW on main, so the credential cannot be proven from a job yet."
+  warn "Merge that repository's release work first (it carries the probe), then: gh workflow run $PROBE_WORKFLOW -R $REPO --ref main && gh run watch --exit-status"
+  SUMMARY+=("probe NOT run: $REPO has no $PROBE_WORKFLOW on main yet")
+  ans="n"
+else
+  read -r -p "  run the $PROBE_WORKFLOW workflow on $REPO now and wait for it? [Y/n]: " ans
+fi
 case "$ans" in
-  n|N|no|NO) note "run it later: gh workflow run $PROBE_WORKFLOW -R $REPO && gh run watch --exit-status" ;;
+  n|N|no|NO) note "run it later: gh workflow run $PROBE_WORKFLOW -R $REPO --ref main && gh run watch --exit-status" ;;
   *)
     BEFORE=$(gh run list -R "$REPO" --workflow "$PROBE_WORKFLOW" -L 20 --json databaseId --jq '[.[].databaseId]' 2>/dev/null || echo '[]')
     if gh workflow run "$PROBE_WORKFLOW" -R "$REPO" --ref main 2>/dev/null; then
