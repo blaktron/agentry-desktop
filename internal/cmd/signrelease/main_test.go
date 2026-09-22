@@ -47,6 +47,47 @@ func TestSignAndVerifyProducesASignatureTheAppAccepts(t *testing.T) {
 	}
 }
 
+// A CLI bundle signed by this tool names the CLI in its signed comment, and
+// nothing else about the signature changes (agentry-desktop#171): the key set
+// still has to carry the key as current, and the app's own reader refuses the
+// comment as a desktop update.
+func TestSignAndVerifyCarriesAnotherProductsComment(t *testing.T) {
+	priv, entry := keystest.Key(t, "prod", false)
+	set := keystest.Set(t, entry)
+	comment := commentFor("agentry-cli", "0.1.0", "abc1234")
+	if comment != "agentry-cli 0.1.0 (commit abc1234)" {
+		t.Fatalf("commentFor = %q", comment)
+	}
+	sig, _, err := signAndVerify(priv, sums, comment, set)
+	if err != nil {
+		t.Fatalf("signAndVerify: %v", err)
+	}
+	var parsed minisign.Signature
+	if err := parsed.UnmarshalText(sig); err != nil {
+		t.Fatalf("the signature does not parse: %v", err)
+	}
+	if parsed.TrustedComment != comment {
+		t.Errorf("trusted comment = %q", parsed.TrustedComment)
+	}
+	// The bytes are validly signed by the estate's key (Verify says so) —
+	// and the desktop's update path, which reads the comment next, refuses
+	// it as a release of another product.
+	if _, err := set.Verify(sums, sig); err != nil {
+		t.Errorf("a CLI release signed by the estate's key does not verify: %v", err)
+	}
+	if _, _, err := selfupdate.ParseTrustedComment(parsed.TrustedComment); err == nil {
+		t.Errorf("the desktop's update path read a CLI release's comment as its own")
+	}
+	if commentFor("agentry-desktop", "0.2.0", "abc1234") != "agentry-desktop 0.2.0 (commit abc1234)" {
+		t.Errorf("the default product's comment changed shape")
+	}
+	for _, bad := range []string{"", "Agentry", "agentry desktop", "agentry_cli"} {
+		if _, err := checkedComment(bad, "0.1.0", "abc1234"); err == nil {
+			t.Errorf("checkedComment(%q) accepted a product name outside the format", bad)
+		}
+	}
+}
+
 // The mistake a rotation invites: a new private half loaded into the Actions
 // secret while the matching public half was never committed. Signing succeeds;
 // the release is useless. This must fail the release, not ship it.

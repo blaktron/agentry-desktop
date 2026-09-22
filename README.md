@@ -297,6 +297,11 @@ file it does not know.
   code the app uses. A release whose signature a shipped app would refuse
   therefore fails the release instead of shipping, which is the mistake a
   rotation invites: a new secret without the matching public half committed.
+  The signed trusted comment names the product (`agentry-desktop 0.2.0
+  (commit …)`); `-product agentry-cli` makes it the CLI's, which the CLI's
+  release workflow runs at a pinned revision of this module (#171) — the app's
+  update check reads only its own product's comment, so a CLI release never
+  reads as a desktop update.
 - The private half is a repository Actions secret,
   `AGENTRY_UPDATE_SIGNING_KEY`. It is an environment variable on the signing
   step — as an Actions secret must be to reach a step at all — and from there

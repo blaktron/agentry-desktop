@@ -353,6 +353,42 @@ func TestTrustedCommentRoundTrips(t *testing.T) {
 	}
 }
 
+// The estate signs more than the desktop's releases with this key (the CLI,
+// agentry-desktop#171): a comment names its product, the app reads only its
+// own, and the general reader gives every product back exactly.
+func TestTrustedCommentNamesItsProductAndTheAppReadsOnlyItsOwn(t *testing.T) {
+	cli := selfupdate.TrustedCommentFor("agentry-cli", "0.1.0", "abc1234")
+	if cli != "agentry-cli 0.1.0 (commit abc1234)" {
+		t.Fatalf("TrustedCommentFor(agentry-cli) = %q", cli)
+	}
+	if selfupdate.TrustedCommentFor("agentry-desktop", "0.2.0", "a7d2e603") != selfupdate.TrustedComment("0.2.0", "a7d2e603") {
+		t.Errorf("the desktop's comment changed shape")
+	}
+	// The app's update path must never read a CLI release as a desktop one.
+	if _, _, err := selfupdate.ParseTrustedComment(cli); err == nil {
+		t.Errorf("ParseTrustedComment accepted a CLI comment as the desktop's")
+	}
+	p, v, c, err := selfupdate.ParseAnyTrustedComment(cli)
+	if err != nil || p != "agentry-cli" || v != "0.1.0" || c != "abc1234" {
+		t.Errorf("ParseAnyTrustedComment(%q) = %q %q %q %v", cli, p, v, c, err)
+	}
+	p, v, c, err = selfupdate.ParseAnyTrustedComment(selfupdate.TrustedComment("0.2.0", "a7d2e603"))
+	if err != nil || p != "agentry-desktop" || v != "0.2.0" || c != "a7d2e603" {
+		t.Errorf("ParseAnyTrustedComment(desktop) = %q %q %q %v", p, v, c, err)
+	}
+	for _, bad := range []string{
+		"Agentry-CLI 0.1.0 (commit abc1234)",
+		"agentry cli 0.1.0 (commit abc1234)",
+		"agentry-cli (commit abc1234)",
+		"agentry-cli 0.1.0 (commit )",
+		"",
+	} {
+		if _, _, _, err := selfupdate.ParseAnyTrustedComment(bad); err == nil {
+			t.Errorf("ParseAnyTrustedComment(%q) accepted a comment that is not the format", bad)
+		}
+	}
+}
+
 func TestIsNewerReadsGitDescribeTheWayGitMeansIt(t *testing.T) {
 	// The suffix means "past this tag", not semver's "before it".
 	for _, tc := range []struct {

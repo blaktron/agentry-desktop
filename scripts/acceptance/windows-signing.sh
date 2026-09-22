@@ -112,6 +112,11 @@ echo "windows-signing acceptance: a failing signer fails the installer build"
 unset SIGNING_CAFILE SIGNING_TSA_CAFILE
 "$root_dir/scripts/check-windows-installer.sh" "$setup" "$T/agentry-desktop.exe" >/dev/null
 
+# 6b. The checker reads the signer's CN in both report forms osslsigncode
+# prints (2.8's slash form, 2.12's RFC 2253 form): a runner has one version,
+# so the other form is proven from fixtures.
+"$root_dir/scripts/check-windows-installer.sh" --self-test
+
 # 7. The committed root is the one the checker pins (the checker refuses
 # any other before trusting it; this proves the file and the pin agree).
 fp=$(openssl x509 -in "$root_dir/build/windows/signing/microsoft-identity-verification-root-2020.pem" -noout -fingerprint -sha256 | sed 's/^.*=//')

@@ -52,6 +52,7 @@ func run() error {
 		in       = flag.String("in", "", "file to sign, normally SHA256SUMS (required)")
 		version  = flag.String("version", "", "the version this release is (required)")
 		commit   = flag.String("commit", "", "the commit it was built from (required)")
+		product  = flag.String("product", selfupdate.Product, "the product this release is of, as its repository is named (agentry-desktop, agentry-cli)")
 		out      = flag.String("out", "", "signature file to write (default: <in>.minisig)")
 	)
 	flag.Parse()
@@ -59,15 +60,9 @@ func run() error {
 		flag.Usage()
 		return errors.New("-key, -in, -version and -commit are all required")
 	}
-	// The comment is formatted by internal/selfupdate, not here and not by the
-	// workflow's shell, because the application PARSES it to learn which
-	// release it is being offered — the manifest is unsigned, so this comment
-	// is the only version statement the key covers. One function writes it and
-	// one reads it, so the two cannot drift; a round-trip check here means a
-	// release cannot be signed with a comment the app would not understand.
-	comment := selfupdate.TrustedComment(*version, *commit)
-	if v, c, err := selfupdate.ParseTrustedComment(comment); err != nil || v != *version || c != *commit {
-		return fmt.Errorf("refusing to sign: %q would not be read back as version %q from commit %q (%v)", comment, *version, *commit, err)
+	comment, err := checkedComment(*product, *version, *commit)
+	if err != nil {
+		return err
 	}
 	if *out == "" {
 		*out = *in + ".minisig"
@@ -103,6 +98,29 @@ func run() error {
 
 	fmt.Printf("signrelease: %s signed with %s and verified against the committed key set\n", filepath.Base(*out), key)
 	return nil
+}
+
+// commentFor is the signed comment for a release of product, formatted by
+// internal/selfupdate and not here and not by a workflow's shell, because
+// the application PARSES its own product's comment to learn which release it
+// is being offered — the manifest is unsigned, so this comment is the only
+// version statement the key covers. One function writes it and one reads it,
+// so the two cannot drift.
+func commentFor(product, version, commit string) string {
+	return selfupdate.TrustedCommentFor(product, version, commit)
+}
+
+// checkedComment is commentFor after a round trip through the reader: a
+// release cannot be signed with a comment that would not be read back as
+// exactly this product, version and commit — a product name outside the
+// format, a version with a space in it, a commit that is not hex.
+func checkedComment(product, version, commit string) (string, error) {
+	comment := commentFor(product, version, commit)
+	p, v, c, err := selfupdate.ParseAnyTrustedComment(comment)
+	if err != nil || p != product || v != version || c != commit {
+		return "", fmt.Errorf("refusing to sign: %q would not be read back as product %q, version %q, commit %q (%v)", comment, product, version, commit, err)
+	}
+	return comment, nil
 }
 
 // signAndVerify signs message and then checks the result against the key set a

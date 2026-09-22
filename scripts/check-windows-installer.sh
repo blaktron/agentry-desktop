@@ -6,6 +6,7 @@
 # on a Windows machine until #55 gives CI one.
 #
 #   scripts/check-windows-installer.sh [--signed] [--report FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]
+#   scripts/check-windows-installer.sh --self-test
 #
 # What it proves:
 #   1. the file name is one the site's manifest admits
@@ -37,6 +38,44 @@
 #      against; the fingerprint pin is then skipped) and SIGNING_TSA_CAFILE
 #      (the timestamp chain's root, default: the same file).
 set -euo pipefail
+
+# signer_cn <osslsigncode report>: the signer's CN, in either subject form
+# the tool prints — 2.8's OpenSSL slash form (/C=CA/…/CN=Name, the Ubuntu
+# runner's) and 2.12's RFC 2253 comma form (CN=Name,O=…,C=CA, Fedora 44's;
+# a comma inside a value is escaped with a backslash and a component
+# boundary is an unescaped comma). Empty when the subject carries no CN in
+# the form it uses — never a guess from the other form (agentry-desktop#171;
+# the site's manifest.py and the CLI's check-windows-binary.sh read the same).
+signer_cn() {
+  local subject cn
+  subject=$(printf '%s\n' "$1" | awk '/Signer.s certificate/{on=1} on && /Subject:/{sub(/^[[:space:]]*Subject:[[:space:]]*/, ""); print; exit}')
+  case "$subject" in
+    /*) cn=$(printf '%s\n' "$subject" | sed -n 's#.*/CN=\([^/]*\).*#\1#p') ;;
+    *)  cn=$(printf '%s\n' "$subject" | sed -E -n 's/^(.*[^\\],)?[[:space:]]*CN=((\\.|[^,])+).*$/\2/p' | sed -E 's/\\(.)/\1/g') ;;
+  esac
+  printf '%s' "$cn" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# --self-test: the CN parser over the two report forms, no osslsigncode
+# needed — what the seam acceptance cannot exercise on a runner that has
+# only one of the two versions.
+if [ "${1:-}" = "--self-test" ]; then
+  fails=0
+  check() {  # check <expected> <report>
+    local got; got=$(signer_cn "$2")
+    if [ "$got" != "$1" ]; then echo "self-test: expected [$1], got [$got] for: $2" >&2; fails=$((fails + 1)); fi
+  }
+  check "Chris Dupres" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: /C=CA/ST=on/L=Ottawa/O=Chris Dupres/CN=Chris Dupres\n'
+  check "Chris Dupres" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: CN=Chris Dupres,O=Chris Dupres,L=Ottawa,ST=on,C=CA\n'
+  check "Dupres, Chris" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: O=Acme,CN=Dupres\\, Chris,C=CA\n'
+  check "" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: O=Acme\\,CN=x,C=CA\n'
+  check "" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: OU=CN=notacn,O=x\n'
+  check "" $'Signer\'s certificate:\n\tSigner #0:\n\t\tSubject: /C=CA/O=Nobody\n'
+  check "" $'Number of verified signatures: 1\n'
+  [ "$fails" -eq 0 ] || exit 1
+  echo "check-windows-installer --self-test: ok (the signer's CN in both osslsigncode subject forms; no CN is no CN)"
+  exit 0
+fi
 
 signed=0; report=""
 while [ $# -gt 0 ]; do
@@ -137,7 +176,7 @@ verify_pe() {
     fail "the signature on the $label does not verify to $root_subject"
   fi
   printf '%s\n' "$out" | grep -q 'Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "osslsigncode did not report the $label's signature ok"; }
-  cn=$(printf '%s\n' "$out" | awk '/Signer.s certificate/{on=1} on && /Subject:/{print; exit}' | sed -n 's#.*/CN=\([^/]*\).*#\1#p' | head -1)
+  cn=$(signer_cn "$out")
   [ -n "$cn" ] || { printf '%s\n' "$out" >&2; fail "could not read the signer's CN from osslsigncode's report on the $label"; }
   ts=$(printf '%s\n' "$out" | sed -n -e 's/^[[:space:]]*Timestamp time: //p' -e 's/^The signature is timestamped: //p' | head -1)
   [ -n "$ts" ] || { printf '%s\n' "$out" >&2; fail "the signature on the $label is not timestamped — an Artifact Signing certificate lives three days, so the signature would die with it"; }
