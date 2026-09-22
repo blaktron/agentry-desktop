@@ -370,9 +370,9 @@ timestamp and the root carry spaces. The site's importer reads this line
 (blaktron/agentry-web#187).
 **`scripts/operator/artifact-signing-setup.sh`** is how the operator connects
 the repository to their validated identity (and, with `--repo OWNER/NAME`,
-another repository of the estate — the CLI's release signs with the same
-identity through its own federated credential and `release` environment,
-agentry-cli#197) — it creates the Entra app
+another repository this sign-in administers — the CLI's release will sign
+with the same identity through its own federated credential and `release`
+environment once agentry-cli#197 runs it) — it creates the Entra app
 registration and its one federated credential (whose subject it reads from
 the repository's own OIDC settings, since a subject carries the owner and
 repository ids now), assigns the Certificate Profile Signer role on the
