@@ -1,12 +1,13 @@
 /* Agentry Desktop — the website's design tokens (agentry-web
-   app/globals.css §10), kept in step so desktop and web read as one
-   product: warm paper and ink with one deep viridian accent, a tuned
-   severity/syntax palette, a light base with a prefers-color-scheme dark
-   override. Deliberately restrained — a trust product reads as calm and
-   legible, not flashy, and deliberately NOT the framework-default
-   indigo/slate (which is what this file used to be, out of step with the
-   site since it moved; agentry-desktop#36). When the site's tokens change,
-   these follow. */
+   app/globals.css §10) as they stood before the site's voice-and-warmth
+   rework. The site has since moved to warmer paper and ink; taking the new
+   set is #49. The intent is one product: paper and ink with one deep
+   viridian accent, a tuned severity/syntax palette, a light base with a
+   prefers-color-scheme dark override. Deliberately restrained — a trust
+   product reads as calm and legible, not flashy, and deliberately NOT the
+   framework-default indigo/slate (which is what this file used to be;
+   agentry-desktop#36). When the site's tokens change, these are meant to
+   follow. */
 
 @import "./fonts.css";
 
