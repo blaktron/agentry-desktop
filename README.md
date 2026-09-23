@@ -282,10 +282,12 @@ it. That signature is the trust root for "a newer Agentry Desktop": the app will
 check it before it replaces itself (M6, #87). It is **our** key, not the
 operating system's — independent of Developer ID signing (#6) and
 Authenticode (#54), which secure a different thing and are not needed for this
-to work. The site's downloads importer does **not** verify it yet; that is
-blaktron/agentry-web#154, and it has to land before the first signed release
-is published, because the importer as it stands refuses a bundle carrying a
-file it does not know.
+to work. The site's downloads importer checks it against this repository's
+committed key set before it copies anything, and refuses a bundle whose
+signature is missing or does not verify (agentry-web's
+`scripts/release/manifest.py`, called by `build-downloads.sh --from-run`;
+blaktron/agentry-web#154); it then publishes the sums and the signature beside
+the artifacts.
 
 - `internal/selfupdate/keys.json` is the set of keys a build trusts: each with
   a name, its public half, its key id and whether it is retired. A retired key
@@ -320,9 +322,10 @@ file it does not know.
   operator-held hardware at launch (#111, labelled `launch-prerequisite`),
   retiring `dev` in the same run.
 
-Until a key has been loaded, `internal/selfupdate/keys.json` is empty and the
-release workflow **refuses every tag** — it will not publish a release no
-shipped app could check. A `workflow_dispatch` dry run warns and skips signing
+`internal/selfupdate/keys.json` holds the `dev` key since 2026-09-20 (#110);
+`prod` is loaded at launch (#111). With an empty key set the release workflow
+**refuses every tag** — it will not publish a release no shipped app could
+check. A `workflow_dispatch` dry run warns and skips signing
 instead, so the rest of the release path stays exercisable.
 
 ### OS code signing is a second, separate signature
