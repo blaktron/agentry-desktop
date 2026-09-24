@@ -152,7 +152,7 @@ export default function Installed({
     <div>
       <PageHeader
         title="Installed"
-        sub={<>What this machine has accepted — shared state with the <span className="mono">agentry</span> CLI (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
+        sub={<>The BriefAgents this machine has accepted. The <span className="mono">agentry</span> CLI reads and writes the same record (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
         actions={<Button onClick={checkUpdates} busy={checking} busyLabel="Checking…" disabled={managed.length === 0}>Check for updates</Button>}
       />
 
@@ -198,7 +198,7 @@ export default function Installed({
                 />
               );
             },
-            "Nothing this app installed. Records the CLI wrote and gone directories are listed below.",
+            "This app has installed nothing. Records the CLI wrote, and records whose directory is gone, are listed below.",
           )}
           {consents.length > 0 && section(
             "Recorded by the CLI",
@@ -239,7 +239,7 @@ export default function Installed({
             </p>
           ) : (
             <p>
-              The directory <span className="mono selectable">{confirmRemove.dir}</span> was chosen by you, so its
+              You chose the directory <span className="mono selectable">{confirmRemove.dir}</span>, so its
               files are <strong>left in place</strong>; only the install record is removed.
             </p>
           )}

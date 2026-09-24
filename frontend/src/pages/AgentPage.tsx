@@ -263,7 +263,7 @@ export default function AgentPage({
               ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> — the runner home's copy of this BriefAgent — and its record. The next Run fetches it again.</>
               : confirmRemove.managed
                 ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
-                : <>The directory was chosen by you, so its files are <strong>left in place</strong>; only the install record is removed.</>}
+                : <>You chose this directory, so its files are <strong>left in place</strong>; only the install record is removed.</>}
           </p>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmRemove(null)}>Cancel</Button>
@@ -349,10 +349,10 @@ export default function AgentPage({
               )}
               {prov?.state === "unscanned" && (
                 <p className="muted small">
-                  The registry admitted this version without a scan: its organization&apos;s administrator took the agent off
-                  the pipeline, so no findings, no report and no attestation stand behind it, and no scanner looked at its
-                  contents. Installing or running it asks for that consent, its own — accepting an unsigned release does not
-                  cover it.
+                  The registry admitted this version without a scan: no findings, no report and no attestation stand
+                  behind it. Its organization&apos;s administrator took the BriefAgent off the pipeline, and no scanner
+                  looked at its contents. Installing or running it asks for its own consent; accepting an unsigned release
+                  does not cover it.
                 </p>
               )}
               {prov && prov.state !== "verified" && prov.state !== "unscanned" && <p className="muted small">{prov.detail}</p>}
@@ -420,7 +420,7 @@ function MCPSection({
 
   if (!hasPublished) return <div className="empty">No published version.</div>;
   if (error) return <ErrorBox error={error} />;
-  if (!info) return <Spinner label="Deriving the tool surface…" />;
+  if (!info) return <Spinner label="Working out the tools this version grants…" />;
 
   return (
     <div className="selectable">
@@ -555,9 +555,9 @@ export function ReportCard({
           <strong>The registry admitted this version without a scan.</strong>
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
-          Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation
-          stand behind it. No scanner looked at its contents. Installing or running it asks for that consent, its own.
-          Status {report.versionStatus}.
+          No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
+          BriefAgent off the pipeline, and no scanner looked at its contents. Installing or running it asks for its own
+          consent. Status {report.versionStatus}.
         </p>
       </div>
     );

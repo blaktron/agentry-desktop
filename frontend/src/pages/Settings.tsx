@@ -206,8 +206,9 @@ export default function Settings({
       {signIn && (
         <Modal title={`Sign in to ${signIn.url}`} onClose={() => setSignIn(null)}>
             <p className="muted">
-              Paste a personal access token (create one in the web app under Settings → Tokens,
-              or with <span className="mono">agentry login</span>). Signing in also pins the registry's
+              Paste a personal access token. Create one on the registry's site under Settings →
+              Authentication (<span className="mono">/ui/account/tokens</span> on a registry without the
+              site), or with <span className="mono">agentry login</span>. Signing in also pins the registry's
               signing keys on first use (TOFU).
             </p>
             <Input

@@ -168,9 +168,9 @@ function SignInStep({
       <div className="wizard-body">
         <h1>Sign in to a registry</h1>
         <p className="page-sub">
-          Sign in to install and run agents; the credential lands in the OS keychain, shared with
-          the <span className="mono">agentry</span> CLI. You can also browse anonymously and sign in
-          later.
+          Sign in to install and run BriefAgents. The credential is kept in the OS keychain and
+          shared with the <span className="mono">agentry</span> CLI. You can also browse anonymously
+          and sign in later.
         </p>
 
         <ErrorBox error={error} />
