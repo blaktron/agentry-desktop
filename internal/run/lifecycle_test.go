@@ -710,3 +710,92 @@ func TestRunDefaultOutDir(t *testing.T) {
 		t.Errorf("default out dir not populated: %v", err)
 	}
 }
+
+// receiptExecLine reads the exec line of capabilities_enforced from the
+// run's result.json (the §R8 envelope) and the plan's own exec text from
+// receipts/run-plan.json.
+func receiptExecLine(t *testing.T, outDir string) (line, planned string, present bool) {
+	t.Helper()
+	var env struct {
+		CapabilitiesEnforced map[string]string `json:"capabilities_enforced"`
+	}
+	raw, err := os.ReadFile(filepath.Join(outDir, "result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatal(err)
+	}
+	var plan struct {
+		Enforcement map[string]string `json:"enforcement"`
+	}
+	raw, err = os.ReadFile(filepath.Join(outDir, "receipts", "run-plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		t.Fatal(err)
+	}
+	line, present = env.CapabilitiesEnforced["exec"]
+	return line, plan.Enforcement["exec"], present
+}
+
+// TestRunReceiptNamesResolvedExecPackages (desktop#95): a release that
+// declares exec gets the exec image's resolved package versions on its
+// receipt's exec line, the CLI's wording byte for byte — the compiled
+// text, then "; packages resolved at image build: " and the versions the
+// build recorded (the fake serves "busybox" as that record).
+func TestRunReceiptNamesResolvedExecPackages(t *testing.T) {
+	_, regURL, _, _ := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	outDir := filepath.Join(t.TempDir(), "out")
+	var log strings.Builder
+	if _, err := Run(context.Background(), request(regURL, outDir), &log); err != nil {
+		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
+	}
+	line, planned, present := receiptExecLine(t, outDir)
+	if !present || planned == "" {
+		t.Fatalf("no exec line: receipt %q, plan %q", line, planned)
+	}
+	if want := planned + "; packages resolved at image build: busybox"; line != want {
+		t.Errorf("exec line =\n  %q\nwant\n  %q", line, want)
+	}
+}
+
+// TestRunReceiptWithoutExecIsUnchanged (desktop#95): a release that
+// declares no exec builds no exec image and its receipt carries no exec
+// line and no package claim — nothing was installed, so nothing is named.
+func TestRunReceiptWithoutExecIsUnchanged(t *testing.T) {
+	isolateRunEnv(t)
+	saveCataloguedPolicy(t)
+	noExec := strings.Replace(runManifestYAML, "  exec: { commands: [echo] }\n", "", 1)
+	if noExec == runManifestYAML {
+		t.Fatal("the fixture's exec line was not removed")
+	}
+	fr := &fakeRunRegistry{
+		manifestDoc: manifestDocFromYAML(t, noExec),
+		archive:     buildRunArchive(t, map[string]string{"agent.yaml": noExec, "SKILL.md": "Do the fixture task.\n"}),
+		namespace:   "acme", name: "reporter", version: "1.0.0",
+	}
+	regURL := startRunRegistry(t, fr)
+	fake := readyImagesFake()
+	scriptHappyAgent(fake)
+	withFakeDocker(t, fake)
+	t.Setenv("ANTHROPIC_API_KEY", "sk-test-key")
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+
+	outDir := filepath.Join(t.TempDir(), "out")
+	var log strings.Builder
+	if _, err := Run(context.Background(), request(regURL, outDir), &log); err != nil {
+		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
+	}
+	for _, op := range fake.Ops() {
+		if strings.HasPrefix(op, "Build:") && strings.Contains(op, "exec") {
+			t.Errorf("an exec image was built for a release without exec: %s", op)
+		}
+	}
+	line, planned, present := receiptExecLine(t, outDir)
+	if present && (line != planned || strings.Contains(line, "resolved at image build")) {
+		t.Errorf("exec line %q (plan %q) for a release without exec", line, planned)
+	}
+}
