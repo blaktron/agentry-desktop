@@ -120,9 +120,16 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setRoute({ page: "settings" })}
-                title={`Agentry Desktop ${newer.available.version} is available — open Settings`}
+                title={
+                  newer.available.retired
+                    ? `Agentry Desktop ${newer.available.version} is signed with a key that has since been retired: genuine but out of date, and it will not be installed — open Settings`
+                    : `Agentry Desktop ${newer.available.version} is available — open Settings`
+                }
               >
-                {newer.available.version} is available
+                {/* The caveat Settings gives, in the chrome too: a release
+                    signed by a retired key is shown, never offered as an
+                    update (agentry-desktop#124). */}
+                {newer.available.version} is available{newer.available.retired && " (retired key, not installed)"}
               </button>
               <button
                 type="button"
