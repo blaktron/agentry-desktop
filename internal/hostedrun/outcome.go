@@ -31,7 +31,7 @@ type Verdict struct {
 }
 
 // Read renders a run's outcome. A run that is still moving, or one
-// cancelled before a worker took it, has its own line.
+// cancelled before a runner took it, has its own line.
 func Read(run *Run) Verdict {
 	if run == nil {
 		return Verdict{Tone: "warn", Line: "no run"}
@@ -39,7 +39,7 @@ func Read(run *Run) Verdict {
 	if run.Status == StatusCancelled {
 		return Verdict{
 			Outcome: StatusCancelled, Tone: "warn",
-			Line:    "cancelled before a worker took it — the credits it held were released",
+			Line:    "cancelled before a runner took it — the credits it held were released",
 			Settled: false,
 		}
 	}
@@ -50,7 +50,7 @@ func Read(run *Run) Verdict {
 	case OutcomeSucceeded:
 		return Verdict{Outcome: run.Outcome, Tone: "ok", Line: "ran to the end and wrote its result", Settled: true}
 	case OutcomeFailed:
-		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "the agent ran and failed — the log and the receipt say where", Settled: true}
+		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "the agent ran and failed — the receipt and the outputs say where", Settled: true}
 	case OutcomeTimeout:
 		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "stopped at the time limit for this tier", Settled: true}
 	case OutcomeBudget:
@@ -74,6 +74,30 @@ func Read(run *Run) Verdict {
 	}
 }
 
+// State is where a run stands in the words the site uses (agentry-web
+// lib/runs.ts stateWord): queued, running — a runner holding the run
+// before its agent starts included — done with pass or fail, or
+// cancelled. A pass is the one outcome that ran to the end; every other
+// finish is a fail, and the verdict's line says which.
+func State(run *Run) string {
+	switch {
+	case run == nil:
+		return ""
+	case run.Status == StatusCancelled:
+		return "cancelled"
+	case run.Status == StatusFinished && run.Outcome == "":
+		return "done"
+	case run.Status == StatusFinished && run.Outcome == OutcomeSucceeded:
+		return "done — pass"
+	case run.Status == StatusFinished:
+		return "done — fail"
+	case run.Status == StatusClaimed:
+		return "running"
+	default:
+		return run.Status
+	}
+}
+
 // statusLine says where a run that is still moving stands.
 func statusLine(run *Run) string {
 	switch run.Status {
@@ -85,11 +109,11 @@ func statusLine(run *Run) string {
 			return "queued"
 		}
 		return "queued — next to run"
-	case StatusClaimed:
-		return "a worker has taken it and is materialising the release"
-	case StatusRunning:
+	case StatusClaimed, StatusRunning:
+		// Claimed is a runner holding the run before its agent starts;
+		// to the person it is already running, as the site words it.
 		if run.CancelRequested {
-			return "cancelling — the worker interrupts the agent and the run settles what it used"
+			return "cancelling — the runner interrupts the agent and the run settles what it used"
 		}
 		return "running"
 	default:

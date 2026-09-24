@@ -1,5 +1,5 @@
 // In Agentry: a hosted run of a published release, started with the app's
-// token, streamed from the registry, its outputs and receipt downloaded
+// token, watched on the registry, its outputs and receipt downloaded
 // into the run folder the person picked (plan hosted-runs.md §4.7, D10;
 // agentry-desktop#77).
 //
@@ -28,9 +28,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// eventHostedRun carries the hosted run's state to the panel; the log
-// itself rides runner:run-log, the event the local engine feeds, so one
-// view shows either kind of run.
+// eventHostedRun carries the hosted run's state to the panel. A run In
+// Agentry has no log to send (D12, D16); runner:run-log is the local
+// engine's alone.
 const eventHostedRun = "runner:hosted-run"
 
 // emitEvent is the Wails emitter, a package variable purely as a test seam
@@ -42,6 +42,10 @@ var emitEvent = func(app *App, name string, data ...any) {
 	}
 	runtime.EventsEmit(app.ctx, name, data...)
 }
+
+// hostedPoll is how often a run In Agentry is re-read while it moves; a
+// test shortens it.
+var hostedPoll = 3 * time.Second
 
 // hostedFollow is the In-Agentry run this app is following. RunAPI's
 // hostedMu guards the pointer to it; the fields are written once, at the
@@ -73,11 +77,13 @@ type HostedAvailabilityView struct {
 	Reason    string `json:"reason,omitempty"`
 	Remedy    string `json:"remedy,omitempty"`
 
-	SignedIn      bool `json:"signedIn"`
-	Extension     bool `json:"extension"`
-	Enabled       bool `json:"enabled"`
-	WorkersOnline int  `json:"workersOnline"`
-	Queued        int  `json:"queued"`
+	SignedIn  bool `json:"signedIn"`
+	Extension bool `json:"extension"`
+	Enabled   bool `json:"enabled"`
+	// RunnersOnline counts what can take a run now: the pull workers and
+	// the sandbox hosts the registry pushes to.
+	RunnersOnline int `json:"runnersOnline"`
+	Queued        int `json:"queued"`
 
 	// Tier, HoldCredits, TokensPerCredit and Caps are the registry's
 	// numbers for a run of this account's; the app does no arithmetic of
@@ -111,6 +117,9 @@ type HostedRunView struct {
 	Ref    string `json:"ref"`
 	Digest string `json:"digest"`
 	Status string `json:"status"`
+	// State is the badge's word, the site's own: queued, running, done —
+	// pass, done — fail, cancelled.
+	State string `json:"state"`
 	// StatusLine says where the run stands, in a sentence.
 	StatusLine      string `json:"statusLine"`
 	QueuePosition   int    `json:"queuePosition,omitempty"`
@@ -139,6 +148,10 @@ type HostedRunView struct {
 	SettledCredits int64 `json:"settledCredits"`
 	Settled        bool  `json:"settled"`
 
+	// ReceiptKept says the registry holds a receipt for the run; a pushed
+	// run's has none yet (agentry-enterprise#121), and the panel says so
+	// rather than read one from a file in the outputs.
+	ReceiptKept bool `json:"receiptKept"`
 	// CapabilitiesEnforced is the receipt's block, listed verbatim.
 	CapabilitiesEnforced map[string]string `json:"capabilitiesEnforced,omitempty"`
 	AttestationState     string            `json:"attestationState,omitempty"`
@@ -222,7 +235,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	client := hostedrun.New(reg, token)
 	if st, err := client.Status(ctx); err == nil {
 		facts.Enabled, facts.StatusKnown = st.Enabled, true
-		v.Enabled, v.WorkersOnline, v.Queued = st.Enabled, st.WorkersOnline, st.Queued
+		v.Enabled, v.RunnersOnline, v.Queued = st.Enabled, st.RunnersOnline(), st.Queued
 		if st.Caller != nil {
 			v.Tier, v.HoldCredits, v.TokensPerCredit = st.Caller.Tier, st.Caller.HoldCredits, st.Caller.TokensPerCredit
 			v.Caps = &HostedCapsView{TimeoutSeconds: st.Caller.Caps.TimeoutSeconds, MaxTurns: st.Caller.Caps.MaxTurns, MaxTokens: st.Caller.Caps.MaxTokens}
@@ -272,10 +285,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 		return nil, err
 	}
 	client := hostedrun.New(reg, token)
-	logw := r.eventWriter(eventRunLog)
-	defer logw.Flush()
-
-	ids, err := client.UploadInputs(ctx, files, func(line string) { _, _ = fmt.Fprintln(logw, line) })
+	ids, err := client.UploadInputs(ctx, files)
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil
@@ -293,7 +303,6 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	if err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(logw, "run %s queued In Agentry — %s, holding %d credits\n", created.ID, created.Ref, created.HoldCredits)
 	r.followHosted(reg, token, dir, created)
 	return &HostedStartView{Run: hostedRunView(created, dir, nil, "", "", false)}, nil
 }
@@ -311,7 +320,7 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	if cur := r.hostedCurrent(); cur != nil {
 		fresh, err := hostedrun.New(reg, token).Get(ctx, cur.id)
 		if err != nil {
-			return &HostedStartView{}, nil //nolint:nilerr // already following it; the stream reports its state
+			return &HostedStartView{}, nil //nolint:nilerr // already following it; the watch reports its state
 		}
 		return &HostedStartView{Run: hostedRunView(fresh, cur.outDir, nil, "", "", false)}, nil
 	}
@@ -359,9 +368,11 @@ func (r *RunAPI) CancelHostedRun() (*HostedRunView, error) {
 	return hostedRunView(res, cur.outDir, nil, "", "", false), nil
 }
 
-// followHosted streams the run in the background: every log line as
-// runner:run-log (the view a local run feeds), every status change and the
-// final result as runner:hosted-run.
+// followHosted watches the run in the background and reports every status
+// change and the final result as runner:hosted-run. There is no log to
+// forward: a pushed run keeps none (hosted runs in production, D12, D16),
+// so the panel shows where the run stands and, at the end, what it
+// produced.
 func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{registry: reg, id: started.ID, outDir: outDir, cancel: cancel, done: make(chan struct{})}
@@ -370,7 +381,6 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 	r.hostedMu.Unlock()
 
 	client := hostedrun.New(reg, token)
-	logw := r.eventWriter(eventRunLog)
 	go func() {
 		defer close(f.done)
 		defer cancel()
@@ -381,22 +391,25 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 			}
 			r.hostedMu.Unlock()
 		}()
-		final, err := client.Follow(ctx, started.ID, hostedrun.FollowOptions{
-			OnEvent: func(ev hostedrun.Event) {
-				if ev.Line == "" {
-					return
-				}
-				_, _ = fmt.Fprintln(logw, ev.Line)
-			},
+		final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
+			Poll: hostedPoll,
 			OnStatus: func(run *hostedrun.Run) {
 				emitEvent(r.app, eventHostedRun, hostedRunView(run, outDir, nil, "", "", false))
 			},
 		})
-		logw.Flush()
 		if err != nil {
 			last, gerr := client.Get(context.Background(), started.ID)
 			if gerr != nil {
 				emitEvent(r.app, eventHostedRun, hostedRunView(started, outDir, nil, "", err.Error(), true))
+				return
+			}
+			if !last.Terminal() {
+				// The registry stopped answering while the run was still
+				// moving: say so, and download nothing, rather than show a
+				// run that is not over as finished. Reopening the panel
+				// reattaches to it.
+				emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
+					"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); reopen this panel to follow it again", true))
 				return
 			}
 			final = last
@@ -484,7 +497,7 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 	}
 	verdict := hostedrun.Read(r)
 	v := &HostedRunView{
-		ID: r.ID, Ref: r.Ref, Digest: r.Digest, Status: r.Status,
+		ID: r.ID, Ref: r.Ref, Digest: r.Digest, Status: r.Status, State: hostedrun.State(r),
 		StatusLine: verdict.Line, QueuePosition: r.QueuePosition, CancelRequested: r.CancelRequested,
 		Outcome: r.Outcome, ExitClass: r.ExitClass, Error: r.Error,
 		HoldCredits: r.HoldCredits,
@@ -509,10 +522,16 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 	if r.SettledCredits != nil {
 		v.SettledCredits, v.Settled = *r.SettledCredits, true
 	}
+	v.ReceiptKept = !r.Receipt.Empty()
 	v.CapabilitiesEnforced = r.Receipt.CapabilitiesEnforced
 	v.AttestationState = r.Receipt.Attestation.State
 	v.Adapter = r.Receipt.Harness.Adapter
 	if len(got) == 0 {
+		if downloadErr != "" && final {
+			// Nothing came down: listing what the registry holds would read
+			// as saved. The error says what happened instead.
+			return v
+		}
 		for _, a := range r.Outputs {
 			v.Outputs = append(v.Outputs, HostedArtefactView{Name: a.Name, Bytes: a.Bytes})
 		}

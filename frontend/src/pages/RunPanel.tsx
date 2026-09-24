@@ -249,8 +249,9 @@ export default function RunPanel({
     setSessionActive(true);
   }
 
-  // In Agentry: the inputs go up, the run is created, and the log streams
-  // back into the same view. A refused create is a sentence, not an error.
+  // In Agentry: the inputs go up, the run is created, and the panel follows
+  // where it stands until the outputs come back. A refused create is a
+  // sentence, not an error.
   async function runInAgentry() {
     setStarting(true);
     setRunErr(null);
@@ -496,8 +497,8 @@ export default function RunPanel({
               <>
                 <p className="muted small" style={{ marginBottom: 2 }}>
                   The task, your answers and the input files go to {registry}, which runs this release under the same
-                  contract and sends back the log, the outputs and the receipt. This machine needs no docker engine and
-                  no operator policy for it.
+                  contract and sends back the outputs and the receipt; it keeps no log of the run. This machine needs no
+                  docker engine and no operator policy for it.
                 </p>
                 <HostedCredits hosted={hosted} />
                 {unsigned && (
@@ -704,11 +705,17 @@ export default function RunPanel({
           </Button>
         </div>
 
-        {/* The hosted run: where it stands, and what it produced. */}
+        {/* The hosted run: where it stands, and what it produced. It keeps
+            no log (agentry-desktop#182): the card moves as the run does. */}
         {inAgentry && hostedRun && (
           <>
             <h3>Run In Agentry</h3>
             <HostedProgress run={hostedRun} onCancel={cancelInAgentry} cancelling={cancelling} />
+            {hostedActive && (
+              <Spinner label={hostedRun.status === "queued"
+                ? "Queued In Agentry — this moves to running when a runner takes it."
+                : "Running In Agentry — the outputs and the receipt come back when it is done."} />
+            )}
           </>
         )}
 
@@ -736,17 +743,12 @@ export default function RunPanel({
           />
         )}
 
-        {/* Live log — the same view for either kind of run. */}
-        {(running || hostedActive || log.length > 0) && (
+        {/* Live log — a run on this machine only; a run In Agentry has none. */}
+        {!inAgentry && (running || log.length > 0) && (
           <>
             <h3>Run log</h3>
-            <pre ref={logRef} className="run-log selectable">{log.join("\n")}{running || hostedActive ? "\n…" : ""}</pre>
+            <pre ref={logRef} className="run-log selectable">{log.join("\n")}{running ? "\n…" : ""}</pre>
             {running && <Spinner label="Running — the container topology streams its progress above." />}
-            {hostedActive && (
-              <Spinner label={hostedRun?.status === "queued"
-                ? "Queued In Agentry — the log starts when a worker takes it."
-                : "Running In Agentry — the platform streams its log above."} />
-            )}
           </>
         )}
 
