@@ -24,6 +24,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+
+	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
 // resolveFixture resolves the fixture release against a fake registry.
@@ -277,6 +279,30 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	}
 	if surviving() || planB.CompiledBy != plan2.CompiledBy || !strings.Contains(log.String(), "compiled by another build (other-build") {
 		t.Fatalf("a plan from another build was reused (canary=%v, compiledBy=%q, log=%q)", surviving(), planB.CompiledBy, log.String())
+	}
+
+	// An unstamped build of other code recorded the bare version: this test
+	// binary is unstamped too, so the version alone would match and the old
+	// compile would be reused (agentry-desktop#218, the CLI's #144). The
+	// build identity adds the executable's digest, so it recompiles.
+	plant()
+	b, err = os.ReadFile(filepath.Join(planDir, "plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(planB.CompiledBy, version.Version+"+exe.") {
+		t.Fatalf("an unstamped build must record its executable's digest, got CompiledBy=%q", planB.CompiledBy)
+	}
+	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte(strings.Replace(string(b), planB.CompiledBy, version.Version, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log.Reset()
+	planD, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if surviving() || planD.CompiledBy != planB.CompiledBy || !strings.Contains(log.String(), "compiled by another build ("+version.Version+",") {
+		t.Fatalf("a plan recorded as bare %s was reused (canary=%v, compiledBy=%q, log=%q)", version.Version, surviving(), planD.CompiledBy, log.String())
 	}
 
 	// Another runner image (a policy that pins a different tag compiled
