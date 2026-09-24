@@ -132,7 +132,7 @@ finish() {
 # Set TOTAL_STAGES to the number of stages you wrote.
 
 
-TOTAL_STAGES=7
+TOTAL_STAGES=8
 
 # ---------------------------------------------------------------------------
 # Agentry Desktop: load an update-signing key.
@@ -147,9 +147,10 @@ TOTAL_STAGES=7
 #
 # What it does: generates the pair HERE, on this machine, so no agent and no
 # server ever holds the private half; loads the private half into the
-# agentry-desktop Actions secret; writes the public half into
-# internal/selfupdate/keys.json; and leaves you to commit that file. The two
-# halves only ever meet in this script.
+# agentry-desktop Actions secret and, if you say so, into the CLI's and the
+# MCP server's (the same key signs all three products, agentry-desktop#181);
+# writes the public half into internal/selfupdate/keys.json; and leaves you
+# to commit that file. The two halves only ever meet in this script.
 #
 # Run it from a clone of agentry-desktop, on a machine with `gh` signed in.
 # ---------------------------------------------------------------------------
@@ -157,7 +158,16 @@ TOTAL_STAGES=7
 KEYS_JSON="internal/selfupdate/keys.json"
 REPO="blaktron/agentry-desktop"
 SECRET_NAME="AGENTRY_UPDATE_SIGNING_KEY"
+# The same key signs the CLI's and the MCP server's release bundles, through
+# this repository's signrelease at the commit each pins as
+# DESKTOP_SIGNRELEASE_REF (agentry-desktop#181; register D-026, DEV-125).
+CLI_REPO="blaktron/agentry-cli"          # a repository secret (agentry-cli#197)
+MCP_REPO="blaktron/agentry-mcp"          # a secret of its `release` environment (agentry-mcp#33)
 WORK=""
+OWED=()
+
+# yesno "<question>": like confirm, but "no" does not stop the wizard.
+yesno() { local ans=""; read -r -p "  $1 [y/N]: " ans; case "$ans" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac; }
 
 cleanup_keys() { [ -n "$WORK" ] && rm -rf "$WORK"; return 0; }
 # INT and TERM must EXIT, not just clean up: a bare handler would delete the
@@ -266,6 +276,33 @@ gh secret set "$SECRET_NAME" -R "$REPO" < "$WORK/$KEY_NAME.key" \
 step "set $SECRET_NAME on $REPO"
 SUMMARY+=("$SECRET_NAME -> GitHub secret on $REPO (key '$KEY_NAME', id $KEY_ID)")
 
+stage "The same key signs the CLI and the MCP server"
+say "Two more release workflows read this key under the same name:"
+step "$CLI_REPO: the repository secret $SECRET_NAME"
+step "$MCP_REPO: the secret $SECRET_NAME of its 'release' environment"
+say ""
+say "Each also pins DESKTOP_SIGNRELEASE_REF in .github/workflows/release.yaml: the"
+say "agentry-desktop commit whose signrelease signs and whose key set is checked. A"
+say "release there is refused unless its key is CURRENT in that pinned key set, so the"
+say "secret and the pin move together; either alone makes that product's next release"
+say "fail closed (safe, but it stops the release)."
+say ""
+note "Load them here while this run still holds the key, or answer no when another"
+note "wizard loads them from your backup (the workspace's release-keys-and-pipelines.sh"
+note "does, in its own stages). The pins are moved by the agent, by pull request, once"
+note "$KEYS_JSON is committed."
+if yesno "also set $SECRET_NAME on $CLI_REPO?"; then
+  if gh secret set "$SECRET_NAME" -R "$CLI_REPO" < "$WORK/$KEY_NAME.key"; then
+    step "set $SECRET_NAME on $CLI_REPO"; SUMMARY+=("$SECRET_NAME -> GitHub secret on $CLI_REPO (key '$KEY_NAME')")
+  else warn "could not set it on $CLI_REPO"; OWED+=("$SECRET_NAME on $CLI_REPO (repository secret), from your backup"); fi
+else OWED+=("$SECRET_NAME on $CLI_REPO (repository secret), from your backup, unless another wizard does it"); fi
+if yesno "also set $SECRET_NAME in the 'release' environment of $MCP_REPO?"; then
+  if gh secret set "$SECRET_NAME" -R "$MCP_REPO" --env release < "$WORK/$KEY_NAME.key"; then
+    step "set $SECRET_NAME in $MCP_REPO's release environment"; SUMMARY+=("$SECRET_NAME -> $MCP_REPO release environment (key '$KEY_NAME')")
+  else warn "could not set it in $MCP_REPO's release environment (does the environment exist? agentry-mcp#33)"; OWED+=("$SECRET_NAME in $MCP_REPO's release environment, from your backup"); fi
+else OWED+=("$SECRET_NAME in $MCP_REPO's release environment, from your backup, unless another wizard does it"); fi
+OWED+=("DESKTOP_SIGNRELEASE_REF in $CLI_REPO and $MCP_REPO moved to the agentry-desktop commit that carries this $KEYS_JSON (the agent, by pull request)")
+
 stage "Write the public half into the key set"
 say "Every key the product has ever used stays in $KEYS_JSON. Old ones are"
 say "marked retired: they still prove an OLD release genuine, and the app"
@@ -282,7 +319,7 @@ fi
 go run ./internal/cmd/keyset add \
   -name "$KEY_NAME" \
   -public "$PUBLIC_LINE" \
-  -note "private half: the $SECRET_NAME secret of $REPO" \
+  -note "private half: the $SECRET_NAME secret of $REPO, of $CLI_REPO and of the release environment of $MCP_REPO; a rotation moves all three with the DESKTOP_SIGNRELEASE_REF pins (agentry-desktop#181)" \
   $RETIRE_ARGS || die "could not write $KEYS_JSON"
 say ""
 go run ./internal/cmd/keyset list
@@ -295,3 +332,8 @@ note "own signature against the committed key set and will not publish a release
 note "no shipped app could check."
 
 finish
+if [ ${#OWED[@]} -gt 0 ]; then
+  say ""
+  say "Still owed for this key to sign all three products (agentry-desktop#181):"
+  printf '  - %s\n' "${OWED[@]}"
+fi
