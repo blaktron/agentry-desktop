@@ -58,6 +58,9 @@ type RunAPI struct {
 	newRunID  func() (string, error)
 	engineRun func(context.Context, run.Request, io.Writer) (*run.Result, error)
 	sweep     func(context.Context, string) error
+	// inFlightDir holds the crash-path records (services_quit.go,
+	// agentry-desktop#198); "" is the runner home's desktop-runs.
+	inFlightDir string
 }
 
 // SessionView is what StartSession returns.

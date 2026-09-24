@@ -435,6 +435,11 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		}
 	}
 	if len(resolvedServers) > 0 {
+		// A run killed mid-install left its builder running under the
+		// same fixed name: sweep what dead runs left before building, as
+		// `agentry run` does (agentry-cli#161, DR-21). The engine sweeps
+		// again when the run starts; the second finds nothing.
+		engine.SweepAbandoned(ctx, docker, logw)
 		// pol.Docker, whole: the operator's container runtime (gVisor when
 		// set, agentry-cli#136) and the caps and bounds every run container
 		// gets (agentry-cli#229, DR-30) apply to the server install builds

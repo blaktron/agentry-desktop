@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -47,11 +52,13 @@ func (f *fakeEngine) run(ctx context.Context, req run.Request, _ io.Writer) (*ru
 	return nil, ctx.Err()
 }
 
-func newQuitAPI(f *fakeEngine, confirm func(context.Context, string, string) (bool, error)) *RunAPI {
+func newQuitAPI(t *testing.T, f *fakeEngine, confirm func(context.Context, string, string) (bool, error)) *RunAPI {
+	t.Helper()
 	return &RunAPI{
-		app:       &App{ctx: context.Background(), confirm: confirm},
-		newRunID:  func() (string, error) { return "ab12cd34", nil },
-		engineRun: f.run,
+		inFlightDir: filepath.Join(t.TempDir(), run.InFlightDirName),
+		app:         &App{ctx: context.Background(), confirm: confirm},
+		newRunID:    func() (string, error) { return "ab12cd34", nil },
+		engineRun:   f.run,
 		sweep: func(_ context.Context, id string) error {
 			f.record("sweep " + id)
 			return nil
@@ -82,7 +89,7 @@ func startRun(t *testing.T, r *RunAPI, f *fakeEngine) (run.Request, chan error) 
 // shutdown returns — the process does not exit under a live run.
 func TestQuittingMidRunTearsDownBeforeShutdownReturns(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
-	r := newQuitAPI(f, nil)
+	r := newQuitAPI(t, f, nil)
 	req, errc := startRun(t, r, f)
 	if req.RunID != "ab12cd34" {
 		t.Fatalf("the engine was not given the app's run id: %q", req.RunID)
@@ -101,6 +108,9 @@ func TestQuittingMidRunTearsDownBeforeShutdownReturns(t *testing.T) {
 	if r.current() != nil {
 		t.Fatal("the run is still recorded as live")
 	}
+	if recorded(r, "ab12cd34") {
+		t.Fatal("the crash-path record outlived a run that was torn down")
+	}
 }
 
 // An engine that does not return in time does not hold the quit hostage:
@@ -110,7 +120,7 @@ func TestAHungEngineIsSweptWhenTheWaitRunsOut(t *testing.T) {
 	quitWait = 100 * time.Millisecond
 	t.Cleanup(func() { quitWait = prev })
 	f := &fakeEngine{started: make(chan run.Request, 1), hang: true, release: make(chan struct{})}
-	r := newQuitAPI(f, nil)
+	r := newQuitAPI(t, f, nil)
 	_, errc := startRun(t, r, f)
 
 	start := time.Now()
@@ -121,6 +131,9 @@ func TestAHungEngineIsSweptWhenTheWaitRunsOut(t *testing.T) {
 	if got := f.steps(); len(got) != 1 || got[0] != "sweep ab12cd34" {
 		t.Fatalf("steps %q, want only the sweep", got)
 	}
+	if recorded(r, "ab12cd34") {
+		t.Fatal("a swept run's crash-path record was kept")
+	}
 	close(f.release)
 	<-errc
 }
@@ -128,7 +141,7 @@ func TestAHungEngineIsSweptWhenTheWaitRunsOut(t *testing.T) {
 // With nothing running, quitting touches no docker at all.
 func TestShutdownWithNoRunSweepsNothing(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
-	newQuitAPI(f, nil).shutdown()
+	newQuitAPI(t, f, nil).shutdown()
 	if got := f.steps(); len(got) != 0 {
 		t.Fatalf("steps %q with no run", got)
 	}
@@ -144,7 +157,7 @@ func TestBeforeCloseAsksOnlyWithARunLive(t *testing.T) {
 		return answer, answerErr
 	}
 	f := &fakeEngine{started: make(chan run.Request, 1)}
-	r := newQuitAPI(f, confirm)
+	r := newQuitAPI(t, f, confirm)
 
 	if r.beforeClose(context.Background()) || asked != 0 {
 		t.Fatalf("idle app: prevented or asked (%d)", asked)
@@ -163,4 +176,61 @@ func TestBeforeCloseAsksOnlyWithARunLive(t *testing.T) {
 	}
 	r.shutdown()
 	<-errc
+}
+
+func recorded(r *RunAPI, id string) bool {
+	_, err := os.Stat(filepath.Join(r.inFlightDir, id+".json"))
+	return err == nil
+}
+
+// A run in flight is recorded under its id for the crash path
+// (agentry-desktop#198) from before the engine starts, and the record goes
+// when the engine has returned.
+func TestARunIsRecordedWhileInFlight(t *testing.T) {
+	f := &fakeEngine{started: make(chan run.Request, 1)}
+	r := newQuitAPI(t, f, nil)
+	_, errc := startRun(t, r, f)
+	if !recorded(r, "ab12cd34") {
+		t.Fatal("a run in flight has no crash-path record")
+	}
+	r.current().cancel()
+	<-errc
+	if recorded(r, "ab12cd34") {
+		t.Fatal("the record outlived the run")
+	}
+}
+
+// At the next start, the run an app was killed in the middle of is swept by
+// its record, and the record removed; a live app's run (here the test's
+// parent process owns it) is left alone. The sweep reaches the engine only
+// by run id, so a CLI run — no record, another id — cannot be touched.
+func TestStartupSweepsTheRunOfAnAppThatDied(t *testing.T) {
+	f := &fakeEngine{started: make(chan run.Request, 1)}
+	r := newQuitAPI(t, f, nil)
+	if err := os.MkdirAll(r.inFlightDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(os.Args[0], "-test.run=^$") //nolint:gosec // this test binary
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	write := func(id string, pid int) {
+		b, _ := json.Marshal(map[string]any{"run_id": id, "pid": pid})
+		if err := os.WriteFile(filepath.Join(r.inFlightDir, id+".json"), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("dead0001", cmd.Process.Pid)
+	write("a11e0002", os.Getppid())
+
+	swept := r.sweepOrphans(context.Background())
+	if strings.Join(swept, ",") != "dead0001" {
+		t.Fatalf("swept %v", swept)
+	}
+	if got := f.steps(); len(got) != 1 || got[0] != "sweep dead0001" {
+		t.Fatalf("steps %q, want only the dead app's run swept", got)
+	}
+	if recorded(r, "dead0001") || !recorded(r, "a11e0002") {
+		t.Fatal("wrong records removed")
+	}
 }

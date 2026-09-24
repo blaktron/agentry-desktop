@@ -69,6 +69,10 @@ func main() {
 		},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
+			// A run an earlier session was killed in the middle of is
+			// swept by its record (agentry-desktop#198); in its own
+			// goroutine, since Docker may be slow or not yet running.
+			go runAPI.sweepOrphans(ctx)
 			// Last, and in its own goroutine: the check for a newer Agentry
 			// Desktop must not delay the first paint or the first-run wizard
 			// (agentry-desktop#87).
