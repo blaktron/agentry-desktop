@@ -18,7 +18,10 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # Extra flags for `wails build` in package-darwin. scripts/build-darwin.sh
 # passes `-m` (skip `go mod tidy`): a tree shipped with vendor/ and no GitHub
 # credential builds in vendor mode on its own, but tidy walks the whole module
-# graph past vendor/ and asks GitHub for the private modules.
+# graph past vendor/ and asks GitHub for the private modules. -skipbindings is
+# not a caller's choice: every wails target below carries it (see `dev`), so
+# a by-hand `make package-darwin` cannot regenerate the bindings either
+# (agentry-desktop#97, #107). Callers that still pass it are harmless.
 WAILS_FLAGS ?=
 # SIGN_CMD: a command that Authenticode-signs the one PE file it is given, in
 # place (the release workflow passes scripts/sign-windows.sh). Empty means an
@@ -97,7 +100,7 @@ check: frontend lint test copy
 # with its installer. Unsigned/un-notarized — see DEVIATIONS.md D-001.
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
 package-darwin:
-	wails build $(WAILS_FLAGS) -platform darwin/universal -ldflags '$(LDFLAGS)'
+	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 	scripts/package-darwin-dmg.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
 	scripts/check-darwin-dmg.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg build/bin/agentry-desktop.app
@@ -152,7 +155,7 @@ smoke-darwin-selfupdate:
 package-windows: build-windows sign-windows finish-windows
 
 build-windows:
-	wails build $(WAILS_FLAGS) -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
+	wails build $(WAILS_FLAGS) -skipbindings -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
 
 sign-windows:
 ifneq ($(strip $(SIGN_CMD)),)
