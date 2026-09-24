@@ -74,6 +74,12 @@ switch on), `#coding-none` nothing chosen and no folder (the switch cannot
 go on). `shots.mjs` asserts the last, and that the link opens the wizard on
 the Claude skill.
 
+`page-<name>` shoots every page under the shell whole, `toolspanel` and
+`chat` the other two run surfaces, and `wizard-welcome`, `wizard-signin`,
+`wizard-done` and `wizard-done-nothing` the wizard steps the states above
+leave out, so a change to the token table (agentry-desktop#49, checked by
+`internal/designtokens`) is seen everywhere it lands.
+
 `shots/` holds those states in light and dark, re-made by
 `node harness/shots.mjs` — it starts the harness itself, shoots each state
 and stops it again. Playwright is not a dependency of this app; point
