@@ -33,9 +33,10 @@ interface Question {
 
 // needList is what to gather first: a file for each question that asks for
 // one (else that files are optional), the keys the release declares, the
-// other questions by their own prompts, and the task, which on this
-// machine is optional (the packaged instruction runs without one).
-export function needList(release: { intake: Question[]; secrets: string[] }): string[] {
+// other questions by their own prompts, the task, which on this machine is
+// optional (the packaged instruction runs without one), and, where MCP
+// servers are declared with no key, that there is none to set up.
+export function needList(release: { intake: Question[]; secrets: string[]; servers?: number }): string[] {
   const out: string[] = [];
   const fileQs = release.intake.filter((q) => q.type === "file");
   if (fileQs.length > 0) {
@@ -54,5 +55,13 @@ export function needList(release: { intake: Question[]; secrets: string[] }): st
     out.push(`Your answer to “${q.prompt}”${q.required ? "" : " (optional)"}.`);
   }
   out.push("A sentence or two saying what you want done, if you want more than its own instruction.");
+  const servers = release.servers ?? 0;
+  if (servers > 0 && release.secrets.length === 0) {
+    out.push(
+      servers === 1
+        ? "No key to set up: the release declares none for the MCP server it uses."
+        : `No key to set up: the release declares none for the ${servers} MCP servers it uses.`,
+    );
+  }
   return out;
 }

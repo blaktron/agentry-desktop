@@ -62,6 +62,10 @@ export default function RunPanel({
   const [mode, setMode] = useState("");
   const [sessionActive, setSessionActive] = useState(false);
   const [inputs, setInputs] = useState<string[]>([]);
+  // The files among the inputs, as the native file picker returned them: a
+  // file intake question may pick one of these (plan §4, Details), and a
+  // folder is never offered for it.
+  const [pickedFiles, setPickedFiles] = useState<string[]>([]);
   const [outDir, setOutDir] = useState("");
   const [keep, setKeep] = useState(true);
   // D-012: the keep toggle is sent only once the user touches it; an
@@ -220,9 +224,11 @@ export default function RunPanel({
   // the run, not the setup.
   const started = running || sessionActive || !!result || log.length > 0 || (inAgentry && !!hostedRun);
 
+  // Focus follows the step, and returns to it when the run view gives way
+  // to the setup again.
   useEffect(() => {
-    if (moved.current) stepHeading.current?.focus();
-  }, [step]);
+    if (moved.current && !started) stepHeading.current?.focus();
+  }, [step, started]);
 
   function goTo(i: number) {
     moved.current = true;
@@ -234,8 +240,10 @@ export default function RunPanel({
   // open with none saved, and a required question left unanswered. The rest
   // of the blockers are the review's, beside Run.
   function problemHere(): string | null {
-    if (step === "tools" && needsProfile && formOpen) {
-      return "Save the keys to go on. A field left empty is read from this machine's environment at run time.";
+    if (step === "tools" && formOpen) {
+      return needsProfile
+        ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
+        : "Save the keys or cancel the change to go on.";
     }
     if (step === "details" && profile) {
       const q = profile.intake.find((q) => intakeMissing.includes(q.id));
@@ -261,6 +269,7 @@ export default function RunPanel({
     setLog([]);
     setRunErr(null);
     if (!hostedActive) setHostedRun(null);
+    setHostedRefusal(null);
     moved.current = true;
     setStepKey("review");
   }
@@ -290,7 +299,10 @@ export default function RunPanel({
   async function addFiles() {
     try {
       const files = await ChooseFiles("Choose input files for this run");
-      if (files.length) setInputs((prev) => [...prev, ...files.filter((f) => !prev.includes(f))]);
+      if (files.length) {
+        setInputs((prev) => [...prev, ...files.filter((f) => !prev.includes(f))]);
+        setPickedFiles((prev) => [...prev, ...files.filter((f) => !prev.includes(f))]);
+      }
     } catch (e) {
       setRunErr(String(e));
     }
@@ -424,91 +436,101 @@ export default function RunPanel({
                 <p className="selectable">{summary || "Its author wrote no summary. Its README is on its page."}</p>
                 <h4>What to have ready</h4>
                 <ul className="run-need">
-                  {needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [] }).map((line) => <li key={line}>{line}</li>)}
+                  {needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0 }).map((line) => <li key={line}>{line}</li>)}
                 </ul>
                 <h4>Where to run it</h4>
-            {/* Run mode (plan §7): the modes the release declares, plus In
-                Agentry where the registry runs it (hosted-runs.md §4.7). */}
-            {profile && (profile.modes ?? []).length > 0 && (
-              <>
-                <div className="row" style={{ gap: 14 }}>
-                  {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
-                    <label key={m} className="check-row" style={{ margin: 0 }}>
-                      <input type="radio" name="run-mode" checked={mode === m} onChange={() => setMode(m)} disabled={running || sessionActive || hostedActive} />
-                      <span>
-                        <strong>{m}</strong>{" "}
-                        <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
-                      </span>
-                    </label>
-                  ))}
-                  {hosted?.offered && (
-                    <label className="check-row" style={{ margin: 0 }}>
-                      <input
-                        type="radio" name="run-mode" checked={inAgentry} onChange={() => setMode("hosted")}
-                        disabled={running || sessionActive || !hosted.available || unscanned}
-                      />
-                      <span>
-                        <strong>In Agentry</strong>{" "}
-                        <span className="muted">— runs on the platform, autonomously; nothing runs on this machine</span>
-                      </span>
-                    </label>
-                  )}
-                </div>
-                {mode === "interactive" && (
-                  <p className="muted small">
-                    Interactive: you can talk to this agent and give it files; you cannot give it more access than listed above.
-                  </p>
-                )}
-                {hosted && <HostedUnavailable hosted={hosted} />}
-                {inAgentry && hosted && (
+                {/* Run mode (plan §7): the modes the release declares, plus In
+                    Agentry where the registry runs it (hosted-runs.md §4.7). */}
+                {profile && (profile.modes ?? []).length > 0 && (
                   <>
-                    <p className="muted small" style={{ marginBottom: 2 }}>
-                      The task, your answers and the input files go to {registry}, which runs this release under the same
-                      contract and sends back the outputs and the receipt; it keeps no log of the run. This machine needs no
-                      docker engine and no operator policy for it.
-                    </p>
-                    <HostedCredits hosted={hosted} />
-                    {unsigned && (
-                      <Notice tone="warn">
-                        This registry published no attestation for this version. A run In Agentry verifies the release
-                        itself before executing it, so this one is refused there and the credits it held are refunded.
-                      </Notice>
+                    <div className="row" style={{ gap: 14 }}>
+                      {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
+                        <label key={m} className="check-row" style={{ margin: 0 }}>
+                          <input type="radio" name="run-mode" checked={mode === m} onChange={() => setMode(m)} disabled={running || sessionActive || hostedActive} />
+                          <span>
+                            <strong>{m}</strong>{" "}
+                            <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
+                          </span>
+                        </label>
+                      ))}
+                      {hosted?.offered && (
+                        <label className="check-row" style={{ margin: 0 }}>
+                          <input
+                            type="radio" name="run-mode" checked={inAgentry} onChange={() => setMode("hosted")}
+                            disabled={running || sessionActive || !hosted.available || unscanned}
+                          />
+                          <span>
+                            <strong>In Agentry</strong>{" "}
+                            <span className="muted">— runs on the platform, autonomously; nothing runs on this machine</span>
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                    {mode === "interactive" && (
+                      <p className="muted small">
+                        Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
+                      </p>
+                    )}
+                    {hosted && <HostedUnavailable hosted={hosted} />}
+                    {inAgentry && hosted && (
+                      <>
+                        <p className="muted small" style={{ marginBottom: 2 }}>
+                          The task, your answers and the input files go to {registry}, which runs this release under the same
+                          contract and sends back the outputs and the receipt; it keeps no log of the run. This machine needs no
+                          docker engine and no operator policy for it.
+                        </p>
+                        <HostedCredits hosted={hosted} />
+                        {unsigned && (
+                          <Notice tone="warn">
+                            This registry published no attestation for this version. A run In Agentry verifies the release
+                            itself before executing it, so this one is refused there and the credits it held are refunded.
+                          </Notice>
+                        )}
+                      </>
                     )}
                   </>
                 )}
-              </>
-            )}
-            {/* Machine readiness (§P1) — the local modes only; a run In
-                Agentry needs nothing from this machine. */}
-            {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
-            {setup && !setup.dockerOk && !inAgentry && (
-              <div className="error-box selectable">
-                Docker is not available — a BriefAgent run on this machine needs a docker engine.
-                {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
-                {hosted?.offered ? ", or run this release In Agentry" : ""}.
-              </div>
-            )}
-            {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
-              <Notice tone="warn">
-                The gateway/harness/runner images are not all present yet — this run will install
-                them first (it can take a few minutes), or prepare them once in Settings → Agent runs.
-              </Notice>
-            )}
-                <details className="advanced">
-                  <summary className="muted small">What this release declares it may reach</summary>
-                {/* Declared contract: what a Run click accepts. */}
-                {profile && (
+                {/* Machine readiness (§P1) — the local modes only; a run In
+                    Agentry needs nothing from this machine. */}
+                {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
+                {setup && !setup.dockerOk && !inAgentry && (
+                  <div className="error-box selectable">
+                    Docker is not available — a BriefAgent run on this machine needs a docker engine.
+                    {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
+                    {hosted?.offered ? ", or run this release In Agentry" : ""}.
+                  </div>
+                )}
+                {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
+                  <Notice tone="warn">
+                    The gateway/harness/runner images are not all present yet — this run will install
+                    them first (it can take a few minutes), or prepare them once in Settings → Agent runs.
+                  </Notice>
+                )}
+                {profile && profile.capabilityLines.length > 0 && (
                   <>
-                    <Card className="selectable">
-                      <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
-                      <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
-                      {profile.capabilityLines.map((l) => (
-                        <div key={l} className="mono small">{l}</div>
-                      ))}
-                    </Card>
+                    <h4>What it may reach</h4>
+                    <ul className="run-need selectable">
+                      {profile.capabilityLines.map((l) => <li key={l}>{l}</li>)}
+                    </ul>
                   </>
                 )}
-                {profileErr && <ErrorBox error={profileErr} />}
+                {unscanned && hosted?.offered && (
+                  <p className="muted small">A run In Agentry is not offered for this release: the registry admitted it without a scan.</p>
+                )}
+                <details className="advanced">
+                  <summary className="muted small">The declared contract, with its digest</summary>
+                  {/* Declared contract: what a Run click accepts. */}
+                  {profile && (
+                    <>
+                      <Card className="selectable">
+                        <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
+                        <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
+                        {profile.capabilityLines.map((l) => (
+                          <div key={l} className="mono small">{l}</div>
+                        ))}
+                      </Card>
+                    </>
+                  )}
                 </details>
               </>
             )}
@@ -526,11 +548,19 @@ export default function RunPanel({
                   )}
                 </p>
                 {inputs.length > 0 ? (
-                  <div className="run-files">
+                  <div>
                     {inputs.map((p) => (
                       <div key={p} className="row" style={{ marginBottom: 4 }}>
                         <span className="mono small grow selectable">{p}</span>
-                        <Button onClick={() => setInputs(inputs.filter((x) => x !== p))} aria-label={`Remove ${p}`}>Remove</Button>
+                        <Button
+                          onClick={() => {
+                            setInputs(inputs.filter((x) => x !== p));
+                            setPickedFiles(pickedFiles.filter((x) => x !== p));
+                          }}
+                          aria-label={`Remove ${p}`}
+                        >
+                          Remove
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -549,65 +579,65 @@ export default function RunPanel({
                 {(mcp?.declaredServers?.length ?? 0) > 0 && (
                   <>
                     <p className="muted small">
-                      The MCP servers this release declares. They start with the run, inside its sandbox, serve only the
-                      tools listed, and stop with it.
+                      The MCP servers this release declares. They start with the run, serve only the tools listed, and stop
+                      with it.
                     </p>
                     <DeclaredServersTable servers={mcp?.declaredServers} />
                   </>
                 )}
-            {/* Guided MCP-profile setup (§P3). */}
-            {profile && profile.declaredSecrets.length > 0 && (
-              <>
-                <h4>Keys</h4>
-                {!formOpen && profile.exists && (
-                  <div className="row">
-                    <span className="muted small">
-                      Stored for this exact release{profile.storedSecretNames.length > 0
-                        ? `: ${profile.storedSecretNames.join(", ")}`
-                        : " (all resolve from the environment at run time)"}
-                      {" · "}{profile.keep ? "kept after runs" : "removed when a run completes"}
-                    </span>
-                    <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</Button>
-                  </div>
-                )}
-                {formOpen && (
-                  <Card>
-                    <p className="muted small" style={{ marginTop: 0 }}>
-                      This release declares the keys below. They are stored once per exact release
-                      (0600, this machine only), injected only into the run&apos;s tool container, and
-                      never shown or logged. Leave a field empty to resolve it from the environment
-                      at run time.
-                    </p>
-                    {profile.declaredSecrets.map((s) => (
-                      <div className="row" key={s} style={{ marginBottom: 8 }}>
-                        <span className="mono" style={{ minWidth: 220 }}>{s}</span>
-                        <input
-                          type="password"
-                          className="grow"
-                          autoComplete="off"
-                          placeholder="empty = resolve from the environment at run time"
-                          value={formValues[s] ?? ""}
-                          onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
-                        />
+                {/* Guided MCP-profile setup (§P3). */}
+                {profile && profile.declaredSecrets.length > 0 && (
+                  <>
+                    <h4>Keys</h4>
+                    {!formOpen && profile.exists && (
+                      <div className="row">
+                        <span className="muted small">
+                          Stored for this exact release{profile.storedSecretNames.length > 0
+                            ? `: ${profile.storedSecretNames.join(", ")}`
+                            : " (all resolve from the environment at run time)"}
+                          {" · "}{profile.keep ? "kept after runs" : "removed when a run completes"}
+                        </span>
+                        <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</Button>
                       </div>
-                    ))}
-                    <label className="check-row">
-                      <input type="checkbox" checked={formKeep} onChange={(e) => setFormKeep(e.target.checked)} />
-                      <span>
-                        <strong>Keep this profile for future runs of this exact version.</strong>{" "}
-                        <span className="muted">Unchecked, it is removed when the run completes.</span>
-                      </span>
-                    </label>
-                    <div className="row" style={{ justifyContent: "flex-end" }}>
-                      {profile.exists && <Button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</Button>}
-                      <Button variant="primary" onClick={saveProfile} disabled={savingProfile}>
-                        {savingProfile ? "Saving…" : "Save keys"}
-                      </Button>
-                    </div>
-                  </Card>
+                    )}
+                    {formOpen && (
+                      <Card>
+                        <p className="muted small" style={{ marginTop: 0 }}>
+                          This release declares the keys below. They are stored once per exact release
+                          (0600, this machine only), injected only into the run&apos;s tool container, and
+                          never shown or logged. Leave a field empty to resolve it from the environment
+                          at run time.
+                        </p>
+                        {profile.declaredSecrets.map((s) => (
+                          <div className="row" key={s} style={{ marginBottom: 8 }}>
+                            <span className="mono" style={{ minWidth: 220 }}>{s}</span>
+                            <input
+                              type="password"
+                              className="grow"
+                              autoComplete="off"
+                              placeholder="empty = resolve from the environment at run time"
+                              value={formValues[s] ?? ""}
+                              onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
+                            />
+                          </div>
+                        ))}
+                        <label className="check-row">
+                          <input type="checkbox" checked={formKeep} onChange={(e) => setFormKeep(e.target.checked)} />
+                          <span>
+                            <strong>Keep this profile for future runs of this exact version.</strong>{" "}
+                            <span className="muted">Unchecked, it is removed when the run completes.</span>
+                          </span>
+                        </label>
+                        <div className="row" style={{ justifyContent: "flex-end" }}>
+                          {profile.exists && <Button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</Button>}
+                          <Button variant="primary" onClick={saveProfile} disabled={savingProfile}>
+                            {savingProfile ? "Saving…" : "Save keys"}
+                          </Button>
+                        </div>
+                      </Card>
+                    )}
+                  </>
                 )}
-              </>
-            )}
                 {profile && profile.declaredSecrets.length === 0 && (
                   <p className="muted small">This release declares no key, so there is nothing to sign in to.</p>
                 )}
@@ -616,28 +646,39 @@ export default function RunPanel({
 
             {step === "details" && (
               <>
-            {/* Up-front questions (manifest v2 intake, plan §3.5): the same form
-                shape as the profile; answers are staged read-only for the agent. */}
-            {profile && profile.intake.length > 0 && (
-              <>
-                <Card>
-                  <p className="muted small" style={{ marginTop: 0 }}>
-                    Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
-                    a secret answer is injected like a declared key and never shown to the agent.
-                  </p>
-                  {profile.intake.map((q) => (
-                    <div className="row" key={q.id} style={{ marginBottom: 8 }}>
-                      <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
-                      {q.type === "choice" ? (
-                        <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running}>
-                          <option value="">—</option>
-                          {q.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      ) : q.type === "file" ? (
+                {/* Up-front questions (manifest v2 intake, plan §3.5): the same form
+                    shape as the profile; answers are staged read-only for the agent. */}
+                {profile && profile.intake.length > 0 && (
+                  <>
+                    <Card>
+                      <p className="muted small" style={{ marginTop: 0 }}>
+                        Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
+                        a secret answer is injected like a declared key and never shown to the agent.
+                      </p>
+                      {profile.intake.map((q) => (
+                        <div className="row" key={q.id} style={{ marginBottom: 8 }}>
+                          <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
+                          {q.type === "choice" ? (
+                            <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running}>
+                              <option value="">—</option>
+                              {q.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          ) : q.type === "file" ? (
                         <>
-                          <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} readOnly placeholder="a file on this machine — choose it" disabled={running} />
+                          {pickedFiles.length > 0 ? (
+                            <select
+                              className="grow mono"
+                              value={pickedFiles.includes(intakeValues[q.id] ?? "") ? intakeValues[q.id] : ""}
+                              onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
+                              aria-label={q.prompt}
+                            >
+                              <option value="">{(intakeValues[q.id] ?? "") && !pickedFiles.includes(intakeValues[q.id]) ? intakeValues[q.id] : "Choose one of the files you added"}</option>
+                              {pickedFiles.map((f) => <option key={f} value={f}>{f}</option>)}
+                            </select>
+                          ) : (
+                            <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} readOnly placeholder="a file on this machine — choose it" aria-label={q.prompt} />
+                          )}
                           <Button
-                            disabled={running}
                             onClick={async () => {
                               try {
                                 const files = await ChooseFiles(q.prompt);
@@ -647,25 +688,25 @@ export default function RunPanel({
                               }
                             }}
                           >
-                            Choose…
+                            {pickedFiles.length > 0 ? "Another file…" : "Choose…"}
                           </Button>
                         </>
                       ) : (
-                        <input
-                          type={q.type === "secret" ? "password" : "text"}
-                          className="grow"
-                          autoComplete="off"
-                          value={intakeValues[q.id] ?? ""}
-                          onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
-                          disabled={running}
-                        />
-                      )}
-                    </div>
-                  ))}
-                  {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
-                </Card>
-              </>
-            )}
+                            <input
+                              type={q.type === "secret" ? "password" : "text"}
+                              className="grow"
+                              autoComplete="off"
+                              value={intakeValues[q.id] ?? ""}
+                              onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
+                              disabled={running}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
+                    </Card>
+                  </>
+                )}
                 <h4>What should the run do?</h4>
                 <Textarea
                   className="mono"
@@ -713,104 +754,113 @@ export default function RunPanel({
                 </dl>
                 {inAgentry && hosted && <HostedCredits hosted={hosted} />}
                 <h4>Output</h4>
-            <div className="row">
-              {/* Filled by the picker only: Go accepts a path a native dialog
-                  returned in this process and refuses one the page typed (D-030). */}
-              <input
-                type="text"
-                className="grow mono"
-                placeholder={`output folder — default ${defaultOutHint}`}
-                value={outDir}
-                readOnly
-                disabled={running}
-              />
-              <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
-              {outDir && <Button onClick={() => setOutDir("")} disabled={running}>Default</Button>}
-            </div>
-            {/* The ceilings have the policy's defaults and the keep toggle its
-                recorded choice: none is needed for a run, so they sit under
-                Advanced (agentry-desktop#167). */}
-            <details className="advanced">
-              <summary className="muted small">Advanced</summary>
-            <div className="row">
-              <label className="row" style={{ gap: 6 }}>
-                <span className="muted small">timeout (s)</span>
-                <input
-                  type="number" min={1} style={{ width: 110 }}
-                  placeholder={setup ? String(setup.timeoutSeconds) : ""}
-                  value={timeoutSec} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running}
-                />
-              </label>
-              <label className="row" style={{ gap: 6 }}>
-                <span className="muted small">max turns (0 = unlimited)</span>
-                <input
-                  type="number" min={0} style={{ width: 110 }}
-                  placeholder={setup ? String(setup.maxTurns) : ""}
-                  value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} disabled={running}
-                />
-              </label>
-              <label className="check-row" style={{ margin: 0 }}>
-                <input type="checkbox" checked={keep} onChange={(e) => { setKeep(e.target.checked); setKeepTouched(true); }} disabled={running} />
-                <span>keep the MCP profile after this run{profile && profile.declaredSecrets.length === 0 ? " (no keys declared; ticking records the choice)" : ""}</span>
-              </label>
-            </div>
-            </details>
-            {unscanned && (
-              <div className="notice notice-unscanned mark-unscanned">
-                <p style={{ margin: 0 }}>
-                  <SignedBadge att={attestation} />{" "}
-                  <strong>The registry admitted this version without a scan.</strong>{" "}
-                  <span className="muted">
-                    No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
-                    BriefAgent off the pipeline, and no scanner looked at its contents.
-                    {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
-                  </span>
-                </p>
-                <label className="check-row">
-                  <input type="checkbox" checked={acceptUnscanned} onChange={(e) => setAcceptUnscanned(e.target.checked)} />
-                  <span>
-                    <strong>Run an unscanned release.</strong>{" "}
-                    <span className="muted">
-                      Its own decision — accepting an unsigned release does not cover it. The run&apos;s receipts are
-                      marked unscanned and name this consent.
+                {inAgentry && (
+                  <p className="muted small" style={{ margin: "2px 0 6px" }}>
+                    The run&apos;s result, reports, receipts and outputs download into this folder when it finishes. The time and
+                    turn ceilings are the tier&apos;s, so Advanced is not offered for a run In Agentry.
+                  </p>
+                )}
+                <div className="row">
+                  {/* Filled by the picker only: Go accepts a path a native dialog
+                      returned in this process and refuses one the page typed (D-030). */}
+                  <input
+                    type="text"
+                    className="grow mono"
+                    placeholder={`output folder — default ${defaultOutHint}`}
+                    value={outDir}
+                    readOnly
+                    disabled={running}
+                  />
+                  <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
+                  {outDir && <Button onClick={() => setOutDir("")} disabled={running}>Default</Button>}
+                </div>
+                {!inAgentry && (
+              <>
+                {/* The ceilings have the policy's defaults and the keep toggle its
+                        recorded choice: none is needed for a run, so they sit under
+                        Advanced (agentry-desktop#167). */}
+                    <details className="advanced">
+                      <summary className="muted small">Advanced</summary>
+                    <div className="row">
+                      <label className="row" style={{ gap: 6 }}>
+                        <span className="muted small">timeout (s)</span>
+                        <input
+                          type="number" min={1} style={{ width: 110 }}
+                          placeholder={setup ? String(setup.timeoutSeconds) : ""}
+                          value={timeoutSec} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running}
+                        />
+                      </label>
+                      <label className="row" style={{ gap: 6 }}>
+                        <span className="muted small">max turns (0 = unlimited)</span>
+                        <input
+                          type="number" min={0} style={{ width: 110 }}
+                          placeholder={setup ? String(setup.maxTurns) : ""}
+                          value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} disabled={running}
+                        />
+                      </label>
+                      <label className="check-row" style={{ margin: 0 }}>
+                        <input type="checkbox" checked={keep} onChange={(e) => { setKeep(e.target.checked); setKeepTouched(true); }} disabled={running} />
+                        <span>keep the MCP profile after this run{profile && profile.declaredSecrets.length === 0 ? " (no keys declared; ticking records the choice)" : ""}</span>
+                      </label>
+                    </div>
+                    </details>
+              </>
+            )}
+                {unscanned && (
+                  <div className="notice notice-unscanned mark-unscanned">
+                    <p style={{ margin: 0 }}>
+                      <SignedBadge att={attestation} />{" "}
+                      <strong>The registry admitted this version without a scan.</strong>{" "}
+                      <span className="muted">
+                        No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
+                        BriefAgent off the pipeline, and no scanner looked at its contents.
+                        {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
+                      </span>
+                    </p>
+                    <label className="check-row">
+                      <input type="checkbox" checked={acceptUnscanned} onChange={(e) => setAcceptUnscanned(e.target.checked)} />
+                      <span>
+                        <strong>Run an unscanned release.</strong>{" "}
+                        <span className="muted">
+                          Its own decision — accepting an unsigned release does not cover it. The run&apos;s receipts are
+                          marked unscanned and name this consent.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+                {unsigned && !inAgentry && (
+                  <label className="check-row">
+                    <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />
+                    <span>
+                      <strong>Run an unsigned release.</strong>{" "}
+                      <span className="muted">
+                        This registry published no attestation for this version — nothing cryptographically
+                        vouches for these bytes. The run&apos;s receipts are marked unsigned.
+                      </span>
                     </span>
-                  </span>
-                </label>
-              </div>
-            )}
-            {unsigned && !inAgentry && (
-              <label className="check-row">
-                <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />
-                <span>
-                  <strong>Run an unsigned release.</strong>{" "}
-                  <span className="muted">
-                    This registry published no attestation for this version — nothing cryptographically
-                    vouches for these bytes. The run&apos;s receipts are marked unsigned.
-                  </span>
-                </span>
-              </label>
-            )}
-            {refused && (
-              <label className="check-row">
-                <input type="checkbox" checked={allowVulnerableMCP} onChange={(e) => setAllowVulnerableMCP(e.target.checked)} />
-                <span>
-                  <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
-                  <span className="muted selectable">
-                    {mcp?.refusal}. The override is recorded in the run&apos;s receipt.
-                  </span>
-                </span>
-              </label>
-            )}
-            {!refused && mcp?.vulnerabilityLine && (
-              <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>
-            )}
-            {unverifiable && (
-              <div className="error-box selectable">
-                Attestation {attestation?.state}: {attestation?.detail} — the runner re-verifies before
-                executing and refuses a release whose signature cannot be verified.
-              </div>
-            )}
-                <ErrorBox error={runErr} />
+                  </label>
+                )}
+                {refused && (
+                  <label className="check-row">
+                    <input type="checkbox" checked={allowVulnerableMCP} onChange={(e) => setAllowVulnerableMCP(e.target.checked)} />
+                    <span>
+                      <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
+                      <span className="muted selectable">
+                        {mcp?.refusal}. The override is recorded in the run&apos;s receipt.
+                      </span>
+                    </span>
+                  </label>
+                )}
+                {!refused && mcp?.vulnerabilityLine && (
+                  <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>
+                )}
+                {unverifiable && (
+                  <div className="error-box selectable">
+                    Attestation {attestation?.state}: {attestation?.detail} — the runner re-verifies before
+                    executing and refuses a release whose signature cannot be verified.
+                  </div>
+                )}
                 {!busy && blockers.length > 0 && (
                   <div className="muted small run-blockers">
                     <strong>Before you can run:</strong>
@@ -819,33 +869,35 @@ export default function RunPanel({
                     </ul>
                   </div>
                 )}
-            {/* A refused create, as a sentence — and, for credits, the way
-                onward the Build page already offers (desktop#74). */}
-            {hostedRefusal?.refusal && (
-              <Notice tone="warn">
-                <strong>
-                  {hostedRefusal.refusal === "credits-exhausted"
-                    ? "Not enough credits for this run."
-                    : hostedRefusal.refusal === "run-active"
-                      ? "This account already has a run In Agentry."
-                      : "The registry refused this run."}
-                </strong>{" "}
-                <span className="selectable">{hostedRefusal.detail}</span>
-                {hostedRefusal.refusal === "credits-exhausted" && (
-                  <p className="small" style={{ marginBottom: 0 }}>
-                    {/* The destination is the registry's to name and the app's
-                        to check, so this asks for the registry and never hands
-                        a URL to be opened (agentry-enterprise#41). */}
-                    <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e)))}>
-                      Credits and upgrade
-                    </Button>
-                  </p>
+                {/* A refused create, as a sentence — and, for credits, the way
+                    onward the Build page already offers (desktop#74). */}
+                {hostedRefusal?.refusal && (
+                  <Notice tone="warn">
+                    <strong>
+                      {hostedRefusal.refusal === "credits-exhausted"
+                        ? "Not enough credits for this run."
+                        : hostedRefusal.refusal === "run-active"
+                          ? "This account already has a run In Agentry."
+                          : "The registry refused this run."}
+                    </strong>{" "}
+                    <span className="selectable">{hostedRefusal.detail}</span>
+                    {hostedRefusal.refusal === "credits-exhausted" && (
+                      <p className="small" style={{ marginBottom: 0 }}>
+                        {/* The destination is the registry's to name and the app's
+                            to check, so this asks for the registry and never hands
+                            a URL to be opened (agentry-enterprise#41). */}
+                        <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e)))}>
+                          Credits and upgrade
+                        </Button>
+                      </p>
+                    )}
+                  </Notice>
                 )}
-              </Notice>
-            )}
               </>
             )}
 
+            {(step === "tools" || step === "start") && <ErrorBox error={profileErr} />}
+            <ErrorBox error={runErr} />
             {stepProblem && (
               <p className="run-step-problem" role="alert">{stepProblem}</p>
             )}

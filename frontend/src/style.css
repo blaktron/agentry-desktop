@@ -805,6 +805,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   font-size: 13px;
   color: var(--color-muted);
 }
+.run-steps li.done { color: var(--color-fg); }
 .run-steps li.active {
   color: var(--color-fg);
   font-weight: 600;
