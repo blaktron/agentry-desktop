@@ -6,7 +6,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, installed, main, trust } from "../../wailsjs/go/models";
 import {
   Button, Card, CapabilityBadges, ErrorBox, Excerpt, Modal, ModeBadges,
-  Notice, PageHeader, QuarantineBadge, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
+  Notice, PageHeader, QuarantineBadge, ServerEnv, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
 import { codingAgentName } from "./CodingAgents";
@@ -446,9 +446,19 @@ function MCPSection({
       </table>
 
       <h3>MCP servers involved</h3>
-      {info.servers.map((s) => (
-        <p key={s} style={{ margin: "4px 0" }}>{s}</p>
-      ))}
+      {info.servers.map((s, i) => {
+        // Servers ends with one line per declared server, in order
+        // (services_run.go MCPView): a declared server's env goes beneath
+        // its own line (agentry-desktop#62).
+        const declared = info.declaredServers ?? [];
+        const d = declared[i - (info.servers.length - declared.length)];
+        return (
+          <div key={s}>
+            <p style={{ margin: "4px 0" }}>{s}</p>
+            {d && <ServerEnv env={d.env} />}
+          </div>
+        );
+      })}
       {info.vulnerabilities.length > 0 && (
         <>
           <h3>Declared servers, per the registry</h3>

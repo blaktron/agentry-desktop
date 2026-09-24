@@ -1,7 +1,7 @@
 // Shared presentational pieces. The copy in here follows the product's
 // honest posture: an agent is "scanned, N findings, signed" — never "safe".
 import React from "react";
-import { trust } from "../wailsjs/go/models";
+import { mcpview, trust } from "../wailsjs/go/models";
 
 // The shared primitives and the brand live in their own modules; re-export
 // them here so a page imports everything design-related from "../ui".
@@ -127,4 +127,47 @@ export function shortDigest(d?: string): string {
   if (!d) return "";
   const hex = d.replace(/^sha256:/, "");
   return `sha256:${hex.slice(0, 12)}…`;
+}
+
+/** A declared MCP server's plain env as NAME=value rows, sorted by name in
+ * Go (internal/mcpview, agentry-desktop#62). env is configuration the
+ * manifest declares, never a secret: secrets are names only, and a name
+ * declared as a secret is left out before it gets here. Nothing when the
+ * server declares no env. */
+export function ServerEnv({ env }: { env?: mcpview.EnvVar[] }) {
+  if (!env || env.length === 0) return null;
+  return (
+    <div className="server-env small" title="Plain configuration this server's declaration carries in the manifest; not a secret">
+      <span className="muted">env</span>
+      <ul className="mono">
+        {env.map((e) => <li key={e.name}>{e.name}={e.value}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+/** The declared MCP servers of a release: pin, tools and plain env, one row
+ * per server (the install review, agentry-desktop#62). */
+export function DeclaredServersTable({ servers }: { servers?: mcpview.Server[] }) {
+  if (!servers || servers.length === 0) return null;
+  return (
+    <table className="plain selectable declared-servers">
+      <thead>
+        <tr><th>server</th><th>tools</th><th>env</th></tr>
+      </thead>
+      <tbody>
+        {servers.map((s) => (
+          <tr key={s.id}>
+            <td className="mono">{s.id}</td>
+            <td className="small">{s.tools.length > 0 ? <span className="mono">{s.tools.join(", ")}</span> : <span className="muted">all of the server&apos;s tools</span>}</td>
+            <td className="small">
+              {s.env.length > 0
+                ? <ul className="mono server-env-rows">{s.env.map((e) => <li key={e.name}>{e.name}={e.value}</li>)}</ul>
+                : <span className="muted">none</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }

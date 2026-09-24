@@ -18,6 +18,8 @@
 //   #runpanel-unscanned    a release the registry admitted without a scan:
 //                          its own mark and consent, In Agentry not offered
 //   #install-unscanned     the install wizard on the same release (M23)
+//   #install-mcp-env       the install review of a release declaring two MCP
+//                          servers, one with plain env (agentry-desktop#62)
 //   #toolspanel | #chat    the other two run surfaces
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
@@ -25,6 +27,13 @@ import "../src/style.css";
 // In Agentry (hosted runs M6). The view is the panel's: what a run holds,
 // where it stands, and what it produced — the registry's numbers.
 const view = location.hash.replace("#", "") || "runpanel";
+// #install-mcp-env: two declared servers, one with plain env and a tool
+// allowlist, one with neither (agentry-desktop#62).
+const mcpEnvServers = [
+  { id: "npm:@modelcontextprotocol/server-github@2025.4.8", tools: ["get_issue", "list_issues", "search_issues"],
+    env: [{ name: "GITHUB_API_URL", value: "https://api.github.com" }, { name: "GITHUB_TOOLSETS", value: "issues,pull_requests" }] },
+  { id: "pypi:mcp-server-fetch@2025.4.7", tools: [], env: [] },
+];
 const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length) : "";
 
 // The run form asks only for what the release declares (agentry-desktop#167).
@@ -135,11 +144,12 @@ g.go = { main: {
       id: "plan-1", registry: "https://secureagentry.net", namespace: "demo1", name: "incident-summarizer", version: "1.2.0",
       modes: ["autonomous"], summary: "Summarises an incident channel into a report card, redacting secrets first.",
       digest: "sha256:9c356fd0d20fef07123ba7c4a1b2c3d4e5f6a7b8", yanked: false,
-      attestation: att, unsigned: false, unscanned: true,
+      attestation: att, unsigned: false, unscanned: view === "install-unscanned",
       capabilities: { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
       needsCapabilityConfirm: true, prevVersion: "", diff: null, requiresWidenedConfirm: false,
       vulnerabilities: [], vulnerabilityLine: "have no known high or critical advisories", vulnerabilityRefusal: "",
       target: "agents-md", paths: { dest: "/home/chris/agents/incident-summarizer", managed: true, managedRoot: "/home/chris/agents", agentsMd: "/home/chris/agents/AGENTS.md" },
+      mcpServers: view === "install-mcp-env" ? mcpEnvServers : [],
     }),
     Confirm: async () => ({ dir: "/home/chris/agents/incident-summarizer" }),
     Cancel: async () => {},
@@ -196,7 +206,7 @@ function ChatSample() {
 }
 
 const el = document.getElementById("root")!;
-if (view === "install-unscanned") {
+if (view === "install-unscanned" || view === "install-mcp-env") {
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);

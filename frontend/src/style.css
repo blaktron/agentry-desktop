@@ -315,6 +315,16 @@ table.plain th, table.plain td {
 }
 table.plain th { color: var(--color-muted); font-weight: 600; font-size: 12px; }
 
+/* A declared MCP server's plain env (agentry-desktop#62). */
+.server-env { margin: 0 0 8px 16px; }
+.server-env ul, .server-env-rows { list-style: none; margin: 2px 0 0; padding: 0; }
+.server-env li { overflow-wrap: break-word; }
+/* Fixed columns so a long value wraps inside its cell, not past the modal. */
+table.declared-servers { table-layout: fixed; }
+table.declared-servers th:nth-child(1) { width: 38%; }
+table.declared-servers th:nth-child(2) { width: 22%; }
+table.declared-servers td { overflow-wrap: anywhere; }
+
 /* ---------- findings ---------- */
 
 .finding {

@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"sort"
 	"strings"
@@ -32,8 +33,12 @@ type MCPInfo struct {
 	Version string
 	// ToolRows are the companion-server tools the runner grants.
 	ToolRows []ToolRow
-	// Servers are the MCP servers involved in a run.
+	// Servers are the MCP servers involved in a run: the companion server's
+	// line, then one line per Declared entry, in the same order.
 	Servers []string
+	// Declared is each declared MCP server's pin, tools and plain env
+	// (agentry-desktop#62), for the lines Servers ends with.
+	Declared []mcpview.Server
 	// SecretNames are the declared secret env NAMES (never values).
 	SecretNames []string
 	// DataAccess lists declared semantic categories (operator-cataloged
@@ -71,22 +76,32 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 		SecretNames:     append([]string(nil), c.Secrets...),
 		EmbeddedTools:   export.HostToolGrants(c),
 		CapabilityLines: capabilityLines(c),
+		Declared:        mcpview.Of(c),
 	}
 	for _, d := range c.DataAccess {
 		info.DataAccess = append(info.DataAccess, string(d))
 	}
 	// Declared MCP servers (RUNNER-PLAN-3): installed with the agent from
 	// the operator's registries, loaded for this exact release only.
-	for _, srv := range c.MCPServers {
-		desc := srv.SourceID() + "@" + srv.Version + " — declared by the manifest; installed per-signature from the operator's configured registries"
-		if len(srv.Tools) > 0 {
-			desc += "; tools filtered to " + strings.Join(srv.Tools, ", ")
-		}
-		info.Servers = append(info.Servers, desc)
-	}
+	info.Servers = append(info.Servers, declaredServerLines(info.Declared)...)
 	vr := mcpvuln.Check(ctx, regURL, c.MCPServers)
 	info.Vulnerabilities, info.VulnerabilityLine, info.Refusal = vr.Statuses, vr.Line, vr.Refusal
 	return info, nil
+}
+
+// declaredServerLines is one line per declared server, in order: the page
+// renders each server's env beneath its line by that order
+// (agentry-desktop#62).
+func declaredServerLines(declared []mcpview.Server) []string {
+	lines := make([]string, 0, len(declared))
+	for _, srv := range declared {
+		desc := srv.ID + " — declared by the manifest; installed per-signature from the operator's configured registries"
+		if len(srv.Tools) > 0 {
+			desc += "; tools filtered to " + strings.Join(srv.Tools, ", ")
+		}
+		lines = append(lines, desc)
+	}
+	return lines
 }
 
 // gatewayToolRows maps the contract to the tools the per-run gateway

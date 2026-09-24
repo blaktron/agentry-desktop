@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/export"
@@ -156,5 +157,26 @@ func TestCapabilityLines(t *testing.T) {
 	}), "\n")
 	if !strings.Contains(wild, "unrestricted — policy-gated") {
 		t.Errorf("wildcard egress must render as policy-gated, got:\n%s", wild)
+	}
+}
+
+// Each declared server gets one line, in declaration order, so the agent
+// page can put a server's env beneath its own line (agentry-desktop#62).
+func TestDeclaredServerLinesPairWithTheDeclaredServers(t *testing.T) {
+	declared := mcpview.Of(manifest.Capabilities{MCPServers: []manifest.MCPServer{
+		{NPM: "@acme/a", Version: "1.0.0", Tools: []string{"t1", "t2"}, Env: map[string]string{"MODE": "ro"}},
+		{PyPI: "b", Version: "2.0.0"},
+	}})
+	lines := declaredServerLines(declared)
+	if len(lines) != len(declared) {
+		t.Fatalf("%d lines for %d servers", len(lines), len(declared))
+	}
+	for i, l := range lines {
+		if !strings.HasPrefix(l, declared[i].ID+" — declared by the manifest") {
+			t.Errorf("line %d = %q, want it to name %s", i, l, declared[i].ID)
+		}
+	}
+	if !strings.HasSuffix(lines[0], "; tools filtered to t1, t2") || strings.Contains(lines[1], "tools filtered") {
+		t.Errorf("tool filters: %q", lines)
 	}
 }

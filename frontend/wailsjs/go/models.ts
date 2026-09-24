@@ -248,6 +248,7 @@ export namespace install {
 	    unsigned: boolean;
 	    unscanned: boolean;
 	    capabilities: installed.CapSnapshot;
+	    mcpServers: mcpview.Server[];
 	    needsCapabilityConfirm: boolean;
 	    prevVersion?: string;
 	    diff?: manifest.CapabilityDiff;
@@ -279,6 +280,7 @@ export namespace install {
 	        this.unsigned = source["unsigned"];
 	        this.unscanned = source["unscanned"];
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
+	        this.mcpServers = this.convertValues(source["mcpServers"], mcpview.Server);
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
 	        this.prevVersion = source["prevVersion"];
 	        this.diff = this.convertValues(source["diff"], manifest.CapabilityDiff);
@@ -1249,6 +1251,7 @@ export namespace main {
 	    version: string;
 	    toolRows: MCPToolRow[];
 	    servers: string[];
+	    declaredServers: mcpview.Server[];
 	    secretNames: string[];
 	    dataAccess: string[];
 	    embeddedTools: string[];
@@ -1267,6 +1270,7 @@ export namespace main {
 	        this.version = source["version"];
 	        this.toolRows = this.convertValues(source["toolRows"], MCPToolRow);
 	        this.servers = source["servers"];
+	        this.declaredServers = this.convertValues(source["declaredServers"], mcpview.Server);
 	        this.secretNames = source["secretNames"];
 	        this.dataAccess = source["dataAccess"];
 	        this.embeddedTools = source["embeddedTools"];
@@ -1783,6 +1787,59 @@ export namespace manifest {
 	        this.widened = source["widened"];
 	        this.narrowed = source["narrowed"];
 	    }
+	}
+
+}
+
+export namespace mcpview {
+	
+	export class EnvVar {
+	    name: string;
+	    value: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnvVar(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.value = source["value"];
+	    }
+	}
+	export class Server {
+	    id: string;
+	    tools: string[];
+	    env: EnvVar[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Server(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.tools = source["tools"];
+	        this.env = this.convertValues(source["env"], EnvVar);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
