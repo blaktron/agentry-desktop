@@ -303,9 +303,10 @@ jobs:
   # runner's user has a console session. A required check since
   # agentry-desktop#109: it carries the dmg read-back and the
   # install-over-install smoke that gate a release (release.yaml's macos job),
-  # so a change that breaks them must not merge on a green gate. The steps
-  # that need a console session (the Keychain round trip, the launch smoke)
-  # report themselves skipped without one instead of failing. The Mac being
+  # so a change that breaks them must not merge on a green gate. The launch
+  # smoke needs a console session and reports itself skipped without one;
+  # the Keychain round trip runs against a throwaway default keychain the job
+  # makes and removes (agentry-desktop#106), so it runs everywhere. The Mac being
   # offline leaves this job queued, so the run never concludes and the gate
   # ends in CI TIMEOUT, never CI GREEN and never CI NOT GREEN.
   macos:
@@ -393,43 +394,55 @@ jobs:
       # (security's exit 152, agentry-desktop#106). The job gives it both for
       # the length of the round trip: a throwaway keychain in RUNNER_TEMP, with
       # a random password that lives only in this step, holding nothing but
-      # the test's own item. The step after the round trip, under always(),
-      # puts the list and the default back and deletes the keychain. What it
-      # restores is read here, minus any agentry-ci keychain a killed job left
-      # behind, so one crash cannot become the next job's state.
+      # the test's own item. Both settings live in the user's
+      # com.apple.security preferences, so that domain is snapshotted here and
+      # put back exactly by the always() step after the round trip (or deleted,
+      # when it did not exist). A killed job cannot run that step, so an
+      # agentry-ci keychain still named here is a leftover: it is removed
+      # before the snapshot, never saved as the state to restore.
       - name: A throwaway keychain as the default, for the round trip
         run: |
           kc="$RUNNER_TEMP/agentry-ci.keychain-db"
-          security list-keychains -d user | tr -d ' "' | grep -v '^$' | grep -v 'agentry-ci\.keychain' > "$RUNNER_TEMP/keychains.before" || true
-          security default-keychain -d user 2>/dev/null | tr -d ' "' | grep -v 'agentry-ci\.keychain' > "$RUNNER_TEMP/default-keychain.before" || true
-          echo "search list before: $(tr '\n' ' ' < "$RUNNER_TEMP/keychains.before")(default: $(cat "$RUNNER_TEMP/default-keychain.before"))"
+          keychains() { security list-keychains -d user | sed -e 's/^ *"//' -e 's/"$//' | grep -v '^$' || true; }
+          if keychains | grep 'agentry-ci\.keychain' >/dev/null || security default-keychain -d user 2>/dev/null | grep 'agentry-ci\.keychain' >/dev/null; then
+            echo "::warning::a killed job left an agentry-ci keychain in $(id -un)'s settings; removing it before the snapshot"
+            keep=(); while IFS= read -r k; do case "$k" in *agentry-ci.keychain*) ;; *) keep+=("$k") ;; esac; done < <(keychains)
+            if [ ${#keep[@]} -eq 0 ]; then defaults delete com.apple.security 2>/dev/null || true
+            else security list-keychains -d user -s "${keep[@]}"; security default-keychain -d user -s "${keep[0]}"; fi
+          fi
+          if defaults read com.apple.security >/dev/null 2>&1; then
+            defaults export com.apple.security "$RUNNER_TEMP/security-prefs.plist"; echo "snapshot: com.apple.security exported"
+          else touch "$RUNNER_TEMP/security-prefs.absent"; echo "snapshot: no com.apple.security domain for $(id -un)"; fi
+          echo "search list before: [$(keychains | tr '\n' ' ')] default: [$(security default-keychain -d user 2>/dev/null | sed 's/^ *//')]"
           pw=$(openssl rand -hex 24)
           echo "::add-mask::$pw"
-          security delete-keychain "$kc" 2>/dev/null || true
           security create-keychain -p "$pw" "$kc"
           security set-keychain-settings "$kc"
           security unlock-keychain -p "$pw" "$kc"
           security list-keychains -d user -s "$kc"
           security default-keychain -d user -s "$kc"
-          echo "search list now: $(security list-keychains -d user | tr -d ' "' | tr '\n' ' ')"
+          echo "search list now: [$(keychains | tr '\n' ' ')]"
+      # -count=1: the Mac keeps its Go build cache, and a cached pass is not a
+      # round trip through this job's keychain.
       - name: Keychain round trip
         run: AGENTRY_KEYCHAIN_TEST=1 go test ./internal/settings/ -run TestKeychainRoundTrip -v -count=1
-      - name: Restore the keychain search list and default, delete the throwaway
+      # Runs whatever happened above. Every command is attempted and a failure
+      # is remembered rather than ending the step, so the keychain is always
+      # deleted; the end checks, with security itself, that nothing of it is
+      # left in the user's settings.
+      - name: Restore the keychain settings and delete the throwaway
         if: always()
         run: |
-          kc="$RUNNER_TEMP/agentry-ci.keychain-db"
-          if [ -f "$RUNNER_TEMP/keychains.before" ]; then
-            before=()
-            while IFS= read -r k; do [ -n "$k" ] && before+=("$k"); done < "$RUNNER_TEMP/keychains.before"
-            # An empty list is restored as empty: -s with no names.
-            security list-keychains -d user -s ${before[@]+"${before[@]}"}
-            d=$(cat "$RUNNER_TEMP/default-keychain.before" 2>/dev/null)
-            if [ -n "$d" ] && [ -e "$d" ]; then security default-keychain -d user -s "$d"; fi
-          fi
+          kc="$RUNNER_TEMP/agentry-ci.keychain-db"; rc=0
+          if [ -f "$RUNNER_TEMP/security-prefs.plist" ]; then defaults import com.apple.security "$RUNNER_TEMP/security-prefs.plist" || rc=1
+          elif [ -f "$RUNNER_TEMP/security-prefs.absent" ]; then defaults delete com.apple.security 2>/dev/null || true; fi
           security delete-keychain "$kc" 2>/dev/null || true
-          left=$(security list-keychains -d user | tr -d ' "' | grep 'agentry-ci\.keychain' || true)
-          echo "search list after: $(security list-keychains -d user | tr -d ' "' | tr '\n' ' ')"
-          if [ -n "$left" ] || [ -e "$kc" ]; then echo "::error::the throwaway keychain is still on the runner ($kc)"; exit 1; fi
+          list=$(security list-keychains -d user | sed -e 's/^ *"//' -e 's/"$//' | grep -v '^$' || true)
+          dflt=$(security default-keychain -d user 2>/dev/null | sed 's/^ *//' || true)
+          echo "search list after: [$(printf '%s' "$list" | tr '\n' ' ')] default: [$dflt]"
+          case "$list$dflt" in *agentry-ci.keychain*) echo "::error::$(id -un)'s keychain settings still name the throwaway keychain"; rc=1 ;; esac
+          if [ -e "$kc" ]; then echo "::error::the throwaway keychain file is still at $kc"; rc=1; fi
+          exit $rc
       # A window needs the runner's user logged in at the console. Without a
       # session the smoke cannot run and says so; with one, the built app must
       # still be running after five seconds.
