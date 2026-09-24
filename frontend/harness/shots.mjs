@@ -88,6 +88,21 @@ const states = [
   // (agentry-desktop#148 moved it): unchanged for the person.
   { name: "wizard-coding-agent", url: "/wizard.html#3", note: "the welcome's coding agent step after Look: Claude Code found and chosen, Codex missing", locator: ".wizard" },
   { name: "wizard-coding-agent-unprobed", url: "/wizard.html#3-unprobed", note: "the step as it opens: what the policy records, nothing run", locator: ".wizard" },
+  // Every page under the shell and every step of the first-run wizard, so a
+  // change to the token table (agentry-desktop#49) is seen everywhere it
+  // lands, not only in the states above.
+  { name: "page-browse", url: "/pages.html", note: "Browse under the shell", locator: '[data-preview="browse"]' },
+  { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell", locator: '[data-preview="agent"]' },
+  { name: "page-installed", url: "/pages.html", note: "Installed under the shell", locator: '[data-preview="installed"]' },
+  { name: "page-build", url: "/pages.html", note: "Build under the shell", locator: '[data-preview="build"]' },
+  { name: "page-validate", url: "/pages.html", note: "Validate under the shell", locator: '[data-preview="validate"]' },
+  { name: "page-settings", url: "/pages.html", note: "Settings under the shell", locator: '[data-preview="settings"]' },
+  { name: "toolspanel", url: "/modals.html#toolspanel", note: "the tools panel over the shell" },
+  { name: "chat", url: "/modals.html#chat", note: "a session's chat pane", locator: ".chat-pane" },
+  { name: "wizard-welcome", url: "/wizard.html#0", note: "the first-run wizard: welcome", locator: ".wizard" },
+  { name: "wizard-signin", url: "/wizard.html#1", note: "the first-run wizard: sign-in", locator: ".wizard" },
+  { name: "wizard-done", url: "/wizard.html#4", note: "the first-run wizard: done", locator: ".wizard" },
+  { name: "wizard-done-nothing", url: "/wizard.html#4-nothing", note: "the first-run wizard: every step skipped, the Nothing set up ending", locator: ".wizard" },
 ];
 
 const wanted = process.env.STATES ? process.env.STATES.split(",").map((s) => s.trim()) : null;
