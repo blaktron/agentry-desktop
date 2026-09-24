@@ -30,8 +30,9 @@ import (
 
 const hostedTestToken = "agy_desktoptoken0000"
 
-// hostedEnvelope is a result.json as a pushed run's outputs carry it; its
-// receipt parts are not trusted, since the agent could have written them.
+// hostedEnvelope is a result.json as a pushed run's outputs carry it. Its
+// receipt parts differ from the registry's on purpose: they are never
+// trusted, since the agent could have written them.
 const hostedEnvelope = `{"agentry":"1","status":"ok","exitClass":"ok","attestation":{"state":"verified","keyId":"k1"},` +
 	`"capabilities_enforced":{"network.egress":"llm-proxy allowlist: api.example.com"},"harness":{"adapter":"docker-agent","model":"m"},"result":"the summary"}`
 
@@ -60,8 +61,11 @@ type hostedFake struct {
 	// lostOutput makes the output route answer 404, as the registry does
 	// for a bundle it can no longer open.
 	lostOutput bool
-	created    *hostedrun.CreateRequest
-	refuse     func(w http.ResponseWriter)
+	// noReceipt finishes the run the way one pushed before
+	// agentry-enterprise#121 did: with no receipt kept.
+	noReceipt bool
+	created   *hostedrun.CreateRequest
+	refuse    func(w http.ResponseWriter)
 }
 
 func (f *hostedFake) start(t *testing.T) string {
@@ -209,9 +213,15 @@ func (f *hostedFake) finish(outcome, exitClass string, settled int64) {
 	f.run.Outcome, f.run.ExitClass, f.run.FinishedAt = outcome, exitClass, &now
 	f.run.SettledCredits = &settled
 	f.run.Usage = &hostedrun.Usage{InputTokens: 800, OutputTokens: 200, Turns: 3, WallMS: 9000}
-	// A pushed run: the registry keeps no receipt; the envelope in the
-	// outputs' result.json is the receipt.
-	f.run.Receipt = hostedrun.Receipt{}
+	// A pushed run: the registry keeps the host's cut of the CLI's stdout
+	// envelope as the receipt (agentry-enterprise#121); a run pushed before
+	// that (noReceipt) has none.
+	f.run.Receipt = hostedrun.Receipt{CapabilitiesEnforced: map[string]string{"runtime": "runsc: the agent container"}}
+	f.run.Receipt.Attestation.State = "unsigned"
+	f.run.Receipt.Harness.Adapter = "docker-agent"
+	if f.noReceipt {
+		f.run.Receipt = hostedrun.Receipt{}
+	}
 	f.run.Outputs = []hostedrun.Artefact{{Name: hostedrun.PushedOutput, Bytes: 4096}}
 }
 
@@ -472,11 +482,13 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	if !final.Settled || final.SettledCredits != 2 || final.HoldCredits != 20 {
 		t.Fatalf("credits = %+v", final)
 	}
-	// The registry kept no receipt for a pushed run, and the result.json
-	// in its outputs — which claims a verified attestation — is never read
-	// as one: the agent could have written it (agentry-enterprise#121).
-	if final.ReceiptKept || final.AttestationState != "" || len(final.CapabilitiesEnforced) != 0 || final.Adapter != "" {
-		t.Fatalf("a receipt was read from the outputs: %+v", final)
+	// The receipt listed is the registry's, the host's cut of the CLI's
+	// stdout, never the result.json in the outputs, which claims another
+	// capability and a verified attestation: the agent could have written
+	// it (agentry-enterprise#121, #185).
+	if !final.ReceiptKept || final.CapabilitiesEnforced["runtime"] != "runsc: the agent container" || final.CapabilitiesEnforced["network.egress"] != "" ||
+		final.AttestationState != "unsigned" || final.Adapter != "docker-agent" {
+		t.Fatalf("the receipt listed: %+v", final)
 	}
 	if final.ResultJSON != hostedEnvelope {
 		t.Fatalf("result = %q", final.ResultJSON)
@@ -510,6 +522,30 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 		if err == nil && len(entries) > 0 {
 			t.Fatalf("a hosted run wrote into %s: %v", dir, entries)
 		}
+	}
+}
+
+// A run the registry kept no receipt for (pushed before
+// agentry-enterprise#121) lists none, and a result.json in its outputs —
+// claiming a verified attestation — is not read as one.
+func TestAPushedRunWithNoReceiptListsNone(t *testing.T) {
+	f := &hostedFake{enabled: true, noReceipt: true, outputs: map[string]string{"result.json": hostedEnvelope}}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, events := newRunAPI(t)
+	fastPoll(t)
+	outDir := t.TempDir()
+	r.app.markPicked(outDir)
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
+	final := waitForFinal(t, events)
+	if final.ReceiptKept || final.AttestationState != "" || len(final.CapabilitiesEnforced) != 0 || final.Adapter != "" {
+		t.Fatalf("a receipt was read from the outputs: %+v", final)
+	}
+	if final.ResultJSON != hostedEnvelope || len(final.Outputs) != 1 {
+		t.Fatalf("the outputs still came down: %+v", final)
 	}
 }
 

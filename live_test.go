@@ -251,7 +251,7 @@ func TestLiveHostedRun(t *testing.T) {
 		t.Fatal("a succeeded run wrote no artefacts")
 	}
 	if len(final.Receipt.CapabilitiesEnforced) == 0 {
-		t.Log("the registry kept no receipt for this run — a pushed run's has none until agentry-enterprise#121")
+		t.Fatal("the registry kept no receipt that lists what the run enforced (a pushed run's comes from its host since agentry-enterprise#121)")
 	}
 	for k, v := range final.Receipt.CapabilitiesEnforced {
 		t.Logf("enforced %s: %s", k, v)
