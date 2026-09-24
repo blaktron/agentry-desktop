@@ -250,7 +250,7 @@ export namespace install {
 	    capabilities: installed.CapSnapshot;
 	    needsCapabilityConfirm: boolean;
 	    prevVersion?: string;
-	    diff?: installed.Diff;
+	    diff?: manifest.CapabilityDiff;
 	    requiresWidenedConfirm: boolean;
 	    vulnerabilities: mcpvuln.Status[];
 	    vulnerabilityLine?: string;
@@ -281,7 +281,7 @@ export namespace install {
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
 	        this.prevVersion = source["prevVersion"];
-	        this.diff = this.convertValues(source["diff"], installed.Diff);
+	        this.diff = this.convertValues(source["diff"], manifest.CapabilityDiff);
 	        this.requiresWidenedConfirm = source["requiresWidenedConfirm"];
 	        this.vulnerabilities = this.convertValues(source["vulnerabilities"], mcpvuln.Status);
 	        this.vulnerabilityLine = source["vulnerabilityLine"];
@@ -405,20 +405,6 @@ export namespace installed {
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = source["mcpServers"];
 	        this.mcpServerEnv = source["mcpServerEnv"];
-	    }
-	}
-	export class Diff {
-	    widened?: string[];
-	    narrowed?: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new Diff(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.widened = source["widened"];
-	        this.narrowed = source["narrowed"];
 	    }
 	}
 	export class Key {
@@ -1779,6 +1765,25 @@ export namespace main {
 	
 	
 	
+
+}
+
+export namespace manifest {
+	
+	export class CapabilityDiff {
+	    widened?: string[];
+	    narrowed?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CapabilityDiff(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.widened = source["widened"];
+	        this.narrowed = source["narrowed"];
+	    }
+	}
 
 }
 
