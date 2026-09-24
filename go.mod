@@ -5,10 +5,11 @@ go 1.27.0
 require (
 	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.0.0-20260924175959-2cccaaa07f03
-	github.com/blaktron/agentry-cli v0.0.0-20260924180541-bbbfb8d1f3b3
+	github.com/blaktron/agentry v0.0.0-20260924191356-943d4de681a1
+	github.com/blaktron/agentry-cli v0.0.0-20260924192322-befd608e6c43
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8
+	golang.org/x/sys v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -44,7 +45,6 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
 
