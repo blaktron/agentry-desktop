@@ -63,6 +63,13 @@ const agentInstalledUnreachable = window.location.hash === "#agent-installed-unr
 // #installed-updates: the launch check found two newer versions — the
 // number on Installed in the sidebar (agentry-desktop#147).
 const installedUpdates = window.location.hash === "#installed-updates" ? 2 : 0;
+// #installed-update-warning: the runner-home record has a newer version,
+// and its Update completes with a warning — the policy it could not read
+// (agentry-desktop#235); the page shows the engine's sentence.
+const installedUpdateWarning = window.location.hash === "#installed-update-warning";
+// Set once that Update answers, so the list reads back the record at 1.3.0
+// with nothing newer, as the real refresh would.
+let updateApplied = false;
 const agentInstallRefused = window.location.hash === "#agent-install-refused";
 const agentInstalling = window.location.hash === "#agent-installing";
 // Settings → Coding agents (agentry-desktop#148): the hash picks the
@@ -120,17 +127,25 @@ g.go = { main: {
     Provenance: async () => prov,
   },
   InstallAPI: {
-    ListInstalled: async () => (fresh ? [] : agentInstalled ? [...installedRecs, runnerRecForShown] : installedRecs),
+    ListInstalled: async () => (fresh ? [] : agentInstalled ? [...installedRecs, runnerRecForShown]
+      : updateApplied ? installedRecs.map((r, i) => (i === 2 ? { ...r, version: "1.3.0" } : r)) : installedRecs),
     CheckUpdates: async () => [],
     Forget: async () => undefined,
     CheckUpdate: async () => {
       if (agentInstalledUnreachable) return { key: {}, current: "1.2.0", error: "dial tcp 127.0.0.1:1: connect: connection refused" };
       return { key: {}, current: runnerRecForShown.version, latest: "1.2.0", updateAvailable: agentInstalledOlder };
     },
-    UpdatesStatus: async () => ({ checked: "2026-09-21T12:00:00Z", available: installedUpdates, updates: [] }),
+    UpdatesStatus: async () => installedUpdateWarning && !updateApplied
+      ? { checked: "2026-09-21T12:00:00Z", available: 1, updates: [{ key: { registry: "runner", namespace: "agentry", name: "changelog-from-git", target: "runner", dir: installedRecs[2].dir }, current: "1.2.1", latest: "1.3.0", updateAvailable: true }] }
+      : { checked: "2026-09-21T12:00:00Z", available: installedUpdates, updates: [] },
     InstallRunner: async () => {
       if (agentInstalling) await new Promise(() => {});
       if (agentInstallRefused) throw new Error("not confirmed: Accept what demo1/incident-summarizer may do?");
+      if (installedUpdateWarning) {
+        updateApplied = true;
+        const warning = "operator policy /home/me/.agentry/runner/policy.yaml could not be read (parse /home/me/.agentry/runner/policy.yaml: yaml: line 3: mapping values are not allowed in this context) — the export beside the install takes the generic AGENTS.md shape";
+        return { message: "installed agentry/changelog-from-git@1.3.0 into the runner home — warning: " + warning, dest: installedRecs[2].dir, warning };
+      }
       return { message: "installed demo1/incident-summarizer@1.2.0 into the runner home", dest: runnerRecForShown.dir };
     },
   },
