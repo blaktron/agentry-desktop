@@ -81,7 +81,16 @@ func main() {
 		// the person turned it on. OnShutdown rather than OnBeforeClose: by
 		// here the window is going anyway, so replacing the application
 		// cannot interrupt anything the person is still doing.
-		OnShutdown: func(context.Context) { selfUpdateAPI.applyOnQuit() },
+		//
+		// A run in flight is ended first (agentry-desktop#125): closing the
+		// window with one live asks in a native dialog, and shutdown cancels
+		// the run, waits (bounded) for the engine's teardown and sweeps the
+		// run's label, so no agent or gateway container outlives the app.
+		OnBeforeClose: runAPI.beforeClose,
+		OnShutdown: func(context.Context) {
+			runAPI.shutdown()
+			selfUpdateAPI.applyOnQuit()
+		},
 		Bind: []interface{}{
 			app,
 			settingsAPI,

@@ -251,6 +251,9 @@ func saveProfileForSig(sig *Signature, secrets map[string]string, keep bool) (*P
 type Request struct {
 	Registry string
 	Ref      string
+	// RunID names the run's docker objects (label agentry.run=<id>); ""
+	// mints one. The app sets it so it can Sweep the run on quit.
+	RunID string
 	// AllowVulnerableMCP runs even when the registry reports a high or
 	// critical advisory for a declared MCP server (the CLI's
 	// --allow-vulnerable-mcp); recorded in the receipt.
@@ -460,9 +463,14 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		return nil, err
 	}
 
-	runID, err := engine.NewRunID()
-	if err != nil {
-		return nil, err
+	// The caller may choose the run id (the app does, so that quitting
+	// mid-run can sweep the run's label; agentry-desktop#125); else it is
+	// minted here.
+	runID := req.RunID
+	if runID == "" {
+		if runID, err = engine.NewRunID(); err != nil {
+			return nil, err
+		}
 	}
 	outDir, err := resolveOutDir(req.OutDir, sig, runID)
 	if err != nil {
