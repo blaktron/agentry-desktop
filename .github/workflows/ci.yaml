@@ -5,7 +5,9 @@
 # build a platform package: `windows` cross-builds the Windows target and
 # its per-user installer on the Linux runner (a broken Windows build fails
 # the gate, desktop#53/#83), and `macos` builds the universal bundle on the
-# Mac.
+# Mac. `gitleaks` scans the commits every event brings for secrets. Every
+# job carries the fork guard (below), and every action is pinned to a commit
+# SHA (agentry-desktop#128).
 name: ci
 on:
   push:
@@ -17,22 +19,46 @@ on:
 permissions:
   contents: read
 
+# The CI tools' versions, in one place (agentry-desktop#128): no step installs
+# anything unpinned, and scripts/pins-check.sh (the daily pins workflow)
+# reads these lines to report newer releases. The wails CLI is pinned by
+# go.mod instead (`go list -m`). GITLEAKS_SHA256 is the checksum of
+# gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz from the release's own
+# gitleaks_${GITLEAKS_VERSION}_checksums.txt.
+env:
+  GOLANGCI_LINT_VERSION: v2.14.0
+  GOVULNCHECK_VERSION: v1.8.0
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
 # One run per ref: a new push to a PR cancels the superseded run (self-hosted
 # capacity is a handful of runners, not a cloud).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job carries the fork guard
+#   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+# (agentry-desktop#128; the estate's shape, agentry#419). This repository goes
+# public at the 1.0 flip, and every job here runs on a persistent self-hosted
+# runner (the Linux containers share one module cache with the release
+# builders; the macOS job runs on the estate's Mac). A pull request from a
+# fork would otherwise execute its own `run:` steps there. The guard lives in
+# the file, where a diff shows it; the repository setting "Require approval
+# for all external contributors" stays on as belt-and-braces (PUBLIC-FLIP.md
+# item 5). A fork's pull request shows these jobs as skipped; a maintainer
+# who wants it built pushes its commits to a branch here.
 jobs:
   check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Nothing after the checkout fetches with its token; the private
           # modules go through the job-scoped rewrite below.
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           # The runner shares one persistent host module cache with every other
@@ -51,7 +77,7 @@ jobs:
           echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
           echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       # main.go embeds frontend/dist, so every Go tool — including the lint
@@ -59,9 +85,9 @@ jobs:
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8.0.0
         with:
-          version: latest
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
       - name: make check
         run: make check
       # The honest posture, as a check (plan hosted-runs.md §3): the app
@@ -103,16 +129,19 @@ jobs:
   # scripts/check-windows-installer.sh reads the installer back — asInvoker,
   # two installed files, the same binary as the zip — which is as far as
   # Linux can check a Windows package; the install-over-install check is by
-  # hand until #55 gives CI a Windows machine. The package is kept as a
-  # workflow artifact so a PR's Windows build can be tried without a release.
+  # hand until #55 gives CI a Windows machine. A failed build's package is
+  # kept for a week on the runner host that built it, not in GitHub's
+  # artifact storage (scripts/ci-keep-build.sh, agentry-desktop#188); a
+  # Windows build to try comes from a release dry run.
   windows:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           # Shared persistent host module cache; see check (agentry#225).
@@ -125,7 +154,7 @@ jobs:
           echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
           echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - name: makensis, 7z, osslsigncode and openssl from Ubuntu's packages
@@ -166,25 +195,27 @@ jobs:
             echo "::error::build/windows/installer/wails_tools.nsh differs from what wails build -nsis writes for this wails.json: run make package-windows and commit the file"
             exit 1
           fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: agentry-desktop-windows-amd64
-          path: |
-            build/bin/agentry-desktop-*-windows-amd64-setup.exe
-            build/bin/agentry-desktop-*-windows-amd64.zip
-          if-no-files-found: error
-          retention-days: 7
+      # No upload-artifact: GitHub's artifact storage is metered per account,
+      # and PR builds filled it on 2026-09-24 (agentry-desktop#187, #188). A
+      # failed build's installer and zip stay on this runner host for 7 days;
+      # the step names the host and the path.
+      - name: Keep a failed build on the runner host
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-windows-amd64-setup.exe build/bin/agentry-desktop-*-windows-amd64.zip
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
 
   govulncheck:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           # The runner shares one persistent host module cache with every other
@@ -203,10 +234,54 @@ jobs:
           echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
           echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
+
+  # Secret scanning (agentry-desktop#128): gitleaks over the commits this
+  # event brings — a pull request's own range, or a push's before..after —
+  # with the repository's .gitleaks.toml, failing on any hit. The binary is
+  # the release tarball at the pinned version, checked against the pinned
+  # checksum before it runs (the runner image's copy is not relied on).
+  # --redact: a hit names the file, line and rule, never the value.
+  gitleaks:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks at the pinned version, checksum-verified
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          "$RUNNER_TEMP/gitleaks/gitleaks" version
+      - name: Scan the commits this event brings
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            range="$PR_BASE..$PR_HEAD"
+          elif [ -n "$PUSH_BEFORE" ] && ! printf '%s' "$PUSH_BEFORE" | grep -qE '^0+$' && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            range="$PUSH_BEFORE..$PUSH_AFTER"
+          else
+            # A push with no usable "before" (a new branch, a force-push over
+            # a commit this clone does not have): the whole history.
+            range="$PUSH_AFTER"
+          fi
+          echo "scanning $range"
+          "$RUNNER_TEMP/gitleaks/gitleaks" detect --source . --config .gitleaks.toml \
+            --redact --no-banner --exit-code 1 --log-opts="$range"
 
   # The one target that cannot be cross-built (agentry-desktop#57): the
   # universal bundle is built on the estate's Mac, the Go tests run natively,
@@ -220,14 +295,20 @@ jobs:
   # offline leaves this job queued, so the run never concludes and the gate
   # ends in CI TIMEOUT, never CI GREEN and never CI NOT GREEN.
   macos:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, macOS, ARM64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # A persistent host: the job token must not stay in .git/config
+          # after the job (agentry-desktop#127). Nothing here fetches with it;
+          # the private modules go through the job-scoped rewrite below.
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       # A persistent, non-container runner: caches live in stable places under
@@ -274,15 +355,6 @@ jobs:
           make package-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings'
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           shasum -a 256 build/bin/*.zip build/bin/*.dmg
-      # Uploaded before the smoke, not after: a smoke that goes red is exactly
-      # when someone wants the image to look at.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: agentry-desktop-darwin-universal
-          path: |
-            build/bin/agentry-desktop-*-darwin-universal.zip
-            build/bin/agentry-desktop-*-darwin-universal.dmg
-          if-no-files-found: error
       # The dmg's promise about an upgrade: dragging the bundle over a copy
       # already there leaves the settings, the installed agents, the pinned
       # key, the runner policy and a keychain item byte-identical, and the
@@ -326,6 +398,15 @@ jobs:
           else
             wait "$pid"; ec=$?; echo "agentry-desktop exited with $ec before 5 s"; tail -20 smoke.log; exit 1
           fi
+      # No upload-artifact (agentry-desktop#187, #188): a smoke that goes red
+      # is exactly when someone wants the image to look at, so a failed job's
+      # zip and dmg stay on the Mac for 7 days, in ~/runner-artifacts of the
+      # runner's user; the step names the path. A green build keeps nothing.
+      - name: Keep a failed build on the Mac
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-darwin-universal.zip build/bin/agentry-desktop-*-darwin-universal.dmg
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$GIT_CONFIG_GLOBAL"
