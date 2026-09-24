@@ -142,11 +142,10 @@ type Run struct {
 	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
 }
 
-// Empty reports whether the registry kept no receipt for the run. A
-// pushed run's is one of these: the host sends a summary, not the
-// envelope, and the result.json in its output.tar is a file the agent
-// could have written, so it is never read as the receipt
-// (agentry-enterprise#121).
+// Empty reports whether the registry kept no receipt for the run: a run
+// pushed before agentry-enterprise#121, whose host sent no receipt. The
+// result.json in a pushed run's output.tar is a file the agent could
+// have written, so it is never read as the receipt instead.
 func (r Receipt) Empty() bool {
 	return len(r.CapabilitiesEnforced) == 0 && r.Attestation.State == "" && r.Harness.Adapter == "" && r.ExitClass == ""
 }

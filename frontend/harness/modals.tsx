@@ -108,7 +108,7 @@ hostedRuns.failed = {
   ...hostedRuns.finished, state: "done — fail", statusLine: "the agent ran and failed — the receipt and the outputs say where",
   outcome: "failed", outcomeTone: "bad", outcomeLine: "the agent ran and failed — the receipt and the outputs say where",
   exitClass: "agent-error", settledCredits: 3, turns: 2, inputTokens: 2210, outputTokens: 380, totalTokens: 2590, wallMs: 18400,
-  // A pushed run: the registry kept no receipt (agentry-enterprise#121).
+  // A run the registry kept no receipt for (pushed before agentry-enterprise#121).
   receiptKept: false, capabilitiesEnforced: {}, attestationState: "", adapter: "",
   resultJson: "",
   outputs: [hostedRuns.finished.outputs[2]],

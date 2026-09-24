@@ -47,9 +47,9 @@ unavailable, with the reason and the remedy), `#runpanel-queued` (queued
 with its position), `#runpanel-running` (its state and nothing else: a run
 In Agentry keeps no log, agentry-desktop#182), `#runpanel-finished` (done —
 pass: the outcome, the receipt listed verbatim, the credits and the
-downloaded outputs) and `#runpanel-failed` (a pushed run, done — fail, for
-which the registry kept no receipt: the card says so rather than read one
-from the outputs, agentry-enterprise#121). The bindings are
+downloaded outputs) and `#runpanel-failed` (done — fail, a run pushed before
+agentry-enterprise#121, for which the registry kept no receipt: the card
+says so rather than read one from the outputs). The bindings are
 mocked in `modals.tsx`, so no registry is involved.
 
 The run form asks only for what the release declares (agentry-desktop#167):

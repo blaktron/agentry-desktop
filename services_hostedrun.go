@@ -148,9 +148,11 @@ type HostedRunView struct {
 	SettledCredits int64 `json:"settledCredits"`
 	Settled        bool  `json:"settled"`
 
-	// ReceiptKept says the registry holds a receipt for the run; a pushed
-	// run's has none yet (agentry-enterprise#121), and the panel says so
-	// rather than read one from a file in the outputs.
+	// ReceiptKept says the registry holds a receipt for the run. A pushed
+	// run's is the host's cut of the CLI's stdout envelope
+	// (agentry-enterprise#121); a run the registry kept none for — one
+	// pushed before that — has the panel say so rather than read one from
+	// a file in the outputs.
 	ReceiptKept bool `json:"receiptKept"`
 	// CapabilitiesEnforced is the receipt's block, listed verbatim.
 	CapabilitiesEnforced map[string]string `json:"capabilitiesEnforced,omitempty"`
