@@ -200,8 +200,10 @@ type Result struct {
 	// SecretsNote reminds about empty env placeholders (mcp target).
 	SecretsNote string `json:"secretsNote,omitempty"`
 	// Warning is what the install did not do although it succeeded —
-	// the coding-agent export it could not write (agentry-desktop#148) —
-	// for a page with no result screen to show beside the button.
+	// the coding-agent export it could not write (agentry-desktop#148), or
+	// the runner home's policy it could not read, so the export took the
+	// generic AGENTS.md shape (agentry-desktop#220) — for a page with no
+	// result screen to show beside the button.
 	Warning string `json:"warning,omitempty"`
 }
 
@@ -491,9 +493,12 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	switch plan.Target {
 	case installdir.Target:
 		var style string
-		style, res.Warning, err = installRunner(staging, plan.Paths.ReleaseDir, m, plan)
+		style, res.Warning, err = installRunner(staging, plan.Paths, m, plan)
 		res.Dest = plan.Paths.ReleaseDir
 		res.Message = fmt.Sprintf("installed %s/%s@%s into the runner home: %s (export: %s)", plan.Namespace, plan.Name, plan.Version, plan.Paths.ReleaseDir, style)
+		if res.Warning != "" {
+			res.Message += " — warning: " + res.Warning
+		}
 		after = func() error { return installdir.RemoveOtherVersions(plan.Paths.Dest, plan.Paths.ReleaseDir) }
 	case manifest.InterfaceClaudeSkill:
 		err = exportClaudeSkill(staging, plan.Paths, m)
@@ -524,11 +529,8 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	if after != nil && recorded {
 		// The release and its record landed; an older version's directory
 		// that would not go is said, not an error that reads as a failed
-		// install. A path built wrong (ErrNotARelease) is a bug, not an
-		// older version, and still stops, as in the CLI (agentry-cli#192).
-		if err := after(); errors.Is(err, installdir.ErrNotARelease) {
-			return nil, err
-		} else if err != nil {
+		// install.
+		if err := after(); err != nil {
 			res.Message += fmt.Sprintf(" — warning: %v", err)
 		}
 	}
@@ -580,11 +582,10 @@ func recordKey(plan Plan) installed.Key {
 // cache holds the verdict and never the consent, and says whether the
 // verdict was a verified signature the way a run's does. Returns the style
 // written and the warning.
-func installRunner(staging, releaseDir string, m *manifest.Manifest, plan Plan) (style, warning string, err error) {
-	home, err := policy.Home()
-	if err != nil {
-		return "", "", err
-	}
+func installRunner(staging string, p Paths, m *manifest.Manifest, plan Plan) (style, warning string, err error) {
+	// The runner home Prepare laid the paths out under (ManagedRoot is its
+	// agents/), so the style is read from the home the release goes to.
+	home := filepath.Dir(p.ManagedRoot)
 	meta := &installdir.Meta{
 		Ref:       fmt.Sprintf("%s/%s@%s", plan.Namespace, plan.Name, plan.Version),
 		Namespace: plan.Namespace, Name: plan.Name, Version: plan.Version,
@@ -595,7 +596,7 @@ func installRunner(staging, releaseDir string, m *manifest.Manifest, plan Plan) 
 		},
 	}
 	style, warning = installdir.StyleForHome(home)
-	if err := installdir.Install(releaseDir, staging, m, meta, style); err != nil {
+	if err := installdir.Install(p.ReleaseDir, staging, m, meta, style); err != nil {
 		return "", "", err
 	}
 	return style, warning, nil

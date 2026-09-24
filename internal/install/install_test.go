@@ -933,6 +933,9 @@ func TestRunnerInstallWarnsOnAnUnreadablePolicy(t *testing.T) {
 	if !strings.Contains(res.Warning, policy.PathIn(home)) || !strings.Contains(res.Warning, "could not be read") {
 		t.Fatalf("warning %q does not name the unreadable policy", res.Warning)
 	}
+	if !strings.Contains(res.Message, "warning: "+res.Warning) {
+		t.Fatalf("message %q does not carry the warning", res.Message)
+	}
 	meta, ok := installdir.Load(plan.Paths.ReleaseDir, plan.Digest)
 	if !ok || meta.Export != "agents-md" || meta.Attestation.Consent != "" {
 		t.Fatalf("install.json: %+v ok=%v", meta, ok)
