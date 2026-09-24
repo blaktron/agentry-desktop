@@ -292,7 +292,11 @@ jobs:
           name: release-linux-windows
           path: dist/*
           if-no-files-found: error
-          retention-days: 7
+          # A hand-off to the bundle job minutes later, across hosts (the
+          # Linux runners and the Mac share no disk), so GitHub's store is
+          # the one place both reach; a day covers re-running bundle
+          # (agentry-desktop#188).
+          retention-days: 1
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
@@ -381,7 +385,11 @@ jobs:
             build/bin/agentry-desktop-${{ needs.preflight.outputs.version }}-darwin-universal.zip
             build/bin/agentry-desktop-${{ needs.preflight.outputs.version }}-darwin-universal.dmg
           if-no-files-found: error
-          retention-days: 7
+          # A hand-off to the bundle job minutes later, across hosts (the
+          # Linux runners and the Mac share no disk), so GitHub's store is
+          # the one place both reach; a day covers re-running bundle
+          # (agentry-desktop#188).
+          retention-days: 1
       # Dragging the bundle onto Applications over a copy already there leaves
       # the settings, the installed agents, the pinned key, the runner policy
       # and a keychain item byte-identical (plan §8), and the bundle installed
@@ -407,9 +415,13 @@ jobs:
   # what it bakes in, SHA256SUMS covering all of them — every file but
   # SHA256SUMS itself is in the sums, and every artifact the release matrix
   # names is present — and SHA256SUMS.minisig, the estate's own signature over
-  # those sums (agentry-desktop#86; plan §7, D5; register D-026). Kept 90 days
-  # (the artifact store's default here; the site's downloads directory is the
-  # long-lived copy, plan §6).
+  # those sums (agentry-desktop#86; plan §7, D5; register D-026). This
+  # artifact is the release's hand-off to the site: agentry-web's
+  # build-downloads.sh --from-run imports it with `gh run download` from the
+  # tag's run (D-023), so it stays in GitHub's store. A tag's bundle is kept
+  # 90 days (the site's downloads directory is the long-lived copy, plan
+  # §6); a workflow_dispatch dry run's, which the site refuses anyway, 7
+  # (agentry-desktop#188).
   bundle:
     needs: [preflight, linux-windows, macos]
     runs-on: [self-hosted, linux, x64]
@@ -527,4 +539,4 @@ jobs:
           name: agentry-desktop-${{ needs.preflight.outputs.version }}
           path: bundle/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: ${{ github.event_name == 'push' && 90 || 7 }}

@@ -129,8 +129,10 @@ jobs:
   # scripts/check-windows-installer.sh reads the installer back — asInvoker,
   # two installed files, the same binary as the zip — which is as far as
   # Linux can check a Windows package; the install-over-install check is by
-  # hand until #55 gives CI a Windows machine. The package is kept as a
-  # workflow artifact so a PR's Windows build can be tried without a release.
+  # hand until #55 gives CI a Windows machine. A failed build's package is
+  # kept for a week on the runner host that built it, not in GitHub's
+  # artifact storage (scripts/ci-keep-build.sh, agentry-desktop#188); a
+  # Windows build to try comes from a release dry run.
   windows:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, x64]
@@ -193,14 +195,15 @@ jobs:
             echo "::error::build/windows/installer/wails_tools.nsh differs from what wails build -nsis writes for this wails.json: run make package-windows and commit the file"
             exit 1
           fi
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: agentry-desktop-windows-amd64
-          path: |
-            build/bin/agentry-desktop-*-windows-amd64-setup.exe
-            build/bin/agentry-desktop-*-windows-amd64.zip
-          if-no-files-found: error
-          retention-days: 7
+      # No upload-artifact: GitHub's artifact storage is metered per account,
+      # and PR builds filled it on 2026-09-24 (agentry-desktop#187, #188). A
+      # failed build's installer and zip stay on this runner host for 7 days;
+      # the step names the host and the path.
+      - name: Keep a failed build on the runner host
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-windows-amd64-setup.exe build/bin/agentry-desktop-*-windows-amd64.zip
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
@@ -352,15 +355,6 @@ jobs:
           make package-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings'
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           shasum -a 256 build/bin/*.zip build/bin/*.dmg
-      # Uploaded before the smoke, not after: a smoke that goes red is exactly
-      # when someone wants the image to look at.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: agentry-desktop-darwin-universal
-          path: |
-            build/bin/agentry-desktop-*-darwin-universal.zip
-            build/bin/agentry-desktop-*-darwin-universal.dmg
-          if-no-files-found: error
       # The dmg's promise about an upgrade: dragging the bundle over a copy
       # already there leaves the settings, the installed agents, the pinned
       # key, the runner policy and a keychain item byte-identical, and the
@@ -404,6 +398,15 @@ jobs:
           else
             wait "$pid"; ec=$?; echo "agentry-desktop exited with $ec before 5 s"; tail -20 smoke.log; exit 1
           fi
+      # No upload-artifact (agentry-desktop#187, #188): a smoke that goes red
+      # is exactly when someone wants the image to look at, so a failed job's
+      # zip and dmg stay on the Mac for 7 days, in ~/runner-artifacts of the
+      # runner's user; the step names the path. A green build keeps nothing.
+      - name: Keep a failed build on the Mac
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: scripts/ci-keep-build.sh "$JOB_STATUS" build/bin/agentry-desktop-*-darwin-universal.zip build/bin/agentry-desktop-*-darwin-universal.dmg
       - name: Remove the job-scoped git credential
         if: always()
         run: rm -f "$GIT_CONFIG_GLOBAL"
