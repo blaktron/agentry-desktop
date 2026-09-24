@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
@@ -16,6 +17,9 @@ import (
 // Everything the chat can do is a method here; the engine enforces the
 // plan and ends the session on the operator's caps regardless.
 type Session struct {
+	// mu serializes End: the chat's End and the app's quit can race
+	// (agentry-desktop#125), and the engine's End must run once.
+	mu     sync.Mutex
 	inner  session.Session
 	ref    string
 	prof   *prepared
@@ -71,6 +75,8 @@ func (s *Session) Ended() (bool, session.EndReason) { return s.inner.Ended() }
 // is set and the release declares an output schema), applies the profile
 // keep choice like Run, and returns the flattened envelope. Idempotent.
 func (s *Session) End(ctx context.Context, finish bool) (*Result, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.ended {
 		return s.result, s.endErr
 	}
