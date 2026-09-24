@@ -87,10 +87,12 @@ inner="$mnt/$appname/Contents/MacOS/agentry-desktop"
 # 4. Universal.
 # Listed once into a variable: a grep -q on a live pipe would close it early
 # and pipefail would read the SIGPIPE as "not universal" (the hazard
-# check-windows-installer.sh documents at its own file listing).
+# check-windows-installer.sh documents at its own file listing). The grep
+# reads all of tr's output (>/dev/null, not -q) so tr is never cut off
+# (agentry-desktop#236).
 arches=$(lipo -archs "$inner")
 for want in arm64 x86_64; do
-  printf '%s\n' "$arches" | tr ' ' '\n' | grep -qx "$want" || fail "the bundle on the image is not universal: lipo says '$arches'"
+  tr ' ' '\n' <<<"$arches" | grep -x "$want" >/dev/null || fail "the bundle on the image is not universal: lipo says '$arches'"
 done
 
 # 5. The signature verifies; the authority is reported, not asserted.

@@ -75,7 +75,8 @@ refused() {
   if out=$("$root_dir/scripts/check-windows-installer.sh" "$@" 2>&1); then
     printf '%s\n' "$out"; fail "accepted what it must refuse: $want"
   fi
-  printf '%s\n' "$out" | grep -q -F "$want" || { printf '%s\n' "$out"; fail "refused for another reason than '$want'"; }
+  grep -q -F "$want" <<<"$out" ||  # a here-string: a live pipe into grep -q can fail on EPIPE (agentry-desktop#236)
+    { printf '%s\n' "$out"; fail "refused for another reason than '$want'"; }
 }
 
 # 4. Refused: an installer whose hooks signed it and its uninstaller but

@@ -124,6 +124,15 @@ fi
 # it. Listed once into a variable: a grep -q on a live pipe would close it
 # early and pipefail would read 7z's SIGPIPE as a failure. 7-Zip builds
 # differ on the separator they print, so both are read as /.
+#
+# No `… | grep -q` anywhere in this script (agentry-desktop#236): grep -q
+# exits at its first match, and a writer still writing gets EPIPE, which
+# pipefail reports as the pipeline's failure. printf of a variable is such a
+# writer too: bash's stdout is line-buffered, so a multi-line value leaves in
+# several write()s, and on a loaded runner grep can match on the first and
+# exit before the rest ("printf: write error: Broken pipe", then the wrong
+# failure message). A value is read from a here-string (grep -q … <<<"$x");
+# a command's output goes to a grep that reads it all (grep … >/dev/null).
 entries=$(7z l -slt "$setup" | awk '/^----------$/{on=1; next} on && /^Path = /{sub(/^Path = /, ""); print}' | tr '\\' '/')
 listing=$(printf '%s\n' "$entries" | grep -v '^\$PLUGINSDIR' || true)
 expected=$'agentry-desktop.exe\nuninstall.exe'
@@ -131,7 +140,7 @@ if [ "$(printf '%s\n' "$listing" | sort)" != "$(printf '%s\n' "$expected" | sort
   printf 'installed files:\n%s\n' "$listing" >&2
   fail "the installer does not install exactly agentry-desktop.exe and uninstall.exe"
 fi
-printf '%s\n' "$entries" | grep -q '^\$PLUGINSDIR/webview2bootstrapper/MicrosoftEdgeWebview2Setup.exe$' || fail "the WebView2 bootstrapper is not in the installer"
+grep -q '^\$PLUGINSDIR/webview2bootstrapper/MicrosoftEdgeWebview2Setup.exe$' <<<"$entries" || fail "the WebView2 bootstrapper is not in the installer"
 
 # 4. The same binary as the zip.
 if ! 7z e -so "$setup" agentry-desktop.exe 2>/dev/null | cmp -s - "$exe"; then
@@ -143,13 +152,13 @@ grep -q -E '^!define REQUEST_EXECUTION_LEVEL "user"' "$nsi" || fail "$nsi does n
 grep -q -E '^!define WAILS_INSTALL_SCOPE "user"' "$nsi" || fail "$nsi does not define WAILS_INSTALL_SCOPE user"
 install_section=$(awk '/^Section[[:space:]]*$/{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi")
 [ -n "$install_section" ] || fail "no install section found in $nsi"
-printf '%s\n' "$install_section" | grep -q 'wails.files' || fail "the install section in $nsi does not copy the files (the awk found the wrong block)"
-if printf '%s\n' "$install_section" | grep -v -E '^[[:space:]]*[#;]' | grep -q -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete '; then
+grep -q 'wails.files' <<<"$install_section" || fail "the install section in $nsi does not copy the files (the awk found the wrong block)"
+if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete ' >/dev/null; then
   printf '%s\n' "$install_section" >&2
   fail "the install section reaches beyond \$INSTDIR, the Start Menu and the uninstall key"
 fi
 grep -q -E '^Section /o "un\.Also remove my Agentry settings and sign-in"' "$nsi" || fail "the settings section is not off by default (/o)"
-awk '/^Section "un\./{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi" | grep -q 'SectionIn RO' || fail "the application section can be unticked"
+awk '/^Section "un\./{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi" | grep 'SectionIn RO' >/dev/null || fail "the application section can be unticked"
 grep -q -- '--remove-my-settings' "$nsi" || fail "the settings section does not hand the removal to the app"
 
 if [ "$signed" -eq 0 ]; then
@@ -185,12 +194,12 @@ verify_pe() {
     printf '%s\n' "$out" >&2
     fail "the signature on the $label does not verify to $root_subject"
   fi
-  printf '%s\n' "$out" | grep -q 'Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "osslsigncode did not report the $label's signature ok"; }
+  grep -q 'Signature verification: ok' <<<"$out" || { printf '%s\n' "$out" >&2; fail "osslsigncode did not report the $label's signature ok"; }
   cn=$(signer_cn "$out")
   [ -n "$cn" ] || { printf '%s\n' "$out" >&2; fail "could not read the signer's CN from osslsigncode's report on the $label"; }
   ts=$(printf '%s\n' "$out" | sed -n -e 's/^[[:space:]]*Timestamp time: //p' -e 's/^The signature is timestamped: //p' | head -1)
   [ -n "$ts" ] || { printf '%s\n' "$out" >&2; fail "the signature on the $label is not timestamped — an Artifact Signing certificate lives three days, so the signature would die with it"; }
-  printf '%s\n' "$out" | grep -q 'Timestamp Server Signature verification: ok' || { printf '%s\n' "$out" >&2; fail "the timestamp on the $label does not verify"; }
+  grep -q 'Timestamp Server Signature verification: ok' <<<"$out" || { printf '%s\n' "$out" >&2; fail "the timestamp on the $label does not verify"; }
   printf '%s|%s\n' "$cn" "$ts"
 }
 

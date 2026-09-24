@@ -273,7 +273,7 @@ say "refuses to install anything they signed. That is what makes a rotation a"
 say "release rather than a reinstall."
 say ""
 RETIRE_ARGS=""
-if go run ./internal/cmd/keyset list 2>/dev/null | grep -q 'current'; then
+if go run ./internal/cmd/keyset list 2>/dev/null | grep 'current' >/dev/null; then  # not -q: pipefail (agentry-desktop#236)
   say "There is already a current key. Retiring it is almost always right:"
   say "two current keys means two keys that can authorise an install."
   read -r -p "  retire the current key(s)? [Y/n]: " ans
