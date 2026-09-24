@@ -313,6 +313,13 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 // one, rather than starting a second (one run per account, D11). It
 // returns a view with no run when the account has none.
 func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
+	// The folder a reattached run's outputs download into, and that the
+	// result view lists and reveals afterwards, is one a native picker
+	// returned, as for StartHostedRun (D-030, D-035): never a path the page
+	// typed.
+	if err := r.app.requirePicked("output directory", outDir); err != nil {
+		return nil, err
+	}
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	token := settings.TokenFor(reg)
@@ -419,6 +426,11 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 		// The run is over: its artefacts come down into the folder the
 		// person picked, and the receipt and result render from there.
 		got, derr := client.DownloadOutputs(context.Background(), final, outDir)
+		// Whatever landed is this run's folder, for the result view. The id
+		// is the registry's, so it is remembered only when it is an id.
+		if validRunID(final.ID) {
+			r.rememberFolder(final.ID, outDir)
+		}
 		msg := ""
 		if derr != nil {
 			msg = derr.Error()
@@ -469,6 +481,12 @@ func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 // hostedOutDir is the folder a hosted run's artefacts land in: the one the
 // person picked, or the same default a local run would have written to.
 func hostedOutDir(dir string, r *hostedrun.Run) (string, error) {
+	// The registry names the run, and the name becomes part of a folder's
+	// name here: one that is not an id (a "../", a ".app", a comma) is
+	// refused before any folder is made from it.
+	if !validRunID(r.ID) {
+		return "", fmt.Errorf("the registry named this run %q, which is not a run id", r.ID)
+	}
 	ns, name := "", ""
 	if ref, err := manifest.ParseRef(r.Ref); err == nil {
 		ns, name = ref.Namespace, ref.Name

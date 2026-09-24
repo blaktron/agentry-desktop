@@ -30,7 +30,8 @@ const states = [
   { name: "runpanel-unavailable", url: "/modals.html#runpanel-unavailable", note: "offered, unavailable, with the reason and the remedy" },
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
   { name: "runpanel-running", url: "/modals.html#runpanel-running", note: "running: its state, no log (agentry-desktop#182)" },
-  { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "done — pass: outcome, receipt, credits, downloaded outputs" },
+  { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "done — pass: the result first, the files in the run folder with previews, Run details collapsed", expectText: "Files in the run folder" },
+  { name: "runpanel-hostile", url: "/modals.html#runpanel-hostile", note: "hostile output: no markup of its own, no image, no javascript: link, the hidden characters shown", expectText: "U+202E", expectNone: ".run-result-view img, .run-result-view script, .run-result-view iframe, .run-result-view b[onclick], .run-result-view a[href^='javascript']" },
   { name: "runpanel-failed", url: "/modals.html#runpanel-failed", note: "done — fail: the outcome's line, credits settled; a run the registry kept no receipt for" },
   { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own mark and consent, In Agentry not offered (M23); the line above Run names the consent (agentry-desktop#167)", expectBlocker: "Tick \u201cRun an unscanned release\u201d", expectRunDisabled: true },
   // The form asks only for what the release declares (agentry-desktop#167):
@@ -179,6 +180,11 @@ try {
       if (state.expectText) {
         const text = await page.locator(state.locator ?? "body").innerText();
         if (!text.includes(state.expectText)) throw new Error(`${state.name}: the page does not show "${state.expectText}"`);
+      }
+      if (state.expectNone) {
+        // Agent output makes no markup of its own (agentry-desktop#227).
+        const n = await page.locator(state.expectNone).count();
+        if (n !== 0) throw new Error(`${state.name}: ${n} element(s) matching ${state.expectNone}`);
       }
       if (state.expectBlocker) {
         // The line above Run is the same condition the button reads.

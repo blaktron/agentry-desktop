@@ -62,6 +62,13 @@ type RunAPI struct {
 	// inFlightDir holds the crash-path records (services_quit.go,
 	// agentry-desktop#198); "" is the runner home's desktop-runs.
 	inFlightDir string
+
+	// folders are the run folders of the results Go produced, by run id,
+	// for the result view's two bindings (services_outputs.go); openFolder
+	// is the file-manager seam a test substitutes.
+	foldersMu  sync.Mutex
+	folders    map[string]string
+	openFolder func(dir string) error
 }
 
 // SessionView is what StartSession returns.
@@ -183,7 +190,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runResultView(res), nil
+	return r.resultView(res), nil
 }
 
 // SetupStatusView is the machine's run-readiness (§P1).
@@ -566,7 +573,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	if err != nil {
 		return nil, err
 	}
-	return runResultView(res), nil
+	return r.resultView(res), nil
 }
 
 // runResultView flattens the engine result for the frontend.
