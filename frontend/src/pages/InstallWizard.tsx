@@ -193,7 +193,7 @@ export default function InstallWizard({
                   <SignedBadge att={plan.attestation} />{" "}
                   <strong>The registry admitted this version without a scan.</strong>{" "}
                   <span className="muted">
-                    Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no attestation stand behind it. No scanner looked at its contents.
+                    No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the BriefAgent off the pipeline, and no scanner looked at its contents.
                   </span>
                 </p>
                 <label className="check-row">
@@ -260,7 +260,7 @@ function CapsTable({ caps }: { caps: install.Plan["capabilities"] }) {
   if (list(caps.execCommands)) rows.push(["exec", list(caps.execCommands)]);
   if (list(caps.secrets)) rows.push(["secrets", list(caps.secrets)]);
   if (list(caps.dataAccess)) rows.push(["data access", list(caps.dataAccess)]);
-  if (rows.length === 0) return <p className="muted">None declared (pure text agent).</p>;
+  if (rows.length === 0) return <p className="muted">None declared (pure text).</p>;
   return (
     <table className="caps-table selectable">
       <tbody>

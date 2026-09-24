@@ -15,7 +15,7 @@ export default function Validate() {
 
   async function pick() {
     try {
-      const chosen = await ChooseDirectory("Choose an agent folder to validate");
+      const chosen = await ChooseDirectory("Choose a BriefAgent folder to validate");
       if (chosen) {
         setDir(chosen);
         await run(chosen);
@@ -43,14 +43,14 @@ export default function Validate() {
     <div>
       <PageHeader
         title="Validate"
-        sub="Run a local agent folder through the manifest rules, the S1 inventory (content-sniffed binaries, nested archives, encoding), and the S3/S4 hidden-content and injection-signature scanners — the same code the registry runs at publish time."
+        sub="Run a local BriefAgent folder through the manifest rules, the S1 inventory (content-sniffed binaries, nested archives, encoding), and the S3/S4 hidden-content and injection-signature scanners — the same code the registry runs at publish time."
       />
 
       <Toolbar>
         <Input
           type="text"
           className="grow mono"
-          placeholder="Path to an agent folder (contains agent.yaml)"
+          placeholder="Path to a BriefAgent folder (it contains agent.yaml)"
           value={dir}
           onChange={(e) => setDir(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && run()}

@@ -609,8 +609,8 @@ export default function RunPanel({
               <SignedBadge att={attestation} />{" "}
               <strong>The registry admitted this version without a scan.</strong>{" "}
               <span className="muted">
-                Its organization&apos;s administrator took the agent off the pipeline: no findings, no report and no
-                attestation stand behind it. Nothing about its contents was checked.
+                No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
+                BriefAgent off the pipeline, and no scanner looked at its contents.
                 {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
               </span>
             </p>

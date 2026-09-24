@@ -57,6 +57,14 @@ The product never claims an agent is "safe". The language is always:
   engine that refuses for its own reason). The app never runs as root. Runs
   stream their log live and finish with the §R8 result envelope — status,
   usage, receipts, and the output folder.
+- **Sessions** — a release that declares the `interactive` mode can run as a
+  chat instead: **Start session** in the run panel opens it under the same
+  controls as an autonomous run. Every message, and every file you add
+  (read-only under `/inputs`), goes through the runner's session API, and the
+  engine ends the session at the operator policy's caps whatever the window
+  does. **Finish** asks the agent for its final result before teardown;
+  **Stop** ends without one. Either way the receipts folder holds
+  `transcript.md` and the session's events.
 - **In Agentry** — where the registry mounts the runs extension and the
   release declares the autonomous mode, the run panel offers a third
   choice: the platform runs it, not this machine (plan
@@ -77,7 +85,7 @@ The product never claims an agent is "safe". The language is always:
   (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
   writes), with per-item capabilities and update checks. Uninstall deletes
   client-managed directories only: a directory you picked is never deleted.
-- **Validate** — an author drop-zone. Point it at a local agent folder and
+- **Validate** — an author drop-zone. Point it at a local BriefAgent folder and
   it runs the manifest rules, the S1 inventory (content-sniffed binaries,
   nested archives, encoding), and the S3/S4 hidden-content and
   injection-signature scanners. Those are the same Go packages the
