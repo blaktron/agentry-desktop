@@ -8,6 +8,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"io"
@@ -48,6 +49,15 @@ type RunAPI struct {
 	// so it must not wait on — or be waited on by — the run lock above.
 	hostedMu sync.Mutex
 	hosted   *hostedFollow
+
+	// live is the run or session in flight, so quitting can end it and
+	// sweep what it built (services_quit.go, agentry-desktop#125).
+	liveMu sync.Mutex
+	live   *liveRun
+	// Engine seams for tests; nil means internal/run.
+	newRunID  func() (string, error)
+	engineRun func(context.Context, run.Request, io.Writer) (*run.Result, error)
+	sweep     func(context.Context, string) error
 }
 
 // SessionView is what StartSession returns.
@@ -82,8 +92,19 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
+	// The session's own context, the parent of everything the engine
+	// starts for it: quitting while the session is still starting cancels
+	// it (services_quit.go); EndSession releases it after End.
+	ctx, cancel := context.WithCancel(r.app.ctx)
+	live, err := r.beginRun(ref, cancel)
+	if err != nil {
+		cancel()
+		r.mu.Unlock()
+		return nil, err
+	}
 	logw := r.eventWriter(eventRunLog)
-	s, err := run.StartSession(r.app.ctx, run.Request{
+	s, err := run.StartSession(ctx, run.Request{
+		RunID:              live.id,
 		Registry:           reg,
 		Ref:                ref,
 		Task:               task,
@@ -100,6 +121,8 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	}, logw)
 	logw.Flush()
 	if err != nil {
+		cancel()
+		r.endRun(live)
 		r.mu.Unlock()
 		return nil, err
 	}
@@ -148,6 +171,10 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	}
 	res, err := s.End(r.app.ctx, finish)
 	r.session = nil
+	if l := r.current(); l != nil {
+		l.cancel()
+		r.endRun(l)
+	}
 	r.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -505,9 +532,19 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		return nil, errBusy
 	}
 	defer r.mu.Unlock()
+	// The run's own context: quitting cancels it, the engine returns and
+	// tears down, and shutdown waits for that (services_quit.go).
+	ctx, cancel := context.WithCancel(r.app.ctx)
+	defer cancel()
+	live, err := r.beginRun(ref, cancel)
+	if err != nil {
+		return nil, err
+	}
+	defer r.endRun(live)
 	logw := r.eventWriter(eventRunLog)
 	defer logw.Flush()
-	res, err := run.Run(r.app.ctx, run.Request{
+	res, err := r.runEngine(ctx, run.Request{
+		RunID:              live.id,
 		Registry:           reg,
 		Ref:                ref,
 		Task:               task,
