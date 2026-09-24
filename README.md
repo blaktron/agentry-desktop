@@ -299,7 +299,16 @@ the artifacts.
   still *verifies*, so an old release stays checkable, and callers refuse to
   *install* from one — that is what makes a rotation a release rather than a
   reinstall. A build with an empty set trusts nothing and refuses every update,
-  which is the correct state for the open core.
+  which is the correct state for the open core. The same key signs the CLI's
+  and the MCP server's release bundles, so its private half is meant to live
+  under one name, `AGENTRY_UPDATE_SIGNING_KEY`, in three places: this
+  repository's secrets (it does today), agentry-cli's (once agentry-cli#197
+  loads it) and agentry-mcp's `release` environment (once agentry-mcp#33
+  does). Each of those two pins
+  `DESKTOP_SIGNRELEASE_REF` to the commit of this repository whose key set it
+  is checked against. A rotation moves all three secrets and both pins
+  together; either alone makes that product's next release fail closed.
+  `scripts/operator/update-signing-key.sh` offers to load all three (#181).
 - `internal/cmd/signrelease` signs in the release job and then verifies what it
   wrote against that committed key set, using `internal/selfupdate` — the same
   code the app uses. A release whose signature a shipped app would refuse
