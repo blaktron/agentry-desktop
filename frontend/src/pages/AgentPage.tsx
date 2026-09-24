@@ -388,6 +388,7 @@ export default function AgentPage({
           ns={ns}
           name={name}
           version={detail.latest}
+          summary={a.summary}
           attestation={prov}
           onClose={() => setRunOpen(false)}
         />

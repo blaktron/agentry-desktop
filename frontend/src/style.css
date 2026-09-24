@@ -786,3 +786,68 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 
 /* The "Install and relaunch" row inside the newer-version notice (#88). */
 .install-row { margin-top: 10px; }
+
+/* The guided run setup (plan guided-runs.md §4, agentry-desktop#226): the
+   run panel's steps, on the first-run wizard's dots with their labels,
+   one step's body, and the foot with Back and Next. */
+.run-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  list-style: none;
+  margin: 12px 0 4px;
+  padding: 0;
+}
+.run-steps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.run-steps li.done { color: var(--color-fg); }
+.run-steps li.active {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+.run-step-heading {
+  margin: 14px 0 10px;
+}
+.run-step-heading:focus { outline: none; }
+.run-step-heading:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.run-step h4 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.run-need {
+  margin: 0;
+  padding-left: 18px;
+}
+.run-need li { margin: 3px 0; }
+.run-recap {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 8px 16px;
+  margin: 4px 0 12px;
+}
+.run-recap dt { color: var(--color-muted); }
+.run-recap dd {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.run-recap dd > span { min-width: 0; overflow-wrap: anywhere; }
+.run-recap-task { white-space: pre-wrap; }
+.run-step-problem {
+  color: var(--color-sev-high);
+  font-size: 13px;
+  margin: 12px 0 0;
+}
+.run-step-foot {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
