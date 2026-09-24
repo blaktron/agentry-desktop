@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"io"
 	"strings"
@@ -599,14 +600,18 @@ type MCPToolRow struct {
 // MCPView feeds the agent page's "MCP servers & tools" section (req 3/4
 // parity with the site).
 type MCPView struct {
-	Ref             string       `json:"ref"`
-	Version         string       `json:"version"`
-	ToolRows        []MCPToolRow `json:"toolRows"`
-	Servers         []string     `json:"servers"`
-	SecretNames     []string     `json:"secretNames"`
-	DataAccess      []string     `json:"dataAccess"`
-	EmbeddedTools   []string     `json:"embeddedTools"`
-	CapabilityLines []string     `json:"capabilityLines"`
+	Ref      string       `json:"ref"`
+	Version  string       `json:"version"`
+	ToolRows []MCPToolRow `json:"toolRows"`
+	Servers  []string     `json:"servers"`
+	// DeclaredServers is each declared MCP server's pin, tools and plain
+	// env; Servers ends with one line per entry, in order
+	// (agentry-desktop#62).
+	DeclaredServers []mcpview.Server `json:"declaredServers"`
+	SecretNames     []string         `json:"secretNames"`
+	DataAccess      []string         `json:"dataAccess"`
+	EmbeddedTools   []string         `json:"embeddedTools"`
+	CapabilityLines []string         `json:"capabilityLines"`
 	// Vulnerabilities is the registry's verdict on each declared MCP server;
 	// Refusal is the text a run meets by default (agentry#177).
 	Vulnerabilities   []mcpvuln.Status `json:"vulnerabilities"`
@@ -627,6 +632,7 @@ func (r *RunAPI) GatewayRequirements(reg, ns, name string) (*MCPView, error) {
 		Version:           info.Version,
 		ToolRows:          []MCPToolRow{},
 		Servers:           emptyNotNil(info.Servers),
+		DeclaredServers:   info.Declared,
 		SecretNames:       emptyNotNil(info.SecretNames),
 		DataAccess:        emptyNotNil(info.DataAccess),
 		EmbeddedTools:     emptyNotNil(info.EmbeddedTools),

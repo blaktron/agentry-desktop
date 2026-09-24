@@ -215,7 +215,28 @@ g.go = { main: {
     HarnessStatus: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: codingChosen.some((c) => c.name === h.name) })),
     ChooseHarness: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: true })),
     ForgetHarness: async () => [],
-    GatewayRequirements: async () => ({ toolRows: [], servers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
+    // pages.html#agent-mcp-env: the MCP tab of a release declaring two
+    // servers, one with plain env beneath its line (agentry-desktop#62).
+    GatewayRequirements: async () => (window.location.hash === "#agent-mcp-env"
+      ? {
+        toolRows: [
+          { tool: "write_report", grantedBy: "always granted — reports land in the run's output folder" },
+          { tool: "list_inputs", grantedBy: "always granted — operator-provided input files, read-only" },
+          { tool: "read_input", grantedBy: "always granted — operator-provided input files, read-only" },
+        ],
+        servers: [
+          "BriefAgent Tools — the runner's companion server, served through a per-run Docker MCP Gateway; its tool surface is exactly the table above",
+          "npm:@modelcontextprotocol/server-github@2025.4.8 — declared by the manifest; installed per-signature from the operator's configured registries; tools filtered to get_issue, list_issues, search_issues",
+          "pypi:mcp-server-fetch@2025.4.7 — declared by the manifest; installed per-signature from the operator's configured registries",
+        ],
+        declaredServers: [
+          { id: "npm:@modelcontextprotocol/server-github@2025.4.8", tools: ["get_issue", "list_issues", "search_issues"],
+            env: [{ name: "GITHUB_API_URL", value: "https://api.github.com" }, { name: "GITHUB_TOOLSETS", value: "issues,pull_requests" }] },
+          { id: "pypi:mcp-server-fetch@2025.4.7", tools: [], env: [] },
+        ],
+        vulnerabilities: [], dataAccess: [], secretNames: ["GITHUB_TOKEN"], embeddedTools: [], refusal: "", vulnerabilityLine: "",
+      }
+      : { toolRows: [], servers: [], declaredServers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
     // pages.html#docker-<state> previews the docker card in that state
     // (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.
     PrereqStatus: async () => {

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/pathguard"
 	"os"
@@ -166,6 +167,9 @@ type Plan struct {
 	Unscanned bool `json:"unscanned"`
 
 	Capabilities installed.CapSnapshot `json:"capabilities"`
+	// MCPServers is each declared MCP server's pin, tool allowlist and
+	// plain env, for the review (agentry-desktop#62); never a secret.
+	MCPServers []mcpview.Server `json:"mcpServers"`
 	// NeedsCapabilityConfirm: first install declaring egress or exec (§11).
 	NeedsCapabilityConfirm bool `json:"needsCapabilityConfirm"`
 	// PrevVersion is the version currently at this key ("" on first install).
@@ -338,6 +342,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		Unscanned:   att.State == trust.StateUnscanned,
 
 		Capabilities: installed.Snapshot(m.Capabilities),
+		MCPServers:   mcpview.Of(m.Capabilities),
 		Target:       target,
 		Paths:        paths,
 		Secrets:      append([]string(nil), m.Capabilities.Secrets...),

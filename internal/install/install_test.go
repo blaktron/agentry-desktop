@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -35,6 +36,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -872,5 +874,37 @@ func TestClaudeSkillExportOfAnInstructionOnlyRelease(t *testing.T) {
 	_, err = e.Confirm(plan2.ID, false, false, false)
 	if err == nil || !strings.Contains(err.Error(), "skills/LIAR.md") {
 		t.Fatalf("a named skill file the release does not carry: %v", err)
+	}
+}
+
+// The review shows each declared MCP server's pin, tools and plain env as
+// sorted rows (agentry-desktop#62); a server with no env has none.
+func TestPlanShowsEachDeclaredServersEnv(t *testing.T) {
+	isolate(t)
+	caps := map[string]any{"mcpServers": []any{
+		map[string]any{"npm": "@acme/osv-mcp", "version": "1.2.3", "tools": []string{"query"},
+			"env": map[string]string{"OSV_MODE": "offline", "API_BASE": "https://api.osv.dev"}},
+		map[string]any{"pypi": "fetcher", "version": "0.4.0"},
+	}}
+	// env is a schema-v2 field.
+	doc := demoManifest(caps)
+	doc["schemaVersion"] = "2"
+	delete(doc, "kind")
+	doc["modes"] = []string{"autonomous"}
+	doc["entrypoints"] = map[string]any{"instruction": "SKILL.md"}
+	reg := startRegistry(t, &fakeRegistry{
+		archive: archiveWithManifest(t, doc), manifestDoc: doc,
+	})
+	plan, err := NewEngine().Prepare(context.Background(), reg, "acme/demo", "claude-skill", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []mcpview.Server{
+		{ID: "npm:@acme/osv-mcp@1.2.3", Tools: []string{"query"},
+			Env: []mcpview.EnvVar{{Name: "API_BASE", Value: "https://api.osv.dev"}, {Name: "OSV_MODE", Value: "offline"}}},
+		{ID: "pypi:fetcher@0.4.0", Tools: []string{}, Env: []mcpview.EnvVar{}},
+	}
+	if !reflect.DeepEqual(plan.MCPServers, want) {
+		t.Fatalf("plan servers = %+v\nwant %+v", plan.MCPServers, want)
 	}
 }
