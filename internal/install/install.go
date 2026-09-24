@@ -23,7 +23,6 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/pathguard"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
@@ -201,8 +200,10 @@ type Result struct {
 	// SecretsNote reminds about empty env placeholders (mcp target).
 	SecretsNote string `json:"secretsNote,omitempty"`
 	// Warning is what the install did not do although it succeeded —
-	// the coding-agent export it could not write (agentry-desktop#148) —
-	// for a page with no result screen to show beside the button.
+	// the coding-agent export it could not write (agentry-desktop#148), or
+	// the runner home's policy it could not read, so the export took the
+	// generic AGENTS.md shape (agentry-desktop#220) — for a page with no
+	// result screen to show beside the button.
 	Warning string `json:"warning,omitempty"`
 }
 
@@ -492,9 +493,12 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	switch plan.Target {
 	case installdir.Target:
 		var style string
-		style, err = installRunner(staging, plan.Paths.ReleaseDir, m, plan)
+		style, res.Warning, err = installRunner(staging, plan.Paths, m, plan)
 		res.Dest = plan.Paths.ReleaseDir
 		res.Message = fmt.Sprintf("installed %s/%s@%s into the runner home: %s (export: %s)", plan.Namespace, plan.Name, plan.Version, plan.Paths.ReleaseDir, style)
+		if res.Warning != "" {
+			res.Message += " — warning: " + res.Warning
+		}
 		after = func() error { return installdir.RemoveOtherVersions(plan.Paths.Dest, plan.Paths.ReleaseDir) }
 	case manifest.InterfaceClaudeSkill:
 		err = exportClaudeSkill(staging, plan.Paths, m)
@@ -570,14 +574,18 @@ func recordKey(plan Plan) installed.Key {
 	}
 }
 
-// installRunner lays the verified release down in the runner home the way
-// a run's first fetch does (installdir.Write, so a run finds it by digest
-// and fetches nothing) and writes the coding-agent shape beside it in the
-// style the operator policy implies (installdir.StyleFor; no policy or one
-// that cannot be read: AGENTS.md). The cache holds the verdict and never
-// the consent, and says whether the verdict was a verified signature the
-// way a run's does. Returns the style written.
-func installRunner(staging, releaseDir string, m *manifest.Manifest, plan Plan) (string, error) {
+// installRunner lays the verified release down in the runner home with
+// the CLI's installdir.Install (agentry-cli#192), so a run finds it by
+// digest and fetches nothing, and writes the coding-agent shape beside it
+// in the style the runner home's policy implies (installdir.StyleForHome,
+// whose warning for a policy it cannot read is returned for the page). The
+// cache holds the verdict and never the consent, and says whether the
+// verdict was a verified signature the way a run's does. Returns the style
+// written and the warning.
+func installRunner(staging string, p Paths, m *manifest.Manifest, plan Plan) (style, warning string, err error) {
+	// The runner home Prepare laid the paths out under (ManagedRoot is its
+	// agents/), so the style is read from the home the release goes to.
+	home := filepath.Dir(p.ManagedRoot)
 	meta := &installdir.Meta{
 		Ref:       fmt.Sprintf("%s/%s@%s", plan.Namespace, plan.Name, plan.Version),
 		Namespace: plan.Namespace, Name: plan.Name, Version: plan.Version,
@@ -587,14 +595,11 @@ func installRunner(staging, releaseDir string, m *manifest.Manifest, plan Plan) 
 			Verified: plan.Attestation.State == trust.StateVerified,
 		},
 	}
-	if err := installdir.Write(releaseDir, staging, meta); err != nil {
-		return "", err
+	style, warning = installdir.StyleForHome(home)
+	if err := installdir.Install(p.ReleaseDir, staging, m, meta, style); err != nil {
+		return "", "", err
 	}
-	style := installdir.StyleFor(loadPolicyForStyle())
-	if err := installdir.WriteExport(releaseDir, style, m, meta); err != nil {
-		return "", err
-	}
-	return style, nil
+	return style, warning, nil
 }
 
 // Cancel discards a pending plan.
@@ -657,68 +662,23 @@ func manifestFromArchive(staging string, fromResolve *manifest.Manifest, plan Pl
 
 // holdToConsented refuses an archive manifest whose capability contract is
 // wider than the resolve manifest's, the one the consent dialog and the
-// diff were raised on. The digest and the attestation cover the archive, so
-// a widening means the registry's resolve answer diverged from the bytes it
-// served: the case an install client refuses rather than reconciles. The
-// rule is the core's manifest.DiffCapabilities, the one every client
-// re-asks by, plus serverWidenings for what that rule does not compare.
-// A legacy archive without agent.yaml hands back the resolve manifest
-// itself, which has nothing to be held to.
+// diff were raised on (agentry-desktop#163). The digest and the
+// attestation cover the archive, so a widening means the registry's
+// resolve answer diverged from the bytes it served: the case an install
+// client refuses rather than reconciles. The rule is the CLI's
+// installed.ArchiveWidenings, the one both clients refuse by
+// (agentry-cli#252). A legacy archive without agent.yaml hands back the
+// resolve manifest itself, which has nothing to be held to.
 func holdToConsented(consented, archive *manifest.Manifest, plan Plan) error {
 	if consented == nil || archive == nil || consented == archive {
 		return nil
 	}
-	widened := manifest.DiffCapabilities(consented.Capabilities, archive.Capabilities).Widened
-	widened = append(widened, serverWidenings(consented.Capabilities.MCPServers, archive.Capabilities.MCPServers)...)
+	widened := installed.ArchiveWidenings(consented.Capabilities, archive.Capabilities)
 	if len(widened) == 0 {
 		return nil
 	}
 	return fmt.Errorf("the archive of %s/%s@%s declares more than the registry said it would — refusing to install: its agent.yaml %s",
 		plan.Namespace, plan.Name, plan.Version, strings.Join(widened, "; "))
-}
-
-// serverWidenings reports what the archive grants a declared MCP server
-// beyond the consented declaration of the same server. The core's diff
-// keys a server by its package pin and compares only its env, so a server's
-// own egress, secrets and tool restriction are compared here until the
-// core's rule does (agentry#527); a server the consented contract lacks is
-// the core diff's to report.
-func serverWidenings(consented, archive []manifest.MCPServer) []string {
-	byID := make(map[string]manifest.MCPServer, len(consented))
-	for _, s := range consented {
-		byID[s.SourceID()+"@"+s.Version] = s
-	}
-	var out []string
-	for _, s := range archive {
-		id := s.SourceID() + "@" + s.Version
-		c, ok := byID[id]
-		if !ok {
-			continue
-		}
-		for _, h := range s.Egress {
-			if !slices.Contains(c.Egress, h) {
-				out = append(out, fmt.Sprintf("adds network egress to %s for MCP server %s", h, id))
-			}
-		}
-		for _, n := range s.Secrets {
-			if !slices.Contains(c.Secrets, n) {
-				out = append(out, fmt.Sprintf("asks for a new secret %s for MCP server %s", n, id))
-			}
-		}
-		if len(c.Tools) == 0 {
-			continue // the consented declaration already granted the full set
-		}
-		if len(s.Tools) == 0 {
-			out = append(out, fmt.Sprintf("grants MCP server %s its full tool set (consented: %s)", id, strings.Join(c.Tools, ", ")))
-			continue
-		}
-		for _, t := range s.Tools {
-			if !slices.Contains(c.Tools, t) {
-				out = append(out, fmt.Sprintf("adds tool %s to MCP server %s", t, id))
-			}
-		}
-	}
-	return out
 }
 
 // exportClaudeSkill lays the release down as the Claude skill with the

@@ -908,3 +908,36 @@ func TestPlanShowsEachDeclaredServersEnv(t *testing.T) {
 		t.Fatalf("plan servers = %+v\nwant %+v", plan.MCPServers, want)
 	}
 }
+
+// TestRunnerInstallWarnsOnAnUnreadablePolicy (agentry-desktop#220): the
+// runner home's policy is read by the CLI's installdir.StyleForHome, so a
+// policy that cannot be read is said in the result's Warning, beside the
+// button, and the install goes on with the AGENTS.md shape, as the CLI's
+// does; before, the desktop fell to AGENTS.md without a word.
+func TestRunnerInstallWarnsOnAnUnreadablePolicy(t *testing.T) {
+	isolate(t)
+	home := os.Getenv("AGENTRY_RUNNER_HOME")
+	if err := os.WriteFile(policy.PathIn(home), []byte("not: [a policy\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reg := startRegistry(t, &fakeRegistry{})
+	e := NewEngine()
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.Confirm(plan.ID, false, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Warning, policy.PathIn(home)) || !strings.Contains(res.Warning, "could not be read") {
+		t.Fatalf("warning %q does not name the unreadable policy", res.Warning)
+	}
+	if !strings.Contains(res.Message, "warning: "+res.Warning) {
+		t.Fatalf("message %q does not carry the warning", res.Message)
+	}
+	meta, ok := installdir.Load(plan.Paths.ReleaseDir, plan.Digest)
+	if !ok || meta.Export != "agents-md" || meta.Attestation.Consent != "" {
+		t.Fatalf("install.json: %+v ok=%v", meta, ok)
+	}
+}

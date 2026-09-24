@@ -39,7 +39,7 @@ func ExportSettings() (CodingAgentExport, error) {
 	if err != nil {
 		return CodingAgentExport{}, err
 	}
-	x := CodingAgentExport{Target: installdir.StyleFor(loadPolicyForStyle()), Enabled: s.InstallIntoCodingAgent}
+	x := CodingAgentExport{Target: styleForSettings(), Enabled: s.InstallIntoCodingAgent}
 	switch x.Target {
 	case manifest.InterfaceClaudeSkill:
 		root, err := claudeSkillsRoot()
@@ -65,17 +65,14 @@ func (x CodingAgentExport) PlanDir() string {
 	return ""
 }
 
-// loadPolicyForStyle is the policy as the export rule reads it: the file
-// when it loads, nil when it is missing or broken — the runner home's
-// export takes the same view, so both agree on the style.
-func loadPolicyForStyle() *policy.Policy {
-	path, err := policy.DefaultPath()
+// styleForSettings is the export style as the runner home's install reads
+// it (installdir.StyleForHome), so Settings and the runner home's export/
+// agree; the warning for a policy it cannot read is the install's to say.
+func styleForSettings() string {
+	home, err := policy.Home()
 	if err != nil {
-		return nil
+		return installdir.StyleFor(nil)
 	}
-	pol, _, err := policy.Load(path)
-	if err != nil {
-		return nil
-	}
-	return pol
+	style, _ := installdir.StyleForHome(home)
+	return style
 }
