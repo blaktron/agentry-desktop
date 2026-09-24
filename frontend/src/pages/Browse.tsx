@@ -27,7 +27,7 @@ export default function Browse({
 
   const search = useCallback(async () => {
     if (!registry) {
-      setError("No registry configured — add one in Settings.");
+      setError("No registry is configured. Add one in Settings.");
       return;
     }
     setLoading(true);
@@ -54,7 +54,7 @@ export default function Browse({
     <div>
       <PageHeader
         title="Browse"
-        sub={<span className="selectable">Agents on {registry || "(no registry)"} — every published version is scanned and the report is public.</span>}
+        sub={<span className="selectable">BriefAgents on {registry || "(no registry)"}. Every published version is scanned, and its report is public.</span>}
       />
 
       <Toolbar>

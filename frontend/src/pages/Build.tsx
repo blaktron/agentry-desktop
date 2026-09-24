@@ -168,7 +168,7 @@ export default function Build({ registry }: { registry: string }) {
 
       <h2>Capability contract</h2>
       <p className="muted small">
-        Declare the least the agent needs: reviewers gate on this, installs prompt on it, and the
+        Declare the least the BriefAgent needs: reviewers gate on this, installs prompt on it, and the
         runner enforces it — an undeclared capability is a tool that does not exist.
       </p>
       <div className="card">
@@ -221,7 +221,7 @@ export default function Build({ registry }: { registry: string }) {
         </label>
         <div style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="small">declared MCP servers (exact version pins; installed per release, DEV-060)</span>
+            <span className="small">declared MCP servers (exact version pins; each installed per release)</span>
             <Button
               type="button"
               onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [] })] })}
