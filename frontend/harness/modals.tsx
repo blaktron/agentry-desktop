@@ -7,8 +7,10 @@
 //   #runpanel-hosted       In Agentry chosen: the hold, the balance, the caps
 //   #runpanel-unavailable  In Agentry offered, unavailable with the reason
 //   #runpanel-queued       a hosted run queued, with its position
-//   #runpanel-streaming    a hosted run streaming its log
-//   #runpanel-finished     a hosted run finished: receipt and artefacts
+//   #runpanel-running      a hosted run running: its state, no log
+//   #runpanel-finished     a hosted run done — pass: the receipt the
+//                          registry kept, and the outputs
+//   #runpanel-failed       a pushed run done — fail: no receipt kept
 //   #runpanel-keys         pr-review-brief's shape: keys unsaved, no intake —
 //                          the line above Run names the keys, Input files
 //                          collapsed (agentry-desktop#167)
@@ -63,7 +65,7 @@ const availability = {
     ? "The token stored for this registry does not carry run:read and run:write, which a run In Agentry needs. It was minted before this app asked for them."
     : "",
   remedy: hostedState === "unavailable" ? "Sign in again from Settings to mint a token that carries them." : "",
-  signedIn: true, extension: true, enabled: true, workersOnline: 1, queued: 2,
+  signedIn: true, extension: true, enabled: true, runnersOnline: 1, queued: 2,
   tier: "standard", holdCredits: 20, tokensPerCredit: 1000,
   caps: { timeoutSeconds: 300, maxTurns: 20, maxTokens: 20000 },
   balance: 46, balanceKnown: true,
@@ -79,14 +81,14 @@ const hostedBase = {
 };
 
 const hostedRuns: Record<string, any> = {
-  queued: { ...hostedBase, status: "queued", statusLine: "queued", queuePosition: 2 },
-  streaming: { ...hostedBase, status: "running", statusLine: "running" },
+  queued: { ...hostedBase, status: "queued", state: "queued", statusLine: "queued", queuePosition: 2 },
+  running: { ...hostedBase, status: "running", state: "running", statusLine: "running" },
   finished: {
-    ...hostedBase, status: "finished", statusLine: "ran to the end and wrote its result",
+    ...hostedBase, status: "finished", state: "done — pass", statusLine: "ran to the end and wrote its result",
     outcome: "succeeded", outcomeTone: "ok", outcomeLine: "ran to the end and wrote its result",
     exitClass: "ok", attestationState: "verified", adapter: "claude-code",
     turns: 4, inputTokens: 5120, outputTokens: 1430, totalTokens: 6550, costUsd: 0.0182, wallMs: 41200,
-    settledCredits: 7, settled: true, final: true,
+    settledCredits: 7, settled: true, final: true, receiptKept: true,
     capabilitiesEnforced: {
       "network.egress": "llm-proxy allowlist: api.pagerduty.com",
       "filesystem.read": "workspace bind mount, read-only /inputs",
@@ -102,17 +104,16 @@ const hostedRuns: Record<string, any> = {
     ],
   },
 };
+hostedRuns.failed = {
+  ...hostedRuns.finished, state: "done — fail", statusLine: "the agent ran and failed — the receipt and the outputs say where",
+  outcome: "failed", outcomeTone: "bad", outcomeLine: "the agent ran and failed — the receipt and the outputs say where",
+  exitClass: "agent-error", settledCredits: 3, turns: 2, inputTokens: 2210, outputTokens: 380, totalTokens: 2590, wallMs: 18400,
+  // A pushed run: the registry kept no receipt (agentry-enterprise#121).
+  receiptKept: false, capabilitiesEnforced: {}, attestationState: "", adapter: "",
+  resultJson: "",
+  outputs: [hostedRuns.finished.outputs[2]],
+};
 const hostedRun = hostedRuns[hostedState] ?? null;
-
-const hostedLog = [
-  "uploaded incidents.csv (2841 bytes)",
-  "run 0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42 queued In Agentry — demo1/incident-summarizer@1.2.0, holding 20 credits",
-  "materializing demo1/incident-summarizer@1.2.0",
-  "verifying digest sha256:9c356fd0d20fef07 — DSSE verified",
-  "gateway up: 4 tools from the declared contract",
-  "turn 1 · tool: read_input",
-  "turn 2 · tool: write_report",
-];
 
 const g = window as any;
 g.go = { main: {
@@ -146,14 +147,9 @@ g.go = { main: {
   App: { OpenExternal: async () => {} },
 } };
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
-// shim), so the scripted log is delivered from there.
-const subscribe = (name: string, cb: (v: any) => void) => {
-  if (name === "runner:run-log" && hostedRun) {
-    const lines = hostedState === "queued" ? hostedLog.slice(0, 2) : hostedLog;
-    setTimeout(() => lines.forEach((l) => cb(l)), 0);
-  }
-  return () => {};
-};
+// shim). A run In Agentry sends no log (agentry-desktop#182), so nothing
+// is scripted on runner:run-log.
+const subscribe = (_name: string, _cb: (v: any) => void) => () => {};
 g.runtime = {
   EventsOn: subscribe,
   EventsOnMultiple: (name: string, cb: (v: any) => void) => subscribe(name, cb),
