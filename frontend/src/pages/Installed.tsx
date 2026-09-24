@@ -81,6 +81,7 @@ export default function Installed({
   // behind unrecorded (agentry-desktop#63).
   async function forget(rec: install.Item) {
     setError(null);
+    setWarning(null);
     try {
       await InstallAPI.Forget(
         new installed.Key({ registry: rec.registry, namespace: rec.namespace, name: rec.name, target: rec.target, dir: rec.dir }),
