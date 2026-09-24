@@ -471,6 +471,14 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	if err != nil {
 		return nil, err
 	}
+	// The consent was given on the resolve manifest's contract; the exports
+	// compile their grants from the archive's. Hold the archive to what the
+	// person saw before anything is written, and record the archive's
+	// contract — never wider, possibly narrower (agentry-desktop#163).
+	if err := holdToConsented(p.manifest, m, plan); err != nil {
+		return nil, err
+	}
+	plan.Capabilities = installed.Snapshot(m.Capabilities)
 
 	res := &Result{Dest: plan.Paths.Dest}
 	// after runs once the record is saved: the runner target's replace of
@@ -641,6 +649,26 @@ func manifestFromArchive(staging string, fromResolve *manifest.Manifest, plan Pl
 			m.Namespace, m.Name, plan.Namespace, plan.Name)
 	}
 	return m, nil
+}
+
+// holdToConsented refuses an archive manifest whose capability contract is
+// wider than the resolve manifest's, the one the consent dialog and the
+// diff were raised on. The digest and the attestation cover the archive, so
+// a widening means the registry's resolve answer diverged from the bytes it
+// served: the case an install client refuses rather than reconciles. The
+// rule is the core's manifest.DiffCapabilities, the one every client
+// re-asks by, applied to the full contracts rather than the stored
+// snapshots so nothing the snapshot flattens away escapes it.
+func holdToConsented(consented, archive *manifest.Manifest, plan Plan) error {
+	if consented == nil || archive == nil || consented == archive {
+		return nil
+	}
+	d := manifest.DiffCapabilities(consented.Capabilities, archive.Capabilities)
+	if !d.HasWidened() {
+		return nil
+	}
+	return fmt.Errorf("the archive of %s/%s@%s declares more than the registry said it would — refusing to install: its agent.yaml %s",
+		plan.Namespace, plan.Name, plan.Version, strings.Join(d.Widened, "; "))
 }
 
 // exportClaudeSkill lays the release down as the Claude skill with the

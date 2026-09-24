@@ -393,6 +393,102 @@ func TestWidenedCapabilitiesRequireAcceptance(t *testing.T) {
 	}
 }
 
+// archiveManifestYAML is an agent.yaml for acme/demo@1.0.0 carrying the
+// given capabilities block (YAML, indented under "capabilities:"), or none.
+func archiveManifestYAML(caps string) string {
+	doc := "schemaVersion: \"1\"\nname: demo\nnamespace: acme\nkind: skill\nversion: 1.0.0\nsummary: Test agent\n" +
+		"entrypoints:\n  skill: SKILL.md\npublish:\n  include: [SKILL.md, agent.yaml]\n"
+	if caps != "" {
+		doc += "capabilities:\n" + caps
+	}
+	return doc
+}
+
+// TestArchiveWideningTheConsentedContractIsRefused (agentry-desktop#163):
+// the person consents to the resolve manifest's contract; an archive whose
+// own agent.yaml declares more — here an egress host the registry's answer
+// omitted — is refused at Confirm with the widening named, and nothing is
+// written: no destination, no record.
+func TestArchiveWideningTheConsentedContractIsRefused(t *testing.T) {
+	isolate(t)
+	dest := t.TempDir()
+	archive := buildArchiveFiles(t, map[string]string{
+		"SKILL.md":   "# Demo\n\nDo the demo thing.\n",
+		"agent.yaml": archiveManifestYAML("  network:\n    egress: [evil.example]\n"),
+	})
+	reg := startRegistry(t, &fakeRegistry{archive: archive})
+	e := NewEngine()
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "claude-skill", dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.NeedsCapabilityConfirm {
+		t.Fatal("the resolve manifest declares nothing; no consent should have been raised")
+	}
+	_, err = e.Confirm(plan.ID, false, true, false)
+	if err == nil {
+		t.Fatal("an archive widening the consented contract was installed")
+	}
+	for _, want := range []string{"more than the registry said", "evil.example"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal %q does not say %q", err, want)
+		}
+	}
+	if _, serr := os.Stat(plan.Paths.Dest); !os.IsNotExist(serr) {
+		t.Errorf("destination %s written before the refusal (stat err %v)", plan.Paths.Dest, serr)
+	}
+	st, err := installed.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Records) != 0 {
+		t.Errorf("a refused install left a record: %+v", st.Records)
+	}
+}
+
+// TestArchiveNarrowerThanConsentedInstallsWithItsSnapshot: an archive that
+// declares less than the resolve manifest the person consented to installs,
+// and the record carries the archive's contract — the narrower truth the
+// export was compiled from — so the next update is diffed against it.
+func TestArchiveNarrowerThanConsentedInstallsWithItsSnapshot(t *testing.T) {
+	isolate(t)
+	dest := t.TempDir()
+	archive := buildArchiveFiles(t, map[string]string{
+		"SKILL.md":   "# Demo\n\nDo the demo thing.\n",
+		"agent.yaml": archiveManifestYAML(""),
+	})
+	resolveDoc := map[string]any{
+		"schemaVersion": "1", "name": "demo", "namespace": "acme",
+		"kind": "skill", "version": "1.0.0", "summary": "Test agent",
+		"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md", "agent.yaml"}},
+		"capabilities": map[string]any{
+			"network": map[string]any{"egress": []string{"api.example"}},
+		},
+	}
+	reg := startRegistry(t, &fakeRegistry{archive: archive, manifestDoc: resolveDoc})
+	e := NewEngine()
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "claude-skill", dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.NeedsCapabilityConfirm {
+		t.Fatal("the resolve manifest declares egress; the first install owes the consent")
+	}
+	if _, err := e.Confirm(plan.ID, false, true, false); err != nil {
+		t.Fatalf("an archive narrower than the consented contract was refused: %v", err)
+	}
+	st, err := installed.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Records) != 1 {
+		t.Fatalf("records = %+v, want one", st.Records)
+	}
+	if hosts := st.Records[0].Capabilities.EgressHosts; len(hosts) != 0 {
+		t.Errorf("record carries the resolve manifest's egress %v, want the archive's (none)", hosts)
+	}
+}
+
 // TestUnscannedRequiresItsOwnAcceptance mirrors the CLI's --allow-unscanned
 // (M23; the core's M21): a version the registry admitted without a scan is
 // its own outcome — not unsigned — and needs its own consent, which
