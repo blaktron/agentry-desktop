@@ -10,12 +10,14 @@ import (
 	"os"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
 	"github.com/blaktron/agentry-desktop/internal/webview"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
+	"github.com/blaktron/agentry-desktop/internal/applog"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
@@ -46,6 +48,18 @@ func main() {
 		Height:    800,
 		MinWidth:  900,
 		MinHeight: 600,
+		// The runtime's logger, stated rather than defaulted
+		// (agentry-desktop#102). On a dispatch error Wails logs the raw
+		// IPC message, arguments included, and SignIn (the access token),
+		// SaveProfile (MCP secret values) and StoreModelKey (the model key)
+		// carry secrets as arguments. applog withholds every call's
+		// arguments and result and keeps the method and the error, so a
+		// stale binding is still diagnosable from the log. The levels are
+		// Wails' own defaults, written out: INFO under `wails dev`, ERROR
+		// in a production build.
+		Logger:             applog.New(logger.NewDefaultLogger()),
+		LogLevel:           logger.INFO,
+		LogLevelProduction: logger.ERROR,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 			// Every response carries the Content-Security-Policy: the one
