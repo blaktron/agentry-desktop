@@ -246,10 +246,14 @@ cross-builds the Windows exe and its installer on the Linux runner and
 keeps them as a workflow artifact, so a broken Windows build fails the
 gate. A fourth job, `macos`, builds the universal bundle on the Mac build
 host, builds and checks the dmg, runs the tests and the Keychain round
-trip there, and uploads the zip and the dmg as a workflow artifact; it does
-not block the merge (`continue-on-error`). Its Keychain round trip has
-failed since the Mac became a runner, for want of a console session
-(#106).
+trip there, and uploads the zip and the dmg as a workflow artifact. It is
+a required check (#109): the dmg read-back and the install-over-install
+smoke it runs are the ones that gate a release. The two steps that need
+the runner's user at the console, the Keychain round trip and the launch
+smoke, report themselves skipped without one (a warning on the run); the
+Keychain round trip has never run on the runner for that reason (#106).
+With the Mac offline the job stays queued, so the gate ends in a timeout
+rather than green or red.
 
 ## Releasing
 
