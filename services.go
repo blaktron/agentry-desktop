@@ -968,7 +968,10 @@ func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
 		}
 	}
 	if exportNote != "" {
-		res.Warning = exportNote
+		if res.Warning != "" {
+			res.Warning += "; "
+		}
+		res.Warning += exportNote
 		res.Message += " — " + exportNote
 	}
 	return res, nil
