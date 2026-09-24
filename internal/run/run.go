@@ -532,6 +532,10 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		}
 		overrides = merged
 	}
+	// RunnerHome is the home the CLI shares: a run whose plan needs relays
+	// holds its relays.lock for the whole run, so a desktop run and a CLI
+	// run cannot both list an empty relay network and start relays side by
+	// side (agentry-cli#268; desktop#258). Sessions take it the same way.
 	return &prepared{
 		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
 		params: engine.Params{
@@ -539,6 +543,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			PlanDir:         planDir,
 			WorkspaceSrc:    workspaceDir,
 			RunRoot:         installDir,
+			RunnerHome:      home,
 			OutDir:          outDir,
 			Task:            task,
 			InputPaths:      req.InputPaths,
