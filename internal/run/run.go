@@ -403,7 +403,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		serverSpecs = mcpinstall.Specs(resolvedServers, m.Capabilities.MCPServers, pol.Images)
 	}
 
-	plan, planDir, err := ensurePlan(logw, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode)
+	plan, planDir, err := ensurePlan(logw, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -742,17 +742,37 @@ func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest str
 
 // ensurePlan reuses the installed plan when nothing it depends on changed
 // (§R6/§R9), otherwise recompiles — the CLI's exact reuse rule: digest,
-// policy fingerprint, adapter, and file integrity all must hold.
-func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installdir.Meta, installDir, workspaceDir string,
+// policy fingerprint, adapter, and file integrity all must hold. A reused
+// plan.json is first checked against the integrity record its compile
+// wrote under the runner home's key, the CLI's own mechanism
+// (compile.ReadInstalledPlan, agentry-cli#266; desktop#255): a plan with
+// no record this home can check is recompiled, and one that does not match
+// its record (changed after it was compiled) refuses the run with the
+// verify class, leaving the edited plan in place for a person to look at.
+func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *installdir.Meta, installDir, workspaceDir string,
 	pol *policy.Policy, polSHA, adapterName string, serverSpecs []spec.MCPServerSpec, mode manifest.Mode,
 ) (*spec.Plan, string, error) {
+	key, err := compile.IntegrityKey(home)
+	if err != nil {
+		return nil, "", engine.Classify(engine.ExitCLI, err)
+	}
 	// One plan per run mode (plan/<mode>/), exactly like the CLI; a
 	// plan/plan.json from the single-plan layout is a stale install.
 	if _, err := os.Stat(filepath.Join(installDir, "plan", "plan.json")); err == nil {
 		_ = os.RemoveAll(filepath.Join(installDir, "plan"))
 	}
 	planDir := filepath.Join(installDir, "plan", string(mode))
-	if b, err := os.ReadFile(filepath.Join(planDir, "plan.json")); err == nil { //nolint:gosec // our install layout
+	b, rerr := compile.ReadInstalledPlan(key, planDir)
+	var tampered *compile.TamperedPlanError
+	switch {
+	case errors.As(rerr, &tampered):
+		return nil, "", engine.Classify(engine.ExitVerify, rerr)
+	case errors.Is(rerr, compile.ErrNoIntegrityRecord):
+		// A plan an older desktop or CLI compiled, or one from another
+		// runner home: never trusted, recompiled.
+		_, _ = fmt.Fprintln(logw, "installed plan has no integrity record from this runner home — recompiling")
+	}
+	if rerr == nil {
 		if plan, perr := spec.ParsePlan(b); perr == nil &&
 			plan.PlanVersion == spec.PlanVersion &&
 			plan.Mode == string(mode) &&
@@ -794,6 +814,7 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installdir.Meta, ins
 		RunnerImage:  runnerImageTag(pol),
 		MCPServers:   serverSpecs,
 		CompiledBy:   version.Build(),
+		IntegrityKey: key,
 	}, planDir)
 	if err != nil {
 		var refusal *compile.PolicyRefusal
