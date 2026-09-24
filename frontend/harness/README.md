@@ -21,6 +21,13 @@ Then open http://localhost:5199/. Both themes follow the OS setting
 (`prefers-color-scheme`); a screenshot tool that can emulate the colour
 scheme (Playwright `colorScheme: 'light' | 'dark'`) captures both.
 
+Since the guided run setup (agentry-desktop#226) RunPanel shows one step at
+a time, so each `#runpanel-*` state opens on the step that shows it (a
+blocker on Review and start, the key form on Connect tools), and
+`#runpanel-step-files | -step-tools | -step-details | -step-review` show the
+steps themselves. A state with a run attached (`-queued`, `-running`,
+`-finished`, `-failed`) opens on the run, not the setup.
+
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:
