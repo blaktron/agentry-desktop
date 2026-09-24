@@ -428,18 +428,35 @@ func TestOutputPathStaysInTheRunFolder(t *testing.T) {
 }
 
 // A download that names an escaping artefact writes nothing outside the
-// folder and says so.
+// folder and says so. The fake serves a body under the escaping name, so
+// what refuses is the client's containment guard, not a 404: with the guard
+// deleted the file would land beside the run folder (agentry-desktop#124).
 func TestDownloadRefusesAnEscapingArtefact(t *testing.T) {
-	f := &fakeRuns{enabled: true, outputs: map[string][]byte{"result.json": []byte(`"ok"`)}}
-	c := New(f.start(t), testToken)
-	dir := t.TempDir()
-	run := &Run{ID: "r1", Outputs: []Artefact{{Name: "../escaped.txt", Bytes: 3}}}
-	got, err := c.DownloadOutputs(t.Context(), run, dir)
-	if err == nil || len(got) != 0 {
-		t.Fatalf("an escaping name was accepted: %v %+v", err, got)
-	}
-	if _, statErr := os.Stat(filepath.Join(filepath.Dir(dir), "escaped.txt")); statErr == nil {
-		t.Fatal("a file landed outside the run folder")
+	for _, name := range []string{"../escaped.txt", "reports/../../escaped.txt", "..\\escaped.txt"} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeRuns{enabled: true, outputs: map[string][]byte{name: []byte("pwn")}}
+			c := New(f.start(t), testToken)
+			// The route really serves it: a client without a guard would write it.
+			body, err := c.Output(t.Context(), "r1", name)
+			if err != nil {
+				t.Fatalf("the fake does not serve %q, so the test could not reach the guard: %v", name, err)
+			}
+			_ = body.Close()
+
+			parent := t.TempDir()
+			dir := filepath.Join(parent, "run")
+			run := &Run{ID: "r1", Outputs: []Artefact{{Name: name, Bytes: 3}}}
+			got, err := c.DownloadOutputs(t.Context(), run, dir)
+			if err == nil || len(got) != 0 {
+				t.Fatalf("an escaping name was accepted: %v %+v", err, got)
+			}
+			mustContain(t, err.Error(), "must stay inside the run folder")
+			for _, p := range []string{filepath.Join(parent, "escaped.txt"), filepath.Join(filepath.Dir(parent), "escaped.txt")} {
+				if _, statErr := os.Stat(p); statErr == nil {
+					t.Fatalf("a file landed outside the run folder: %s", p)
+				}
+			}
+		})
 	}
 }
 
@@ -576,37 +593,96 @@ func TestOfferMatrix(t *testing.T) {
 }
 
 // A run this client is following is read and streamed with the account's
-// bearer token, and with nothing else: no worker token, no model key.
+// bearer token, and with nothing else: no worker token, no model key, in no
+// header, query or body, on any route the client calls. Every request is
+// recorded whole (agentry-desktop#124).
 func TestOnlyTheAccountsTokenTravels(t *testing.T) {
-	var headers []string
-	f := &fakeRuns{enabled: true, pushed: true, outputs: map[string][]byte{"result.json": []byte(`"ok"`)}}
-	base := f.start(t)
-	c := New(base, testToken)
-	c.HTTP.Transport = recorder(&headers)
-	c.Download.Transport = recorder(&headers)
-	run, err := c.Create(context.Background(), CreateRequest{Ref: "acme/reporter@1.0.0"})
+	// Canaries for every credential this machine might hold. The client
+	// has no business reading any of them; if it ever did, they would
+	// show up in a request below.
+	canaries := map[string]string{
+		"ANTHROPIC_API_KEY":   "sk-ant-CANARY-anthropic",
+		"OPENAI_API_KEY":      "sk-CANARY-openai",
+		"LLM_API_KEY":         "CANARY-llm-key",
+		"AGENTRY_TOKEN":       "agy_CANARY_envtoken",
+		"AGENTRY_RUNS_WORKER": "wrk_CANARY_worker",
+	}
+	for k, v := range canaries {
+		t.Setenv(k, v)
+	}
+
+	var sent []sentRequest
+	f := &fakeRuns{enabled: true, outputs: map[string][]byte{"result.json": []byte(`"ok"`), "reports/r.md": []byte("# r\n")}}
+	c := New(f.start(t), testToken)
+	c.HTTP.Transport = recorder(&sent)
+	c.Download.Transport = c.HTTP.Transport
+	ctx := t.Context()
+
+	// Every route an account calls: status, an input upload, create, list,
+	// get, a watch to the finish, the outputs file by file, cancel.
+	if _, err := c.Status(ctx); err != nil {
+		t.Fatal(err)
+	}
+	in := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(in, []byte("the input"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := c.UploadInputs(ctx, []InputFile{{Path: in, Name: "notes.txt", Size: 9}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The download goes through its own client: it carries the same
-	// account token and nothing else.
+	run, err := c.Create(ctx, CreateRequest{Ref: "acme/reporter@1.0.0", Task: "summarise", Inputs: ids})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.List(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Cancel(ctx, run.ID); err != nil {
+		t.Fatal(err)
+	}
 	f.finish(OutcomeSucceeded, "ok", 1)
-	done, err := c.Get(context.Background(), run.ID)
+	done, err := c.Watch(ctx, run.ID, WatchOptions{Poll: time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.DownloadOutputs(context.Background(), done, t.TempDir()); err != nil {
+	if _, err := c.DownloadOutputs(ctx, done, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
-	if len(headers) != 3 || !strings.Contains(headers[2], "Authorization: Bearer "+testToken) {
-		t.Fatalf("the download's headers = %v", headers)
+
+	routes := map[string]bool{}
+	for _, r := range sent {
+		routes[r.Method+" "+strings.SplitN(strings.TrimPrefix(r.URL, "http://"), "?", 2)[0]] = true
 	}
-	for _, h := range headers {
-		if strings.Contains(strings.ToLower(h), "worker") {
-			t.Fatalf("a worker credential reached the app's request: %s", h)
+	if len(sent) < 8 {
+		t.Fatalf("only %d requests were recorded; the test no longer covers every route: %v", len(sent), routes)
+	}
+	allowed := map[string]bool{"Authorization": true, "Accept": true, "Content-Type": true}
+	for _, r := range sent {
+		where := r.Method + " " + r.URL
+		if got := r.Header.Values("Authorization"); len(got) != 1 || got[0] != "Bearer "+testToken {
+			t.Fatalf("%s: Authorization = %q, want the account's bearer token alone", where, got)
 		}
-	}
-	if len(headers) == 0 || !strings.Contains(headers[0], "Authorization: Bearer "+testToken) {
-		t.Fatalf("headers = %v", headers)
+		for k := range r.Header {
+			if !allowed[k] {
+				t.Fatalf("%s: carries a header the client has no reason to send: %s: %q", where, k, r.Header.Values(k))
+			}
+		}
+		// The token appears in its header and nowhere else.
+		if strings.Contains(r.URL, testToken) || strings.Contains(r.Body, testToken) {
+			t.Fatalf("%s: the account token travelled outside its header", where)
+		}
+		flat := r.Method + "\n" + r.URL + "\n" + r.Body
+		for k, vs := range r.Header {
+			flat += "\n" + k + ": " + strings.Join(vs, ",")
+		}
+		for name, v := range canaries {
+			if strings.Contains(flat, v) {
+				t.Fatalf("%s: %s reached the request", where, name)
+			}
+		}
+		if strings.Contains(strings.ToLower(flat), "worker") {
+			t.Fatalf("%s: a worker credential reached the request", where)
+		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -165,14 +166,19 @@ func (f *fakeRuns) start(t *testing.T) string {
 		}
 		writeJSON(w, http.StatusOK, f.run)
 	})
-	mux.HandleFunc("GET /api/v1/x/runs/{id}/outputs/{name...}", func(w http.ResponseWriter, r *http.Request) {
+	// The outputs route reads the artefact name from the raw path rather
+	// than through the mux, which would clean "../x" away and answer 404
+	// before any test of the client's own containment could reach it: this
+	// fake serves whatever name it holds, escaping ones included, the way a
+	// hostile registry would (agentry-desktop#124).
+	outputs := func(w http.ResponseWriter, r *http.Request, name string) {
 		if !auth(w, r) {
 			return
 		}
 		f.mu.Lock()
-		body, ok := f.outputs[r.PathValue("name")]
+		body, ok := f.outputs[name]
 		if f.pushed {
-			body, ok = f.bundle, r.PathValue("name") == PushedOutput
+			body, ok = f.bundle, name == PushedOutput
 			if body == nil {
 				body = tarOf(f.outputs)
 			}
@@ -184,7 +190,7 @@ func (f *fakeRuns) start(t *testing.T) string {
 		}
 		w.Header().Set("Content-Type", "application/octet-stream")
 		_, _ = w.Write(body)
-	})
+	}
 	mux.HandleFunc("GET /api/v1/x/runs/{id}/events", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		f.eventsRead++
@@ -196,7 +202,15 @@ func (f *fakeRuns) start(t *testing.T) string {
 	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"version": "1", "apiVersion": "v1", "features": map[string]bool{}, "extensions": []string{"billing", "runs"}})
 	})
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/x/runs/") {
+			if _, name, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/api/v1/x/runs/"), "/outputs/"); ok {
+				outputs(w, r, name)
+				return
+			}
+		}
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(srv.Close)
 	return srv.URL
 }
@@ -290,24 +304,42 @@ func runActive(w http.ResponseWriter) {
 		"One hosted run at a time per account: wait for it to finish, or cancel it.", nil)
 }
 
-// recorder is a round tripper that records every request's headers, so a
-// test can prove what credentials the app sends — and what it does not.
+// sentRequest is everything one request carried: a credential can travel
+// in any of these, so a test of "only the account's token travels" reads
+// them all (agentry-desktop#124).
+type sentRequest struct {
+	Method string
+	URL    string
+	Header http.Header
+	Body   string
+}
+
+// recordingTransport records every request the client sends — method, the
+// whole URL with its query, every header, the body — then sends it on.
 type recordingTransport struct {
-	seen *[]string
+	mu   *sync.Mutex
+	seen *[]sentRequest
 }
 
 func (rt recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	var b strings.Builder
-	for k, vs := range req.Header {
-		for _, v := range vs {
-			b.WriteString(k + ": " + v + "\n")
+	var body []byte
+	if req.Body != nil {
+		var err error
+		if body, err = io.ReadAll(req.Body); err != nil {
+			return nil, err
 		}
+		_ = req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewReader(body))
 	}
-	*rt.seen = append(*rt.seen, b.String())
+	rt.mu.Lock()
+	*rt.seen = append(*rt.seen, sentRequest{Method: req.Method, URL: req.URL.String(), Header: req.Header.Clone(), Body: string(body)})
+	rt.mu.Unlock()
 	return http.DefaultTransport.RoundTrip(req)
 }
 
-func recorder(seen *[]string) http.RoundTripper { return recordingTransport{seen: seen} }
+func recorder(seen *[]sentRequest) http.RoundTripper {
+	return recordingTransport{mu: &sync.Mutex{}, seen: seen}
+}
 
 func mustContain(t *testing.T, got, want string) {
 	t.Helper()

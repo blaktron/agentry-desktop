@@ -126,6 +126,39 @@ func TestSelfUpdateCheckOffersANewerRelease(t *testing.T) {
 	}
 }
 
+// A release signed by a retired key reaches the bound surface marked as
+// such, so the chrome line and Settings can both say it will not be
+// installed (agentry-desktop#124); the frontend reads nothing else to know.
+func TestSelfUpdateCheckMarksARetiredKeysRelease(t *testing.T) {
+	configHome(t)
+	srv, keys := signedChannel(t, "9.9.9", "abc1234", true)
+	u := api(t, srv.URL+"/downloads/manifest.json", keys, srv.Client())
+
+	got, err := u.SelfUpdateCheckNow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Available == nil || !got.Available.Retired || got.Available.Version != "9.9.9" {
+		t.Fatalf("a retired key's release is not marked retired on the bound surface: %+v", got.Available)
+	}
+	// What the frontend binds: the JSON field it reads is "retired".
+	b, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"retired":true`) {
+		t.Fatalf("SelfUpdateView JSON does not carry retired: %s", b)
+	}
+	// And the view the page polls says the same without a new check.
+	again, err := u.SelfUpdateStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Available == nil || !again.Available.Retired {
+		t.Fatalf("SelfUpdateStatus lost the retired mark: %+v", again.Available)
+	}
+}
+
 func TestSelfUpdateReportsAVerificationFailureAsASentence(t *testing.T) {
 	configHome(t)
 	srv, _ := signedChannel(t, "9.9.9", "abc1234", false)
