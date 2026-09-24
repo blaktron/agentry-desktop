@@ -435,10 +435,12 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		}
 	}
 	if len(resolvedServers) > 0 {
-		// pol.Docker.Runtime: the operator's container runtime (gVisor when
-		// set, agentry-cli#136) applies to the server install builds too.
+		// pol.Docker, whole: the operator's container runtime (gVisor when
+		// set, agentry-cli#136) and the caps and bounds every run container
+		// gets (agentry-cli#229, DR-30) apply to the server install builds
+		// too (agentry-desktop#208).
 		if err := mcpinstall.EnsureInstalled(ctx, docker, resolvedServers, serversDir,
-			pol.MCPRegistries, pol.Images, pol.Docker.Runtime, logw); err != nil {
+			pol.MCPRegistries, pol.Images, pol.Docker, logw); err != nil {
 			return nil, fmt.Errorf("mcp servers: %w", err)
 		}
 	}
