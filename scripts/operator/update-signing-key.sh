@@ -87,14 +87,23 @@ write_env() {
   SUMMARY+=("$key -> $ENV_FILE")
 }
 
-# set_secret NAME "<value>" [owner/repo]: a GitHub Actions secret.
+# set_secret NAME "<value>" [owner/repo]: a GitHub Actions secret. The value
+# reaches gh on stdin, which gh reads when --body is NOT given (`--body -`
+# stores a literal "-"), and the secret's updated_at is read back.
 set_secret() {
-  local name=$1 value=$2 repo=${3:-}
+  local name=$1 value=$2 repo=${3:-} since
   command -v gh >/dev/null 2>&1 || { warn "gh not installed; skipped secret $name"; return 0; }
-  if [ -n "$repo" ]; then printf '%s' "$value" | gh secret set "$name" -R "$repo" --body - >/dev/null
-  else printf '%s' "$value" | gh secret set "$name" --body - >/dev/null; fi \
-    && { step "set GitHub secret $name"; SUMMARY+=("$name -> GitHub secret ${repo:-current repo}"); } \
-    || warn "could not set secret $name"
+  case "$value" in ""|-) warn "refusing to store an empty or '-' value in $name"; return 1 ;; esac
+  since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  if [ -n "$repo" ]; then printf '%s' "$value" | gh secret set "$name" -R "$repo" >/dev/null
+  else printf '%s' "$value" | gh secret set "$name" >/dev/null; fi \
+    || { warn "could not set secret $name"; return 1; }
+  local at; at=$(gh api "repos/${repo:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}/actions/secrets/$name" -q .updated_at 2>/dev/null)
+  if [ -n "$at" ] && [ ! "$at" \< "$since" ]; then
+    step "set GitHub secret $name (updated $at)"; SUMMARY+=("$name -> GitHub secret ${repo:-current repo}")
+  else
+    warn "secret $name was not updated (updated_at ${at:-unknown}, want ${since} or later)"; return 1
+  fi
 }
 
 # set_var NAME "<value>" [owner/repo]: a GitHub Actions variable (not secret).
