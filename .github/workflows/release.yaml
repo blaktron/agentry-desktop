@@ -43,13 +43,13 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # git describe needs the tags; the checkout token stays out of
           # .git/config, nothing after this step fetches with it.
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           # The runner shares one persistent host module cache with every
@@ -141,11 +141,11 @@ jobs:
     outputs:
       signed_windows: ${{ steps.package.outputs.signed_windows }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           # Shared persistent host module cache; see preflight (agentry#225).
@@ -158,7 +158,7 @@ jobs:
           echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
           echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - name: What this release bakes in
@@ -287,7 +287,7 @@ jobs:
           # smoke compared them); the bake reaches them through those
           # binaries, compressed, so the checks above are the ones that prove it.
           ls -la dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-linux-windows
           path: dist/*
@@ -308,15 +308,15 @@ jobs:
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       # A persistent, non-container runner: caches live in stable places under
@@ -374,7 +374,7 @@ jobs:
       # release, and that is exactly when someone wants the image to look at.
       # The bundle job needs this one to have succeeded, so nothing a failed
       # run uploaded can reach a release.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-darwin
           path: |
@@ -416,15 +416,15 @@ jobs:
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           # Shared persistent host module cache; see preflight (agentry#225).
           cache: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-*
           merge-multiple: true
@@ -522,7 +522,7 @@ jobs:
       - name: Remove the signing binary
         if: always()
         run: rm -f "$RUNNER_TEMP/signrelease"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: agentry-desktop-${{ needs.preflight.outputs.version }}
           path: bundle/
