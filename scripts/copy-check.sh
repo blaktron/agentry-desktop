@@ -82,7 +82,9 @@ check_tree() {
   while IFS= read -r file; do
     while IFS= read -r hit; do
       # What is left once the allowed spans are gone must carry no word.
-      if ! strip_allowed "${hit#*:}" | grep -qiE "\\b($WORDS)\\b"; then
+      # (>/dev/null, not -q: grep -q would cut the writer off and pipefail
+      # would read its EPIPE as the answer; agentry-desktop#236.)
+      if ! strip_allowed "${hit#*:}" | grep -iE "\\b($WORDS)\\b" >/dev/null; then
         continue
       fi
       printf '%s:%s\n' "${file#"$ROOT"/}" "$hit" >&2
@@ -109,7 +111,11 @@ if [ "${1:-}" = "--self-test" ]; then
   # An allowed span exempts itself, never the rest of its line: the first
   # span in the allowlist, then a never-word beside it, must fail; the span
   # alone must pass.
-  span="$(COPY_CHECK_ALLOW="$ALLOW" ALLOW="$ALLOW" allowed_spans | head -1)"
+  # All the spans, then the first line in the shell: `| head -1` would cut
+  # allowed_spans' printf off mid-loop ("printf: write error: Broken pipe"
+  # in the CI log; agentry-desktop#236).
+  span="$(COPY_CHECK_ALLOW="$ALLOW" ALLOW="$ALLOW" allowed_spans)"
+  span="${span%%$'\n'*}"
   if [ -n "$span" ]; then
     printf '// %s\n' "$span" > "$tmp/frontend/src/Bad.tsx"
     if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then

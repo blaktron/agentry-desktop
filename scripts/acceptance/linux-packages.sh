@@ -117,11 +117,12 @@ echo "ok ($fam): owns $(printf '%s\n' "$files" | grep -c -v -E '/$') paths under
 cmp "$bin" /pkg/agentry-desktop.bin || fail "the installed binary differs from the bare artifact"
 echo "ok ($fam): installed binary is byte-identical to the bare artifact"
 
-# 4a. Every linked library resolves. (ldd once, into a variable: a grep -q
-#     on a live pipe can close it early and pipefail would read the SIGPIPE
-#     as the answer.)
+# 4a. Every linked library resolves. (ldd once, into a variable, read from a
+#     here-string: a grep -q on a live pipe, printf's included, can close it
+#     early and pipefail would read the EPIPE as the answer;
+#     agentry-desktop#236.)
 ldd_out=$(ldd "$bin")
-if printf '%s\n' "$ldd_out" | grep -q 'not found'; then printf '%s\n' "$ldd_out" | grep 'not found' >&2; fail "a linked library is missing after installing only the package"; fi
+if grep -q 'not found' <<<"$ldd_out"; then grep 'not found' <<<"$ldd_out" >&2; fail "a linked library is missing after installing only the package"; fi
 needed=$(readelf -d "$bin" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
 [ -n "$needed" ] || fail "readelf found no NEEDED entries"
 paths=$(for lib in $needed; do printf '%s\n' "$ldd_out" | awk -v l="$lib" '$1==l {print $3}'; done)
