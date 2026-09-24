@@ -9,6 +9,7 @@ package run
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
+	"github.com/blaktron/agentry-cli/pkg/runner/compile"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
@@ -216,7 +218,7 @@ func planFixture(t *testing.T) (*manifest.Manifest, *installdir.Meta, string, st
 // digest, policy fingerprint, adapter, and file integrity all must hold —
 // and any miss recompiles instead of running something stale.
 func TestEnsurePlanReuseAndRecompile(t *testing.T) {
-	isolateRunEnv(t)
+	home := isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
 	pol := cataloguedPolicy()
 	planDir := filepath.Join(installDir, "plan", "autonomous")
@@ -232,7 +234,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	surviving := func() bool { _, err := os.Stat(canary); return err == nil }
 
 	var log strings.Builder
-	plan, gotDir, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan, gotDir, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +244,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Reuse: same digest + policy + adapter, files untouched.
 	plant()
-	if _, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	if _, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
 		t.Fatal(err)
 	}
 	if !surviving() {
@@ -251,7 +253,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Policy change: the fingerprint participates in the reuse key (§R9).
 	plant()
-	plan2, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,8 +274,9 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte(strings.Replace(string(b), plan2.CompiledBy, "other-build", 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	seal(t, home, planDir)
 	log.Reset()
-	planB, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	planB, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,8 +299,9 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte(strings.Replace(string(b), planB.CompiledBy, version.Version, 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	seal(t, home, planDir)
 	log.Reset()
-	planD, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	planD, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,8 +319,9 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte(strings.Replace(string(b), planB.Proxy.Image, "agentry-runner:elsewhere", 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	seal(t, home, planDir)
 	log.Reset()
-	planC, _, err := ensurePlan(&log, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	planC, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +333,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	plant()
 	changed := *meta
 	changed.Digest = "sha256:0ther"
-	plan3, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan3, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +353,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatal(err)
 	}
 	log.Reset()
-	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	if _, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
 		t.Fatal(err)
 	}
 	if surviving() {
@@ -358,19 +363,123 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Errorf("tamper recompile must be logged:\n%s", log.String())
 	}
 
-	// A corrupt plan.json silently recompiles rather than erroring.
+	// A corrupt plan.json this home sealed recompiles rather than erroring.
 	if err := os.WriteFile(filepath.Join(planDir, "plan.json"), []byte("not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := ensurePlan(&log, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	seal(t, home, planDir)
+	if _, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// seal stands in for a compile by this runner home that produced the
+// plan.json now on disk: the reuse tests rewrite fields to model another
+// build's or another policy's compile, which carries its own record.
+func seal(t *testing.T, home, planDir string) {
+	t.Helper()
+	if err := compile.Seal(mustKey(t, home), planDir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// widenEgress edits an installed plan.json the way an attacker with write
+// access to the install dir would: the egress contract opened to all, every
+// field ensurePlan compares untouched. It returns the edited bytes.
+func widenEgress(t *testing.T, planPath string) string {
+	t.Helper()
+	b, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["capabilities"].(map[string]any)["egressMode"] = "all"
+	eb, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(planPath, eb, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return string(eb)
+}
+
+// TestEnsurePlanIntegrityRecord pins the CLI's plan.json integrity rule
+// (agentry-cli#266, desktop#255) in the desktop: every compile writes the
+// record under the runner home's key; a plan.json edited after that
+// (fields ensurePlan does not compare, here the egress contract) refuses
+// the run with the verify class and is left in place; a plan with no
+// record (an older desktop's) is recompiled, never reused.
+func TestEnsurePlanIntegrityRecord(t *testing.T) {
+	home := isolateRunEnv(t)
+	m, meta, installDir, workspaceDir := planFixture(t)
+	pol := cataloguedPolicy()
+	planDir := filepath.Join(installDir, "plan", "autonomous")
+	planPath := filepath.Join(planDir, "plan.json")
+
+	var log strings.Builder
+	plan, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(planDir, compile.IntegrityFile)); err != nil {
+		t.Fatalf("the compile wrote no integrity record: %v", err)
+	}
+	if fi, err := os.Stat(filepath.Join(home, compile.IntegrityKeyFile)); err != nil || fi.Mode().Perm()&0o077 != 0 {
+		t.Fatalf("the integrity key must live in the runner home, owner-only: %v %v", fi, err)
+	}
+	if plan.Capabilities.EgressMode != "hosts" {
+		t.Fatalf("fixture plan must declare host egress for the edit below, got %q", plan.Capabilities.EgressMode)
+	}
+
+	// Widen the contract in place; every field ensurePlan compares holds.
+	edited := widenEgress(t, planPath)
+	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	var tampered *compile.TamperedPlanError
+	var classified *engine.ClassifiedError
+	if !errors.As(err, &tampered) || !errors.As(err, &classified) || classified.Code != engine.ExitVerify {
+		t.Fatalf("an edited plan.json must refuse with the verify class (exit %d), got %v", engine.ExitVerify, err)
+	}
+	if got, _ := os.ReadFile(planPath); string(got) != edited {
+		t.Fatal("the refused plan must be left in place for a person to look at")
+	}
+
+	// No record (an older desktop compiled it): recompiled, and said so.
+	if err := os.Remove(filepath.Join(planDir, compile.IntegrityFile)); err != nil {
+		t.Fatal(err)
+	}
+	log.Reset()
+	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(log.String(), "no integrity record from this runner home") {
+		t.Errorf("the recompile must be logged:\n%s", log.String())
+	}
+	if plan2.Capabilities.EgressMode != "hosts" {
+		t.Fatal("a plan with no record was used instead of recompiled")
+	}
+	if _, err := compile.ReadInstalledPlan(mustKey(t, home), planDir); err != nil {
+		t.Fatalf("the recompile must write a record this home accepts: %v", err)
+	}
+}
+
+func mustKey(t *testing.T, home string) []byte {
+	t.Helper()
+	key, err := compile.IntegrityKey(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return key
 }
 
 // TestEnsurePlanPolicyRefusalSurfaces: a wildcard-egress manifest against
 // the default policy is a typed refusal, not a wrapped compile error.
 func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
-	isolateRunEnv(t)
+	home := isolateRunEnv(t)
 	_, meta, installDir, workspaceDir := planFixture(t)
 	wild, err := manifest.Parse([]byte(strings.Replace(runManifestYAML,
 		"egress: [api.example.com]", `egress: ["*"]`, 1)))
@@ -378,7 +487,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	var log strings.Builder
-	_, _, err = ensurePlan(&log, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	_, _, err = ensurePlan(&log, home, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") {
 		t.Fatalf("err = %v, want a policy refusal", err)
 	}
@@ -387,7 +496,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 	// refusal too (agentry-cli#100): the fixture declares exec: [echo] and
 	// the default policy maps no package to it.
 	m, _, installDir, workspaceDir := planFixture(t)
-	_, _, err = ensurePlan(&log, m, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") || !strings.Contains(err.Error(), "does not catalogue") {
 		t.Fatalf("err = %v, want the exec catalogue refusal", err)
 	}
@@ -503,6 +612,36 @@ func TestRunHappyPath(t *testing.T) {
 	profDir := profile.Dir(home, "acme", "reporter", "1.0.0", installdir.DigestSuffix(fr.digest))
 	if p, err := profile.Load(profDir); err != nil || p != nil {
 		t.Errorf("no profile should exist after an env-secret run: %v %v", p, err)
+	}
+}
+
+// TestRunRefusesAnEditedPlan is desktop#255's acceptance through Run: a
+// plan.json edited after the desktop compiled it (the contract widened,
+// every compared field intact) refuses the next run with the verify class
+// before any container starts, the same outcome as `agentry run` (exit 10).
+func TestRunRefusesAnEditedPlan(t *testing.T) {
+	fr, regURL, fd, home := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	var log strings.Builder
+	if _, err := Run(context.Background(), req, &log); err != nil {
+		t.Fatalf("first run: %v\nlog:\n%s", err, log.String())
+	}
+
+	planPath := filepath.Join(home, "agents", "acme", "reporter", "1.0.0-"+installdir.DigestSuffix(fr.digest), "plan", "autonomous", "plan.json")
+	widenEgress(t, planPath)
+
+	var started bool
+	fd.OnForeground = func(dockerx.RunSpec) { started = true }
+	req.OutDir = filepath.Join(t.TempDir(), "out2")
+	res, err := Run(context.Background(), req, &log)
+	var classified *engine.ClassifiedError
+	var tampered *compile.TamperedPlanError
+	if res != nil || !errors.As(err, &classified) || classified.Code != engine.ExitVerify || !errors.As(err, &tampered) {
+		t.Fatalf("an edited plan.json must refuse the run with exit %d, got res=%+v err=%v", engine.ExitVerify, res, err)
+	}
+	if started {
+		t.Fatal("a container started for a refused plan")
 	}
 }
 
