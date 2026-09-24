@@ -300,9 +300,11 @@ the artifacts.
   *install* from one — that is what makes a rotation a release rather than a
   reinstall. A build with an empty set trusts nothing and refuses every update,
   which is the correct state for the open core. The same key signs the CLI's
-  and the MCP server's release bundles, so its private half is the
-  `AGENTRY_UPDATE_SIGNING_KEY` secret of this repository, of agentry-cli, and
-  of agentry-mcp's `release` environment, and each of those two pins
+  and the MCP server's release bundles, so its private half is meant to live
+  under one name, `AGENTRY_UPDATE_SIGNING_KEY`, in three places: this
+  repository's secrets (it does today), agentry-cli's (once agentry-cli#197
+  loads it) and agentry-mcp's `release` environment (once agentry-mcp#33
+  does). Each of those two pins
   `DESKTOP_SIGNRELEASE_REF` to the commit of this repository whose key set it
   is checked against. A rotation moves all three secrets and both pins
   together; either alone makes that product's next release fail closed.
