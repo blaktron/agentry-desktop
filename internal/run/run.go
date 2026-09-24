@@ -769,7 +769,7 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 		return nil, "", engine.Classify(engine.ExitVerify, rerr)
 	case errors.Is(rerr, compile.ErrNoIntegrityRecord):
 		// A plan an older desktop or CLI compiled, or one from another
-		// runner home: never trusted, recompiled.
+		// runner home: never reused, always recompiled.
 		_, _ = fmt.Fprintln(logw, "installed plan has no integrity record from this runner home — recompiling")
 	}
 	if rerr == nil {

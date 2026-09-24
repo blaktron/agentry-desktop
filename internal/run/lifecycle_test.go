@@ -412,7 +412,7 @@ func widenEgress(t *testing.T, planPath string) string {
 // record under the runner home's key; a plan.json edited after that
 // (fields ensurePlan does not compare, here the egress contract) refuses
 // the run with the verify class and is left in place; a plan with no
-// record (an older desktop's) is recompiled, never trusted.
+// record (an older desktop's) is recompiled, never reused.
 func TestEnsurePlanIntegrityRecord(t *testing.T) {
 	home := isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
