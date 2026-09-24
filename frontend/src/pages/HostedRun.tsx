@@ -115,6 +115,8 @@ export function HostedResult({ run, children }: { run: main.HostedRunView; child
           ))}
         </>
       )}
+      <div className="kv"><span className="k">run</span><span className="mono">{run.id}</span></div>
+      <div className="kv"><span className="k">release</span><span className="mono">{run.ref}</span></div>
       <div className="kv"><span className="k">run folder</span><span className="mono">{run.outDir}</span></div>
       {run.outputs.length > 0 ? (
         run.outputs.map((a) => (

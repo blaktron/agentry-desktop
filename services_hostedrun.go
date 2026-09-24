@@ -419,6 +419,8 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 		// The run is over: its artefacts come down into the folder the
 		// person picked, and the receipt and result render from there.
 		got, derr := client.DownloadOutputs(context.Background(), final, outDir)
+		// Whatever landed is this run's folder, for the result view.
+		r.rememberFolder(final.ID, outDir)
 		msg := ""
 		if derr != nil {
 			msg = derr.Error()

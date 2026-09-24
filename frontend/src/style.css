@@ -411,7 +411,7 @@ table.declared-servers td { overflow-wrap: anywhere; }
 
 /* Invisible-character placeholders the API/scanner emit in excerpts: make
    them impossible to miss (§10.3 GlassWorm lesson). */
-.excerpt .agy-invisible, .readme .agy-invisible {
+.excerpt .agy-invisible, .readme .agy-invisible, .run-result-view .agy-invisible {
   background: var(--color-sev-high);
   /* The page ground, not white: dark sev-high is a light red, and white on
      it measured 2.77:1 on the site (agentry-web#19). */
@@ -851,3 +851,28 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   padding-top: 12px;
   border-top: 1px solid var(--color-border);
 }
+
+/* The result first (plan guided-runs.md §5, agentry-desktop#227): how the
+   run ended, the agent's final message, the files it wrote with their
+   previews, and Run details collapsed under them. */
+.run-result-view { margin-top: 12px; }
+.run-outcome { margin: 4px 0 10px; font-size: 16px; }
+.run-outcome-bad { color: var(--color-sev-high); }
+.run-result-view section { margin-bottom: 14px; }
+.run-file {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.run-file-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  overflow-wrap: anywhere;
+}
+.run-file-body { max-height: 320px; overflow: auto; padding: 4px 10px; }
+.run-details { margin-top: 10px; }

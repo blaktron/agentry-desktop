@@ -24,6 +24,7 @@ import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spin
 import { STEP_LABEL, needList, setupSteps, type StepKey } from "../runSetup";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "./HostedRun";
+import { RunResultView } from "./RunResult";
 
 export default function RunPanel({
   registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep,
@@ -920,7 +921,9 @@ export default function RunPanel({
 
         {/* The hosted run: where it stands, and what it produced. It keeps
             no log (agentry-desktop#182): the card moves as the run does. */}
-        {inAgentry && hostedRun && (
+        {/* While it is in flight; once it has ended, the result view below
+            says how, and this card's facts are under its Run details. */}
+        {inAgentry && hostedRun && !hostedRun.final && (
           <>
             <h3>Run In Agentry</h3>
             <HostedProgress run={hostedRun} onCancel={cancelInAgentry} cancelling={cancelling} />
@@ -956,8 +959,10 @@ export default function RunPanel({
           />
         )}
 
-        {/* Live log — a run on this machine only; a run In Agentry has none. */}
-        {!inAgentry && (running || log.length > 0) && (
+        {/* Live log: a run on this machine only (a run In Agentry has none),
+            in view while it runs and when it ended with no result to show,
+            and under Run details once a result is there. */}
+        {!inAgentry && (running || (log.length > 0 && !result)) && (
           <>
             <h3>Run log</h3>
             <pre ref={logRef} className="run-log selectable">{log.join("\n")}{running ? "\n…" : ""}</pre>
@@ -965,20 +970,30 @@ export default function RunPanel({
           </>
         )}
 
-        {/* The finished hosted run: the same facts a local result shows. */}
+        {/* The finished hosted run: the result first, from the outputs
+            unpacked into its folder; the card is its Run details. */}
         {inAgentry && hostedRun?.final && (
-          <>
-            <h3>Result</h3>
-            <HostedResult run={hostedRun}>
-              <ResultBody raw={hostedRun.resultJson ?? ""} />
-            </HostedResult>
-          </>
+          <RunResultView
+            runId={hostedRun.id}
+            headline={hostedHeadline(hostedRun)}
+            tone={hostedRun.outcomeTone === "ok" ? "ok" : hostedRun.outcomeTone === "bad" ? "bad" : "warn"}
+            error={hostedRun.downloadError || undefined}
+            resultJson={hostedRun.resultJson ?? ""}
+          >
+            <HostedResult run={hostedRun} />
+          </RunResultView>
         )}
 
-        {/* Result envelope (§R8) */}
+        {/* A run or a session on this machine: the result first; the
+            envelope's badges, usage, paths and the log are its Run details. */}
         {result && (
-          <>
-            <h3>Result</h3>
+          <RunResultView
+            runId={result.runId}
+            headline={result.status === "ok" ? "Finished." : `It ended in an error (exit ${result.exitCode}).`}
+            tone={result.status === "ok" ? "ok" : "bad"}
+            error={result.error || undefined}
+            resultJson={result.resultJson}
+          >
             <Card className="selectable">
               <div className="row">
                 {result.status === "ok"
@@ -992,13 +1007,17 @@ export default function RunPanel({
                   {(result.wallMs / 1000).toFixed(1)}s{result.costUsd > 0 ? ` · $${result.costUsd.toFixed(4)}` : ""}
                 </span>
               </div>
-              {result.error && <ErrorBox error={result.error} />}
-              <ResultBody raw={result.resultJson} />
               <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
               <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
               <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>
             </Card>
-          </>
+            {log.length > 0 && (
+              <>
+                <h4>Run log</h4>
+                <pre className="run-log selectable">{log.join("\n")}</pre>
+              </>
+            )}
+          </RunResultView>
         )}
 
         {started && !busy && (
@@ -1012,19 +1031,11 @@ export default function RunPanel({
   );
 }
 
-/** Renders the envelope's result: a JSON string result as text, structured
- * JSON pretty-printed, anything else verbatim. */
-function ResultBody({ raw }: { raw: string }) {
-  if (!raw) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return <pre className="run-result selectable">{raw}</pre>;
-  }
-  if (typeof parsed === "string") {
-    if (parsed === "") return <p className="muted small">The BriefAgent produced no final text (see reports and receipts).</p>;
-    return <pre className="run-result selectable">{parsed}</pre>;
-  }
-  return <pre className="run-result selectable">{JSON.stringify(parsed, null, 2)}</pre>;
+// hostedHeadline is how a run In Agentry ended, in a sentence: a pass says
+// so, and anything else says what the registry's verdict line says.
+function hostedHeadline(run: main.HostedRunView): string {
+  if (run.state === "done — pass") return "Finished.";
+  if (run.status === "cancelled") return "Cancelled before it started.";
+  const line = (run.outcomeLine || run.statusLine || "it did not finish").trim();
+  return line.charAt(0).toUpperCase() + line.slice(1).replace(/\.?$/, ".");
 }
