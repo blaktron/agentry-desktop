@@ -63,12 +63,12 @@ func (c *channel) serve() *httptest.Server {
 			http.NotFound(w, r)
 		}
 	})
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewTLSServer(mux)
 	c.t.Cleanup(srv.Close)
 	return srv
 }
 
-// check runs against a server, with localhost allowed in place of https.
+// check runs against a TLS test server, through its client, which trusts it.
 func check(t *testing.T, srv *httptest.Server, current string, set *selfupdate.KeySet) (*selfupdate.Release, error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -297,7 +297,7 @@ func TestCheckRefusesASumsFileTheManifestMisdescribes(t *testing.T) {
 func TestCheckGivesUpOnASlowChannel(t *testing.T) {
 	_, entry := keystest.Key(t, "prod", false)
 	set := keystest.Set(t, entry)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Second)
 	}))
 	defer srv.Close()
@@ -317,7 +317,7 @@ func TestCheckGivesUpOnASlowChannel(t *testing.T) {
 func TestCheckRefusesAnAnswerThatIsNotAManifest(t *testing.T) {
 	_, entry := keystest.Key(t, "prod", false)
 	set := keystest.Set(t, entry)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("<html>a captive portal, say</html>"))
 	}))
 	defer srv.Close()
@@ -462,12 +462,12 @@ func TestCheckDoesNotFollowARedirectOffTheChannel(t *testing.T) {
 	_, entry := keystest.Key(t, "prod", false)
 	set := keystest.Set(t, entry)
 
-	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	elsewhere := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("the check followed a redirect to another host")
 		http.NotFound(w, r)
 	}))
 	defer elsewhere.Close()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, elsewhere.URL+r.URL.Path, http.StatusFound)
 	}))
 	defer srv.Close()

@@ -112,11 +112,15 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 	if err != nil {
 		return nil, fmt.Errorf("the update channel %q is not a URL: %w", manifestURL, err)
 	}
-	if base.Scheme != "https" && base.Hostname() != "localhost" && base.Hostname() != "127.0.0.1" {
+	devLoopback := devLoopbackChannel && isLoopback(base.Hostname())
+	if base.Scheme != "https" && !devLoopback {
 		// An update channel over plain http would let anyone on the path
 		// choose which release is offered. They could not forge the
 		// signature, but they could withhold a newer one indefinitely, which
-		// is enough to keep someone on a version with a known problem.
+		// is enough to keep someone on a version with a known problem. A
+		// shipped build makes no exception, loopback included; only a build
+		// with the agentry_dev_loopback tag accepts http on this machine
+		// (loopback_dev.go, agentry-desktop#127).
 		return nil, fmt.Errorf("the update channel %q is not https", manifestURL)
 	}
 	if client == nil {
