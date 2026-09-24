@@ -21,6 +21,15 @@
 //   #install-mcp-env       the install review of a release declaring two MCP
 //                          servers, one with plain env (agentry-desktop#62)
 //   #toolspanel | #chat    the other two run surfaces
+//
+// The guided run setup (agentry-desktop#226) shows one step at a time, so
+// each state opens on the step that shows it (STEP_OF below), and four
+// more show the steps themselves:
+//   #runpanel-step-files    Files: the chosen files, Add files / Add folder
+//   #runpanel-step-tools    Connect tools on pr-review-brief's shape: the
+//                           declared MCP server and the unsaved key
+//   #runpanel-step-details  Details: the intake question, then the task
+//   #runpanel-step-review   Review and start: the recap, output, consents
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -42,7 +51,7 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // line above Run names them and nothing else; #runpanel-file-intake a
 // release that asks for a file up front — the intake form shows and the
 // unanswered question is what the line names.
-const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved";
+const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools";
 const fileIntakeShape = view === "runpanel-file-intake";
 const profile = keysShape
   ? {
@@ -65,6 +74,9 @@ const setup = { dockerOk: true, imagesReady: true, timeoutSeconds: 900, maxTurns
 const mcp = {
   refusal: "", vulnerabilityLine: "have no known high or critical advisories", toolRows: [],
   servers: keysShape ? ["github-mcp-server-js"] : [], vulnerabilities: [], dataAccess: keysShape ? ["code"] : [],
+  declaredServers: keysShape
+    ? [{ id: "npm:github-mcp-server-js@0.1.7", tools: ["get_pull_request", "list_pull_request_files", "list_pull_request_commits"], env: [{ name: "GITHUB_PERMISSION", value: "read-only" }] }]
+    : [],
   secretNames: keysShape ? ["GITHUB_TOKEN"] : [], embeddedTools: [],
 };
 
@@ -123,6 +135,19 @@ hostedRuns.failed = {
   outputs: [hostedRuns.finished.outputs[2]],
 };
 const hostedRun = hostedRuns[hostedState] ?? null;
+
+// Which step each state opens on: the blockers and Run are on the review,
+// the key form on Connect tools, the rest where the view says.
+const STEP_OF: Record<string, "start" | "files" | "tools" | "details" | "review"> = {
+  "runpanel-keys": "review",
+  "runpanel-keys-saved": "tools",
+  "runpanel-file-intake": "review",
+  "runpanel-unscanned": "review",
+  "runpanel-step-files": "files",
+  "runpanel-step-tools": "tools",
+  "runpanel-step-details": "details",
+  "runpanel-step-review": "review",
+};
 
 const g = window as any;
 g.go = { main: {
@@ -219,7 +244,11 @@ if (view === "install-unscanned" || view === "install-mcp-env") {
         registry="https://secureagentry.net"
         ns={keysShape ? "agentry" : "demo1"} name={keysShape ? "pr-review-brief" : "incident-summarizer"} version={keysShape ? "1.2.1" : "1.2.0"}
         attestation={att} onClose={() => {}}
+        summary={keysShape
+          ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
+          : "Summarises an incident channel into a report card, redacting secrets first."}
         initialMode={hostedState === "hosted" || hostedState === "unavailable" ? "hosted" : undefined}
+        initialStep={STEP_OF[view]}
       />
     </>,
   );

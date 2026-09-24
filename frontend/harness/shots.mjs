@@ -25,7 +25,7 @@ const base = `http://localhost:${port}`;
 
 // One entry per state the panel can be in, as the issue lists them.
 const states = [
-  { name: "runpanel-modes", url: "/modals.html#runpanel", note: "the mode choice, In Agentry beside the local modes" },
+  { name: "runpanel-modes", url: "/modals.html#runpanel", note: "Before you start: what it does, what to have ready, where to run it (In Agentry beside the local modes)", expectText: "What to have ready" },
   { name: "runpanel-in-agentry", url: "/modals.html#runpanel-hosted", note: "In Agentry chosen: the hold, the balance, the caps" },
   { name: "runpanel-unavailable", url: "/modals.html#runpanel-unavailable", note: "offered, unavailable, with the reason and the remedy" },
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
@@ -36,9 +36,14 @@ const states = [
   // The form asks only for what the release declares (agentry-desktop#167):
   // the keys line names the server and its secret with Run grey; a file
   // intake question shows as the form; Input files stays a disclosure.
-  { name: "runpanel-keys", url: "/modals.html#runpanel-keys", note: "pr-review-brief's shape: keys unsaved — the line above Run names them; Input files an optional disclosure", expectBlocker: "Save the keys for github-mcp-server-js: GITHUB_TOKEN", expectRunDisabled: true, expectCollapsed: "details.input-files" },
-  { name: "runpanel-keys-saved", url: "/modals.html#runpanel-keys-saved", note: "the keys saved: the line above Run is gone and Run is enabled", click: 'button:has-text("Save keys")', expectNoBlocker: true, expectRunEnabled: true },
-  { name: "runpanel-file-intake", url: "/modals.html#runpanel-file-intake", note: "a release that asks for a file up front: the intake form, and the line names the unanswered question", expectBlocker: "The incident channel's export (a file)", expectRunDisabled: true },
+  { name: "runpanel-keys", url: "/modals.html#runpanel-keys", note: "pr-review-brief's shape, on Review and start: keys unsaved, the line above Run names them", expectBlocker: "Save the keys for github-mcp-server-js: GITHUB_TOKEN", expectRunDisabled: true },
+  { name: "runpanel-keys-saved", url: "/modals.html#runpanel-keys-saved", note: "Connect tools: the key saved, shown by name only", click: 'button:has-text("Save keys")', expectText: "Stored for this exact release: GITHUB_TOKEN" },
+  { name: "runpanel-file-intake", url: "/modals.html#runpanel-file-intake", note: "a release that asks for a file up front: on Review and start the line names the unanswered question", expectBlocker: "The incident channel's export (a file)", expectRunDisabled: true },
+  // The guided run setup (agentry-desktop#226): one state per step.
+  { name: "runpanel-step-files", url: "/modals.html#runpanel-step-files", note: "Files: no file chosen yet, Add files and Add folder", expectText: "Step 2 of" },
+  { name: "runpanel-step-tools", url: "/modals.html#runpanel-step-tools", note: "Connect tools: the declared MCP server's pin and tools, then its key", expectText: "Step 3 of 5: Connect tools" },
+  { name: "runpanel-step-details", url: "/modals.html#runpanel-step-details", note: "Details: the intake question, then the task", expectText: ": Details" },
+  { name: "runpanel-step-review", url: "/modals.html#runpanel-step-review", note: "Review and start: the recap with Edit links, the output folder, Advanced, Run", expectText: "Review and start" },
   { name: "agent-mcp-env", url: "/pages.html#agent-mcp-env", note: "the agent page's MCP tab: a declared server's plain env beneath its line, a server without env unchanged (agentry-desktop#62)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("MCP servers")' },
   { name: "install-mcp-env", url: "/modals.html#install-mcp-env", note: "the install review: each declared server's pin, tools and plain env (agentry-desktop#62)", click: "button:has-text('Verify')" },
   { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard's review of a release admitted without a scan: the mark and the consent (M23)", click: "button:has-text('Verify')" },
@@ -172,7 +177,7 @@ try {
         await page.waitForTimeout(400);
       }
       if (state.expectText) {
-        const text = await page.locator(state.locator).innerText();
+        const text = await page.locator(state.locator ?? "body").innerText();
         if (!text.includes(state.expectText)) throw new Error(`${state.name}: the page does not show "${state.expectText}"`);
       }
       if (state.expectBlocker) {
