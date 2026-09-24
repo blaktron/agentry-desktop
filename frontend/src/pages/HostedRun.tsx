@@ -74,7 +74,7 @@ function toneClass(tone?: string): string {
 
 /** The finished run: done with pass or fail, the outcome, the receipt's
  *  numbers, what it cost, and the files that landed in the run folder. */
-export function HostedResult({ run, children }: { run: main.HostedRunView; children?: React.ReactNode }) {
+export function HostedResult({ run }: { run: main.HostedRunView }) {
   const enforced = Object.entries(run.capabilitiesEnforced ?? {});
   return (
     <Card className="selectable">
@@ -94,7 +94,6 @@ export function HostedResult({ run, children }: { run: main.HostedRunView; child
       </div>
       <p className="muted small" style={{ margin: "6px 0" }}>{run.outcomeLine}</p>
       {run.error && <div className="error-box selectable">{run.error}</div>}
-      {children}
       <div className="kv">
         <span className="k">credits</span>
         <span className="mono">
@@ -115,6 +114,8 @@ export function HostedResult({ run, children }: { run: main.HostedRunView; child
           ))}
         </>
       )}
+      <div className="kv"><span className="k">run</span><span className="mono">{run.id}</span></div>
+      <div className="kv"><span className="k">release</span><span className="mono">{run.ref}</span></div>
       <div className="kv"><span className="k">run folder</span><span className="mono">{run.outDir}</span></div>
       {run.outputs.length > 0 ? (
         run.outputs.map((a) => (
@@ -123,7 +124,6 @@ export function HostedResult({ run, children }: { run: main.HostedRunView; child
       ) : (
         <p className="muted small">This run wrote no outputs.</p>
       )}
-      {run.downloadError && <div className="error-box selectable">{run.downloadError}</div>}
     </Card>
   );
 }

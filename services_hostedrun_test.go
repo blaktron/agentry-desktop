@@ -632,7 +632,11 @@ func TestAttachAndCancel(t *testing.T) {
 	fastPoll(t)
 
 	// Nothing active yet.
-	att, err := r.AttachHostedRun(reg, t.TempDir())
+	attachDir := t.TempDir()
+
+	r.app.markPicked(attachDir) // the folder the panel picked (D-030)
+
+	att, err := r.AttachHostedRun(reg, attachDir)
 	if err != nil || att.Run != nil {
 		t.Fatalf("attach with no run: %+v %v", att, err)
 	}
@@ -645,6 +649,7 @@ func TestAttachAndCancel(t *testing.T) {
 	f.mu.Unlock()
 
 	outDir := t.TempDir()
+	r.app.markPicked(outDir)
 	att, err = r.AttachHostedRun(reg, outDir)
 	if err != nil {
 		t.Fatal(err)

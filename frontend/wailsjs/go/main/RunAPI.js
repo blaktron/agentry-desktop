@@ -74,6 +74,10 @@ export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, a
   return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12);
 }
 
+export function RunOutputs(arg1) {
+  return window['go']['main']['RunAPI']['RunOutputs'](arg1);
+}
+
 export function SaveProfile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['RunAPI']['SaveProfile'](arg1, arg2, arg3, arg4);
 }
@@ -84,6 +88,10 @@ export function SendTurn(arg1) {
 
 export function SetupStatus() {
   return window['go']['main']['RunAPI']['SetupStatus']();
+}
+
+export function ShowRunFolder(arg1) {
+  return window['go']['main']['RunAPI']['ShowRunFolder'](arg1);
 }
 
 export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6) {

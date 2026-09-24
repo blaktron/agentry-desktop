@@ -30,6 +30,14 @@
 //                           declared MCP server and the unsaved key
 //   #runpanel-step-details  Details: the intake question, then the task
 //   #runpanel-step-review   Review and start: the recap, output, consents
+//
+// The result first (agentry-desktop#227): -finished and -failed show the
+// result view over their Run details, and
+//   #runpanel-hostile       a finished run whose result and files carry
+//                           hostile markdown (raw HTML, a script, an image,
+//                           a javascript: link) and a file name with a
+//                           right-to-left override: none of it becomes
+//                           markup, and the hidden characters show
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -134,7 +142,32 @@ hostedRuns.failed = {
   resultJson: "",
   outputs: [hostedRuns.finished.outputs[2]],
 };
+hostedRuns.hostile = {
+  ...hostedRuns.finished,
+  resultJson: JSON.stringify(
+    "# Summary\n\nThe report is **ready**. <script>alert('x')</script><b onclick=\"steal()\">raw html</b>\n\n" +
+      "![tracking pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [docs](https://example.com/docs)\n\n" +
+      "pay\u200Bpal invoice attached.",
+  ),
+};
 const hostedRun = hostedRuns[hostedState] ?? null;
+
+// What the result view lists from the run folder (RunAPI.RunOutputs).
+const runOutputs = view === "runpanel-hostile"
+  ? {
+    files: [
+      { path: "outputs/invoice\u202Efdp.exe", bytes: 1024, previewKind: "none", noPreview: "binary" },
+      { path: "outputs/notes.md", bytes: 120, previewKind: "markdown", preview: "## Notes\n\n<iframe src=\"https://evil.example\"></iframe>Plain notes." },
+    ],
+    skipped: 1,
+  }
+  : {
+    files: [
+      { path: "outputs/summary.csv", bytes: 64, previewKind: "text", preview: "incident,started,severity\nINC-4821,02:14,high\n" },
+      { path: "reports/report.md", bytes: 3482, previewKind: "markdown", preview: "## INC-4821\n\nElevated 5xx on **checkout** from 02:14 UTC.\n\n| step | when |\n|---|---|\n| detected | 02:14 |\n| mitigated | 02:41 |\n" },
+    ],
+    skipped: 0,
+  };
 
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.
@@ -161,6 +194,8 @@ g.go = { main: {
     AttachHostedRun: async () => ({ run: hostedRun }),
     StartHostedRun: async () => ({ run: hostedRuns.queued }),
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
+    RunOutputs: async () => runOutputs,
+    ShowRunFolder: async () => {},
   },
   InstallAPI: {
     // #install-unscanned: the plan the wizard shows for a release the
