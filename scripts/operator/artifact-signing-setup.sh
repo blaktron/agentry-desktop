@@ -6,7 +6,7 @@
 # `stage` per step, and set TOTAL_STAGES to the number you wrote.
 #
 #   bash -n <this file>     # syntax check
-#   shellcheck <this file>  # if available
+#   run shellcheck on this file (if available)
 #   ./<this file>           # run it (a human runs this, not an agent)
 
 set -uo pipefail
