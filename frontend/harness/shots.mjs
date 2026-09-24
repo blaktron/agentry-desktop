@@ -31,7 +31,7 @@ const states = [
   { name: "runpanel-queued", url: "/modals.html#runpanel-queued", note: "queued with its position" },
   { name: "runpanel-running", url: "/modals.html#runpanel-running", note: "running: its state, no log (agentry-desktop#182)" },
   { name: "runpanel-finished", url: "/modals.html#runpanel-finished", note: "done — pass: outcome, receipt, credits, downloaded outputs" },
-  { name: "runpanel-failed", url: "/modals.html#runpanel-failed", note: "done — fail: the outcome's line, credits settled, what came back" },
+  { name: "runpanel-failed", url: "/modals.html#runpanel-failed", note: "a pushed run done — fail: the outcome's line, credits settled, no receipt kept (agentry-enterprise#121)" },
   { name: "runpanel-unscanned", url: "/modals.html#runpanel-unscanned", note: "a release admitted without a scan: its own mark and consent, In Agentry not offered (M23); the line above Run names the consent (agentry-desktop#167)", expectBlocker: "Tick \u201cRun an unscanned release\u201d", expectRunDisabled: true },
   // The form asks only for what the release declares (agentry-desktop#167):
   // the keys line names the server and its secret with Run grey; a file

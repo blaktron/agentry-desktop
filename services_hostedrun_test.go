@@ -30,8 +30,8 @@ import (
 
 const hostedTestToken = "agy_desktoptoken0000"
 
-// hostedEnvelope is the runner's envelope as a pushed run's result.json
-// carries it: the receipt the registry did not keep.
+// hostedEnvelope is a result.json as a pushed run's outputs carry it; its
+// receipt parts are not trusted, since the agent could have written them.
 const hostedEnvelope = `{"agentry":"1","status":"ok","exitClass":"ok","attestation":{"state":"verified","keyId":"k1"},` +
 	`"capabilities_enforced":{"network.egress":"llm-proxy allowlist: api.example.com"},"harness":{"adapter":"docker-agent","model":"m"},"result":"the summary"}`
 
@@ -57,6 +57,9 @@ type hostedFake struct {
 	// eventsRead counts the requests to the run's events route, which
 	// the app must no longer make.
 	eventsRead int
+	// lostOutput makes the output route answer 404, as the registry does
+	// for a bundle it can no longer open.
+	lostOutput bool
 	created    *hostedrun.CreateRequest
 	refuse     func(w http.ResponseWriter)
 }
@@ -122,7 +125,7 @@ func (f *hostedFake) start(t *testing.T) string {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		hostedJSON(w, http.StatusOK, map[string]any{
-			"enabled": f.enabled, "workersOnline": 1, "queued": 0,
+			"enabled": f.enabled, "workersOnline": 0, "hostsOnline": 1, "queued": 0,
 			"caller": map[string]any{
 				"tier": "standard", "caps": map[string]any{"timeoutSeconds": 300, "maxTurns": 20, "maxTokens": 20000},
 				"holdCredits": 20, "tokensPerCredit": 1000,
@@ -171,13 +174,13 @@ func (f *hostedFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusOK, f.run)
 	})
 	mux.HandleFunc("GET /api/v1/x/runs/{id}/outputs/{name...}", func(w http.ResponseWriter, r *http.Request) {
-		if r.PathValue("name") != hostedrun.PushedOutput {
+		f.mu.Lock()
+		files, lost := maps.Clone(f.outputs), f.lostOutput
+		f.mu.Unlock()
+		if lost || r.PathValue("name") != hostedrun.PushedOutput {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		f.mu.Lock()
-		files := maps.Clone(f.outputs)
-		f.mu.Unlock()
 		names := slices.Sorted(maps.Keys(files))
 		tw := tar.NewWriter(w)
 		for _, n := range names {
@@ -359,6 +362,11 @@ func TestHostedAvailability(t *testing.T) {
 			if !v.Offered {
 				return
 			}
+			// A sandbox host counts as a runner as a worker does: the fake
+			// reports one host and no worker (agentry-enterprise#83).
+			if v.RunnersOnline != 1 {
+				t.Fatalf("runners online = %d, want the one host", v.RunnersOnline)
+			}
 			if v.HoldCredits != 20 || v.Tier != "standard" || v.Caps == nil || v.Caps.MaxTokens != 20000 {
 				t.Fatalf("the hold and caps come from the registry: %+v", v)
 			}
@@ -409,8 +417,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	reg := f.start(t)
 	home, runnerHome := signIn(t, reg)
 	r, events := newRunAPI(t)
-	hostedPoll = 10 * time.Millisecond
-	t.Cleanup(func() { hostedPoll = 3 * time.Second })
+	fastPoll(t)
 
 	inputDir := t.TempDir()
 	input := filepath.Join(inputDir, "incident.txt")
@@ -465,11 +472,11 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	if !final.Settled || final.SettledCredits != 2 || final.HoldCredits != 20 {
 		t.Fatalf("credits = %+v", final)
 	}
-	if final.CapabilitiesEnforced["network.egress"] != "llm-proxy allowlist: api.example.com" {
-		t.Fatalf("capabilities enforced = %+v", final.CapabilitiesEnforced)
-	}
-	if final.AttestationState != "verified" || final.Adapter != "docker-agent" {
-		t.Fatalf("the receipt from the envelope = %+v", final)
+	// The registry kept no receipt for a pushed run, and the result.json
+	// in its outputs — which claims a verified attestation — is never read
+	// as one: the agent could have written it (agentry-enterprise#121).
+	if final.ReceiptKept || final.AttestationState != "" || len(final.CapabilitiesEnforced) != 0 || final.Adapter != "" {
+		t.Fatalf("a receipt was read from the outputs: %+v", final)
 	}
 	if final.ResultJSON != hostedEnvelope {
 		t.Fatalf("result = %q", final.ResultJSON)
@@ -503,6 +510,29 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 		if err == nil && len(entries) > 0 {
 			t.Fatalf("a hosted run wrote into %s: %v", dir, entries)
 		}
+	}
+}
+
+// A run whose output cannot be downloaded finishes with the error and no
+// list of files: nothing came down, so nothing reads as saved.
+func TestHostedRunWithALostOutputListsNothing(t *testing.T) {
+	f := &hostedFake{enabled: true, lostOutput: true, outputs: map[string]string{"result.json": hostedEnvelope}}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, events := newRunAPI(t)
+	fastPoll(t)
+	outDir := t.TempDir()
+	r.app.markPicked(outDir)
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
+	final := waitForFinal(t, events)
+	if final.DownloadError == "" || len(final.Outputs) != 0 {
+		t.Fatalf("a lost output: error %q, outputs %+v", final.DownloadError, final.Outputs)
+	}
+	if final.State != "done — pass" || !final.Settled {
+		t.Fatalf("the run itself still reads as it finished: %+v", final)
 	}
 }
 
@@ -563,8 +593,7 @@ func TestAttachAndCancel(t *testing.T) {
 	reg := f.start(t)
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
-	hostedPoll = 10 * time.Millisecond
-	t.Cleanup(func() { hostedPoll = 3 * time.Second })
+	fastPoll(t)
 
 	// Nothing active yet.
 	att, err := r.AttachHostedRun(reg, t.TempDir())
@@ -608,6 +637,14 @@ func TestAttachAndCancel(t *testing.T) {
 	if r.hostedCurrent() != nil {
 		t.Fatal("the follow loop outlived the run")
 	}
+}
+
+// fastPoll shortens the follow loop's re-read for the test's life.
+func fastPoll(t *testing.T) {
+	t.Helper()
+	old := hostedPoll
+	hostedPoll = 10 * time.Millisecond
+	t.Cleanup(func() { hostedPoll = old })
 }
 
 // waitForStatus waits for the follow loop to report the run in a status.

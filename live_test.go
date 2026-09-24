@@ -250,14 +250,8 @@ func TestLiveHostedRun(t *testing.T) {
 	if final.Outcome == hostedrun.OutcomeSucceeded && len(got) == 0 {
 		t.Fatal("a succeeded run wrote no artefacts")
 	}
-	// A pushed run's receipt is the envelope in its outputs (the registry
-	// keeps none): read it from result.json, as the panel does.
-	if env, err := os.ReadFile(filepath.Join(dir, "result.json")); err == nil {
-		hostedrun.ReceiptFromEnvelope(final, env)
-	}
-	t.Logf("attestation %s, adapter %s", final.Receipt.Attestation.State, final.Receipt.Harness.Adapter)
 	if len(final.Receipt.CapabilitiesEnforced) == 0 {
-		t.Log("the run reported no capabilities_enforced — check the receipt on the run")
+		t.Log("the registry kept no receipt for this run — a pushed run's has none until agentry-enterprise#121")
 	}
 	for k, v := range final.Receipt.CapabilitiesEnforced {
 		t.Logf("enforced %s: %s", k, v)

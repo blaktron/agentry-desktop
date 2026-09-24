@@ -143,26 +143,12 @@ type Run struct {
 }
 
 // Empty reports whether the registry kept no receipt for the run. A
-// pushed run's is one of these: the runner's envelope travels sealed in
-// its output.tar, which the registry never reads (hosted runs in
-// production, D16).
+// pushed run's is one of these: the host sends a summary, not the
+// envelope, and the result.json in its output.tar is a file the agent
+// could have written, so it is never read as the receipt
+// (agentry-enterprise#121).
 func (r Receipt) Empty() bool {
 	return len(r.CapabilitiesEnforced) == 0 && r.Attestation.State == "" && r.Harness.Adapter == "" && r.ExitClass == ""
-}
-
-// ReceiptFromEnvelope fills a run's receipt from the runner's envelope —
-// the result.json its outputs carry — when the registry kept none. The
-// envelope is the same document a pull worker hands the registry as the
-// receipt, so the panel lists the same facts either way; a receipt the
-// registry did keep is left as it is.
-func ReceiptFromEnvelope(run *Run, envelope []byte) {
-	if run == nil || !run.Receipt.Empty() || len(envelope) == 0 {
-		return
-	}
-	var rc Receipt
-	if json.Unmarshal(envelope, &rc) == nil {
-		run.Receipt = rc
-	}
 }
 
 // Terminal reports whether the run has stopped moving.

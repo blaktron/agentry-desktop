@@ -1075,6 +1075,7 @@ export namespace main {
 	    holdCredits: number;
 	    settledCredits: number;
 	    settled: boolean;
+	    receiptKept: boolean;
 	    capabilitiesEnforced?: {[key: string]: string};
 	    attestationState?: string;
 	    adapter?: string;
@@ -1115,6 +1116,7 @@ export namespace main {
 	        this.holdCredits = source["holdCredits"];
 	        this.settledCredits = source["settledCredits"];
 	        this.settled = source["settled"];
+	        this.receiptKept = source["receiptKept"];
 	        this.capabilitiesEnforced = source["capabilitiesEnforced"];
 	        this.attestationState = source["attestationState"];
 	        this.adapter = source["adapter"];

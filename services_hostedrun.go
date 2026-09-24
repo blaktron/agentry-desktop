@@ -28,9 +28,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// eventHostedRun carries the hosted run's state to the panel; the log
-// itself rides runner:run-log, the event the local engine feeds, so one
-// view shows either kind of run.
+// eventHostedRun carries the hosted run's state to the panel. A run In
+// Agentry has no log to send (D12, D16); runner:run-log is the local
+// engine's alone.
 const eventHostedRun = "runner:hosted-run"
 
 // emitEvent is the Wails emitter, a package variable purely as a test seam
@@ -148,6 +148,10 @@ type HostedRunView struct {
 	SettledCredits int64 `json:"settledCredits"`
 	Settled        bool  `json:"settled"`
 
+	// ReceiptKept says the registry holds a receipt for the run; a pushed
+	// run's has none yet (agentry-enterprise#121), and the panel says so
+	// rather than read one from a file in the outputs.
+	ReceiptKept bool `json:"receiptKept"`
 	// CapabilitiesEnforced is the receipt's block, listed verbatim.
 	CapabilitiesEnforced map[string]string `json:"capabilitiesEnforced,omitempty"`
 	AttestationState     string            `json:"attestationState,omitempty"`
@@ -281,7 +285,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 		return nil, err
 	}
 	client := hostedrun.New(reg, token)
-	ids, err := client.UploadInputs(ctx, files, nil)
+	ids, err := client.UploadInputs(ctx, files)
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil
@@ -399,6 +403,15 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 				emitEvent(r.app, eventHostedRun, hostedRunView(started, outDir, nil, "", err.Error(), true))
 				return
 			}
+			if !last.Terminal() {
+				// The registry stopped answering while the run was still
+				// moving: say so, and download nothing, rather than show a
+				// run that is not over as finished. Reopening the panel
+				// reattaches to it.
+				emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
+					"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); reopen this panel to follow it again", true))
+				return
+			}
 			final = last
 		}
 		// The run is over: its artefacts come down into the folder the
@@ -408,9 +421,7 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 		if derr != nil {
 			msg = derr.Error()
 		}
-		result := resultText(got)
-		hostedrun.ReceiptFromEnvelope(final, []byte(result))
-		emitEvent(r.app, eventHostedRun, hostedRunView(final, outDir, got, result, msg, true))
+		emitEvent(r.app, eventHostedRun, hostedRunView(final, outDir, got, resultText(got), msg, true))
 	}()
 }
 
@@ -511,10 +522,16 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 	if r.SettledCredits != nil {
 		v.SettledCredits, v.Settled = *r.SettledCredits, true
 	}
+	v.ReceiptKept = !r.Receipt.Empty()
 	v.CapabilitiesEnforced = r.Receipt.CapabilitiesEnforced
 	v.AttestationState = r.Receipt.Attestation.State
 	v.Adapter = r.Receipt.Harness.Adapter
 	if len(got) == 0 {
+		if downloadErr != "" && final {
+			// Nothing came down: listing what the registry holds would read
+			// as saved. The error says what happened instead.
+			return v
+		}
 		for _, a := range r.Outputs {
 			v.Outputs = append(v.Outputs, HostedArtefactView{Name: a.Name, Bytes: a.Bytes})
 		}

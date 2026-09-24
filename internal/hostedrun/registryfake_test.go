@@ -2,9 +2,9 @@ package hostedrun
 
 // A fake runs extension for this package's tests: the routes of
 // agentry-enterprise/schemas/x-runs.yaml an account calls, with the same
-// shapes and the same problem documents. Kept in this
-// package's own style rather than shared with internal/run's fake, which
-// serves releases and archives and nothing hosted.
+// shapes and the same problem documents. Kept in this package's own style
+// rather than shared with internal/run's fake, which serves releases and
+// archives and nothing hosted.
 
 import (
 	"archive/tar"
@@ -52,8 +52,6 @@ type fakeRuns struct {
 	// eventsRead counts the requests to the run's events route, which a
 	// client of a pushed run must never make.
 	eventsRead int
-	// reads counts the reads of the run.
-	reads int
 	// uploads records what the input route stored.
 	uploads []Input
 }
@@ -144,7 +142,6 @@ func (f *fakeRuns) start(t *testing.T) string {
 			problemJSON(w, http.StatusNotFound, "not-found", "Not found", "", nil)
 			return
 		}
-		f.reads++
 		if len(f.steps) > 0 {
 			f.steps[0](f.run)
 			f.steps = f.steps[1:]
@@ -177,7 +174,7 @@ func (f *fakeRuns) start(t *testing.T) string {
 		if f.pushed {
 			body, ok = f.bundle, r.PathValue("name") == PushedOutput
 			if body == nil {
-				body = tarOf(t, f.outputs)
+				body = tarOf(f.outputs)
 			}
 		}
 		f.mu.Unlock()
@@ -224,20 +221,20 @@ func (f *fakeRuns) finish(outcome, exitClass string, settled int64) {
 		names = append(names, Artefact{Name: name, Bytes: int64(len(body))})
 	}
 	if f.pushed {
-		names = []Artefact{{Name: PushedOutput, Bytes: 4096}}
+		// The sealed object's size: the bundle plus the seal's overhead.
+		names = []Artefact{{Name: PushedOutput, Bytes: int64(len(tarOf(f.outputs))) + 1024}}
 	}
 	f.run.Outputs = names
 }
 
-// status is a step that moves the run to a status and a queue position.
-func status(s string, position int) func(*Run) {
+// step moves the run to a status and a queue position on its next read.
+func step(s string, position int) func(*Run) {
 	return func(r *Run) { r.Status, r.QueuePosition = s, position }
 }
 
 // tarOf is the bundle a host writes: every file, regular, named relative
 // to the run's out folder, in name order.
-func tarOf(t *testing.T, files map[string][]byte) []byte {
-	t.Helper()
+func tarOf(files map[string][]byte) []byte {
 	names := make([]string, 0, len(files))
 	for n := range files {
 		names = append(names, n)
@@ -247,14 +244,14 @@ func tarOf(t *testing.T, files map[string][]byte) []byte {
 	tw := tar.NewWriter(&buf)
 	for _, n := range names {
 		if err := tw.WriteHeader(&tar.Header{Name: n, Mode: 0o600, Size: int64(len(files[n])), Typeflag: tar.TypeReg}); err != nil {
-			t.Fatal(err)
+			panic(err) // a bytes.Buffer does not fail
 		}
 		if _, err := tw.Write(files[n]); err != nil {
-			t.Fatal(err)
+			panic(err) // a bytes.Buffer does not fail
 		}
 	}
 	if err := tw.Close(); err != nil {
-		t.Fatal(err)
+		panic(err) // a bytes.Buffer does not fail
 	}
 	return buf.Bytes()
 }

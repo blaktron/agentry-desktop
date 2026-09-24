@@ -55,8 +55,8 @@ func TestCreateWatchFinishAndDownload(t *testing.T) {
 	// reported twice.
 	f.mu.Lock()
 	f.steps = []func(*Run){
-		status(StatusQueued, 2), status(StatusQueued, 1), status(StatusQueued, 1),
-		status(StatusClaimed, 0), status(StatusRunning, 0),
+		step(StatusQueued, 2), step(StatusQueued, 1), step(StatusQueued, 1),
+		step(StatusClaimed, 0), step(StatusRunning, 0),
 	}
 	f.mu.Unlock()
 	var seen []string
@@ -121,27 +121,16 @@ func TestCreateWatchFinishAndDownload(t *testing.T) {
 	}
 }
 
-// A pushed run's receipt is the envelope in its outputs: the registry
-// keeps none, so the one in result.json fills it; a receipt the registry
-// did keep is never replaced.
-func TestReceiptFromEnvelope(t *testing.T) {
-	env := []byte(`{"agentry":"1","exitClass":"ok","attestation":{"state":"verified","keyId":"k1"},` +
-		`"capabilities_enforced":{"runtime":"runsc: the agent container"},"harness":{"adapter":"docker-agent","model":"m"},"result":"hi"}`)
-	pushed := &Run{Status: StatusFinished, Outcome: OutcomeSucceeded}
-	ReceiptFromEnvelope(pushed, env)
-	if pushed.Receipt.CapabilitiesEnforced["runtime"] != "runsc: the agent container" || pushed.Receipt.Attestation.State != "verified" ||
-		pushed.Receipt.Harness.Adapter != "docker-agent" || pushed.Receipt.ExitClass != "ok" {
-		t.Fatalf("receipt from the envelope = %+v", pushed.Receipt)
-	}
-	kept := &Run{Receipt: Receipt{CapabilitiesEnforced: map[string]string{"network": "the registry's"}}}
-	ReceiptFromEnvelope(kept, env)
-	if kept.Receipt.CapabilitiesEnforced["network"] != "the registry's" || kept.Receipt.Attestation.State != "" {
-		t.Fatalf("a kept receipt was replaced: %+v", kept.Receipt)
-	}
-	junk := &Run{}
-	ReceiptFromEnvelope(junk, []byte("not json"))
-	if !junk.Receipt.Empty() {
-		t.Fatalf("junk filled a receipt: %+v", junk.Receipt)
+// A bundle longer than the sealed object the registry reported is cut
+// there and refused, so a registry that streams without end cannot fill
+// the disk.
+func TestUnpackStopsAtTheReportedSize(t *testing.T) {
+	f := &fakeRuns{enabled: true, pushed: true, outputs: map[string][]byte{"result.json": bytes.Repeat([]byte("x"), 64<<10)}}
+	c := New(f.start(t), testToken)
+	run := &Run{ID: "r1", Outputs: []Artefact{{Name: PushedOutput, Bytes: 4096}}}
+	got, err := c.DownloadOutputs(t.Context(), run, t.TempDir())
+	if err == nil {
+		t.Fatalf("a bundle past its reported size was accepted: %+v", got)
 	}
 }
 
@@ -200,11 +189,13 @@ func TestWatchGivesUpAndStops(t *testing.T) {
 // name that leaves the folder, a name twice.
 func TestUnpackRefusesWhatAHostNeverWrites(t *testing.T) {
 	for name, entries := range map[string][]tar.Header{
-		"a symlink":    {{Name: "outputs/link", Typeflag: tar.TypeSymlink, Linkname: "/etc/passwd"}},
-		"an escape":    {{Name: "../escaped.txt", Typeflag: tar.TypeReg, Size: 1}},
-		"an absolute":  {{Name: "/tmp/abs.txt", Typeflag: tar.TypeReg, Size: 1}},
-		"a name twice": {{Name: "result.json", Typeflag: tar.TypeReg, Size: 1}, {Name: "./result.json", Typeflag: tar.TypeReg, Size: 1}},
-		"a directory":  {{Name: "outputs/", Typeflag: tar.TypeDir}},
+		"a symlink":          {{Name: "outputs/link", Typeflag: tar.TypeSymlink, Linkname: "/etc/passwd"}},
+		"an escape":          {{Name: "../escaped.txt", Typeflag: tar.TypeReg, Size: 1}},
+		"an absolute":        {{Name: "/tmp/abs.txt", Typeflag: tar.TypeReg, Size: 1}},
+		"a name twice":       {{Name: "result.json", Typeflag: tar.TypeReg, Size: 1}, {Name: "./result.json", Typeflag: tar.TypeReg, Size: 1}},
+		"a directory":        {{Name: "outputs/", Typeflag: tar.TypeDir}},
+		"a hard link":        {{Name: "outputs/hard", Typeflag: tar.TypeLink, Linkname: "result.json"}},
+		"a backslash escape": {{Name: "..\\escaped.txt", Typeflag: tar.TypeReg, Size: 1}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var buf bytes.Buffer
@@ -405,8 +396,7 @@ func TestUploadInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var log []string
-	ids, err := c.UploadInputs(t.Context(), files, func(l string) { log = append(log, l) })
+	ids, err := c.UploadInputs(t.Context(), files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,9 +405,6 @@ func TestUploadInputs(t *testing.T) {
 	}
 	if len(f.uploads) != 1 || f.uploads[0].Name != "notes.txt" || f.uploads[0].Bytes != 5 {
 		t.Fatalf("stored = %+v", f.uploads)
-	}
-	if len(log) != 1 || !strings.Contains(log[0], "notes.txt") {
-		t.Fatalf("log = %v", log)
 	}
 }
 
@@ -592,12 +579,27 @@ func TestOfferMatrix(t *testing.T) {
 // bearer token, and with nothing else: no worker token, no model key.
 func TestOnlyTheAccountsTokenTravels(t *testing.T) {
 	var headers []string
-	f := &fakeRuns{enabled: true}
+	f := &fakeRuns{enabled: true, pushed: true, outputs: map[string][]byte{"result.json": []byte(`"ok"`)}}
 	base := f.start(t)
 	c := New(base, testToken)
 	c.HTTP.Transport = recorder(&headers)
-	if _, err := c.Create(context.Background(), CreateRequest{Ref: "acme/reporter@1.0.0"}); err != nil {
+	c.Download.Transport = recorder(&headers)
+	run, err := c.Create(context.Background(), CreateRequest{Ref: "acme/reporter@1.0.0"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	// The download goes through its own client: it carries the same
+	// account token and nothing else.
+	f.finish(OutcomeSucceeded, "ok", 1)
+	done, err := c.Get(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DownloadOutputs(context.Background(), done, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if len(headers) != 3 || !strings.Contains(headers[2], "Authorization: Bearer "+testToken) {
+		t.Fatalf("the download's headers = %v", headers)
 	}
 	for _, h := range headers {
 		if strings.Contains(strings.ToLower(h), "worker") {

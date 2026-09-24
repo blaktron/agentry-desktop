@@ -92,7 +92,7 @@ func State(run *Run) string {
 	case run.Status == StatusFinished:
 		return "done — fail"
 	case run.Status == StatusClaimed:
-		return StatusRunning
+		return "running"
 	default:
 		return run.Status
 	}

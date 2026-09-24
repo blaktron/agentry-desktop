@@ -101,6 +101,12 @@ export function HostedResult({ run, children }: { run: main.HostedRunView; child
           {run.holdCredits} held · {run.settled ? `${run.settledCredits} settled` : "settlement not reported"}
         </span>
       </div>
+      {!run.receiptKept && (
+        <p className="muted small" style={{ margin: "6px 0 2px" }}>
+          The registry kept no receipt for this run, so what it enforced is not listed here. A file in the run's
+          outputs is not read as one, because the agent could have written it (agentry-enterprise#121).
+        </p>
+      )}
       {enforced.length > 0 && (
         <>
           <p className="muted small" style={{ margin: "6px 0 2px" }}>What the run enforced, listed from its receipt:</p>

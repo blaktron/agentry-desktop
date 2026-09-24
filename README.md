@@ -62,9 +62,10 @@ The product never claims an agent is "safe". The language is always:
   choice: the platform runs it, not this machine (plan
   `agentry-notes/plans/hosted-runs.md`). The same consent panel, intake
   form, task and input files; the app uploads the files, creates the run
-  with its own token, shows the queue position, streams the log into the
-  same view, and downloads the result, reports, receipts and outputs into
-  the run folder you picked. The panel states what the run holds in credits
+  with its own token, and shows the run queued (with its position), then
+  running, then done with pass or fail — it keeps no log of the run — and
+  downloads the result, reports, receipts and outputs into the run folder
+  you picked. The panel states what the run holds in credits
   and what the balance is, both as the account reports them, and the
   finished run shows the outcome, the runner's exit class and the receipt's
   `capabilities_enforced` listed verbatim. It needs no docker engine and no

@@ -61,8 +61,7 @@ func StageInputs(paths []string) ([]InputFile, error) {
 }
 
 // UploadInputs stores each staged file and returns the ids a create names.
-// logf, when set, gets one line per file.
-func (c *Client) UploadInputs(ctx context.Context, files []InputFile, logf func(string)) ([]string, error) {
+func (c *Client) UploadInputs(ctx context.Context, files []InputFile) ([]string, error) {
 	ids := make([]string, 0, len(files))
 	for _, f := range files {
 		fh, err := os.Open(f.Path) //nolint:gosec // a path the person picked in the file dialog
@@ -73,9 +72,6 @@ func (c *Client) UploadInputs(ctx context.Context, files []InputFile, logf func(
 		_ = fh.Close()
 		if err != nil {
 			return nil, err
-		}
-		if logf != nil {
-			logf(fmt.Sprintf("uploaded %s (%d bytes)", in.Name, in.Bytes))
 		}
 		ids = append(ids, in.ID)
 	}
@@ -131,7 +127,11 @@ func (c *Client) DownloadOutputs(ctx context.Context, run *Run, dir string) ([]D
 			if err != nil {
 				return got, err
 			}
-			got, err = unpack(body, dir, got)
+			// The bundle is never longer than the sealed object the
+			// registry reports (the seal only adds to it), so a longer
+			// stream is cut there and fails as a short tar rather than
+			// filling the disk.
+			got, err = unpack(io.LimitReader(body, a.Bytes), dir, got)
 			_ = body.Close()
 			if err != nil {
 				return got, err

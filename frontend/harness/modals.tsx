@@ -8,8 +8,9 @@
 //   #runpanel-unavailable  In Agentry offered, unavailable with the reason
 //   #runpanel-queued       a hosted run queued, with its position
 //   #runpanel-running      a hosted run running: its state, no log
-//   #runpanel-finished     a hosted run done — pass: receipt and outputs
-//   #runpanel-failed       a hosted run done — fail
+//   #runpanel-finished     a hosted run done — pass: the receipt the
+//                          registry kept, and the outputs
+//   #runpanel-failed       a pushed run done — fail: no receipt kept
 //   #runpanel-keys         pr-review-brief's shape: keys unsaved, no intake —
 //                          the line above Run names the keys, Input files
 //                          collapsed (agentry-desktop#167)
@@ -87,7 +88,7 @@ const hostedRuns: Record<string, any> = {
     outcome: "succeeded", outcomeTone: "ok", outcomeLine: "ran to the end and wrote its result",
     exitClass: "ok", attestationState: "verified", adapter: "claude-code",
     turns: 4, inputTokens: 5120, outputTokens: 1430, totalTokens: 6550, costUsd: 0.0182, wallMs: 41200,
-    settledCredits: 7, settled: true, final: true,
+    settledCredits: 7, settled: true, final: true, receiptKept: true,
     capabilitiesEnforced: {
       "network.egress": "llm-proxy allowlist: api.pagerduty.com",
       "filesystem.read": "workspace bind mount, read-only /inputs",
@@ -107,6 +108,8 @@ hostedRuns.failed = {
   ...hostedRuns.finished, state: "done — fail", statusLine: "the agent ran and failed — the receipt and the outputs say where",
   outcome: "failed", outcomeTone: "bad", outcomeLine: "the agent ran and failed — the receipt and the outputs say where",
   exitClass: "agent-error", settledCredits: 3, turns: 2, inputTokens: 2210, outputTokens: 380, totalTokens: 2590, wallMs: 18400,
+  // A pushed run: the registry kept no receipt (agentry-enterprise#121).
+  receiptKept: false, capabilitiesEnforced: {}, attestationState: "", adapter: "",
   resultJson: "",
   outputs: [hostedRuns.finished.outputs[2]],
 };
