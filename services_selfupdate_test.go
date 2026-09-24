@@ -43,7 +43,7 @@ func signedChannel(t *testing.T, version, commit string, retired bool) (*httptes
 		"checksums": map[string]any{"file": "SUMS", "size": len(sums), "sha256": hex.EncodeToString(digest[:])},
 		"signature": map[string]any{"file": "SUMS.minisig", "size": len(sig)},
 	}}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "manifest.json"):
 			_ = json.NewEncoder(w).Encode(manifest)
@@ -91,7 +91,7 @@ func TestSelfUpdateStatusReportsNoChannelForACoreBuild(t *testing.T) {
 func TestSelfUpdateStatusDoesNotFetch(t *testing.T) {
 	configHome(t)
 	fetched := false
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fetched = true
 		http.NotFound(w, r)
 	}))
@@ -245,7 +245,7 @@ func TestSelfUpdateTurnedOffChecksNothingAndShowsNothing(t *testing.T) {
 func TestSelfUpdateStartDoesNotBlock(t *testing.T) {
 	configHome(t)
 	blocked := make(chan struct{})
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-blocked
 	}))
 	defer srv.Close()
@@ -348,7 +348,7 @@ func TestDownloadPageIsDerivedFromTheChannel(t *testing.T) {
 // "up to date" (D-027).
 func TestSelfUpdateReportsAChannelWithNothingSigned(t *testing.T) {
 	configHome(t)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"desktop": map[string]any{"version": "0.1.0"}})
 	}))
 	defer srv.Close()
@@ -406,7 +406,7 @@ func installable(t *testing.T, version string, retired bool) (*httptest.Server, 
 		"checksums": map[string]any{"file": "SUMS", "size": len(sums), "sha256": hex.EncodeToString(sumsDigest[:])},
 		"signature": map[string]any{"file": "SUMS.minisig", "size": len(sig)},
 	}}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "manifest.json"):
 			_ = json.NewEncoder(w).Encode(manifest)
