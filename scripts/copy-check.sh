@@ -15,7 +15,10 @@
 # A word that is there because the rule is what the sentence is about — a
 # comment quoting the rule, a protocol value named "safe" — passes by being
 # listed in scripts/copy-allow.txt as `reason :: span`. Adding a line there
-# is a claim that the span is honest, and is worth arguing in a PR.
+# is a claim that the span is honest, and is worth arguing in a PR. The span
+# exempts itself, not its line: every allowed span is cut out of the line
+# and the rest is checked again, so a never-word beside an allowed span
+# still fails (agentry-desktop#127).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,26 +44,45 @@ copy_files() {
   return 0
 }
 
-# allowed <line> — true when the line carries an allowlisted span.
-allowed() {
-  local line="$1" entry span
-  [ -f "$ALLOW" ] || return 1
+# The allowlist's spans, one per line (the part after ` :: `).
+allowed_spans() {
+  [ -f "$ALLOW" ] || return 0
+  local entry span
   while IFS= read -r entry; do
     case "$entry" in '' | \#*) continue ;; esac
     span="${entry#* :: }"
     [ "$span" = "$entry" ] && continue
-    if printf '%s' "$line" | grep -qiF -- "$span"; then
-      return 0
-    fi
+    printf '%s\n' "$span"
   done < "$ALLOW"
-  return 1
+}
+
+# strip_allowed <line> — the line with every allowlisted span cut out,
+# matched case-insensitively (as the words are). awk, not sed: a span is a
+# fixed string, and sed would read its punctuation as a pattern.
+strip_allowed() {
+  # The spans reach awk through the environment, not -v, which would
+  # rewrite any backslash in them.
+  printf '%s\n' "$1" | COPY_CHECK_SPANS="$SPANS" awk '
+    BEGIN { n = split(ENVIRON["COPY_CHECK_SPANS"], span, "\n") }
+    {
+      line = $0
+      for (k = 1; k <= n; k++) {
+        if (span[k] == "") continue
+        s = tolower(span[k])
+        while ((i = index(tolower(line), s)) > 0)
+          line = substr(line, 1, i - 1) " " substr(line, i + length(s))
+      }
+      print line
+    }'
 }
 
 check_tree() {
   local status=0 file hit
+  SPANS="$(allowed_spans)"
   while IFS= read -r file; do
     while IFS= read -r hit; do
-      if allowed "${hit#*:}"; then
+      # What is left once the allowed spans are gone must carry no word.
+      if ! strip_allowed "${hit#*:}" | grep -qiE "\\b($WORDS)\\b"; then
         continue
       fi
       printf '%s:%s\n' "${file#"$ROOT"/}" "$hit" >&2
@@ -84,7 +106,23 @@ if [ "${1:-}" = "--self-test" ]; then
     echo "self-test FAILED: honest copy was refused" >&2
     exit 1
   fi
-  echo "self-test ok: the check refuses a never-word and passes honest copy"
+  # An allowed span exempts itself, never the rest of its line: the first
+  # span in the allowlist, then a never-word beside it, must fail; the span
+  # alone must pass.
+  span="$(COPY_CHECK_ALLOW="$ALLOW" ALLOW="$ALLOW" allowed_spans | head -1)"
+  if [ -n "$span" ]; then
+    printf '// %s\n' "$span" > "$tmp/frontend/src/Bad.tsx"
+    if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
+      echo "self-test FAILED: an allowlisted span on its own was refused" >&2
+      exit 1
+    fi
+    printf '// %s, and your run is safe here\n' "$span" > "$tmp/frontend/src/Bad.tsx"
+    if COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
+      echo "self-test FAILED: a never-word beside an allowlisted span passed the check" >&2
+      exit 1
+    fi
+  fi
+  echo "self-test ok: the check refuses a never-word, also beside an allowed span, and passes honest copy"
   exit 0
 fi
 

@@ -100,7 +100,7 @@ func TestArtifactForRefusesADigestThatIsNotOne(t *testing.T) {
 // serveFiles is a channel serving a downloads directory.
 func serveFiles(t *testing.T, files map[string][]byte) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, ok := files[strings.TrimPrefix(r.URL.Path, "/downloads/")]
 		if !ok {
 			http.NotFound(w, r)
