@@ -43,7 +43,7 @@ export default function Validate() {
     <div>
       <PageHeader
         title="Validate"
-        sub="Run a local agent folder through the manifest rules (V1–V8), the S1 inventory (content-sniffed binaries, nested archives, encoding), and the S3/S4 hidden-content and injection-signature scanners — the same code the registry runs at publish time."
+        sub="Run a local agent folder through the manifest rules, the S1 inventory (content-sniffed binaries, nested archives, encoding), and the S3/S4 hidden-content and injection-signature scanners — the same code the registry runs at publish time."
       />
 
       <Toolbar>
@@ -90,7 +90,7 @@ function ResultView({ r }: { r: validate.Result }) {
 
       {r.issues.length > 0 && (
         <Card>
-          <h3 style={{ marginTop: 0 }}>Manifest (rules V1–V8, public-publish context)</h3>
+          <h3 style={{ marginTop: 0 }}>Manifest rules (public-publish context)</h3>
           {r.issues.map((iss, i) => (
             <div key={i} className="finding">
               <div className="row">

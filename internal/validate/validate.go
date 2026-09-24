@@ -1,7 +1,9 @@
 // Package validate is the author drop-zone engine: offline parity with the
-// server's submit validation (D-12) — manifest rules V1–V8 via pkg/manifest,
-// the S1 inventory subset via the pkg/archive content sniffers, and the
-// S3/S4 scan via pkg/rules over the EMBEDDED rule bundle (pkg/ruleset).
+// server's submit validation (D-12) — the manifest rules via pkg/manifest
+// (the rule ids it emits are V1–V5 and V7–V10: V6 was withdrawn with the
+// mcp-server kind; agentry-desktop#51), the S1 inventory subset via the
+// pkg/archive content sniffers, and the S3/S4 scan via pkg/rules over the
+// EMBEDDED rule bundle (pkg/ruleset).
 // Parity is by construction: these are the same packages the pipeline runs.
 //
 // One deliberate departure from the CLI's `agentry validate`: a folder with
