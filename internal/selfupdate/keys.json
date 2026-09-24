@@ -22,7 +22,9 @@
     "             VERIFIES — that is the point of keeping it, so an old release",
     "             stays checkable — but callers refuse to install from one.",
     "  addedAt    the day it was added, ISO date. For the record only.",
-    "  note       where the private half lives and what it is for.",
+    "  note       where the private half lives and what it is for: every",
+    "             repository that holds it, since the CLI and the MCP server",
+    "             sign with the same key (agentry-desktop#181).",
     "",
     "A build with no keys here trusts nothing and refuses every update; that is",
     "the correct state for the open core, which anyone can build (plan §7).",
@@ -37,7 +39,7 @@
       "keyID": "FF4886FDE25FBCCB",
       "retired": false,
       "addedAt": "2026-09-20",
-      "note": "private half: the AGENTRY_UPDATE_SIGNING_KEY secret of blaktron/agentry-desktop"
+      "note": "private half: the AGENTRY_UPDATE_SIGNING_KEY secret of blaktron/agentry-desktop. The CLI (a repository secret, agentry-cli#197) and the MCP server (a secret of its release environment, agentry-mcp#33) sign with the same key under the same name once their operator steps load it; a rotation moves all three, with the DESKTOP_SIGNRELEASE_REF pins in their release workflows (agentry-desktop#181)."
     }
   ]
 }
