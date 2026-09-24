@@ -82,7 +82,9 @@ check_tree() {
   while IFS= read -r file; do
     while IFS= read -r hit; do
       # What is left once the allowed spans are gone must carry no word.
-      if ! strip_allowed "${hit#*:}" | grep -qiE "\\b($WORDS)\\b"; then
+      # (>/dev/null, not -q: grep -q would cut the writer off and pipefail
+      # would read its EPIPE as the answer; agentry-desktop#236.)
+      if ! strip_allowed "${hit#*:}" | grep -iE "\\b($WORDS)\\b" >/dev/null; then
         continue
       fi
       printf '%s:%s\n' "${file#"$ROOT"/}" "$hit" >&2
