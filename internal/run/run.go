@@ -427,10 +427,13 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// exec (agentry-cli#9, desktop#17): built once, same as the CLI, from
 	// the spec the compiler put on the plan (the catalogued packages and
 	// the mirror, not just the command list; agentry-cli#100). The package
-	// versions it resolved are the CLI's receipt line; the desktop's
-	// receipt omits them (desktop#95).
+	// versions the build resolved go to the engine, which appends them to
+	// the receipt's exec line exactly as the CLI's does ("packages resolved
+	// at image build: …", desktop#95); a plan with no exec image passes none
+	// and the line is the compiled text alone.
+	var execPackages []string
 	if plan.ExecImage != nil {
-		if _, err := gateway.EnsureExecImage(ctx, docker, runnerImageTag(pol), *plan.ExecImage, filepath.Join(home, "image"), logw); err != nil {
+		if execPackages, err = gateway.EnsureExecImage(ctx, docker, runnerImageTag(pol), *plan.ExecImage, filepath.Join(home, "image"), logw); err != nil {
 			return nil, fmt.Errorf("exec image: %w", err)
 		}
 	}
@@ -544,6 +547,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			Policy:          pol,
 			SecretOverrides: overrides,
 			ServersDir:      serversDir,
+			ExecPackages:    execPackages,
 			Budgets:         budgets,
 			Attestation:     meta.Attestation,
 			RunID:           runID,
