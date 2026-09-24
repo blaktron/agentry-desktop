@@ -51,13 +51,13 @@ export function RunResultView({
       {error && <ErrorBox error={error} />}
 
       <section aria-labelledby="run-result-message">
-        <h3 id="run-result-message">The result</h3>
+        <h4 id="run-result-message">The result</h4>
         <ResultBody raw={resultJson} />
       </section>
 
       <section aria-labelledby="run-result-files">
         <div className="spread">
-          <h3 id="run-result-files">Files it wrote</h3>
+          <h4 id="run-result-files">Files in the run folder</h4>
           {runId && (
             <Button onClick={() => RunAPI.ShowRunFolder(runId).catch((e) => setFolderErr(String(e)))}>
               Show in folder
@@ -66,7 +66,8 @@ export function RunResultView({
         </div>
         <ErrorBox error={folderErr} />
         <ErrorBox error={outputsErr} />
-        {outputs && files.length === 0 && <p className="muted small">The run wrote no files of its own.</p>}
+        <p className="muted small">What is under the folder&apos;s outputs/ and reports/: if the folder was used before, earlier files are here too.</p>
+        {outputs && files.length === 0 && <p className="muted small">There is nothing in outputs/ or reports/.</p>}
         {files.map((f) => (
           <div key={f.path} className="run-file">
             <div className="run-file-head">
@@ -85,8 +86,8 @@ export function RunResultView({
               ) : (
                 <p className="muted small">
                   {f.noPreview === "large"
-                    ? "Too large to preview here. Show in folder to open it."
-                    : "Not text, so there is no preview. Show in folder to open it."}
+                    ? "Too large to preview here. Show in folder to find it."
+                    : "Not text, so there is no preview. Show in folder to find it."}
                 </p>
               )}
             </div>
@@ -95,7 +96,8 @@ export function RunResultView({
         {(outputs?.skipped ?? 0) > 0 && (
           <p className="muted small">
             {outputs!.skipped === 1 ? "One entry" : `${outputs!.skipped} entries`} in the folder{" "}
-            {outputs!.skipped === 1 ? "is" : "are"} not shown: a link, or not a regular file.
+            {outputs!.skipped === 1 ? "is" : "are"} not shown: a link, something that is not a regular file, one that
+            could not be read, or one past the list's limit{outputs!.truncated ? " (the list stopped at its limit)" : ""}.
           </p>
         )}
       </section>
@@ -109,12 +111,17 @@ export function RunResultView({
 }
 
 /** The envelope's result: a string rendered as markdown, structured JSON
- * pretty-printed, and a sentence when there is none. */
+ * pretty-printed, and a sentence when there is none. A local run's view
+ * carries the result itself; a run In Agentry's carries its whole
+ * result.json, the run/v1 envelope, whose `result` is the part shown. */
 function ResultBody({ raw }: { raw: string }) {
   if (!raw) return <p className="muted small">The run ended without a final message.</p>;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null && (parsed as { agentry?: unknown }).agentry === "run/v1") {
+      parsed = (parsed as { result?: unknown }).result ?? null;
+    }
   } catch {
     return (
       <pre className="run-result selectable">

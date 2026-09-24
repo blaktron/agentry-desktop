@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	goruntime "runtime"
 	"sort"
 	"strings"
@@ -40,7 +41,17 @@ import (
 const (
 	maxPreviewBytes = 256 << 10
 	maxOutputFiles  = 500
+	// maxPreviewTotal bounds what one listing hands the page: past it, a
+	// file is listed with no preview.
+	maxPreviewTotal = 4 << 20
 )
+
+// runIDPattern is what a run id looks like, a local one (hex) or the
+// registry's (a UUID): an id the registry sends is used as a folder name
+// and a map key, so anything else is not remembered.
+var runIDPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z-]{3,63}$`)
+
+func validRunID(id string) bool { return runIDPattern.MatchString(id) }
 
 // OutputFileView is one file a run wrote. Path is relative to the run
 // folder, "/"-separated; Preview is the file's text when PreviewKind is
@@ -60,6 +71,8 @@ type OutputFileView struct {
 type RunOutputsView struct {
 	Files   []OutputFileView `json:"files"`
 	Skipped int              `json:"skipped"`
+	// Truncated says the listing stopped at its cap.
+	Truncated bool `json:"truncated"`
 }
 
 var errUnknownRun = errors.New("this app did not run that, so it has no folder for it")
@@ -129,7 +142,9 @@ func openFolderInFileManager(dir string) error {
 	var cmd *exec.Cmd
 	switch goruntime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", dir)
+		// -R reveals the folder in Finder rather than opening it, so a
+		// folder named like an app bundle is shown, not launched.
+		cmd = exec.Command("open", "-R", dir)
 	case "windows":
 		cmd = exec.Command("explorer", dir)
 	default:
@@ -142,6 +157,7 @@ func openFolderInFileManager(dir string) error {
 // a link is not followed, and inside them WalkDir never follows one.
 func listOutputs(dir string) (*RunOutputsView, error) {
 	view := &RunOutputsView{Files: []OutputFileView{}}
+	budget := maxPreviewTotal
 	for _, part := range []string{"outputs", "reports"} {
 		root := filepath.Join(dir, part)
 		info, err := os.Lstat(root)
@@ -170,22 +186,24 @@ func listOutputs(dir string) (*RunOutputsView, error) {
 			}
 			if len(view.Files)+len(found) >= maxOutputFiles {
 				view.Skipped++
-				return nil
+				view.Truncated = true
+				return fs.SkipAll
 			}
 			rel, err := filepath.Rel(dir, p)
 			if err != nil || !filepath.IsLocal(rel) {
 				view.Skipped++
 				return nil
 			}
-			f, ok := readOutputFile(p, filepath.ToSlash(rel))
+			f, ok := readOutputFile(p, filepath.ToSlash(rel), budget)
 			if !ok {
 				view.Skipped++
 				return nil
 			}
+			budget -= len(f.Preview)
 			found = append(found, f)
 			return nil
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, fs.SkipAll) {
 			return nil, err
 		}
 		sort.Slice(found, func(i, j int) bool { return found[i].Path < found[j].Path })
@@ -197,17 +215,19 @@ func listOutputs(dir string) (*RunOutputsView, error) {
 // readOutputFile reads one file for its preview. The file is opened and
 // then checked to be the same regular file the walk saw, so a file swapped
 // for a link between the two is not read.
-func readOutputFile(p, rel string) (OutputFileView, bool) {
+func readOutputFile(p, rel string, budget int) (OutputFileView, bool) {
 	before, err := os.Lstat(p)
 	if err != nil || !before.Mode().IsRegular() {
 		return OutputFileView{}, false
 	}
 	v := OutputFileView{Path: rel, Bytes: before.Size(), PreviewKind: "none"}
-	if before.Size() > maxPreviewBytes {
+	if before.Size() > maxPreviewBytes || before.Size() > int64(budget) {
 		v.NoPreview = "large"
 		return v, true
 	}
-	f, err := os.Open(p) //nolint:gosec // a regular file under the run's own folder, checked below
+	// Opened without following a link and without blocking on a FIFO where
+	// the OS allows it (openNoFollow), then checked to be the same file.
+	f, err := openNoFollow(p)
 	if err != nil {
 		return OutputFileView{}, false
 	}

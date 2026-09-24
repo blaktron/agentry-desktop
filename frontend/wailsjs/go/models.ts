@@ -1486,6 +1486,7 @@ export namespace main {
 	export class RunOutputsView {
 	    files: OutputFileView[];
 	    skipped: number;
+	    truncated: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunOutputsView(source);
@@ -1495,6 +1496,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.files = this.convertValues(source["files"], OutputFileView);
 	        this.skipped = source["skipped"];
+	        this.truncated = source["truncated"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

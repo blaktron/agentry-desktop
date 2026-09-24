@@ -28,6 +28,14 @@ blocker on Review and start, the key form on Connect tools), and
 steps themselves. A state with a run attached (`-queued`, `-running`,
 `-finished`, `-failed`) opens on the run, not the setup.
 
+The result comes first since agentry-desktop#227: `#runpanel-finished` and
+`#runpanel-failed` show how the run ended, the rendered result and the files
+in the run folder with their previews over a collapsed Run details, and
+`#runpanel-hostile` is a finished run whose result and files carry hostile
+markdown (raw HTML, a script, an image, a `javascript:` link) and a file name
+with a right-to-left override; `shots.mjs` fails it if any `img`, `script`,
+`iframe`, `onclick` or `javascript:` link appears in the result view.
+
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:

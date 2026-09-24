@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,7 +25,7 @@ func outputsAPI(t *testing.T) (*RunAPI, string) {
 	return r, dir
 }
 
-func write(t *testing.T, path, body string) {
+func writeRunFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
@@ -48,18 +49,18 @@ func TestRunOutputsNamesARunNeverAPath(t *testing.T) {
 
 func TestRunOutputsListsOutputsThenReportsWithPreviews(t *testing.T) {
 	r, dir := outputsAPI(t)
-	write(t, filepath.Join(dir, "outputs", "b.md"), "# B\n")
-	write(t, filepath.Join(dir, "outputs", "deep", "a.csv"), "x,y\n1,2\n")
-	write(t, filepath.Join(dir, "outputs", "image.png"), "\x89PNG\r\n")
-	write(t, filepath.Join(dir, "outputs", "notes"), "plain, no extension")
-	write(t, filepath.Join(dir, "outputs", "big.txt"), strings.Repeat("a", maxPreviewBytes+1))
-	write(t, filepath.Join(dir, "outputs", "bad.txt"), "a\x00b")
-	write(t, filepath.Join(dir, "reports", "report.md"), "report")
+	writeRunFile(t, filepath.Join(dir, "outputs", "b.md"), "# B\n")
+	writeRunFile(t, filepath.Join(dir, "outputs", "deep", "a.csv"), "x,y\n1,2\n")
+	writeRunFile(t, filepath.Join(dir, "outputs", "image.png"), "\x89PNG\r\n")
+	writeRunFile(t, filepath.Join(dir, "outputs", "notes"), "plain, no extension")
+	writeRunFile(t, filepath.Join(dir, "outputs", "big.txt"), strings.Repeat("a", maxPreviewBytes+1))
+	writeRunFile(t, filepath.Join(dir, "outputs", "bad.txt"), "a\x00b")
+	writeRunFile(t, filepath.Join(dir, "reports", "report.md"), "report")
 	// Not listed at all: the envelope and the receipts are not the run's
 	// output, and the receipts are shown from what the registry or the
 	// runner kept, never from a file the agent could have written.
-	write(t, filepath.Join(dir, "result.json"), "{}")
-	write(t, filepath.Join(dir, "receipts", "run-plan.json"), "{}")
+	writeRunFile(t, filepath.Join(dir, "result.json"), "{}")
+	writeRunFile(t, filepath.Join(dir, "receipts", "run-plan.json"), "{}")
 
 	v, err := r.RunOutputs("run-1")
 	if err != nil {
@@ -100,14 +101,14 @@ func TestRunOutputsFollowsNoLink(t *testing.T) {
 	}
 	r, dir := outputsAPI(t)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
-	write(t, secret, "not the run's")
-	write(t, filepath.Join(dir, "outputs", "ok.txt"), "fine")
+	writeRunFile(t, secret, "not the run's")
+	writeRunFile(t, filepath.Join(dir, "outputs", "ok.txt"), "fine")
 	if err := os.Symlink(secret, filepath.Join(dir, "outputs", "link.txt")); err != nil {
 		t.Fatal(err)
 	}
 	// reports/ itself a link to somewhere else: not walked.
 	other := t.TempDir()
-	write(t, filepath.Join(other, "elsewhere.md"), "outside")
+	writeRunFile(t, filepath.Join(other, "elsewhere.md"), "outside")
 	if err := os.Symlink(other, filepath.Join(dir, "reports")); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func TestShowRunFolderOpensTheFolderAndNothingElse(t *testing.T) {
 	if err := os.RemoveAll(d2); err != nil {
 		t.Fatal(err)
 	}
-	write(t, d2, "a file now")
+	writeRunFile(t, d2, "a file now")
 	if err := gone.ShowRunFolder("run-1"); err == nil {
 		t.Fatal("ShowRunFolder opened a file in place of the run folder")
 	}
@@ -173,5 +174,64 @@ func TestAHostedRunsFolderIsRememberedByItsID(t *testing.T) {
 	}
 	if _, err := r.folderOf("x"); err == nil {
 		t.Fatal("an empty folder was remembered")
+	}
+}
+
+func TestAttachHostedRunTakesOnlyAPickedFolder(t *testing.T) {
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	// The page asks to reattach with a folder no native picker returned:
+	// refused before anything is asked of the registry, so the folder is
+	// never downloaded into, remembered, listed or revealed.
+	if _, err := r.AttachHostedRun("https://registry.example", t.TempDir()); err == nil {
+		t.Fatal("AttachHostedRun took a folder no picker returned")
+	}
+}
+
+func TestARegistryRunIDIsRememberedOnlyWhenItIsAnID(t *testing.T) {
+	for id, ok := range map[string]bool{
+		"0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42": true,
+		"3f2a9c1d":                             true,
+		"../../etc":                            false,
+		"x.app":                                false,
+		"a,b":                                  false,
+		"":                                     false,
+	} {
+		if validRunID(id) != ok {
+			t.Errorf("validRunID(%q) = %v, want %v", id, !ok, ok)
+		}
+	}
+}
+
+func TestRunOutputsStopsAtItsCapsAndSaysSo(t *testing.T) {
+	r, dir := outputsAPI(t)
+	for i := 0; i < maxOutputFiles+5; i++ {
+		writeRunFile(t, filepath.Join(dir, "outputs", fmt.Sprintf("f%04d.txt", i)), "x")
+	}
+	v, err := r.RunOutputs("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Files) != maxOutputFiles || !v.Truncated {
+		t.Fatalf("listed %d files, truncated %v; want %d and true", len(v.Files), v.Truncated, maxOutputFiles)
+	}
+
+	// The preview budget: past it a file is listed with no preview.
+	r2, dir2 := outputsAPI(t)
+	for i := 0; i < maxPreviewTotal/maxPreviewBytes+2; i++ {
+		writeRunFile(t, filepath.Join(dir2, "outputs", fmt.Sprintf("p%02d.txt", i)), strings.Repeat("a", maxPreviewBytes))
+	}
+	v2, err := r2.RunOutputs("run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, f := range v2.Files {
+		total += len(f.Preview)
+	}
+	if total > maxPreviewTotal {
+		t.Fatalf("previews total %d bytes, past the %d budget", total, maxPreviewTotal)
+	}
+	if last := v2.Files[len(v2.Files)-1]; last.PreviewKind != "none" || last.NoPreview != "large" {
+		t.Fatalf("the file past the budget got a preview: %+v", last.PreviewKind)
 	}
 }

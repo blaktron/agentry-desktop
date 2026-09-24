@@ -1034,7 +1034,7 @@ export default function RunPanel({
 // hostedHeadline is how a run In Agentry ended, in a sentence: a pass says
 // so, and anything else says what the registry's verdict line says.
 function hostedHeadline(run: main.HostedRunView): string {
-  if (run.state === "done — pass") return "Finished.";
+  if (run.outcome === "succeeded") return "Finished.";
   if (run.status === "cancelled") return "Cancelled before it started.";
   const line = (run.outcomeLine || run.statusLine || "it did not finish").trim();
   return line.charAt(0).toUpperCase() + line.slice(1).replace(/\.?$/, ".");

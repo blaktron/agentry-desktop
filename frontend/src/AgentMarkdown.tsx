@@ -11,7 +11,10 @@
 //     that is an absolute http: or https: URL, and a click hands it to the
 //     system browser through App.OpenExternal, which refuses any other
 //     scheme a second time. Anything else is shown as its text;
-//   - headings start at h4, under the panel's own h2 and the result's h3;
+//   - headings start at h5, under the panel's h2, the outcome's h3 and the
+//     result's h4;
+//   - raw HTML dropped is said: a line under the text says it had some, so
+//     a reader is not shown less than is there without knowing it;
 //   - invisible characters show as chips, in the text and in alt text.
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -31,7 +34,7 @@ export function webHref(raw: string | undefined): string | null {
 }
 
 const heading =
-  (Tag: "h4" | "h5" | "h6") =>
+  (Tag: "h5" | "h6") =>
   ({ children }: { children?: React.ReactNode }) => <Tag>{children}</Tag>;
 
 const components: Components = {
@@ -42,10 +45,15 @@ const components: Components = {
       <a
         href={h}
         title={h}
+        draggable={false}
         onClick={(e) => {
           e.preventDefault();
           OpenExternal(h).catch(() => {});
         }}
+        // A middle click would open the URL in a webview window of its own,
+        // and a dragged link would navigate this one: neither is allowed.
+        onAuxClick={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
       >
         {children}
       </a>
@@ -61,8 +69,8 @@ const components: Components = {
       ) : null}
     </span>
   ),
-  h1: heading("h4"),
-  h2: heading("h5"),
+  h1: heading("h5"),
+  h2: heading("h6"),
   h3: heading("h6"),
   h4: heading("h6"),
   h5: heading("h6"),
@@ -115,9 +123,14 @@ function rehypeRevealInvisible() {
   return (tree: HastNode) => revealTree(tree);
 }
 
+// hasHTML is a rough test for markup in the text: a tag or a comment. It
+// only decides whether the "not shown" line appears.
+const HTML_RE = /<\/?[a-zA-Z][\w-]*[\s>/]|<!--/;
+
 export function AgentMarkdown({ text }: { text: string }) {
   return (
     <div className="readme selectable">
+      {HTML_RE.test(text) && <p className="muted small">This text contains HTML, which is not shown here.</p>}
       <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRevealInvisible]} skipHtml components={components}>
         {text}
       </Markdown>
