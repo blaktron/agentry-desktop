@@ -24,6 +24,11 @@ export default function Installed({
   const [checking, setChecking] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<install.Item | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // What a completed runner-home update did not do (the export it could not
+  // write, the policy it could not read, the older version left behind):
+  // the engine's own sentence, named for the BriefAgent, until the next
+  // action (agentry-desktop#235).
+  const [warning, setWarning] = useState<string | null>(null);
   const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
   const [updatingRunner, setUpdatingRunner] = useState<string | null>(null);
 
@@ -43,6 +48,7 @@ export default function Installed({
   async function checkUpdates() {
     setChecking(true);
     setError(null);
+    setWarning(null);
     try {
       const infos = await InstallAPI.CheckUpdates();
       const map: UpdateMap = {};
@@ -58,6 +64,7 @@ export default function Installed({
   async function uninstall(rec: install.Item) {
     setConfirmRemove(null);
     setError(null);
+    setWarning(null);
     try {
       const msg = await InstallAPI.Uninstall(
         new installed.Key({ registry: rec.registry, namespace: rec.namespace, name: rec.name, target: rec.target, dir: rec.dir }),
@@ -87,6 +94,7 @@ export default function Installed({
 
   async function startUpdate(rec: install.Item) {
     setError(null);
+    setWarning(null);
     const latest = updates[keyOf(rec)]?.latest;
     const ref = latest ? `${rec.namespace}/${rec.name}@${latest}` : `${rec.namespace}/${rec.name}`;
     if (rec.target === "runner") {
@@ -94,7 +102,8 @@ export default function Installed({
       // the runner home, the gates as native dialogs (D-031).
       setUpdatingRunner(keyOf(rec));
       try {
-        await InstallAPI.InstallRunner(rec.origin, ref);
+        const res = await InstallAPI.InstallRunner(rec.origin, ref);
+        if (res.warning) setWarning(`${rec.namespace}/${rec.name}: ${res.warning}`);
         // The snapshot took the row before the call returned: refresh
         // reads it, and nothing is cleared underneath it.
         refresh();
@@ -148,6 +157,7 @@ export default function Installed({
 
       <ErrorBox error={error} />
       {notice && <Notice tone="info">{notice}</Notice>}
+      {warning && <Notice tone="warn">{warning}</Notice>}
       {!records && <Spinner />}
       {records && records.length === 0 && (
         <EmptyState title="Nothing installed yet" action={<Button variant="primary" onClick={onBrowse}>Browse the registry</Button>}>

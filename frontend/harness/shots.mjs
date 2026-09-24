@@ -54,6 +54,7 @@ const states = [
   // The checks (agentry-desktop#147): the registry unreachable on opening
   // the page; the sidebar's number after the launch check; the switch.
   { name: "agent-installed-unreachable", url: "/pages.html#agent-installed-unreachable", note: "installed, the registry could not be asked: Update disabled, the reason in the page", locator: '[data-preview="agent"]' },
+  { name: "installed-update-warning", url: "/pages.html#installed-update-warning", note: "a runner-home Update that completes with a warning: the engine's sentence on Installed", locator: '[data-preview="installed"]', click: '[data-preview="installed"] button:text-is("Update")', expectText: "agentry/changelog-from-git: operator policy" },
   { name: "installed-badge", url: "/pages.html#installed-updates", note: "the launch check found newer versions: the number on Installed", locator: '[data-preview="installed"] .sidebar' },
   { name: "settings-briefagent-updates", url: "/pages.html", note: "Settings: the auto-update switch, shown and disabled, with why", locator: '[data-preview="settings"] .card:has-text("Update BriefAgents automatically")' },
   // The welcome's runtime step (agentry-desktop#131): the three questions;
@@ -154,6 +155,10 @@ try {
         // reached the way a person reaches it.
         await page.locator(state.click).first().click();
         await page.waitForTimeout(400);
+      }
+      if (state.expectText) {
+        const text = await page.locator(state.locator).innerText();
+        if (!text.includes(state.expectText)) throw new Error(`${state.name}: the page does not show "${state.expectText}"`);
       }
       if (state.expectBlocker) {
         // The line above Run is the same condition the button reads.
