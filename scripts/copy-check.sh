@@ -111,7 +111,11 @@ if [ "${1:-}" = "--self-test" ]; then
   # An allowed span exempts itself, never the rest of its line: the first
   # span in the allowlist, then a never-word beside it, must fail; the span
   # alone must pass.
-  span="$(COPY_CHECK_ALLOW="$ALLOW" ALLOW="$ALLOW" allowed_spans | head -1)"
+  # All the spans, then the first line in the shell: `| head -1` would cut
+  # allowed_spans' printf off mid-loop ("printf: write error: Broken pipe"
+  # in the CI log; agentry-desktop#236).
+  span="$(COPY_CHECK_ALLOW="$ALLOW" ALLOW="$ALLOW" allowed_spans)"
+  span="${span%%$'\n'*}"
   if [ -n "$span" ]; then
     printf '// %s\n' "$span" > "$tmp/frontend/src/Bad.tsx"
     if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
