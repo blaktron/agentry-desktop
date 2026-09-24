@@ -1,0 +1,218 @@
+/* A pasted copy of the site's design token table: agentry-web
+   app/globals.css at commit 2ba0cc2 (the last to touch it; agentry-web dev at e2b526e),
+   lines 1-211, byte for byte, the rest of the file (the component rules)
+   cut. internal/designtokens compares frontend/src/style.css against it
+   (agentry-desktop#49). Refresh: paste the same span again when the site's
+   table changes, and update the commit above. */
+
+@import "tailwindcss";
+
+/* Agentry web design tokens (§10). Theme-aware: a light base with a
+   prefers-color-scheme dark override.
+
+   Palette: cream paper, brown-black ink, sand hairlines, one deep viridian
+   for every action, one earth secondary (sienna) for tints, rules and
+   eyebrows. Every neutral sits on the same warm hue (~40 degrees); the
+   temperature is carried by saturation, not by a shift toward yellow.
+   Measured, because the last comment here was not: the paper this replaces
+   was CIELAB C* 1.06 and the card C* 0.50 at hue 110 — nominally "warm
+   stone", numerically a grey with a green cast.
+
+   @theme is a BUILD-TIME token table, not a cascade participant: Tailwind
+   flattens every @theme block into one :root regardless of the at-rules
+   around it, so a second @theme inside a media query does not create a dark
+   override, it silently overwrites the light one. The dark palette is the
+   plain custom-property override below, which does participate in the
+   cascade and, being unlayered, beats Tailwind's @layer theme output.
+
+   `static` keeps every variable in the compiled CSS whether or not its name
+   appears literally in scanned source. Without it Tailwind tree-shakes
+   unreferenced theme variables — the reason SEVERITY_COLOR in
+   components/ui.tsx is spelled longhand instead of interpolated. Verified
+   against the pinned tailwindcss 4.3.3; the cost is about 112 bytes.
+
+   Shadows are deliberately NOT here — see the :root block and its comment.
+
+   Every text pair below is proven at >= 4.5:1 in its own mode by
+   lib/__tests__/contrast.test.ts, which parses this file. No placement rule
+   carries a contrast claim: each badge clears the floor over its own tint on
+   every ground it can land on (min 4.76 light, 4.55 dark). */
+
+@theme static {
+  /* Paper and ink. */
+  --color-bg: #faf6ee;             /* the page; also the fill of every input and field */
+  --color-fg: #231b12;
+  --color-lead: #3d3328;           /* lead paragraphs: between ink and muted */
+  --color-muted: #66584a;          /* captions, footnotes, secondary labels */
+  --color-border: #e6dccb;         /* container hairlines: cards, tables, rules */
+  --color-border-strong: #c4b59c;  /* interactive edges: inputs, secondary buttons */
+  --color-surface: #f5efe4;        /* container fill: cards, code wells */
+  --color-raised: #fffdf8;         /* lifted container fill (hero panel, download cards) */
+
+  /* Action colour: viridian, unchanged hex in both modes. */
+  --color-accent: #0e7a63;
+  --color-accent-hover: #0b6350;   /* button hover; ALSO the text colour for any link
+                                      or badge that sits on a tinted fill, where plain
+                                      accent lands at 4.14-4.58 */
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #eef0e7;    /* accent 5% into bg: row hover and selection, soft panels */
+
+  /* The one warm secondary: sienna. Hero tint, callout tint and 3px rule, the
+     mono eyebrow, callout titles. NEVER a badge, a status, a link or a focus
+     ring, and never on a surface that carries a severity badge: under
+     simulated deuteranopia sienna sits 2.6-4.7 dE00 from the severity reds,
+     so it is kept out of the evidence surfaces by placement. It is clear of
+     the action colour, which is the pair that would have mattered for the
+     identity (dE76 65.9; dE00 19.3 under deuteranopia). */
+  --color-warm: #8f4f22;
+  --color-warm-soft: #f4ece2;      /* warm 6% into bg */
+
+  /* Severity. Badge TEXT clears 4.5:1 over its own tint on every ground a
+     badge can land on, in its own mode. critical is a step darker than the
+     old #991b1b — dE76 from high goes 14.0 -> 27.0 — and it is the ONE
+     solid-filled chip, its text the page ground. So critical differs from
+     high in fill, polarity and shade rather than by a shade of red alone.
+     §8 gates on that difference and colour was carrying it at 1.28:1. */
+  --color-sev-critical: #7f1d1d;
+  --color-sev-high: #b91c1c;
+  --color-sev-high-bg: #f5e5dd;    /* sev-high 8% into bg. components/dependency-alert-banner.tsx
+                                      has read var(--color-sev-high-bg, transparent) since #177
+                                      and the token was never defined anywhere. */
+  --color-sev-medium: #9f4707;     /* was #b45309: 4.30 over its own tint */
+  --color-sev-low: #3f6b0c;        /* was #4d7c0f: 4.29 */
+  --color-sev-info: #475569;
+  --color-ok: #116f34;             /* was #15803d: 4.29 */
+  /* Unscanned (plan organization-subscriptions §4, M24): a version the
+     registry admitted without a scan is its own verdict, drawn in a colour
+     that is neither a severity's nor the warning's, so it never reads as
+     "0 findings" or as a finding. The desktop uses the same pair. */
+  --color-unscanned: #6b4fbb;
+
+  /* Syntax highlighting (agentry#49): chroma token classes, class-only output
+     from the server, coloured here. Both modes keep >= 4.5:1 against
+     --color-surface. comment and number move because the warmer, slightly
+     darker card drops them below the floor (4.43 and 4.39) — the same
+     regression the light card would have caused unmeasured. */
+  --hl-keyword: #7c2d92;
+  --hl-string: #166534;
+  --hl-comment: #5f6672;           /* was #6b7280 */
+  --hl-number: #9f4707;            /* was #b45309; tracks sev-medium */
+  --hl-name: #1e3a8a;
+  --hl-type: #0f766e;
+  --hl-error: #b91c1c;
+
+  /* Type: IBM Plex Sans / Mono, self-hosted via app/fonts.ts, which sets the
+     --font-plex-* variables on <html>. Unchanged. */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Solid affirmative and destructive fills. Neither flips with the theme, so
+     neither does its foreground — unlike --color-accent-fg. --color-danger-strong
+     exists because --color-sev-high is a light red in dark mode: the Reject
+     button at app/review/[id]/page.tsx:150 paints --color-solid-fg on it at
+     2.77:1. A fill must not follow a text token. */
+  --color-ok-strong: #116f34;
+  --color-danger-strong: #b91c1c;
+  --color-solid-fg: #ffffff;
+
+  /* Radius scale, in Tailwind's own --radius-* namespace, so every existing
+     rounded-sm/md/lg/xl utility moves with it (rounded-md compiles to
+     border-radius: var(--radius-md), which is cascade-live). Rule: radius
+     follows height. Controls <= 28px take sm, 32-44px take md, containers
+     take lg, page-level panels take xl. */
+  --radius-xs: 0.25rem;   /* 4px  — inline code, the .agy-invisible marker, kbd */
+  --radius-sm: 0.375rem;  /* 6px  — badges, chips, finding excerpts */
+  --radius-md: 0.5rem;    /* 8px  — buttons, inputs, code blocks */
+  --radius-lg: 0.75rem;   /* 12px — cards */
+  --radius-xl: 1rem;      /* 16px — hero panel, empty-state panel */
+  --radius-2xl: 1.5rem;   /* 24px — reserved, unused */
+}
+
+:root {
+  /* Both palettes exist and both follow the OS preference, so the UA may
+     style form controls either way — it will agree with the tokens. */
+  color-scheme: light dark;
+
+  /* Badge background strength. Light needs a fainter tint than dark for the
+     same text colour to stay legible on it. Unchanged. */
+  --badge-tint: 8%;
+
+  /* Elevation. Deliberately here and NOT in @theme: Tailwind resolves
+     shadow-* utilities at build time, inlining the value into --tw-shadow and
+     splitting the colour into --tw-shadow-color, so a dark override of a
+     @theme shadow would never reach `shadow-raised`. Applied as
+     box-shadow: var(--shadow-raised), which does participate in the cascade.
+     The shadow ink is the page's own ink, never black, so it reads as warm
+     shade rather than grey smoke. */
+  --shadow-raised: 0 1px 2px rgb(35 27 18 / 0.06), 0 6px 16px -8px rgb(35 27 18 / 0.14);
+  --shadow-overlay: 0 12px 32px -12px rgb(35 27 18 / 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* The light ink pushed to a ground, the light paper pushed to text: same
+       hue family, roles swapped. */
+    --color-bg: #16110d;
+    --color-fg: #ece4d8;
+    --color-lead: #d6cbbb;
+    --color-muted: #b3a48f;
+    --color-border: #33291f;
+    --color-border-strong: #4d3f31;
+    --color-surface: #201914;
+
+    /* --color-raised is #241d17, not the #29211a a pure lightening would
+       give: at #29211a a dark sev-high badge on its own 16% tint measures
+       4.43:1, and a contrast claim guarded only by a "badges never appear on
+       raised cards" sentence is a claim waiting to be broken by the next
+       component. At #241d17 every badge clears 4.5 here too. The cost is that
+       the fill alone is a dE76 2.11 lift, right at the JND — so in dark a
+       raised card takes a --color-border-strong edge and the edge carries the
+       elevation. In light the fill and the shadow carry it. */
+    --color-raised: #241d17;
+
+    --color-accent: #4fd1b0;
+    --color-accent-hover: #74dfc4;
+    --color-accent-fg: #16110d;
+    --color-accent-soft: #1c241d;   /* accent 10% into bg */
+
+    /* Apricot: the sienna lifted for a dark ground. --color-warm-soft is
+       #261d15 rather than the pure 10% mix #2a2017, for the same reason as
+       --color-raised: the mix put a dark sev-high badge at 4.46. */
+    --color-warm: #e2a86f;
+    --color-warm-soft: #261d15;
+
+    /* Severity: the dark set is UNCHANGED, including critical. §8 gates on
+       critical vs high and in dark that pair is already dE76 26.0; the light
+       set is where the separation was thin. The solid-critical form rule
+       holds in both modes, so a reviewer sees the same silhouette either way. */
+    --color-sev-critical: #fca5a5;
+    --color-sev-high: #f87171;
+    --color-sev-high-bg: #3a201d;   /* sev-high 16% into bg */
+    --color-sev-medium: #fbbf24;
+    --color-sev-low: #a3e635;
+    --color-sev-info: #94a3b8;
+    --color-ok: #4ade80;
+    --color-unscanned: #c4b5fd;
+
+    --hl-keyword: #d8b4fe;
+    --hl-string: #86efac;
+    --hl-comment: #9ca3af;
+    --hl-number: #fbbf24;
+    --hl-name: #93c5fd;
+    --hl-type: #5eead4;
+    --hl-error: #fca5a5;
+
+    --badge-tint: 16%;
+
+    /* Black here, not the ink colour: in dark the ink IS the ground. The
+       shadow barely shows; the lighter fill and the border-strong edge do the
+       work, and nothing relies on the shadow to read as raised. */
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 16px -8px rgb(0 0 0 / 0.6);
+    --shadow-overlay: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+
+    /* Not overridden on purpose: --color-ok-strong, --color-danger-strong and
+       --color-solid-fg (solid fills do not flip, so their foreground must not
+       either), the --radius-* scale, and both font stacks. */
+  }
+}
+
