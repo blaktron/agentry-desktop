@@ -997,7 +997,7 @@ export namespace main {
 	    signedIn: boolean;
 	    extension: boolean;
 	    enabled: boolean;
-	    workersOnline: number;
+	    runnersOnline: number;
 	    queued: number;
 	    tier?: string;
 	    holdCredits: number;
@@ -1021,7 +1021,7 @@ export namespace main {
 	        this.signedIn = source["signedIn"];
 	        this.extension = source["extension"];
 	        this.enabled = source["enabled"];
-	        this.workersOnline = source["workersOnline"];
+	        this.runnersOnline = source["runnersOnline"];
 	        this.queued = source["queued"];
 	        this.tier = source["tier"];
 	        this.holdCredits = source["holdCredits"];
@@ -1057,6 +1057,7 @@ export namespace main {
 	    ref: string;
 	    digest: string;
 	    status: string;
+	    state: string;
 	    statusLine: string;
 	    queuePosition?: number;
 	    cancelRequested: boolean;
@@ -1096,6 +1097,7 @@ export namespace main {
 	        this.ref = source["ref"];
 	        this.digest = source["digest"];
 	        this.status = source["status"];
+	        this.state = source["state"];
 	        this.statusLine = source["statusLine"];
 	        this.queuePosition = source["queuePosition"];
 	        this.cancelRequested = source["cancelRequested"];

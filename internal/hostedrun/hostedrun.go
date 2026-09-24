@@ -1,10 +1,11 @@
 // Package hostedrun is the desktop's client for a registry's runs
 // extension — the In Agentry mode (plan hosted-runs.md §4.1, §4.4, §4.5,
 // D10). The app sends a task, the intake answers, the input files and the
-// account's bearer token, and reads back a run's status, its log and its
-// artefacts; the execution plane lives beside the registry's docker
-// daemon, so nothing here starts a container, reads the operator policy
-// or holds a model key.
+// account's bearer token, and reads back a run's status, its receipt and
+// its outputs — no log, which a pushed run does not keep (hosted runs in
+// production, D12 and D16); the execution plane is the registry's, so
+// nothing here starts a container, reads the operator policy or holds a
+// model key.
 //
 // The routes are the closed build's (agentry-enterprise
 // schemas/x-runs.yaml), so they are called by hand rather than through
@@ -21,7 +22,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -75,11 +75,18 @@ type Caller struct {
 // Status is GET /x/runs/status: whether this deployment takes hosted runs,
 // the execution plane's shape, and — signed in — the caller's block.
 type Status struct {
-	Enabled       bool    `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// WorkersOnline counts the pull workers and HostsOnline the sandbox
+	// hosts the registry pushes runs to (agentry-enterprise#83); either
+	// runs a queued run, so RunnersOnline is what a person is told.
 	WorkersOnline int     `json:"workersOnline"`
+	HostsOnline   int     `json:"hostsOnline"`
 	Queued        int     `json:"queued"`
 	Caller        *Caller `json:"caller,omitempty"`
 }
+
+// RunnersOnline is how many runners, of either kind, can take a run now.
+func (s *Status) RunnersOnline() int { return s.WorkersOnline + s.HostsOnline }
 
 // Artefact is one named object of a run: an input or an output.
 type Artefact struct {
@@ -135,6 +142,29 @@ type Run struct {
 	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
 }
 
+// Empty reports whether the registry kept no receipt for the run. A
+// pushed run's is one of these: the runner's envelope travels sealed in
+// its output.tar, which the registry never reads (hosted runs in
+// production, D16).
+func (r Receipt) Empty() bool {
+	return len(r.CapabilitiesEnforced) == 0 && r.Attestation.State == "" && r.Harness.Adapter == "" && r.ExitClass == ""
+}
+
+// ReceiptFromEnvelope fills a run's receipt from the runner's envelope —
+// the result.json its outputs carry — when the registry kept none. The
+// envelope is the same document a pull worker hands the registry as the
+// receipt, so the panel lists the same facts either way; a receipt the
+// registry did keep is left as it is.
+func ReceiptFromEnvelope(run *Run, envelope []byte) {
+	if run == nil || !run.Receipt.Empty() || len(envelope) == 0 {
+		return
+	}
+	var rc Receipt
+	if json.Unmarshal(envelope, &rc) == nil {
+		run.Receipt = rc
+	}
+}
+
 // Terminal reports whether the run has stopped moving.
 func (r *Run) Terminal() bool { return r != nil && !Active(r.Status) }
 
@@ -161,14 +191,6 @@ type Input struct {
 	Bytes int64  `json:"bytes"`
 }
 
-// Event is one row of the run's log (x-runs.yaml `RunEvent`).
-type Event struct {
-	Seq  int64     `json:"seq"`
-	At   time.Time `json:"at"`
-	Kind string    `json:"kind"`
-	Line string    `json:"line"`
-}
-
 // CreateRequest is the body of POST /x/runs/.
 type CreateRequest struct {
 	Ref    string            `json:"ref"`
@@ -181,10 +203,11 @@ type CreateRequest struct {
 type Client struct {
 	base  string
 	token string
-	// HTTP bounds the short calls. Stream has no whole-response timeout:
-	// an event stream lives for as long as the run does.
-	HTTP   *http.Client
-	Stream *http.Client
+	// HTTP bounds the short calls. Download has no whole-response
+	// timeout: a pushed run's outputs come down as one bundle, whose size
+	// is the run's and whose speed is the link's.
+	HTTP     *http.Client
+	Download *http.Client
 }
 
 // New returns a client for a registry root ("https://…", no /api path)
@@ -192,10 +215,10 @@ type Client struct {
 // status route still answers.
 func New(regURL, token string) *Client {
 	return &Client{
-		base:   strings.TrimRight(regURL, "/"),
-		token:  token,
-		HTTP:   &http.Client{Timeout: 2 * time.Minute},
-		Stream: &http.Client{},
+		base:     strings.TrimRight(regURL, "/"),
+		token:    token,
+		HTTP:     &http.Client{Timeout: 2 * time.Minute},
+		Download: &http.Client{},
 	}
 }
 
@@ -350,7 +373,7 @@ func (c *Client) Output(ctx context.Context, id, name string) (io.ReadCloser, er
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.HTTP.Do(req)
+	res, err := c.Download.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", name, err)
 	}
@@ -358,30 +381,6 @@ func (c *Client) Output(ctx context.Context, id, name string) (io.ReadCloser, er
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
 		_ = res.Body.Close()
 		return nil, refusalFrom("download "+name, res.StatusCode, body)
-	}
-	return res.Body, nil
-}
-
-// events opens the run's event stream after seq. The caller closes it.
-func (c *Client) events(ctx context.Context, id string, after int64) (io.ReadCloser, error) {
-	req, err := c.request(ctx, http.MethodGet, c.path(id, "events")+"?after="+strconv.FormatInt(after, 10), nil, "")
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "text/event-stream")
-	// Both say the same thing; the header is what a resume is specified
-	// with, the query is what a registry behind a cache will honour.
-	if after > 0 {
-		req.Header.Set("Last-Event-ID", strconv.FormatInt(after, 10))
-	}
-	res, err := c.Stream.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("stream the run's log: %w", err)
-	}
-	if res.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
-		_ = res.Body.Close()
-		return nil, refusalFrom("stream the run's log", res.StatusCode, body)
 	}
 	return res.Body, nil
 }

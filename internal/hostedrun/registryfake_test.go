@@ -2,16 +2,18 @@ package hostedrun
 
 // A fake runs extension for this package's tests: the routes of
 // agentry-enterprise/schemas/x-runs.yaml an account calls, with the same
-// shapes, the same problem documents and the same SSE frames. Kept in this
+// shapes and the same problem documents. Kept in this
 // package's own style rather than shared with internal/run's fake, which
 // serves releases and archives and nothing hosted.
 
 import (
+	"archive/tar"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -33,24 +35,25 @@ type fakeRuns struct {
 
 	// run is the one run this registry holds, if any.
 	run *Run
-	// events are its log rows.
-	events []Event
-	// outputs are the artefact bodies by name.
+	// steps move the run on as it is read: each read of the run applies
+	// the next one first, so a watch sees the run advance.
+	steps []func(*Run)
+	// outputs are the artefact bodies by name. pushed serves them the way
+	// a pushed run does: one output.tar holding them all.
 	outputs map[string][]byte
+	pushed  bool
+	// bundle, when set, is the output.tar served as it is, for a test
+	// that needs one no host would write.
+	bundle []byte
 
 	// createRefusal, when set, is the problem a create answers with.
 	createRefusal func(w http.ResponseWriter)
 
-	// cutAfter closes the stream without `done` after this many events on
-	// the first connection, so a resume can be proved; replayAll makes the
-	// second connection ignore ?after= and send everything again, so the
-	// de-duplication can be proved too.
-	cutAfter  int
-	replayAll bool
-	// streams counts the event-stream connections served.
-	streams int
-	// afterSeen records the ?after= of each connection.
-	afterSeen []int64
+	// eventsRead counts the requests to the run's events route, which a
+	// client of a pushed run must never make.
+	eventsRead int
+	// reads counts the reads of the run.
+	reads int
 	// uploads records what the input route stored.
 	uploads []Input
 }
@@ -141,6 +144,11 @@ func (f *fakeRuns) start(t *testing.T) string {
 			problemJSON(w, http.StatusNotFound, "not-found", "Not found", "", nil)
 			return
 		}
+		f.reads++
+		if len(f.steps) > 0 {
+			f.steps[0](f.run)
+			f.steps = f.steps[1:]
+		}
 		writeJSON(w, http.StatusOK, f.run)
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
@@ -166,6 +174,12 @@ func (f *fakeRuns) start(t *testing.T) string {
 		}
 		f.mu.Lock()
 		body, ok := f.outputs[r.PathValue("name")]
+		if f.pushed {
+			body, ok = f.bundle, r.PathValue("name") == PushedOutput
+			if body == nil {
+				body = tarOf(t, f.outputs)
+			}
+		}
 		f.mu.Unlock()
 		if !ok {
 			problemJSON(w, http.StatusNotFound, "not-found", "Not found", "", nil)
@@ -174,42 +188,12 @@ func (f *fakeRuns) start(t *testing.T) string {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		_, _ = w.Write(body)
 	})
-	mux.HandleFunc("GET /api/v1/x/runs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
-		if !auth(w, r) {
-			return
-		}
-		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
-		if last := r.Header.Get("Last-Event-ID"); last != "" {
-			if n, err := strconv.ParseInt(last, 10, 64); err == nil {
-				after = n
-			}
-		}
+	mux.HandleFunc("GET /api/v1/x/runs/{id}/events", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
-		f.streams++
-		conn := f.streams
-		f.afterSeen = append(f.afterSeen, after)
-		evs := append([]Event(nil), f.events...)
-		cut, replay := f.cutAfter, f.replayAll
-		terminal := f.run != nil && !Active(f.run.Status)
+		f.eventsRead++
 		f.mu.Unlock()
-
 		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		sent := 0
-		for _, ev := range evs {
-			if ev.Seq <= after && (!replay || conn <= 1) {
-				continue
-			}
-			payload, _ := json.Marshal(ev)
-			_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", ev.Seq, ev.Kind, payload)
-			sent++
-			if conn == 1 && cut > 0 && sent >= cut {
-				return // the connection drops mid-stream, with no `done`
-			}
-		}
-		if terminal {
-			_, _ = fmt.Fprint(w, "event: done\ndata: {}\n\n")
-		}
+		_, _ = fmt.Fprint(w, "event: done\ndata: {}\n\n")
 	})
 	// The core routes the availability rule reads.
 	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, _ *http.Request) {
@@ -239,21 +223,40 @@ func (f *fakeRuns) finish(outcome, exitClass string, settled int64) {
 	for name, body := range f.outputs {
 		names = append(names, Artefact{Name: name, Bytes: int64(len(body))})
 	}
+	if f.pushed {
+		names = []Artefact{{Name: PushedOutput, Bytes: 4096}}
+	}
 	f.run.Outputs = names
 }
 
-func (f *fakeRuns) addEvents(evs ...Event) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.events = append(f.events, evs...)
+// status is a step that moves the run to a status and a queue position.
+func status(s string, position int) func(*Run) {
+	return func(r *Run) { r.Status, r.QueuePosition = s, position }
 }
 
-func logEvents(lines ...string) []Event {
-	out := make([]Event, 0, len(lines))
-	for i, l := range lines {
-		out = append(out, Event{Seq: int64(i + 1), At: time.Now().UTC(), Kind: "log", Line: l})
+// tarOf is the bundle a host writes: every file, regular, named relative
+// to the run's out folder, in name order.
+func tarOf(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	names := make([]string, 0, len(files))
+	for n := range files {
+		names = append(names, n)
 	}
-	return out
+	sort.Strings(names)
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, n := range names {
+		if err := tw.WriteHeader(&tar.Header{Name: n, Mode: 0o600, Size: int64(len(files[n])), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(files[n]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

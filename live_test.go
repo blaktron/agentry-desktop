@@ -157,7 +157,7 @@ func TestLiveEndToEnd(t *testing.T) {
 
 // One In-Agentry run against a real registry with the runs extension
 // (agentry-desktop#77, plan hosted-runs.md §4.7): the same path the panel
-// takes — status, create, stream to a terminal state, download the
+// takes — status, create, watch to a terminal state, download the
 // artefacts into a chosen folder, read the receipt — with the app's own
 // client and the account's PAT. Skipped unless the environment names a
 // registry, a token and a release:
@@ -200,8 +200,8 @@ func TestLiveHostedRun(t *testing.T) {
 	if st.Caller == nil {
 		t.Fatal("the status route told this token nothing about its tier, caps or hold")
 	}
-	t.Logf("hosted runs: %d workers online, %d queued; this account is %s, a run holds %d credits (%d tokens per credit), caps %ds/%d turns/%d tokens",
-		st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits, st.Caller.TokensPerCredit,
+	t.Logf("hosted runs: %d runners online (%d hosts, %d workers), %d queued; this account is %s, a run holds %d credits (%d tokens per credit), caps %ds/%d turns/%d tokens",
+		st.RunnersOnline(), st.HostsOnline, st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits, st.Caller.TokensPerCredit,
 		st.Caller.Caps.TimeoutSeconds, st.Caller.Caps.MaxTurns, st.Caller.Caps.MaxTokens)
 
 	task := os.Getenv("AGENTRY_HOSTED_TASK")
@@ -214,26 +214,21 @@ func TestLiveHostedRun(t *testing.T) {
 	}
 	t.Logf("run %s queued: %s, holding %d credits, queue position %d", run.ID, run.Ref, run.HoldCredits, run.QueuePosition)
 
-	var lines int
-	final, err := c.Follow(ctx, run.ID, hostedrun.FollowOptions{
-		OnEvent: func(ev hostedrun.Event) {
-			lines++
-			t.Logf("  %d %s %s", ev.Seq, ev.Kind, ev.Line)
-		},
+	final, err := c.Watch(ctx, run.ID, hostedrun.WatchOptions{
 		OnStatus: func(r *hostedrun.Run) {
-			t.Logf("status: %s%s", r.Status, map[bool]string{true: " (cancel requested)", false: ""}[r.CancelRequested])
+			t.Logf("status: %s — %s%s", r.Status, hostedrun.Read(r).Line, map[bool]string{true: " (cancel requested)", false: ""}[r.CancelRequested])
 		},
 	})
 	if err != nil {
-		t.Fatalf("follow: %v", err)
+		t.Fatalf("watch: %v", err)
 	}
 	verdict := hostedrun.Read(final)
 	turns, wall := 0, int64(0)
 	if final.Usage != nil {
 		turns, wall = final.Usage.Turns, final.Usage.WallMS
 	}
-	t.Logf("finished: %s (%s) — %s; %d log lines, %d turns, %d tokens, %d ms",
-		final.Outcome, final.ExitClass, verdict.Line, lines, turns, final.Usage.Tokens(), wall)
+	t.Logf("finished: %s (%s) — %s; %d turns, %d tokens, %d ms",
+		final.Outcome, final.ExitClass, verdict.Line, turns, final.Usage.Tokens(), wall)
 	if final.SettledCredits != nil {
 		t.Logf("credits: %d held, %d settled", final.HoldCredits, *final.SettledCredits)
 	}
@@ -255,6 +250,12 @@ func TestLiveHostedRun(t *testing.T) {
 	if final.Outcome == hostedrun.OutcomeSucceeded && len(got) == 0 {
 		t.Fatal("a succeeded run wrote no artefacts")
 	}
+	// A pushed run's receipt is the envelope in its outputs (the registry
+	// keeps none): read it from result.json, as the panel does.
+	if env, err := os.ReadFile(filepath.Join(dir, "result.json")); err == nil {
+		hostedrun.ReceiptFromEnvelope(final, env)
+	}
+	t.Logf("attestation %s, adapter %s", final.Receipt.Attestation.State, final.Receipt.Harness.Adapter)
 	if len(final.Receipt.CapabilitiesEnforced) == 0 {
 		t.Log("the run reported no capabilities_enforced — check the receipt on the run")
 	}

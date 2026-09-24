@@ -44,9 +44,11 @@ The run panel's **In Agentry** states (hosted runs M6, agentry-desktop#77)
 are hashes of the same entry: `#runpanel-hosted` (the mode chosen, with the
 hold, the balance and the tier's caps), `#runpanel-unavailable` (offered,
 unavailable, with the reason and the remedy), `#runpanel-queued` (queued
-with its position), `#runpanel-streaming` and `#runpanel-finished` (the
-outcome, the receipt listed verbatim, and the downloaded artefacts). The
-bindings are mocked in `modals.tsx`, so no registry is involved.
+with its position), `#runpanel-running` (its state and nothing else: a run
+In Agentry keeps no log, agentry-desktop#182), `#runpanel-finished` (done —
+pass: the outcome, the receipt listed verbatim, the credits and the
+downloaded outputs) and `#runpanel-failed` (done — fail). The bindings are
+mocked in `modals.tsx`, so no registry is involved.
 
 The run form asks only for what the release declares (agentry-desktop#167):
 `#runpanel-keys` in `modals.html` is `agentry/pr-review-brief`'s shape — one

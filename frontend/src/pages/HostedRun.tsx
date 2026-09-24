@@ -1,9 +1,11 @@
 // In Agentry: the parts of the run panel that belong to a hosted run
 // (plan hosted-runs.md §4.7, agentry-desktop#77). The panel itself keeps
 // the consent, the intake form and the task; these render what a hosted
-// run costs before it starts, where it stands while it runs, and what it
-// produced when it is over — the same facts a local run's result shows,
-// from the registry's numbers rather than the app's arithmetic.
+// run costs before it starts, where it stands while it runs — queued,
+// running, then done with pass or fail — and what it produced when it is
+// over: the same facts a local run's result shows, from the registry's
+// numbers rather than the app's arithmetic. A run In Agentry has no log
+// to show (hosted runs in production, D12 and D16; agentry-desktop#182).
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, Notice } from "../ui";
 
@@ -19,7 +21,7 @@ export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView 
         <> Ceilings for the {hosted.tier} tier: {hosted.caps.timeoutSeconds}s, {hosted.caps.maxTurns} turns,{" "}
         {hosted.caps.maxTokens.toLocaleString()} tokens.</>
       )}
-      {hosted.workersOnline === 0 && <> No worker is online right now, so the run waits in the queue.</>}
+      {hosted.runnersOnline === 0 && <> No runner is online right now, so the run waits in the queue.</>}
     </p>
   );
 }
@@ -36,8 +38,9 @@ export function HostedUnavailable({ hosted }: { hosted: main.HostedAvailabilityV
   );
 }
 
-/** Where a run In Agentry stands: its identity, its status, its place in
- *  the queue, and the way to stop it. */
+/** Where a run In Agentry stands: its identity, its state, its place in
+ *  the queue, and the way to stop it. There is no log to follow: the
+ *  panel re-reads the run and this card moves with it. */
 export function HostedProgress({ run, onCancel, cancelling }: {
   run: main.HostedRunView; onCancel: () => void; cancelling: boolean;
 }) {
@@ -45,7 +48,7 @@ export function HostedProgress({ run, onCancel, cancelling }: {
   return (
     <Card className="selectable">
       <div className="row">
-        <span className={`badge ${active ? "kind" : "ok"}`}>{run.status}</span>
+        <span className={`badge ${active ? "kind" : toneClass(run.outcomeTone)}`}>{run.state}</span>
         {(run.queuePosition ?? 0) > 0 && run.status === "queued" && (
           <span className="badge kind">queue position {run.queuePosition}</span>
         )}
@@ -63,16 +66,21 @@ export function HostedProgress({ run, onCancel, cancelling }: {
   );
 }
 
-/** The finished run: the outcome, the receipt's numbers, what it cost, and
- *  the artefacts that landed in the run folder. */
+/** The badge class for a verdict's tone; a cancelled run, which has no
+ *  outcome, reads as a warning. */
+function toneClass(tone?: string): string {
+  return tone === "ok" ? "ok" : tone === "bad" ? "bad" : "warn";
+}
+
+/** The finished run: done with pass or fail, the outcome, the receipt's
+ *  numbers, what it cost, and the files that landed in the run folder. */
 export function HostedResult({ run, children }: { run: main.HostedRunView; children?: React.ReactNode }) {
   const enforced = Object.entries(run.capabilitiesEnforced ?? {});
   return (
     <Card className="selectable">
       <div className="row">
-        <span className={`badge ${run.outcomeTone === "ok" ? "ok" : run.outcomeTone === "warn" ? "warn" : "bad"}`}>
-          {run.outcome}
-        </span>
+        <span className={`badge ${toneClass(run.outcomeTone)}`}>{run.state}</span>
+        {run.outcome && <span className="badge kind">outcome: {run.outcome}</span>}
         {run.exitClass && <span className="badge kind">exit class: {run.exitClass}</span>}
         {run.attestationState && (
           <span className={`badge ${run.attestationState === "verified" ? "ok" : "warn"}`}>
@@ -107,7 +115,7 @@ export function HostedResult({ run, children }: { run: main.HostedRunView; child
           <div key={a.name} className="mono small">{a.name} — {a.bytes} bytes</div>
         ))
       ) : (
-        <p className="muted small">This run wrote no artefacts.</p>
+        <p className="muted small">This run wrote no outputs.</p>
       )}
       {run.downloadError && <div className="error-box selectable">{run.downloadError}</div>}
     </Card>

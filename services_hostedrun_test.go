@@ -7,14 +7,15 @@ package main
 // docker anywhere on the path.
 
 import (
+	"archive/tar"
 	"context"
 	"encoding/json"
-	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -28,6 +29,11 @@ import (
 )
 
 const hostedTestToken = "agy_desktoptoken0000"
+
+// hostedEnvelope is the runner's envelope as a pushed run's result.json
+// carries it: the receipt the registry did not keep.
+const hostedEnvelope = `{"agentry":"1","status":"ok","exitClass":"ok","attestation":{"state":"verified","keyId":"k1"},` +
+	`"capabilities_enforced":{"network.egress":"llm-proxy allowlist: api.example.com"},"harness":{"adapter":"docker-agent","model":"m"},"result":"the summary"}`
 
 // hostedFake is a registry with the runs extension: the core routes the
 // availability rule reads (/meta, /user/tokens, /resolve) and the account
@@ -44,11 +50,15 @@ type hostedFake struct {
 	secrets      []string
 	enabled      bool
 
-	run     *hostedrun.Run
-	events  []hostedrun.Event
+	run *hostedrun.Run
+	// outputs are the run's files; the registry serves them the way a
+	// pushed run's are, as one output.tar holding them all.
 	outputs map[string]string
-	created *hostedrun.CreateRequest
-	refuse  func(w http.ResponseWriter)
+	// eventsRead counts the requests to the run's events route, which
+	// the app must no longer make.
+	eventsRead int
+	created    *hostedrun.CreateRequest
+	refuse     func(w http.ResponseWriter)
 }
 
 func (f *hostedFake) start(t *testing.T) string {
@@ -161,33 +171,26 @@ func (f *hostedFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusOK, f.run)
 	})
 	mux.HandleFunc("GET /api/v1/x/runs/{id}/outputs/{name...}", func(w http.ResponseWriter, r *http.Request) {
-		f.mu.Lock()
-		body, ok := f.outputs[r.PathValue("name")]
-		f.mu.Unlock()
-		if !ok {
+		if r.PathValue("name") != hostedrun.PushedOutput {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(body))
-	})
-	mux.HandleFunc("GET /api/v1/x/runs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
-		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
 		f.mu.Lock()
-		evs := append([]hostedrun.Event(nil), f.events...)
-		over := f.run != nil && !hostedrun.Active(f.run.Status)
+		files := maps.Clone(f.outputs)
 		f.mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
+		names := slices.Sorted(maps.Keys(files))
+		tw := tar.NewWriter(w)
+		for _, n := range names {
+			_ = tw.WriteHeader(&tar.Header{Name: n, Mode: 0o600, Size: int64(len(files[n])), Typeflag: tar.TypeReg})
+			_, _ = tw.Write([]byte(files[n]))
+		}
+		_ = tw.Close()
+	})
+	mux.HandleFunc("GET /api/v1/x/runs/{id}/events", func(w http.ResponseWriter, _ *http.Request) {
+		f.mu.Lock()
+		f.eventsRead++
+		f.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
-		for _, ev := range evs {
-			if ev.Seq <= after {
-				continue
-			}
-			payload, _ := json.Marshal(ev)
-			_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", ev.Seq, ev.Kind, payload)
-		}
-		if over {
-			_, _ = fmt.Fprint(w, "event: done\ndata: {}\n\n")
-		}
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -203,11 +206,17 @@ func (f *hostedFake) finish(outcome, exitClass string, settled int64) {
 	f.run.Outcome, f.run.ExitClass, f.run.FinishedAt = outcome, exitClass, &now
 	f.run.SettledCredits = &settled
 	f.run.Usage = &hostedrun.Usage{InputTokens: 800, OutputTokens: 200, Turns: 3, WallMS: 9000}
-	f.run.Receipt = hostedrun.Receipt{CapabilitiesEnforced: map[string]string{"network.egress": "llm-proxy allowlist: api.example.com"}}
-	f.run.Outputs = nil
-	for name, body := range f.outputs {
-		f.run.Outputs = append(f.run.Outputs, hostedrun.Artefact{Name: name, Bytes: int64(len(body))})
-	}
+	// A pushed run: the registry keeps no receipt; the envelope in the
+	// outputs' result.json is the receipt.
+	f.run.Receipt = hostedrun.Receipt{}
+	f.run.Outputs = []hostedrun.Artefact{{Name: hostedrun.PushedOutput, Bytes: 4096}}
+}
+
+// set moves the fake's run to a status.
+func (f *hostedFake) set(status string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.run.Status, f.run.QueuePosition = status, 0
 }
 
 func hostedJSON(w http.ResponseWriter, status int, v any) {
@@ -383,26 +392,25 @@ func TestHostedAvailabilityWithoutSigningIn(t *testing.T) {
 }
 
 // One In-Agentry run end to end through the bound surface: inputs
-// uploaded, the run created with the intake answers, the log streamed into
-// the run-log view, the outputs downloaded into the chosen folder, the
-// receipt read back — with no docker client anywhere near it.
-func TestStartHostedRunStreamsAndDownloads(t *testing.T) {
+// uploaded, the run created with the intake answers, its states reported
+// as it moves — queued, running, done with its outcome and credits — and
+// the pushed run's output.tar unpacked into the chosen folder, the receipt
+// read back; no log, no events route, no docker client anywhere near it
+// (hosted runs in production M3, agentry-desktop#182).
+func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	f := &hostedFake{
 		enabled: true,
 		outputs: map[string]string{
-			"result.json":       `"the summary"`,
+			"result.json":       hostedEnvelope,
 			"reports/report.md": "# Report\n",
 			"receipts/run.json": `{"agentry":"1"}`,
-		},
-		events: []hostedrun.Event{
-			{Seq: 1, At: time.Now().UTC(), Kind: "log", Line: "materializing acme/reporter@1.0.0"},
-			{Seq: 2, At: time.Now().UTC(), Kind: "log", Line: "turn 1"},
-			{Seq: 3, At: time.Now().UTC(), Kind: "status", Line: "finished"},
 		},
 	}
 	reg := f.start(t)
 	home, runnerHome := signIn(t, reg)
 	r, events := newRunAPI(t)
+	hostedPoll = 10 * time.Millisecond
+	t.Cleanup(func() { hostedPoll = 3 * time.Second })
 
 	inputDir := t.TempDir()
 	input := filepath.Join(inputDir, "incident.txt")
@@ -429,13 +437,26 @@ func TestStartHostedRunStreamsAndDownloads(t *testing.T) {
 		t.Fatalf("created = %+v", created)
 	}
 
+	// A runner takes it: the panel hears it is running.
+	waitForStatus(t, events, hostedrun.StatusQueued)
+	f.set(hostedrun.StatusRunning)
+	running := waitForStatus(t, events, hostedrun.StatusRunning)
+	if running.State != "running" || running.StatusLine != "running" || running.Final {
+		t.Fatalf("running = %+v", running)
+	}
 	// The run finishes; the follow loop downloads and reports.
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 2)
 	final := waitForFinal(t, events)
-	if lines := events.lines(); len(lines) < 2 || !strings.Contains(strings.Join(lines, "\n"), "materializing acme/reporter@1.0.0") {
-		t.Fatalf("the log did not reach the run-log view: %q", lines)
+	if lines := events.lines(); len(lines) != 0 {
+		t.Fatalf("a run In Agentry wrote to the run-log view: %q", lines)
 	}
-	if final.Outcome != hostedrun.OutcomeSucceeded || final.OutcomeTone != "ok" || final.ExitClass != "ok" {
+	f.mu.Lock()
+	read := f.eventsRead
+	f.mu.Unlock()
+	if read != 0 {
+		t.Fatalf("the app read the run's events route %d time(s)", read)
+	}
+	if final.State != "done — pass" || final.Outcome != hostedrun.OutcomeSucceeded || final.OutcomeTone != "ok" || final.ExitClass != "ok" {
 		t.Fatalf("final = %+v", final)
 	}
 	if final.TotalTokens != 1000 || final.Turns != 3 || final.WallMS != 9000 {
@@ -447,7 +468,10 @@ func TestStartHostedRunStreamsAndDownloads(t *testing.T) {
 	if final.CapabilitiesEnforced["network.egress"] != "llm-proxy allowlist: api.example.com" {
 		t.Fatalf("capabilities enforced = %+v", final.CapabilitiesEnforced)
 	}
-	if final.ResultJSON != `"the summary"` {
+	if final.AttestationState != "verified" || final.Adapter != "docker-agent" {
+		t.Fatalf("the receipt from the envelope = %+v", final)
+	}
+	if final.ResultJSON != hostedEnvelope {
 		t.Fatalf("result = %q", final.ResultJSON)
 	}
 	if final.OutDir != outDir || len(final.Outputs) != 3 {
@@ -535,10 +559,12 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 // Reopening the panel with an active run reattaches to it rather than
 // starting a second (D11), and Cancel reaches the registry.
 func TestAttachAndCancel(t *testing.T) {
-	f := &hostedFake{enabled: true, events: []hostedrun.Event{{Seq: 1, At: time.Now().UTC(), Kind: "log", Line: "queued"}}}
+	f := &hostedFake{enabled: true}
 	reg := f.start(t)
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
+	hostedPoll = 10 * time.Millisecond
+	t.Cleanup(func() { hostedPoll = 3 * time.Second })
 
 	// Nothing active yet.
 	att, err := r.AttachHostedRun(reg, t.TempDir())
@@ -582,6 +608,22 @@ func TestAttachAndCancel(t *testing.T) {
 	if r.hostedCurrent() != nil {
 		t.Fatal("the follow loop outlived the run")
 	}
+}
+
+// waitForStatus waits for the follow loop to report the run in a status.
+func waitForStatus(t *testing.T, events *emitted, status string) *HostedRunView {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, v := range events.states() {
+			if v.Status == status {
+				return v
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("the run was never reported %s", status)
+	return nil
 }
 
 // waitForFinal waits for the follow loop's last word on the run.

@@ -1,7 +1,9 @@
 package hostedrun
 
 import (
+	"archive/tar"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -106,16 +108,36 @@ func OutputPath(dir, name string) (string, error) {
 	return filepath.Join(dir, local), nil
 }
 
+// PushedOutput is the one output a pushed run keeps (agentry-enterprise#83):
+// the run's out folder as a tar, sealed to the runner's key by the host
+// and opened by the registry as it serves the download. A pull worker
+// uploads the folder file by file and never names a file at the top level
+// this way, so the name alone says which kind of run this is.
+const PushedOutput = "output.tar"
+
 // DownloadOutputs writes every output of a finished run into dir, creating
-// the folders the names imply. It returns what landed, in the registry's
-// order, and stops at the first refusal so a half-written folder is never
-// reported as complete.
+// the folders the names imply; a pushed run's bundle is unpacked there, so
+// either kind of run leaves the same folder behind. It returns what
+// landed, sorted by name, and stops at the first refusal so a half-written
+// folder is never reported as complete.
 func (c *Client) DownloadOutputs(ctx context.Context, run *Run, dir string) ([]Downloaded, error) {
 	if run == nil {
 		return nil, nil
 	}
 	got := make([]Downloaded, 0, len(run.Outputs))
 	for _, a := range run.Outputs {
+		if a.Name == PushedOutput {
+			body, err := c.Output(ctx, run.ID, a.Name)
+			if err != nil {
+				return got, err
+			}
+			got, err = unpack(body, dir, got)
+			_ = body.Close()
+			if err != nil {
+				return got, err
+			}
+			continue
+		}
 		dest, err := OutputPath(dir, a.Name)
 		if err != nil {
 			return got, err
@@ -136,6 +158,44 @@ func (c *Client) DownloadOutputs(ctx context.Context, run *Run, dir string) ([]D
 	}
 	sort.SliceStable(got, func(i, j int) bool { return got[i].Name < got[j].Name })
 	return got, nil
+}
+
+// unpack writes a pushed run's bundle into dir. The host writes regular
+// files only, each named relative to the run's out folder; anything else
+// — a link, a device, a name that would leave dir, a name twice — is
+// refused rather than skipped, because a bundle that carries one was not
+// written by a host.
+func unpack(body io.Reader, dir string, got []Downloaded) ([]Downloaded, error) {
+	tr := tar.NewReader(body)
+	seen := map[string]bool{}
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return got, nil
+		}
+		if err != nil {
+			return got, fmt.Errorf("read the run's %s: %w", PushedOutput, err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			return got, fmt.Errorf("refusing %q in the run's %s: only files are written, and this is not one", hdr.Name, PushedOutput)
+		}
+		dest, err := OutputPath(dir, hdr.Name)
+		if err != nil {
+			return got, err
+		}
+		if seen[dest] {
+			return got, fmt.Errorf("refusing %q in the run's %s: it names the file twice", hdr.Name, PushedOutput)
+		}
+		seen[dest] = true
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return got, fmt.Errorf("create %s: %w", filepath.Dir(dest), err)
+		}
+		n, err := writeFile(dest, io.LimitReader(tr, hdr.Size))
+		if err != nil {
+			return got, err
+		}
+		got = append(got, Downloaded{Name: path.Clean(hdr.Name), Path: dest, Bytes: n})
+	}
 }
 
 // writeFile writes a downloaded artefact and returns its size.

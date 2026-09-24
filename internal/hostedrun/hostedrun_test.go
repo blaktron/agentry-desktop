@@ -1,21 +1,27 @@
 package hostedrun
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
 // The whole account-side lifecycle against the fake extension: the status
-// route's caller block, a create, the log streamed with a dropped
-// connection in the middle, the finish, and the artefacts downloaded into
-// the chosen folder (plan §4.1, §4.4, §4.5; agentry-desktop#77).
-func TestCreateStreamFinishAndDownload(t *testing.T) {
+// route's caller block, a create, the run watched from queued through
+// running to its finish, and the pushed run's one output.tar unpacked into
+// the chosen folder (plan §4.1, §4.4; hosted runs in production M3,
+// agentry-desktop#182). The run's events route is never read: a pushed run
+// keeps no log.
+func TestCreateWatchFinishAndDownload(t *testing.T) {
 	f := &fakeRuns{
-		enabled: true, workersOnline: 1, queued: 1,
+		enabled: true, workersOnline: 0, queued: 1, pushed: true,
 		caller: &Caller{Tier: "standard", Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, HoldCredits: 20, TokensPerCredit: 1000},
 		outputs: map[string][]byte{
 			"result.json":         []byte(`"the incident summary"`),
@@ -44,38 +50,31 @@ func TestCreateStreamFinishAndDownload(t *testing.T) {
 		t.Fatalf("created run = %+v", run)
 	}
 
-	// The log: eight lines, the first connection cut after three, the rest
-	// on the resume. Nothing lost, nothing shown twice — and the fake
-	// replays every row on the second connection to prove the client drops
-	// what it has already seen.
-	f.addEvents(logEvents("materializing", "verifying digest", "gateway up",
-		"turn 1", "tool: read_input", "turn 2", "writing report", "done")...)
-	f.cutAfter, f.replayAll = 3, true
-	f.finish(OutcomeSucceeded, "ok", 2)
-
-	var lines []string
-	var statuses []string
-	final, err := c.Follow(ctx, run.ID, FollowOptions{
-		Poll:       20 * time.Millisecond,
-		RetryDelay: time.Millisecond,
-		OnEvent:    func(ev Event) { lines = append(lines, ev.Line) },
-		OnStatus:   func(r *Run) { statuses = append(statuses, r.Status) },
+	// Queued second, then first, then a runner takes it and the agent
+	// starts, then it finishes. A read that says nothing new is not
+	// reported twice.
+	f.mu.Lock()
+	f.steps = []func(*Run){
+		status(StatusQueued, 2), status(StatusQueued, 1), status(StatusQueued, 1),
+		status(StatusClaimed, 0), status(StatusRunning, 0),
+	}
+	f.mu.Unlock()
+	var seen []string
+	final, err := c.Watch(ctx, run.ID, WatchOptions{
+		Poll: 5 * time.Millisecond,
+		OnStatus: func(r *Run) {
+			seen = append(seen, r.Status+":"+strconv.Itoa(r.QueuePosition))
+			if r.Status == StatusRunning {
+				f.finish(OutcomeSucceeded, "ok", 2)
+			}
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"materializing", "verifying digest", "gateway up", "turn 1", "tool: read_input", "turn 2", "writing report", "done"}
-	if strings.Join(lines, "|") != strings.Join(want, "|") {
-		t.Fatalf("log lines = %q, want %q", lines, want)
-	}
-	if f.streams < 2 {
-		t.Fatalf("the dropped connection was never resumed (%d streams)", f.streams)
-	}
-	if len(f.afterSeen) < 2 || f.afterSeen[1] != 3 {
-		t.Fatalf("the resume did not start after the last event id: %v", f.afterSeen)
-	}
-	if len(statuses) == 0 || statuses[len(statuses)-1] != StatusFinished {
-		t.Fatalf("statuses = %v", statuses)
+	want := []string{"queued:2", "queued:1", "claimed:0", "running:0", "finished:0"}
+	if strings.Join(seen, " ") != strings.Join(want, " ") {
+		t.Fatalf("statuses = %v, want %v", seen, want)
 	}
 	if final.Outcome != OutcomeSucceeded || final.ExitClass != "ok" || final.Usage.Tokens() != 1200 {
 		t.Fatalf("final = %+v usage %+v", final, final.Usage)
@@ -86,17 +85,20 @@ func TestCreateStreamFinishAndDownload(t *testing.T) {
 	if got := final.Receipt.CapabilitiesEnforced["network.egress"]; got != "llm-proxy allowlist: api.example.com" {
 		t.Fatalf("capabilities_enforced = %v", final.Receipt.CapabilitiesEnforced)
 	}
+	if v := Read(final); v.Tone != "ok" || !v.Settled {
+		t.Fatalf("verdict = %+v", v)
+	}
 
-	// The artefacts land under the chosen folder, folders and all.
+	// The bundle is unpacked under the chosen folder, folders and all;
+	// the bundle itself is not kept.
 	dir := t.TempDir()
 	got, err := c.DownloadOutputs(ctx, final, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 4 {
-		t.Fatalf("downloaded %d artefacts: %+v", len(got), got)
-	}
+	var names []string
 	for _, a := range got {
+		names = append(names, a.Name)
 		if !strings.HasPrefix(a.Path, dir+string(filepath.Separator)) {
 			t.Fatalf("%s landed outside the run folder: %s", a.Name, a.Path)
 		}
@@ -104,9 +106,134 @@ func TestCreateStreamFinishAndDownload(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if strings.Join(names, " ") != "outputs/summary.txt receipts/run.json reports/report.md result.json" {
+		t.Fatalf("unpacked %v", names)
+	}
 	body, err := os.ReadFile(filepath.Join(dir, "reports", "report.md"))
 	if err != nil || string(body) != "# Report\n" {
 		t.Fatalf("report.md = %q (%v)", body, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, PushedOutput)); err == nil {
+		t.Fatal("the bundle itself was left in the run folder")
+	}
+	if f.eventsRead != 0 {
+		t.Fatalf("the client read the events route %d time(s)", f.eventsRead)
+	}
+}
+
+// A pushed run's receipt is the envelope in its outputs: the registry
+// keeps none, so the one in result.json fills it; a receipt the registry
+// did keep is never replaced.
+func TestReceiptFromEnvelope(t *testing.T) {
+	env := []byte(`{"agentry":"1","exitClass":"ok","attestation":{"state":"verified","keyId":"k1"},` +
+		`"capabilities_enforced":{"runtime":"runsc: the agent container"},"harness":{"adapter":"docker-agent","model":"m"},"result":"hi"}`)
+	pushed := &Run{Status: StatusFinished, Outcome: OutcomeSucceeded}
+	ReceiptFromEnvelope(pushed, env)
+	if pushed.Receipt.CapabilitiesEnforced["runtime"] != "runsc: the agent container" || pushed.Receipt.Attestation.State != "verified" ||
+		pushed.Receipt.Harness.Adapter != "docker-agent" || pushed.Receipt.ExitClass != "ok" {
+		t.Fatalf("receipt from the envelope = %+v", pushed.Receipt)
+	}
+	kept := &Run{Receipt: Receipt{CapabilitiesEnforced: map[string]string{"network": "the registry's"}}}
+	ReceiptFromEnvelope(kept, env)
+	if kept.Receipt.CapabilitiesEnforced["network"] != "the registry's" || kept.Receipt.Attestation.State != "" {
+		t.Fatalf("a kept receipt was replaced: %+v", kept.Receipt)
+	}
+	junk := &Run{}
+	ReceiptFromEnvelope(junk, []byte("not json"))
+	if !junk.Receipt.Empty() {
+		t.Fatalf("junk filled a receipt: %+v", junk.Receipt)
+	}
+}
+
+// A pull worker's run lists its outputs file by file; they come down as
+// they are, into the same folder shape a pushed run's bundle makes.
+func TestDownloadAPulledRunsOutputs(t *testing.T) {
+	f := &fakeRuns{enabled: true, outputs: map[string][]byte{
+		"result.json":       []byte(`"ok"`),
+		"reports/report.md": []byte("# Report\n"),
+	}}
+	c := New(f.start(t), testToken)
+	run, err := c.Create(t.Context(), CreateRequest{Ref: "acme/reporter@1.0.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.finish(OutcomeSucceeded, "ok", 1)
+	final, err := c.Watch(t.Context(), run.ID, WatchOptions{Poll: time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	got, err := c.DownloadOutputs(t.Context(), final, dir)
+	if err != nil || len(got) != 2 || got[0].Name != "reports/report.md" || got[1].Name != "result.json" {
+		t.Fatalf("downloaded %+v (%v)", got, err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "reports", "report.md")); err != nil || string(b) != "# Report\n" {
+		t.Fatalf("report.md = %q (%v)", b, err)
+	}
+}
+
+// Watch gives up only after its retries: a registry that answers errors
+// for longer than that ends the watch with the error, and a cancelled
+// context ends it at once.
+func TestWatchGivesUpAndStops(t *testing.T) {
+	c := New("http://127.0.0.1:1", testToken)
+	if _, err := c.Watch(t.Context(), "r1", WatchOptions{Poll: time.Millisecond, Retries: 2}); err == nil {
+		t.Fatal("a registry that never answers did not end the watch")
+	}
+	f := &fakeRuns{enabled: true}
+	c = New(f.start(t), testToken)
+	run, err := c.Create(t.Context(), CreateRequest{Ref: "acme/reporter@1.0.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		cancel()
+	}()
+	if _, err := c.Watch(ctx, run.ID, WatchOptions{Poll: time.Millisecond}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a cancelled watch = %v", err)
+	}
+}
+
+// A bundle no host would write is refused, not half-applied: a link, a
+// name that leaves the folder, a name twice.
+func TestUnpackRefusesWhatAHostNeverWrites(t *testing.T) {
+	for name, entries := range map[string][]tar.Header{
+		"a symlink":    {{Name: "outputs/link", Typeflag: tar.TypeSymlink, Linkname: "/etc/passwd"}},
+		"an escape":    {{Name: "../escaped.txt", Typeflag: tar.TypeReg, Size: 1}},
+		"an absolute":  {{Name: "/tmp/abs.txt", Typeflag: tar.TypeReg, Size: 1}},
+		"a name twice": {{Name: "result.json", Typeflag: tar.TypeReg, Size: 1}, {Name: "./result.json", Typeflag: tar.TypeReg, Size: 1}},
+		"a directory":  {{Name: "outputs/", Typeflag: tar.TypeDir}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			tw := tar.NewWriter(&buf)
+			for i := range entries {
+				h := entries[i]
+				h.Mode = 0o600
+				if err := tw.WriteHeader(&h); err != nil {
+					t.Fatal(err)
+				}
+				if h.Size > 0 {
+					_, _ = tw.Write([]byte("x"))
+				}
+			}
+			_ = tw.Close()
+			f := &fakeRuns{enabled: true, pushed: true, bundle: buf.Bytes()}
+			c := New(f.start(t), testToken)
+			parent := t.TempDir()
+			dir := filepath.Join(parent, "run")
+			run := &Run{ID: "r1", Outputs: []Artefact{{Name: PushedOutput, Bytes: int64(buf.Len())}}}
+			if _, err := c.DownloadOutputs(t.Context(), run, dir); err == nil {
+				t.Fatalf("%s was accepted", name)
+			}
+			for _, p := range []string{filepath.Join(parent, "escaped.txt"), "/tmp/abs.txt"} {
+				if _, err := os.Stat(p); err == nil && name != "a name twice" {
+					t.Fatalf("a file landed outside the run folder: %s", p)
+				}
+			}
+		})
 	}
 }
 
@@ -365,7 +492,7 @@ func TestVerdictPerOutcome(t *testing.T) {
 	}
 	// The states a run passes through each say where it stands.
 	for _, s := range []struct{ status, says string }{
-		{StatusQueued, "queued"}, {StatusClaimed, "materialising"}, {StatusRunning, "running"},
+		{StatusQueued, "queued"}, {StatusClaimed, "running"}, {StatusRunning, "running"},
 	} {
 		if got := Read(&Run{Status: s.status}).Line; !strings.Contains(got, s.says) {
 			t.Fatalf("%s reads %q", s.status, got)
@@ -373,6 +500,24 @@ func TestVerdictPerOutcome(t *testing.T) {
 	}
 	if got := Read(&Run{Status: StatusRunning, CancelRequested: true}).Line; !strings.Contains(got, "cancelling") {
 		t.Fatalf("a cancelling run reads %q", got)
+	}
+	// And the one word the panel's badge shows, the site's own.
+	for _, s := range []struct {
+		run  Run
+		word string
+	}{
+		{Run{Status: StatusQueued}, "queued"},
+		{Run{Status: StatusClaimed}, "running"},
+		{Run{Status: StatusRunning}, "running"},
+		{Run{Status: StatusFinished, Outcome: OutcomeSucceeded}, "done — pass"},
+		{Run{Status: StatusFinished, Outcome: OutcomeFailed}, "done — fail"},
+		{Run{Status: StatusFinished, Outcome: OutcomeError}, "done — fail"},
+		{Run{Status: StatusFinished}, "done"},
+		{Run{Status: StatusCancelled}, "cancelled"},
+	} {
+		if got := State(&s.run); got != s.word {
+			t.Fatalf("%s/%s reads %q, want %q", s.run.Status, s.run.Outcome, got, s.word)
+		}
 	}
 }
 
