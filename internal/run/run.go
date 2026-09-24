@@ -761,14 +761,14 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installdir.Meta, ins
 			plan.Harness.Adapter == adapterName &&
 			reflect.DeepEqual(plan.MCPServers, serverSpecs) {
 			switch {
-			case plan.CompiledBy != version.Version:
+			case plan.CompiledBy != version.Build():
 				// Same schema, another build: the compiler's output can
 				// differ without a schema bump (the exec image spec, the
 				// gateway's pinned flags, the servers' env all did while
 				// the pins were behind; desktop#94, the CLI's own guard is
 				// agentry-cli#105). A plan the CLI compiled reads as another
 				// build too, which is right: each client compiles its own.
-				_, _ = fmt.Fprintf(logw, "installed plan was compiled by another build (%s, this is %s) — recompiling\n", cmp.Or(plan.CompiledBy, "unknown"), version.Version)
+				_, _ = fmt.Fprintf(logw, "installed plan was compiled by another build (%s, this is %s) — recompiling\n", cmp.Or(plan.CompiledBy, "unknown"), version.Build())
 			case plan.Proxy.Image != runnerImageTag(pol):
 				_, _ = fmt.Fprintf(logw, "installed plan names runner image %s, this build uses %s — recompiling\n", plan.Proxy.Image, runnerImageTag(pol))
 			default:
@@ -793,7 +793,7 @@ func ensurePlan(logw io.Writer, m *manifest.Manifest, meta *installdir.Meta, ins
 		AdapterName:  adapterName,
 		RunnerImage:  runnerImageTag(pol),
 		MCPServers:   serverSpecs,
-		CompiledBy:   version.Version,
+		CompiledBy:   version.Build(),
 	}, planDir)
 	if err != nil {
 		var refusal *compile.PolicyRefusal
