@@ -22,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/pathguard"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -471,10 +472,8 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	if err != nil {
 		return nil, err
 	}
-	// The consent was given on the resolve manifest's contract; the exports
-	// compile their grants from the archive's. Hold the archive to what the
-	// person saw before anything is written, and record the archive's
-	// contract — never wider, possibly narrower (agentry-desktop#163).
+	// Held before anything is written; the record then carries the
+	// archive's contract, never wider, possibly narrower (agentry-desktop#163).
 	if err := holdToConsented(p.manifest, m, plan); err != nil {
 		return nil, err
 	}
@@ -657,18 +656,64 @@ func manifestFromArchive(staging string, fromResolve *manifest.Manifest, plan Pl
 // a widening means the registry's resolve answer diverged from the bytes it
 // served: the case an install client refuses rather than reconciles. The
 // rule is the core's manifest.DiffCapabilities, the one every client
-// re-asks by, applied to the full contracts rather than the stored
-// snapshots so nothing the snapshot flattens away escapes it.
+// re-asks by, plus serverWidenings for what that rule does not compare.
+// A legacy archive without agent.yaml hands back the resolve manifest
+// itself, which has nothing to be held to.
 func holdToConsented(consented, archive *manifest.Manifest, plan Plan) error {
 	if consented == nil || archive == nil || consented == archive {
 		return nil
 	}
-	d := manifest.DiffCapabilities(consented.Capabilities, archive.Capabilities)
-	if !d.HasWidened() {
+	widened := manifest.DiffCapabilities(consented.Capabilities, archive.Capabilities).Widened
+	widened = append(widened, serverWidenings(consented.Capabilities.MCPServers, archive.Capabilities.MCPServers)...)
+	if len(widened) == 0 {
 		return nil
 	}
 	return fmt.Errorf("the archive of %s/%s@%s declares more than the registry said it would — refusing to install: its agent.yaml %s",
-		plan.Namespace, plan.Name, plan.Version, strings.Join(d.Widened, "; "))
+		plan.Namespace, plan.Name, plan.Version, strings.Join(widened, "; "))
+}
+
+// serverWidenings reports what the archive grants a declared MCP server
+// beyond the consented declaration of the same server. The core's diff
+// keys a server by its package pin and compares only its env, so a server's
+// own egress, secrets and tool restriction are compared here until the
+// core's rule does (agentry#527); a server the consented contract lacks is
+// the core diff's to report.
+func serverWidenings(consented, archive []manifest.MCPServer) []string {
+	byID := make(map[string]manifest.MCPServer, len(consented))
+	for _, s := range consented {
+		byID[s.SourceID()+"@"+s.Version] = s
+	}
+	var out []string
+	for _, s := range archive {
+		id := s.SourceID() + "@" + s.Version
+		c, ok := byID[id]
+		if !ok {
+			continue
+		}
+		for _, h := range s.Egress {
+			if !slices.Contains(c.Egress, h) {
+				out = append(out, fmt.Sprintf("adds network egress to %s for MCP server %s", h, id))
+			}
+		}
+		for _, n := range s.Secrets {
+			if !slices.Contains(c.Secrets, n) {
+				out = append(out, fmt.Sprintf("asks for a new secret %s for MCP server %s", n, id))
+			}
+		}
+		if len(c.Tools) == 0 {
+			continue // the consented declaration already granted the full set
+		}
+		if len(s.Tools) == 0 {
+			out = append(out, fmt.Sprintf("grants MCP server %s its full tool set (consented: %s)", id, strings.Join(c.Tools, ", ")))
+			continue
+		}
+		for _, t := range s.Tools {
+			if !slices.Contains(c.Tools, t) {
+				out = append(out, fmt.Sprintf("adds tool %s to MCP server %s", t, id))
+			}
+		}
+	}
+	return out
 }
 
 // exportClaudeSkill lays the release down as the Claude skill with the

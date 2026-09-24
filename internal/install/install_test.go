@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -393,99 +394,131 @@ func TestWidenedCapabilitiesRequireAcceptance(t *testing.T) {
 	}
 }
 
-// archiveManifestYAML is an agent.yaml for acme/demo@1.0.0 carrying the
-// given capabilities block (YAML, indented under "capabilities:"), or none.
-func archiveManifestYAML(caps string) string {
-	doc := "schemaVersion: \"1\"\nname: demo\nnamespace: acme\nkind: skill\nversion: 1.0.0\nsummary: Test agent\n" +
-		"entrypoints:\n  skill: SKILL.md\npublish:\n  include: [SKILL.md, agent.yaml]\n"
-	if caps != "" {
-		doc += "capabilities:\n" + caps
+// demoManifest is acme/demo@1.0.0's manifest with the given capabilities
+// block (nil: none), shipping agent.yaml beside SKILL.md.
+func demoManifest(caps map[string]any) map[string]any {
+	doc := map[string]any{
+		"schemaVersion": "1", "name": "demo", "namespace": "acme",
+		"kind": "skill", "version": "1.0.0", "summary": "Test agent",
+		"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md", "agent.yaml"}},
+	}
+	if caps != nil {
+		doc["capabilities"] = caps
 	}
 	return doc
 }
 
-// TestArchiveWideningTheConsentedContractIsRefused (agentry-desktop#163):
-// the person consents to the resolve manifest's contract; an archive whose
-// own agent.yaml declares more — here an egress host the registry's answer
-// omitted — is refused at Confirm with the widening named, and nothing is
-// written: no destination, no record.
-func TestArchiveWideningTheConsentedContractIsRefused(t *testing.T) {
-	isolate(t)
-	dest := t.TempDir()
-	archive := buildArchiveFiles(t, map[string]string{
-		"SKILL.md":   "# Demo\n\nDo the demo thing.\n",
-		"agent.yaml": archiveManifestYAML("  network:\n    egress: [evil.example]\n"),
-	})
-	reg := startRegistry(t, &fakeRegistry{archive: archive})
-	e := NewEngine()
-	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "claude-skill", dest)
+// archiveWithManifest packs SKILL.md and the given manifest as agent.yaml
+// (JSON, which is YAML).
+func archiveWithManifest(t *testing.T, doc map[string]any) []byte {
+	t.Helper()
+	b, err := json.Marshal(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.NeedsCapabilityConfirm {
-		t.Fatal("the resolve manifest declares nothing; no consent should have been raised")
-	}
-	_, err = e.Confirm(plan.ID, false, true, false)
-	if err == nil {
-		t.Fatal("an archive widening the consented contract was installed")
-	}
-	for _, want := range []string{"more than the registry said", "evil.example"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("refusal %q does not say %q", err, want)
-		}
-	}
-	if _, serr := os.Stat(plan.Paths.Dest); !os.IsNotExist(serr) {
-		t.Errorf("destination %s written before the refusal (stat err %v)", plan.Paths.Dest, serr)
-	}
-	st, err := installed.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(st.Records) != 0 {
-		t.Errorf("a refused install left a record: %+v", st.Records)
-	}
+	return buildArchiveFiles(t, map[string]string{"SKILL.md": "# Demo\n\nDo the demo thing.\n", "agent.yaml": string(b)})
 }
 
-// TestArchiveNarrowerThanConsentedInstallsWithItsSnapshot: an archive that
-// declares less than the resolve manifest the person consented to installs,
-// and the record carries the archive's contract — the narrower truth the
-// export was compiled from — so the next update is diffed against it.
-func TestArchiveNarrowerThanConsentedInstallsWithItsSnapshot(t *testing.T) {
-	isolate(t)
-	dest := t.TempDir()
-	archive := buildArchiveFiles(t, map[string]string{
-		"SKILL.md":   "# Demo\n\nDo the demo thing.\n",
-		"agent.yaml": archiveManifestYAML(""),
-	})
-	resolveDoc := map[string]any{
-		"schemaVersion": "1", "name": "demo", "namespace": "acme",
-		"kind": "skill", "version": "1.0.0", "summary": "Test agent",
-		"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md", "agent.yaml"}},
-		"capabilities": map[string]any{
-			"network": map[string]any{"egress": []string{"api.example"}},
-		},
+// osvServer is a declared MCP server with the given fields over its pin.
+func osvServer(fields map[string]any) map[string]any {
+	srv := map[string]any{"npm": "@acme/osv-mcp", "version": "1.2.3"}
+	for k, v := range fields {
+		srv[k] = v
 	}
-	reg := startRegistry(t, &fakeRegistry{archive: archive, manifestDoc: resolveDoc})
-	e := NewEngine()
-	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "claude-skill", dest)
-	if err != nil {
-		t.Fatal(err)
+	return map[string]any{"mcpServers": []any{srv}}
+}
+
+// TestArchiveIsHeldToTheConsentedContract (agentry-desktop#163): the person
+// consents to the resolve manifest's contract, and the exports compile
+// their grants from the archive's own agent.yaml. An archive that declares
+// more is refused at Confirm with the widening named and nothing written —
+// no destination, no release directory, no record — including what the
+// core's diff does not compare, a declared server's own egress, secrets
+// and tool restriction. One that matches or narrows installs, and the
+// record carries the archive's contract.
+func TestArchiveIsHeldToTheConsentedContract(t *testing.T) {
+	egress := func(hosts ...string) map[string]any {
+		return map[string]any{"network": map[string]any{"egress": hosts}}
 	}
-	if !plan.NeedsCapabilityConfirm {
-		t.Fatal("the resolve manifest declares egress; the first install owes the consent")
-	}
-	if _, err := e.Confirm(plan.ID, false, true, false); err != nil {
-		t.Fatalf("an archive narrower than the consented contract was refused: %v", err)
-	}
-	st, err := installed.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(st.Records) != 1 {
-		t.Fatalf("records = %+v, want one", st.Records)
-	}
-	if hosts := st.Records[0].Capabilities.EgressHosts; len(hosts) != 0 {
-		t.Errorf("record carries the resolve manifest's egress %v, want the archive's (none)", hosts)
+	for _, tc := range []struct {
+		name             string
+		target           string
+		resolve, archive map[string]any
+		refusal          string // "" installs
+		wantRecordEgress []string
+	}{
+		{name: "adds egress", target: "claude-skill", archive: egress("evil.example"), refusal: "adds network egress to evil.example"},
+		{name: "adds egress, runner home", target: installdir.Target, archive: egress("evil.example"), refusal: "adds network egress to evil.example"},
+		{name: "adds exec", target: "claude-skill", archive: map[string]any{"exec": map[string]any{"commands": []string{"curl"}}}, refusal: "curl"},
+		{name: "server egress", target: "claude-skill",
+			resolve: osvServer(nil), archive: osvServer(map[string]any{"egress": []string{"evil.example"}}),
+			refusal: "adds network egress to evil.example for MCP server npm:@acme/osv-mcp@1.2.3"},
+		{name: "server secret", target: installdir.Target,
+			resolve: osvServer(nil), archive: osvServer(map[string]any{"secrets": []string{"OSV_TOKEN"}}),
+			refusal: "asks for a new secret OSV_TOKEN for MCP server"},
+		{name: "server tools unrestricted", target: "claude-skill",
+			resolve: osvServer(map[string]any{"tools": []string{"query"}}), archive: osvServer(nil),
+			refusal: "grants MCP server npm:@acme/osv-mcp@1.2.3 its full tool set"},
+		{name: "server tool added", target: "claude-skill",
+			resolve: osvServer(map[string]any{"tools": []string{"query"}}), archive: osvServer(map[string]any{"tools": []string{"query", "delete"}}),
+			refusal: "adds tool delete to MCP server"},
+		{name: "matches", target: installdir.Target, resolve: egress("api.example"), archive: egress("api.example"), wantRecordEgress: []string{"api.example"}},
+		{name: "narrows", target: "claude-skill", resolve: egress("api.example"), archive: nil},
+		{name: "server narrows", target: "claude-skill",
+			resolve: osvServer(map[string]any{"egress": []string{"api.osv.dev", "b.example"}}), archive: osvServer(map[string]any{"egress": []string{"api.osv.dev"}, "tools": []string{"query"}})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			isolate(t)
+			home := os.Getenv("AGENTRY_RUNNER_HOME")
+			dir := ""
+			if tc.target != installdir.Target {
+				dir = t.TempDir()
+			}
+			reg := startRegistry(t, &fakeRegistry{
+				archive: archiveWithManifest(t, demoManifest(tc.archive)), manifestDoc: demoManifest(tc.resolve),
+			})
+			e := NewEngine()
+			plan, err := e.Prepare(context.Background(), reg, "acme/demo", tc.target, dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = e.Confirm(plan.ID, false, true, false)
+			st, lerr := installed.Load()
+			if lerr != nil {
+				t.Fatal(lerr)
+			}
+			if tc.refusal != "" {
+				if err == nil {
+					t.Fatal("an archive widening the consented contract was installed")
+				}
+				for _, want := range []string{"declares more than the registry said it would", tc.refusal} {
+					if !strings.Contains(err.Error(), want) {
+						t.Errorf("refusal %q does not say %q", err, want)
+					}
+				}
+				if _, serr := os.Stat(plan.Paths.Dest); !os.IsNotExist(serr) {
+					t.Errorf("%s written before the refusal (stat err %v)", plan.Paths.Dest, serr)
+				}
+				if tc.target == installdir.Target {
+					if _, ok := installdir.Load(installdir.ReleaseDir(home, "acme", "demo", "1.0.0", plan.Digest), plan.Digest); ok {
+						t.Error("the release was laid down in the runner home before the refusal")
+					}
+				}
+				if len(st.Records) != 0 {
+					t.Errorf("a refused install left a record: %+v", st.Records)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("an archive within the consented contract was refused: %v", err)
+			}
+			if len(st.Records) != 1 {
+				t.Fatalf("records = %+v, want one", st.Records)
+			}
+			if got := st.Records[0].Capabilities.EgressHosts; !slices.Equal(got, tc.wantRecordEgress) {
+				t.Errorf("record egress = %v, want the archive's %v", got, tc.wantRecordEgress)
+			}
+		})
 	}
 }
 
