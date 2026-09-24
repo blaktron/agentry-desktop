@@ -12,6 +12,8 @@ package main
 import (
 	"context"
 	"io"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -51,6 +53,15 @@ func (r *RunAPI) beginRun(ref string, cancel context.CancelFunc) (*liveRun, erro
 	r.liveMu.Lock()
 	r.live = l
 	r.liveMu.Unlock()
+	// The crash path's record (agentry-desktop#198): written before the
+	// engine creates anything, so a kill from here on leaves the next
+	// start a run id to sweep. Best effort: a run is not refused because
+	// the runner home is unwritable; the record is litter insurance.
+	if dir, err := r.inFlight(); err == nil {
+		if err := run.RecordInFlight(dir, id); err != nil {
+			log.Printf("agentry-desktop: %v", err)
+		}
+	}
 	return l, nil
 }
 
@@ -62,7 +73,41 @@ func (r *RunAPI) endRun(l *liveRun) {
 	if r.live == l {
 		r.live = nil
 		close(l.done)
+		r.forgetInFlight(l.id)
 	}
+}
+
+// forgetInFlight removes a run's crash-path record once nothing of it can
+// be left: the engine returned (its teardown ran) or the run was swept.
+func (r *RunAPI) forgetInFlight(id string) {
+	if dir, err := r.inFlight(); err == nil {
+		if err := run.ForgetInFlight(dir, id); err != nil {
+			log.Printf("agentry-desktop: %v", err)
+		}
+	}
+}
+
+// sweepOrphans is the start half of the crash path (agentry-desktop#198):
+// a run recorded by an app that died without tearing it down — killed,
+// crashed, the machine lost power — is swept by its run id, and its record
+// removed. Only records whose owning process is provably gone are touched
+// (run.SweepOrphaned); a second desktop's live run and every CLI run carry
+// other run ids. Called once, in its own goroutine, from OnStartup.
+func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
+	dir, err := r.inFlight()
+	if err != nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, sweepWait)
+	defer cancel()
+	swept, err := run.SweepOrphaned(ctx, dir, r.sweepRun)
+	if len(swept) > 0 {
+		log.Printf("agentry-desktop: removed what %d run(s) of an earlier session left behind: %s", len(swept), strings.Join(swept, ", "))
+	}
+	if err != nil {
+		log.Printf("agentry-desktop: %v", err)
+	}
+	return swept
 }
 
 func (r *RunAPI) current() *liveRun {
@@ -114,7 +159,9 @@ func (r *RunAPI) shutdown() {
 	}
 	sweepCtx, cancel := context.WithTimeout(context.Background(), sweepWait)
 	defer cancel()
-	_ = r.sweepRun(sweepCtx, l.id)
+	if r.sweepRun(sweepCtx, l.id) == nil {
+		r.forgetInFlight(l.id)
+	}
 }
 
 // The engine seams: production uses internal/run; a test substitutes a
@@ -131,6 +178,15 @@ func (r *RunAPI) runEngine(ctx context.Context, req run.Request, logw io.Writer)
 		return r.engineRun(ctx, req, logw)
 	}
 	return run.Run(ctx, req, logw)
+}
+
+// inFlight is the crash-path records' directory: the test's, or the runner
+// home's desktop-runs.
+func (r *RunAPI) inFlight() (string, error) {
+	if r.inFlightDir != "" {
+		return r.inFlightDir, nil
+	}
+	return run.InFlightDir()
 }
 
 func (r *RunAPI) sweepRun(ctx context.Context, id string) error {

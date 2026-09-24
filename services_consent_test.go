@@ -21,7 +21,9 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		asked = append(asked, title)
 		return false, nil // the person says No
 	}}
-	r := &RunAPI{app: app}
+	// The consent-free run below reaches beginRun: its crash-path record
+	// (agentry-desktop#198) goes to a temp dir, not the real runner home.
+	r := &RunAPI{app: app, inFlightDir: t.TempDir()}
 	for name, call := range map[string]func() error{
 		"RestartNow":       func() error { return r.RestartNow() },
 		"InstallDocker":    func() error { _, err := r.InstallDocker(); return err },
