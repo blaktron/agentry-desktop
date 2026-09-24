@@ -64,7 +64,9 @@ disclosure.
 The one-click install and its checks (agentry-desktop#146, #147) are
 `#agent-installed`, `#agent-installed-older`, `#agent-installed-unreachable`,
 `#agent-install-refused`, `#agent-installing` and `#installed-updates` in
-`pages.html`. **Settings → Coding agents** (agentry-desktop#148) reads
+`pages.html`; `#installed-update-warning` is Installed's Update of a
+runner-home record completing with a warning (agentry-desktop#235), and
+`shots.mjs` clicks Update and asserts the engine's sentence is on the page. **Settings → Coding agents** (agentry-desktop#148) reads
 `#coding-<state>` there: the default has Claude Code chosen (the Claude
 skill, the switch off — which also names the agent page's link),
 `#coding-codex` Codex alone (AGENTS.md in a chosen project folder, the
