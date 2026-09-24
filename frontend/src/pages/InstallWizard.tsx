@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { install } from "../../wailsjs/go/models";
-import { ErrorBox, SignedBadge, Spinner, shortDigest } from "../ui";
+import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, shortDigest } from "../ui";
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
@@ -170,6 +170,12 @@ export default function InstallWizard({
 
             <h3>Declared capabilities</h3>
             <CapsTable caps={plan.capabilities} />
+            {(plan.mcpServers ?? []).length > 0 && (
+              <>
+                <h3>Declared MCP servers</h3>
+                <DeclaredServersTable servers={plan.mcpServers} />
+              </>
+            )}
 
             {plan.diff && (plan.diff.widened?.length || plan.diff.narrowed?.length) ? (
               <>
