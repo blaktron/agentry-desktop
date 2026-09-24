@@ -387,19 +387,49 @@ jobs:
       # embedded bundle the app ships with.
       - name: Go tests, natively on macOS
         run: go test ./...
-      # go-keyring writes to the user's default keychain. The runner's user
-      # has no console session, so its keychain search list is empty and a
-      # write fails with security's exit 152 (agentry-desktop#106). Without a
-      # keychain the step says so and is skipped, the launch smoke's shape;
-      # with one, the round trip must pass. #106 tracks giving the job a
-      # throwaway keychain so the round trip runs here.
-      - name: Keychain round trip
+      # go-keyring (v0.2.8) runs /usr/bin/security with no keychain named, so
+      # it writes to the user's DEFAULT keychain and reads through the search
+      # list. The runner's user has no console session and so has neither
+      # (security's exit 152, agentry-desktop#106). The job gives it both for
+      # the length of the round trip: a throwaway keychain in RUNNER_TEMP, with
+      # a random password that lives only in this step, holding nothing but
+      # the test's own item. The step after the round trip, under always(),
+      # puts the list and the default back and deletes the keychain. What it
+      # restores is read here, minus any agentry-ci keychain a killed job left
+      # behind, so one crash cannot become the next job's state.
+      - name: A throwaway keychain as the default, for the round trip
         run: |
-          if [ -z "$(security list-keychains -d user 2>/dev/null | tr -d '[:space:]')" ]; then
-            echo "::warning::keychain round trip skipped: $(id -un) has no keychain in its search list on this runner (no console session; agentry-desktop#106)"
-            exit 0
+          kc="$RUNNER_TEMP/agentry-ci.keychain-db"
+          security list-keychains -d user | tr -d ' "' | grep -v '^$' | grep -v 'agentry-ci\.keychain' > "$RUNNER_TEMP/keychains.before" || true
+          security default-keychain -d user 2>/dev/null | tr -d ' "' | grep -v 'agentry-ci\.keychain' > "$RUNNER_TEMP/default-keychain.before" || true
+          echo "search list before: $(tr '\n' ' ' < "$RUNNER_TEMP/keychains.before")(default: $(cat "$RUNNER_TEMP/default-keychain.before"))"
+          pw=$(openssl rand -hex 24)
+          echo "::add-mask::$pw"
+          security delete-keychain "$kc" 2>/dev/null || true
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          security list-keychains -d user -s "$kc"
+          security default-keychain -d user -s "$kc"
+          echo "search list now: $(security list-keychains -d user | tr -d ' "' | tr '\n' ' ')"
+      - name: Keychain round trip
+        run: AGENTRY_KEYCHAIN_TEST=1 go test ./internal/settings/ -run TestKeychainRoundTrip -v -count=1
+      - name: Restore the keychain search list and default, delete the throwaway
+        if: always()
+        run: |
+          kc="$RUNNER_TEMP/agentry-ci.keychain-db"
+          if [ -f "$RUNNER_TEMP/keychains.before" ]; then
+            before=()
+            while IFS= read -r k; do [ -n "$k" ] && before+=("$k"); done < "$RUNNER_TEMP/keychains.before"
+            # An empty list is restored as empty: -s with no names.
+            security list-keychains -d user -s ${before[@]+"${before[@]}"}
+            d=$(cat "$RUNNER_TEMP/default-keychain.before" 2>/dev/null)
+            if [ -n "$d" ] && [ -e "$d" ]; then security default-keychain -d user -s "$d"; fi
           fi
-          AGENTRY_KEYCHAIN_TEST=1 go test ./internal/settings/ -run TestKeychainRoundTrip -v
+          security delete-keychain "$kc" 2>/dev/null || true
+          left=$(security list-keychains -d user | tr -d ' "' | grep 'agentry-ci\.keychain' || true)
+          echo "search list after: $(security list-keychains -d user | tr -d ' "' | tr '\n' ' ')"
+          if [ -n "$left" ] || [ -e "$kc" ]; then echo "::error::the throwaway keychain is still on the runner ($kc)"; exit 1; fi
       # A window needs the runner's user logged in at the console. Without a
       # session the smoke cannot run and says so; with one, the built app must
       # still be running after five seconds.
