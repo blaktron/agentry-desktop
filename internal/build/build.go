@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -34,17 +35,25 @@ import (
 // Model is the Build form's shape: flat fields that map one-to-one onto
 // the manifest's YAML. The YAML is the contract (a closed schema, V-rules
 // at validate/publish); this struct is only a convenient editor for it.
+//
+// It covers every field of manifest schema v2 (plan builder-rework.md D19,
+// agentry-desktop#280), so Load then Save keeps what a template-made or
+// hand-edited workspace declares. The form edits most of them; the rest
+// (authors, the runtime block, dependencies, the publish channel and extra
+// include globs) are carried through unchanged. What a save does not keep
+// is comments, and HadComments says when a loaded file had some.
 type Model struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 	// Modes are the run modes the release supports (manifest v2): autonomous,
 	// interactive, or both.
-	Modes    []string `json:"modes"`
-	Version  string   `json:"version"`
-	Summary  string   `json:"summary"`
-	License  string   `json:"license"`
-	Homepage string   `json:"homepage,omitempty"`
-	Tags     []string `json:"tags"`
+	Modes    []string    `json:"modes"`
+	Version  string      `json:"version"`
+	Summary  string      `json:"summary"`
+	License  string      `json:"license"`
+	Authors  []AuthorRow `json:"authors"`
+	Homepage string      `json:"homepage,omitempty"`
+	Tags     []string    `json:"tags"`
 
 	// InstructionFile is entrypoints.instruction (AGENT.md by default; a
 	// workspace authored as a v1 skill keeps its SKILL.md).
@@ -56,6 +65,16 @@ type Model struct {
 	// Opening is interactive.opening: the agent's first line in a session
 	// started without a task (only meaningful with interactive in Modes).
 	Opening string `json:"opening"`
+	// IdleTimeoutSeconds is interactive.idleTimeoutSeconds; 0 leaves it out.
+	IdleTimeoutSeconds int `json:"idleTimeoutSeconds"`
+	// Guide is the manifest's guide block (DEV-141): what a person reads
+	// before a run, never the agent.
+	Guide GuideModel `json:"guide"`
+	// RuntimeModels and RuntimeInterfaces are the runtime block. A new
+	// BriefAgent declares both instruction interfaces; a loaded one keeps
+	// what it had, which may be nothing.
+	RuntimeModels     []string `json:"runtimeModels"`
+	RuntimeInterfaces []string `json:"runtimeInterfaces"`
 
 	// The §5.4 capability contract, flattened for form controls.
 	EgressMode   string   `json:"egressMode"` // none | hosts | all
@@ -71,9 +90,43 @@ type Model struct {
 	// one structured row per server so the form never guesses at a
 	// line syntax.
 	MCPServers []MCPServerRow `json:"mcpServers"`
+
+	// Dependencies are dependencies.agents.
+	Dependencies []DependencyRow `json:"dependencies"`
+	// PublishChannel is publish.channel (stable when empty).
+	PublishChannel string `json:"publishChannel"`
+	// PublishInclude is publish.include as loaded; empty means the four
+	// files the Build surface writes.
+	PublishInclude []string `json:"publishInclude"`
+
+	// HadComments reports that the loaded agent.yaml carried comments,
+	// which a save does not keep. Never written.
+	HadComments bool `json:"hadComments"`
 }
 
-// MCPServerRow is one capabilities.mcpServers entry as the form edits it.
+// AuthorRow is one authors entry.
+type AuthorRow struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// GuideModel is the guide block as the form edits it. Connect keeps its
+// rows in order; the manifest's map has none.
+type GuideModel struct {
+	Overview string       `json:"overview"`
+	Prepare  []string     `json:"prepare"`
+	Files    string       `json:"files"`
+	Task     string       `json:"task"`
+	Connect  []ConnectRow `json:"connect"`
+}
+
+// ConnectRow is help for one declared secret: where to create it, which
+// scopes it needs.
+type ConnectRow struct {
+	Secret string `json:"secret"`
+	Help   string `json:"help"`
+}
+
 // IntakeRow is one intake question as the form edits it.
 type IntakeRow struct {
 	ID       string   `json:"id"`
@@ -83,6 +136,7 @@ type IntakeRow struct {
 	Choices  []string `json:"choices"`
 }
 
+// MCPServerRow is one capabilities.mcpServers entry as the form edits it.
 type MCPServerRow struct {
 	// Source is "npm" or "pypi".
 	Source string `json:"source"`
@@ -96,9 +150,23 @@ type MCPServerRow struct {
 	Secrets []string `json:"secrets"`
 	// Egress lists the hosts this server may reach; empty = none.
 	Egress []string `json:"egress"`
+	// Env is the server's plain configuration (v2, DEV-098): in the
+	// contract, never a secret.
+	Env []EnvRow `json:"env"`
 }
 
-// entrypointFile maps kind → the instruction file the manifest names.
+// EnvRow is one env entry of a declared server.
+type EnvRow struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// DependencyRow is one dependencies.agents entry.
+type DependencyRow struct {
+	Ref     string `json:"ref"`
+	Version string `json:"version"`
+}
+
 // defaultInstructionFile is the manifest's default entrypoints.instruction.
 const defaultInstructionFile = "AGENT.md"
 
@@ -122,108 +190,532 @@ func Default(namespace string) *Model {
 		EgressMode: "none", FSRead: "workspace", FSWrite: "none",
 		Tags: []string{}, EgressHosts: []string{}, FSReadPaths: []string{}, FSWritePaths: []string{},
 		ExecCommands: []string{}, Secrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
-		Instructions: "# New BriefAgent\n\nDescribe the one job this agent does: task in, result out.\nWrite the report with the write_report tool.\n",
+		Authors: []AuthorRow{}, Guide: GuideModel{Prepare: []string{}, Connect: []ConnectRow{}},
+		RuntimeModels: []string{}, RuntimeInterfaces: []string{"claude-skill", "agents-md"},
+		Dependencies: []DependencyRow{}, PublishInclude: []string{},
+		Instructions: "# New BriefAgent\n\nDescribe the one job this agent does: task in, result out.\n\n## What you are given\n\nThe task, and any files under /inputs.\n\n## Steps\n\n1. \n\n## What you return\n\nWrite the report with the write_report tool.\n",
 	}
 }
 
-// Validate applies the form-level rules before anything touches disk.
-func (m *Model) Validate() error {
+// Section is one step of the Step by step view (plan builder-rework.md D4).
+// The Advanced view shows the same sections at once.
+type Section string
+
+const (
+	SectionBasics       Section = "basics"
+	SectionInstructions Section = "instructions"
+	SectionTools        Section = "tools"
+	SectionAccess       Section = "access"
+	SectionQuestions    Section = "questions"
+	SectionGuide        Section = "guide"
+	SectionPublish      Section = "publish"
+)
+
+// Sections are the form's sections in the order Step by step walks them.
+var Sections = []Section{SectionBasics, SectionInstructions, SectionTools, SectionAccess, SectionQuestions, SectionGuide, SectionPublish}
+
+// maxInstructionBytes is the §19 instruction-file quota.
+const maxInstructionBytes = 1 << 20
+
+// formProblems are the rules the form holds before anything touches disk,
+// each with the section whose fields break it. Two are stricter than the
+// core: a declared server's "*" egress, which the runner always refuses
+// (DR-20), and a secret question with no declared secret, which the runner
+// refuses at intake. The rest of the V-rules come from manifest.Validate in
+// Check.
+func (m *Model) formProblems() []SectionProblem {
+	var out []SectionProblem
+	add := func(sec Section, format string, args ...any) {
+		out = append(out, SectionProblem{Section: sec, Problem: fmt.Sprintf(format, args...)})
+	}
 	if !manifest.ValidName(m.Name) {
-		return fmt.Errorf("name %q is invalid (lowercase [a-z0-9-], 1-64 chars)", m.Name)
+		add(SectionBasics, "name %q is invalid (lowercase letters, digits and inner hyphens, 1-65 characters)", m.Name)
 	}
-	if !manifest.ValidNamespace(m.Namespace) {
-		return fmt.Errorf("namespace %q is invalid (lowercase [a-z0-9-])", m.Namespace)
+	if strings.TrimSpace(m.Summary) == "" {
+		add(SectionBasics, "summary is required (one line, ≤140 chars)")
 	}
-	if len(compact(m.Modes)) == 0 {
-		return fmt.Errorf("choose at least one run mode (autonomous, interactive)")
+	modes := compact(m.Modes)
+	if len(modes) == 0 {
+		add(SectionBasics, "choose at least one run mode (autonomous, interactive)")
 	}
 	seenMode := map[string]bool{}
-	for _, mode := range compact(m.Modes) {
+	for _, mode := range modes {
 		if !validMode(mode) {
-			return fmt.Errorf("unknown run mode %q (want autonomous or interactive)", mode)
+			add(SectionBasics, "unknown run mode %q (want autonomous or interactive)", mode)
 		}
 		if seenMode[mode] {
-			return fmt.Errorf("run mode %s is listed twice", mode)
+			add(SectionBasics, "run mode %s is listed twice", mode)
 		}
 		seenMode[mode] = true
 	}
-	if strings.Contains(m.instructionFile(), "/") || strings.Contains(m.instructionFile(), "..") {
-		return fmt.Errorf("the instruction file must be a file at the workspace root")
+	if len([]rune(m.Opening)) > manifest.MaxOpeningChars {
+		add(SectionBasics, "the opening line is at most %d characters", manifest.MaxOpeningChars)
 	}
+	if m.IdleTimeoutSeconds < 0 {
+		add(SectionBasics, "the idle timeout cannot be negative")
+	}
+
+	if strings.Contains(m.instructionFile(), "/") || strings.Contains(m.instructionFile(), "..") {
+		add(SectionInstructions, "the instruction file must be a file at the workspace root")
+	}
+	if strings.TrimSpace(m.Instructions) == "" {
+		add(SectionInstructions, "write the instructions")
+	}
+	if len(m.Instructions) > maxInstructionBytes {
+		add(SectionInstructions, "the instructions are at most 1 MiB (the §19 instruction-file quota)")
+	}
+
+	if m.EgressMode == "hosts" && len(compact(m.EgressHosts)) == 0 {
+		add(SectionTools, "list the sites it may reach, or choose no internet")
+	}
+	agentSecrets := map[string]bool{}
+	for _, s := range compact(m.Secrets) {
+		agentSecrets[s] = true
+	}
+	seen := map[string]bool{}
+	for i, srv := range m.MCPServers {
+		if srv.Source != "npm" && srv.Source != "pypi" {
+			add(SectionTools, "mcp server %d: source must be npm or pypi", i+1)
+			continue
+		}
+		pkg := strings.TrimSpace(srv.Package)
+		if pkg == "" {
+			add(SectionTools, "mcp server %d: package name is required", i+1)
+			continue
+		}
+		if strings.TrimSpace(srv.Version) == "" {
+			add(SectionTools, "mcp server %d (%s): an exact version is required (no ranges)", i+1, pkg)
+		}
+		if id := srv.Source + ":" + pkg; seen[id] {
+			add(SectionTools, "mcp server %s is declared twice", id)
+		} else {
+			seen[id] = true
+		}
+		for _, h := range compact(srv.Egress) {
+			if h == "*" {
+				add(SectionTools, "mcp server %s: list the hosts it reaches; the runner always refuses \"*\" for a declared server", pkg)
+			}
+		}
+		serverSecrets := map[string]bool{}
+		for _, s := range compact(srv.Secrets) {
+			serverSecrets[s] = true
+		}
+		names := map[string]bool{}
+		for _, e := range srv.Env {
+			name := strings.TrimSpace(e.Name)
+			switch {
+			case name == "":
+				add(SectionTools, "mcp server %s: an env entry needs a name", pkg)
+			case names[name]:
+				add(SectionTools, "mcp server %s: env %s is set twice", pkg, name)
+			case serverSecrets[name] || agentSecrets[name]:
+				add(SectionTools, "mcp server %s: %s is declared as env and as a secret; make it one or the other", pkg, name)
+			case !manifest.LiteralEnvValue(e.Value):
+				add(SectionTools, "mcp server %s: env %s holds a $ or a {{ }} the runner would expand; write the literal value", pkg, name)
+			}
+			names[name] = true
+		}
+	}
+
+	if m.FSRead == "paths" && len(compact(m.FSReadPaths)) == 0 {
+		add(SectionAccess, "list the paths it reads, or choose another answer")
+	}
+	if m.FSWrite == "paths" && len(compact(m.FSWritePaths)) == 0 {
+		add(SectionAccess, "list the paths it writes, or choose another answer")
+	}
+
 	if len(m.Intake) > 20 {
-		return fmt.Errorf("at most 20 intake questions")
+		add(SectionQuestions, "at most 20 intake questions")
 	}
 	declared := map[string]bool{}
-	for _, s := range compact(m.Secrets) {
+	for s := range agentSecrets {
 		declared[s] = true
+	}
+	for _, srv := range m.MCPServers {
+		for _, s := range compact(srv.Secrets) {
+			declared[s] = true
+		}
 	}
 	seenID := map[string]bool{}
 	for i, q := range m.Intake {
 		id := strings.TrimSpace(q.ID)
 		if !intakeIDRE.MatchString(id) {
-			return fmt.Errorf("intake question %d: id must match [a-z0-9_]+", i+1)
+			add(SectionQuestions, "intake question %d: id must match [a-z0-9_]+", i+1)
+			continue
 		}
 		if seenID[id] {
-			return fmt.Errorf("intake question %d: id %q is used twice", i+1, id)
+			add(SectionQuestions, "intake question %d: id %q is used twice", i+1, id)
 		}
 		seenID[id] = true
 		if strings.TrimSpace(q.Prompt) == "" {
-			return fmt.Errorf("intake question %s: the prompt is required", id)
+			add(SectionQuestions, "intake question %s: the prompt is required", id)
 		}
 		switch q.Type {
 		case "", "text", "file":
 		case "choice":
 			if len(compact(q.Choices)) == 0 {
-				return fmt.Errorf("intake question %s: a choice question needs its choices", id)
+				add(SectionQuestions, "intake question %s: a choice question needs its choices", id)
 			}
 		case "secret":
 			if !declared[strings.ToUpper(id)] {
-				return fmt.Errorf("intake question %s: a secret answer is carried by a declared secret named %s — add it to the secrets", id, strings.ToUpper(id))
+				add(SectionQuestions, "intake question %s: a secret answer is carried by a declared secret named %s — add it to the secrets", id, strings.ToUpper(id))
 			}
 		default:
-			return fmt.Errorf("intake question %s: unknown type %q (text, secret, choice, file)", id, q.Type)
+			add(SectionQuestions, "intake question %s: unknown type %q (text, secret, choice, file)", id, q.Type)
 		}
 		if q.Type != "choice" && len(compact(q.Choices)) > 0 {
-			return fmt.Errorf("intake question %s: choices only apply to a choice question", id)
+			add(SectionQuestions, "intake question %s: choices only apply to a choice question", id)
 		}
 	}
-	if len([]rune(m.Opening)) > 500 {
-		return fmt.Errorf("the opening line is at most 500 characters")
+
+	seenHelp := map[string]bool{}
+	for _, c := range m.Guide.Connect {
+		name := strings.TrimSpace(c.Secret)
+		if name == "" {
+			add(SectionGuide, "help for a key needs the key's name")
+			continue
+		}
+		if seenHelp[name] {
+			add(SectionGuide, "help for %s is given twice", name)
+		}
+		seenHelp[name] = true
+	}
+
+	if !manifest.ValidNamespace(m.Namespace) {
+		add(SectionPublish, "namespace %q is invalid (lowercase letters, digits and inner hyphens, 1-39 characters)", m.Namespace)
 	}
 	if strings.TrimSpace(m.Version) == "" {
-		return fmt.Errorf("version is required (strict semver, e.g. 0.1.0)")
+		add(SectionPublish, "version is required (strict semver, e.g. 0.1.0)")
 	}
-	if strings.TrimSpace(m.Summary) == "" {
-		return fmt.Errorf("summary is required (one line, ≤140 chars)")
-	}
-	if m.EgressMode == "hosts" && len(compact(m.EgressHosts)) == 0 {
-		return fmt.Errorf("egress mode is hosts but no hosts are listed")
-	}
-	if m.FSRead == "paths" && len(compact(m.FSReadPaths)) == 0 {
-		return fmt.Errorf("fs read mode is paths but no paths are listed")
-	}
-	if m.FSWrite == "paths" && len(compact(m.FSWritePaths)) == 0 {
-		return fmt.Errorf("fs write mode is paths but no paths are listed")
-	}
-	seen := map[string]bool{}
-	for i, srv := range m.MCPServers {
-		if srv.Source != "npm" && srv.Source != "pypi" {
-			return fmt.Errorf("mcp server %d: source must be npm or pypi", i+1)
-		}
-		pkg := strings.TrimSpace(srv.Package)
-		if pkg == "" {
-			return fmt.Errorf("mcp server %d: package name is required", i+1)
-		}
-		if strings.TrimSpace(srv.Version) == "" {
-			return fmt.Errorf("mcp server %d (%s): an exact version is required (no ranges)", i+1, pkg)
-		}
-		if id := srv.Source + ":" + pkg; seen[id] {
-			return fmt.Errorf("mcp server %s is declared twice", id)
-		} else {
-			seen[id] = true
-		}
+	return out
+}
+
+// Validate applies the form-level rules before anything touches disk.
+func (m *Model) Validate() error {
+	if ps := m.formProblems(); len(ps) > 0 {
+		return errors.New(ps[0].Problem)
 	}
 	return nil
+}
+
+// SectionProblem is one broken rule and the section whose fields break it.
+type SectionProblem struct {
+	Section Section `json:"section"`
+	Problem string  `json:"problem"`
+}
+
+// CheckResult is what the Build page draws from a model before it saves
+// anything: the agent.yaml it would write, the lines each section writes,
+// the first problem in each section, and the V-rules' warnings. The
+// problems are the form's own rules and then manifest.Validate's, the same
+// static V-rules `agentry validate` runs, so a step refuses what the
+// validator would.
+type CheckResult struct {
+	YAML      string            `json:"yaml"`
+	Fragments map[string]string `json:"fragments"`
+	Problems  map[string]string `json:"problems"`
+	// First is the first problem in step order, or nil.
+	First    *SectionProblem `json:"first"`
+	Warnings []string        `json:"warnings"`
+}
+
+// Check renders the model and runs the rules over it.
+func (m *Model) Check() *CheckResult {
+	res := &CheckResult{YAML: m.manifestYAML(), Fragments: map[string]string{}, Problems: map[string]string{}, Warnings: []string{}}
+	for _, sec := range Sections {
+		if f := m.fragment(sec); f != "" {
+			res.Fragments[string(sec)] = f
+		}
+	}
+	note := func(sec Section, problem string) {
+		if _, ok := res.Problems[string(sec)]; !ok {
+			res.Problems[string(sec)] = problem
+		}
+	}
+	for _, p := range m.formProblems() {
+		note(p.Section, p.Problem)
+	}
+	parsed, err := manifest.Parse([]byte(res.YAML))
+	if err != nil {
+		// The renderer writes the closed schema; a file it cannot parse back
+		// is a value the form's rules did not catch.
+		note(SectionPublish, "agent.yaml does not parse: "+err.Error())
+	} else {
+		for _, e := range manifest.Validate(parsed) {
+			iss, ok := manifest.AsIssue(e)
+			if !ok {
+				note(SectionPublish, e.Error())
+				continue
+			}
+			msg := iss.Message
+			if iss.Path != "" {
+				msg = iss.Path + ": " + iss.Message
+			}
+			if iss.Severity == manifest.SeverityWarning {
+				res.Warnings = append(res.Warnings, msg)
+				continue
+			}
+			note(sectionOf(iss.Path), msg)
+		}
+	}
+	for _, sec := range Sections {
+		if p, ok := res.Problems[string(sec)]; ok {
+			res.First = &SectionProblem{Section: sec, Problem: p}
+			break
+		}
+	}
+	return res
+}
+
+// sectionOf names the section whose fields a V-rule's path is in.
+func sectionOf(path string) Section {
+	head := path
+	if i := strings.IndexAny(head, ".["); i >= 0 {
+		head = head[:i]
+	}
+	switch head {
+	case "name", "summary", "modes", "kind", "schemaVersion", "interactive":
+		return SectionBasics
+	case "entrypoints":
+		return SectionInstructions
+	case "intake":
+		return SectionQuestions
+	case "guide":
+		return SectionGuide
+	case "capabilities":
+		if strings.HasPrefix(path, "capabilities.network") || strings.HasPrefix(path, "capabilities.mcpServers") {
+			return SectionTools
+		}
+		return SectionAccess
+	}
+	return SectionPublish
+}
+
+// q YAML-quotes a scalar a person typed, so no character in it changes the
+// file's shape. The values written bare (the name, the namespace, the run
+// modes, intake ids, env and help names, data categories) are ones a rule
+// holds to a grammar first.
+func q(s string) string {
+	out, _ := yaml.Marshal(s)
+	return strings.TrimSpace(string(out))
+}
+
+// seq is a flow sequence of quoted values.
+func seq(items []string) string { return "[" + strings.Join(quoteAll(items), ", ") + "]" }
+
+// The manifest's blocks, each as the lines manifestYAML writes for it, so a
+// section can show its own lines (plan builder-rework.md §5) and the whole
+// file is their composition.
+func (m *Model) identityLines() []string {
+	return []string{"name: " + m.Name, "modes: [" + strings.Join(compact(m.Modes), ", ") + "]", "summary: " + q(m.Summary)}
+}
+
+func (m *Model) publishingLines() []string {
+	out := []string{"namespace: " + m.Namespace, "version: " + q(strings.TrimSpace(m.Version))}
+	if m.License != "" {
+		out = append(out, "license: "+q(m.License))
+	}
+	if len(m.Authors) > 0 {
+		out = append(out, "authors:")
+		for _, a := range m.Authors {
+			out = append(out, "  - name: "+q(strings.TrimSpace(a.Name)))
+			if e := strings.TrimSpace(a.Email); e != "" {
+				out = append(out, "    email: "+q(e))
+			}
+		}
+	}
+	if m.Homepage != "" {
+		out = append(out, "homepage: "+q(m.Homepage))
+	}
+	if tags := compact(m.Tags); len(tags) > 0 {
+		out = append(out, "tags: "+seq(tags))
+	}
+	return out
+}
+
+func (m *Model) interactiveLines() []string {
+	opening := strings.TrimSpace(m.Opening)
+	if opening == "" && m.IdleTimeoutSeconds == 0 {
+		return nil
+	}
+	out := []string{"interactive:"}
+	if opening != "" {
+		out = append(out, "  opening: "+q(opening))
+	}
+	if m.IdleTimeoutSeconds > 0 {
+		out = append(out, fmt.Sprintf("  idleTimeoutSeconds: %d", m.IdleTimeoutSeconds))
+	}
+	return out
+}
+
+func (m *Model) intakeLines() []string {
+	if len(m.Intake) == 0 {
+		return nil
+	}
+	out := []string{"intake:"}
+	for _, qn := range m.Intake {
+		out = append(out, "  - id: "+strings.TrimSpace(qn.ID), "    prompt: "+q(strings.TrimSpace(qn.Prompt)))
+		if qn.Type != "" && qn.Type != "text" {
+			out = append(out, "    type: "+qn.Type)
+		}
+		if qn.Required {
+			out = append(out, "    required: true")
+		}
+		if qn.Type == "choice" {
+			out = append(out, "    choices: "+seq(compact(qn.Choices)))
+		}
+	}
+	return out
+}
+
+func (g GuideModel) empty() bool {
+	return strings.TrimSpace(g.Overview) == "" && len(compact(g.Prepare)) == 0 && strings.TrimSpace(g.Files) == "" &&
+		strings.TrimSpace(g.Task) == "" && len(g.Connect) == 0
+}
+
+func (m *Model) guideLines() []string {
+	g := m.Guide
+	if g.empty() {
+		return nil
+	}
+	out := []string{"guide:"}
+	if o := strings.TrimSpace(g.Overview); o != "" {
+		out = append(out, "  overview: "+q(o))
+	}
+	if p := compact(g.Prepare); len(p) > 0 {
+		out = append(out, "  prepare: "+seq(p))
+	}
+	if f := strings.TrimSpace(g.Files); f != "" {
+		out = append(out, "  files: "+q(f))
+	}
+	if t := strings.TrimSpace(g.Task); t != "" {
+		out = append(out, "  task: "+q(t))
+	}
+	if len(g.Connect) > 0 {
+		out = append(out, "  connect:")
+		for _, c := range g.Connect {
+			out = append(out, "    "+strings.TrimSpace(c.Secret)+": "+q(strings.TrimSpace(c.Help)))
+		}
+	}
+	return out
+}
+
+func (m *Model) runtimeLines() []string {
+	models, ifaces := compact(m.RuntimeModels), compact(m.RuntimeInterfaces)
+	if len(models) == 0 && len(ifaces) == 0 {
+		return nil
+	}
+	out := []string{"runtime:"}
+	if len(models) > 0 {
+		out = append(out, "  models: "+seq(models))
+	}
+	if len(ifaces) > 0 {
+		out = append(out, "  interfaces: ["+strings.Join(ifaces, ", ")+"]")
+	}
+	return out
+}
+
+// The capability block's two halves: where the BriefAgent and its servers
+// reach (Tools and web access), and the rest of the contract (Files,
+// commands and data). Indented under capabilities:.
+func (m *Model) networkLines() []string {
+	switch m.EgressMode {
+	case "all":
+		return []string{"  network:", `    egress: "*"`}
+	case "hosts":
+		return []string{"  network:", "    egress: " + seq(compact(m.EgressHosts))}
+	}
+	return []string{"  network:", "    egress: none"}
+}
+
+func (m *Model) serverLines() []string {
+	if len(m.MCPServers) == 0 {
+		return nil
+	}
+	out := []string{"  mcpServers:"}
+	for _, srv := range m.MCPServers {
+		out = append(out, "    - "+srv.Source+": "+q(strings.TrimSpace(srv.Package)), "      version: "+q(strings.TrimSpace(srv.Version)))
+		if tools := compact(srv.Tools); len(tools) > 0 {
+			out = append(out, "      tools: "+seq(tools))
+		}
+		if secs := compact(srv.Secrets); len(secs) > 0 {
+			out = append(out, "      secrets: "+seq(secs))
+		}
+		if eg := compact(srv.Egress); len(eg) > 0 {
+			out = append(out, "      egress: "+seq(eg))
+		}
+		if len(srv.Env) > 0 {
+			out = append(out, "      env:")
+			for _, e := range srv.Env {
+				out = append(out, "        "+strings.TrimSpace(e.Name)+": "+q(e.Value))
+			}
+		}
+	}
+	return out
+}
+
+func (m *Model) accessLines() []string {
+	out := []string{"  filesystem:", "    read: " + fsValue(m.FSRead, m.FSReadPaths), "    write: " + fsValue(m.FSWrite, m.FSWritePaths)}
+	if cmds := compact(m.ExecCommands); len(cmds) > 0 {
+		out = append(out, "  exec: { commands: "+seq(cmds)+" }")
+	} else {
+		out = append(out, "  exec: none")
+	}
+	if secs := compact(m.Secrets); len(secs) > 0 {
+		out = append(out, "  secrets: "+seq(secs))
+	}
+	if da := compact(m.DataAccess); len(da) > 0 {
+		out = append(out, "  dataAccess: ["+strings.Join(da, ", ")+"]")
+	}
+	return out
+}
+
+func (m *Model) dependencyLines() []string {
+	if len(m.Dependencies) == 0 {
+		return nil
+	}
+	out := []string{"dependencies:", "  agents:"}
+	for _, d := range m.Dependencies {
+		out = append(out, "    - ref: "+q(strings.TrimSpace(d.Ref)))
+		if v := strings.TrimSpace(d.Version); v != "" {
+			out = append(out, "      version: "+q(v))
+		}
+	}
+	return out
+}
+
+func (m *Model) publishLines() []string {
+	include := compact(m.PublishInclude)
+	if len(include) == 0 {
+		include = []string{"agent.yaml", m.instructionFile(), "README.md", "LICENSE"}
+	}
+	out := []string{"publish:", "  include: " + seq(include)}
+	if c := strings.TrimSpace(m.PublishChannel); c != "" {
+		out = append(out, "  channel: "+c)
+	}
+	return out
+}
+
+// fragment is what one section writes to agent.yaml.
+func (m *Model) fragment(sec Section) string {
+	var lines []string
+	switch sec {
+	case SectionBasics:
+		lines = append(m.identityLines(), m.interactiveLines()...)
+	case SectionInstructions:
+		lines = []string{"entrypoints:", "  instruction: " + m.instructionFile()}
+	case SectionTools:
+		lines = append(append([]string{"capabilities:"}, m.networkLines()...), m.serverLines()...)
+	case SectionAccess:
+		lines = append([]string{"capabilities:"}, m.accessLines()...)
+	case SectionQuestions:
+		lines = m.intakeLines()
+	case SectionGuide:
+		lines = m.guideLines()
+	case SectionPublish:
+		lines = append(m.publishingLines(), m.dependencyLines()...)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // manifestYAML renders the model as agent.yaml. Rendered by hand rather
@@ -231,102 +723,27 @@ func (m *Model) Validate() error {
 // have custom decode shapes, and the file should read like the template
 // repo — stable key order, the contract last.
 func (m *Model) manifestYAML() string {
-	var b strings.Builder
-	w := func(format string, args ...any) { fmt.Fprintf(&b, format+"\n", args...) }
-	q := func(s string) string {
-		out, _ := yaml.Marshal(s)
-		return strings.TrimSpace(string(out))
-	}
-	entry := m.instructionFile()
-
-	w("schemaVersion: \"2\"")
-	w("name: %s", m.Name)
-	w("namespace: %s", m.Namespace)
-	w("modes: [%s]", strings.Join(compact(m.Modes), ", "))
-	w("version: %s", m.Version)
-	w("summary: %s", q(m.Summary))
-	if m.License != "" {
-		w("license: %s", m.License)
-	}
-	if m.Homepage != "" {
-		w("homepage: %s", q(m.Homepage))
-	}
-	if tags := compact(m.Tags); len(tags) > 0 {
-		w("tags: [%s]", strings.Join(tags, ", "))
-	}
-	w("")
-	w("entrypoints:")
-	w("  instruction: %s", entry)
-	if len(m.Intake) > 0 {
-		w("")
-		w("intake:")
-		for _, qn := range m.Intake {
-			w("  - id: %s", strings.TrimSpace(qn.ID))
-			w("    prompt: %s", q(strings.TrimSpace(qn.Prompt)))
-			if qn.Type != "" && qn.Type != "text" {
-				w("    type: %s", qn.Type)
-			}
-			if qn.Required {
-				w("    required: true")
-			}
-			if qn.Type == "choice" {
-				w("    choices: [%s]", strings.Join(quoteAll(compact(qn.Choices)), ", "))
-			}
+	var out []string
+	block := func(lines []string) {
+		if len(lines) > 0 {
+			out = append(out, "")
+			out = append(out, lines...)
 		}
 	}
-	if strings.TrimSpace(m.Opening) != "" {
-		w("")
-		w("interactive:")
-		w("  opening: %s", q(strings.TrimSpace(m.Opening)))
-	}
-	w("")
-	w("runtime:")
-	w("  interfaces: [claude-skill, agents-md]")
-	w("")
-	w("capabilities:")
-	w("  network:")
-	switch m.EgressMode {
-	case "all":
-		w("    egress: \"*\"")
-	case "hosts":
-		w("    egress: [%s]", strings.Join(compact(m.EgressHosts), ", "))
-	default:
-		w("    egress: none")
-	}
-	w("  filesystem:")
-	w("    read: %s", fsValue(m.FSRead, m.FSReadPaths))
-	w("    write: %s", fsValue(m.FSWrite, m.FSWritePaths))
-	if cmds := compact(m.ExecCommands); len(cmds) > 0 {
-		w("  exec: { commands: [%s] }", strings.Join(cmds, ", "))
-	} else {
-		w("  exec: none")
-	}
-	if secs := compact(m.Secrets); len(secs) > 0 {
-		w("  secrets: [%s]", strings.Join(secs, ", "))
-	}
-	if da := compact(m.DataAccess); len(da) > 0 {
-		w("  dataAccess: [%s]", strings.Join(da, ", "))
-	}
-	if len(m.MCPServers) > 0 {
-		w("  mcpServers:")
-		for _, srv := range m.MCPServers {
-			w("    - %s: %s", srv.Source, q(strings.TrimSpace(srv.Package)))
-			w("      version: %s", q(strings.TrimSpace(srv.Version)))
-			if tools := compact(srv.Tools); len(tools) > 0 {
-				w("      tools: [%s]", strings.Join(tools, ", "))
-			}
-			if secs := compact(srv.Secrets); len(secs) > 0 {
-				w("      secrets: [%s]", strings.Join(secs, ", "))
-			}
-			if eg := compact(srv.Egress); len(eg) > 0 {
-				w("      egress: [%s]", strings.Join(quoteAll(eg), ", "))
-			}
-		}
-	}
-	w("")
-	w("publish:")
-	w("  include: [agent.yaml, %s, README.md, LICENSE]", entry)
-	return b.String()
+	id, pub := m.identityLines(), m.publishingLines()
+	out = append(out, `schemaVersion: "2"`, id[0], pub[0], id[1], pub[1], id[2])
+	out = append(out, pub[2:]...)
+	block([]string{"entrypoints:", "  instruction: " + m.instructionFile()})
+	block(m.intakeLines())
+	block(m.interactiveLines())
+	block(m.guideLines())
+	block(m.runtimeLines())
+	caps := append([]string{"capabilities:"}, m.networkLines()...)
+	caps = append(caps, m.accessLines()...)
+	block(append(caps, m.serverLines()...))
+	block(m.dependencyLines())
+	block(m.publishLines())
+	return strings.Join(out, "\n") + "\n"
 }
 
 func fsValue(mode string, paths []string) string {
@@ -334,7 +751,7 @@ func fsValue(mode string, paths []string) string {
 	case "workspace":
 		return "workspace"
 	case "paths":
-		return fmt.Sprintf("{ paths: [%s] }", strings.Join(compact(paths), ", "))
+		return "{ paths: " + seq(compact(paths)) + " }"
 	default:
 		return "none"
 	}
@@ -344,8 +761,7 @@ func fsValue(mode string, paths []string) string {
 func quoteAll(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, s := range in {
-		b, _ := yaml.Marshal(s)
-		out = append(out, strings.TrimSpace(string(b)))
+		out = append(out, q(s))
 	}
 	return out
 }
@@ -406,8 +822,9 @@ func Save(dir string, m *Model) error {
 
 // Load reads dir/agent.yaml (+ the entrypoint) back into the form model.
 // It parses the YAML shape directly — the manifest package's unions are a
-// decode contract, and the closed schema means unknown keys already failed
-// validate — tolerating only what the Build form itself writes.
+// decode contract — and reads every field of schema v2, so a save writes
+// back what the file declared (D19). Only comments are lost, and
+// HadComments says so.
 func Load(dir string) (*Model, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, "agent.yaml")) //nolint:gosec // user-picked workspace
 	if err != nil {
@@ -420,7 +837,11 @@ func Load(dir string) (*Model, error) {
 		Kind          string   `yaml:"kind"` // v1 only
 		Modes         []string `yaml:"modes"`
 		Version       string   `yaml:"version"`
-		Entrypoints   struct {
+		Authors       []struct {
+			Name  string `yaml:"name"`
+			Email string `yaml:"email"`
+		} `yaml:"authors"`
+		Entrypoints struct {
 			Skill       string `yaml:"skill"`
 			Instruction string `yaml:"instruction"`
 		} `yaml:"entrypoints"`
@@ -432,8 +853,20 @@ func Load(dir string) (*Model, error) {
 			Choices  []string `yaml:"choices"`
 		} `yaml:"intake"`
 		Interactive struct {
-			Opening string `yaml:"opening"`
+			Opening            string `yaml:"opening"`
+			IdleTimeoutSeconds int    `yaml:"idleTimeoutSeconds"`
 		} `yaml:"interactive"`
+		Guide struct {
+			Overview string            `yaml:"overview"`
+			Prepare  []string          `yaml:"prepare"`
+			Files    string            `yaml:"files"`
+			Task     string            `yaml:"task"`
+			Connect  map[string]string `yaml:"connect"`
+		} `yaml:"guide"`
+		Runtime struct {
+			Models     []string `yaml:"models"`
+			Interfaces []string `yaml:"interfaces"`
+		} `yaml:"runtime"`
 		Summary      string   `yaml:"summary"`
 		License      string   `yaml:"license"`
 		Homepage     string   `yaml:"homepage"`
@@ -450,14 +883,25 @@ func Load(dir string) (*Model, error) {
 			Secrets    []string  `yaml:"secrets"`
 			DataAccess []string  `yaml:"dataAccess"`
 			MCPServers []struct {
-				NPM     string   `yaml:"npm"`
-				PyPI    string   `yaml:"pypi"`
-				Version string   `yaml:"version"`
-				Tools   []string `yaml:"tools"`
-				Secrets []string `yaml:"secrets"`
-				Egress  []string `yaml:"egress"`
+				NPM     string            `yaml:"npm"`
+				PyPI    string            `yaml:"pypi"`
+				Version string            `yaml:"version"`
+				Tools   []string          `yaml:"tools"`
+				Secrets []string          `yaml:"secrets"`
+				Egress  []string          `yaml:"egress"`
+				Env     map[string]string `yaml:"env"`
 			} `yaml:"mcpServers"`
 		} `yaml:"capabilities"`
+		Dependencies struct {
+			Agents []struct {
+				Ref     string `yaml:"ref"`
+				Version string `yaml:"version"`
+			} `yaml:"agents"`
+		} `yaml:"dependencies"`
+		Publish struct {
+			Include []string `yaml:"include"`
+			Channel string   `yaml:"channel"`
+		} `yaml:"publish"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse agent.yaml: %w", err)
@@ -486,10 +930,18 @@ func Load(dir string) (*Model, error) {
 			return nil, fmt.Errorf("agent.yaml declares the withdrawn kind %q; the Build surface authors instruction-file BriefAgents", doc.Kind)
 		}
 	}
+	for _, a := range doc.Authors {
+		m.Authors = append(m.Authors, AuthorRow{Name: a.Name, Email: a.Email})
+	}
 	for _, qn := range doc.Intake {
 		m.Intake = append(m.Intake, IntakeRow{ID: qn.ID, Prompt: qn.Prompt, Type: qn.Type, Required: qn.Required, Choices: orEmpty(qn.Choices)})
 	}
-	m.Opening = doc.Interactive.Opening
+	m.Opening, m.IdleTimeoutSeconds = doc.Interactive.Opening, doc.Interactive.IdleTimeoutSeconds
+	m.Guide = GuideModel{Overview: doc.Guide.Overview, Prepare: orEmpty(doc.Guide.Prepare), Files: doc.Guide.Files, Task: doc.Guide.Task, Connect: []ConnectRow{}}
+	for _, name := range sortedKeys(doc.Guide.Connect) {
+		m.Guide.Connect = append(m.Guide.Connect, ConnectRow{Secret: name, Help: doc.Guide.Connect[name]})
+	}
+	m.RuntimeModels, m.RuntimeInterfaces = orEmpty(doc.Runtime.Models), orEmpty(doc.Runtime.Interfaces)
 	m.Summary, m.License, m.Homepage = doc.Summary, doc.License, doc.Homepage
 	if doc.Tags != nil {
 		m.Tags = doc.Tags
@@ -506,17 +958,55 @@ func Load(dir string) (*Model, error) {
 	m.ExecCommands = decodeExec(doc.Capabilities.Exec)
 	for _, srv := range doc.Capabilities.MCPServers {
 		row := MCPServerRow{Source: "npm", Package: srv.NPM, Version: srv.Version,
-			Tools: orEmpty(srv.Tools), Secrets: orEmpty(srv.Secrets), Egress: orEmpty(srv.Egress)}
+			Tools: orEmpty(srv.Tools), Secrets: orEmpty(srv.Secrets), Egress: orEmpty(srv.Egress), Env: []EnvRow{}}
 		if srv.PyPI != "" {
 			row.Source, row.Package = "pypi", srv.PyPI
 		}
+		for _, name := range sortedKeys(srv.Env) {
+			row.Env = append(row.Env, EnvRow{Name: name, Value: srv.Env[name]})
+		}
 		m.MCPServers = append(m.MCPServers, row)
 	}
+	for _, d := range doc.Dependencies.Agents {
+		m.Dependencies = append(m.Dependencies, DependencyRow{Ref: d.Ref, Version: d.Version})
+	}
+	m.PublishInclude, m.PublishChannel = orEmpty(doc.Publish.Include), doc.Publish.Channel
+	m.HadComments = hasComments(raw)
 
 	if b, rerr := os.ReadFile(filepath.Join(dir, m.instructionFile())); rerr == nil { //nolint:gosec
 		m.Instructions = string(b)
 	}
 	return m, nil
+}
+
+// hasComments reports whether a YAML document carries any comment.
+func hasComments(raw []byte) bool {
+	var root yaml.Node
+	if yaml.Unmarshal(raw, &root) != nil {
+		return false
+	}
+	var walk func(n *yaml.Node) bool
+	walk = func(n *yaml.Node) bool {
+		if n.HeadComment != "" || n.LineComment != "" || n.FootComment != "" {
+			return true
+		}
+		for _, c := range n.Content {
+			if walk(c) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(&root)
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // orEmpty keeps JSON arrays arrays — the form maps over them.

@@ -66,6 +66,14 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 	return build.Save(dir, &m)
 }
 
+// Check renders the form's model without touching disk and runs the rules
+// over it: the form's own and the core's static V-rules. The Build page
+// draws each step's lines and problem from it (plan builder-rework.md §5,
+// agentry-desktop#280). It reads nothing and writes nothing.
+func (b *BuildAPI) Check(m build.Model) *build.CheckResult {
+	return m.Check()
+}
+
 // Validate runs the same offline checks the Validate page runs (manifest
 // V-rules + S1/S3/S4), on the saved workspace.
 func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {

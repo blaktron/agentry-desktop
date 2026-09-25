@@ -3,6 +3,8 @@
 import {build} from '../models';
 import {validate} from '../models';
 
+export function Check(arg1:build.Model):Promise<build.CheckResult>;
+
 export function Exists(arg1:string):Promise<boolean>;
 
 export function Load(arg1:string):Promise<build.Model>;

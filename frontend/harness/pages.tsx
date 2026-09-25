@@ -106,9 +106,31 @@ const buildModel = {
   tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
   egressMode: "hosts", egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsReadPaths: [],
   fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN"],
-  mcpServers: [], dataAccess: ["tickets"], intake: [], opening: "",
+  mcpServers: [{ source: "npm", package: "@cyanheads/osv-advisory-mcp-server", version: "0.1.13", tools: [], secrets: [], egress: ["api.osv.dev"], env: [{ name: "LOG_LEVEL", value: "info" }] }],
+  dataAccess: ["tickets"], intake: [], opening: "", idleTimeoutSeconds: 0,
+  guide: { overview: "Reads the incident channel and returns a one-page report card.", prepare: ["The incident number", "Read access to the channel"], files: "", task: "Summarise INC-1234", connect: [{ secret: "PAGERDUTY_TOKEN", help: "Create a read-only API key under Integrations" }] },
+  authors: [], runtimeModels: [], runtimeInterfaces: ["claude-skill", "agents-md"], dependencies: [], publishChannel: "", publishInclude: [],
+  hadComments: window.location.hash === "#build-comments",
   instructions: "You summarise an incident channel. Read it, redact secrets, and write reports/report.md.",
 };
+// BuildAPI.Check's answer for the model above (agentry-desktop#280): every
+// step passes, so each shows the lines it writes and Review the file.
+const buildCheck = {
+  yaml: 'schemaVersion: "2"\nname: incident-summarizer\nnamespace: demo1\nmodes: [autonomous]\nversion: 1.2.0\nsummary: Summarises an incident channel into a report card, redacting secrets first.\nlicense: Apache-2.0\n',
+  fragments: {
+    basics: "name: incident-summarizer\nmodes: [autonomous]\nsummary: Summarises an incident channel into a report card, redacting secrets first.",
+    instructions: "entrypoints:\n  instruction: AGENT.md",
+    tools: "capabilities:\n  network:\n    egress: [api.pagerduty.com]\n  mcpServers:\n    - npm: '@cyanheads/osv-advisory-mcp-server'\n      version: 0.1.13\n      egress: [api.osv.dev]\n      env:\n        LOG_LEVEL: info",
+    access: "capabilities:\n  filesystem:\n    read: workspace\n    write: { paths: [reports] }\n  exec: none\n  secrets: [PAGERDUTY_TOKEN]\n  dataAccess: [tickets]",
+    guide: "guide:\n  overview: Reads the incident channel and returns a one-page report card.\n  prepare: [The incident number, Read access to the channel]\n  task: Summarise INC-1234\n  connect:\n    PAGERDUTY_TOKEN: Create a read-only API key under Integrations",
+    publish: "namespace: demo1\nversion: 1.2.0\nlicense: Apache-2.0\ntags: [oncall, reporting]",
+  },
+  problems: {}, first: null, warnings: [],
+};
+// pages.html#build-* opens the Build preview on a view and a step.
+const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
+const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : "steps";
+const buildStep = ({ tools: 2, guide: 5, review: 7 } as Record<string, number>)[buildHash] ?? 0;
 const validateResult = {
   passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
   bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
@@ -149,7 +171,7 @@ g.go = { main: {
       return { message: "installed demo1/incident-summarizer@1.2.0 into the runner home", dest: runnerRecForShown.dir };
     },
   },
-  BuildAPI: { NewModel: async () => buildModel, Exists: async () => false },
+  BuildAPI: { NewModel: async () => buildModel, Exists: async () => false, Check: async () => buildCheck },
   ValidateAPI: { Run: async () => validateResult },
   // The account line on a signed-in registry's card (agentry-desktop#74,
   // and the organization of agentry-desktop#79). The hash picks which
@@ -314,7 +336,7 @@ createRoot(document.getElementById("root")!).render(
     <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="Browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="Build"><Build registry={REG} /></Shell></div>
+    <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildView as "start" | "steps" | "advanced"} initialStep={buildStep} /></Shell></div>
     <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
     <div data-preview="settings"><Shell active="Settings"><Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}} /></Shell></div>
   </div>,
