@@ -1,19 +1,23 @@
-// One line of an author's run guide (manifest v2's guide block, DEV-141;
-// plan guided-runs.md §4, M7; agentry-desktop#228): the files hint and a
-// key's connect help. The text comes from a release, so it is shown as
+// One line of the run setup's guide text (manifest v2's guide block,
+// DEV-141; plan guided-runs.md §4, M7; agentry-desktop#228): a line of
+// "What to have ready" (the author's prepare list, or the derived one,
+// which can carry the author's files line), the files hint and a key's
+// connect help. The author's text comes from a release, so it is shown as
 // text, never as markup:
 //
 //   - React escapes it, and every invisible character shows as a chip;
 //   - an absolute http: or https: URL in it becomes a link that hands the
 //     URL to the system browser through App.OpenExternal (which refuses any
-//     other scheme a second time), and never navigates this window;
+//     other scheme a second time), and never navigates this window. The
+//     link reads as the parsed URL, so a look-alike host shows as the
+//     punycode the browser will open, and a URL with a user name or
+//     password stays text;
 //   - nothing else in it is a link: a "javascript:" or "file:" string stays
 //     text.
 //
 // The overview is markdown and goes through AgentMarkdown instead, under
 // the same rules as a run's output.
-import { OpenExternal } from "../wailsjs/go/main/App";
-import { webHref } from "./AgentMarkdown";
+import { ExternalLink, webHref } from "./AgentMarkdown";
 import { RevealText } from "./reveal";
 
 // A URL runs to the next space, bracket, control or format character (so
@@ -21,6 +25,15 @@ import { RevealText } from "./reveal";
 // link); trailing sentence punctuation is the sentence's, not the URL's.
 const URL_RE = /https?:\/\/[^\s<>"'()[\]{}\p{Cc}\p{Cf}]+/gu;
 const TRAILING_RE = /[.,;:!?]+$/;
+
+// connectHelp is the author's help for one declared key, or "". The map is
+// the author's, so only its own string entries count: a secret named
+// "constructor" must not find Object.prototype's.
+export function connectHelp(connect: { [key: string]: string } | undefined, name: string): string {
+  if (!connect || !Object.prototype.hasOwnProperty.call(connect, name)) return "";
+  const help = connect[name];
+  return typeof help === "string" ? help : "";
+}
 
 export function GuideText({ text }: { text: string }) {
   const parts: React.ReactNode[] = [];
@@ -33,20 +46,9 @@ export function GuideText({ text }: { text: string }) {
     if (!href) continue;
     if (start > at) parts.push(<RevealText key={key++} text={text.slice(at, start)} />);
     parts.push(
-      <a
-        key={key++}
-        href={href}
-        title={href}
-        draggable={false}
-        onClick={(e) => {
-          e.preventDefault();
-          OpenExternal(href).catch(() => {});
-        }}
-        onAuxClick={(e) => e.preventDefault()}
-        onDragStart={(e) => e.preventDefault()}
-      >
-        <RevealText text={url} />
-      </a>,
+      <ExternalLink key={key++} href={href}>
+        <RevealText text={href} />
+      </ExternalLink>,
     );
     at = start + url.length;
   }

@@ -36,11 +36,14 @@ interface Question {
 // other questions by their own prompts, the task, which on this machine is
 // optional (the packaged instruction runs without one), and, where MCP
 // servers are declared with no key, that there is none to set up.
-export function needList(release: { intake: Question[]; secrets: string[]; servers?: number }): string[] {
+export function needList(release: { intake: Question[]; secrets: string[]; servers?: number; files?: string }): string[] {
   const out: string[] = [];
   const fileQs = release.intake.filter((q) => q.type === "file");
   if (fileQs.length > 0) {
     for (const q of fileQs) out.push(`A file for “${q.prompt}”${q.required ? "" : " (optional)"}.`);
+  } else if (release.files) {
+    // The author's guide says which files (guided-runs.md §4).
+    out.push(release.files);
   } else {
     out.push("Any files the task is about. This is optional: a run can start with none.");
   }

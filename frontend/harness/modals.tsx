@@ -85,7 +85,7 @@ const guide = hostileGuide
     files: "<img src=\"https://evil.example/p.gif\"> none",
     task: "e.g. <script>alert(1)</script>",
     connect: {
-      GITHUB_TOKEN: "Paste it <b onclick=\"steal()\">here</b>. Not javascript:alert(1) or file:///etc/passwd but https://github.com/settings/tokens\u202E.",
+      GITHUB_TOKEN: "Paste it <b onclick=\"steal()\">here</b>. Not javascript:alert(1), file:///etc/passwd or https://github.com@evil.example/x but https://github.com/settings/tokens\u202E, or the look-alike https://g\u0456thub.com/new.",
     },
   }
   : {
@@ -104,7 +104,7 @@ const profile = keysShape
   ? {
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
     capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
-    declaredSecrets: ["GITHUB_TOKEN"], storedSecretNames: [], exists: false, keep: true,
+    declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : ["GITHUB_TOKEN"], storedSecretNames: [], exists: false, keep: true,
     modes: ["autonomous"], intake: [], opening: "",
     ...(guidedShape ? { guide } : {}),
   }

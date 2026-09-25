@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Spinner, shortDigest } from "../ui";
-import { GuideText } from "../GuideText";
+import { GuideText, connectHelp } from "../GuideText";
 
 export default function ToolsPanel({
   registry, ns, name, version, onClose,
@@ -83,7 +83,7 @@ export default function ToolsPanel({
                 <Field
                   key={s}
                   label={<span className="mono">{s}</span>}
-                  hint={profile.guide?.connect[s] ? <GuideText text={profile.guide.connect[s]} /> : undefined}
+                  hint={connectHelp(profile.guide?.connect, s) ? <GuideText text={connectHelp(profile.guide?.connect, s)} /> : undefined}
                 >
                   <Input
                     type="password"

@@ -42,9 +42,11 @@ start with the author's overview and "What to have ready"),
 `#runpanel-guided-files`, `#runpanel-guided-tools` (each key's help under
 its field) and `#runpanel-guided-details` (the author's task placeholder).
 `#runpanel-guided-hostile` and `#runpanel-guided-hostile-tools` carry a
-guide with raw HTML, a script, an image, `javascript:` and `file:` links and
-hidden characters; `shots.mjs` fails them if any of it becomes markup or
-any link other than the one `https:` URL appears.
+guide with raw HTML, a script, an image, `javascript:` and `file:` links, a
+URL with a user name, a look-alike host and hidden characters, and a key
+named `constructor`; `shots.mjs` fails them if any of it becomes markup or
+if the links are not exactly the `https:` URLs expected (the look-alike as
+its punycode).
 
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in

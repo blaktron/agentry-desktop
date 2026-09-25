@@ -824,8 +824,10 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   padding-left: 18px;
 }
 .run-need li { margin: 3px 0; }
-/* A key's connect help from the author's guide, under its field (agentry-desktop#228). */
-.run-key-help { margin: 4px 0 0 234px; }
+/* A declared key: its name, its field, and the author's connect help under
+   the field (agentry-desktop#228). */
+.run-key { display: grid; grid-template-columns: minmax(220px, auto) 1fr; column-gap: 10px; row-gap: 4px; align-items: center; margin-bottom: 8px; }
+.run-key-help { grid-column: 2; margin: 0; }
 .run-recap {
   display: grid;
   grid-template-columns: minmax(8rem, max-content) 1fr;

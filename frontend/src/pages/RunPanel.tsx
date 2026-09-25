@@ -26,7 +26,7 @@ import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "./HostedRun";
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
-import { GuideText } from "../GuideText";
+import { GuideText, connectHelp } from "../GuideText";
 
 export default function RunPanel({
   registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep,
@@ -51,8 +51,6 @@ export default function RunPanel({
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [setupErr, setSetupErr] = useState<string | null>(null);
   const [profile, setProfile] = useState<main.ProfileStatusView | null>(null);
-  // The author's guide for this exact release (manifest v2, DEV-141), if any.
-  const guide = profile?.guide ?? null;
   const [profileErr, setProfileErr] = useState<string | null>(null);
 
   // Guided profile form (§P3 as a form).
@@ -109,6 +107,8 @@ export default function RunPanel({
   const [stepProblem, setStepProblem] = useState<string | null>(null);
   const stepHeading = useRef<HTMLHeadingElement | null>(null);
   const moved = useRef(false);
+  // The author's guide for this exact release (manifest v2, DEV-141), if any.
+  const guide = profile?.guide ?? null;
 
   useEffect(() => {
     RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
@@ -452,7 +452,7 @@ export default function RunPanel({
                 <ul className="run-need">
                   {(guide && guide.prepare.length > 0
                     ? guide.prepare
-                    : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0 })
+                    : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0, files: guide?.files })
                   ).map((line, i) => <li key={i}><GuideText text={line} /></li>)}
                 </ul>
                 <h4>Where to run it</h4>
@@ -631,24 +631,21 @@ export default function RunPanel({
                           at run time.
                         </p>
                         {profile.declaredSecrets.map((s) => (
-                          <div key={s} style={{ marginBottom: 8 }}>
-                            <div className="row">
-                              <span className="mono" style={{ minWidth: 220 }}>{s}</span>
-                              <input
-                                type="password"
-                                className="grow"
-                                autoComplete="off"
-                                aria-label={s}
-                                placeholder="empty = resolve from the environment at run time"
-                                value={formValues[s] ?? ""}
-                                onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
-                              />
-                            </div>
+                          <div key={s} className="run-key">
+                            <span className="mono">{s}</span>
+                            <input
+                              type="password"
+                              autoComplete="off"
+                              aria-label={s}
+                              placeholder="empty = resolve from the environment at run time"
+                              value={formValues[s] ?? ""}
+                              onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
+                            />
                             {/* The author's help for this key: where to create
                                 it, which access it needs. Text, never markup. */}
-                            {guide?.connect[s] && (
+                            {connectHelp(guide?.connect, s) && (
                               <p className="muted small run-key-help">
-                                <GuideText text={guide.connect[s]} />
+                                <GuideText text={connectHelp(guide?.connect, s)} />
                               </p>
                             )}
                           </div>

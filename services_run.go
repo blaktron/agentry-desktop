@@ -451,7 +451,8 @@ type ProfileStatusView struct {
 	Opening string `json:"opening"`
 	// Guide is the author's words for the run setup (manifest v2's guide,
 	// DEV-141; agentry-desktop#228); nil when the release carries none.
-	// The page shows it as text, never as markup it trusts.
+	// The page shows the overview as restricted markdown and the rest as
+	// text, never as markup the author controls.
 	Guide *GuideView `json:"guide,omitempty"`
 }
 
