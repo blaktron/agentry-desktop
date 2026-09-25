@@ -265,16 +265,50 @@ rather than green or red.
 
 ## Releasing
 
-A release is a tag `v<productVersion>` on `main`. The version lives in one
-place, `wails.json`'s `productVersion`, which the Wails build carries into
-the macOS bundle's `CFBundleShortVersionString` and the Windows version-info
-block; the Makefile stamps the same string into the binary (`make version`
-prints it: `git describe` without the tag's leading `v`, so a tagged commit
-is `0.1.0` and a commit past it is `0.1.0-3-g<sha>`). To cut `0.2.0`: bump
-`productVersion` in a commit on `main`, then `git tag v0.2.0 && git push
-origin v0.2.0`. The `release` workflow refuses a tag that does not name the
-version in `wails.json`, and a tag whose pins of the core or the CLI are
-behind their default branches (the desktop reads files the CLI writes;
+Every build that ships is released under a version (DEV-148,
+agentry-desktop#279 and #192). A tag is one of two forms, and the branch line
+its commit is on must agree:
+
+- `vX.Y.Z` on a commit on `main`'s first-parent line (a promotion's merge
+  commit) is a **production release**; it bakes `https://secureagentry.net`
+  and checks that site's downloads manifest for newer production releases;
+- `vX.Y.Z-dev.N` (N from 1) on a commit on `dev`'s first-parent line is a
+  **dev prerelease** of the version `main` releases next; it bakes
+  `https://dev.secureagentry.net` and is offered only newer dev prereleases.
+
+`scripts/release-tag.sh` (the CLI's, copied unchanged) checks the tag in the
+`release` workflow's preflight, before anything is built: any other form, a
+form on the wrong line, a release that does not move forward, and any 1.x
+unless the operator has set the repository variable `AGENTRY_ALLOW_V1=true`
+(agentry#522) are refused. The version lives in one place, `wails.json`'s
+`productVersion`, always `X.Y.Z`: the Wails build carries it into the macOS
+bundle's `CFBundleShortVersionString` and the Windows version-info block,
+which take numbers only, and a tag must name it (`vX.Y.Z` or
+`vX.Y.Z-dev.N`). The Makefile stamps the tag into the binary (`make version`
+prints `git describe` without the leading `v`: `0.6.0`, `0.6.1-dev.2`, or
+`0.6.1-dev.2-3-g<sha>` for a commit past a tag), and the self-update check
+reads that to keep each channel to itself.
+
+**Cutting one** (agents may; only the operator moves the minor version or
+cuts 1.0.0). `productVersion` on `dev` is the version `main` releases next:
+after `main` releases `vX.Y.Z`, a PR on `dev` bumps it to `X.Y.(Z+1)`; the
+promotion carries it to `main`. Then:
+
+```bash
+git fetch --tags origin
+tag=$(scripts/release-tag.sh next dev) && make -s version-check RELEASE_TAG="$tag" && git tag "$tag" origin/dev && git push origin "$tag"    # a dev prerelease of dev's head
+tag=$(scripts/release-tag.sh next main) && make -s version-check RELEASE_TAG="$tag" && git tag "$tag" origin/main && git push origin "$tag"  # a production release of main's head
+```
+
+Run it from a checkout of the branch being tagged, so `version-check` reads
+that branch's `productVersion`. `next` must name `productVersion`'s `X.Y.Z`,
+and `version-check` stops a tag that does not before it is pushed.
+`RELEASE_VERSION=X.Y.0` is the operator's, for the first tag of a minor they
+have chosen; the first cut of all, v0.6.0 (the operator's R1), is one:
+`next` alone would name v0.5.2 after v0.5.1. Tag a head only after its merge is verified,
+and watch the `release` run to green. The workflow refuses a tag whose pins of
+the core or the CLI are below their newest releases (the desktop reads files
+the CLI writes;
 D-020). It then builds every platform artifact — Windows and Linux on the
 Linux runner, the universal macOS bundle and its dmg on the Mac — writes
 `SHA256SUMS` over them, signs those sums with the estate's own update-signing
@@ -419,10 +453,16 @@ exists (#151). The signing step itself is #54: its `linux-windows` job joins
 the `release` environment with `id-token: write`, which also means a
 `workflow_dispatch` dry run must start from `main` or a `v*` tag once it does.
 
-No GitHub Release is created before 1.0 (operator, 2026-09-19): the site's
-downloads builder imports the bundle from the run and the download page is
-where a release lives. `workflow_dispatch` runs the same jobs on any ref as
-a dry run, named by the describe string instead of a tag. Every artifact
+**Every tag publishes a GitHub Release** with the bundle (agentry-desktop#192;
+DEV-148 reverses D-023's "no GitHub Release before 1.0"): a `-dev.N` tag's is a
+prerelease, a `vX.Y.Z` tag's a full release and the newest the latest, with
+notes generated from the commits under a header naming the signatures. A minor
+or major release (`vX.Y.0`) is left a draft: the operator approves its notes
+and publishes it. The site's downloads builder imports the bundle from the run
+(agentry-web#444 moves the import to the Release). `workflow_dispatch` runs the
+same jobs as a dry run on a commit on `main`'s or `dev`'s line (the `release`
+environment admits `main` and `v*` tags), named by the describe string
+instead of a tag, and publishes no Release. Every artifact
 on Windows is Authenticode-signed (#54, below); the macOS bundle is ad-hoc
 signed only (D-001, #6) and the Linux packages carry no OS signature, and the
 download page says which is which. The plan behind this and the installers that

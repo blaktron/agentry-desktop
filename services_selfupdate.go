@@ -60,11 +60,12 @@ type SelfUpdateView struct {
 	// is; it is never retried quietly and never falls back to "the checksum
 	// matched" (plan §3).
 	Err string `json:"err,omitempty"`
-	// DownloadURL is where to get the release. There is no release-notes link
-	// to give instead: no GitHub Release exists before 1.0 (D4/D13, operator
-	// 2026-09-19), so the honest destination is the download page of the site
+	// DownloadURL is where to get the release: the download page of the site
 	// this build checks, derived from the channel rather than configured
-	// separately — one fewer thing to point at the wrong place.
+	// separately — one fewer thing to point at the wrong place. Releases are
+	// on GitHub too since DEV-148 (agentry-desktop#192), but the repository
+	// is private until the flip, so the site's page is the destination a
+	// person can open.
 	DownloadURL string `json:"downloadUrl,omitempty"`
 	// Nothing is set when the channel answered but publishes no signed
 	// release at all. Distinct from "nothing newer", because they are

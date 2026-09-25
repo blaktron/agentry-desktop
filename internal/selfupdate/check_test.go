@@ -440,6 +440,53 @@ func TestIsNewerReadsGitDescribeTheWayGitMeansIt(t *testing.T) {
 	}
 }
 
+// A dev build (vX.Y.Z-dev.N, DEV-148) is only ever offered a newer dev
+// prerelease, and a production build only a newer production release: the
+// update channel follows the branch a build was cut from (agentry-desktop#279).
+// Within dev, N orders the prereleases of one X.Y.Z, as numbers; a build past
+// a dev tag (describe's -K-g<sha>) is at that tag and a little beyond.
+func TestIsNewerKeepsEachChannelToItself(t *testing.T) {
+	for _, tc := range []struct {
+		offered, current string
+		want             bool
+	}{
+		// dev builds take newer dev prereleases only
+		{"0.6.1-dev.2", "0.6.1-dev.1", true},
+		{"0.6.1-dev.10", "0.6.1-dev.9", true},
+		{"0.6.2-dev.1", "0.6.1-dev.9", true},
+		{"0.6.1-dev.1", "0.6.1-dev.2", false},
+		{"0.6.1-dev.1", "0.6.1-dev.1", false},
+		{"0.6.0-dev.4", "0.6.1-dev.1", false},
+		{"0.6.1-dev.3", "0.6.1-dev.2-4-gabc1234", true},
+		{"0.6.1-dev.2", "0.6.1-dev.2-4-gabc1234", false},
+		{"0.6.1-dev.2", "0.6.1-dev.2-4-gabc1234-dirty", false},
+		{"v0.6.1-dev.2", "0.6.1-dev.1", true},
+		// ... never a production release, however new
+		{"0.6.1", "0.6.1-dev.3", false},
+		{"0.7.0", "0.6.1-dev.3", false},
+		// production builds never take a dev prerelease, however new
+		{"0.6.1-dev.1", "0.6.0", false},
+		{"0.7.0-dev.1", "0.6.0", false},
+		{"0.6.1-dev.1", "0.6.0-5-gabc1234", false},
+		{"0.6.1", "0.6.0", true},
+		{"0.6.1", "0.6.0-5-gabc1234", true},
+		{"0.6.1", "0.6.0-dirty", true},
+		// an unstamped build (internal/version's 0.0.0-dev) is at no release
+		{"0.6.1", "0.0.0-dev", true},
+		{"0.6.1-dev.1", "0.0.0-dev", false},
+		{"0.6.1-dev.3", "0.6.1-dev.2-dirty", true},
+	} {
+		got, err := selfupdate.IsNewer(tc.offered, tc.current)
+		if err != nil {
+			t.Errorf("IsNewer(%q, %q): %v", tc.offered, tc.current, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("IsNewer(%q, %q) = %v, want %v", tc.offered, tc.current, got, tc.want)
+		}
+	}
+}
+
 // A build with no tag in its history has no ordering, so it is never told an
 // upgrade exists rather than being guessed at.
 func TestIsNewerRefusesAVersionItCannotOrder(t *testing.T) {
@@ -448,6 +495,18 @@ func TestIsNewerRefusesAVersionItCannotOrder(t *testing.T) {
 		{"not-a-version", "0.1.0"},
 		{"", "0.1.0"},
 		{"0.2.0", ""},
+		// a -dev. that is not -dev.N, N from 1, is not a version this
+		// product produces
+		{"0.6.1-dev.0", "0.6.0"},
+		{"0.6.1-dev.x", "0.6.0"},
+		{"0.6.1", "0.6.1-dev.02"},
+		// nor is any suffix but describe's -K-g<sha> and -dirty: a -dev
+		// without its N, or another prerelease form, must not read as a
+		// production release of that X.Y.Z
+		{"0.6.1-dev", "0.6.0"},
+		{"0.6.1-rc.1", "0.6.0"},
+		{"0.6.1", "0.6.0-beta"},
+		{"0.6.1", "0.6.0-11-gnothex"},
 	} {
 		if _, err := selfupdate.IsNewer(tc[0], tc[1]); err == nil {
 			t.Errorf("IsNewer(%q, %q) claimed an ordering it cannot have", tc[0], tc[1])

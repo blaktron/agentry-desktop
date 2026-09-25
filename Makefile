@@ -6,10 +6,12 @@
 export PATH := $(HOME)/go/bin:/opt/homebrew/bin:$(PATH)
 GO ?= go
 # The version is git describe without the tag's leading v: a tagged commit
-# gives 0.1.0, which is what wails.json's productVersion must equal (the
-# release workflow refuses a tag that does not), so the bundle metadata, the
-# binary and the artifact names all say the same thing; between tags it is
-# 0.1.0-3-g<sha>[-dirty], and a checkout with no tag at all is the bare sha.
+# gives 0.6.0, or 0.6.1-dev.2 for a dev prerelease, whose X.Y.Z is what
+# wails.json's productVersion must equal (the release workflow refuses a tag
+# that does not), so the bundle metadata, the binary and the artifact names
+# agree; between tags it is 0.6.0-3-g<sha>[-dirty], and a checkout with no
+# tag at all is the bare sha. The release workflow passes a tag's own version
+# as VERSION=, since describe picks one of several tags on one commit.
 VERSION := $(shell (git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev) | sed 's/^v//')
 # EXTRA_LDFLAGS lets a caller add to the linker flags (a baked-in default
 # registry, -w -s) without taking the version stamp away from this file.
@@ -203,10 +205,15 @@ package: package-darwin package-windows package-linux
 # carries into the macOS bundle and the Windows version-info block, and the
 # Makefile stamps the same string into the binary. RELEASE_TAG is the tag
 # being cut (the release workflow passes github.ref_name).
+# A tag names productVersion: vX.Y.Z, or a dev prerelease of it,
+# vX.Y.Z-dev.N (agentry-desktop#279). productVersion itself stays X.Y.Z: the
+# Windows version resource and the macOS bundle version take numbers only.
 version-check:
 	@tag='$(RELEASE_TAG)'; pv=$$(jq -r .info.productVersion wails.json); \
 	if [ -z "$$tag" ]; then echo "RELEASE_TAG is not set"; exit 2; fi; \
-	if [ "$${tag#v}" != "$$pv" ]; then echo "tag $$tag does not name wails.json productVersion $$pv: bump productVersion in a commit on main first, then tag"; exit 1; fi; \
+	v=$${tag#v}; v=$${v%-dev.*}; \
+	printf '%s\n' "$$tag" | grep -Ex 'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-dev\.[1-9][0-9]*)?' >/dev/null || { echo "tag $$tag is not vX.Y.Z or vX.Y.Z-dev.N"; exit 1; }; \
+	if [ "$$v" != "$$pv" ]; then echo "tag $$tag does not name wails.json productVersion $$pv: bump productVersion in a commit on dev first (a main release takes it by the promotion), then tag"; exit 1; fi; \
 	echo "tag $$tag names productVersion $$pv"
 
 clean:
