@@ -106,6 +106,12 @@ jobs:
       # throwaway origin with the estate's branch model.
       - name: release registry by branch
         run: scripts/acceptance/release-registry.sh
+      # A tag's form must agree with the line its commit is on (vX.Y.Z on
+      # main's, vX.Y.Z-dev.N on dev's), 1.x waits for AGENTRY_ALLOW_V1, and
+      # the next tag follows the scheme (agentry-desktop#279; the CLI's
+      # script and test, agentry-cli#327).
+      - name: release tags by branch
+        run: scripts/acceptance/release-tag.sh
       # The honest posture, as a check (plan hosted-runs.md §3): the app
       # says what ran and what was enforced, never "safe" or "secure".
       # `make check` runs it too; it is its own step so a copy failure is

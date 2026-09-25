@@ -1,16 +1,29 @@
-# A release of the desktop client is a pushed tag v<productVersion> on a
-# commit that has been the head of main (a production release) or of dev (a
-# dev release); it bakes that branch's registry and update channel, chosen by
+# A release of the desktop client is a pushed tag, v<productVersion> on a
+# commit that has been the head of main (a production release) or
+# v<productVersion>-dev.N on one that has been the head of dev (a dev
+# prerelease); it bakes that branch's registry and update channel, chosen by
 # scripts/release-registry.sh in preflight (plan
 # agentry-notes/plans/desktop-installers.md §6, D4; registers D-023, D-036).
 # This workflow builds every platform artifact from that commit — Windows and
 # Linux on the Linux runner, the universal macOS bundle and its dmg on the
 # Mac — writes SHA256SUMS over them and over BUILD-INFO, signs those sums with
 # the estate's own update-signing key, and uploads the set as ONE workflow
-# artifact named for the version. No GitHub Release is created
-# before 1.0 (operator, 2026-09-19): the site's downloads builder imports the
-# bundle from this run (build-downloads.sh --from-run, agentry-web#152) and
-# the website is where a release lives.
+# artifact named for the version. Every tag also publishes a GitHub Release
+# with that bundle (the publish job; agentry-desktop#192, DEV-148, reversing
+# D-023's "no GitHub Release before 1.0"): a vX.Y.Z-dev.N tag's is a
+# prerelease, a vX.Y.Z tag's a full release, and a minor or major (X.Y.0) is
+# left a draft for the operator to approve its notes. The site's downloads
+# builder imports the bundle from this run (build-downloads.sh --from-run,
+# agentry-web#152); agentry-web#444 moves the import to the Release.
+#
+# The tag scheme (agentry-desktop#279): vX.Y.Z on main's first-parent line is
+# a production release, vX.Y.Z-dev.N on dev's a dev prerelease of the version
+# main releases next (scripts/release-tag.sh, the CLI's, copied unchanged),
+# and either names wails.json's productVersion, which stays X.Y.Z because the
+# Windows version resource and the macOS bundle version take numbers only.
+# The self-update check keeps each channel to itself (internal/selfupdate
+# IsNewer): a dev build is offered only newer dev prereleases, a production
+# build only newer production releases.
 #
 # workflow_dispatch runs the same jobs as a DRY RUN on a commit that is on
 # main's or dev's line (preflight refuses any other, as it refuses such a
@@ -38,17 +51,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  # Refuses before a single artifact is built: a tag that does not name the
+  # Refuses before a single artifact is built: a tag of the wrong form or on
+  # the wrong line, a 1.x without the operator, a tag that does not name the
   # version wails.json carries into the bundle metadata, or a pin of the core
-  # or the CLI that is behind its default branch — the desktop reads files
-  # the CLI writes, so a stale pin ships as a build that cannot read them
-  # (D-020, desktop#60). The daily pins job reports; this one refuses.
+  # or the CLI below its newest release — the desktop reads files the CLI
+  # writes, so a stale pin ships as a build that cannot read them (D-020,
+  # desktop#60). The daily pins job reports; this one refuses.
   preflight:
     runs-on: [self-hosted, linux, x64]
     outputs:
       version: ${{ steps.version.outputs.version }}
       channel: ${{ steps.registry.outputs.channel }}
       registry: ${{ steps.registry.outputs.registry }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      latest: ${{ steps.tag.outputs.latest }}
+      draft: ${{ steps.tag.outputs.draft }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -74,15 +91,39 @@ jobs:
           echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig" >> "$GITHUB_ENV"
           echo "GOPRIVATE=github.com/blaktron/*" >> "$GITHUB_ENV"
           git config --file "$RUNNER_TEMP/gitconfig" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
+      # A tag is vX.Y.Z on main's first-parent line or vX.Y.Z-dev.N on dev's
+      # (agentry-desktop#279, DEV-148), releases only move forward, and a 1.x
+      # waits for the operator's AGENTRY_ALLOW_V1 (agentry#522). The script is
+      # the CLI's, copied unchanged (agentry-cli#327, DR-40; D-032's
+      # copy-not-share convention), so the rule is the same in both clients.
+      - name: The tag, its line and what it releases
+        id: tag
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+          AGENTRY_ALLOW_V1: ${{ vars.AGENTRY_ALLOW_V1 }}
+        run: |
+          set -euo pipefail
+          if ! out=$(scripts/release-tag.sh check "$TAG" "$GITHUB_SHA" 2>"$RUNNER_TEMP/tag-check.err"); then
+            echo "::error::$(cat "$RUNNER_TEMP/tag-check.err")"; exit 1
+          fi
+          printf '%s\n' "$out"
+          grep -E '^(prerelease|latest|draft)=' <<<"$out" >> "$GITHUB_OUTPUT"
       - name: The tag names wails.json's productVersion
         if: github.ref_type == 'tag'
         run: make version-check RELEASE_TAG="${GITHUB_REF_NAME}"
+      # A tag's version is the tag itself, not git describe: describe names
+      # one of several tags on the same commit (alphabetically), so a second
+      # dev prerelease cut on an unchanged head would otherwise build, stamp
+      # and sign itself as the first. A dry run is named by describe.
       - name: The version this release is named for
         id: version
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          v=$(make -s version)
-          [ -n "$v" ] || { echo "::error::make version printed nothing"; exit 1; }
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then v=${TAG#v}; else v=$(make -s version); fi
+          [ -n "$v" ] || { echo "::error::no version for this run"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "version $v"
       # Production's registry for a commit that has been main's head, dev's
@@ -105,10 +146,12 @@ jobs:
           printf '%s\n' "$out"
           sed -n -e 's/^AGENTRY_RELEASE_CHANNEL=/channel=/p' -e 's/^AGENTRY_DEFAULT_REGISTRY=/registry=/p' <<<"$out" >> "$GITHUB_OUTPUT"
           echo "::notice::${GITHUB_SHA} is a $(sed -n 's/^AGENTRY_RELEASE_CHANNEL=//p' <<<"$out") release"
-      # go list -m -u compares against the newest version the module proxy
-      # offers, which is the default branch head only while the core and the
-      # CLI carry no semver tags (as today; the daily pins job makes the same
-      # comparison). A dry run warns; a tag refuses.
+      # go list -m -u compares against the newest release the core and the CLI
+      # have tagged (vX.Y.Z; their -dev.N prereleases do not count once a
+      # release exists), since both release from v0.6.0 (DEV-148). So a pin
+      # below either's newest release refuses a tag until it is bumped, which
+      # is D-020's rule with a version to point at (the daily pins job makes
+      # the same comparison). A dry run warns; a tag refuses.
       - name: The pins of the core and the CLI are current
         run: |
           set -euo pipefail
@@ -116,7 +159,7 @@ jobs:
             github.com/blaktron/agentry github.com/blaktron/agentry-cli)
           if [ -n "$behind" ]; then
             echo "$behind"
-            msg="A pinned dependency is behind its default branch; a release built from it could not read a file the current CLI writes (desktop#60). Bump with: go get github.com/blaktron/agentry@main github.com/blaktron/agentry-cli@main, merge, then tag."
+            msg="A pinned dependency is below its newest release; a release built from it could not read a file the current CLI writes (desktop#60). Bump with: go get github.com/blaktron/agentry@latest github.com/blaktron/agentry-cli@latest, merge, then tag."
             if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then echo "::warning::dry run on stale pins: $msg"; else echo "::error::$msg"; exit 1; fi
           else
             echo "pins are current"
@@ -586,3 +629,84 @@ jobs:
           path: bundle/
           if-no-files-found: error
           retention-days: ${{ github.event_name == 'push' && 90 || 7 }}
+
+  # The GitHub Release (agentry-desktop#192, DEV-148): every tag, never a dry
+  # run. The bundle exactly as built, summed and signed; notes generated from
+  # the commits under a header that says what is signed and how to check it.
+  # A minor or major release (X.Y.0) is a draft until the operator approves
+  # its notes and publishes it.
+  publish:
+    needs: [preflight, bundle]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
+    steps:
+      # Into this job's own temporary directory: the self-hosted runner keeps
+      # its workspace between jobs, and a bundle/ left by an earlier release
+      # there would ride along into files: below.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agentry-desktop-${{ needs.preflight.outputs.version }}
+          path: ${{ runner.temp }}/bundle
+      - name: The notes' header
+        env:
+          CHANNEL: ${{ needs.preflight.outputs.channel }}
+          REGISTRY: ${{ needs.preflight.outputs.registry }}
+          DRAFT: ${{ needs.preflight.outputs.draft }}
+          PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          b="$RUNNER_TEMP/bundle"
+          info() { sed -n "s/^$1=//p" "$b/BUILD-INFO"; }
+          [ "$(info version)" = "$VERSION" ] || { echo "::error::BUILD-INFO names $(info version), not $VERSION"; exit 1; }
+          [ "$(info default_registry)" = "$REGISTRY" ] || { echo "::error::BUILD-INFO bakes $(info default_registry), not $REGISTRY"; exit 1; }
+          # A dev build is a prerelease and a production build is not: the
+          # tag's form and the commit's line agreed in preflight, and this is
+          # the same fact read from what was built.
+          case "$(info channel)/$PRERELEASE" in production/false|dev/true) ;; *) echo "::error::BUILD-INFO channel=$(info channel) with prerelease=$PRERELEASE"; exit 1 ;; esac
+          (cd "$b" && sha256sum -c SHA256SUMS)
+          # Exactly what the sums cover, plus the sums and their signature.
+          listed=$(awk '{print $2}' "$b/SHA256SUMS")
+          extra=$(cd "$b" && for f in *; do case "$f" in SHA256SUMS|SHA256SUMS.minisig) ;; *) grep -Fx -- "$f" <<<"$listed" >/dev/null || echo "$f" ;; esac; done)
+          [ -z "$extra" ] || { echo "::error::files the sums do not cover: $extra"; exit 1; }
+          [ -f "$b/SHA256SUMS.minisig" ] || { echo "::error::a tagged release carries SHA256SUMS.minisig; this bundle has none"; exit 1; }
+          win=$(info signed_windows)
+          case "$win" in
+            "authenticode "*) winl="the \`.exe\` and the installer are Authenticode-signed (${win%% profile=*}); the \`.zip\` carries the signed \`.exe\`" ;;
+            "") winl="unsigned" ;;
+            *) echo "::error::BUILD-INFO signed_windows='$win' is neither empty nor authenticode"; exit 1 ;;
+          esac
+          case "$CHANNEL" in
+            production) what="A production release: it talks to $REGISTRY by default and checks $REGISTRY/downloads/manifest.json for newer production releases." ;;
+            *) what="A dev prerelease, for testing on dev: it talks to $REGISTRY by default and checks $REGISTRY/downloads/manifest.json for newer dev prereleases only." ;;
+          esac
+          {
+            echo "$what"
+            echo
+            echo "**Signatures** (DEV-148: signed where signing exists, unsigned where it does not):"
+            echo "- \`SHA256SUMS\`: signed with the estate's update-signing key (\`SHA256SUMS.minisig\`, the key set in \`internal/selfupdate/keys.json\`); the app verifies it before it installs an update."
+            echo "- Windows: $winl."
+            echo "- macOS (\`.dmg\`, \`.zip\`): not signed or notarised yet (agentry-desktop#6)."
+            echo "- Linux (\`.deb\`, \`.rpm\`, the binary): no OS signature; the sums cover them."
+            echo
+            echo "Check a download against the sums: \`sha256sum -c --ignore-missing SHA256SUMS\`. \`BUILD-INFO\` (covered by the sums) records the commit, the channel and the registry."
+            [ "$DRAFT" = true ] && { echo; echo "_A minor release: drafted for the operator to approve these notes and publish._"; }
+            echo
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      - name: The GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Agentry Desktop ${{ github.ref_name }}
+          body_path: ${{ runner.temp }}/notes.md
+          generate_release_notes: true
+          files: ${{ runner.temp }}/bundle/*
+          fail_on_unmatched_files: true
+          prerelease: ${{ needs.preflight.outputs.prerelease }}
+          draft: ${{ needs.preflight.outputs.draft }}
+          make_latest: ${{ needs.preflight.outputs.latest }}
