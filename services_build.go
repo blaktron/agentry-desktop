@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/validate"
 )
@@ -64,6 +65,22 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 		return err
 	}
 	return build.Save(dir, &m)
+}
+
+// Check renders the form's model without touching disk and runs the rules
+// over it: the form's own and the core's static V-rules. The Build page
+// draws each step's lines and problem from it (plan builder-rework.md §5,
+// agentry-desktop#280). It reads nothing and writes nothing.
+func (b *BuildAPI) Check(m build.Model) *build.CheckResult {
+	return m.Check()
+}
+
+// ServerChecks asks the registry what it last knew of each declared server
+// version, the check the agent page shows, for the Build page's Tools and
+// Review steps. It reads no file; its one request is the registry's public
+// lookup of those versions.
+func (b *BuildAPI) ServerChecks(reg string, m build.Model) []mcpvuln.Status {
+	return mcpvuln.Check(b.app.ctx, reg, m.DeclaredServers()).Statuses
 }
 
 // Validate runs the same offline checks the Validate page runs (manifest

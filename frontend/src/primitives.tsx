@@ -132,3 +132,66 @@ export function Modal({ title, onClose, wide, children }: {
     </div>
   );
 }
+
+// The step chrome (plan builder-rework.md §5, agentry-desktop#280): the
+// first-run wizard's dots and the run setup's "Step n of m" heading, foot
+// and recap, extracted so a stepped flow is one set of pieces. Build uses
+// them first; RunPanel and the Knowledge setup may move onto them later.
+// The classes share the run setup's rules in style.css.
+
+/** The steps as dots with their labels; the current one is marked. */
+export function StepList({ labels, at }: { labels: string[]; at: number }) {
+  return (
+    <ol className="step-list" aria-label="Steps">
+      {labels.map((label, i) => (
+        <li key={label} aria-current={i === at ? "step" : undefined} className={i === at ? "active" : i < at ? "done" : ""}>
+          <span className={`wizard-dot${i === at ? " active" : ""}${i < at ? " done" : ""}`} aria-hidden />
+          <span>{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** "Step n of m: Label", focusable so focus can follow the step. */
+export const StepHeading = React.forwardRef<HTMLHeadingElement, { at: number; total: number; label: string; id?: string }>(
+  function StepHeading({ at, total, label, id }, ref) {
+    return (
+      <h3 id={id} ref={ref} tabIndex={-1} className="step-heading">
+        Step {at + 1} of {total}: {label}
+      </h3>
+    );
+  },
+);
+
+/** The step's foot: the sentence that stopped Next, then Back and the
+ *  step's own actions on the right. */
+export function StepFoot({ problem, onBack, children }: { problem?: string | null; onBack?: () => void; children: React.ReactNode }) {
+  return (
+    <>
+      {problem && <p className="step-problem" role="alert">{problem}</p>}
+      <div className="row step-foot">
+        {onBack && <button onClick={onBack}>Back</button>}
+        <span className="grow" />
+        {children}
+      </div>
+    </>
+  );
+}
+
+/** A recap of answers, each row with an Edit that goes back to its step. */
+export function Recap({ rows }: { rows: { label: string; value: React.ReactNode; onEdit?: () => void }[] }) {
+  return (
+    <dl className="step-recap">
+      {rows.map((r) => (
+        <React.Fragment key={r.label}>
+          <dt>{r.label}</dt>
+          <dd>
+            <span>{r.value}</span>
+            {r.onEdit && <button className="ghost small" onClick={r.onEdit} aria-label={`Edit ${r.label}`}>Edit</button>}
+          </dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+}

@@ -91,9 +91,19 @@ The product never claims an agent is "safe". The language is always:
   injection-signature scanners. Those are the same Go packages the
   publication pipeline runs (D-12 local/remote parity by construction), with
   the rule bundle embedded in the binary.
-- **Build** — author a BriefAgent as a form (manifest schema v2: run-mode
-  checkboxes, an intake editor, the interactive opening line), validate
-  it, and publish over the same upload path the CLI uses.
+- **Build** — author a BriefAgent, validate it, and publish it over the same
+  upload path the CLI uses. The tab opens on a start page with two views of
+  one form:
+  - **Step by step** walks eight steps: Basics, Instructions, Tools and web
+    access, Files, commands and data, Questions, Before a run, Publishing,
+    Review. Each step is checked with the core's own manifest rules before
+    Next, and shows the lines it writes to `agent.yaml`.
+  - **Advanced** shows every field at once.
+
+  The form covers the whole of manifest schema v2, the run guide and each
+  server's plain configuration included. Opening an existing workspace and
+  saving it keeps every field; only comments are lost, and the page says
+  so. The folder is chosen at the first save.
 
 ## Architecture
 

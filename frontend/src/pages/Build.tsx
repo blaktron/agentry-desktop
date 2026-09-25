@@ -3,24 +3,58 @@
 // registry's own scanners, and publish it through the full pipeline. The
 // form is an editor for agent.yaml — the manifest stays the contract, and
 // nothing here bypasses a publication gate.
-import { useEffect, useRef, useState } from "react";
+//
+// Since agentry-desktop#280 (plan builder-rework.md M2, D2–D4, D13, D19)
+// the tab opens on a start page, and the form has two views of one Model:
+// Step by step, one section at a time on the step chrome in primitives.tsx,
+// and Advanced, every section at once as the page always was. Switching
+// keeps everything. A step is checked before Next by BuildAPI.Check, which
+// runs the form's rules and the core's own V-rules over the model without
+// touching disk, and shows the lines the step writes once it passes. The
+// folder is chosen at Save, so a person can start without one.
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { build, validate } from "../../wailsjs/go/models";
-import { Button, Card, ErrorBox, Notice, PageHeader, Sev, Spinner, Textarea } from "../ui";
+import { build, mcpvuln, validate } from "../../wailsjs/go/models";
+import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
+// The §19 instruction-file quota, as internal/build's maxInstructionBytes.
+const MAX_INSTRUCTION_BYTES = 1 << 20;
+
+// What the tab was holding when the person last left it. Build unmounts on
+// every tab change, and the form is not a file until the first save, so
+// this module keeps the model, the folder and the view for the rest of the
+// app's session, and the start page offers it back as Continue.
+let kept: { model: build.Model; dir: string; view: View } | null = null;
+
+type View = "start" | "steps" | "advanced";
+type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
+type StepKey = SectionKey | "review";
+
+// The eight steps of plan D4, each with what it is for in two sentences.
+const STEPS: { key: StepKey; label: string; intro: string }[] = [
+  { key: "basics", label: "Basics", intro: "Name the BriefAgent and say in one line what it does. Then choose how it runs." },
+  { key: "instructions", label: "Instructions", intro: "The instruction file tells the agent its one job. Say what it is given, the steps it takes and what it returns." },
+  { key: "tools", label: "Tools and web access", intro: "Say which sites it may reach and which MCP servers it uses, with the tools each may call. Everything is off until you list it." },
+  { key: "access", label: "Files, commands and data", intro: "Say what else it may touch. The least answer is already chosen." },
+  { key: "questions", label: "Questions", intro: "Questions a run asks before it starts, in either mode. Ask only what the run cannot find out for itself." },
+  { key: "guide", label: "Before a run", intro: "What a person reads before they start a run: what it does and what to gather first. It is shown to people only, never to the agent." },
+  { key: "publish", label: "Publishing", intro: "Where it is published, under which version and licence, and who may see it." },
+  { key: "review", label: "Review", intro: "Check what it says it is and what it may reach, then save it, validate it or publish it." },
+];
 
 /** Comma-separated text input bound to a string array. */
 function ListInput({
-  value, onChange, placeholder, mono = true,
+  value, onChange, placeholder, mono = true, label,
 }: {
   value: string[];
   onChange: (v: string[]) => void;
   placeholder?: string;
   mono?: boolean;
+  label?: string;
 }) {
   return (
     <input
@@ -28,15 +62,141 @@ function ListInput({
       className={mono ? "mono" : ""}
       style={{ width: "100%" }}
       placeholder={placeholder}
+      aria-label={label}
       value={value.join(", ")}
       onChange={(e) => onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
     />
   );
 }
 
-export default function Build({ registry }: { registry: string }) {
-  const [dir, setDir] = useState("");
-  const [model, setModel] = useState<build.Model | null>(null);
+/** One entry per line, bound to a string array. */
+function LinesInput({ value, onChange, placeholder, rows = 3 }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string; rows?: number }) {
+  return (
+    <textarea
+      rows={rows}
+      style={{ width: "100%" }}
+      placeholder={placeholder}
+      value={value.join("\n")}
+      onChange={(e) => onChange(e.target.value.split("\n"))}
+    />
+  );
+}
+
+/** A summary as one sentence: its own full stop, never two. */
+function sentence(s: string): string {
+  const t = s.trim().replace(/[.\s]+$/, "");
+  return t ? `${t}.` : "";
+}
+
+const stepOf = (key: StepKey) => STEPS.findIndex((s) => s.key === key);
+
+/** A server's reference, as the registry's check names it. */
+const serverRef = (s: build.MCPServerRow) => `${s.source}:${s.package}@${s.version}`;
+
+// The registry's check of one server version in plain words. The status
+// "safe" is never shown as a word: it means no known advisories at a date.
+function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: string } {
+  const at = c.checkedAt ? new Date(c.checkedAt) : null;
+  const when = at && !Number.isNaN(at.getTime()) ? ` as of ${at.toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
+  switch (c.status) {
+    case "vulnerable": {
+      const n = (c.advisories ?? []).length;
+      return { tone: "high", text: `${n} known ${n === 1 ? "advisory" : "advisories"}${c.maxSeverity ? ` (${c.maxSeverity})` : ""}: ${(c.advisories ?? []).map((a) => a.id).join(", ")}` };
+    }
+    case "safe":
+      return { tone: "muted", text: `No known advisories${when}.` };
+    case "error":
+      return { tone: "muted", text: "The registry's last check of this version failed; it tries again on its next sweep." };
+    case "unknown":
+      return { tone: "muted", text: "No check on record yet. The registry checks this version once a submission declares it." };
+    default:
+      return { tone: "muted", text: `The registry did not answer${c.error ? ` (${c.error})` : ""}.` };
+  }
+}
+
+function ServerChecks({ m, checks }: { m: build.Model; checks: Record<string, mcpvuln.Status> }) {
+  const rows = (m.mcpServers ?? []).filter((s) => s.package.trim() && s.version.trim());
+  if (rows.length === 0) return null;
+  return (
+    <div className="card" style={{ marginTop: 12 }}>
+      <strong className="small">The declared servers, as the registry last checked them</strong>
+      {rows.map((s, i) => {
+        const c = checks[serverRef(s)];
+        const said = c ? checkSentence(c) : { tone: "muted" as const, text: "Asking the registry…" };
+        return (
+          <div key={i} className="small" style={{ marginTop: 6 }}>
+            <span className="mono">{serverRef(s)}</span>
+            <div className={said.tone === "high" ? "sev-high" : "muted"} style={said.tone === "high" ? { color: "var(--color-sev-high)" } : undefined}>{said.text}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Where the BriefAgent and each of its servers can reach, in plain words. */
+function networkReach(m: build.Model): { what: string; value: string }[] {
+  const rows = [{
+    what: "The internet",
+    value: m.egressMode === "all" ? "any host (*): routed to review, refused by runners whose policy does not allow it"
+      : m.egressMode === "hosts" ? (m.egressHosts.join(", ") || "no hosts listed yet") : "none",
+  }];
+  for (const s of m.mcpServers ?? []) {
+    rows.push({
+      what: `${s.source}:${s.package || "?"}@${s.version || "?"}`,
+      value: [
+        (s.egress ?? []).length ? `reaches ${s.egress.join(", ")}` : "reaches no host",
+        (s.tools ?? []).length ? `tools ${s.tools.join(", ")}` : "all its tools",
+        (s.secrets ?? []).length ? `keys ${s.secrets.join(", ")}` : "",
+        (s.env ?? []).length ? `configuration ${s.env.map((e) => e.name).join(", ")}` : "",
+      ].filter(Boolean).join("; "),
+    });
+  }
+  return rows;
+}
+
+function localReach(m: build.Model): { what: string; value: string }[] {
+  const fs = (mode: string, paths: string[]) => (mode === "workspace" ? "the workspace" : mode === "paths" ? paths.join(", ") : "nothing");
+  return [
+    { what: "Reads", value: fs(m.fsRead, m.fsReadPaths) },
+    { what: "Writes", value: fs(m.fsWrite, m.fsWritePaths) },
+    { what: "Commands", value: m.execCommands.join(", ") || "none" },
+    { what: "Its own keys", value: m.secrets.join(", ") || "none" },
+    { what: "Data it touches", value: m.dataAccess.join(", ") || "none declared" },
+  ];
+}
+
+function ReachList({ title, rows }: { title: string; rows: { what: string; value: string }[] }) {
+  return (
+    <div className="card" style={{ marginTop: 12 }}>
+      <strong className="small">{title}</strong>
+      <dl className="build-reach">
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "contents" }}>
+            <dt className="mono small">{r.what}</dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+export default function Build({ registry, initialView = "start", initialStep = 0 }: {
+  registry: string;
+  /** Harness only: open on a view, and on a step of Step by step. */
+  initialView?: View;
+  initialStep?: number;
+}) {
+  const [dir, setDir] = useState(kept?.dir ?? "");
+  const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
+  const [touched, setTouched] = useState(!!kept);
+  const [view, setView] = useState<View>(initialView);
+  const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
+  const asked = useRef(new Set<string>());
+  const [at, setAt] = useState(initialStep);
+  const [stepProblem, setStepProblem] = useState<string | null>(null);
+  const [check, setCheck] = useState<build.CheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -45,16 +205,62 @@ export default function Build({ registry }: { registry: string }) {
   const [visibility, setVisibility] = useState("private");
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
+  const heading = useRef<HTMLHeadingElement | null>(null);
+  const moved = useRef(false);
 
   useEffect(() => {
+    if (kept) return;
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
   }, [registry]);
+
+  // Keep the work for the start page's Continue (see `kept`).
+  useEffect(() => {
+    if (model && touched) kept = { model, dir, view: view === "start" ? kept?.view ?? "steps" : view };
+  }, [model, dir, view, touched]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
 
+  // The model's check, a moment after the last change: the lines each step
+  // writes and the first problem in each. It reads and writes nothing.
+  useEffect(() => {
+    if (!model) return;
+    let live = true;
+    const t = setTimeout(() => {
+      BuildAPI.Check(model)
+        .then((c) => { if (live) setCheck(c); })
+        .catch((e) => { if (live) { setCheck(null); setError(`The checks could not run: ${String(e)}`); } });
+    }, 200);
+    return () => { live = false; clearTimeout(t); };
+  }, [model]);
+
+  // What the registry last knew of each declared server version, asked once
+  // per version while Tools and web access or Review is showing.
+  useEffect(() => {
+    if (!model || view !== "steps" || (STEPS[at].key !== "tools" && STEPS[at].key !== "review")) return;
+    const fresh = (model.mcpServers ?? []).filter((s) => s.package.trim() && s.version.trim() && !asked.current.has(serverRef(s)));
+    if (fresh.length === 0) return;
+    fresh.forEach((s) => asked.current.add(serverRef(s)));
+    BuildAPI.ServerChecks(registry, new build.Model({ ...model, mcpServers: fresh }))
+      .then((statuses) => setServerChecks((prev) => {
+        const next = { ...prev };
+        for (const st of statuses ?? []) next[st.ref] = st;
+        return next;
+      }))
+      .catch(() => {});
+  }, [model, view, at, registry]);
+
+  // Focus follows the step, as in the run setup; not on the first render.
+  useEffect(() => {
+    if (moved.current && view === "steps") heading.current?.focus();
+  }, [at, view]);
+
   const m = model;
-  const set = (patch: Partial<build.Model>) => m && setModel(new build.Model({ ...m, ...patch }));
+  const set = (patch: Partial<build.Model>) => {
+    if (!m) return;
+    setTouched(true);
+    setModel(new build.Model({ ...m, ...patch }));
+  };
 
   async function wrap(label: string, fn: () => Promise<void>) {
     setBusy(label);
@@ -69,176 +275,207 @@ export default function Build({ registry }: { registry: string }) {
     }
   }
 
-  const pickFolder = () =>
+  const openFolder = () =>
     wrap("pick", async () => {
-      const d = await ChooseDirectory("Choose the BriefAgent workspace folder");
+      const d = await ChooseDirectory("Choose a BriefAgent workspace folder");
       if (!d) return;
-      setDir(d);
-      if (await BuildAPI.Exists(d)) {
-        setModel(await BuildAPI.Load(d));
-        setResult(null);
-        setPubResult(null);
-        setNotice(`Loaded the existing BriefAgent in ${d}.`);
+      if (!(await BuildAPI.Exists(d))) {
+        setDir(d);
+        setNotice(`${d} holds no agent.yaml yet: the form saves into it.`);
+        return;
       }
+      const loaded = await BuildAPI.Load(d);
+      setDir(d);
+      setModel(loaded);
+      setTouched(true);
+      setResult(null);
+      setPubResult(null);
+      setNotice(`Loaded the BriefAgent in ${d}.`);
+      if (view === "start") setView("advanced");
     });
+
+  // The folder is chosen at the first save (D-030: it comes from the native
+  // picker). A folder that already holds a different BriefAgent is not
+  // written over: open it instead.
+  async function ensureDir(): Promise<string> {
+    if (dir) return dir;
+    const d = await ChooseDirectory("Choose where to save the BriefAgent");
+    if (!d) return "";
+    if (await BuildAPI.Exists(d)) {
+      setError(`${d} already holds an agent.yaml. Open it with "Open folder…" to edit it, or choose an empty folder.`);
+      return "";
+    }
+    setDir(d);
+    return d;
+  }
 
   const save = () =>
     wrap("save", async () => {
-      if (!m) return;
-      await BuildAPI.Save(dir, m);
-      setNotice(`Saved to ${dir} — agent.yaml, the instructions file, and (first save only) README, LICENSE, .gitignore.`);
+      const d = await ensureDir();
+      if (!m || !d) return;
+      await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
+      setNotice(`Saved to ${d}: agent.yaml, the instructions file, and on the first save README, LICENSE and .gitignore.`);
     });
 
   const runValidate = () =>
     wrap("validate", async () => {
-      if (!m) return;
-      await BuildAPI.Save(dir, m);
-      setResult(await BuildAPI.Validate(dir));
+      const d = await ensureDir();
+      if (!m || !d) return;
+      await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
+      setResult(await BuildAPI.Validate(d));
     });
 
   const publish = () =>
     wrap("publish", async () => {
-      if (!m) return;
-      await BuildAPI.Save(dir, m);
+      const d = await ensureDir();
+      if (!m || !d) return;
+      await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setLog([]);
       setPubResult(null);
-      setPubResult(await BuildAPI.Publish(registry, dir, visibility));
+      setPubResult(await BuildAPI.Publish(registry, d, visibility));
     });
 
   if (!m) return error ? <ErrorBox error={error} /> : <Spinner />;
 
+  const stepKey = STEPS[at].key;
+
+  function goTo(i: number) {
+    moved.current = true;
+    setStepProblem(null);
+    setAt(Math.max(0, Math.min(STEPS.length - 1, i)));
+  }
+
+  async function next() {
+    if (!m) return;
+    let c: build.CheckResult;
+    try {
+      c = await BuildAPI.Check(m);
+    } catch (e) {
+      setError(`The checks could not run: ${String(e)}`);
+      return;
+    }
+    setCheck(c);
+    const p = stepKey === "review" ? null : c.problems?.[stepKey];
+    if (p) {
+      moved.current = true;
+      setStepProblem(p);
+      heading.current?.focus();
+      return;
+    }
+    goTo(at + 1);
+  }
+
+  function startOver() {
+    kept = null;
+    asked.current.clear();
+    setServerChecks({});
+    setTouched(false);
+    setDir("");
+    setResult(null);
+    setPubResult(null);
+    setModel(null);
+    BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
+  }
+
+  function switchTo(v: View) {
+    moved.current = true;
+    setStepProblem(null);
+    setView(v);
+    if (v === "steps") setAt(0);
+  }
+
+  const stepped = view === "steps";
   const inputStyle = { width: "100%" };
 
-  return (
-    <div>
-      <PageHeader
-        title="Build"
-        sub={<>Author a BriefAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
-      />
-
-      <ErrorBox error={error} />
-      {notice && <Notice tone="info">{notice}</Notice>}
-
-      <Card>
-        <div className="row">
-          <Button onClick={pickFolder} disabled={!!busy}>Choose folder…</Button>
-          {dir ? <span className="mono small selectable">{dir}</span> : <span className="muted small">Pick where the workspace lives (an existing BriefAgent loads into the form).</span>}
-        </div>
-      </Card>
-
-      <h2>Identity</h2>
-      <div className="card">
-        <div className="row">
-          <label className="small grow">name
-            <input style={inputStyle} className="mono" value={m.name} onChange={(e) => set({ name: e.target.value })} placeholder="my-briefagent" />
-          </label>
-          <label className="small grow">namespace
-            <input style={inputStyle} className="mono" value={m.namespace} onChange={(e) => set({ namespace: e.target.value })} />
-          </label>
-        </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <span className="small">run modes
-            <span className="row" style={{ gap: 10, marginTop: 4 }}>
-              {(["autonomous", "interactive"] as const).map((mode) => (
-                <label key={mode} className="check-row" style={{ margin: 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={(m.modes ?? []).includes(mode)}
-                    onChange={(e) => set({ modes: e.target.checked ? [...(m.modes ?? []).filter((x) => x !== mode), mode] : (m.modes ?? []).filter((x) => x !== mode) })}
-                  />
-                  <span title={mode === "autonomous" ? "runs from its files and ends" : "a chat session under the same controls"}>{mode}</span>
-                </label>
-              ))}
-            </span>
-          </span>
-          <label className="small">version
-            <input className="mono" value={m.version} onChange={(e) => set({ version: e.target.value })} />
-          </label>
-          <label className="small">license (SPDX)
-            <input className="mono" value={m.license} onChange={(e) => set({ license: e.target.value })} />
-          </label>
-        </div>
+  // ---- The sections: the same fields in both views. ----
+  const sections: Record<SectionKey, ReactNode> = {
+    basics: (
+      <>
+        <label className="small" style={{ display: "block" }}>name
+          <input style={inputStyle} className="mono" value={m.name} onChange={(e) => set({ name: e.target.value })} placeholder="my-briefagent" />
+        </label>
         <label className="small" style={{ display: "block", marginTop: 8 }}>summary (one line, ≤140 chars)
           <input style={inputStyle} maxLength={140} value={m.summary} onChange={(e) => set({ summary: e.target.value })} />
         </label>
-        <label className="small" style={{ display: "block", marginTop: 8 }}>tags
-          <ListInput value={m.tags} onChange={(v) => set({ tags: v })} placeholder="comma, separated" />
+        <div className="small" style={{ marginTop: 8 }}>run modes
+          <span className="row" style={{ gap: 10, marginTop: 4 }}>
+            {(["autonomous", "interactive"] as const).map((mode) => (
+              <label key={mode} className="check-row" style={{ margin: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={(m.modes ?? []).includes(mode)}
+                  onChange={(e) => set({ modes: e.target.checked ? [...(m.modes ?? []).filter((x) => x !== mode), mode] : (m.modes ?? []).filter((x) => x !== mode) })}
+                />
+                <span>{mode} <span className="muted">— {mode === "autonomous" ? "runs from its files and ends" : "a chat session under the same controls"}</span></span>
+              </label>
+            ))}
+          </span>
+        </div>
+        {(m.modes ?? []).includes("interactive") && (
+          <div className="row" style={{ marginTop: 8 }}>
+            <label className="small grow">opening line (the agent&apos;s first message when a session starts without a task; ≤ 500 chars)
+              <input style={inputStyle} maxLength={500} value={m.opening ?? ""} onChange={(e) => set({ opening: e.target.value })} placeholder="What should I look at?" />
+            </label>
+            <label className="small">idle timeout (seconds; 0 = the runner&apos;s)
+              <input type="number" min={0} style={{ width: 110 }} value={m.idleTimeoutSeconds ?? 0} onChange={(e) => set({ idleTimeoutSeconds: Math.max(0, Number(e.target.value) || 0) })} />
+            </label>
+          </div>
+        )}
+      </>
+    ),
+    instructions: (
+      <>
+        <label className="small" style={{ display: "block" }}>{m.instructionFile || "AGENT.md"}
+          <Textarea className="mono" style={{ minHeight: 260 }} value={m.instructions} onChange={(e) => set({ instructions: e.target.value })} />
         </label>
-      </div>
-
-      <h2>Capability contract</h2>
-      <p className="muted small">
-        Declare the least the BriefAgent needs: reviewers gate on this, installs prompt on it, and the
-        runner enforces it — an undeclared capability is a tool that does not exist.
-      </p>
-      <div className="card">
-        <div className="row">
-          <label className="small">network egress
+        <p className="muted small" style={{ margin: "4px 0 0" }}>
+          {new TextEncoder().encode(m.instructions).length.toLocaleString("en")} of {MAX_INSTRUCTION_BYTES.toLocaleString("en")} bytes.
+        </p>
+      </>
+    ),
+    tools: (
+      <>
+        <strong className="small">Web access</strong>
+        <div className="row" style={{ marginTop: 4 }}>
+          <label className="small">does it need the internet?
             <select value={m.egressMode} onChange={(e) => set({ egressMode: e.target.value })}>
-              <option value="none">none</option>
-              <option value="hosts">specific hosts</option>
-              <option value="all">unrestricted (*)</option>
+              <option value="none">no</option>
+              <option value="hosts">only these sites</option>
+              {/* Any host is Advanced's alone: a declared server's "*" is
+                  always refused, and the BriefAgent's routes it to review. */}
+              {(!stepped || m.egressMode === "all") && <option value="all">any host (*)</option>}
             </select>
           </label>
           {m.egressMode === "hosts" && (
-            <label className="small grow">hosts
+            <label className="small grow">sites it may reach (host names)
               <ListInput value={m.egressHosts} onChange={(v) => set({ egressHosts: v })} placeholder="api.example.com, github.com" />
             </label>
           )}
           {m.egressMode === "all" && <span className="badge bad">refused at run time unless the operator allows wildcard egress</span>}
         </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <label className="small">fs read
-            <select value={m.fsRead} onChange={(e) => set({ fsRead: e.target.value })}>
-              <option value="none">none</option>
-              <option value="workspace">workspace</option>
-              <option value="paths">paths</option>
-            </select>
-          </label>
-          {m.fsRead === "paths" && (
-            <label className="small grow">read paths
-              <ListInput value={m.fsReadPaths} onChange={(v) => set({ fsReadPaths: v })} />
-            </label>
-          )}
-          <label className="small">fs write
-            <select value={m.fsWrite} onChange={(e) => set({ fsWrite: e.target.value })}>
-              <option value="none">none</option>
-              <option value="workspace">workspace</option>
-              <option value="paths">paths</option>
-            </select>
-          </label>
-          {m.fsWrite === "paths" && (
-            <label className="small grow">write paths
-              <ListInput value={m.fsWritePaths} onChange={(v) => set({ fsWritePaths: v })} />
-            </label>
-          )}
-        </div>
-        <label className="small" style={{ display: "block", marginTop: 8 }}>exec commands (single tokens; empty = no exec)
-          <ListInput value={m.execCommands} onChange={(v) => set({ execCommands: v })} placeholder="git, jq" />
-        </label>
-        <label className="small" style={{ display: "block", marginTop: 8 }}>secret NAMES (env vars; never values)
-          <ListInput value={m.secrets} onChange={(v) => set({ secrets: v })} placeholder="MY_API_TOKEN" />
-        </label>
         <div style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="small">declared MCP servers (exact version pins; each installed per release)</span>
+            <strong className="small">MCP servers (exact version pins; each installed per release)</strong>
             <Button
               type="button"
-              onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [] })] })}
+              onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [], env: [] })] })}
             >
               + add server
             </Button>
           </div>
           {(m.mcpServers ?? []).length === 0 && (
             <p className="muted small" style={{ margin: "4px 0 0" }}>
-              None. A server declared here is resolved from npm or PyPI at the pinned version and
-              installed into the release&apos;s own store; its tools, secret names and egress are
-              scoped to that server.
+              None. A server declared here is resolved from npm or PyPI at the pinned version and installed into the
+              release&apos;s own store; its tools, keys and hosts are scoped to that server.
             </p>
           )}
           {(m.mcpServers ?? []).map((srv, i) => {
             const patch = (row: Partial<build.MCPServerRow>) =>
               set({ mcpServers: m.mcpServers.map((r, j) => (j === i ? new build.MCPServerRow({ ...r, ...row }) : r)) });
+            const env = srv.env ?? [];
             return (
               <div className="card" key={i} style={{ marginTop: 8 }}>
                 <div className="row">
@@ -249,73 +486,112 @@ export default function Build({ registry }: { registry: string }) {
                     </select>
                   </label>
                   <label className="small grow">package
-                    <input
-                      type="text" className="mono" style={{ width: "100%" }}
-                      placeholder={srv.source === "npm" ? "@scope/server-name" : "mcp-server-name"}
-                      value={srv.package} onChange={(e) => patch({ package: e.target.value })}
-                    />
+                    <input type="text" className="mono" style={{ width: "100%" }} placeholder={srv.source === "npm" ? "@scope/server-name" : "mcp-server-name"}
+                      value={srv.package} onChange={(e) => patch({ package: e.target.value })} />
                   </label>
                   <label className="small">exact version
-                    <input
-                      type="text" className="mono" style={{ width: 120 }} placeholder="1.2.3"
-                      value={srv.version} onChange={(e) => patch({ version: e.target.value })}
-                    />
+                    <input type="text" className="mono" style={{ width: 120 }} placeholder="1.2.3" value={srv.version} onChange={(e) => patch({ version: e.target.value })} />
                   </label>
                   <Button type="button" onClick={() => set({ mcpServers: m.mcpServers.filter((_, j) => j !== i) })}>remove</Button>
                 </div>
                 <div className="row" style={{ marginTop: 6 }}>
-                  <label className="small grow">tools (empty = all the server offers)
+                  <label className="small grow">tools it may call (empty = all it offers)
                     <ListInput value={srv.tools ?? []} onChange={(v) => patch({ tools: v })} placeholder="list_issues, get_issue" />
                   </label>
-                  <label className="small grow">secret NAMES for this server
+                  <label className="small grow">keys it needs (NAMES)
                     <ListInput value={srv.secrets ?? []} onChange={(v) => patch({ secrets: v })} placeholder="GITHUB_PAT" />
                   </label>
-                  <label className="small grow">egress hosts for this server (empty = none)
+                  <label className="small grow">hosts it reaches (empty = none)
                     <ListInput value={srv.egress ?? []} onChange={(v) => patch({ egress: v })} placeholder="api.github.com" />
                   </label>
                 </div>
-                {(srv.egress ?? []).includes("*") && (
-                  <span className="badge bad">wildcard egress: refused at run time unless the operator allows it</span>
+                <div style={{ marginTop: 6 }}>
+                  <span className="small">configuration (plain env values, never keys)</span>
+                  {env.map((e, k) => (
+                    <div className="row" key={k} style={{ marginTop: 4 }}>
+                      <input type="text" className="mono" aria-label="env name" placeholder="NAME" style={{ width: 180 }} value={e.name}
+                        onChange={(ev) => patch({ env: env.map((x, j) => (j === k ? new build.EnvRow({ ...x, name: ev.target.value }) : x)) })} />
+                      <input type="text" className="mono grow" aria-label="env value" placeholder="value" value={e.value}
+                        onChange={(ev) => patch({ env: env.map((x, j) => (j === k ? new build.EnvRow({ ...x, value: ev.target.value }) : x)) })} />
+                      <Button type="button" onClick={() => patch({ env: env.filter((_, j) => j !== k) })}>remove</Button>
+                    </div>
+                  ))}
+                  <Button type="button" className="small" onClick={() => patch({ env: [...env, new build.EnvRow({ name: "", value: "" })] })}>+ add configuration</Button>
+                </div>
+                {(srv.secrets ?? []).length > 0 && (
+                  <p className="muted small" style={{ margin: "6px 0 0" }}>
+                    It needs {srv.secrets.join(", ")}, so this BriefAgent runs on this computer, not in Agentry, until hosted runs carry keys.
+                  </p>
                 )}
               </div>
             );
           })}
         </div>
-        <label className="small" style={{ display: "block", marginTop: 8 }}>data access categories
+        {stepped && <ReachList title="Everywhere it and its servers can reach" rows={networkReach(m)} />}
+        {stepped && <ServerChecks m={m} checks={serverChecks} />}
+      </>
+    ),
+    access: (
+      <>
+        <div className="row">
+          <label className="small">does it read files?
+            <select value={m.fsRead} onChange={(e) => set({ fsRead: e.target.value })}>
+              <option value="none">no</option>
+              <option value="workspace">the workspace</option>
+              <option value="paths">only these paths</option>
+            </select>
+          </label>
+          {m.fsRead === "paths" && (
+            <label className="small grow">paths it reads
+              <ListInput value={m.fsReadPaths} onChange={(v) => set({ fsReadPaths: v })} />
+            </label>
+          )}
+          <label className="small">does it write files?
+            <select value={m.fsWrite} onChange={(e) => set({ fsWrite: e.target.value })}>
+              <option value="none">no</option>
+              <option value="workspace">the workspace</option>
+              <option value="paths">only these paths</option>
+            </select>
+          </label>
+          {m.fsWrite === "paths" && (
+            <label className="small grow">paths it writes
+              <ListInput value={m.fsWritePaths} onChange={(v) => set({ fsWritePaths: v })} />
+            </label>
+          )}
+        </div>
+        <label className="small" style={{ display: "block", marginTop: 8 }}>commands it runs (single words; empty = none)
+          <ListInput value={m.execCommands} onChange={(v) => set({ execCommands: v })} placeholder="git, jq" />
+        </label>
+        <label className="small" style={{ display: "block", marginTop: 8 }}>keys or tokens of its own (NAMES of environment variables, never values)
+          <ListInput value={m.secrets} onChange={(v) => set({ secrets: v })} placeholder="MY_API_TOKEN" />
+        </label>
+        <div className="small" style={{ marginTop: 8 }}>which kinds of data does it touch?
           <div className="row" style={{ flexWrap: "wrap" }}>
             {DATA_ACCESS.map((d) => (
               <label key={d} className="row small" style={{ gap: 4 }}>
-                <input
-                  type="checkbox"
-                  checked={m.dataAccess.includes(d)}
-                  onChange={(e) => set({ dataAccess: e.target.checked ? [...m.dataAccess, d] : m.dataAccess.filter((x) => x !== d) })}
-                />
+                <input type="checkbox" checked={m.dataAccess.includes(d)}
+                  onChange={(e) => set({ dataAccess: e.target.checked ? [...m.dataAccess, d] : m.dataAccess.filter((x) => x !== d) })} />
                 {d}
               </label>
             ))}
           </div>
-        </label>
-      </div>
-
-      <h2>Up-front questions (intake)</h2>
-      <p className="muted small">
-        Asked before a run starts, in either mode; the answers are staged read-only for the agent
-        at <span className="mono">/inputs/intake.json</span>. A <em>secret</em> answer is carried by a declared
-        secret of the same upper-cased name and never reaches the agent or a receipt.
-      </p>
-      <div className="card">
+        </div>
+      </>
+    ),
+    questions: (
+      <>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          The answers are staged read-only for the agent at <span className="mono">/inputs/intake.json</span>. A <em>secret</em>{" "}
+          answer is carried by a declared secret of the same upper-cased name and never reaches the agent or a receipt.
+        </p>
         <div className="row">
-          <Button
-            type="button"
-            onClick={() => set({ intake: [...(m.intake ?? []), new build.IntakeRow({ id: "", prompt: "", type: "text", required: false, choices: [] })] })}
-          >
+          <Button type="button" onClick={() => set({ intake: [...(m.intake ?? []), new build.IntakeRow({ id: "", prompt: "", type: "text", required: false, choices: [] })] })}>
             Add question
           </Button>
-          {(m.intake ?? []).length === 0 && <span className="muted small">No questions — the agent starts from its instructions and the task.</span>}
+          {(m.intake ?? []).length === 0 && <span className="muted small">No questions: the agent starts from its instructions and the task.</span>}
         </div>
         {(m.intake ?? []).map((q, i) => {
-          const patch = (row: Partial<build.IntakeRow>) =>
-            set({ intake: m.intake.map((r, j) => (j === i ? new build.IntakeRow({ ...r, ...row }) : r)) });
+          const patch = (row: Partial<build.IntakeRow>) => set({ intake: m.intake.map((r, j) => (j === i ? new build.IntakeRow({ ...r, ...row }) : r)) });
           return (
             <div className="card" key={i} style={{ marginTop: 8 }}>
               <div className="row">
@@ -347,103 +623,328 @@ export default function Build({ registry }: { registry: string }) {
             </div>
           );
         })}
-      </div>
-
-      {(m.modes ?? []).includes("interactive") && (
+      </>
+    ),
+    guide: (() => {
+      const g = m.guide ?? new build.GuideModel({ overview: "", prepare: [], files: "", task: "", connect: [] });
+      const setGuide = (patch: Partial<build.GuideModel>) => set({ guide: new build.GuideModel({ ...g, ...patch }) });
+      const connect = g.connect ?? [];
+      const need = [...(g.prepare ?? []).filter((s) => s.trim()), ...(g.files?.trim() ? [g.files.trim()] : [])];
+      return (
         <>
-          <h2>Interactive session</h2>
-          <div className="card">
-            <label className="small" style={{ display: "block" }}>opening line (the agent&apos;s first message when a session starts without a task; ≤ 500 chars)
-              <input style={inputStyle} maxLength={500} value={m.opening ?? ""} onChange={(e) => set({ opening: e.target.value })} placeholder="What should I look at?" />
+          <label className="small" style={{ display: "block" }}>what it does and returns (markdown, up to 4 KB; empty: the run setup shows the summary)
+            <textarea rows={4} style={inputStyle} value={g.overview} onChange={(e) => setGuide({ overview: e.target.value })} />
+          </label>
+          <label className="small" style={{ display: "block", marginTop: 8 }}>you will need (one item per line, up to ten)
+            <LinesInput value={g.prepare ?? []} onChange={(v) => setGuide({ prepare: v })} placeholder={"The incident's ticket number\nAccess to the service's logs"} />
+          </label>
+          <div className="row" style={{ marginTop: 8 }}>
+            <label className="small grow">files to bring (one line)
+              <input style={inputStyle} maxLength={500} value={g.files} onChange={(e) => setGuide({ files: e.target.value })} placeholder="The log excerpt, as a text file" />
+            </label>
+            <label className="small grow">task hint (the task field&apos;s placeholder)
+              <input style={inputStyle} maxLength={200} value={g.task} onChange={(e) => setGuide({ task: e.target.value })} placeholder="Summarise the incident in INC-1234" />
             </label>
           </div>
-        </>
-      )}
-
-      <h2>Instructions ({m.instructionFile || "AGENT.md"})</h2>
-      <div className="card">
-        <Textarea
-          className="mono"
-          style={{ minHeight: 260 }}
-          value={m.instructions}
-          onChange={(e) => set({ instructions: e.target.value })}
-        />
-      </div>
-
-      <div className="row" style={{ marginTop: 12 }}>
-        <Button disabled={!dir || !!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
-        <Button disabled={!dir || !!busy} onClick={runValidate}>{busy === "validate" ? "Validating…" : "Save + Validate"}</Button>
-        <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-          <option value="private">private</option>
-          <option value="public">public</option>
-        </select>
-        <Button variant="primary" disabled={!dir || !!busy} onClick={publish}>
-          {busy === "publish" ? "Publishing…" : "Save + Publish"}
-        </Button>
-      </div>
-      {!dir && <p className="muted small">Choose a folder first — the form edits real files.</p>}
-
-      {result && (
-        <Card className="mt">
-          <strong>{result.passed ? "validate: PASSED" : "validate: FAILED"}</strong>
-          {result.manifestError && <div className="error-box selectable">{result.manifestError}</div>}
-          {(result.findings ?? []).map((f: any, i: number) => (
-            <div key={i} className="finding">
-              <div className="row">
-                <Sev severity={f.severity} />
-                <span className="mono">{f.rule}</span>
-                <span>{f.title}</span>
+          <div style={{ marginTop: 8 }}>
+            <span className="small">help for each key it needs: where to create it, which scopes</span>
+            {connect.map((c, k) => (
+              <div className="row" key={k} style={{ marginTop: 4 }}>
+                <input type="text" className="mono" aria-label="key name" placeholder="GITHUB_TOKEN" style={{ width: 200 }} value={c.secret}
+                  onChange={(e) => setGuide({ connect: connect.map((x, j) => (j === k ? new build.ConnectRow({ ...x, secret: e.target.value }) : x)) })} />
+                <input type="text" className="grow" aria-label="help" maxLength={300} placeholder="Create a fine-grained token with read access to pull requests" value={c.help}
+                  onChange={(e) => setGuide({ connect: connect.map((x, j) => (j === k ? new build.ConnectRow({ ...x, help: e.target.value }) : x)) })} />
+                <Button type="button" onClick={() => setGuide({ connect: connect.filter((_, j) => j !== k) })}>remove</Button>
               </div>
-              {f.file && <div className="loc mono">{f.file}{f.line ? `:${f.line}` : ""}</div>}
-            </div>
-          ))}
-          {result.passed && <p className="muted small">Same manifest rules and content scanners the registry runs at publish time.</p>}
-        </Card>
-      )}
-
-      {(log.length > 0 || pubResult) && (
-        <Card className="mt">
-          <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
-          {pubResult && (
-            <div className="selectable">
-              <strong>
-                {pubResult.status === "published" && `published ${m.namespace}/${m.name}@${pubResult.version}`}
-                {pubResult.status === "needs_review" && `submitted — ${m.namespace}/${m.name}@${pubResult.version} needs human review`}
-                {pubResult.status === "rejected" && `rejected — ${m.namespace}/${m.name}@${pubResult.version}`}
-                {pubResult.status === "refused" && "refused — the registry stored nothing"}
-              </strong>
-              {pubResult.detail && <p className="muted small">{pubResult.detail}</p>}
-              {pubResult.status === "refused" && pubResult.account && (
-                // Whose subscription the refusal is about (plan
-                // organization-subscriptions.md D22): a member publishes to
-                // their own namespace but spends from the organization's
-                // pool, so the account that is short is often not the one
-                // signed in, and the sentence above may name an
-                // organization this person has never typed.
-                <p className="muted small">the account is <span className="selectable">{pubResult.account}</span></p>
-              )}
-              {pubResult.status === "refused" &&
-                (pubResult.refusal === "credits-exhausted" || pubResult.refusal === "subscription-inactive") && (
-                  // The refusal (plan subscription-tiers.md §8,
-                  // organization-subscriptions.md §6): the sentence above
-                  // names the balance and the reset, or why the
-                  // subscription admits nothing; the way onward is the page
-                  // the registry named — the organization's console for a
-                  // member, the subscription page for a person.
-                  <p className="small">
-                    <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>
-                      {pubResult.refusal === "subscription-inactive" ? "The subscription" : "Credits and upgrade"}
-                    </Button>
-                  </p>
-                )}
-              {pubResult.findingCounts && Object.keys(pubResult.findingCounts).length > 0 && (
-                <p className="muted small">
-                  findings: {Object.entries(pubResult.findingCounts).map(([s, n]) => `${s} ${n}`).join(" · ")}
-                </p>
+            ))}
+            <Button type="button" className="small" onClick={() => setGuide({ connect: [...connect, new build.ConnectRow({ secret: "", help: "" })] })}>+ add help for a key</Button>
+          </div>
+          {stepped && (
+            <div className="card" style={{ marginTop: 12 }}>
+              <strong className="small">What a person sees before a run</strong>
+              <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{g.overview.trim() || m.summary || "The summary goes here."}</p>
+              {need.length > 0 && (
+                <>
+                  <strong className="small">What to have ready</strong>
+                  <ul className="run-need">{need.map((n, k) => <li key={k}>{n}</li>)}</ul>
+                </>
               )}
             </div>
           )}
+        </>
+      );
+    })(),
+    publish: (
+      <>
+        <div className="row">
+          <label className="small grow">namespace
+            <input style={inputStyle} className="mono" value={m.namespace} onChange={(e) => set({ namespace: e.target.value })} />
+          </label>
+          <label className="small">version
+            <input className="mono" value={m.version} onChange={(e) => set({ version: e.target.value })} />
+          </label>
+          <label className="small">license (SPDX)
+            <input className="mono" value={m.license} onChange={(e) => set({ license: e.target.value })} />
+          </label>
+          <label className="small">visibility
+            <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+              <option value="private">private</option>
+              <option value="public">public</option>
+            </select>
+          </label>
+        </div>
+        <label className="small" style={{ display: "block", marginTop: 8 }}>homepage (optional)
+          <input style={inputStyle} value={m.homepage ?? ""} onChange={(e) => set({ homepage: e.target.value })} placeholder="https://github.com/you/your-briefagent" />
+        </label>
+        <label className="small" style={{ display: "block", marginTop: 8 }}>tags (up to ten)
+          <ListInput value={m.tags} onChange={(v) => set({ tags: v })} placeholder="comma, separated" />
+        </label>
+        {((m.authors ?? []).length > 0 || (m.runtimeModels ?? []).length > 0 || (m.dependencies ?? []).length > 0 || m.publishChannel) && (
+          <p className="muted small" style={{ marginBottom: 0 }}>
+            Carried through from agent.yaml as it is:{" "}
+            {[
+              (m.authors ?? []).length > 0 && `authors (${m.authors.map((a) => a.name).join(", ")})`,
+              (m.runtimeModels ?? []).length > 0 && `runtime models (${m.runtimeModels.join(", ")})`,
+              (m.dependencies ?? []).length > 0 && `dependencies (${m.dependencies.map((d) => d.ref).join(", ")})`,
+              m.publishChannel && `the ${m.publishChannel} channel`,
+            ].filter(Boolean).join("; ")}.
+          </p>
+        )}
+      </>
+    ),
+  };
+
+  // What a section writes to agent.yaml, once its fields pass.
+  const writes = (key: SectionKey) => {
+    const f = check?.fragments?.[key];
+    if (!f || check?.problems?.[key]) return null;
+    return (
+      <details className="build-writes small" style={{ marginTop: 12 }}>
+        <summary>What this step writes to agent.yaml</summary>
+        <pre className="run-log">{f}</pre>
+      </details>
+    );
+  };
+
+  const actions = (
+    <>
+      <div className="row" style={{ marginTop: 12 }}>
+        <Button disabled={!!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
+        <Button disabled={!!busy} onClick={runValidate}>{busy === "validate" ? "Validating…" : "Save + Validate"}</Button>
+        <Button variant="primary" disabled={!!busy} onClick={publish}>
+          {busy === "publish" ? "Publishing…" : `Save + Publish (${visibility})`}
+        </Button>
+      </div>
+      <p className="muted small">
+        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : "The first save asks where the workspace goes: an empty folder, or open an existing one."}
+      </p>
+      {result && <ValidateCard result={result} />}
+      {(log.length > 0 || pubResult) && (
+        <Card className="mt">
+          <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
+          {pubResult && <PublishOutcome pub={pubResult} m={m} registry={registry} onError={setError} />}
         </Card>
+      )}
+    </>
+  );
+
+  const header = (
+    <PageHeader
+      title="Build"
+      sub={<>Author a BriefAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
+      actions={
+        <>
+          {view === "steps" && <Button onClick={() => switchTo("advanced")}>Switch to Advanced</Button>}
+          {view === "advanced" && <Button onClick={() => switchTo("steps")}>Switch to step by step</Button>}
+          <Button onClick={openFolder} disabled={!!busy}>Open folder…</Button>
+        </>
+      }
+    />
+  );
+
+  const notices = (
+    <>
+      <ErrorBox error={error} />
+      {notice && <Notice tone="info">{notice}</Notice>}
+      {m.hadComments && view !== "start" && (
+        <Notice tone="warn">This agent.yaml has comments. Saving writes the file from the form, and the comments are not kept.</Notice>
+      )}
+    </>
+  );
+
+  if (view === "start") {
+    return (
+      <div>
+        {header}
+        {notices}
+        <div className="build-ways">
+          <button className="card build-way" onClick={() => switchTo("steps")}>
+            <strong>Step by step</strong>
+            <span className="muted small">One section at a time, with the least access already chosen and a review before you save or publish.</span>
+          </button>
+          <button className="card build-way" onClick={() => switchTo("advanced")}>
+            <strong>Advanced</strong>
+            <span className="muted small">Every field on one page, for when you know the manifest. It is the same form, and you can switch at any time.</span>
+          </button>
+        </div>
+        {touched && (
+          <p className="small">
+            {m.name ? <><span className="mono">{m.name}</span> is still in the form{dir ? <> (saving into <span className="mono">{dir}</span>)</> : ""}.</> : "The form still holds your work."}{" "}
+            Continue it{" "}
+            <Button variant="link" onClick={() => switchTo("steps")}>step by step</Button> or in{" "}
+            <Button variant="link" onClick={() => switchTo("advanced")}>Advanced</Button>, or{" "}
+            <Button variant="link" onClick={startOver}>start a new one</Button>.
+          </p>
+        )}
+        <p className="muted small">To change a BriefAgent you already have, open its folder: it loads into the form.</p>
+      </div>
+    );
+  }
+
+  if (view === "advanced") {
+    return (
+      <div>
+        {header}
+        {notices}
+        {STEPS.filter((s) => s.key !== "review").map((s) => (
+          <section key={s.key}>
+            <h2>{s.label}</h2>
+            <p className="muted small">{s.intro}</p>
+            <div className="card">{sections[s.key as SectionKey]}</div>
+            {check?.problems?.[s.key] && <p className="step-problem">{check.problems[s.key]}</p>}
+          </section>
+        ))}
+        {actions}
+      </div>
+    );
+  }
+
+  // Step by step.
+  const step = STEPS[at];
+  const net = networkReach(m);
+  const local = localReach(m);
+  const g = m.guide;
+  const lines = m.instructions.replace(/\n+$/, "").split("\n").length;
+  return (
+    <div>
+      {header}
+      {notices}
+      <StepList labels={STEPS.map((s) => s.label)} at={at} />
+      <section aria-labelledby="build-step-heading">
+        <StepHeading ref={heading} id="build-step-heading" at={at} total={STEPS.length} label={step.label} />
+        <p className="muted small">{step.intro}</p>
+        {step.key !== "review" ? (
+          <>
+            <div className="card">{sections[step.key]}</div>
+            {writes(step.key)}
+          </>
+        ) : (
+          <>
+            <Recap
+              rows={[
+                { label: "Basics", value: <><span className="mono">{m.name || "no name yet"}</span>: {sentence(m.summary) || "no summary yet."} Runs {(m.modes ?? []).join(" and ") || "in no mode yet"}.</>, onEdit: () => goTo(stepOf("basics")) },
+                { label: "Instructions", value: m.instructions.trim() ? `${lines} ${lines === 1 ? "line" : "lines"} in ${m.instructionFile || "AGENT.md"}` : "Not written yet", onEdit: () => goTo(stepOf("instructions")) },
+                { label: "Tools and web access", value: `The internet: ${net[0].value}. ${(m.mcpServers ?? []).length === 0 ? "No MCP servers." : `${m.mcpServers.length} MCP ${m.mcpServers.length === 1 ? "server" : "servers"}.`}`, onEdit: () => goTo(stepOf("tools")) },
+                { label: "Files, commands and data", value: local.map((r) => `${r.what}: ${r.value}`).join(". ") + ".", onEdit: () => goTo(stepOf("access")) },
+                { label: "Questions", value: (m.intake ?? []).length === 0 ? "None" : m.intake.map((q) => q.id).join(", "), onEdit: () => goTo(stepOf("questions")) },
+                { label: "Before a run", value: g && (g.overview || (g.prepare ?? []).some((s) => s.trim()) || g.files || g.task || (g.connect ?? []).length) ? "Written" : "Not written: the run setup uses the summary and the contract", onEdit: () => goTo(stepOf("guide")) },
+                { label: "Publishing", value: <><span className="mono">{m.namespace || "?"}/{m.name || "?"}@{m.version || "?"}</span>, {visibility}, licence {m.license || "none"}</>, onEdit: () => goTo(stepOf("publish")) },
+              ]}
+            />
+            <ReachList title="What it may reach" rows={[...net, ...local]} />
+            <ServerChecks m={m} checks={serverChecks} />
+            <details className="build-writes small" style={{ marginTop: 12 }}>
+              <summary>The agent.yaml this will write</summary>
+              {check?.first
+                ? <p className="muted">It appears here once every step passes. First: {check.first.problem}.</p>
+                : <pre className="run-log">{check?.yaml ?? ""}</pre>}
+            </details>
+            {(check?.warnings ?? []).length > 0 && (
+              <Notice tone="warn">{check!.warnings.join(" · ")}</Notice>
+            )}
+            {actions}
+          </>
+        )}
+        <StepFoot problem={stepProblem} onBack={at > 0 ? () => goTo(at - 1) : undefined}>
+          {step.key !== "review" && <Button variant="primary" onClick={next}>Next: {STEPS[at + 1].label}</Button>}
+        </StepFoot>
+      </section>
+    </div>
+  );
+}
+
+// ValidateCard shows a validate run the way the Validate page does: the
+// manifest's V-rule problems, the inventory's and the content scan's
+// findings with their rule and place. It used to read fields the result
+// does not have, so a manifest failure read "FAILED" with no reason.
+function ValidateCard({ result }: { result: validate.Result }) {
+  const issues = result.issues ?? [];
+  const inventory = result.inventory ?? [];
+  const findings = result.findings ?? [];
+  return (
+    <Card className="mt">
+      <strong>{result.passed ? "validate: PASSED" : "validate: FAILED"}</strong>
+      {result.manifestError && <div className="error-box selectable">{result.manifestError}</div>}
+      {issues.map((iss, i) => (
+        <div key={`i${i}`} className="finding">
+          <div className="row">
+            <Sev severity={iss.warning ? "medium" : "high"} />
+            <span className="mono">{iss.rule}{iss.path ? ` (${iss.path})` : ""}</span>
+            <span className="badge">{iss.warning ? "warning" : "error"}</span>
+          </div>
+          <div className="selectable">{iss.message}</div>
+        </div>
+      ))}
+      {inventory.map((f, i) => (
+        <div key={`v${i}`} className="finding">
+          <div className="row">
+            <Sev severity={f.severity} />
+            <span className="mono">{f.scanner}</span>
+            <strong>{f.title}</strong>
+          </div>
+          <div className="loc mono">{f.filePath}</div>
+        </div>
+      ))}
+      {findings.map((f, i) => (
+        <div key={`f${i}`} className="finding">
+          <div className="row">
+            <Sev severity={f.severity} />
+            <span className="mono">{f.ruleId}</span>
+            <strong>{f.title}</strong>
+          </div>
+          {f.filePath && <div className="loc mono">{f.filePath}{f.lineStart ? `:${f.lineStart}` : ""}</div>}
+        </div>
+      ))}
+      {result.passed && <p className="muted small">The same manifest rules and content scanners the registry runs at publish time.</p>}
+    </Card>
+  );
+}
+
+function PublishOutcome({ pub, m, registry, onError }: { pub: build.PublishResult; m: build.Model; registry: string; onError: (e: string) => void }) {
+  return (
+    <div className="selectable">
+      <strong>
+        {pub.status === "published" && `published ${m.namespace}/${m.name}@${pub.version}`}
+        {pub.status === "needs_review" && `submitted — ${m.namespace}/${m.name}@${pub.version} needs human review`}
+        {pub.status === "rejected" && `rejected — ${m.namespace}/${m.name}@${pub.version}`}
+        {pub.status === "refused" && "refused — the registry stored nothing"}
+      </strong>
+      {pub.detail && <p className="muted small">{pub.detail}</p>}
+      {pub.status === "refused" && pub.account && (
+        // Whose subscription the refusal is about (plan
+        // organization-subscriptions.md D22): a member publishes to their own
+        // namespace but spends from the organization's pool.
+        <p className="muted small">the account is <span className="selectable">{pub.account}</span></p>
+      )}
+      {pub.status === "refused" && (pub.refusal === "credits-exhausted" || pub.refusal === "subscription-inactive") && (
+        <p className="small">
+          <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => onError(String(e)))}>
+            {pub.refusal === "subscription-inactive" ? "The subscription" : "Credits and upgrade"}
+          </Button>
+        </p>
+      )}
+      {pub.findingCounts && Object.keys(pub.findingCounts).length > 0 && (
+        <p className="muted small">findings: {Object.entries(pub.findingCounts).map(([s, n]) => `${s} ${n}`).join(" · ")}</p>
       )}
     </div>
   );

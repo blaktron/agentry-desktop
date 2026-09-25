@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -82,25 +83,31 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 }
 
-// A PyPI server with a wildcard egress renders as the manifest expects
-// (quoted "*"), and a manifest without servers loads to an empty list.
+// A PyPI server with its env renders as the manifest expects, a declared
+// server's "*" egress is refused (the runner always refuses it, DR-20), and
+// a manifest without servers loads to an empty list.
 func TestMCPServerRowsRenderAndValidate(t *testing.T) {
 	dir := t.TempDir()
 	m := model()
 	m.MCPServers = []MCPServerRow{{Source: "pypi", Package: "mcp-server-fetch", Version: "0.6.2", Egress: []string{"*"},
 		Tools: []string{}, Secrets: []string{}}}
+	if err := Save(dir, m); err == nil || !strings.Contains(err.Error(), `refuses "*" for a declared server`) {
+		t.Fatalf("a declared server's \"*\" must be refused, got %v", err)
+	}
+	m.MCPServers[0].Egress = []string{"example.org"}
+	m.MCPServers[0].Env = []EnvRow{{Name: "USER_AGENT", Value: "agentry fetch: probe"}}
 	if err := Save(dir, m); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
-	if !strings.Contains(string(raw), "- pypi: mcp-server-fetch\n      version: 0.6.2\n      egress: ['*']") {
+	if !strings.Contains(string(raw), "- pypi: mcp-server-fetch\n      version: 0.6.2\n      egress: [example.org]\n      env:\n        USER_AGENT: 'agentry fetch: probe'") {
 		t.Fatalf("rendered:\n%s", raw)
 	}
 	parsed, err := manifest.Parse(raw)
 	if err != nil {
 		t.Fatalf("real parser: %v\n%s", err, raw)
 	}
-	if parsed.Capabilities.MCPServers[0].PyPI != "mcp-server-fetch" || parsed.Capabilities.MCPServers[0].Egress[0] != "*" {
+	if parsed.Capabilities.MCPServers[0].PyPI != "mcp-server-fetch" || parsed.Capabilities.MCPServers[0].Env["USER_AGENT"] != "agentry fetch: probe" {
 		t.Errorf("parsed %+v", parsed.Capabilities.MCPServers)
 	}
 	got, err := Load(dir)
@@ -332,5 +339,234 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	}
 	if !strings.Contains(res.Detail, "awaiting payment") {
 		t.Fatalf("detail = %q", res.Detail)
+	}
+}
+
+// Load then Save loses nothing but comments (plan builder-rework.md D19,
+// agentry-desktop#280). The template's agent.yaml is the file an author
+// starts from: it carries authors, a homepage, runtime.models, a publish
+// channel and an include order the form never wrote before, and a save
+// used to drop them.
+func TestTemplateManifestSurvivesLoadAndSave(t *testing.T) {
+	orig, err := os.ReadFile(filepath.Join("testdata", "template-agent.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), orig, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte("# my-briefagent\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.HadComments {
+		t.Error("the template is commented; HadComments must say so")
+	}
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	want, err := manifest.Parse(orig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := manifest.Parse(saved)
+	if err != nil {
+		t.Fatalf("saved file does not parse: %v\n%s", err, saved)
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("Load then Save changed the manifest:\nwant %+v\n got %+v\nsaved:\n%s", want, got, saved)
+	}
+	if again, _ := Load(dir); again.HadComments {
+		t.Error("a file the form wrote has no comments")
+	}
+}
+
+// Every v2 field the Model carries goes out and comes back.
+func TestEveryFieldRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	m := model()
+	m.Modes = []string{"autonomous", "interactive"}
+	m.Opening = "What should I look at?"
+	m.IdleTimeoutSeconds = 600
+	m.Authors = []AuthorRow{{Name: "Ada: the author", Email: "ada@example.org"}}
+	m.Homepage = "https://example.org/x"
+	m.Guide = GuideModel{
+		Overview: "Reads the incident.\n\nReturns a **summary**.",
+		Prepare:  []string{"The ticket number", "Access to the logs"},
+		Files:    "The log excerpt",
+		Task:     "Summarise INC-1",
+		Connect:  []ConnectRow{{Secret: "EXAMPLE_TOKEN", Help: "Create a read-only key: Settings, API"}},
+	}
+	m.RuntimeModels = []string{"claude-*"}
+	m.MCPServers[0].Env = []EnvRow{{Name: "LOG_LEVEL", Value: "debug # not a comment"}}
+	m.Dependencies = []DependencyRow{{Ref: "acme/helper", Version: "^1.2.0"}}
+	m.PublishChannel = "beta"
+	m.Intake = []IntakeRow{{ID: "region", Prompt: "Which region?", Type: "choice", Choices: []string{"emea", "apac"}, Required: true}}
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	parsed, err := manifest.Parse(raw)
+	if err != nil {
+		t.Fatalf("does not parse: %v\n%s", err, raw)
+	}
+	if errs := manifest.Blocking(manifest.Validate(parsed)); len(errs) > 0 {
+		t.Fatalf("V-rules: %v\n%s", errs, raw)
+	}
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.HadComments = false
+	// An empty include means the four files the form writes; loaded, it is
+	// the list the file names.
+	m.PublishInclude = []string{"agent.yaml", "AGENT.md", "README.md", "LICENSE"}
+	if !reflect.DeepEqual(m, got) {
+		t.Errorf("round trip:\nwant %+v\n got %+v", m, got)
+	}
+}
+
+// A value typed into a quoted position comes back from the real parser as
+// typed, whatever characters it holds.
+func TestTypedValuesCannotChangeTheShape(t *testing.T) {
+	nasty := `x": 1, evil: true # ] } {`
+	dir := t.TempDir()
+	m := model()
+	m.Summary = nasty
+	m.License = nasty
+	m.Tags = []string{nasty}
+	m.Guide.Task = nasty
+	m.MCPServers[0].Env = []EnvRow{{Name: "E", Value: nasty}}
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	p, err := manifest.Parse(raw)
+	if err != nil {
+		t.Fatalf("does not parse: %v\n%s", err, raw)
+	}
+	if p.Summary != nasty || p.License != nasty || p.Tags[0] != nasty || p.Guide.Task != nasty || p.Capabilities.MCPServers[0].Env["E"] != nasty {
+		t.Errorf("a typed value changed on the way through:\n%s", raw)
+	}
+}
+
+// Check gives each section its own lines and its first problem, from the
+// form's rules and the core's V-rules, so a step refuses what `agentry
+// validate` would.
+func TestCheckAttributesProblemsToSections(t *testing.T) {
+	m := model()
+	if res := m.Check(); res.First != nil {
+		t.Fatalf("the fixture passes, got %+v", res.First)
+	}
+	m.EgressHosts = []string{"http://api.example.com"}
+	m.Namespace = strings.Repeat("a", 40)
+	m.Guide.Connect = []ConnectRow{{Secret: "NOT_DECLARED", Help: "help"}}
+	m.Tags = []string{"Not OK"}
+	res := m.Check()
+	for sec, want := range map[string]string{
+		"tools":   "not a valid DNS host",
+		"guide":   "NOT_DECLARED",
+		"publish": "namespace",
+	} {
+		if !strings.Contains(res.Problems[sec], want) {
+			t.Errorf("section %s: want a problem naming %q, got %q", sec, want, res.Problems[sec])
+		}
+	}
+	if res.First == nil || res.First.Section != SectionTools {
+		t.Errorf("first problem in step order is Tools and web access, got %+v", res.First)
+	}
+	if _, ok := res.Problems["basics"]; ok {
+		t.Errorf("basics has no problem, got %q", res.Problems["basics"])
+	}
+	if !strings.Contains(res.Fragments["tools"], "egress:") || !strings.Contains(res.Fragments["basics"], "name: hello-build") {
+		t.Errorf("fragments: %+v", res.Fragments)
+	}
+	m = model()
+	m.EgressMode = "all"
+	if res := m.Check(); res.First != nil || len(res.Warnings) == 0 {
+		t.Errorf("\"*\" egress for the BriefAgent is a warning, not a refusal: %+v %v", res.First, res.Warnings)
+	}
+}
+
+// Every value written bare is held to a grammar before Save writes it, so a
+// value typed, loaded or imported cannot add a key the form does not show:
+// a newline or a colon in an env name once could have declared a hidden
+// server. The review of agentry-desktop#280 found the gap.
+func TestBareValuesAreHeldToAGrammar(t *testing.T) {
+	for name, mutate := range map[string]func(m *Model){
+		"env name":          func(m *Model) { m.MCPServers[0].Env = []EnvRow{{Name: "A: {x", Value: "1"}} },
+		"env name newline":  func(m *Model) { m.MCPServers[0].Env = []EnvRow{{Name: "A\n    - npm: evil", Value: "1"}} },
+		"help key":          func(m *Model) { m.Guide.Connect = []ConnectRow{{Secret: "EXAMPLE_TOKEN: x", Help: "h"}} },
+		"data category":     func(m *Model) { m.DataAccess = []string{"code, evil: true"} },
+		"runtime interface": func(m *Model) { m.RuntimeInterfaces = []string{"agents-md]\nevil: [x"} },
+		"publish channel":   func(m *Model) { m.PublishChannel = "stable\nevil: true" },
+		"instruction file":  func(m *Model) { m.InstructionFile = "AGENT.md\nevil: true" },
+		"intake id":         func(m *Model) { m.Intake = []IntakeRow{{ID: "a: b", Prompt: "p"}} },
+	} {
+		m := model()
+		mutate(m)
+		if err := Save(t.TempDir(), m); err == nil {
+			t.Errorf("%s: a hostile value was saved", name)
+		}
+		if res := m.Check(); res.First == nil {
+			t.Errorf("%s: Check reports no problem", name)
+		}
+	}
+}
+
+// A secret answer is carried by the BriefAgent's own declared secret; the
+// runner does not count a server's (agentry-cli pkg/runner/intake).
+func TestSecretQuestionNeedsTheBriefAgentsOwnKey(t *testing.T) {
+	m := model()
+	m.Secrets = []string{}
+	m.MCPServers[0].Secrets = []string{"API_KEY"}
+	m.Intake = []IntakeRow{{ID: "api_key", Prompt: "Your key", Type: "secret"}}
+	if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "key of its own named API_KEY") {
+		t.Fatalf("a secret question carried only by a server's key must be refused, got %v", err)
+	}
+	m.Secrets = []string{"API_KEY"}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("with the BriefAgent's own key it passes, got %v", err)
+	}
+}
+
+// Load reads the instruction file from the picked folder only, and refuses
+// an oversized agent.yaml.
+func TestLoadStaysInsideTheFolder(t *testing.T) {
+	parent := t.TempDir()
+	if err := os.WriteFile(filepath.Join(parent, "outside.md"), []byte("not yours"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(parent, "ws")
+	m := model()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	hostile := strings.Replace(string(raw), "instruction: AGENT.md", "instruction: ../outside.md", 1)
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(hostile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got.Instructions, "not yours") {
+		t.Error("Load followed an entrypoint outside the folder")
+	}
+	if err := got.Validate(); err == nil {
+		t.Error("an entrypoint outside the folder must not be saved")
+	}
+	big := make([]byte, maxManifestBytes+1)
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), big, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir); err == nil {
+		t.Error("an oversized agent.yaml must be refused")
 	}
 }

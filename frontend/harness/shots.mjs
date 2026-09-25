@@ -112,7 +112,21 @@ const states = [
   { name: "page-browse", url: "/pages.html", note: "Browse under the shell", locator: '[data-preview="browse"]' },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell", locator: '[data-preview="agent"]' },
   { name: "page-installed", url: "/pages.html", note: "Installed under the shell", locator: '[data-preview="installed"]' },
-  { name: "page-build", url: "/pages.html", note: "Build under the shell", locator: '[data-preview="build"]' },
+  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Step by step and Advanced", locator: '[data-preview="build"]', expectText: "Step by step" },
+  // The Build tab's views (plan builder-rework.md §5, agentry-desktop#280):
+  // a step with its reach summary and the lines it writes, the preview of
+  // what a person sees before a run, Review's recap, and Advanced.
+  { name: "page-build-steps", url: "/pages.html#build-steps", note: "Step by step: Basics", locator: '[data-preview="build"]', expectText: "Step 1 of 8: Basics" },
+  { name: "page-build-tools", url: "/pages.html#build-tools", note: "Step by step: Tools and web access, the reach summary, the server's configuration and the registry's check of it (never the word safe)", locator: '[data-preview="build"]', expectText: "No known advisories as of 2026-09-25 11:13 UTC." },
+  { name: "page-build-instructions", url: "/pages.html#build-instructions", note: "Step by step: Instructions, with the size against the quota", locator: '[data-preview="build"]', expectText: "Step 2 of 8: Instructions" },
+  { name: "page-build-access", url: "/pages.html#build-access", note: "Step by step: Files, commands and data", locator: '[data-preview="build"]', expectText: "Step 4 of 8: Files, commands and data" },
+  { name: "page-build-questions", url: "/pages.html#build-questions", note: "Step by step: Questions", locator: '[data-preview="build"]', expectText: "Step 5 of 8: Questions" },
+  { name: "page-build-publish", url: "/pages.html#build-publish", note: "Step by step: Publishing", locator: '[data-preview="build"]', expectText: "Step 7 of 8: Publishing" },
+  { name: "page-build-validate", url: "/pages.html#build-validate", note: "Review after Save + Validate: the card names the V-rule problem and the finding's rule and place", locator: '[data-preview="build"]', click: '[data-preview="build"] button:has-text("Save + Validate")', expectText: "S4-prompt-injection-001" },
+  { name: "page-build-guide", url: "/pages.html#build-guide", note: "Step by step: Before a run, with its preview", locator: '[data-preview="build"]', expectText: "What a person sees before a run" },
+  { name: "page-build-review", url: "/pages.html#build-review", note: "Step by step: Review, the recap with Edit and the actions", locator: '[data-preview="build"]', expectText: "Step 8 of 8: Review" },
+  { name: "page-build-advanced", url: "/pages.html#build-advanced", note: "Advanced: every section at once", locator: '[data-preview="build"]', expectText: "Before a run" },
+  { name: "page-build-comments", url: "/pages.html#build-comments", note: "a loaded agent.yaml with comments: the notice that a save drops them", locator: '[data-preview="build"]', expectText: "the comments are not kept" },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell", locator: '[data-preview="validate"]' },
   { name: "page-settings", url: "/pages.html", note: "Settings under the shell", locator: '[data-preview="settings"]' },
   { name: "toolspanel", url: "/modals.html#toolspanel", note: "the tools panel over the shell" },
