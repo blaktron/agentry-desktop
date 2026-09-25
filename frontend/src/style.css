@@ -789,8 +789,10 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 
 /* The guided run setup (plan guided-runs.md §4, agentry-desktop#226): the
    run panel's steps, on the first-run wizard's dots with their labels,
-   one step's body, and the foot with Back and Next. */
-.run-steps {
+   one step's body, and the foot with Back and Next. The step chrome in
+   primitives.tsx (StepList, StepHeading, StepFoot, Recap; agentry-desktop#280)
+   shares these rules under its own class names. */
+.run-steps, .step-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 18px;
@@ -798,23 +800,23 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   margin: 12px 0 4px;
   padding: 0;
 }
-.run-steps li {
+.run-steps li, .step-list li {
   display: flex;
   align-items: center;
   gap: 7px;
   font-size: 13px;
   color: var(--color-muted);
 }
-.run-steps li.done { color: var(--color-fg); }
-.run-steps li.active {
+.run-steps li.done, .step-list li.done { color: var(--color-fg); }
+.run-steps li.active, .step-list li.active {
   color: var(--color-fg);
   font-weight: 600;
 }
-.run-step-heading {
+.run-step-heading, .step-heading {
   margin: 14px 0 10px;
 }
-.run-step-heading:focus { outline: none; }
-.run-step-heading:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.run-step-heading:focus, .step-heading:focus { outline: none; }
+.run-step-heading:focus-visible, .step-heading:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
 .run-step h4 {
   margin: 14px 0 6px;
   font-size: 13px;
@@ -828,14 +830,14 @@ details.advanced[open] > summary { margin-bottom: 6px; }
    the field (agentry-desktop#228). */
 .run-key { display: grid; grid-template-columns: minmax(220px, auto) 1fr; column-gap: 10px; row-gap: 4px; align-items: center; margin-bottom: 8px; }
 .run-key-help { grid-column: 2; margin: 0; }
-.run-recap {
+.run-recap, .step-recap {
   display: grid;
   grid-template-columns: minmax(8rem, max-content) 1fr;
   gap: 8px 16px;
   margin: 4px 0 12px;
 }
-.run-recap dt { color: var(--color-muted); }
-.run-recap dd {
+.run-recap dt, .step-recap dt { color: var(--color-muted); }
+.run-recap dd, .step-recap dd {
   margin: 0;
   display: flex;
   justify-content: space-between;
@@ -843,14 +845,14 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   gap: 12px;
   min-width: 0;
 }
-.run-recap dd > span { min-width: 0; overflow-wrap: anywhere; }
+.run-recap dd > span, .step-recap dd > span { min-width: 0; overflow-wrap: anywhere; }
 .run-recap-task { white-space: pre-wrap; }
-.run-step-problem {
+.run-step-problem, .step-problem {
   color: var(--color-sev-high);
   font-size: 13px;
   margin: 12px 0 0;
 }
-.run-step-foot {
+.run-step-foot, .step-foot {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--color-border);
@@ -880,3 +882,18 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 }
 .run-file-body { max-height: 320px; overflow: auto; padding: 4px 10px; }
 .run-details { margin-top: 10px; }
+
+/* The Build tab (plan builder-rework.md §5, agentry-desktop#280): its start
+   page's two ways in, a step's "what this writes" block, and the reach
+   summary. The recap's value column may shrink (minmax(0, 1fr)), so a long
+   unbroken value wraps rather than pushing Edit out of the page
+   (agentry-web#474 found that on the site). */
+.build-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
+.build-way { text-align: left; display: block; width: 100%; padding: 16px; }
+.build-way strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.build-writes > summary { cursor: pointer; }
+.build-writes pre { margin: 6px 0 0; overflow-x: auto; }
+.build-reach { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; }
+.build-reach dt { color: var(--color-muted); overflow-wrap: anywhere; }
+.build-reach dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.step-recap { grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); }

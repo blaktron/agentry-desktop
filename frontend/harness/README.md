@@ -56,6 +56,15 @@ named `constructor`; `shots.mjs` fails them if any of it becomes markup or
 if the links are not exactly the `https:` URLs expected (the look-alike as
 its punycode).
 
+The Build tab has a start page and two views since agentry-desktop#280
+(plan builder-rework.md M2). `pages.html` opens it on the start page;
+`#build-steps`, `#build-tools`, `#build-guide` and `#build-review` open Step
+by step on Basics, Tools and web access (the reach summary and a server's
+configuration), Before a run (its preview) and Review; `#build-advanced` is
+every section at once, and `#build-comments` is a loaded `agent.yaml` with
+comments, which a save does not keep. `BuildAPI.Check` is mocked with a
+passing answer, so each step shows the lines it writes.
+
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:

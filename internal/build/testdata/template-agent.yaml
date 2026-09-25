@@ -1,0 +1,178 @@
+# agent.yaml — the BriefAgent manifest (manifest schema v2).
+#
+# This file is the whole contract: what the BriefAgent is, where its
+# instructions live, and — most importantly — what it may touch. The
+# registry scans releases against these declarations, clients display and
+# diff them on install, and the Agentry runner ENFORCES them: an
+# undeclared capability is a tool your BriefAgent simply does not have.
+#
+# Every option is shown below; commented lines are the alternatives.
+# Full field-by-field documentation: README.md in this template, and
+# https://docs.secureagentry.net.
+
+# The manifest schema major. "2" is what you write; releases published
+# under "1" (the old kind-classified manifest) stay readable forever.
+schemaVersion: "2"
+
+# Identity. name is lowercase [a-z0-9-], up to 65 chars; namespace is the
+# publishing handle (yours, or your org's) that owns the BriefAgent.
+# Rename both — these are placeholders.
+name: my-briefagent
+namespace: your-namespace
+
+# The run modes this release supports — one or both:
+#   autonomous  — starts from its files (after the intake questions below,
+#                 if any, and MCP profile authentication), does the job,
+#                 writes its output and receipts, and ends. This is what
+#                 `agentry run` does today.
+#   interactive — the same plan and the same controls, but the run is a
+#                 conversation: a chat in the terminal (CLI) or an in-app
+#                 window (desktop). The agent can ask for information; the
+#                 user can answer and drop files into the read-only inputs
+#                 folder. Nobody can widen the capabilities declared below.
+#                 The CLI (`agentry run --mode interactive`) and the desktop
+#                 app both run sessions today.
+modes: [autonomous]
+# modes: [autonomous, interactive]
+
+# Strict semver, no leading "v". Must match the git tag when publishing
+# from a tag, and must exceed every version already on the channel.
+version: 0.1.0
+
+# One plain-text line, at most 140 characters. Shown everywhere.
+summary: "Reads the task and workspace, then writes a short report"
+
+# SPDX license identifier. Required for public publication.
+license: MIT
+
+# Optional credits (email optional per author).
+authors:
+  - name: Your Name
+    # email: you@example.com
+
+# Optional informational URL, shown on the BriefAgent's page.
+homepage: https://github.com/blaktron/agentry-template
+
+# Optional lowercase [a-z0-9-] tags for search facets.
+tags: [template, example]
+
+# The instruction file. AGENT.md when omitted. A leading YAML frontmatter
+# block (the Agent Skills SKILL.md shape, as in this template) is stripped
+# and the body becomes the harness instruction — so a SKILL.md works
+# unchanged as `instruction: SKILL.md`. Must exist and ship (publish.include).
+entrypoints:
+  instruction: AGENT.md
+
+# Questions asked before a run starts, in either mode. The runner asks
+# them through the same prompter that collects MCP profile secrets and
+# stages the answers read-only for the agent at /inputs/intake.json.
+# Non-secret answers are part of the run's receipts. At most 20.
+# intake:
+#   - id: dataset            # [a-z0-9_]+, unique
+#     prompt: "Path to the dataset to analyse"
+#     type: file             # text (default) | secret | choice | file
+#     required: true
+#   - id: region
+#     prompt: "Which region?"
+#     type: choice
+#     choices: [emea, apac, amer]
+
+# What a person reads before a run, in the site's and the desktop's run
+# setup and on a terminal's `agentry run`. Shown to people only: it never
+# reaches the agent, the run plan, the capability diff or the consent, and
+# a change to it alone asks nobody to consent again. Every part is
+# optional; without it the setup shows the summary and a list it derives
+# from intake and capabilities. Needs a client that knows the block (an
+# older CLI or desktop refuses a manifest that carries it).
+# guide:
+#   overview: |           # markdown, ≤ 4096 bytes: what it does and returns.
+#     Reads the task and the workspace and writes a short **report**:
+#     what it found, what it could not check, and what to do next.
+#   prepare:              # ≤ 10 items, ≤ 200 chars each: what to gather first
+#     - The files the task is about
+#     - A sentence saying what you want the report to cover
+#   files: "The documents to report on, as text or Markdown."  # ≤ 500 chars
+#   task: "e.g. summarise the open questions in the design notes"  # the task field's placeholder, ≤ 200 chars
+#   connect:              # help per declared secret NAME, ≤ 300 chars each;
+#                         # each key must be in capabilities.secrets or an
+#                         # MCP server's secrets
+#     MY_API_TOKEN: "Create a read-only token at https://example.com/settings/tokens"
+
+# Hints for interactive sessions (only meaningful with `interactive` in
+# modes; accepted with a warning otherwise). Everything else about a
+# session — budgets, idle timeout, wall time — is the operator's runner
+# policy, which a manifest can only tighten.
+# interactive:
+#   opening: "What should I look at?"   # first message when no task text is given; ≤ 500 chars
+#   idleTimeoutSeconds: 900             # policy caps it
+
+# Informational runtime hints.
+runtime:
+  # Free-form model hint patterns. A hint, never a lock: the operator's
+  # runner policy picks the model that actually runs.
+  models: ["claude-*"]
+  # Which `agentry install` targets this package supports (independent of
+  # mode; the first listed one is the default target):
+  #   claude-skill — ~/.claude/skills/<name>/ with SKILL.md frontmatter
+  #   agents-md    — extract + upsert a section in ./AGENTS.md
+  interfaces: [claude-skill, agents-md]
+
+# ── The security contract ──────────────────────────────────────────────
+# Closed vocabulary. Empty/omitted = a pure-text BriefAgent (write_report
+# and the read-only list_inputs/read_input tools at run time, nothing
+# else). Declare the LEAST you need: reviewers
+# gate on this, installs prompt on it, and the runner enforces it.
+capabilities:
+  network:
+    # none            — no egress; no fetch tool.
+    # [exact.host, …] — the fetch tool, pinned to these DNS names (the
+    #                   runner also enforces at container level).
+    # "*"             — unrestricted egress; refused at run time unless
+    #                   the operator's policy sets allowWildcardEgress.
+    egress: none
+  filesystem:
+    # none | workspace | { paths: [repo/relative, …] } for each direction.
+    # read grants fs_read + fs_list; write grants fs_write. paths mode
+    # limits tools (and the runner's mounts) to exactly those paths.
+    read: workspace
+    write: none
+  # none | { commands: [single-token, …] } — commands grants run_command,
+  # restricted to exactly these binaries.
+  exec: none
+  # Environment variable NAMES the BriefAgent needs — never values. The
+  # runner resolves them from the operator's secret source and injects
+  # them only into the tools container; the fetch tool can send one as an
+  # auth header without the value ever entering model context.
+  # secrets: [MY_API_TOKEN]
+  # Semantic data categories touched, for review and audit:
+  # email | calendar | files | tickets | code | messages | payments | other
+  # dataAccess: [tickets]
+  # MCP servers this BriefAgent requires (RUNNER-PLAN-3): exactly one of
+  # npm/pypi per entry, and an EXACT version — the pin is part of this
+  # release, so a new version is a new supply-chain decision. The runner
+  # installs them from the operator's trusted registries and loads them
+  # for this exact release signature only; removal deletes their
+  # configuration and keys unless explicitly kept.
+  # mcpServers:
+  #   - npm: github-mcp-server-js   # the package; or `pypi: name`
+  #     version: 0.1.7              # exact — ranges are rejected
+  #     tools: [list_issues, get_issue]   # optional allowlist; omit for all
+  #     secrets: [GITHUB_TOKEN]     # env-var NAMES the server reads; the
+  #                                 # guided setup collects the values
+  #     env:                        # plain configuration, never a secret;
+  #       GITHUB_PERMISSION: read-only   # visible in the diff and the review
+  #     egress: [api.github.com]    # the server's own outbound allowlist
+
+# Informational in v1 (no auto-install): other BriefAgents this one
+# expects to exist.
+# dependencies:
+#   agents:
+#     - ref: acme/other-agent
+#       version: "^1.2"
+
+# What ships in the release archive — an ALLOWLIST of glob patterns
+# (path.Match segments; "**" matches any number of segments). Nothing
+# else is packed. channel is stable (default) or beta.
+publish:
+  include: [agent.yaml, README.md, AGENT.md, LICENSE]
+  channel: stable
