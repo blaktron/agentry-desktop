@@ -1031,7 +1031,8 @@ func assertPolicyBlock(t *testing.T, res *Result) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(b)
-	if res.PolicyPath != path || res.PolicySource != receipt.PolicySourceEnv || res.PolicySHA256 != hex.EncodeToString(sum[:]) {
-		t.Errorf("policy block = path %q source %q sha256 %q, want %q %q %x", res.PolicyPath, res.PolicySource, res.PolicySHA256, path, receipt.PolicySourceEnv, sum)
+	want := receipt.Policy{Path: path, Source: receipt.PolicySourceEnv, SHA256: hex.EncodeToString(sum[:])}
+	if res.Policy == nil || *res.Policy != want {
+		t.Errorf("policy block = %+v, want %+v", res.Policy, want)
 	}
 }

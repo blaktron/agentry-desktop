@@ -318,13 +318,11 @@ type Result struct {
 	WallMS           int64
 	Turns            int
 	AttestationState string
-	// The operator policy file the run enforced, from the envelope's
-	// policy block (agentry-cli#152): its path, how the path was chosen
-	// (default, env) and the digest the plan was compiled against. Empty
-	// when the envelope carries no block.
-	PolicyPath   string
-	PolicySource string
-	PolicySHA256 string
+	// Policy is the envelope's policy block (agentry-cli#152): the
+	// operator policy file the run enforced, how its path was chosen
+	// (default, env) and the digest the plan was compiled against. Nil
+	// when the envelope carries none.
+	Policy *receipt.Policy
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -599,7 +597,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 // in Status/ExitCode/Error so the frontend renders them instead of a
 // rejected promise losing the receipt paths.
 func resultFromEnvelope(env *receipt.Envelope) *Result {
-	res := &Result{
+	return &Result{
 		Status:           env.Status,
 		ExitCode:         env.ExitCode,
 		Error:            env.Error,
@@ -616,11 +614,8 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 		WallMS:           env.Usage.WallMS,
 		Turns:            env.Usage.Turns,
 		AttestationState: env.Attestation.State,
+		Policy:           env.Policy,
 	}
-	if env.Policy != nil {
-		res.PolicyPath, res.PolicySource, res.PolicySHA256 = env.Policy.Path, env.Policy.Source, env.Policy.SHA256
-	}
-	return res
 }
 
 // materialize resolves the install for a signature, reusing the CLI's

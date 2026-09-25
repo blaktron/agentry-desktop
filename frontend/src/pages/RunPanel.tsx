@@ -1042,12 +1042,12 @@ export default function RunPanel({
                   agentry-desktop#269): which file, and how its path was
                   chosen, since a relocated runner home is inherited
                   silently from the environment. */}
-              {result.policyPath && (
+              {result.policy && (
                 <>
-                  <div className="kv"><span className="k">operator policy</span><span className="mono">{result.policyPath}</span></div>
-                  <div className="kv"><span className="k">policy chosen by</span><span>{policySourceLabel(result.policySource)}</span></div>
-                  {result.policySha256 && (
-                    <div className="kv"><span className="k">policy sha256</span><span className="mono" title={result.policySha256}>{result.policySha256.slice(0, 12)}…</span></div>
+                  <div className="kv"><span className="k">operator policy</span><span className="mono">{result.policy.path}</span></div>
+                  <div className="kv"><span className="k">policy chosen by</span><span>{policySourceLabel(result.policy.source)}</span></div>
+                  {result.policy.sha256 && (
+                    <div className="kv"><span className="k">policy digest</span><span className="mono" title={result.policy.sha256}>{shortDigest(result.policy.sha256)}</span></div>
                   )}
                 </>
               )}
@@ -1073,13 +1073,13 @@ export default function RunPanel({
 }
 
 // policySourceLabel says how the run's policy path was chosen, from the
-// envelope's policy.source (agentry-cli#152).
-function policySourceLabel(source: string | undefined): string {
+// envelope's policy.source (agentry-cli#152). The desktop has no
+// --policy, so "flag" is never its own; an unknown source is shown as is.
+function policySourceLabel(source: string): string {
   switch (source) {
     case "default": return "the runner home's policy.yaml (the default)";
     case "env": return "AGENTRY_RUNNER_HOME, set in the environment this app started from";
-    case "flag": return "--policy";
-    default: return source || "not recorded";
+    default: return source;
   }
 }
 

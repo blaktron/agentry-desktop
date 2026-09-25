@@ -39,7 +39,7 @@ with a right-to-left override; `shots.mjs` fails it if any `img`, `script`,
 A run on this machine has two finished states since agentry-desktop#269:
 `#runpanel-local-finished` and `#runpanel-local-finished-env` open on
 Review and start, and `shots.mjs` clicks Run and then Run details (a state
-may name a sequence, `clicks`), so the shot shows the operator policy the
+may name its `click` as a list), so the shot shows the operator policy the
 run enforced: its path, how the path was chosen (the runner home's default,
 or `AGENTRY_RUNNER_HOME` from the environment) and its digest abbreviated,
 from the envelope's policy block (agentry-cli#152).

@@ -116,10 +116,12 @@ const localResult = {
   receiptsDir: "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-01K5ZQ4W/receipts",
   runPlanSha: "5d41402abc4b2a76b9719d911017c592ae2f1c3e8b6d7a9f0e1d2c3b4a596877",
   inputTokens: 5120, outputTokens: 1430, costUsd: 0.0182, wallMs: 41200, turns: 4, attestationState: "verified",
-  ...(view === "runpanel-local-finished-env"
-    ? { policyPath: "/srv/agentry-runner/policy.yaml", policySource: "env" }
-    : { policyPath: "/home/chris/.agentry/runner/policy.yaml", policySource: "default" }),
-  policySha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  policy: {
+    ...(view === "runpanel-local-finished-env"
+      ? { path: "/srv/agentry-runner/policy.yaml", source: "env" }
+      : { path: "/home/chris/.agentry/runner/policy.yaml", source: "default" }),
+    sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  },
 };
 const profile = keysShape
   ? {
