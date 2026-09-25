@@ -318,6 +318,11 @@ type Result struct {
 	WallMS           int64
 	Turns            int
 	AttestationState string
+	// Policy is the envelope's policy block (agentry-cli#152): the
+	// operator policy file the run enforced, how its path was chosen
+	// (default, env) and the digest the plan was compiled against. Nil
+	// when the envelope carries none.
+	Policy *receipt.Policy
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -343,11 +348,16 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if err != nil {
 		return nil, err
 	}
-	policyPath, err := policy.DefaultPath()
+	// The operator policy file this run obeys and how its path was chosen
+	// (the runner home's, or a home relocated by AGENTRY_RUNNER_HOME): the
+	// same path is read here and handed to the engine, which records it in
+	// the envelope's policy block beside the plan's digest of those bytes
+	// (agentry-cli#152, agentry-desktop#269). The desktop has no --policy.
+	polFile, err := policy.Resolve("")
 	if err != nil {
 		return nil, err
 	}
-	pol, polSHA, err := policy.EnsureDefault(policyPath)
+	pol, polSHA, err := policy.EnsureDefault(polFile.Path)
 	if err != nil {
 		return nil, fmt.Errorf("operator policy: %w", err)
 	}
@@ -555,6 +565,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			Intake:          answers,
 			Adapter:         ad,
 			Policy:          pol,
+			PolicyFile:      &polFile,
 			SecretOverrides: overrides,
 			ServersDir:      serversDir,
 			ExecPackages:    execPackages,
@@ -603,6 +614,7 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 		WallMS:           env.Usage.WallMS,
 		Turns:            env.Usage.Turns,
 		AttestationState: env.Attestation.State,
+		Policy:           env.Policy,
 	}
 }
 
@@ -809,9 +821,15 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 			}
 		}
 	}
-	if err := os.RemoveAll(planDir); err != nil {
-		return nil, "", fmt.Errorf("clear stale plan: %w", err)
-	}
+	// No clearing first: Compile replaces the plan directory whole — it
+	// writes a hidden staging sibling and publishes it by rename — so
+	// this compile no longer deletes a plan a concurrent CLI or desktop
+	// run has just published, and a publish landing mid-clear can no
+	// longer refuse this run with "directory not empty" (agentry-cli#289,
+	// agentry-desktop#265). Another build's recompile can still replace
+	// the directory after this returns; the engine re-checks every plan
+	// file against the plan when it copies them, so that run is refused,
+	// never run on the other build's files.
 	plan, err := compile.Compile(compile.Inputs{
 		Manifest:     m,
 		Mode:         mode,

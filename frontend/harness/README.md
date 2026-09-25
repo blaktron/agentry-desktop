@@ -36,6 +36,14 @@ markdown (raw HTML, a script, an image, a `javascript:` link) and a file name
 with a right-to-left override; `shots.mjs` fails it if any `img`, `script`,
 `iframe`, `onclick` or `javascript:` link appears in the result view.
 
+A run on this machine has two finished states since agentry-desktop#269:
+`#runpanel-local-finished` and `#runpanel-local-finished-env` open on
+Review and start, and `shots.mjs` clicks Run and then Run details (a state
+may name its `click` as a list), so the shot shows the operator policy the
+run enforced: its path, how the path was chosen (the runner home's default,
+or `AGENTRY_RUNNER_HOME` from the environment) and its digest abbreviated,
+from the envelope's policy block (agentry-cli#152).
+
 The author's guide (manifest v2's `guide` block, agentry-desktop#228) has
 its own states on pr-review-brief's shape: `#runpanel-guided` (Before you
 start with the author's overview and "What to have ready"),

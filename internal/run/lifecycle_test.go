@@ -8,11 +8,16 @@ package run
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/blaktron/agentry/pkg/manifest"
@@ -580,6 +585,7 @@ func TestRunHappyPath(t *testing.T) {
 	if res.OutDir != outDir || !strings.HasPrefix(res.ReceiptsDir, outDir) {
 		t.Errorf("out dirs = %q / %q", res.OutDir, res.ReceiptsDir)
 	}
+	assertPolicyBlock(t, res)
 	for _, rel := range []string{"result.json", "receipts/run-plan.json"} {
 		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
 			t.Errorf("output folder missing %s: %v", rel, err)
@@ -962,5 +968,71 @@ func TestRunReceiptWithoutExecIsUnchanged(t *testing.T) {
 	line, planned, present := receiptExecLine(t, outDir)
 	if present && (line != planned || strings.Contains(line, "resolved at image build")) {
 		t.Errorf("exec line %q (plan %q) for a release without exec", line, planned)
+	}
+}
+
+// TestEnsurePlanConcurrentRecompiles (agentry-desktop#265): a desktop run
+// and a CLI run started together on one release and mode share the plan
+// directory under the runner home's install. Compile replaces that
+// directory whole and ReadInstalledPlan waits out an in-flight publish
+// (agentry-cli#289), so no caller may clear the directory first: a clear
+// could delete the plan another run just published, or fail with
+// "directory not empty" while a publish lands. Each caller here stands for
+// one client (the CLI's ensurePlan has the same read-then-compile shape
+// over the same module); alternating policy fingerprints force a recompile
+// on nearly every call, and every call must end with a plan, never a
+// "clear stale plan" or a tamper refusal.
+func TestEnsurePlanConcurrentRecompiles(t *testing.T) {
+	home := isolateRunEnv(t)
+	m, meta, installDir, workspaceDir := planFixture(t)
+	pol := cataloguedPolicy()
+
+	const clients, rounds = 6, 8
+	errs := make(chan error, clients*rounds)
+	var wg sync.WaitGroup
+	for c := range clients {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for r := range rounds {
+				polSHA := fmt.Sprintf("pol-sha-%d", (c+r)%2)
+				plan, _, err := ensurePlan(io.Discard, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, nil, manifest.ModeAutonomous)
+				switch {
+				case err != nil:
+					errs <- fmt.Errorf("client %d round %d: %w", c, r, err)
+				case plan.PolicySHA256 != polSHA:
+					errs <- fmt.Errorf("client %d round %d: plan for %s, asked for %s", c, r, plan.PolicySHA256, polSHA)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	// What is left is one whole, verifiable plan.
+	var log strings.Builder
+	if _, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-0", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+		t.Fatalf("after the race: %v (log %q)", err, log.String())
+	}
+}
+
+// assertPolicyBlock is agentry-desktop#269's acceptance on a flattened
+// envelope: a desktop run or session names the operator policy file it
+// enforced (agentry-cli#152) — the runner home's policy.yaml, source "env"
+// because the tests relocate the home with AGENTRY_RUNNER_HOME, and the
+// digest of that file's bytes, which is what the plan was compiled against.
+func assertPolicyBlock(t *testing.T, res *Result) {
+	t.Helper()
+	path := filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(b)
+	want := receipt.Policy{Path: path, Source: receipt.PolicySourceEnv, SHA256: hex.EncodeToString(sum[:])}
+	if res.Policy == nil || *res.Policy != want {
+		t.Errorf("policy block = %+v, want %+v", res.Policy, want)
 	}
 }
