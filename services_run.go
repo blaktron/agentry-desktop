@@ -449,6 +449,23 @@ type ProfileStatusView struct {
 	Modes []string `json:"modes"`
 	// Opening is the manifest's interactive opening line, if any.
 	Opening string `json:"opening"`
+	// Guide is the author's words for the run setup (manifest v2's guide,
+	// DEV-141; agentry-desktop#228); nil when the release carries none.
+	// The page shows it as text, never as markup it trusts.
+	Guide *GuideView `json:"guide,omitempty"`
+}
+
+// GuideView is manifest v2's guide block for the run setup: Overview on
+// Before you start (markdown, rendered without raw HTML or images),
+// Prepare as its "What to have ready" list, Files on Files, Task as the
+// task field's placeholder, and Connect as each declared key's help on
+// Connect tools.
+type GuideView struct {
+	Overview string            `json:"overview"`
+	Prepare  []string          `json:"prepare"`
+	Files    string            `json:"files"`
+	Task     string            `json:"task"`
+	Connect  map[string]string `json:"connect"`
 }
 
 // IntakeQuestionView is one intake question for the pre-run form.
@@ -475,6 +492,12 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 	}
 	for _, q := range p.Intake {
 		v.Intake = append(v.Intake, IntakeQuestionView{ID: q.ID, Prompt: q.Prompt, Type: string(q.Type), Required: q.Required, Choices: emptyNotNil(q.Choices)})
+	}
+	if g := p.Guide; g != nil {
+		v.Guide = &GuideView{Overview: g.Overview, Prepare: emptyNotNil(g.Prepare), Files: g.Files, Task: g.Task, Connect: map[string]string{}}
+		for name, help := range g.Connect {
+			v.Guide.Connect[name] = help
+		}
 	}
 	return v
 }

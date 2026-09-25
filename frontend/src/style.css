@@ -411,7 +411,7 @@ table.declared-servers td { overflow-wrap: anywhere; }
 
 /* Invisible-character placeholders the API/scanner emit in excerpts: make
    them impossible to miss (§10.3 GlassWorm lesson). */
-.excerpt .agy-invisible, .readme .agy-invisible, .run-result-view .agy-invisible {
+.excerpt .agy-invisible, .readme .agy-invisible, .run-result-view .agy-invisible, .guide-text .agy-invisible {
   background: var(--color-sev-high);
   /* The page ground, not white: dark sev-high is a light red, and white on
      it measured 2.77:1 on the site (agentry-web#19). */
@@ -434,7 +434,7 @@ table.declared-servers td { overflow-wrap: anywhere; }
 .readme code { background: var(--color-surface); padding: 0.1em 0.35em; border-radius: var(--radius-xs); font-size: 0.9em; }
 .readme pre { background: var(--color-surface); padding: 1em; border-radius: var(--radius-md); overflow-x: auto; border: 1px solid var(--color-border); }
 .readme pre code { background: none; padding: 0; }
-.readme a { color: var(--color-accent); text-decoration: underline; }
+.readme a, .guide-text a { color: var(--color-accent); text-decoration: underline; }
 .readme blockquote { border-left: 3px solid var(--color-border); padding-left: 1em; color: var(--color-muted); margin: 0.75em 0; }
 .readme img { max-width: 100%; height: auto; }
 .readme table { border-collapse: collapse; margin: 0.75em 0; display: block; overflow-x: auto; }
@@ -824,6 +824,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   padding-left: 18px;
 }
 .run-need li { margin: 3px 0; }
+/* A key's connect help from the author's guide, under its field (agentry-desktop#228). */
+.run-key-help { margin: 4px 0 0 234px; }
 .run-recap {
   display: grid;
   grid-template-columns: minmax(8rem, max-content) 1fr;

@@ -414,3 +414,58 @@ func TestEnsureKeepProfileRecordsExplicitChoice(t *testing.T) {
 		t.Fatalf("a release with secrets is the guided form's job: %v %v", p, err)
 	}
 }
+
+// guidedManifestYAML is runManifestYAML with manifest v2's guide block
+// (DEV-141): what the desktop's run setup shows a person before a run.
+const guidedManifestYAML = runManifestYAML + `guide:
+  overview: |
+    Writes a **report** from your notes.
+  prepare:
+    - Your notes, as text
+    - A token for the example API
+  files: "Your notes."
+  task: "e.g. the weekly status"
+  connect:
+    RUN_TEST_TOKEN: "Create one at https://api.example.com/tokens with read access."
+`
+
+// TestProfileStatusCarriesTheGuide (agentry-desktop#228): a release whose
+// manifest carries a guide resolves through the strict decoder of the
+// pinned core, and ProfileStatus hands the guide to the run setup as the
+// author wrote it. A release without one reports none.
+func TestProfileStatusCarriesTheGuide(t *testing.T) {
+	isolateRunEnv(t)
+	regURL := startRunRegistry(t, &fakeRunRegistry{
+		manifestDoc: manifestDocFromYAML(t, guidedManifestYAML),
+		archive: buildRunArchive(t, map[string]string{
+			"agent.yaml": guidedManifestYAML,
+			"SKILL.md":   "# Reporter\n\nWrite the report.\n",
+		}),
+	})
+	info, err := ProfileStatus(context.Background(), regURL, "acme/reporter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := info.Guide
+	if g == nil {
+		t.Fatal("a guided release must report its guide")
+	}
+	if g.Overview != "Writes a **report** from your notes.\n" || g.Files != "Your notes." || g.Task != "e.g. the weekly status" {
+		t.Fatalf("guide = %+v", g)
+	}
+	if len(g.Prepare) != 2 || g.Prepare[1] != "A token for the example API" {
+		t.Fatalf("prepare = %v", g.Prepare)
+	}
+	if g.Connect["RUN_TEST_TOKEN"] != "Create one at https://api.example.com/tokens with read access." {
+		t.Fatalf("connect = %v", g.Connect)
+	}
+
+	isolateRunEnv(t)
+	plain, err := ProfileStatus(context.Background(), startRunRegistry(t, &fakeRunRegistry{}), "acme/reporter")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Guide != nil {
+		t.Fatalf("a release without a guide reports one: %+v", plain.Guide)
+	}
+}
