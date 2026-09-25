@@ -135,6 +135,10 @@ type ProfileInfo struct {
 	// opening line.
 	Modes   []string
 	Opening string
+	// Guide is the author's words for the run setup (manifest v2, DEV-141;
+	// agentry-desktop#228), shown to the person and never to the agent.
+	// Nil when the release carries none.
+	Guide *manifest.Guide
 }
 
 // Declared reports what a release declares, from the registry's resolve
@@ -182,6 +186,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
 		CapabilityLines: capabilityLines(sig.Manifest.Capabilities),
 		Intake:          sig.Manifest.Intake,
+		Guide:           sig.Manifest.Guide,
 	}
 	for _, mode := range sig.Manifest.SupportedModes() {
 		info.Modes = append(info.Modes, string(mode))

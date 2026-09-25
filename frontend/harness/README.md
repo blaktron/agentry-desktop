@@ -36,6 +36,18 @@ markdown (raw HTML, a script, an image, a `javascript:` link) and a file name
 with a right-to-left override; `shots.mjs` fails it if any `img`, `script`,
 `iframe`, `onclick` or `javascript:` link appears in the result view.
 
+The author's guide (manifest v2's `guide` block, agentry-desktop#228) has
+its own states on pr-review-brief's shape: `#runpanel-guided` (Before you
+start with the author's overview and "What to have ready"),
+`#runpanel-guided-files`, `#runpanel-guided-tools` (each key's help under
+its field) and `#runpanel-guided-details` (the author's task placeholder).
+`#runpanel-guided-hostile` and `#runpanel-guided-hostile-tools` carry a
+guide with raw HTML, a script, an image, `javascript:` and `file:` links, a
+URL with a user name, a look-alike host and hidden characters, and a key
+named `constructor`; `shots.mjs` fails them if any of it becomes markup or
+if the links are not exactly the `https:` URLs expected (the look-alike as
+its punycode).
+
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:

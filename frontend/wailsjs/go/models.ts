@@ -944,6 +944,26 @@ export namespace main {
 	        this.verdictReason = source["verdictReason"];
 	    }
 	}
+	export class GuideView {
+	    overview: string;
+	    prepare: string[];
+	    files: string;
+	    task: string;
+	    connect: {[key: string]: string};
+	
+	    static createFrom(source: any = {}) {
+	        return new GuideView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.overview = source["overview"];
+	        this.prepare = source["prepare"];
+	        this.files = source["files"];
+	        this.task = source["task"];
+	        this.connect = source["connect"];
+	    }
+	}
 	
 	export class HostedArtefactView {
 	    name: string;
@@ -1384,6 +1404,7 @@ export namespace main {
 	    intake: IntakeQuestionView[];
 	    modes: string[];
 	    opening: string;
+	    guide?: GuideView;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileStatusView(source);
@@ -1401,6 +1422,7 @@ export namespace main {
 	        this.intake = this.convertValues(source["intake"], IntakeQuestionView);
 	        this.modes = source["modes"];
 	        this.opening = source["opening"];
+	        this.guide = this.convertValues(source["guide"], GuideView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
