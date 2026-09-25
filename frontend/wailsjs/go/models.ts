@@ -1556,6 +1556,7 @@ export namespace main {
 	    wallMs: number;
 	    turns: number;
 	    attestationState: string;
+	    policy?: receipt.Policy;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -1579,7 +1580,26 @@ export namespace main {
 	        this.wallMs = source["wallMs"];
 	        this.turns = source["turns"];
 	        this.attestationState = source["attestationState"];
+	        this.policy = this.convertValues(source["policy"], receipt.Policy);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SearchHitView {
 	    namespace: string;
@@ -1981,6 +2001,27 @@ export namespace mcpvuln {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace receipt {
+	
+	export class Policy {
+	    path: string;
+	    source: string;
+	    sha256: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Policy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.source = source["source"];
+	        this.sha256 = source["sha256"];
+	    }
 	}
 
 }

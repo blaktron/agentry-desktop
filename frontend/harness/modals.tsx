@@ -51,6 +51,13 @@
 //                             javascript: and file: links and hidden
 //                             characters, on Before you start
 //   #runpanel-guided-hostile-tools  the same guide's key help on Connect tools
+//
+// A run on this machine, finished (shots.mjs clicks Run on the review):
+//   #runpanel-local-finished      its Run details name the operator policy
+//                                 it enforced, the runner home's default
+//                                 (agentry-cli#152, agentry-desktop#269)
+//   #runpanel-local-finished-env  the same run with the runner home
+//                                 relocated by AGENTRY_RUNNER_HOME
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -100,6 +107,22 @@ const guide = hostileGuide
     },
   };
 const fileIntakeShape = view === "runpanel-file-intake";
+// A finished local run: no intake question, so Run on the review is enabled.
+const localFinished = view.startsWith("runpanel-local-finished");
+const localResult = {
+  status: "ok", exitCode: 0, runId: "01K5ZQ4W7X2M9N3P6R8T0V1Y2B", ref: "demo1/incident-summarizer@1.2.0",
+  digest: "sha256:9c356fd0d20fef07", resultJson: JSON.stringify("INC-4821 began at 02:14 UTC with elevated 5xx on the checkout service. Draft report written to reports/report.md."),
+  outDir: "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-01K5ZQ4W",
+  receiptsDir: "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-01K5ZQ4W/receipts",
+  runPlanSha: "5d41402abc4b2a76b9719d911017c592ae2f1c3e8b6d7a9f0e1d2c3b4a596877",
+  inputTokens: 5120, outputTokens: 1430, costUsd: 0.0182, wallMs: 41200, turns: 4, attestationState: "verified",
+  policy: {
+    ...(view === "runpanel-local-finished-env"
+      ? { path: "/srv/agentry-runner/policy.yaml", source: "env" }
+      : { path: "/home/chris/.agentry/runner/policy.yaml", source: "default" }),
+    sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  },
+};
 const profile = keysShape
   ? {
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
@@ -115,6 +138,7 @@ const profile = keysShape
     modes: ["autonomous", "interactive"],
     intake: fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
+      : localFinished ? []
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
     opening: "What incident should I look at?",
   };
@@ -224,6 +248,8 @@ const STEP_OF: Record<string, "start" | "files" | "tools" | "details" | "review"
   "runpanel-guided-tools": "tools",
   "runpanel-guided-details": "details",
   "runpanel-guided-hostile-tools": "tools",
+  "runpanel-local-finished": "review",
+  "runpanel-local-finished-env": "review",
 };
 
 const g = window as any;
@@ -238,6 +264,7 @@ g.go = { main: {
     AttachHostedRun: async () => ({ run: hostedRun }),
     StartHostedRun: async () => ({ run: hostedRuns.queued }),
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
+    RunAgent: async () => localResult,
     RunOutputs: async () => runOutputs,
     ShowRunFolder: async () => {},
   },

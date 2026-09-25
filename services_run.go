@@ -19,6 +19,8 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -546,6 +548,10 @@ type RunResultView struct {
 	WallMS           int64   `json:"wallMs"`
 	Turns            int     `json:"turns"`
 	AttestationState string  `json:"attestationState"`
+	// Policy is the operator policy file the run enforced
+	// (agentry-cli#152), the envelope's block as it is: omitted when the
+	// envelope carries none.
+	Policy *receipt.Policy `json:"policy,omitempty"`
 }
 
 // RunAgent executes one BriefAgent run: resolve → digest + DSSE verify →
@@ -619,6 +625,7 @@ func runResultView(res *run.Result) *RunResultView {
 		WallMS:           res.WallMS,
 		Turns:            res.Turns,
 		AttestationState: res.AttestationState,
+		Policy:           res.Policy,
 	}
 }
 
