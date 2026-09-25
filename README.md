@@ -282,8 +282,15 @@ key (below), and uploads the set as one workflow artifact named
 `agentry-desktop-<version>`. `BUILD-INFO`, covered by the sums, names the
 commit, the event (a tag push, or a `workflow_dispatch` dry run the site's
 importer refuses), `signed=false`, and the registry the build connects to
-by default (`build/release.env`, committed: dev until the launch flips it;
-the jobs check the URL is really in the binaries). Between tags the bundle
+by default, with the `channel` it was released on. `build/release.env`
+names both registries and is the same on `main` and `dev`;
+`scripts/release-registry.sh` picks one by the tagged commit's first-parent
+history: a commit on `main`'s line is a production release and bakes
+`https://secureagentry.net`, one on `dev`'s is a dev release and bakes
+`https://dev.secureagentry.net`, and any other commit is refused before a
+binary is built (agentry-desktop#183, the CLI's agentry-cli#240 copied
+unchanged). The update channel is that registry's downloads manifest, and the
+jobs check the URL and the channel are really in the binaries. Between tags the bundle
 metadata keeps the last `productVersion` while the binary reports the
 describe string; only a tagged build has one version everywhere, which is
 what a release is.

@@ -100,6 +100,12 @@ jobs:
           skip-cache: true
       - name: make check
         run: make check
+      # A release from main bakes production's registry, one from dev bakes
+      # dev's, and no other commit is a release (agentry-desktop#183, the
+      # CLI's agentry-cli#240): scripts/release-registry.sh against a
+      # throwaway origin with the estate's branch model.
+      - name: release registry by branch
+        run: scripts/acceptance/release-registry.sh
       # The honest posture, as a check (plan hosted-runs.md §3): the app
       # says what ran and what was enforced, never "safe" or "secure".
       # `make check` runs it too; it is its own step so a copy failure is

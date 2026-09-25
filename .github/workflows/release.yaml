@@ -1,5 +1,8 @@
-# A release of the desktop client is a pushed tag v<productVersion> on main
-# (plan agentry-notes/plans/desktop-installers.md §6, D4; register D-023).
+# A release of the desktop client is a pushed tag v<productVersion> on a
+# commit that has been the head of main (a production release) or of dev (a
+# dev release); it bakes that branch's registry and update channel, chosen by
+# scripts/release-registry.sh in preflight (plan
+# agentry-notes/plans/desktop-installers.md §6, D4; registers D-023, D-036).
 # This workflow builds every platform artifact from that commit — Windows and
 # Linux on the Linux runner, the universal macOS bundle and its dmg on the
 # Mac — writes SHA256SUMS over them and over BUILD-INFO, signs those sums with
@@ -9,10 +12,12 @@
 # bundle from this run (build-downloads.sh --from-run, agentry-web#152) and
 # the website is where a release lives.
 #
-# workflow_dispatch runs the same jobs on any ref as a DRY RUN: the version is
-# whatever git describe says of that ref, the tag check is skipped when the
-# ref is not a tag, a stale pin warns instead of refusing, and BUILD-INFO
-# carries event=workflow_dispatch so the site's importer can refuse it.
+# workflow_dispatch runs the same jobs as a DRY RUN on a commit that is on
+# main's or dev's line (preflight refuses any other, as it refuses such a
+# tag): the version is whatever git describe says of that ref, the tag check
+# is skipped when the ref is not a tag, a stale pin warns instead of
+# refusing, and BUILD-INFO carries event=workflow_dispatch so the site's
+# importer can refuse it.
 #
 # The version is derived once, in preflight, and every later job takes it
 # from there: the Mac is a persistent runner whose tree can be -dirty for
@@ -42,6 +47,8 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     outputs:
       version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.registry.outputs.channel }}
+      registry: ${{ steps.registry.outputs.registry }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,6 +85,26 @@ jobs:
           [ -n "$v" ] || { echo "::error::make version printed nothing"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "version $v"
+      # Production's registry for a commit that has been main's head, dev's
+      # for one that has been dev's, refused for any other commit, before a
+      # binary is built (agentry-desktop#183: the CLI's scripts/release-registry.sh,
+      # agentry-cli#240 and DR-33, copied unchanged). build/release.env names
+      # both and is the same on both branches; the history picks. The
+      # checkout's fetch-depth 0 brings the origin/main and origin/dev refs
+      # the rule reads. Both build jobs and BUILD-INFO take it from here.
+      - name: The channel and the registry this release bakes in
+        id: registry
+        run: |
+          set -euo pipefail
+          # The history picks the registry; a release.env line would outvote
+          # it in a build step that sources the file (agentry-desktop#183).
+          if grep -E '^[[:space:]]*(export[[:space:]]+)?AGENTRY_DEFAULT_REGISTRY=' build/release.env >/dev/null; then
+            echo "::error::build/release.env sets AGENTRY_DEFAULT_REGISTRY; it names AGENTRY_REGISTRY_PRODUCTION and AGENTRY_REGISTRY_DEV, and scripts/release-registry.sh picks one"; exit 1
+          fi
+          out=$(scripts/release-registry.sh "${GITHUB_SHA}")
+          printf '%s\n' "$out"
+          sed -n -e 's/^AGENTRY_RELEASE_CHANNEL=/channel=/p' -e 's/^AGENTRY_DEFAULT_REGISTRY=/registry=/p' <<<"$out" >> "$GITHUB_OUTPUT"
+          echo "::notice::${GITHUB_SHA} is a $(sed -n 's/^AGENTRY_RELEASE_CHANNEL=//p' <<<"$out") release"
       # go list -m -u compares against the newest version the module proxy
       # offers, which is the default branch head only while the core and the
       # CLI carry no semver tags (as today; the daily pins job makes the same
@@ -166,10 +193,13 @@ jobs:
           # on the host instead (agentry-desktop#209).
           package-manager-cache: false
       - name: What this release bakes in
+        env:
+          # preflight's, from the commit's history (agentry-desktop#183):
+          # required, so an empty output cannot bake the source default.
+          AGENTRY_DEFAULT_REGISTRY: ${{ needs.preflight.outputs.registry }}
         run: |
           set -euo pipefail
-          set -a; . build/release.env; set +a
-          : "${AGENTRY_DEFAULT_REGISTRY:?build/release.env must set AGENTRY_DEFAULT_REGISTRY}"
+          : "${AGENTRY_DEFAULT_REGISTRY:?preflight named no registry for this commit}"
           echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
           # The update channel is the same site's downloads manifest: on
           # SecureAgentry the edge serves the registry and the downloads from
@@ -181,7 +211,9 @@ jobs:
           echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
           # The CN the Windows signature must carry, when release.env names
           # one (agentry-desktop#54): the installer check refuses any other.
-          [ -z "${AGENTRY_WINDOWS_SIGNING_CN:-}" ] || echo "AGENTRY_WINDOWS_SIGNING_CN=${AGENTRY_WINDOWS_SIGNING_CN}" >> "$GITHUB_ENV"
+          # Read in a subshell, so nothing else in the file reaches the build.
+          cn=$(set -a; . build/release.env; printf '%s' "${AGENTRY_WINDOWS_SIGNING_CN:-}")
+          [ -z "$cn" ] || echo "AGENTRY_WINDOWS_SIGNING_CN=${cn}" >> "$GITHUB_ENV"
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins
@@ -352,10 +384,13 @@ jobs:
         run: |
           git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: What this release bakes in
+        env:
+          # preflight's, from the commit's history (agentry-desktop#183):
+          # required, so an empty output cannot bake the source default.
+          AGENTRY_DEFAULT_REGISTRY: ${{ needs.preflight.outputs.registry }}
         run: |
           set -euo pipefail
-          set -a; . build/release.env; set +a
-          : "${AGENTRY_DEFAULT_REGISTRY:?build/release.env must set AGENTRY_DEFAULT_REGISTRY}"
+          : "${AGENTRY_DEFAULT_REGISTRY:?preflight named no registry for this commit}"
           echo "AGENTRY_DEFAULT_REGISTRY=${AGENTRY_DEFAULT_REGISTRY}" >> "$GITHUB_ENV"
           # The update channel is the same site's downloads manifest: on
           # SecureAgentry the edge serves the registry and the downloads from
@@ -452,9 +487,11 @@ jobs:
       - name: BUILD-INFO
         env:
           SIGNED_WINDOWS: ${{ needs.linux-windows.outputs.signed_windows }}
+          AGENTRY_DEFAULT_REGISTRY: ${{ needs.preflight.outputs.registry }}
+          AGENTRY_RELEASE_CHANNEL: ${{ needs.preflight.outputs.channel }}
         run: |
           set -euo pipefail
-          set -a; . build/release.env; set +a
+          : "${AGENTRY_DEFAULT_REGISTRY:?preflight named no registry}" "${AGENTRY_RELEASE_CHANNEL:?preflight named no channel}"
           {
             echo "product=agentry-desktop"
             echo "version=$VERSION"
@@ -462,6 +499,7 @@ jobs:
             echo "ref=${GITHUB_REF}"
             echo "commit=${GITHUB_SHA}"
             echo "default_registry=${AGENTRY_DEFAULT_REGISTRY}"
+            echo "channel=${AGENTRY_RELEASE_CHANNEL}"
             # signed= is true only when EVERY artifact is OS-signed; the
             # per-platform lines say which are. Windows since #54; macOS is
             # #6, so until it lands this stays false and the page keeps
