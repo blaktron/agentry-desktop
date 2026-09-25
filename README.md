@@ -466,9 +466,9 @@ the `release` environment with `id-token: write`, which also means a
 **Every tag publishes a GitHub Release** with the bundle (agentry-desktop#192;
 DEV-148 reverses D-023's "no GitHub Release before 1.0"): a `-dev.N` tag's is a
 prerelease, a `vX.Y.Z` tag's a full release and the newest the latest, with
-notes generated from the commits under a header naming the signatures. A minor
-or major release (`vX.Y.0`) is left a draft: the operator approves its notes
-and publishes it. The site's downloads builder imports the bundle from the run
+notes generated from the commits under a header naming the signatures. Before
+1.0.0 every release publishes at once; from 1.0.0 on a minor or major release
+(`vX.Y.0`) is left a draft: the operator approves its notes and publishes it. The site's downloads builder imports the bundle from the run
 (agentry-web#444 moves the import to the Release). `workflow_dispatch` runs the
 same jobs as a dry run on a commit on `main`'s or `dev`'s line (the `release`
 environment admits `main` and `v*` tags), named by the describe string
