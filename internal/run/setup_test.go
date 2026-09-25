@@ -654,4 +654,11 @@ func TestGetStatusReadsTheMarkerNotTheKey(t *testing.T) {
 	if got := status(); !slices.Contains(got, "openai") {
 		t.Fatalf("the first read left no marker for the legacy key, stored = %v", got)
 	}
+
+	// A marker with no key behind it misleads only the status: choosing
+	// the keychain as the source reads the key itself and refuses.
+	err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", APIKeySource: modelkey.SourceKeyring}, &strings.Builder{})
+	if err == nil || !strings.Contains(err.Error(), modelkey.Account("anthropic")) {
+		t.Fatalf("a keyring source on a marker alone must refuse naming the missing entry, got %v", err)
+	}
 }

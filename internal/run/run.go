@@ -822,11 +822,14 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 		}
 	}
 	// No clearing first: Compile replaces the plan directory whole — it
-	// writes a hidden staging sibling and publishes it by rename — so a
-	// plan a concurrent CLI or desktop run has just published is never
-	// deleted from under it, and a publish landing mid-clear can no longer
-	// refuse this run with "directory not empty" (agentry-cli#289,
-	// agentry-desktop#265).
+	// writes a hidden staging sibling and publishes it by rename — so
+	// this compile no longer deletes a plan a concurrent CLI or desktop
+	// run has just published, and a publish landing mid-clear can no
+	// longer refuse this run with "directory not empty" (agentry-cli#289,
+	// agentry-desktop#265). Another build's recompile can still replace
+	// the directory after this returns; the engine re-checks every plan
+	// file against the plan when it copies them, so that run is refused,
+	// never run on the other build's files.
 	plan, err := compile.Compile(compile.Inputs{
 		Manifest:     m,
 		Mode:         mode,
