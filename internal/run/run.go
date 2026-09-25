@@ -318,6 +318,13 @@ type Result struct {
 	WallMS           int64
 	Turns            int
 	AttestationState string
+	// The operator policy file the run enforced, from the envelope's
+	// policy block (agentry-cli#152): its path, how the path was chosen
+	// (default, env) and the digest the plan was compiled against. Empty
+	// when the envelope carries no block.
+	PolicyPath   string
+	PolicySource string
+	PolicySHA256 string
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -343,11 +350,16 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if err != nil {
 		return nil, err
 	}
-	policyPath, err := policy.DefaultPath()
+	// The operator policy file this run obeys and how its path was chosen
+	// (the runner home's, or a home relocated by AGENTRY_RUNNER_HOME): the
+	// same path is read here and handed to the engine, which records it in
+	// the envelope's policy block beside the plan's digest of those bytes
+	// (agentry-cli#152, agentry-desktop#269). The desktop has no --policy.
+	polFile, err := policy.Resolve("")
 	if err != nil {
 		return nil, err
 	}
-	pol, polSHA, err := policy.EnsureDefault(policyPath)
+	pol, polSHA, err := policy.EnsureDefault(polFile.Path)
 	if err != nil {
 		return nil, fmt.Errorf("operator policy: %w", err)
 	}
@@ -555,6 +567,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			Intake:          answers,
 			Adapter:         ad,
 			Policy:          pol,
+			PolicyFile:      &polFile,
 			SecretOverrides: overrides,
 			ServersDir:      serversDir,
 			ExecPackages:    execPackages,
@@ -586,7 +599,7 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 // in Status/ExitCode/Error so the frontend renders them instead of a
 // rejected promise losing the receipt paths.
 func resultFromEnvelope(env *receipt.Envelope) *Result {
-	return &Result{
+	res := &Result{
 		Status:           env.Status,
 		ExitCode:         env.ExitCode,
 		Error:            env.Error,
@@ -604,6 +617,10 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 		Turns:            env.Usage.Turns,
 		AttestationState: env.Attestation.State,
 	}
+	if env.Policy != nil {
+		res.PolicyPath, res.PolicySource, res.PolicySHA256 = env.Policy.Path, env.Policy.Source, env.Policy.SHA256
+	}
+	return res
 }
 
 // materialize resolves the install for a signature, reusing the CLI's
@@ -809,9 +826,12 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 			}
 		}
 	}
-	if err := os.RemoveAll(planDir); err != nil {
-		return nil, "", fmt.Errorf("clear stale plan: %w", err)
-	}
+	// No clearing first: Compile replaces the plan directory whole — it
+	// writes a hidden staging sibling and publishes it by rename — so a
+	// plan a concurrent CLI or desktop run has just published is never
+	// deleted from under it, and a publish landing mid-clear can no longer
+	// refuse this run with "directory not empty" (agentry-cli#289,
+	// agentry-desktop#265).
 	plan, err := compile.Compile(compile.Inputs{
 		Manifest:     m,
 		Mode:         mode,

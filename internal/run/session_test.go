@@ -138,6 +138,7 @@ func TestStartSessionLifecycle(t *testing.T) {
 	if res.Status != "ok" || res.ExitCode != 0 || !strings.Contains(res.ResultJSON, "echo:") {
 		t.Fatalf("result = %+v", res)
 	}
+	assertPolicyBlock(t, res)
 	for _, name := range []string{"transcript.md", "events.ndjson", "intake.json"} {
 		if _, err := os.Stat(filepath.Join(res.ReceiptsDir, name)); err != nil {
 			t.Errorf("receipt %s: %v", name, err)

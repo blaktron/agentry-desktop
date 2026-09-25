@@ -9,11 +9,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 )
@@ -592,5 +596,62 @@ func TestGetStatusListsTheProvidersWithAStoredKey(t *testing.T) {
 	st, err = GetStatus(context.Background())
 	if err != nil || len(st.KeysStored) != 0 || !strings.Contains(st.KeyStoreErr, "AGENTRY_NO_KEYRING") {
 		t.Fatalf("status = %+v err %v", st, err)
+	}
+}
+
+// TestGetStatusReadsTheMarkerNotTheKey (agentry-desktop#268) proves
+// agentry-cli#156 at the desktop's seam: the status read goes through the
+// real modelkey.Present (the keychain seam's production value) over an
+// in-memory keychain, and once setup has stored a key, the answer comes
+// from the presence marker beside it, never from the key's own entry.
+// The key's entry is removed behind the marker's back; a read of it would
+// find nothing, say "not stored", and take the marker away (Confirm), so
+// "stored", twice, is the proof no read of the key happened. A key an
+// older client stored with no marker is read once, and the marker it
+// leaves answers from then on.
+func TestGetStatusReadsTheMarkerNotTheKey(t *testing.T) {
+	isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	t.Setenv(modelkey.EnvNoKeyring, "")
+	keyring.MockInit()
+	t.Cleanup(keyring.MockInit) // leave an empty store, never a person's keychain
+	if reflect.ValueOf(keychainPresent).Pointer() != reflect.ValueOf(modelkey.Present).Pointer() {
+		t.Fatal("the status seam is not modelkey.Present: this test would prove nothing")
+	}
+
+	status := func() []string {
+		t.Helper()
+		st, err := GetStatus(context.Background())
+		if err != nil || st.KeyStoreErr != "" {
+			t.Fatalf("status = %+v err %v", st, err)
+		}
+		return st.KeysStored
+	}
+
+	// Setup stores the key the way the form does: key and marker.
+	if err := StoreModelKey("anthropic", "sk-ant-api03-secret", &strings.Builder{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyring.Delete(modelkey.Service, modelkey.Account("anthropic")); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if got := status(); !slices.Equal(got, []string{"anthropic"}) {
+			t.Fatalf("with only the marker left, stored = %v: the status read the key's entry", got)
+		}
+	}
+
+	// An older client's key, no marker: read once, then the marker answers.
+	if err := keyring.Set(modelkey.Service, modelkey.Account("openai"), "sk-legacy"); err != nil {
+		t.Fatal(err)
+	}
+	if got := status(); !slices.Equal(got, []string{"openai", "anthropic"}) && !slices.Equal(got, []string{"anthropic", "openai"}) {
+		t.Fatalf("a marker-less key must still be found, stored = %v", got)
+	}
+	if err := keyring.Delete(modelkey.Service, modelkey.Account("openai")); err != nil {
+		t.Fatal(err)
+	}
+	if got := status(); !slices.Contains(got, "openai") {
+		t.Fatalf("the first read left no marker for the legacy key, stored = %v", got)
 	}
 }

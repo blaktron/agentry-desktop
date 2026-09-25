@@ -97,8 +97,13 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	if st.APIKeyKind == policy.KeyKindSubscription {
 		st.KeyNotice = policy.SubscriptionTokenSentence
 	}
-	// One ask per provider (each reads the value to answer, agentry-cli#156).
-	// An absent entry is an answer; an error is the keychain itself — none,
+	// One ask per provider. Each reads the presence marker setup stores
+	// beside the key, never the key itself (modelkey.Present,
+	// agentry-cli#156): only a key stored before markers existed is read,
+	// once, to write its marker. A marker outlives a key removed outside
+	// agentry, so this can say "stored" until setup stores a key again
+	// or `agentry doctor` confirms the entry; the apply step reads the
+	// key itself (keychainLookup) and is not misled. An absent entry is an answer; an error is the keychain itself — none,
 	// disabled, locked — and would be the same error, and on a locked
 	// Secret Service the same prompt, for every provider after it, so the
 	// first one ends the asking and is said.

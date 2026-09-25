@@ -1038,6 +1038,19 @@ export default function RunPanel({
               <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
               <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
               <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>
+              {/* The operator policy the run enforced (agentry-cli#152,
+                  agentry-desktop#269): which file, and how its path was
+                  chosen, since a relocated runner home is inherited
+                  silently from the environment. */}
+              {result.policyPath && (
+                <>
+                  <div className="kv"><span className="k">operator policy</span><span className="mono">{result.policyPath}</span></div>
+                  <div className="kv"><span className="k">policy chosen by</span><span>{policySourceLabel(result.policySource)}</span></div>
+                  {result.policySha256 && (
+                    <div className="kv"><span className="k">policy sha256</span><span className="mono" title={result.policySha256}>{result.policySha256.slice(0, 12)}…</span></div>
+                  )}
+                </>
+              )}
             </Card>
             {log.length > 0 && (
               <>
@@ -1057,6 +1070,17 @@ export default function RunPanel({
       </div>
     </div>
   );
+}
+
+// policySourceLabel says how the run's policy path was chosen, from the
+// envelope's policy.source (agentry-cli#152).
+function policySourceLabel(source: string | undefined): string {
+  switch (source) {
+    case "default": return "the runner home's policy.yaml (the default)";
+    case "env": return "AGENTRY_RUNNER_HOME, set in the environment this app started from";
+    case "flag": return "--policy";
+    default: return source || "not recorded";
+  }
 }
 
 // hostedHeadline is how a run In Agentry ended, in a sentence: a pass says

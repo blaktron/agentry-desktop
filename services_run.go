@@ -546,6 +546,13 @@ type RunResultView struct {
 	WallMS           int64   `json:"wallMs"`
 	Turns            int     `json:"turns"`
 	AttestationState string  `json:"attestationState"`
+	// The operator policy file the run enforced (agentry-cli#152): path,
+	// source ("default", or "env" for a runner home relocated by
+	// AGENTRY_RUNNER_HOME) and the plan's digest of it. Omitted when the
+	// envelope carries no policy block.
+	PolicyPath   string `json:"policyPath,omitempty"`
+	PolicySource string `json:"policySource,omitempty"`
+	PolicySHA256 string `json:"policySha256,omitempty"`
 }
 
 // RunAgent executes one BriefAgent run: resolve → digest + DSSE verify →
@@ -619,6 +626,9 @@ func runResultView(res *run.Result) *RunResultView {
 		WallMS:           res.WallMS,
 		Turns:            res.Turns,
 		AttestationState: res.AttestationState,
+		PolicyPath:       res.PolicyPath,
+		PolicySource:     res.PolicySource,
+		PolicySHA256:     res.PolicySHA256,
 	}
 }
 

@@ -1556,6 +1556,9 @@ export namespace main {
 	    wallMs: number;
 	    turns: number;
 	    attestationState: string;
+	    policyPath?: string;
+	    policySource?: string;
+	    policySha256?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -1579,6 +1582,9 @@ export namespace main {
 	        this.wallMs = source["wallMs"];
 	        this.turns = source["turns"];
 	        this.attestationState = source["attestationState"];
+	        this.policyPath = source["policyPath"];
+	        this.policySource = source["policySource"];
+	        this.policySha256 = source["policySha256"];
 	    }
 	}
 	export class SearchHitView {
