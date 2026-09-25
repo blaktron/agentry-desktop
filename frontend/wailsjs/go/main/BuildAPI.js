@@ -26,6 +26,10 @@ export function Save(arg1, arg2) {
   return window['go']['main']['BuildAPI']['Save'](arg1, arg2);
 }
 
+export function ServerChecks(arg1, arg2) {
+  return window['go']['main']['BuildAPI']['ServerChecks'](arg1, arg2);
+}
+
 export function Validate(arg1) {
   return window['go']['main']['BuildAPI']['Validate'](arg1);
 }

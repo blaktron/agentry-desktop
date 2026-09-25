@@ -14,6 +14,8 @@ the honest-posture rule, stated on the report view :: never a "safe" claim
 # MCP vulnerability verdict is the string "safe" on the wire
 # (mcpinstall.VulnStatus), and this comment names it.
 the API's own status value, named not claimed :: Status is safe, vulnerable, error, unknown or unreachable
+the Build tab matching that status to reword it, so the word is never shown (agentry-desktop#280) :: "safe" is never shown as a word: it means no known advisories at a date.
+the Build tab matching that status to reword it, so the word is never shown (agentry-desktop#280) :: case "safe":
 
 # A comment about shell quoting on the prereqs path — "safe to place in a
 # root shell" is about a username's characters, not about a BriefAgent.

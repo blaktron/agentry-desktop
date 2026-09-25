@@ -130,7 +130,7 @@ const buildCheck = {
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
 const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : "steps";
-const buildStep = ({ tools: 2, guide: 5, review: 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, publish: 6, review: 7, validate: 7 } as Record<string, number>)[buildHash] ?? 0;
 const validateResult = {
   passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
   bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
@@ -171,7 +171,18 @@ g.go = { main: {
       return { message: "installed demo1/incident-summarizer@1.2.0 into the runner home", dest: runnerRecForShown.dir };
     },
   },
-  BuildAPI: { NewModel: async () => buildModel, Exists: async () => false, Check: async () => buildCheck },
+  // The native folder picker, as Build's first save asks it (D-030).
+  App: { ChooseDirectory: async () => "/home/me/briefagents/incident-summarizer" },
+  BuildAPI: {
+    NewModel: async () => buildModel, Exists: async () => false, Check: async () => buildCheck,
+    Save: async () => undefined,
+    // pages.html#build-validate: a validate run that failed, so the card
+    // shows a V-rule problem and a content finding with their place.
+    Validate: async () => ({ ...validateResult, passed: false, errorCount: 1,
+      issues: [{ rule: "V5", path: "capabilities.network.egress[0]", message: "\"http://api.pagerduty.com\" is not a valid DNS host name", warning: false }],
+      findings: [{ ruleId: "S4-prompt-injection-001", scanner: "S4", severity: "high", confidence: "medium", title: "instruction override phrasing", filePath: "AGENT.md", lineStart: 12, lineEnd: 12, excerpt: "ignore previous instructions" }] }),
+    ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
+  },
   ValidateAPI: { Run: async () => validateResult },
   // The account line on a signed-in registry's card (agentry-desktop#74,
   // and the organization of agentry-desktop#79). The hash picks which

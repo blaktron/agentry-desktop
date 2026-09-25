@@ -178,7 +178,21 @@ func (m *Model) instructionFile() string {
 	return defaultInstructionFile
 }
 
-var intakeIDRE = regexp.MustCompile(`^[a-z0-9_]+$`)
+var (
+	intakeIDRE = regexp.MustCompile(`^[a-z0-9_]+$`)
+	// envNameRE is the core's environment-variable grammar (pkg/manifest):
+	// env names and guide help keys are written bare, so they are held to it.
+	envNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	// instructionFileRE is a plain file name at the workspace root.
+	instructionFileRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+)
+
+// The closed vocabularies written bare.
+var (
+	dataAccessWords = map[string]bool{"email": true, "calendar": true, "files": true, "tickets": true, "code": true, "messages": true, "payments": true, "other": true}
+	interfaceWords  = map[string]bool{"claude-skill": true, "agents-md": true}
+	channelWords    = map[string]bool{"": true, "stable": true, "beta": true}
+)
 
 func validMode(s string) bool { return s == "autonomous" || s == "interactive" }
 
@@ -255,8 +269,8 @@ func (m *Model) formProblems() []SectionProblem {
 		add(SectionBasics, "the idle timeout cannot be negative")
 	}
 
-	if strings.Contains(m.instructionFile(), "/") || strings.Contains(m.instructionFile(), "..") {
-		add(SectionInstructions, "the instruction file must be a file at the workspace root")
+	if !instructionFileRE.MatchString(m.instructionFile()) || strings.Contains(m.instructionFile(), "..") {
+		add(SectionInstructions, "the instruction file must be a plain file name at the workspace root")
 	}
 	if strings.TrimSpace(m.Instructions) == "" {
 		add(SectionInstructions, "write the instructions")
@@ -306,6 +320,8 @@ func (m *Model) formProblems() []SectionProblem {
 			switch {
 			case name == "":
 				add(SectionTools, "mcp server %s: an env entry needs a name", pkg)
+			case !envNameRE.MatchString(name):
+				add(SectionTools, "mcp server %s: env %q is not an environment variable name (letters, digits, _)", pkg, name)
 			case names[name]:
 				add(SectionTools, "mcp server %s: env %s is set twice", pkg, name)
 			case serverSecrets[name] || agentSecrets[name]:
@@ -323,19 +339,18 @@ func (m *Model) formProblems() []SectionProblem {
 	if m.FSWrite == "paths" && len(compact(m.FSWritePaths)) == 0 {
 		add(SectionAccess, "list the paths it writes, or choose another answer")
 	}
+	for _, d := range compact(m.DataAccess) {
+		if !dataAccessWords[d] {
+			add(SectionAccess, "%q is not a data category (email, calendar, files, tickets, code, messages, payments, other)", d)
+		}
+	}
 
 	if len(m.Intake) > 20 {
 		add(SectionQuestions, "at most 20 intake questions")
 	}
-	declared := map[string]bool{}
-	for s := range agentSecrets {
-		declared[s] = true
-	}
-	for _, srv := range m.MCPServers {
-		for _, s := range compact(srv.Secrets) {
-			declared[s] = true
-		}
-	}
+	// A secret answer is carried by the BriefAgent's own declared secret of
+	// the same upper-cased name. The runner counts capabilities.secrets only
+	// (agentry-cli pkg/runner/intake), never a server's.
 	seenID := map[string]bool{}
 	for i, q := range m.Intake {
 		id := strings.TrimSpace(q.ID)
@@ -357,8 +372,8 @@ func (m *Model) formProblems() []SectionProblem {
 				add(SectionQuestions, "intake question %s: a choice question needs its choices", id)
 			}
 		case "secret":
-			if !declared[strings.ToUpper(id)] {
-				add(SectionQuestions, "intake question %s: a secret answer is carried by a declared secret named %s — add it to the secrets", id, strings.ToUpper(id))
+			if !agentSecrets[strings.ToUpper(id)] {
+				add(SectionQuestions, "intake question %s: a secret answer is carried by a key of its own named %s — add it under Files, commands and data", id, strings.ToUpper(id))
 			}
 		default:
 			add(SectionQuestions, "intake question %s: unknown type %q (text, secret, choice, file)", id, q.Type)
@@ -375,6 +390,10 @@ func (m *Model) formProblems() []SectionProblem {
 			add(SectionGuide, "help for a key needs the key's name")
 			continue
 		}
+		if !envNameRE.MatchString(name) {
+			add(SectionGuide, "%q is not a key name (letters, digits, _)", name)
+			continue
+		}
 		if seenHelp[name] {
 			add(SectionGuide, "help for %s is given twice", name)
 		}
@@ -386,6 +405,14 @@ func (m *Model) formProblems() []SectionProblem {
 	}
 	if strings.TrimSpace(m.Version) == "" {
 		add(SectionPublish, "version is required (strict semver, e.g. 0.1.0)")
+	}
+	if !channelWords[strings.TrimSpace(m.PublishChannel)] {
+		add(SectionPublish, "publish channel %q is not stable or beta", m.PublishChannel)
+	}
+	for _, i := range compact(m.RuntimeInterfaces) {
+		if !interfaceWords[i] {
+			add(SectionPublish, "runtime interface %q is not claude-skill or agents-md", i)
+		}
 	}
 	return out
 }
@@ -467,6 +494,26 @@ func (m *Model) Check() *CheckResult {
 	return res
 }
 
+// DeclaredServers are the rows with a package and a version, as the
+// manifest declares them, for asking the registry what it knows of each.
+func (m *Model) DeclaredServers() []manifest.MCPServer {
+	var out []manifest.MCPServer
+	for _, srv := range m.MCPServers {
+		pkg, ver := strings.TrimSpace(srv.Package), strings.TrimSpace(srv.Version)
+		if pkg == "" || ver == "" {
+			continue
+		}
+		d := manifest.MCPServer{Version: ver}
+		if srv.Source == "pypi" {
+			d.PyPI = pkg
+		} else {
+			d.NPM = pkg
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 // sectionOf names the section whose fields a V-rule's path is in.
 func sectionOf(path string) Section {
 	head := path
@@ -492,9 +539,12 @@ func sectionOf(path string) Section {
 }
 
 // q YAML-quotes a scalar a person typed, so no character in it changes the
-// file's shape. The values written bare (the name, the namespace, the run
-// modes, intake ids, env and help names, data categories) are ones a rule
-// holds to a grammar first.
+// file's shape. The values written bare are each held to a grammar in
+// formProblems first: the name and namespace (manifest.ValidName and
+// ValidNamespace), the run modes, the MCP source, intake ids and types, env
+// and help-key names (envNameRE), data categories, runtime interfaces and
+// the publish channel (closed vocabularies). Save refuses a model that
+// breaks one, and refuses a file that does not parse back.
 func q(s string) string {
 	out, _ := yaml.Marshal(s)
 	return strings.TrimSpace(string(out))
@@ -506,12 +556,27 @@ func seq(items []string) string { return "[" + strings.Join(quoteAll(items), ", 
 // The manifest's blocks, each as the lines manifestYAML writes for it, so a
 // section can show its own lines (plan builder-rework.md §5) and the whole
 // file is their composition.
+func (m *Model) nameLine() string    { return "name: " + m.Name }
+func (m *Model) modesLine() string   { return "modes: [" + strings.Join(compact(m.Modes), ", ") + "]" }
+func (m *Model) summaryLine() string { return "summary: " + q(m.Summary) }
+func (m *Model) namespaceLine() string {
+	return "namespace: " + m.Namespace
+}
+func (m *Model) versionLine() string { return "version: " + q(strings.TrimSpace(m.Version)) }
+
 func (m *Model) identityLines() []string {
-	return []string{"name: " + m.Name, "modes: [" + strings.Join(compact(m.Modes), ", ") + "]", "summary: " + q(m.Summary)}
+	return []string{m.nameLine(), m.modesLine(), m.summaryLine()}
 }
 
+// publishingLines are the namespace and version and then the rest of the
+// Publishing section (publishingRest), which the file writes after the
+// summary.
 func (m *Model) publishingLines() []string {
-	out := []string{"namespace: " + m.Namespace, "version: " + q(strings.TrimSpace(m.Version))}
+	return append([]string{m.namespaceLine(), m.versionLine()}, m.publishingRest()...)
+}
+
+func (m *Model) publishingRest() []string {
+	var out []string
 	if m.License != "" {
 		out = append(out, "license: "+q(m.License))
 	}
@@ -531,6 +596,10 @@ func (m *Model) publishingLines() []string {
 		out = append(out, "tags: "+seq(tags))
 	}
 	return out
+}
+
+func (m *Model) entrypointLines() []string {
+	return []string{"entrypoints:", "  instruction: " + q(m.instructionFile())}
 }
 
 func (m *Model) interactiveLines() []string {
@@ -703,7 +772,7 @@ func (m *Model) fragment(sec Section) string {
 	case SectionBasics:
 		lines = append(m.identityLines(), m.interactiveLines()...)
 	case SectionInstructions:
-		lines = []string{"entrypoints:", "  instruction: " + m.instructionFile()}
+		lines = m.entrypointLines()
 	case SectionTools:
 		lines = append(append([]string{"capabilities:"}, m.networkLines()...), m.serverLines()...)
 	case SectionAccess:
@@ -730,13 +799,15 @@ func (m *Model) manifestYAML() string {
 			out = append(out, lines...)
 		}
 	}
-	id, pub := m.identityLines(), m.publishingLines()
-	out = append(out, `schemaVersion: "2"`, id[0], pub[0], id[1], pub[1], id[2])
-	out = append(out, pub[2:]...)
-	block([]string{"entrypoints:", "  instruction: " + m.instructionFile()})
+	// The template repo's order: identity, then the entrypoint, intake, the
+	// guide, interactive hints, the runtime, the contract, dependencies and
+	// publish.
+	out = append(out, `schemaVersion: "2"`, m.nameLine(), m.namespaceLine(), m.modesLine(), m.versionLine(), m.summaryLine())
+	out = append(out, m.publishingRest()...)
+	block(m.entrypointLines())
 	block(m.intakeLines())
-	block(m.interactiveLines())
 	block(m.guideLines())
+	block(m.interactiveLines())
 	block(m.runtimeLines())
 	caps := append([]string{"capabilities:"}, m.networkLines()...)
 	caps = append(caps, m.accessLines()...)
@@ -783,6 +854,11 @@ func Save(dir string, m *Model) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
+	// Belt to the grammars above: a file the form writes must parse back as
+	// the closed schema, so nothing typed can change its shape unseen.
+	if _, err := manifest.Parse([]byte(m.manifestYAML())); err != nil {
+		return fmt.Errorf("the agent.yaml the form would write does not parse: %w", err)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -825,8 +901,16 @@ func Save(dir string, m *Model) error {
 // decode contract — and reads every field of schema v2, so a save writes
 // back what the file declared (D19). Only comments are lost, and
 // HadComments says so.
+// maxManifestBytes caps the agent.yaml Load reads; a manifest is a page of
+// YAML, and the registry's own text quota is far below this.
+const maxManifestBytes = 1 << 20
+
 func Load(dir string) (*Model, error) {
-	raw, err := os.ReadFile(filepath.Join(dir, "agent.yaml")) //nolint:gosec // user-picked workspace
+	p := filepath.Join(dir, "agent.yaml")
+	if fi, err := os.Stat(p); err == nil && fi.Size() > maxManifestBytes {
+		return nil, fmt.Errorf("agent.yaml is %d bytes; the Build surface reads at most %d", fi.Size(), maxManifestBytes)
+	}
+	raw, err := os.ReadFile(p) //nolint:gosec // user-picked workspace
 	if err != nil {
 		return nil, fmt.Errorf("read agent.yaml: %w", err)
 	}
@@ -973,8 +1057,13 @@ func Load(dir string) (*Model, error) {
 	m.PublishInclude, m.PublishChannel = orEmpty(doc.Publish.Include), doc.Publish.Channel
 	m.HadComments = hasComments(raw)
 
-	if b, rerr := os.ReadFile(filepath.Join(dir, m.instructionFile())); rerr == nil { //nolint:gosec
-		m.Instructions = string(b)
+	// The instruction file is read only from the picked folder itself: an
+	// entrypoint naming a path outside it is not followed (the form's rules
+	// then refuse to save it until it names a file at the root).
+	if instructionFileRE.MatchString(m.instructionFile()) && !strings.Contains(m.instructionFile(), "..") {
+		if b, rerr := os.ReadFile(filepath.Join(dir, m.instructionFile())); rerr == nil { //nolint:gosec
+			m.Instructions = string(b)
+		}
 	}
 	return m, nil
 }

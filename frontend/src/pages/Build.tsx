@@ -17,11 +17,18 @@ import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { build, validate } from "../../wailsjs/go/models";
+import { build, mcpvuln, validate } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
+// The §19 instruction-file quota, as internal/build's maxInstructionBytes.
 const MAX_INSTRUCTION_BYTES = 1 << 20;
+
+// What the tab was holding when the person last left it. Build unmounts on
+// every tab change, and the form is not a file until the first save, so
+// this module keeps the model, the folder and the view for the rest of the
+// app's session, and the start page offers it back as Continue.
+let kept: { model: build.Model; dir: string; view: View } | null = null;
 
 type View = "start" | "steps" | "advanced";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -81,6 +88,52 @@ function sentence(s: string): string {
   return t ? `${t}.` : "";
 }
 
+const stepOf = (key: StepKey) => STEPS.findIndex((s) => s.key === key);
+
+/** A server's reference, as the registry's check names it. */
+const serverRef = (s: build.MCPServerRow) => `${s.source}:${s.package}@${s.version}`;
+
+// The registry's check of one server version in plain words. The status
+// "safe" is never shown as a word: it means no known advisories at a date.
+function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: string } {
+  const at = c.checkedAt ? new Date(c.checkedAt) : null;
+  const when = at && !Number.isNaN(at.getTime()) ? ` as of ${at.toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
+  switch (c.status) {
+    case "vulnerable": {
+      const n = (c.advisories ?? []).length;
+      return { tone: "high", text: `${n} known ${n === 1 ? "advisory" : "advisories"}${c.maxSeverity ? ` (${c.maxSeverity})` : ""}: ${(c.advisories ?? []).map((a) => a.id).join(", ")}` };
+    }
+    case "safe":
+      return { tone: "muted", text: `No known advisories${when}.` };
+    case "error":
+      return { tone: "muted", text: "The registry's last check of this version failed; it tries again on its next sweep." };
+    case "unknown":
+      return { tone: "muted", text: "No check on record yet. The registry checks this version once a submission declares it." };
+    default:
+      return { tone: "muted", text: `The registry did not answer${c.error ? ` (${c.error})` : ""}.` };
+  }
+}
+
+function ServerChecks({ m, checks }: { m: build.Model; checks: Record<string, mcpvuln.Status> }) {
+  const rows = (m.mcpServers ?? []).filter((s) => s.package.trim() && s.version.trim());
+  if (rows.length === 0) return null;
+  return (
+    <div className="card" style={{ marginTop: 12 }}>
+      <strong className="small">The declared servers, as the registry last checked them</strong>
+      {rows.map((s, i) => {
+        const c = checks[serverRef(s)];
+        const said = c ? checkSentence(c) : { tone: "muted" as const, text: "Asking the registry…" };
+        return (
+          <div key={i} className="small" style={{ marginTop: 6 }}>
+            <span className="mono">{serverRef(s)}</span>
+            <div className={said.tone === "high" ? "sev-high" : "muted"} style={said.tone === "high" ? { color: "var(--color-sev-high)" } : undefined}>{said.text}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Where the BriefAgent and each of its servers can reach, in plain words. */
 function networkReach(m: build.Model): { what: string; value: string }[] {
   const rows = [{
@@ -118,8 +171,8 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
     <div className="card" style={{ marginTop: 12 }}>
       <strong className="small">{title}</strong>
       <dl className="build-reach">
-        {rows.map((r) => (
-          <div key={r.what} style={{ display: "contents" }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "contents" }}>
             <dt className="mono small">{r.what}</dt>
             <dd>{r.value}</dd>
           </div>
@@ -135,10 +188,12 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   initialView?: View;
   initialStep?: number;
 }) {
-  const [dir, setDir] = useState("");
-  const [model, setModel] = useState<build.Model | null>(null);
-  const [touched, setTouched] = useState(false);
+  const [dir, setDir] = useState(kept?.dir ?? "");
+  const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
+  const [touched, setTouched] = useState(!!kept);
   const [view, setView] = useState<View>(initialView);
+  const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
+  const asked = useRef(new Set<string>());
   const [at, setAt] = useState(initialStep);
   const [stepProblem, setStepProblem] = useState<string | null>(null);
   const [check, setCheck] = useState<build.CheckResult | null>(null);
@@ -154,8 +209,14 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const moved = useRef(false);
 
   useEffect(() => {
+    if (kept) return;
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
   }, [registry]);
+
+  // Keep the work for the start page's Continue (see `kept`).
+  useEffect(() => {
+    if (model && touched) kept = { model, dir, view: view === "start" ? kept?.view ?? "steps" : view };
+  }, [model, dir, view, touched]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
@@ -164,9 +225,30 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // writes and the first problem in each. It reads and writes nothing.
   useEffect(() => {
     if (!model) return;
-    const t = setTimeout(() => BuildAPI.Check(model).then(setCheck).catch(() => setCheck(null)), 200);
-    return () => clearTimeout(t);
+    let live = true;
+    const t = setTimeout(() => {
+      BuildAPI.Check(model)
+        .then((c) => { if (live) setCheck(c); })
+        .catch((e) => { if (live) { setCheck(null); setError(`The checks could not run: ${String(e)}`); } });
+    }, 200);
+    return () => { live = false; clearTimeout(t); };
   }, [model]);
+
+  // What the registry last knew of each declared server version, asked once
+  // per version while Tools and web access or Review is showing.
+  useEffect(() => {
+    if (!model || view !== "steps" || (STEPS[at].key !== "tools" && STEPS[at].key !== "review")) return;
+    const fresh = (model.mcpServers ?? []).filter((s) => s.package.trim() && s.version.trim() && !asked.current.has(serverRef(s)));
+    if (fresh.length === 0) return;
+    fresh.forEach((s) => asked.current.add(serverRef(s)));
+    BuildAPI.ServerChecks(registry, new build.Model({ ...model, mcpServers: fresh }))
+      .then((statuses) => setServerChecks((prev) => {
+        const next = { ...prev };
+        for (const st of statuses ?? []) next[st.ref] = st;
+        return next;
+      }))
+      .catch(() => {});
+  }, [model, view, at, registry]);
 
   // Focus follows the step, as in the run setup; not on the first render.
   useEffect(() => {
@@ -232,6 +314,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       const d = await ensureDir();
       if (!m || !d) return;
       await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setNotice(`Saved to ${d}: agent.yaml, the instructions file, and on the first save README, LICENSE and .gitignore.`);
     });
 
@@ -240,6 +323,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       const d = await ensureDir();
       if (!m || !d) return;
       await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setResult(await BuildAPI.Validate(d));
     });
 
@@ -248,6 +332,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       const d = await ensureDir();
       if (!m || !d) return;
       await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setLog([]);
       setPubResult(null);
       setPubResult(await BuildAPI.Publish(registry, d, visibility));
@@ -265,7 +350,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   async function next() {
     if (!m) return;
-    const c = await BuildAPI.Check(m);
+    let c: build.CheckResult;
+    try {
+      c = await BuildAPI.Check(m);
+    } catch (e) {
+      setError(`The checks could not run: ${String(e)}`);
+      return;
+    }
     setCheck(c);
     const p = stepKey === "review" ? null : c.problems?.[stepKey];
     if (p) {
@@ -275,6 +366,18 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       return;
     }
     goTo(at + 1);
+  }
+
+  function startOver() {
+    kept = null;
+    asked.current.clear();
+    setServerChecks({});
+    setTouched(false);
+    setDir("");
+    setResult(null);
+    setPubResult(null);
+    setModel(null);
+    BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
   }
 
   function switchTo(v: View) {
@@ -425,6 +528,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           })}
         </div>
         {stepped && <ReachList title="Everywhere it and its servers can reach" rows={networkReach(m)} />}
+        {stepped && <ServerChecks m={m} checks={serverChecks} />}
       </>
     ),
     access: (
@@ -685,9 +789,11 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         </div>
         {touched && (
           <p className="small">
-            You have unsaved work in the form. Continue it{" "}
+            {m.name ? <><span className="mono">{m.name}</span> is still in the form{dir ? <> (saving into <span className="mono">{dir}</span>)</> : ""}.</> : "The form still holds your work."}{" "}
+            Continue it{" "}
             <Button variant="link" onClick={() => switchTo("steps")}>step by step</Button> or in{" "}
-            <Button variant="link" onClick={() => switchTo("advanced")}>Advanced</Button>.
+            <Button variant="link" onClick={() => switchTo("advanced")}>Advanced</Button>, or{" "}
+            <Button variant="link" onClick={startOver}>start a new one</Button>.
           </p>
         )}
         <p className="muted small">To change a BriefAgent you already have, open its folder: it loads into the form.</p>
@@ -705,6 +811,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             <h2>{s.label}</h2>
             <p className="muted small">{s.intro}</p>
             <div className="card">{sections[s.key as SectionKey]}</div>
+            {check?.problems?.[s.key] && <p className="step-problem">{check.problems[s.key]}</p>}
           </section>
         ))}
         {actions}
@@ -735,16 +842,17 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           <>
             <Recap
               rows={[
-                { label: "Basics", value: <><span className="mono">{m.name || "no name yet"}</span>: {sentence(m.summary) || "no summary yet."} Runs {(m.modes ?? []).join(" and ") || "in no mode yet"}.</>, onEdit: () => goTo(0) },
-                { label: "Instructions", value: m.instructions.trim() ? `${lines} ${lines === 1 ? "line" : "lines"} in ${m.instructionFile || "AGENT.md"}` : "Not written yet", onEdit: () => goTo(1) },
-                { label: "Tools and web access", value: `The internet: ${net[0].value}. ${(m.mcpServers ?? []).length === 0 ? "No MCP servers." : `${m.mcpServers.length} MCP ${m.mcpServers.length === 1 ? "server" : "servers"}.`}`, onEdit: () => goTo(2) },
-                { label: "Files, commands and data", value: local.map((r) => `${r.what}: ${r.value}`).join(". ") + ".", onEdit: () => goTo(3) },
-                { label: "Questions", value: (m.intake ?? []).length === 0 ? "None" : m.intake.map((q) => q.id).join(", "), onEdit: () => goTo(4) },
-                { label: "Before a run", value: g && (g.overview || (g.prepare ?? []).some((s) => s.trim()) || g.files || g.task || (g.connect ?? []).length) ? "Written" : "Not written: the run setup uses the summary and the contract", onEdit: () => goTo(5) },
-                { label: "Publishing", value: <><span className="mono">{m.namespace || "?"}/{m.name || "?"}@{m.version || "?"}</span>, {visibility}, licence {m.license || "none"}</>, onEdit: () => goTo(6) },
+                { label: "Basics", value: <><span className="mono">{m.name || "no name yet"}</span>: {sentence(m.summary) || "no summary yet."} Runs {(m.modes ?? []).join(" and ") || "in no mode yet"}.</>, onEdit: () => goTo(stepOf("basics")) },
+                { label: "Instructions", value: m.instructions.trim() ? `${lines} ${lines === 1 ? "line" : "lines"} in ${m.instructionFile || "AGENT.md"}` : "Not written yet", onEdit: () => goTo(stepOf("instructions")) },
+                { label: "Tools and web access", value: `The internet: ${net[0].value}. ${(m.mcpServers ?? []).length === 0 ? "No MCP servers." : `${m.mcpServers.length} MCP ${m.mcpServers.length === 1 ? "server" : "servers"}.`}`, onEdit: () => goTo(stepOf("tools")) },
+                { label: "Files, commands and data", value: local.map((r) => `${r.what}: ${r.value}`).join(". ") + ".", onEdit: () => goTo(stepOf("access")) },
+                { label: "Questions", value: (m.intake ?? []).length === 0 ? "None" : m.intake.map((q) => q.id).join(", "), onEdit: () => goTo(stepOf("questions")) },
+                { label: "Before a run", value: g && (g.overview || (g.prepare ?? []).some((s) => s.trim()) || g.files || g.task || (g.connect ?? []).length) ? "Written" : "Not written: the run setup uses the summary and the contract", onEdit: () => goTo(stepOf("guide")) },
+                { label: "Publishing", value: <><span className="mono">{m.namespace || "?"}/{m.name || "?"}@{m.version || "?"}</span>, {visibility}, licence {m.license || "none"}</>, onEdit: () => goTo(stepOf("publish")) },
               ]}
             />
             <ReachList title="What it may reach" rows={[...net, ...local]} />
+            <ServerChecks m={m} checks={serverChecks} />
             <details className="build-writes small" style={{ marginTop: 12 }}>
               <summary>The agent.yaml this will write</summary>
               {check?.first

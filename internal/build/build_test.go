@@ -492,3 +492,81 @@ func TestCheckAttributesProblemsToSections(t *testing.T) {
 		t.Errorf("\"*\" egress for the BriefAgent is a warning, not a refusal: %+v %v", res.First, res.Warnings)
 	}
 }
+
+// Every value written bare is held to a grammar before Save writes it, so a
+// value typed, loaded or imported cannot add a key the form does not show:
+// a newline or a colon in an env name once could have declared a hidden
+// server. The review of agentry-desktop#280 found the gap.
+func TestBareValuesAreHeldToAGrammar(t *testing.T) {
+	for name, mutate := range map[string]func(m *Model){
+		"env name":          func(m *Model) { m.MCPServers[0].Env = []EnvRow{{Name: "A: {x", Value: "1"}} },
+		"env name newline":  func(m *Model) { m.MCPServers[0].Env = []EnvRow{{Name: "A\n    - npm: evil", Value: "1"}} },
+		"help key":          func(m *Model) { m.Guide.Connect = []ConnectRow{{Secret: "EXAMPLE_TOKEN: x", Help: "h"}} },
+		"data category":     func(m *Model) { m.DataAccess = []string{"code, evil: true"} },
+		"runtime interface": func(m *Model) { m.RuntimeInterfaces = []string{"agents-md]\nevil: [x"} },
+		"publish channel":   func(m *Model) { m.PublishChannel = "stable\nevil: true" },
+		"instruction file":  func(m *Model) { m.InstructionFile = "AGENT.md\nevil: true" },
+		"intake id":         func(m *Model) { m.Intake = []IntakeRow{{ID: "a: b", Prompt: "p"}} },
+	} {
+		m := model()
+		mutate(m)
+		if err := Save(t.TempDir(), m); err == nil {
+			t.Errorf("%s: a hostile value was saved", name)
+		}
+		if res := m.Check(); res.First == nil {
+			t.Errorf("%s: Check reports no problem", name)
+		}
+	}
+}
+
+// A secret answer is carried by the BriefAgent's own declared secret; the
+// runner does not count a server's (agentry-cli pkg/runner/intake).
+func TestSecretQuestionNeedsTheBriefAgentsOwnKey(t *testing.T) {
+	m := model()
+	m.Secrets = []string{}
+	m.MCPServers[0].Secrets = []string{"API_KEY"}
+	m.Intake = []IntakeRow{{ID: "api_key", Prompt: "Your key", Type: "secret"}}
+	if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "key of its own named API_KEY") {
+		t.Fatalf("a secret question carried only by a server's key must be refused, got %v", err)
+	}
+	m.Secrets = []string{"API_KEY"}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("with the BriefAgent's own key it passes, got %v", err)
+	}
+}
+
+// Load reads the instruction file from the picked folder only, and refuses
+// an oversized agent.yaml.
+func TestLoadStaysInsideTheFolder(t *testing.T) {
+	parent := t.TempDir()
+	if err := os.WriteFile(filepath.Join(parent, "outside.md"), []byte("not yours"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(parent, "ws")
+	m := model()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	hostile := strings.Replace(string(raw), "instruction: AGENT.md", "instruction: ../outside.md", 1)
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(hostile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got.Instructions, "not yours") {
+		t.Error("Load followed an entrypoint outside the folder")
+	}
+	if err := got.Validate(); err == nil {
+		t.Error("an entrypoint outside the folder must not be saved")
+	}
+	big := make([]byte, maxManifestBytes+1)
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), big, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(dir); err == nil {
+		t.Error("an oversized agent.yaml must be refused")
+	}
+}
