@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry/pkg/manifest"
+
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -59,5 +61,43 @@ func TestSetupStatusViewListsStoredKeyProviders(t *testing.T) {
 	}
 	if v := setupStatusView(&run.Status{Provider: "anthropic"}); v.KeysStored == nil || len(v.KeysStored) != 0 {
 		t.Fatalf("an empty list must still be a list: %+v", v.KeysStored)
+	}
+}
+
+// TestProfileStatusViewCarriesTheGuide (agentry-desktop#228): the run
+// setup's view hands the page every guide field the author wrote, with
+// arrays and maps never null, and no guide at all when the release has
+// none. Profile values never appear: the view has names only.
+func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
+	v := profileStatusView(&run.ProfileInfo{
+		Ref:             "acme/reporter@1.0.0",
+		DeclaredSecrets: []string{"RUN_TEST_TOKEN"},
+		Guide: &manifest.Guide{
+			Overview: "Writes a **report**.",
+			Files:    "Your notes.",
+			Task:     "e.g. the weekly status",
+			Connect:  map[string]string{"RUN_TEST_TOKEN": "Create one at https://api.example.com/tokens."},
+		},
+	})
+	g := v.Guide
+	if g == nil {
+		t.Fatal("the view dropped the guide")
+	}
+	if g.Overview != "Writes a **report**." || g.Files != "Your notes." || g.Task != "e.g. the weekly status" {
+		t.Fatalf("guide view = %+v", g)
+	}
+	if g.Prepare == nil || len(g.Prepare) != 0 {
+		t.Fatalf("an absent prepare list must be an empty array, got %#v", g.Prepare)
+	}
+	if g.Connect["RUN_TEST_TOKEN"] != "Create one at https://api.example.com/tokens." {
+		t.Fatalf("connect = %v", g.Connect)
+	}
+
+	plain := profileStatusView(&run.ProfileInfo{Ref: "acme/reporter@1.0.0"})
+	if plain.Guide != nil {
+		t.Fatalf("no guide in the manifest, yet the view has one: %+v", plain.Guide)
+	}
+	if noConnect := profileStatusView(&run.ProfileInfo{Guide: &manifest.Guide{Overview: "x"}}); noConnect.Guide.Connect == nil {
+		t.Fatal("an absent connect map must be an empty object")
 	}
 }

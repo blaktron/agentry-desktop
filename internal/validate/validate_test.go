@@ -142,3 +142,48 @@ func TestValidateFlagsExecutable(t *testing.T) {
 		t.Fatal("workspace with an executable passed")
 	}
 }
+
+// TestValidateAGuidedManifestPasses: the pinned core carries manifest v2's
+// optional guide block (DEV-141, agentry-desktop#228), so a workspace whose
+// agent.yaml has one validates here instead of meeting the strict
+// decoder's unknown-field refusal; a connect key that names no declared
+// secret is still refused (V10).
+func TestValidateAGuidedManifestPasses(t *testing.T) {
+	dir := benignWorkspace(t)
+	path := filepath.Join(dir, "agent.yaml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guided := string(raw) + `
+guide:
+  overview: |
+    Reads the document and returns a **risk report**.
+  prepare:
+    - The document, as text or PDF
+  files: "The document to review."
+  task: "e.g. the vendor's onboarding guide"
+`
+	if err := os.WriteFile(path, []byte(guided), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ManifestError != "" || !res.Passed {
+		t.Fatalf("a guided manifest must validate: manifest error %q, errors=%d issues=%+v", res.ManifestError, res.ErrorCount, res.Issues)
+	}
+
+	undeclared := guided + "  connect:\n    GITHUB_TOKEN: \"A token with read access.\"\n"
+	if err := os.WriteFile(path, []byte(undeclared), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err = Run(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Passed {
+		t.Fatal("connect help for a secret the release does not declare must be refused")
+	}
+}

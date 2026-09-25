@@ -38,6 +38,19 @@
 //                           a javascript: link) and a file name with a
 //                           right-to-left override: none of it becomes
 //                           markup, and the hidden characters show
+//
+// The author's guide (manifest v2's guide block, agentry-desktop#228), on
+// pr-review-brief's shape with a guide:
+//   #runpanel-guided          Before you start: the overview, then the
+//                             author's "What to have ready"
+//   #runpanel-guided-files    Files: the author's line on what to add
+//   #runpanel-guided-tools    Connect tools: the key's help under its field,
+//                             its link handed to the system browser
+//   #runpanel-guided-details  Details: the author's task placeholder
+//   #runpanel-guided-hostile  a guide carrying raw HTML, a script, an image,
+//                             javascript: and file: links and hidden
+//                             characters, on Before you start
+//   #runpanel-guided-hostile-tools  the same guide's key help on Connect tools
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -59,14 +72,41 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // line above Run names them and nothing else; #runpanel-file-intake a
 // release that asks for a file up front — the intake form shows and the
 // unanswered question is what the line names.
-const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools";
+const guidedShape = view.startsWith("runpanel-guided");
+const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape;
+const hostileGuide = view.startsWith("runpanel-guided-hostile");
+// What pr-review-brief's author could write in its guide (DEV-141).
+const guide = hostileGuide
+  ? {
+    overview:
+      "# Reviews your PR\n\nIt is **careful**. <script>alert('x')</script><b onclick=\"steal()\">raw html</b>\n\n" +
+      "![tracking pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [docs](https://example.com/docs)",
+    prepare: ["A pay\u200Bpal token <b onclick=\"steal()\">now</b>", "javascript:alert(1)"],
+    files: "<img src=\"https://evil.example/p.gif\"> none",
+    task: "e.g. <script>alert(1)</script>",
+    connect: {
+      GITHUB_TOKEN: "Paste it <b onclick=\"steal()\">here</b>. Not javascript:alert(1), file:///etc/passwd or https://github.com@evil.example/x but https://github.com/settings/tokens\u202E, or the look-alike https://g\u0456thub.com/new.",
+    },
+  }
+  : {
+    overview:
+      "Reads one pull request and returns a **review brief**: what changed, what to look at first, and the questions to ask its author.\n\n" +
+      "It reads the pull request through the GitHub API and never pushes, comments or approves.",
+    prepare: ["The pull request's URL", "A GitHub token that can read that repository's pull requests"],
+    files: "None needed: it reads the pull request from GitHub.",
+    task: "e.g. https://github.com/acme/api/pull/482, and look hardest at the migration",
+    connect: {
+      GITHUB_TOKEN: "A fine-grained token with read access to pull requests: https://github.com/settings/personal-access-tokens/new.",
+    },
+  };
 const fileIntakeShape = view === "runpanel-file-intake";
 const profile = keysShape
   ? {
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
     capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
-    declaredSecrets: ["GITHUB_TOKEN"], storedSecretNames: [], exists: false, keep: true,
+    declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : ["GITHUB_TOKEN"], storedSecretNames: [], exists: false, keep: true,
     modes: ["autonomous"], intake: [], opening: "",
+    ...(guidedShape ? { guide } : {}),
   }
   : {
     ref: "demo1/incident-summarizer@1.2.0", digest: "sha256:9c356fd0d20fef07",
@@ -180,6 +220,10 @@ const STEP_OF: Record<string, "start" | "files" | "tools" | "details" | "review"
   "runpanel-step-tools": "tools",
   "runpanel-step-details": "details",
   "runpanel-step-review": "review",
+  "runpanel-guided-files": "files",
+  "runpanel-guided-tools": "tools",
+  "runpanel-guided-details": "details",
+  "runpanel-guided-hostile-tools": "tools",
 };
 
 const g = window as any;

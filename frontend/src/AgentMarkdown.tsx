@@ -22,11 +22,14 @@ import remarkGfm from "remark-gfm";
 import { OpenExternal } from "../wailsjs/go/main/App";
 import { RevealText, isInvisible } from "./reveal";
 
-// webHref is the URL a link may keep, or null.
+// webHref is the URL a link may keep, or null. A URL carrying a user name
+// or password is refused: "https://github.com@evil.example/" reads as one
+// host and opens another (agentry-desktop#228).
 export function webHref(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
     const u = new URL(raw);
+    if (u.username || u.password) return null;
     return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
   } catch {
     return null;
@@ -37,27 +40,35 @@ const heading =
   (Tag: "h5" | "h6") =>
   ({ children }: { children?: React.ReactNode }) => <Tag>{children}</Tag>;
 
+// ExternalLink is a link that never navigates this window: a click hands
+// href (already passed through webHref) to the system browser through
+// App.OpenExternal. The run's output and an author's guide (GuideText) both
+// link only through it.
+export function ExternalLink({ href, children }: { href: string; children?: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      title={href}
+      draggable={false}
+      onClick={(e) => {
+        e.preventDefault();
+        OpenExternal(href).catch(() => {});
+      }}
+      // A middle click would open the URL in a webview window of its own,
+      // and a dragged link would navigate this one: neither is allowed.
+      onAuxClick={(e) => e.preventDefault()}
+      onDragStart={(e) => e.preventDefault()}
+    >
+      {children}
+    </a>
+  );
+}
+
 const components: Components = {
   a: ({ href, children }) => {
     const h = webHref(href);
     if (!h) return <span>{children}</span>;
-    return (
-      <a
-        href={h}
-        title={h}
-        draggable={false}
-        onClick={(e) => {
-          e.preventDefault();
-          OpenExternal(h).catch(() => {});
-        }}
-        // A middle click would open the URL in a webview window of its own,
-        // and a dragged link would navigate this one: neither is allowed.
-        onAuxClick={(e) => e.preventDefault()}
-        onDragStart={(e) => e.preventDefault()}
-      >
-        {children}
-      </a>
-    );
+    return <ExternalLink href={h}>{children}</ExternalLink>;
   },
   img: ({ alt }) => (
     <span className="img-placeholder">
