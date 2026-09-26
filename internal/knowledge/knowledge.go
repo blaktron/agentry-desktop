@@ -109,6 +109,11 @@ type Pack struct {
 	ScanState string `json:"scanState"`
 	Local     bool   `json:"local"`
 	InAgentry bool   `json:"inAgentry"`
+	// AgentryReady says Agentry's copy has been scanned and can be
+	// attached to a run In Agentry (agentry-desktop#275): its state there
+	// is ready. For a pack kept in both places that changed here since its
+	// upload, it is the older tree Agentry keeps.
+	AgentryReady bool `json:"agentryReady"`
 	// Changed is a pack kept in both places that changed here since its
 	// upload.
 	Changed bool `json:"changed"`
@@ -298,7 +303,7 @@ func localScanState(sc kn.Scan) string {
 // the record in the file; a copy of an older tree leaves the local record
 // as it is.
 func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
-	p.InAgentry = true
+	p.InAgentry, p.AgentryReady = true, r.State == store.StateReady
 	if r.State == store.StateReady && r.Digest != localDigest {
 		return
 	}
@@ -309,7 +314,7 @@ func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 
 // remotePack is a pack Agentry keeps and this computer does not.
 func remotePack(r store.Remote) Pack {
-	p := Pack{Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, Where: whereAgentry}
+	p := Pack{Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, AgentryReady: r.State == store.StateReady, Where: whereAgentry}
 	p.Scan, p.ScanState, _ = remoteScan(r)
 	return p
 }

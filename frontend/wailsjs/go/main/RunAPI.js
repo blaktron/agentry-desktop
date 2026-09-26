@@ -102,8 +102,8 @@ export function ShowRunFolder(arg1) {
   return window['go']['main']['RunAPI']['ShowRunFolder'](arg1);
 }
 
-export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['RunAPI']['StartHostedRun'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['RunAPI']['StartHostedRun'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13) {
