@@ -12,12 +12,18 @@
 // runs the form's rules and the core's own V-rules over the model without
 // touching disk, and shows the lines the step writes once it passes. The
 // folder is chosen at Save, so a person can start without one.
+//
+// Since #282 (plan builder-rework.md M8, D5, D25) the start page has a third
+// way in, Describe it: a draft made on this computer by the built-in
+// Drafter (BuildDescribe.tsx), decoded into the Model and opened on Review
+// with the Drafter's notes beside it.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { build, mcpvuln, validate } from "../../wailsjs/go/models";
+import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
+import { DescribePanel, DraftNotes } from "./BuildDescribe";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
@@ -28,9 +34,9 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // every tab change, and the form is not a file until the first save, so
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
-let kept: { model: build.Model; dir: string; view: View } | null = null;
+let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null } | null = null;
 
-type View = "start" | "steps" | "advanced";
+type View = "start" | "steps" | "advanced" | "describe";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
 type StepKey = SectionKey | "review";
 
@@ -182,15 +188,23 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0 }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, onOpenAgent, onOpenSettings }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
   initialStep?: number;
+  /** Harness only: open with a draft in the form. */
+  initialDraft?: main.DraftView | null;
+  /** A registry match's page, for Describe it's "install it instead". */
+  onOpenAgent?: (ns: string, name: string) => void;
+  /** Settings, for Describe it's missing AI Review key. */
+  onOpenSettings?: () => void;
 }) {
   const [dir, setDir] = useState(kept?.dir ?? "");
   const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
-  const [touched, setTouched] = useState(!!kept);
+  const [touched, setTouched] = useState(!!kept || !!initialDraft);
+  // The Drafter's notes, while its draft is in the form.
+  const [drafted, setDrafted] = useState<main.DraftView | null>(kept?.drafted ?? initialDraft);
   const [view, setView] = useState<View>(initialView);
   const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
   const asked = useRef(new Set<string>());
@@ -210,13 +224,17 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   useEffect(() => {
     if (kept) return;
+    if (initialDraft?.model) {
+      setModel(new build.Model(initialDraft.model));
+      return;
+    }
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
-  }, [registry]);
+  }, [registry, initialDraft]);
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
-    if (model && touched) kept = { model, dir, view: view === "start" ? kept?.view ?? "steps" : view };
-  }, [model, dir, view, touched]);
+    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted };
+  }, [model, dir, view, touched, drafted]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
@@ -287,11 +305,12 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       const loaded = await BuildAPI.Load(d);
       setDir(d);
       setModel(loaded);
+      setDrafted(null);
       setTouched(true);
       setResult(null);
       setPubResult(null);
       setNotice(`Loaded the BriefAgent in ${d}.`);
-      if (view === "start") setView("advanced");
+      if (view === "start" || view === "describe") setView("advanced");
     });
 
   // The folder is chosen at the first save (D-030: it comes from the native
@@ -370,6 +389,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   function startOver() {
     kept = null;
+    setDrafted(null);
     asked.current.clear();
     setServerChecks({});
     setTouched(false);
@@ -378,6 +398,24 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setPubResult(null);
     setModel(null);
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
+  }
+
+  // A draft made by Describe it: into the form, with no folder yet (the
+  // first save asks, D-030), and open on Review with the notes beside it.
+  function takeDraft(v: main.DraftView) {
+    if (!v.model) return;
+    moved.current = true;
+    setModel(new build.Model(v.model));
+    setDrafted(v);
+    setTouched(true);
+    setDir("");
+    setResult(null);
+    setPubResult(null);
+    setStepProblem(null);
+    setNotice(null);
+    setError(null);
+    setView("steps");
+    setAt(stepOf("review"));
   }
 
   function switchTo(v: View) {
@@ -766,11 +804,25 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     <>
       <ErrorBox error={error} />
       {notice && <Notice tone="info">{notice}</Notice>}
+      {drafted && (view === "steps" || view === "advanced") && (
+        <Notice tone="info">The Drafter made this draft from your description. It is a starting point: check every step, and what it may reach on Review, before you save or publish it.</Notice>
+      )}
       {m.hadComments && view !== "start" && (
         <Notice tone="warn">This agent.yaml has comments. Saving writes the file from the form, and the comments are not kept.</Notice>
       )}
     </>
   );
+
+  if (view === "describe") {
+    return (
+      <div>
+        {header}
+        {notices}
+        <DescribePanel registry={registry} onDrafted={takeDraft} onOpenSettings={onOpenSettings} />
+        <p className="small"><Button variant="link" onClick={() => switchTo("start")}>Back to the ways in</Button></p>
+      </div>
+    );
+  }
 
   if (view === "start") {
     return (
@@ -785,6 +837,10 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           <button className="card build-way" onClick={() => switchTo("advanced")}>
             <strong>Advanced</strong>
             <span className="muted small">Every field on one page, for when you know the manifest. It is the same form, and you can switch at any time.</span>
+          </button>
+          <button className="card build-way" onClick={() => switchTo("describe")}>
+            <strong>Describe it</strong>
+            <span className="muted small">Say what it should do, and the Drafter drafts it on this computer with your own model and AI Review key, for no credits. You check every part before you save.</span>
           </button>
         </div>
         {touched && (
@@ -840,6 +896,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           </>
         ) : (
           <>
+            {drafted && <DraftNotes v={drafted} onOpenAgent={onOpenAgent} />}
             <Recap
               rows={[
                 { label: "Basics", value: <><span className="mono">{m.name || "no name yet"}</span>: {sentence(m.summary) || "no summary yet."} Runs {(m.modes ?? []).join(" and ") || "in no mode yet"}.</>, onEdit: () => goTo(stepOf("basics")) },

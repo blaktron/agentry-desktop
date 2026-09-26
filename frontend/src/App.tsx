@@ -183,7 +183,9 @@ export default function App() {
           />
         )}
         {route.page === "knowledge" && <Knowledge registry={registry} onOpenSettings={() => nav({ page: "settings" })} />}
-        {route.page === "build" && <Build registry={registry} />}
+        {route.page === "build" && (
+          <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings" })} />
+        )}
         {route.page === "validate" && <Validate />}
         {route.page === "settings" && (
           <Settings

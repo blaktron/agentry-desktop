@@ -169,8 +169,11 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	if v.AIReview.Read != 3 || v.AIReview.Withheld != 1 || len(v.AIReview.WithheldSources) != 1 || v.AIReview.WithheldSources[0].URL != "https://bad.example/" {
 		t.Fatalf("aiReview %+v", v.AIReview)
 	}
-	if !strings.Contains(v.Notes, "<script>") || !strings.Contains(v.Notes, "## Withheld by AI Review") {
-		t.Fatalf("notes %q: the notes are the Drafter's text as written, for the page's reader to render", v.Notes)
+	// The notes are the Drafter's text as written, for the page's reader to
+	// render; the withheld list the post-step appends to them is shown from
+	// AI Review's record instead, as text, never as links.
+	if v.Notes != "Its notes: **bold** <script>alert(1)</script>" {
+		t.Fatalf("notes %q", v.Notes)
 	}
 	if len(v.DecodeNotes) == 0 || !strings.Contains(strings.Join(v.DecodeNotes, " "), "x-extra") {
 		t.Fatalf("decode notes %q", v.DecodeNotes)

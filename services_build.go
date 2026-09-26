@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/blaktron/agentry-cli/pkg/drafter"
@@ -228,7 +229,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 
 func draftView(res *draft.Result) *DraftView {
 	d := res.Draft
-	v := &DraftView{Model: res.Model, DecodeNotes: res.Notes, Notes: d.Notes, Matches: d.Matches, Sources: d.Sources,
+	v := &DraftView{Model: res.Model, DecodeNotes: res.Notes, Notes: drafterNotes(d), Matches: d.Matches, Sources: d.Sources,
 		OpenQuestions: d.OpenQuestions, ManifestError: d.ManifestError, OutDir: res.OutDir}
 	if v.DecodeNotes == nil {
 		v.DecodeNotes = []string{}
@@ -243,4 +244,22 @@ func draftView(res *draft.Result) *DraftView {
 		v.AIReview.WithheldSources = []drafter.WithheldSource{}
 	}
 	return v
+}
+
+// drafterNotes is the Drafter's own notes, without the "Withheld by AI
+// Review" list the post-step appends: the page shows that list from AI
+// Review's record, as text, where the notes' reader would make each
+// address a link to the page AI Review flagged. The list is cut by
+// rebuilding it with the CLI's own NoteWithheld, so no copy of its words
+// lives here; notes that do not end with it are returned whole.
+func drafterNotes(d *drafter.Draft) string {
+	if d.AIReview == nil || len(d.AIReview.WithheldSources) == 0 {
+		return d.Notes
+	}
+	section := &drafter.Draft{AIReview: d.AIReview}
+	section.NoteWithheld()
+	if !strings.HasSuffix(d.Notes, section.Notes) {
+		return d.Notes
+	}
+	return strings.TrimRight(strings.TrimSuffix(d.Notes, section.Notes), "\n")
 }

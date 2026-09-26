@@ -130,7 +130,39 @@ const buildCheck = {
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
 const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, publish: 6, review: 7, validate: 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, publish: 6, review: 7, validate: 7, drafted: 7, "drafted-hostile": 7 } as Record<string, number>)[buildHash] ?? 0;
+// Describe it (#282): #build-describe with the person's AI Review key saved,
+// #build-describe-nokey without one; #build-drafted opens Review with a
+// draft the Drafter made and its notes, and #build-drafted-hostile with
+// notes, a match, a source and a withheld address that carry markup, an
+// image, a javascript: link and a right-to-left override.
+const buildDescribe = buildHash.startsWith("describe");
+const hostileDraft = buildHash === "drafted-hostile";
+const draftedView = buildHash.startsWith("drafted") ? {
+  model: { ...buildModel, name: "csv-quality-check", namespace: "demo1", version: "0.1.0",
+    summary: "Checks a CSV you add for missing values, duplicate rows and mixed formats, per column.",
+    egressMode: "none", egressHosts: [], fsRead: "none", fsWrite: "none", fsWritePaths: [], secrets: [], mcpServers: [], dataAccess: ["files"],
+    intake: [{ id: "file", prompt: "The CSV file to check", type: "file", required: true, choices: [] }],
+    guide: { overview: "Reads the CSV you add and reports its problems per column.", prepare: ["The CSV file"], files: "One CSV file.", task: "Check sales.csv", connect: [] },
+    instructions: "# CSV quality check\n\nRead the CSV under /inputs. For each column, report missing values, duplicate rows and values whose format differs from the rest.\n",
+    hadComments: false },
+  decodeNotes: hostileDraft ? ["The form cannot hold these fields of the draft, so they were left out: x-run-this."] : [],
+  notes: hostileDraft
+    ? "## Notes\n\n<script>alert(1)</script><b onclick=\"steal()\">click</b> ![logo](https://evil.example/pixel.png) [open](javascript:alert(1)) and \u202eevil.exe\n"
+    : "## How I read the task\n\nA local check of one CSV file: no network, no command, no key. The registry already has **agentry/csv-data-quality-check**, which does more than asked.\n\n## What I could not settle\n\n- Whether dates should be ISO 8601.\n",
+  matches: [{ ref: hostileDraft ? "javascript:alert(1)" : "agentry/csv-data-quality-check@1.2.1", why: hostileDraft ? "<img src=x onerror=alert(1)> does it" : "Profiles a CSV for nulls, duplicates and format violations, with the same contract." }],
+  sources: [{ url: hostileDraft ? "javascript:alert(document.cookie)" : "https://www.rfc-editor.org/rfc/rfc4180", used: "the CSV format", withheld: false },
+    ...(hostileDraft ? [{ url: "https://evil.example/inject", used: "", withheld: true }] : [])],
+  openQuestions: ["Should dates be ISO 8601?", "One file per run, or several?"],
+  aiReview: { read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
+    withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
+  manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
+} : null;
+// Settings → AI Review key: saved by default; #aireview-none has none;
+// #aireview-refused answers Test key with TypeSafe's 401.
+const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
+  ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }
+  : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 const validateResult = {
   passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
   bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
@@ -182,6 +214,9 @@ g.go = { main: {
       issues: [{ rule: "V5", path: "capabilities.network.egress[0]", message: "\"http://api.pagerduty.com\" is not a valid DNS host name", warning: false }],
       findings: [{ ruleId: "S4-prompt-injection-001", scanner: "S4", severity: "high", confidence: "medium", title: "instruction override phrasing", filePath: "AGENT.md", lineStart: 12, lineEnd: 12, excerpt: "ignore previous instructions" }] }),
     ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
+    DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", model: "openai qwen3.8-flash-next",
+      searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
+    DescribeOnThisComputer: async () => { await new Promise(() => {}); },
   },
   ValidateAPI: { Run: async () => validateResult },
   // The account line on a signed-in registry's card (agentry-desktop#74,
@@ -301,6 +336,12 @@ g.go = { main: {
     RestartNow: async () => undefined,
     SetupStatus: async () => ({ dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" }] }),
+    JevKeyStatus: async () => jevKeyView,
+    StoreJevKey: async () => ({ stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true }),
+    ForgetJevKey: async () => ({ stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }),
+    TestJevKey: async () => (window.location.hash === "#aireview-refused"
+      ? { ok: false, message: "TypeSafe refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
+      : { ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
   },
 } };
 g.runtime = {
@@ -347,7 +388,8 @@ createRoot(document.getElementById("root")!).render(
     <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="Browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildView as "start" | "steps" | "advanced"} initialStep={buildStep} /></Shell></div>
+    <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced"} initialStep={buildStep}
+      initialDraft={draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
     <div data-preview="settings"><Shell active="Settings"><Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}} /></Shell></div>
   </div>,

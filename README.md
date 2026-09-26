@@ -108,18 +108,66 @@ The product never claims an agent is "safe". The language is always:
   publication pipeline runs (D-12 local/remote parity by construction), with
   the rule bundle embedded in the binary.
 - **Build** — author a BriefAgent, validate it, and publish it over the same
-  upload path the CLI uses. The tab opens on a start page with two views of
-  one form:
+  upload path the CLI uses. The tab opens on a start page with three ways in:
   - **Step by step** walks eight steps: Basics, Instructions, Tools and web
     access, Files, commands and data, Questions, Before a run, Publishing,
     Review. Each step is checked with the core's own manifest rules before
     Next, and shows the lines it writes to `agent.yaml`.
-  - **Advanced** shows every field at once.
+  - **Advanced** shows every field at once. It is the same form as Step by
+    step, so switching loses nothing.
+  - **Describe it** drafts one from a plain description, with three optional
+    hints. The built-in Drafter (the one `agentry draft` runs) drafts it on
+    this computer against the model your runner policy names, for no credits.
+    It searches the registry and, when your policy names a search provider
+    and you have a key for it, the web, then reads the pages it finds.
+    - AI Review reads your description first, and then every search result,
+      page and registry answer before the Drafter's model does, with your own
+      AI Review key (Settings → **AI Review key**). What AI Review flags, or
+      cannot scan, is held back: the model gets the address and the reason,
+      never the text. A description it does not pass stops the draft before
+      the Drafter starts.
+    - Without a key, drafting on this computer is off, and the page says
+      where to add one.
+    - A native dialog asks before anything leaves this computer. Your
+      description, the searches and the pages go to TypeSafe, to your search
+      provider and to the sites read, so the description should hold no
+      secret.
+    - The draft is a run like any other: it holds the run lock, and quitting
+      ends it.
+    - The draft opens on Review with what the Drafter found beside it: what
+      AI Review read and held back, the published BriefAgents that already do
+      the task (each with a link to its page), what the description leaves
+      open, the Drafter's notes (shown as a run's result is, with no HTML and
+      no images) and its sources.
+    - The draft is decoded into the form as data. Fields the form cannot hold
+      are dropped and named, and an instruction file outside the folder
+      becomes `AGENT.md`.
+    - Nothing is written into a BriefAgent folder until you save it into one
+      you pick. The run's receipts and `draft.json` are kept in
+      `~/Downloads/agentry-out/agentry-drafter-<run id>`.
 
   The form covers the whole of manifest schema v2, the run guide and each
   server's plain configuration included. Opening an existing workspace and
   saving it keeps every field; only comments are lost, and the page says
   so. The folder is chosen at the first save.
+- **Settings → AI Review key** — your own TypeSafe Jev key, which every
+  local action that requires a scan uses (today, Describe it on this
+  computer; plan builder-rework.md D25).
+  - Where it is kept: in the OS keychain next to your model key, as the entry
+    `provider:typesafe` under the CLI's `agentry` service. The runner policy
+    records only `judge: {apiKeySource: keyring}`, so `agentry draft` reads
+    the same key. `$TYPESAFE_API_KEY`, set where the app is started, is used
+    first, and the page says so.
+  - What the page shows: "saved", never the value. The key goes to the app's
+    backend in a call of its own, and no log line or answer carries it back.
+  - **Test key** makes one small call to TypeSafe with the key a draft would
+    use and says the answer in plain words: it works, TypeSafe refused it
+    (401, 403), is limiting it (429), or could not be reached.
+  - **Forget the saved key** removes it from the keychain and the policy.
+  - A keychain that cannot be reached refuses the save, and the policy is
+    left as it was.
+  - Inside a draft, the key reaches only the tools container, where the
+    Drafter's web tools run, never the agent's container.
 
 ## Architecture
 
