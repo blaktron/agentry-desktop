@@ -22,7 +22,7 @@ import (
 func TestCreateWatchFinishAndDownload(t *testing.T) {
 	f := &fakeRuns{
 		enabled: true, workersOnline: 0, queued: 1, pushed: true,
-		caller: &Caller{Tier: "standard", Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, HoldCredits: 20, TokensPerCredit: 1000},
+		caller: &Caller{Tier: "standard", Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, HoldCredits: 20, InputTokensPerCredit: 50000, OutputTokensPerCredit: 25000},
 		outputs: map[string][]byte{
 			"result.json":         []byte(`"the incident summary"`),
 			"reports/report.md":   []byte("# Report\n"),

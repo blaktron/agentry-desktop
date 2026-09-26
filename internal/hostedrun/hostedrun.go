@@ -62,14 +62,36 @@ type Caps struct {
 	MaxTokens      int64 `json:"maxTokens"`
 }
 
-// Caller is what a run of the signed-in caller's would hold. The numbers
-// come from the registry so no client does credit arithmetic of its own
-// (plan §4.1).
+// Caller is what a run of the signed-in caller's would hold, the two rates
+// a settlement is computed at (Knowledge D29, agentry-enterprise#171: the
+// single tokensPerCredit is retired), and what a knowledge build of theirs
+// holds. The numbers come from the registry so no client does credit
+// arithmetic of its own (plan §4.1).
 type Caller struct {
-	Tier            string `json:"tier"`
-	Caps            Caps   `json:"caps"`
-	HoldCredits     int64  `json:"holdCredits"`
-	TokensPerCredit int64  `json:"tokensPerCredit"`
+	Tier    string `json:"tier"`
+	Account string `json:"account,omitempty"`
+	Caps    Caps   `json:"caps"`
+	// HoldCredits is 0 for a member of an unmetered organization.
+	HoldCredits           int64      `json:"holdCredits"`
+	InputTokensPerCredit  int64      `json:"inputTokensPerCredit"`
+	OutputTokensPerCredit int64      `json:"outputTokensPerCredit"`
+	Build                 *TierPrice `json:"build,omitempty"`
+}
+
+// TierPrice is a set of caps and what they hold (x-runs.yaml RunTierPrice).
+type TierPrice struct {
+	Caps        Caps  `json:"caps"`
+	HoldCredits int64 `json:"holdCredits"`
+}
+
+// BuildPrice is what a knowledge build costs here, to anyone
+// (x-runs.yaml RunsStatus.knowledgeBuild): whether the deployment takes
+// one, its hold on a metered payer, and the pack scan's credit inside it
+// (DEV-150).
+type BuildPrice struct {
+	Enabled     bool  `json:"enabled"`
+	HoldCredits int64 `json:"holdCredits"`
+	ScanCredits int64 `json:"scanCredits"`
 }
 
 // Status is GET /x/runs/status: whether this deployment takes hosted runs,
@@ -83,6 +105,8 @@ type Status struct {
 	HostsOnline   int     `json:"hostsOnline"`
 	Queued        int     `json:"queued"`
 	Caller        *Caller `json:"caller,omitempty"`
+	// KnowledgeBuild is absent from a registry from before the build kind.
+	KnowledgeBuild *BuildPrice `json:"knowledgeBuild,omitempty"`
 }
 
 // RunnersOnline is how many runners, of either kind, can take a run now.
@@ -118,28 +142,53 @@ func (u *Usage) Tokens() int64 {
 	return u.InputTokens + u.OutputTokens
 }
 
+// The kinds of run (x-runs.yaml `Run.kind`). A registry from before the
+// build kind sends none, and every row it sends is a run.
+const (
+	KindRun            = "run"
+	KindKnowledgeBuild = "knowledge_build"
+)
+
+// KnowledgeBuild is a hosted knowledge build's record (x-runs.yaml
+// `KnowledgeBuild`): the pack it builds into, the tree it was handed, and
+// what became of the pack. Applied says the tree it made is the pack's now
+// and was handed to the scan; Note says why not, when it is not.
+type KnowledgeBuild struct {
+	Pack        string `json:"pack"`
+	Name        string `json:"name"`
+	From        string `json:"from"`
+	Applied     bool   `json:"applied"`
+	Digest      string `json:"digest,omitempty"`
+	Pages       int    `json:"pages,omitempty"`
+	Bytes       int64  `json:"bytes,omitempty"`
+	ScanCredits int64  `json:"scanCredits,omitempty"`
+	Note        string `json:"note,omitempty"`
+}
+
 // Run is one hosted run as the account reads it (x-runs.yaml `Run`).
 type Run struct {
-	ID              string     `json:"id"`
-	Ref             string     `json:"ref"`
-	Digest          string     `json:"digest"`
-	Mode            string     `json:"mode"`
-	Status          string     `json:"status"`
-	Outcome         string     `json:"outcome,omitempty"`
-	ExitClass       string     `json:"exitClass,omitempty"`
-	Error           string     `json:"error,omitempty"`
-	CancelRequested bool       `json:"cancelRequested"`
-	Caps            Caps       `json:"caps"`
-	HoldCredits     int64      `json:"holdCredits"`
-	SettledCredits  *int64     `json:"settledCredits,omitempty"`
-	Usage           *Usage     `json:"usage,omitempty"`
-	Receipt         Receipt    `json:"receipt,omitempty"`
-	Inputs          []Artefact `json:"inputs"`
-	Outputs         []Artefact `json:"outputs"`
-	QueuePosition   int        `json:"queuePosition,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	StartedAt       *time.Time `json:"startedAt,omitempty"`
-	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
+	ID              string          `json:"id"`
+	Kind            string          `json:"kind,omitempty"`
+	Build           *KnowledgeBuild `json:"build,omitempty"`
+	Ref             string          `json:"ref"`
+	Digest          string          `json:"digest"`
+	Mode            string          `json:"mode"`
+	Status          string          `json:"status"`
+	Outcome         string          `json:"outcome,omitempty"`
+	ExitClass       string          `json:"exitClass,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	CancelRequested bool            `json:"cancelRequested"`
+	Caps            Caps            `json:"caps"`
+	HoldCredits     int64           `json:"holdCredits"`
+	SettledCredits  *int64          `json:"settledCredits,omitempty"`
+	Usage           *Usage          `json:"usage,omitempty"`
+	Receipt         Receipt         `json:"receipt,omitempty"`
+	Inputs          []Artefact      `json:"inputs"`
+	Outputs         []Artefact      `json:"outputs"`
+	QueuePosition   int             `json:"queuePosition,omitempty"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	StartedAt       *time.Time      `json:"startedAt,omitempty"`
+	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
 }
 
 // Empty reports whether the registry kept no receipt for the run: a run
@@ -149,6 +198,9 @@ type Run struct {
 func (r Receipt) Empty() bool {
 	return len(r.CapabilitiesEnforced) == 0 && r.Attestation.State == "" && r.Harness.Adapter == "" && r.ExitClass == ""
 }
+
+// IsBuild reports whether this row is a knowledge build, not a run.
+func (r *Run) IsBuild() bool { return r != nil && r.Kind == KindKnowledgeBuild }
 
 // Terminal reports whether the run has stopped moving.
 func (r *Run) Terminal() bool { return r != nil && !Active(r.Status) }
@@ -176,12 +228,20 @@ type Input struct {
 	Bytes int64  `json:"bytes"`
 }
 
-// CreateRequest is the body of POST /x/runs/.
+// CreateRequest is the body of POST /x/runs/: a run names a Ref; a
+// knowledge build (Kind KindKnowledgeBuild) names exactly one of Name (a
+// new pack), Pack (the account's pack in Agentry, by its registry id) or
+// Continue (a finished or cancelled build, whose documents the registry
+// copies, so it sends no Inputs), and no Ref, Task or Intake.
 type CreateRequest struct {
-	Ref    string            `json:"ref"`
-	Task   string            `json:"task,omitempty"`
-	Intake map[string]string `json:"intake,omitempty"`
-	Inputs []string          `json:"inputs,omitempty"`
+	Kind     string            `json:"kind,omitempty"`
+	Ref      string            `json:"ref,omitempty"`
+	Name     string            `json:"name,omitempty"`
+	Pack     string            `json:"pack,omitempty"`
+	Continue string            `json:"continue,omitempty"`
+	Task     string            `json:"task,omitempty"`
+	Intake   map[string]string `json:"intake,omitempty"`
+	Inputs   []string          `json:"inputs,omitempty"`
 }
 
 // Client talks to one registry's runs extension as one account.

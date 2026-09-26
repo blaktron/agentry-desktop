@@ -37,6 +37,9 @@ type KnowledgeAPI struct {
 	build knowledge.Builder
 	// openFolder reveals an exported folder; nil is the file manager.
 	openFolder func(dir string) error
+	// hosted is the build In Agentry this app follows
+	// (services_knowledge_hosted.go).
+	hosted hostedBuilds
 }
 
 func (k *KnowledgeAPI) env() knowledge.Env { return k.run.knowledge() }

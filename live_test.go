@@ -200,8 +200,8 @@ func TestLiveHostedRun(t *testing.T) {
 	if st.Caller == nil {
 		t.Fatal("the status route told this token nothing about its tier, caps or hold")
 	}
-	t.Logf("hosted runs: %d runners online (%d hosts, %d workers), %d queued; this account is %s, a run holds %d credits (%d tokens per credit), caps %ds/%d turns/%d tokens",
-		st.RunnersOnline(), st.HostsOnline, st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits, st.Caller.TokensPerCredit,
+	t.Logf("hosted runs: %d runners online (%d hosts, %d workers), %d queued; this account is %s, a run holds %d credits (a credit is %d input or %d output tokens), caps %ds/%d turns/%d tokens",
+		st.RunnersOnline(), st.HostsOnline, st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits, st.Caller.InputTokensPerCredit, st.Caller.OutputTokensPerCredit,
 		st.Caller.Caps.TimeoutSeconds, st.Caller.Caps.MaxTurns, st.Caller.Caps.MaxTokens)
 
 	task := os.Getenv("AGENTRY_HOSTED_TASK")
