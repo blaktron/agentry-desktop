@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
-
-	"github.com/blaktron/agentry-desktop/internal/build"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+
+	"github.com/blaktron/agentry-desktop/internal/build"
 )
 
 // The renderer is not a principal (D-030; security review 2026-09-20 §8.4,
@@ -24,6 +26,10 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	// The consent-free run below reaches beginRun: its crash-path record
 	// (agentry-desktop#198) goes to a temp dir, not the real runner home.
 	r := &RunAPI{app: app, inFlightDir: t.TempDir()}
+	// A draft reaches its dialog only with a Jev key of the person's, here
+	// the variable's, under a runner home of the test's own.
+	t.Setenv(policy.HomeEnv, t.TempDir())
+	t.Setenv(policy.DefaultJudgeKeyEnv, "jev-consent-test")
 	for name, call := range map[string]func() error{
 		"RestartNow":       func() error { return r.RestartNow() },
 		"InstallDocker":    func() error { _, err := r.InstallDocker(); return err },
@@ -41,13 +47,20 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 			_, err := i.Confirm("plan", false, true, true)
 			return err
 		},
+		// Describe it, on this computer (#282): where the description goes is
+		// asked before anything leaves this computer.
+		"BuildAPI.DescribeOnThisComputer": func() error {
+			b := &BuildAPI{app: app, run: r}
+			_, err := b.DescribeOnThisComputer("https://r.example", "Summarize my meeting notes.", nil)
+			return err
+		},
 	} {
 		err := call()
 		if err == nil || !strings.Contains(err.Error(), "not confirmed") {
 			t.Errorf("%s with the dialog answered No: err = %v, want a refusal", name, err)
 		}
 	}
-	if len(asked) != 6 {
+	if len(asked) != 7 {
 		t.Fatalf("dialogs raised = %v, want one per call", asked)
 	}
 	// A consent-free run raises no dialog: nothing to confirm.

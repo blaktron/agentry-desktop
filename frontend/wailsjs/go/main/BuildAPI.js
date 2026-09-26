@@ -6,6 +6,14 @@ export function Check(arg1) {
   return window['go']['main']['BuildAPI']['Check'](arg1);
 }
 
+export function DescribeOnThisComputer(arg1, arg2, arg3) {
+  return window['go']['main']['BuildAPI']['DescribeOnThisComputer'](arg1, arg2, arg3);
+}
+
+export function DescribeStatus() {
+  return window['go']['main']['BuildAPI']['DescribeStatus']();
+}
+
 export function Exists(arg1) {
   return window['go']['main']['BuildAPI']['Exists'](arg1);
 }
