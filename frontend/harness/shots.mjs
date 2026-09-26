@@ -116,6 +116,11 @@ const states = [
   // the export it implies, its folder, the switch off by default; and
   // the agent page's one-off link, named for the coding agent, opening
   // the wizard on that export.
+  // Settings → AI Review key (#282): saved, never shown; none saved; and
+  // Test key answered with TypeSafe's refusal in plain words.
+  { name: "settings-aireview-key", url: "/pages.html", note: "Settings → AI Review key: saved in the keychain, the value never shown, Test key and Forget", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Saved in this computer's keychain." },
+  { name: "settings-aireview-key-none", url: "/pages.html#aireview-none", note: "no AI Review key: drafting on this computer is off until one is added; Test key greyed", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Drafting on this computer is off" },
+  { name: "settings-aireview-key-refused", url: "/pages.html#aireview-refused", note: "Test key answered 401: TypeSafe's refusal in plain words, and which key was tried", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', click: '[data-preview="settings"] button:has-text("Test key")', expectText: "TypeSafe refused the key (401)" },
   { name: "settings-coding-agents", url: "/pages.html", note: "Settings → Coding agents: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
   { name: "settings-coding-agents-codex", url: "/pages.html#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
   { name: "settings-coding-agents-none", url: "/pages.html#coding-none", note: "nothing chosen, no folder: AGENTS.md needs a project, the switch cannot go on", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectDisabledSwitch: true },
@@ -145,6 +150,14 @@ const states = [
   { name: "page-build-guide", url: "/pages.html#build-guide", note: "Step by step: Before a run, with its preview", locator: '[data-preview="build"]', expectText: "What a person sees before a run" },
   { name: "page-build-review", url: "/pages.html#build-review", note: "Step by step: Review, the recap with Edit and the actions", locator: '[data-preview="build"]', expectText: "Step 8 of 8: Review" },
   { name: "page-build-advanced", url: "/pages.html#build-advanced", note: "Advanced: every section at once", locator: '[data-preview="build"]', expectText: "Before a run" },
+  // Describe it, on this computer (#282): the description with the person's
+  // AI Review key saved, and without one (the Settings pointer, Draft it
+  // greyed); a draft on Review with the Drafter's notes; a hostile draft
+  // whose notes, match, source and withheld address must stay text.
+  { name: "page-build-describe", url: "/pages.html#build-describe", note: "Describe it: the description, the hints, on this computer with the policy's model, the key from the keychain, the search line and where the description goes", locator: '[data-preview="build"]', expectText: "AI Review uses your key from this computer's keychain" },
+  { name: "page-build-describe-nokey", url: "/pages.html#build-describe-nokey", note: "Describe it with no AI Review key: the Settings pointer, and Draft it greyed", locator: '[data-preview="build"]', expectText: "needs your own TypeSafe Jev key" },
+  { name: "page-build-drafted", url: "/pages.html#build-drafted", note: "a draft on Review: what AI Review read and held back, the registry's match with its page, the open questions, the Drafter's notes, the sources", locator: '[data-preview="build"]', expectText: "AI Review read 6 results with your key and held back 0" },
+  { name: "page-build-drafted-hostile", url: "/pages.html#build-drafted-hostile", note: "a hostile draft on Review: no markup of its own, no image, no javascript: link, the withheld address as text, the override shown", locator: '[data-preview="build"]', expectText: "U+202E", expectNone: '[data-preview="build"] .card img, [data-preview="build"] .card script, [data-preview="build"] .card iframe, [data-preview="build"] .card b[onclick], [data-preview="build"] .card a[href^="javascript"], [data-preview="build"] .card a[href*="evil.example"]' },
   { name: "page-build-comments", url: "/pages.html#build-comments", note: "a loaded agent.yaml with comments: the notice that a save drops them", locator: '[data-preview="build"]', expectText: "the comments are not kept" },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell", locator: '[data-preview="validate"]' },
   { name: "page-settings", url: "/pages.html", note: "Settings under the shell", locator: '[data-preview="settings"]' },

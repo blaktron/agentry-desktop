@@ -38,6 +38,10 @@ export function ForgetHarness(arg1) {
   return window['go']['main']['RunAPI']['ForgetHarness'](arg1);
 }
 
+export function ForgetJevKey() {
+  return window['go']['main']['RunAPI']['ForgetJevKey']();
+}
+
 export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
 }
@@ -52,6 +56,10 @@ export function HostedAvailability(arg1, arg2) {
 
 export function InstallDocker() {
   return window['go']['main']['RunAPI']['InstallDocker']();
+}
+
+export function JevKeyStatus() {
+  return window['go']['main']['RunAPI']['JevKeyStatus']();
 }
 
 export function ListModels(arg1, arg2, arg3) {
@@ -102,6 +110,14 @@ export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg
   return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
 }
 
+export function StoreJevKey(arg1) {
+  return window['go']['main']['RunAPI']['StoreJevKey'](arg1);
+}
+
 export function StoreModelKey(arg1, arg2) {
   return window['go']['main']['RunAPI']['StoreModelKey'](arg1, arg2);
+}
+
+export function TestJevKey() {
+  return window['go']['main']['RunAPI']['TestJevKey']();
 }

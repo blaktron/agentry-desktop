@@ -65,6 +65,18 @@ every section at once, and `#build-comments` is a loaded `agent.yaml` with
 comments, which a save does not keep. `BuildAPI.Check` is mocked with a
 passing answer, so each step shows the lines it writes.
 
+Describe it (#282, plan builder-rework.md M8) is the Build tab's third way
+in: `#build-describe` opens it with the person's AI Review key saved and
+`#build-describe-nokey` without one (the Settings pointer, Draft it greyed).
+`#build-drafted` opens Review with a draft the Drafter made, what AI Review
+read and held back, the registry's match with a link to its page, the open
+questions, the notes and the sources. `#build-drafted-hostile` is a draft whose
+notes, match, source and withheld address carry raw HTML, a script, an image,
+`javascript:` links and a right-to-left override; `shots.mjs` fails it if any
+becomes markup or a link. Settings → AI Review key is `settings-aireview-key`
+(saved), `#aireview-none` (none) and `#aireview-refused` (Test key answered
+401).
+
 The Knowledge panel (agentry-desktop#273) has its own entry, `knowledge.html`
 (`knowledge.tsx`): `#knowledge` is the list signed in (a pack kept here only,
 one in both places scanned in Agentry, one changed since its upload, one in
