@@ -28,7 +28,7 @@ import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
-import { attachable, pagesOf, scanTone } from "../knowledge";
+import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
 
 export default function RunPanel({
   registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep,
@@ -78,6 +78,11 @@ export default function RunPanel({
   // was mounted.
   const [packs, setPacks] = useState<knowledge.Pack[] | null>(null);
   const [attach, setAttach] = useState<string[]>([]);
+  // A pack kept only here being uploaded from the Knowledge step, so a run
+  // In Agentry can attach it once Agentry has scanned it; and what the
+  // upload said.
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [outDir, setOutDir] = useState("");
   const [keep, setKeep] = useState(true);
   // D-012: the keep toggle is sent only once the user touches it; an
@@ -230,10 +235,17 @@ export default function RunPanel({
   const steps = setupSteps({
     servers: mcp?.declaredServers?.length ?? 0,
     secrets: profile?.declaredSecrets.length ?? 0,
-    knowledge: !inAgentry && (packs?.length ?? 0) > 0,
+    // In Agentry, only where the registry attaches packs to a hosted run
+    // and this computer's token may read them (agentry-desktop#275).
+    knowledge: (packs?.length ?? 0) > 0 && (!inAgentry || !!hosted?.knowledgeAttach),
   });
-  // What a run on this machine attaches: the ticked packs still kept here.
-  const attached = inAgentry ? [] : attach.filter((n) => (packs ?? []).some((p) => attachable(p) && p.name === n));
+  // What a run attaches: the ticked packs it can take where it runs — kept
+  // here for this machine, kept and scanned in Agentry for a run there.
+  const canAttach = inAgentry ? attachableInAgentry : attachable;
+  // Nothing is attached from a step the setup does not show: a pack ticked
+  // for this machine does not ride along to a run In Agentry that offers
+  // none, and the review shows exactly what goes.
+  const attached = steps.includes("knowledge") ? attach.filter((n) => (packs ?? []).some((p) => canAttach(p) && p.name === n)) : [];
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
@@ -262,6 +274,10 @@ export default function RunPanel({
       return needsProfile
         ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
         : "Save the keys or cancel the change to go on.";
+    }
+    if (step === "knowledge" && inAgentry) {
+      const p = tooManyPacks(attached.length, hosted?.maxPacks);
+      if (p) return p;
     }
     if (step === "details" && profile) {
       const q = profile.intake.find((q) => intakeMissing.includes(q.id));
@@ -368,7 +384,7 @@ export default function RunPanel({
     setHostedRun(null);
     setLog([]);
     try {
-      const started = await RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers());
+      const started = await RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
       if (started.refusal) {
         setHostedRefusal(started);
         return;
@@ -378,6 +394,29 @@ export default function RunPanel({
       setRunErr(String(e));
     } finally {
       setStarting(false);
+    }
+  }
+
+  // Upload a pack kept here so a run In Agentry can attach it (the
+  // Knowledge panel's own Upload): Agentry scans it first, so it can be
+  // ticked once the list, read again, says it is ready there.
+  async function uploadForAgentry(name: string) {
+    setUploading(name);
+    setUploadNote(null);
+    try {
+      const said = await KnowledgeAPI.Upload(registry, name);
+      const l = await KnowledgeAPI.List(registry);
+      setPacks(l.packs);
+      const now = l.packs.find((p) => p.name === name && p.inAgentry);
+      setUploadNote(
+        now && now.agentryReady
+          ? `${name} is in Agentry and scanned; it can be attached.`
+          : `${said || `${name} was uploaded.`} Agentry scans it before a run can attach it; come back to this step once the scan ends.`,
+      );
+    } catch (e) {
+      setUploadNote(String(e));
+    } finally {
+      setUploading(null);
     }
   }
 
@@ -611,21 +650,34 @@ export default function RunPanel({
 
             {step === "knowledge" && (
               <>
-                <p className="muted small">
-                  Attach knowledge packs kept on this computer. Each is mounted read-only at{" "}
-                  <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the BriefAgent
-                  reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
-                  <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
-                  they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
-                  its digest. A run needs none.
-                </p>
+                {inAgentry ? (
+                  <p className="muted small">
+                    Attach knowledge packs Agentry keeps for your account. Each is mounted read-only at{" "}
+                    <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, on
+                    Agentry&apos;s sandbox host, from the copy Agentry keeps and has scanned, and the BriefAgent reads it
+                    with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
+                    <span className="mono">knowledge_read</span>; commands the release declares run in that container too,
+                    so they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack
+                    and its digest.
+                    {hosted?.maxPacks ? ` A run In Agentry attaches at most ${hosted.maxPacks}.` : ""} A run needs none.
+                  </p>
+                ) : (
+                  <p className="muted small">
+                    Attach knowledge packs kept on this computer. Each is mounted read-only at{" "}
+                    <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the BriefAgent
+                    reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
+                    <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
+                    they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
+                    its digest. A run needs none.
+                  </p>
+                )}
                 <div className="knowledge-attach-list">
                 {(packs ?? []).map((p) => (
                   <label key={`${p.name} ${p.local ? "here" : "agentry"}`} className="knowledge-attach">
                     <input
                       type="checkbox"
-                      disabled={!attachable(p)}
-                      checked={attachable(p) && attach.includes(p.name)}
+                      disabled={!canAttach(p)}
+                      checked={canAttach(p) && attach.includes(p.name)}
                       onChange={(e) => setAttach(e.target.checked ? [...attach, p.name] : attach.filter((n) => n !== p.name))}
                     />
                     <span className="grow">
@@ -635,14 +687,29 @@ export default function RunPanel({
                       </span>
                       <span className="muted small" style={{ display: "block" }}>
                         {pagesOf(p.pages)} · {fmtBytes(p.bytes)} ·{" "}
-                        {!attachable(p)
-                          ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
-                          : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
+                        {inAgentry
+                          ? inAgentryLine(p)
+                          : !attachable(p)
+                            ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
+                            : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
                       </span>
+                      {inAgentry && p.local && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
+                        <Button
+                          variant="link"
+                          disabled={uploading !== null}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            void uploadForAgentry(p.name);
+                          }}
+                        >
+                          {uploading === p.name ? "Uploading…" : "Upload to Agentry"}
+                        </Button>
+                      )}
                     </span>
                   </label>
                 ))}
                 </div>
+                {uploadNote && <p className="muted small" role="status">{uploadNote}</p>}
               </>
             )}
 
@@ -814,6 +881,12 @@ export default function RunPanel({
                         <span className="mono small selectable">{attached.length === 0 ? "none" : attached.join(", ")}</span>
                         <Button variant="link" onClick={() => goTo(steps.indexOf("knowledge"))} aria-label="Edit knowledge">Edit</Button>
                       </dd>
+                    </>
+                  )}
+                  {inAgentry && !steps.includes("knowledge") && (packs?.length ?? 0) > 0 && hosted?.knowledgeNote && (
+                    <>
+                      <dt>Knowledge</dt>
+                      <dd><span className="muted small">{hosted.knowledgeNote}</span></dd>
                     </>
                   )}
                   {profile && profile.declaredSecrets.length > 0 && (
@@ -1067,6 +1140,7 @@ export default function RunPanel({
             tone={hostedRun.outcomeTone === "ok" ? "ok" : hostedRun.outcomeTone === "bad" ? "bad" : "warn"}
             error={hostedRun.downloadError || undefined}
             resultJson={hostedRun.resultJson ?? ""}
+            knowledge={hostedRun.knowledgeLine || undefined}
           >
             <HostedResult run={hostedRun} />
           </RunResultView>

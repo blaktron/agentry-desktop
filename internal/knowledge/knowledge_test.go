@@ -268,6 +268,11 @@ func TestTheListSaysWhereEachPackIsAndWhatHoldsItsKey(t *testing.T) {
 	if p := byName["remote-only"]; p.Local || !p.InAgentry || p.Where != "Agentry" || p.ScanState != ScanScanned || p.Key != "" {
 		t.Errorf("remote-only = %+v", p)
 	}
+	// What a run In Agentry may attach (agentry-desktop#275): the copies
+	// Agentry keeps and has scanned, never a pack kept only here.
+	if !byName["both"].AgentryReady || !byName["remote-only"].AgentryReady || byName["local-only"].AgentryReady {
+		t.Errorf("agentryReady: both %v, remote-only %v, local-only %v", byName["both"].AgentryReady, byName["remote-only"].AgentryReady, byName["local-only"].AgentryReady)
+	}
 
 	// Signed out, the kept packs are listed and Agentry says why not.
 	out := e
