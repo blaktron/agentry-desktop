@@ -242,7 +242,10 @@ export default function RunPanel({
   // What a run attaches: the ticked packs it can take where it runs — kept
   // here for this machine, kept and scanned in Agentry for a run there.
   const canAttach = inAgentry ? attachableInAgentry : attachable;
-  const attached = attach.filter((n) => (packs ?? []).some((p) => canAttach(p) && p.name === n));
+  // Nothing is attached from a step the setup does not show: a pack ticked
+  // for this machine does not ride along to a run In Agentry that offers
+  // none, and the review shows exactly what goes.
+  const attached = steps.includes("knowledge") ? attach.filter((n) => (packs ?? []).some((p) => canAttach(p) && p.name === n)) : [];
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
@@ -690,7 +693,7 @@ export default function RunPanel({
                             ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
                             : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
                       </span>
-                      {inAgentry && p.local && (!p.inAgentry || p.changed) && (
+                      {inAgentry && p.local && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
                         <Button
                           variant="link"
                           disabled={uploading !== null}

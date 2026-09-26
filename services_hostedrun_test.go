@@ -341,14 +341,21 @@ func newRunAPI(t *testing.T) (*RunAPI, *emitted) {
 	}
 	t.Cleanup(func() { emitEvent = old })
 	r := &RunAPI{app: &App{ctx: context.Background()}}
-	// Registered last, so it runs first: a follow still going when the
-	// test ends is stopped and waited for before emitEvent is put back, or
-	// its next report reaches the real Wails runtime, which exits the
-	// test binary on a context that is not its own.
+	// Cleanups run last-registered first, so this one runs before
+	// emitEvent is put back: a follow still going when the test ends is
+	// stopped and waited for, or its next report reaches the real Wails
+	// runtime, which exits the test binary on a context that is not its
+	// own. It does not run before a cleanup registered after it (fastPoll's):
+	// a test whose follow may still be going when it ends calls fastPoll
+	// first.
 	t.Cleanup(func() {
 		if cur := r.hostedCurrent(); cur != nil && cur.done != nil {
 			cur.cancel()
-			<-cur.done
+			select {
+			case <-cur.done:
+			case <-time.After(10 * time.Second):
+				t.Error("a run In Agentry's follow did not stop within 10s of the test's end")
+			}
 		}
 	})
 	return r, e
@@ -792,8 +799,8 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 	}
 	reg := f.start(t)
 	signIn(t, reg)
+	fastPoll(t) // before newRunAPI, so its follow stops before the poll is put back
 	r, events := newRunAPI(t)
-	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
 
@@ -837,10 +844,14 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 		t.Fatalf("the knowledge line = %q", final.KnowledgeLine)
 	}
 
-	// A run with none sends none.
+	// A run with none sends none. The first run's views go, so the wait
+	// below is for this run's end.
 	f.mu.Lock()
 	f.run, f.created = nil, nil
 	f.mu.Unlock()
+	events.mu.Lock()
+	events.runs = nil
+	events.mu.Unlock()
 	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
 		t.Fatal(err)
 	}

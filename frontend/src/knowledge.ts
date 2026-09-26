@@ -56,8 +56,8 @@ export function inAgentryLine(p: knowledge.Pack): string {
     return p.scanState === "scanning"
       ? "attach it once Agentry's scan of it ends"
       : p.scanState === "failed"
-        ? "Agentry's scan could not read it: upload it again to attach it"
-        : "Agentry holds no pages of it yet: upload it to attach it";
+        ? `Agentry's scan could not read it: upload it again${p.local ? "" : " from a computer that keeps it"} to attach it`
+        : `Agentry holds no pages of it yet: upload it${p.local ? "" : " from a computer that keeps it"} to attach it`;
   }
   if (p.local && p.changed) return "the run gets the copy Agentry keeps, which is older than this computer's: upload it again first to attach this one";
   return "kept in Agentry; the run reads Agentry's copy";

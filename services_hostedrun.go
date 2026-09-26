@@ -377,7 +377,7 @@ func (r *RunAPI) packsInAgentry(reg string, names []string) ([]string, error) {
 			}
 			found = true
 			if !p.AgentryReady || p.AgentryID == "" {
-				return nil, fmt.Errorf("the knowledge pack %s is not ready in Agentry (%s); attach it once its scan there ends", name, p.Scan)
+				return nil, fmt.Errorf("the knowledge pack %s is not ready in Agentry: attach it once Agentry has scanned it", name)
 			}
 			ids = append(ids, p.AgentryID)
 			break
