@@ -2,9 +2,11 @@
 // the knowledge packs kept on this computer and, signed in, the ones the
 // account keeps in Agentry. A pack is kept sealed in the runner home the
 // CLI shares, encrypted to a key of its own that the registry wraps for
-// the account, so the words say what holds that key — "your account's key,
-// which Agentry holds", or this computer's while signed out — and none of
-// the words plan §3 rules out (the copy check holds the line).
+// the account, so the words say what holds that key, as Go words it by the
+// wrapper's kind (internal/knowledge.KeyHolder) — the account's key, which
+// Agentry holds, on SecureAgentry; a key a core registry keeps for the
+// account; or, signed out, this computer's — and none of the words plan §3
+// rules out (the copy check holds the line).
 //
 // Every gate is in Go (services_knowledge.go): Export and Delete are asked
 // in native dialogs, Export's folder comes from the native picker, the
@@ -103,7 +105,7 @@ export default function Knowledge({
       ) : (
         <Notice tone="warn">
           <strong>Not signed in{host ? ` to ${host}` : ""}.</strong> Packs made now are encrypted to this computer&apos;s key, in its
-          keychain: they open only on this computer until you sign in, which moves them to your account&apos;s key.{" "}
+          keychain: they open only on this computer until you sign in, which moves them to a key that registry keeps for your account.{" "}
           <Button variant="link" onClick={onOpenSettings}>Open Settings</Button>
         </Notice>
       ))}

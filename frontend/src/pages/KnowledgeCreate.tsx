@@ -224,7 +224,7 @@ function BuildDone({ result, added, onClose, onPreview }: { result: knowledge.Bu
         </Notice>
       )}
       {(result.rewrapped ?? []).length > 0 && (
-        <p className="muted small">Moved to your account&apos;s key first: {result.rewrapped!.join(", ")}.</p>
+        <p className="muted small">Moved off this computer&apos;s key, to one this registry keeps for your account, first: {result.rewrapped!.join(", ")}.</p>
       )}
       {result.agentryStale && <p className="muted small">Agentry still keeps the copy from before this build; Upload to Agentry sends this one.</p>}
       <dl className="knowledge-facts">

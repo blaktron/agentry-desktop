@@ -71,9 +71,11 @@ export default function RunPanel({
   // file intake question may pick one of these (plan §4, Details), and a
   // folder is never offered for it.
   const [pickedFiles, setPickedFiles] = useState<string[]>([]);
-  // The knowledge packs kept on this computer, and the ones to attach
-  // (plan knowledge.md §4.5): by name; Go opens each from the store after
-  // the gates, and the receipt names what was mounted.
+  // The knowledge packs listed for the Knowledge step (plan knowledge.md
+  // §4.5) — those kept here can be attached, those kept only in Agentry are
+  // shown with where to download them — and the ones to attach, by name; Go
+  // opens each from the store after the gates, and the receipt names what
+  // was mounted.
   const [packs, setPacks] = useState<knowledge.Pack[] | null>(null);
   const [attach, setAttach] = useState<string[]>([]);
   const [outDir, setOutDir] = useState("");

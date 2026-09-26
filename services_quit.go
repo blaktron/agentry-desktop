@@ -44,8 +44,9 @@ type liveRun struct {
 	done chan struct{}
 	// release removes the opened copies of the knowledge packs attached to
 	// the run (nil when none was). endRun calls it before closing done,
-	// and quitting waits for done, so the app never exits with one left
-	// in the store.
+	// which quitting waits for, up to quitWait: a run that ends in that
+	// time leaves no opened copy in the store; one that does not leaves it
+	// for the store's own sweep, an hour on (DR-42), as a killed app does.
 	release func()
 }
 
