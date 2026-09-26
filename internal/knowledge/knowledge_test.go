@@ -219,7 +219,7 @@ func TestAPackKeptSignedOutNeedsThisComputersKeyUntilSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p := l.Packs[0]; p.Wrapper != string(store.WrapperRegistry) || !strings.Contains(p.Key, "your account's key at") {
+	if p := l.Packs[0]; p.Wrapper != string(store.WrapperRegistry) || !strings.Contains(p.Key, "keeps for your account") {
 		t.Fatalf("after sign-in = %+v", p)
 	}
 }
@@ -256,8 +256,10 @@ func TestTheListSaysWhereEachPackIsAndWhatHoldsItsKey(t *testing.T) {
 		byName[p.Name] = p
 	}
 	host := strings.TrimPrefix(reg.URL, "http://")
+	// The fake is a core registry: its wrap is the deployment's, which is
+	// no account key and need not be Agentry's.
 	if p := byName["local-only"]; !p.Local || p.InAgentry || p.Where != "this computer" || p.ScanState != ScanNotScanned || p.Scan != "not scanned" ||
-		p.Key != "your account's key at "+host+", which Agentry holds" || !p.OpensOffline {
+		p.Key != "a key the registry at "+host+" keeps for your account" || !p.OpensOffline {
 		t.Errorf("local-only = %+v", p)
 	}
 	if p := byName["both"]; !p.Local || !p.InAgentry || p.Where != "this computer and Agentry" || p.ScanState != ScanScanned || p.Scan != "scanned in Agentry, 0 findings" {
@@ -315,10 +317,10 @@ func TestAttachOpensEachPackAndDoneRemovesIt(t *testing.T) {
 	}
 	noPlaintextLeft(t, e)
 
+	// A refusal cleans up after itself: the bindings return it without
+	// calling done, and a pack opened before the one refused is gone too.
 	for _, names := range [][]string{{"missing"}, {"../handbook"}, {"handbook", "missing"}} {
-		_, done, err := e.Attach(ctx, reg.URL, names)
-		done()
-		if err == nil {
+		if _, _, err := e.Attach(ctx, reg.URL, names); err == nil {
 			t.Errorf("attach %v passed", names)
 		}
 	}
@@ -399,4 +401,66 @@ func TestDeleteRemovesTheSealedFileAndTheCachedKey(t *testing.T) {
 	if keys.has("knowledge:"+en.ID()) || keys.has("stored:knowledge:"+en.ID()) {
 		t.Fatalf("the cached key is still in the keychain: %v", keys.m)
 	}
+}
+
+// A pack's key is worded by what wrapped it: SecureAgentry's certificate
+// is the account's key, which Agentry holds; a core registry's deployment
+// wrap is a key that registry keeps for the account; this computer's key
+// is the CLI's sentence.
+func TestTheKeyIsWordedByItsWrapper(t *testing.T) {
+	entry := func(w store.Wrapper, kind string) store.Entry {
+		return store.Entry{Key: store.KeyRecord{Wrapper: w, Registry: "https://secureagentry.net", WrappedKey: store.WrappedKey{Kind: kind}}}
+	}
+	for _, c := range []struct {
+		e    store.Entry
+		want string
+	}{
+		{entry(store.WrapperRegistry, "certificate"), "your account's key at secureagentry.net, which Agentry holds"},
+		{entry(store.WrapperRegistry, "deployment"), "a key the registry at secureagentry.net keeps for your account"},
+		{entry(store.WrapperRegistry, "something-new"), "a key the registry at secureagentry.net holds (a wrapping this app does not know: something-new)"},
+		{entry(store.WrapperMachine, "machine"), "this computer's key, in its keychain (not portable; rewrapped to your account at your next sign-in)"},
+	} {
+		if got := KeyHolder(c.e); got != c.want {
+			t.Errorf("KeyHolder(%s, %s) = %q, want %q", c.e.Key.Wrapper, c.e.Key.WrappedKey.Kind, got, c.want)
+		}
+	}
+}
+
+// A token is found by host alone, and a wrap or an unwrap carries a raw
+// data key, so neither is sent to a registry URL Settings would refuse: a
+// key.json naming plain http off this machine is refused before any token
+// is looked up, and so is such a registry chosen on the page.
+func TestNoTokenGoesToAURLSettingsWouldRefuse(t *testing.T) {
+	ctx := context.Background()
+	reg := knowledgetest.NewRegistry(t)
+	tok := reg.Token("ana")
+	asked := []string{}
+	e := testEnv(t, reg, tok, newKeys())
+	e.TokenFor = func(u string) string {
+		asked = append(asked, u)
+		return tok // by host, as settings.TokenFor finds it: any URL here gets it
+	}
+	en := keep(t, e, reg.URL, "handbook")
+	// The record rewritten to name the same host over plain http, off
+	// this machine, with the cached key gone so the pack must be unwrapped.
+	raw, err := os.ReadFile(filepath.Join(en.Dir, store.KeyFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	forged := strings.Replace(string(raw), reg.URL, "http://registry.example", 1)
+	if err := os.WriteFile(filepath.Join(en.Dir, store.KeyFile), []byte(forged), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.Keys = newKeys()
+	asked = asked[:0]
+	if _, err := e.Preview(ctx, reg.URL, "handbook"); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("a key.json naming plain http: %v", err)
+	}
+	if len(asked) != 0 {
+		t.Fatalf("a token was looked up for %v before the URL was refused", asked)
+	}
+	if _, err := e.Upload(ctx, "http://registry.example", "handbook"); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("an upload to a plain-http registry: %v", err)
+	}
+	noPlaintextLeft(t, e)
 }

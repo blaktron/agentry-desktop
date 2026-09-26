@@ -36,12 +36,11 @@ type BuildRequest struct {
 	// picker returned (the binding checks).
 	Documents []string
 	// RunID names the Creator run's containers, so quitting can sweep them.
-	RunID  string
-	Docker dockerx.Client
-	Build  Builder
+	RunID string
+	// Build is the Creator seam; nil is pkg/knowledge/build.
+	Build Builder
 	// Log receives the build's progress, line by line.
 	Log io.Writer
-	Now time.Time
 }
 
 // BuildResult is what one build made, for the panel's result.
@@ -79,11 +78,16 @@ type Dropped struct {
 }
 
 // Create makes a new pack from the documents with the Creator on this
-// computer and keeps it sealed. The pack is built in a 0700 directory
-// inside the store, with the Creator run's output, whose reports/ holds
-// every page it wrote; both go when the pack is kept, or when the build
-// fails. Nothing the Creator reads or writes is scanned, and the pack
-// records "not scanned" (D19): the panel says so before the build.
+// computer and keeps it sealed: `agentry knowledge create`'s steps
+// (createKept, in the CLI's package main, which this cannot import) over
+// the same library calls. The pack is built in a 0700 directory inside the
+// store, with the Creator run's output, whose reports/ holds every page it
+// wrote; both go when the pack is kept, or when the build fails. Where the
+// CLI leaves a pack it could not keep sealed in that directory for
+// `knowledge import`, this removes it: the app has no import, and its
+// pages would rest there in the clear. Nothing the Creator reads or writes
+// is scanned, and the pack records "not scanned" (D19): the panel says so
+// before the build.
 func (e Env) Create(ctx context.Context, req BuildRequest) (*BuildResult, error) {
 	if err := kn.ValidName(req.Name); err != nil {
 		return nil, err
@@ -120,8 +124,8 @@ func (e Env) Create(ctx context.Context, req BuildRequest) (*BuildResult, error)
 	return out, nil
 }
 
-// Add extends a kept pack with the documents: the pack is opened into a
-// 0700 directory inside the store, the Creator reads it as it stands and
+// Add extends a kept pack with the documents (the CLI's addKept): the pack
+// is opened into a 0700 directory inside the store, the Creator reads it as it stands and
 // rewrites the pages the documents touch, and the result is sealed back
 // under the key it had, so its wrapped key, and Agentry's copy, still fit.
 func (e Env) Add(ctx context.Context, req BuildRequest) (*BuildResult, error) {
@@ -179,22 +183,14 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	// step (plan D19).
 	logf(req.Log, "The Knowledge Creator runs on this computer against the model your runner policy names (%s). "+
 		"It costs no credits, and nothing it reads or writes is scanned.", CreatorModel(pol))
-	now := req.Now
-	if now.IsZero() {
-		now = time.Now()
-	}
 	b := req.Build
 	if b == nil {
 		b = build.Build
 	}
-	d := req.Docker
-	if d == nil {
-		d = dockerx.New()
-	}
-	res, err := b(ctx, d, build.Options{
+	res, err := b(ctx, dockerx.New(), build.Options{
 		PackDir: dir, Name: name, Documents: req.Documents,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
-		Build: version.Build(), Now: now, OutDir: outDir,
+		Build: version.Build(), Now: time.Now(), OutDir: outDir,
 		Budgets: &spec.Budgets{TimeoutSeconds: pol.Budgets.TimeoutSeconds, MaxTurns: pol.Budgets.MaxTurns, MaxCostUSD: pol.Budgets.MaxCostUSD},
 		RunID:   req.RunID, Stderr: req.Log,
 	})
@@ -236,7 +232,7 @@ func PolicyModel() string {
 func buildResult(res *build.Result, en store.Entry) *BuildResult {
 	out := &BuildResult{
 		Name: en.Name(), Pages: en.Manifest.Pages, Bytes: en.Manifest.Bytes,
-		Documents: append([]string{}, res.Documents...), Skipped: res.Skipped, Key: en.KeyHolder(),
+		Documents: append([]string{}, res.Documents...), Skipped: res.Skipped, Key: KeyHolder(en),
 	}
 	if res.Applied != nil {
 		for _, d := range res.Applied.Dropped {

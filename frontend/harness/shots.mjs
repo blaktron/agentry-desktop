@@ -59,12 +59,12 @@ const states = [
   { name: "runpanel-local-finished-env", url: "/modals.html#runpanel-local-finished-env", note: "the same run with the runner home relocated by AGENTRY_RUNNER_HOME: the source says so", click: ['button:text-is("Run")', "details.run-details > summary"], expectText: "AGENTRY_RUNNER_HOME, set in the environment" },
   // Knowledge on a run on this machine (agentry-desktop#273): the step that
   // lists the packs kept here, and a finished run's knowledge line.
-  { name: "runpanel-step-knowledge", url: "/modals.html#runpanel-step-knowledge", note: "the Knowledge step: the packs kept on this computer, each with its scan state and whether it opens offline", expectText: "Step 3 of" },
+  { name: "runpanel-step-knowledge", url: "/modals.html#runpanel-step-knowledge", note: "the Knowledge step: the packs kept on this computer, each with its scan state and whether it opens offline, and one kept in Agentry only, not attachable here", expectText: "download it on the Knowledge page" },
   { name: "runpanel-knowledge-finished", url: "/modals.html#runpanel-knowledge-finished", note: "a local run with a pack attached, finished: the receipt's knowledge line under the result", click: ['button:text-is("Run")'], expectText: "Knowledge this run could search" },
   // The Knowledge panel (agentry-desktop#273, plan knowledge.md §4.8): the
   // list in each state, Create knowledge's steps, a build under way and
   // done, a pack's preview, and a hostile page that must render as text.
-  { name: "knowledge", url: "/knowledge.html#knowledge", note: "signed in: kept here (not scanned, opens offline), in both places (scanned in Agentry, 2 findings), changed since upload, in Agentry only, being scanned", locator: '[data-preview="knowledge"]', expectText: "encrypted to your account's key at secureagentry.net, which Agentry holds" },
+  { name: "knowledge", url: "/knowledge.html#knowledge", note: "signed in: kept here (not scanned, opens offline), in both places (scanned in Agentry, 2 findings), changed since upload, in Agentry only, being scanned", locator: '[data-preview="knowledge"]', expectText: "Encrypted to your account's key at secureagentry.net, which Agentry holds" },
   { name: "knowledge-signed-out", url: "/knowledge.html#knowledge-signed-out", note: "not signed in: a pack under this computer's key, and why Agentry's copies are not listed", locator: '[data-preview="knowledge"]', expectText: "Encrypted to this computer's key" },
   { name: "knowledge-empty", url: "/knowledge.html#knowledge-empty", note: "no pack yet: Create knowledge", locator: '[data-preview="knowledge"]', expectText: "No knowledge packs yet" },
   { name: "knowledge-create-documents", url: "/knowledge.html#create-documents", note: "Create knowledge: the documents, from the native pickers only", expectText: "Step 1 of 3: Documents" },

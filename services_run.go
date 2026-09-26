@@ -36,7 +36,7 @@ const (
 
 // errBusy refuses a second docker-touching operation instead of silently
 // queueing it behind one that can run for many minutes.
-var errBusy = errors.New("another run or image setup is already in progress — wait for it to finish")
+var errBusy = errors.New("another run, image setup or knowledge build is already in progress — wait for it to finish")
 
 // RunAPI drives BriefAgent runs from the app.
 type RunAPI struct {
@@ -46,11 +46,8 @@ type RunAPI struct {
 	// sweeps unambiguous. An interactive session holds it from
 	// StartSession to EndSession (D-017: one session per app).
 	mu sync.Mutex
-	// session is the live interactive session, nil otherwise;
-	// sessionKnowledge removes the opened copies of the packs attached to
-	// it, when it ends.
-	session          *run.Session
-	sessionKnowledge func()
+	// session is the live interactive session, nil otherwise.
+	session *run.Session
 	// knowledgeEnv is the local knowledge store's wiring; nil is this
 	// app's (internal/knowledge.Default). A test passes its own.
 	knowledgeEnv *knowledge.Env
@@ -112,13 +109,6 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	if !r.mu.TryLock() {
 		return nil, errBusy
 	}
-	// The attached packs' opened copies live as long as the session:
-	// EndSession (or quitting) removes them.
-	packs, releaseKnowledge, err := r.knowledge().Attach(r.app.ctx, reg, knowledge)
-	if err != nil {
-		r.mu.Unlock()
-		return nil, err
-	}
 	// The session's own context, the parent of everything the engine
 	// starts for it: quitting while the session is still starting cancels
 	// it (services_quit.go); EndSession releases it after End.
@@ -126,7 +116,15 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	live, err := r.beginRun(ref, cancel)
 	if err != nil {
 		cancel()
-		releaseKnowledge()
+		r.mu.Unlock()
+		return nil, err
+	}
+	// The attached packs' opened copies live as long as the session: its
+	// endRun, from EndSession or quitting, removes them.
+	packs, err := r.attach(ctx, live, reg, knowledge)
+	if err != nil {
+		cancel()
+		r.endRun(live)
 		r.mu.Unlock()
 		return nil, err
 	}
@@ -152,14 +150,10 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	if err != nil {
 		cancel()
 		r.endRun(live)
-		releaseKnowledge()
 		r.mu.Unlock()
 		return nil, err
 	}
 	r.session = s
-	r.liveMu.Lock()
-	r.sessionKnowledge = releaseKnowledge
-	r.liveMu.Unlock()
 	go func() {
 		for ev := range s.Events() {
 			runtime.EventsEmit(r.app.ctx, eventSessionEvent, SessionEventView{
@@ -208,7 +202,6 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 		l.cancel()
 		r.endRun(l)
 	}
-	r.releaseSessionKnowledge()
 	r.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -601,11 +594,6 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		return nil, errBusy
 	}
 	defer r.mu.Unlock()
-	packs, releaseKnowledge, err := r.knowledge().Attach(r.app.ctx, reg, knowledge)
-	if err != nil {
-		return nil, err
-	}
-	defer releaseKnowledge()
 	// The run's own context: quitting cancels it, the engine returns and
 	// tears down, and shutdown waits for that (services_quit.go).
 	ctx, cancel := context.WithCancel(r.app.ctx)
@@ -615,6 +603,10 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		return nil, err
 	}
 	defer r.endRun(live)
+	packs, err := r.attach(ctx, live, reg, knowledge)
+	if err != nil {
+		return nil, err
+	}
 	logw := r.eventWriter(eventRunLog)
 	defer logw.Flush()
 	res, err := r.runEngine(ctx, run.Request{
@@ -814,22 +806,33 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 }
 
 // knowledge is the local knowledge store's wiring (internal/knowledge).
-func (r *RunAPI) knowledge() knowledge.Env {
-	if r.knowledgeEnv != nil {
-		return *r.knowledgeEnv
+func (r *RunAPI) knowledge() knowledge.Env { return knowledgeEnv(r.knowledgeEnv) }
+
+// knowledgeEnv is a test's wiring, or this app's.
+func knowledgeEnv(e *knowledge.Env) knowledge.Env {
+	if e != nil {
+		return *e
 	}
 	return knowledge.Default()
 }
 
-// releaseSessionKnowledge removes the opened copies of the packs attached
-// to the session that ended, once: EndSession and quitting may both get
-// here.
-func (r *RunAPI) releaseSessionKnowledge() {
-	r.liveMu.Lock()
-	f := r.sessionKnowledge
-	r.sessionKnowledge = nil
-	r.liveMu.Unlock()
-	if f != nil {
-		f()
+// asRun runs f as the run in flight under the run lock, as a local run
+// runs (a knowledge build is one): refused while another holds the lock;
+// its context cancelled, its run id's containers swept and waited for when
+// the app quits (services_quit.go); f's log streamed as event.
+func (r *RunAPI) asRun(ref, event string, f func(ctx context.Context, runID string, logw io.Writer) error) error {
+	if !r.mu.TryLock() {
+		return errBusy
 	}
+	defer r.mu.Unlock()
+	ctx, cancel := context.WithCancel(r.app.ctx)
+	defer cancel()
+	live, err := r.beginRun(ref, cancel)
+	if err != nil {
+		return err
+	}
+	defer r.endRun(live)
+	logw := r.eventWriter(event)
+	defer logw.Flush()
+	return f(ctx, live.id, logw)
 }

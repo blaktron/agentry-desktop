@@ -122,6 +122,7 @@ const knowledgePacks = knowledgeShape
   ? [
     { name: "incident-runbooks", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: false },
     { name: "oncall-notes", pages: 12, bytes: 184_320, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: true },
+    { name: "supplier-contracts", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
   ]
   : [];
 const localResult = {
@@ -253,7 +254,7 @@ const runOutputs = view === "runpanel-hostile"
 
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.
-const STEP_OF: Record<string, "start" | "files" | "knowledge" | "tools" | "details" | "review"> = {
+const STEP_OF: Record<string, StepKey> = {
   "runpanel-keys": "review",
   "runpanel-keys-saved": "tools",
   "runpanel-file-intake": "review",
@@ -323,6 +324,7 @@ g.runtime = {
 };
 
 import RunPanel from "../src/pages/RunPanel";
+import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";

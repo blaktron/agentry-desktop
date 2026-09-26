@@ -15,38 +15,30 @@ export function nameProblem(name: string): string | null {
   return null;
 }
 
-export function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export function pagesOf(n: number): string {
   return n === 1 ? "1 page" : `${n} pages`;
 }
 
-/** The badge a pack's scan state shows: its words and its tone. */
-export function scanBadge(p: knowledge.Pack): { text: string; cls: string } {
+/** The badge's tone for a pack's scan state; its words are Go's (p.scan),
+ *  the receipt's words for a pack's scan record. */
+export function scanTone(p: knowledge.Pack): string {
   switch (p.scanState) {
     case "scanned":
-      return { text: p.scan, cls: "ok" };
-    case "scanning":
-      return { text: "being scanned in Agentry", cls: "" };
+      return "ok";
     case "failed":
-      return { text: "scan failed in Agentry", cls: "bad" };
-    case "empty":
-      return { text: "nothing uploaded yet", cls: "" };
+      return "bad";
+    case "not-scanned":
     case "unconfirmed":
-      return { text: "scan record not confirmed", cls: "warn" };
+      return "warn";
     default:
-      return { text: "not scanned", cls: "warn" };
+      return "";
   }
 }
 
-/** Where a pack is kept, as a short badge. */
-export function whereBadge(p: knowledge.Pack): string {
-  if (p.local && p.inAgentry) return "this computer and Agentry";
-  return p.local ? "this computer" : "Agentry";
+/** Whether a run on this computer can attach the pack: it is kept here. A
+ *  pack kept only in Agentry is downloaded first. */
+export function attachable(p: knowledge.Pack): boolean {
+  return p.local;
 }
 
 /** The sentence a sign-in adds when it moved packs off this computer's key
@@ -54,8 +46,8 @@ export function whereBadge(p: knowledge.Pack): string {
 export function rewrapLine(res: { knowledgeRewrapped?: string[]; knowledgeNote?: string }): string {
   const moved = res.knowledgeRewrapped ?? [];
   let line = "";
-  if (moved.length === 1) line = ` The knowledge pack ${moved[0]} is now encrypted to your account's key, which Agentry holds, not this computer's.`;
-  else if (moved.length > 1) line = ` The knowledge packs ${moved.join(", ")} are now encrypted to your account's key, which Agentry holds, not this computer's.`;
+  if (moved.length === 1) line = ` The knowledge pack ${moved[0]} is now encrypted to a key this registry keeps for your account, not to this computer's key.`;
+  else if (moved.length > 1) line = ` The knowledge packs ${moved.join(", ")} are now encrypted to a key this registry keeps for your account, not to this computer's key.`;
   if (res.knowledgeNote) line += ` ${res.knowledgeNote}`;
   return line;
 }

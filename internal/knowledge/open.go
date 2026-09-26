@@ -92,7 +92,7 @@ func (e Env) Export(ctx context.Context, current, name, parent string) (string, 
 	if _, err := os.Lstat(dst); err == nil {
 		return "", fmt.Errorf("%s already exists; choose another folder, or move it aside first", dst)
 	} else if !errors.Is(err, fs.ErrNotExist) {
-		return "", err
+		return "", fmt.Errorf("export: the folder chosen cannot be written into: %w", err)
 	}
 	if _, err := s.Open(ctx, name, dst); err != nil {
 		// The folder is this export's own, made by it: nothing half
@@ -187,7 +187,7 @@ func (e Env) withOpened(ctx context.Context, current, name string, f func(*os.Ro
 	defer done()
 	root, err := os.OpenRoot(p.Dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("knowledge pack %s: its pages could not be read: %w", name, err)
 	}
 	defer func() { _ = root.Close() }()
 	return f(root)
@@ -226,20 +226,23 @@ func listPages(root *os.Root) ([]PageInfo, error) {
 // readPage reads one page, a regular file, through the root, bounded.
 func readPage(root *os.Root, rel string) (Page, error) {
 	fi, err := root.Lstat(rel)
+	if errors.Is(err, fs.ErrNotExist) {
+		return Page{}, fmt.Errorf("the pack has no page %s", rel)
+	}
 	if err != nil {
-		return Page{}, err
+		return Page{}, fmt.Errorf("page %s could not be read: %w", rel, err)
 	}
 	if !fi.Mode().IsRegular() {
 		return Page{}, fmt.Errorf("%s is not a page", rel)
 	}
 	f, err := root.Open(rel)
 	if err != nil {
-		return Page{}, err
+		return Page{}, fmt.Errorf("page %s could not be read: %w", rel, err)
 	}
 	defer func() { _ = f.Close() }()
 	body, err := io.ReadAll(io.LimitReader(f, previewCap+1))
 	if err != nil {
-		return Page{}, err
+		return Page{}, fmt.Errorf("page %s could not be read: %w", rel, err)
 	}
 	p := Page{Path: rel, Title: strings.TrimSuffix(path.Base(rel), ".md")}
 	if len(body) > previewCap {

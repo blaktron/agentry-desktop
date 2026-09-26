@@ -8,17 +8,17 @@
 // and says in the panel's words what each pack is and where it lives.
 //
 // A pack's data key is wrapped by the registry the person is signed in to
-// (the deployment's key on a core registry, the account's certificate on
-// SecureAgentry), so the pack opens on any computer they sign in on. Signed
-// out, this computer's key in the keychain wraps it instead, and the next
-// sign-in rewraps it (D20). The words say what holds the key and never call
-// a pack "safe", "secure" or "private" (plan §3).
+// (the account's certificate on SecureAgentry; on a core registry a key it
+// derives for the account from the deployment's own sealing key), so the
+// pack opens on any computer they sign in on. Signed out, this computer's
+// key in the keychain wraps it instead, and the next sign-in rewraps it
+// (D20). The words say what holds the key, by the wrapper's kind, and never
+// call a pack "safe", "secure" or "private" (plan §3).
 package knowledge
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -68,7 +68,15 @@ func (e Env) Store(current string) (*store.Store, error) {
 }
 
 // registry is the signed-in client of the registry at u, or ErrSignedOut.
+// u is the page's registry or the one a pack's key.json names, a file on
+// disk: it is held to the URL rule Settings holds a registry to (https, or
+// http on this machine) before a token is looked up for it, because the
+// token is found by host alone and a wrap or an unwrap carries a raw data
+// key. A registry this app holds no token for gets none.
 func (e Env) registry(u string) (store.Registry, error) {
+	if err := settings.ValidateURL(u); err != nil {
+		return nil, fmt.Errorf("the knowledge pack's registry: %w", err)
+	}
 	token := ""
 	if e.TokenFor != nil {
 		token = e.TokenFor(u)
@@ -103,10 +111,14 @@ type Pack struct {
 	InAgentry bool   `json:"inAgentry"`
 	// Changed is a pack kept in both places that changed here since its
 	// upload.
-	Changed bool   `json:"changed"`
-	Where   string `json:"where"`
-	// Key says what the data key is wrapped to, for a pack kept here
-	// ("your account's key at <host>, which Agentry holds").
+	Changed bool `json:"changed"`
+	// Where is where it is kept: "this computer", "Agentry", or "this
+	// computer and Agentry"; Note says more when there is more to say
+	// (Agentry no longer keeps the copy this computer's record names).
+	Where string `json:"where"`
+	Note  string `json:"note,omitempty"`
+	// Key says what the data key is wrapped to, for a pack kept here, by
+	// the wrapper's kind (KeyHolder).
 	Key string `json:"key,omitempty"`
 	// Wrapper is "registry" or "machine" for a pack kept here.
 	Wrapper string `json:"wrapper,omitempty"`
@@ -116,8 +128,7 @@ type Pack struct {
 	// OpensOffline says the key is on this computer: this computer's key,
 	// or a key the registry unwrapped once and the keychain caches. It is
 	// read from the cache's presence marker, never the key.
-	OpensOffline bool   `json:"opensOffline"`
-	Updated      string `json:"updated,omitempty"`
+	OpensOffline bool `json:"opensOffline"`
 }
 
 // List is the panel: the packs, and what the registry shown is to them.
@@ -185,13 +196,13 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 		if a := en.Key.Agentry; a != nil && listed && settings.Normalize(a.Registry) == reg {
 			if r, ok := findRemote(remotes, a.ID); ok {
 				matched[r.ID] = true
-				p.AgentryState(r, en.Manifest.SHA256)
+				p.agentryCopy(r, en.Manifest.SHA256)
 			} else {
 				// The record says Agentry keeps a copy, and Agentry's own
 				// list says it does not (deleted from the site, or by the
 				// CLI on another computer).
 				p.InAgentry, p.Changed, p.AgentryID = false, false, ""
-				p.Where = "this computer (Agentry no longer keeps its copy)"
+				p.Where, p.Note = whereLocal, "Agentry no longer keeps the copy this computer uploaded."
 			}
 		}
 		out.Packs = append(out.Packs, p)
@@ -210,17 +221,24 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 	return out, nil
 }
 
+// Where a pack is kept, in the panel's words.
+const (
+	whereLocal   = "this computer"
+	whereAgentry = "Agentry"
+	whereBoth    = "this computer and Agentry"
+)
+
 // localPack is a pack kept here, as the store describes it.
 func localPack(s *store.Store, en store.Entry) Pack {
 	m := en.Manifest
 	p := Pack{
 		Name: m.Name, ID: m.ID, Pages: m.Pages, Bytes: m.Bytes,
 		Scan: m.Scan.Describe(), ScanState: localScanState(m.Scan),
-		Local: true, InAgentry: en.Key.Agentry != nil, Where: en.Where(),
-		Key: en.KeyHolder(), Wrapper: string(en.Key.Wrapper),
+		Local: true, Where: whereLocal,
+		Key: KeyHolder(en), Wrapper: string(en.Key.Wrapper),
 	}
 	if a := en.Key.Agentry; a != nil {
-		p.AgentryID = a.ID
+		p.InAgentry, p.Where, p.AgentryID = true, whereBoth, a.ID
 		p.Changed = a.Digest != m.SHA256
 	}
 	switch en.Key.Wrapper {
@@ -230,10 +248,38 @@ func localPack(s *store.Store, en store.Entry) Pack {
 		p.Registry = hostOf(en.Key.Registry)
 		p.OpensOffline = s.Cached(m.ID)
 	}
-	if !m.Updated.IsZero() {
-		p.Updated = m.Updated.UTC().Format("2006-01-02T15:04:05Z")
-	}
 	return p
+}
+
+// The wrapper kinds a registry answers on a wrapped key.
+const (
+	// kindCertificate is SecureAgentry's knowledge extension: the data
+	// key wrapped to the account's X25519 certificate, the key that opens
+	// it held by Agentry (agentry-enterprise#170).
+	kindCertificate = "certificate"
+	// kindDeployment is the open core's DeploymentWrapper: the data key
+	// sealed under a key the registry derives for the account from its
+	// own knowledge sealing key.
+	kindDeployment = "deployment"
+)
+
+// KeyHolder says what a kept pack's data key is wrapped to, by the
+// wrapper's kind: the plan's sentence for SecureAgentry's certificate, what
+// is true of a core registry's deployment wrap, and the CLI's sentence for
+// this computer's key. The CLI's Entry.KeyHolder words every registry wrap
+// the first way (agentry-cli#357); this is the desktop's until it does not.
+func KeyHolder(en store.Entry) string {
+	if en.Key.Wrapper != store.WrapperRegistry {
+		return en.KeyHolder()
+	}
+	host := hostOf(en.Key.Registry)
+	switch en.Key.WrappedKey.Kind {
+	case kindCertificate:
+		return "your account's key at " + host + ", which Agentry holds"
+	case kindDeployment:
+		return "a key the registry at " + host + " keeps for your account"
+	}
+	return "a key the registry at " + host + " holds (a wrapping this app does not know: " + en.Key.WrappedKey.Kind + ")"
 }
 
 func localScanState(sc kn.Scan) string {
@@ -246,43 +292,43 @@ func localScanState(sc kn.Scan) string {
 	return ScanScanned
 }
 
-// AgentryState reads what Agentry's own list says of a pack kept in both
-// places: a copy of this very tree that its scan has finished with reads
-// as scanned there, confirmed by the registry that scanned it, not by the
-// record in the file.
-func (p *Pack) AgentryState(r store.Remote, localDigest string) {
+// agentryCopy reads what Agentry's own list says of a pack kept in both
+// places. A copy of this very tree whose scan has finished reads as
+// scanned there, confirmed by the registry that scanned it rather than by
+// the record in the file; a copy of an older tree leaves the local record
+// as it is.
+func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 	p.InAgentry = true
-	switch {
-	case r.State == store.StateScanning:
-		p.Scan, p.ScanState = "being scanned in Agentry", ScanScanning
-	case r.State == store.StateFailed:
-		p.Scan, p.ScanState = "Agentry's scan of it failed", ScanFailed
-	case r.State == store.StateReady && len(r.Scan) > 0 && r.Digest == localDigest:
-		p.Scan, p.ScanState = scannedInAgentry(r.Scan), ScanScanned
+	if r.State == store.StateReady && r.Digest != localDigest {
+		return
+	}
+	if scan, state, ok := remoteScan(r); ok {
+		p.Scan, p.ScanState = scan, state
 	}
 }
 
 // remotePack is a pack Agentry keeps and this computer does not.
 func remotePack(r store.Remote) Pack {
-	p := Pack{Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, Where: "Agentry"}
+	p := Pack{Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, Where: whereAgentry}
+	p.Scan, p.ScanState, _ = remoteScan(r)
+	return p
+}
+
+// remoteScan is what Agentry's state for a pack says of its scan; ok is
+// false for a ready pack with no report, which says nothing of one.
+func remoteScan(r store.Remote) (scan, state string, ok bool) {
 	switch r.State {
 	case store.StateReady:
 		if len(r.Scan) > 0 {
-			p.Scan, p.ScanState = scannedInAgentry(r.Scan), ScanScanned
-		} else {
-			p.Scan, p.ScanState = "kept in Agentry with no scan report", ScanUnconfirmed
+			return scannedInAgentry(r.Scan), ScanScanned, true
 		}
+		return "kept in Agentry with no scan report", ScanUnconfirmed, false
 	case store.StateScanning:
-		p.Scan, p.ScanState = "being scanned in Agentry", ScanScanning
+		return "being scanned in Agentry", ScanScanning, true
 	case store.StateFailed:
-		p.Scan, p.ScanState = "Agentry's scan of it failed", ScanFailed
-	default:
-		p.Scan, p.ScanState = "made in Agentry, with nothing uploaded to it yet", ScanEmpty
+		return "Agentry's scan of it failed", ScanFailed, true
 	}
-	if !r.Updated.IsZero() {
-		p.Updated = r.Updated.UTC().Format("2006-01-02T15:04:05Z")
-	}
-	return p
+	return "made in Agentry, with nothing uploaded to it yet", ScanEmpty, true
 }
 
 // scannedInAgentry says a finished scan with its finding count ("scanned,
@@ -326,17 +372,18 @@ func (e Env) Upload(ctx context.Context, current, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	host := hostOf(settings.Normalize(current))
 	if !e.SignedIn(current) {
-		return "", fmt.Errorf("upload knowledge pack %s: sign in to %s in Settings first", name, hostOf(settings.Normalize(current)))
+		return "", fmt.Errorf("upload knowledge pack %s: sign in to %s in Settings first", name, host)
 	}
 	_, r, err := s.Upload(ctx, name)
 	if err != nil {
 		return "", err
 	}
 	if r.State == store.StateScanning {
-		return fmt.Sprintf("Uploaded %s to %s. Agentry is scanning it; the scan's findings show here once it ends.", name, hostOf(settings.Normalize(current))), nil
+		return fmt.Sprintf("Uploaded %s to %s. Agentry is scanning it; the scan's findings show here once it ends.", name, host), nil
 	}
-	return fmt.Sprintf("Uploaded %s to %s.", name, hostOf(settings.Normalize(current))), nil
+	return fmt.Sprintf("Uploaded %s to %s.", name, host), nil
 }
 
 // Download keeps Agentry's copy of the pack on this computer, checked in
@@ -353,7 +400,7 @@ func (e Env) Download(ctx context.Context, current, name string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Downloaded %s: %s, kept on this computer, encrypted to %s.", name, kn.CountPages(en.Manifest.Pages), en.KeyHolder()), nil
+	return fmt.Sprintf("Downloaded %s: %s, kept on this computer, encrypted to %s.", name, kn.CountPages(en.Manifest.Pages), KeyHolder(en)), nil
 }
 
 // Delete removes the pack from this computer — its sealed tree, its
@@ -389,10 +436,4 @@ func (e Env) Rewrap(ctx context.Context, current string) ([]string, error) {
 		return nil, err
 	}
 	return s.Rewrap(ctx)
-}
-
-// IsUsage says whether err is the person's to fix by naming another pack:
-// one that is not kept, or a name already kept.
-func IsUsage(err error) bool {
-	return errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrNameTaken)
 }

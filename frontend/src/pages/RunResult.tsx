@@ -15,7 +15,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText, plainName } from "../reveal";
-import { Button, ErrorBox } from "../ui";
+import { Button, ErrorBox, fmtBytes } from "../ui";
 
 export function RunResultView({
   runId, headline, tone, error, resultJson, knowledge, children,
@@ -84,7 +84,7 @@ export function RunResultView({
               <span className="mono small">
                 <RevealText text={f.path} />
               </span>
-              <span className="muted small">{fmtSize(f.bytes)}</span>
+              <span className="muted small">{fmtBytes(f.bytes)}</span>
             </div>
             <div className="run-file-body" aria-label={`Preview of ${plainName(f.path)}`}>
               {f.previewKind === "markdown" ? (
@@ -151,8 +151,3 @@ function ResultBody({ raw }: { raw: string }) {
   );
 }
 
-function fmtSize(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}

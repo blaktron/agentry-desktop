@@ -293,11 +293,7 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	// Packs kept while signed out are encrypted to this computer's key;
 	// from this sign-in on, the account's key at this registry wraps them,
 	// so they open on the account's other computers too (D20).
-	env := knowledge.Default()
-	if s.knowledgeEnv != nil {
-		env = *s.knowledgeEnv
-	}
-	res.KnowledgeRewrapped, res.KnowledgeNote = rewrapKnowledge(s.app.ctx, env, url)
+	res.KnowledgeRewrapped, res.KnowledgeNote = rewrapKnowledge(s.app.ctx, knowledgeEnv(s.knowledgeEnv), url)
 	return res, nil
 }
 

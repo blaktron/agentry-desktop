@@ -21,14 +21,14 @@ import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
-import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, shortDigest } from "../ui";
+import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, needList, setupSteps, type StepKey } from "../runSetup";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "./HostedRun";
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
-import { fmtBytes, pagesOf, scanBadge } from "../knowledge";
+import { attachable, pagesOf, scanTone } from "../knowledge";
 
 export default function RunPanel({
   registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep,
@@ -120,7 +120,7 @@ export default function RunPanel({
   useEffect(() => {
     RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
     RunAPI.GatewayRequirements(registry, ns, name).then(setMcp).catch(() => setMcp(null));
-    KnowledgeAPI.List(registry).then((l) => setPacks(l.packs.filter((p) => p.local))).catch(() => setPacks([]));
+    KnowledgeAPI.List(registry).then((l) => setPacks(l.packs)).catch(() => setPacks([]));
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
         setProfile(p);
@@ -231,7 +231,7 @@ export default function RunPanel({
     knowledge: !inAgentry && (packs?.length ?? 0) > 0,
   });
   // What a run on this machine attaches: the ticked packs still kept here.
-  const attached = inAgentry ? [] : attach.filter((n) => (packs ?? []).some((p) => p.name === n));
+  const attached = inAgentry ? [] : attach.filter((n) => (packs ?? []).some((p) => attachable(p) && p.name === n));
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
@@ -618,28 +618,28 @@ export default function RunPanel({
                   its digest. A run needs none.
                 </p>
                 <div className="knowledge-attach-list">
-                {(packs ?? []).map((p) => {
-                  const scan = scanBadge(p);
-                  return (
-                    <label key={p.name} className="knowledge-attach">
-                      <input
-                        type="checkbox"
-                        checked={attach.includes(p.name)}
-                        onChange={(e) => setAttach(e.target.checked ? [...attach, p.name] : attach.filter((n) => n !== p.name))}
-                      />
-                      <span className="grow">
-                        <span className="row nowrap knowledge-attach-head">
-                          <span className="mono">{p.name}</span>
-                          <span className={`badge ${scan.cls}`.trim()}>{scan.text}</span>
-                        </span>
-                        <span className="muted small" style={{ display: "block" }}>
-                          {pagesOf(p.pages)} · {fmtBytes(p.bytes)} ·{" "}
-                          {p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
-                        </span>
+                {(packs ?? []).map((p) => (
+                  <label key={`${p.name} ${p.local ? "here" : "agentry"}`} className="knowledge-attach">
+                    <input
+                      type="checkbox"
+                      disabled={!attachable(p)}
+                      checked={attachable(p) && attach.includes(p.name)}
+                      onChange={(e) => setAttach(e.target.checked ? [...attach, p.name] : attach.filter((n) => n !== p.name))}
+                    />
+                    <span className="grow">
+                      <span className="row nowrap knowledge-attach-head">
+                        <span className="mono">{p.name}</span>
+                        <span className={`badge ${scanTone(p)}`.trim()}>{p.scan}</span>
                       </span>
-                    </label>
-                  );
-                })}
+                      <span className="muted small" style={{ display: "block" }}>
+                        {pagesOf(p.pages)} · {fmtBytes(p.bytes)} ·{" "}
+                        {!attachable(p)
+                          ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
+                          : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
+                      </span>
+                    </span>
+                  </label>
+                ))}
                 </div>
               </>
             )}

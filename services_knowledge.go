@@ -14,7 +14,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
+	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
@@ -63,36 +65,25 @@ func (k *KnowledgeAPI) Add(reg, name string, documents []string) (*knowledge.Bui
 }
 
 func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) (*knowledge.BuildResult, error) {
-	if len(documents) == 0 {
-		return nil, errors.New("choose the documents to ingest first")
-	}
 	for _, p := range documents {
 		if err := k.app.requirePicked("document", p); err != nil {
 			return nil, err
 		}
 	}
-	r := k.run
-	if !r.mu.TryLock() {
-		return nil, errBusy
-	}
-	defer r.mu.Unlock()
-	// The build's own context, tracked as the run in flight: quitting
-	// cancels it, the Creator run returns and tears down, and shutdown
-	// sweeps its run id (services_quit.go).
-	ctx, cancel := context.WithCancel(k.app.ctx)
-	defer cancel()
-	live, err := r.beginRun("the Knowledge Creator", cancel)
-	if err != nil {
-		return nil, err
-	}
-	defer r.endRun(live)
-	logw := r.eventWriter(eventKnowledgeLog)
-	defer logw.Flush()
-	req := knowledge.BuildRequest{Registry: reg, Name: name, Documents: documents, RunID: live.id, Build: k.build, Log: logw}
-	if add {
-		return k.env().Add(ctx, req)
-	}
-	return k.env().Create(ctx, req)
+	// A build is a run: the Creator's containers carry the run id, so
+	// quitting mid-build ends it and sweeps them (services_quit.go).
+	var res *knowledge.BuildResult
+	err := k.run.asRun("the Knowledge Creator", eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
+		req := knowledge.BuildRequest{Registry: reg, Name: name, Documents: documents, RunID: runID, Build: k.build, Log: logw}
+		var err error
+		if add {
+			res, err = k.env().Add(ctx, req)
+		} else {
+			res, err = k.env().Create(ctx, req)
+		}
+		return err
+	})
+	return res, err
 }
 
 // Upload keeps a copy of the pack in Agentry, where it is scanned.
@@ -121,7 +112,7 @@ func (k *KnowledgeAPI) Export(reg, name string) (*ExportView, error) {
 		return nil, err
 	}
 	if err := k.app.askConsent("Export "+name+" unencrypted?",
-		"This writes the knowledge pack "+name+" ("+pagesOf(en.Manifest.Pages)+") and the documents it was made from, in the clear, into a folder you choose. "+
+		"This writes the knowledge pack "+name+" ("+kn.CountPages(en.Manifest.Pages)+") and the documents it was made from, in the clear, into a folder you choose. "+
 			"The copy there is not encrypted: anyone who can read that folder can read it. Continue?"); err != nil {
 		return nil, err
 	}
@@ -191,11 +182,4 @@ func rewrapKnowledge(ctx context.Context, env knowledge.Env, reg string) ([]stri
 		return moved, "Some knowledge packs are still encrypted to this computer's key: " + err.Error()
 	}
 	return moved, ""
-}
-
-func pagesOf(n int) string {
-	if n == 1 {
-		return "1 page"
-	}
-	return fmt.Sprintf("%d pages", n)
 }

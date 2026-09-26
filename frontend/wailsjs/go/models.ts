@@ -748,11 +748,11 @@ export namespace knowledge {
 	    inAgentry: boolean;
 	    changed: boolean;
 	    where: string;
+	    note?: string;
 	    key?: string;
 	    wrapper?: string;
 	    registry?: string;
 	    opensOffline: boolean;
-	    updated?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Pack(source);
@@ -771,11 +771,11 @@ export namespace knowledge {
 	        this.inAgentry = source["inAgentry"];
 	        this.changed = source["changed"];
 	        this.where = source["where"];
+	        this.note = source["note"];
 	        this.key = source["key"];
 	        this.wrapper = source["wrapper"];
 	        this.registry = source["registry"];
 	        this.opensOffline = source["opensOffline"];
-	        this.updated = source["updated"];
 	    }
 	}
 	export class List {

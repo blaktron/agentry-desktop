@@ -15,8 +15,8 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
-import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList } from "../ui";
-import { fmtBytes, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
+import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
+import { nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
 type Step = "documents" | "name" | "review";
 

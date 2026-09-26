@@ -13,8 +13,8 @@
 import { useCallback, useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";
-import { Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner } from "../ui";
-import { fmtBytes, pagesOf, scanBadge, whereBadge } from "../knowledge";
+import { Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, fmtBytes } from "../ui";
+import { pagesOf, scanTone } from "../knowledge";
 import KnowledgeCreate from "./KnowledgeCreate";
 import KnowledgePreview from "./KnowledgePreview";
 
@@ -97,8 +97,8 @@ export default function Knowledge({
 
       {list && (list.signedIn ? (
         <Notice tone="info">
-          Packs made here are kept on this computer, encrypted to your account&apos;s key at {host}, which Agentry holds,
-          so they open on any computer you sign in on.
+          Packs made here are kept on this computer, encrypted to a key {host} keeps for your account, so they open on any
+          computer you sign in on. Each pack below says what holds its key.
         </Notice>
       ) : (
         <Notice tone="warn">
@@ -124,7 +124,6 @@ export default function Knowledge({
       )}
 
       {packs.map((p) => {
-        const scan = scanBadge(p);
         // The row's actions sit on their own line under what the pack is:
         // five of them beside the text would leave it a narrow column.
         const actions = p.local ? (
@@ -154,8 +153,8 @@ export default function Knowledge({
               <div className="agent-row-head">
                 <span className="agent-row-title mono">{p.name}</span>
                 <span className="row agent-row-badges">
-                  <span className={`badge ${scan.cls}`.trim()} title={p.scan}>{scan.text}</span>
-                  <span className="badge">{whereBadge(p)}</span>
+                  <span className={`badge ${scanTone(p)}`.trim()}>{p.scan}</span>
+                  <span className="badge">{p.where}</span>
                   {p.changed && <span className="badge warn" title="kept in both places, and changed on this computer since its upload">changed since upload</span>}
                 </span>
               </div>
@@ -170,6 +169,7 @@ export default function Knowledge({
                 ) : (
                   <>Kept in Agentry{list?.signedIn && p.scanState !== "scanning" && p.scanState !== "empty" ? "; download it to attach it to a run on this computer." : "."}</>
                 )}
+                {p.note && <> {p.note}</>}
               </div>
               {actions && <div className="row knowledge-row-actions">{actions}</div>}
             </div>

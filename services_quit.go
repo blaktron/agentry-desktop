@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -40,6 +42,11 @@ type liveRun struct {
 	// done is closed when the binding that owns the run has returned from
 	// the engine (RunAgent), or the session has ended (EndSession).
 	done chan struct{}
+	// release removes the opened copies of the knowledge packs attached to
+	// the run (nil when none was). endRun calls it before closing done,
+	// and quitting waits for done, so the app never exits with one left
+	// in the store.
+	release func()
 }
 
 // beginRun records a run about to enter the engine and returns its id and
@@ -66,15 +73,32 @@ func (r *RunAPI) beginRun(ref string, cancel context.CancelFunc) (*liveRun, erro
 }
 
 // endRun may be called from both ends of a session (EndSession and
-// shutdown): only the call that clears the record closes done.
+// shutdown): only the call that clears the record releases the attached
+// knowledge and closes done.
 func (r *RunAPI) endRun(l *liveRun) {
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
 	if r.live == l {
+		if l.release != nil {
+			l.release()
+		}
 		r.live = nil
 		close(l.done)
 		r.forgetInFlight(l.id)
 	}
+}
+
+// attach opens the named knowledge packs for the run l, whose endRun
+// removes the opened copies.
+func (r *RunAPI) attach(ctx context.Context, l *liveRun, reg string, names []string) ([]engine.AttachedPack, error) {
+	packs, release, err := r.knowledge().Attach(ctx, reg, names)
+	if err != nil {
+		return nil, err
+	}
+	r.liveMu.Lock()
+	l.release = release
+	r.liveMu.Unlock()
+	return packs, nil
 }
 
 // forgetInFlight removes a run's crash-path record once nothing of it can
@@ -149,7 +173,6 @@ func (r *RunAPI) shutdown() {
 			_, _ = s.End(endCtx, false)
 			l.cancel()
 			r.endRun(l)
-			r.releaseSessionKnowledge()
 		}()
 	} else {
 		l.cancel()

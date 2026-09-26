@@ -283,3 +283,33 @@ func TestARunAttachesKeptKnowledgeAndRemovesItsCopyAfter(t *testing.T) {
 		t.Fatal("the engine was asked to run with a pack that would not open")
 	}
 }
+
+// Quitting mid-run with a pack attached removes the pack's opened copy
+// before shutdown returns: the release runs before the run is marked done,
+// which is what shutdown waits for (§9 "teardown on every path").
+func TestQuittingMidRunRemovesTheAttachedCopyBeforeShutdownReturns(t *testing.T) {
+	f := newKnowledgeFixture(t)
+	eng := &fakeEngine{started: make(chan run.Request, 1)}
+	r := f.k.run
+	r.engineRun, r.newRunID = eng.run, func() (string, error) { return "ab12cd34", nil }
+	r.sweep = func(context.Context, string) error { return nil }
+	errc := make(chan error, 1)
+	go func() {
+		_, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, -1, false, nil, false, false, []string{"handbook"})
+		errc <- err
+	}()
+	var req run.Request
+	select {
+	case req = <-eng.started:
+	case err := <-errc:
+		t.Fatalf("the run never reached the engine: %v", err)
+	}
+	if len(req.Knowledge) != 1 {
+		t.Fatalf("the engine was handed %d packs", len(req.Knowledge))
+	}
+	r.shutdown()
+	if _, err := os.Stat(req.Knowledge[0].Dir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("shutdown returned with the attached copy still in the store: %v", err)
+	}
+	<-errc
+}
