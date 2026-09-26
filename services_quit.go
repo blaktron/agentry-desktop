@@ -149,6 +149,7 @@ func (r *RunAPI) shutdown() {
 			_, _ = s.End(endCtx, false)
 			l.cancel()
 			r.endRun(l)
+			r.releaseSessionKnowledge()
 		}()
 	} else {
 		l.cancel()

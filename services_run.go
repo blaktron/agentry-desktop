@@ -21,6 +21,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -45,8 +46,14 @@ type RunAPI struct {
 	// sweeps unambiguous. An interactive session holds it from
 	// StartSession to EndSession (D-017: one session per app).
 	mu sync.Mutex
-	// session is the live interactive session, nil otherwise.
-	session *run.Session
+	// session is the live interactive session, nil otherwise;
+	// sessionKnowledge removes the opened copies of the packs attached to
+	// it, when it ends.
+	session          *run.Session
+	sessionKnowledge func()
+	// knowledgeEnv is the local knowledge store's wiring; nil is this
+	// app's (internal/knowledge.Default). A test passes its own.
+	knowledgeEnv *knowledge.Env
 	// hosted is the In-Agentry run this app is following (services_
 	// hostedrun.go), under its own lock: a hosted run touches no docker,
 	// so it must not wait on — or be waited on by — the run lock above.
@@ -98,12 +105,19 @@ type SessionEventView struct {
 // consent-recorded contract, images, profile and intake as RunAgent, then
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
 	if err := r.runGates(ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
 		return nil, err
 	}
 	if !r.mu.TryLock() {
 		return nil, errBusy
+	}
+	// The attached packs' opened copies live as long as the session:
+	// EndSession (or quitting) removes them.
+	packs, releaseKnowledge, err := r.knowledge().Attach(r.app.ctx, reg, knowledge)
+	if err != nil {
+		r.mu.Unlock()
+		return nil, err
 	}
 	// The session's own context, the parent of everything the engine
 	// starts for it: quitting while the session is still starting cancels
@@ -112,6 +126,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	live, err := r.beginRun(ref, cancel)
 	if err != nil {
 		cancel()
+		releaseKnowledge()
 		r.mu.Unlock()
 		return nil, err
 	}
@@ -122,6 +137,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		Ref:                ref,
 		Task:               task,
 		InputPaths:         inputPaths,
+		Knowledge:          packs,
 		OutDir:             outDir,
 		KeepProfile:        keepProfile,
 		TimeoutSeconds:     timeoutSec,
@@ -136,10 +152,14 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	if err != nil {
 		cancel()
 		r.endRun(live)
+		releaseKnowledge()
 		r.mu.Unlock()
 		return nil, err
 	}
 	r.session = s
+	r.liveMu.Lock()
+	r.sessionKnowledge = releaseKnowledge
+	r.liveMu.Unlock()
 	go func() {
 		for ev := range s.Events() {
 			runtime.EventsEmit(r.app.ctx, eventSessionEvent, SessionEventView{
@@ -188,6 +208,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 		l.cancel()
 		r.endRun(l)
 	}
+	r.releaseSessionKnowledge()
 	r.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -552,6 +573,10 @@ type RunResultView struct {
 	// (agentry-cli#152), the envelope's block as it is: omitted when the
 	// envelope carries none.
 	Policy *receipt.Policy `json:"policy,omitempty"`
+	// Knowledge is the receipt's knowledge line (plan knowledge.md §4.5):
+	// the packs mounted, how, and the tools that read them; omitted when
+	// none was attached.
+	Knowledge string `json:"knowledge,omitempty"`
 }
 
 // RunAgent executes one BriefAgent run: resolve → digest + DSSE verify →
@@ -565,7 +590,10 @@ type RunResultView struct {
 // acceptUnscanned is the consent for a release the registry admitted
 // without a scan (M23, D-029) — its own, which acceptUnsigned does not
 // give — enforced in Go the same way, on every run from the cache too.
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool) (*RunResultView, error) {
+// knowledge names the knowledge packs kept on this computer to attach
+// (plan knowledge.md §4.5): each is opened from the local store once the
+// gates have passed, and its opened copy is removed when the run returns.
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*RunResultView, error) {
 	if err := r.runGates(ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
 		return nil, err
 	}
@@ -573,6 +601,11 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		return nil, errBusy
 	}
 	defer r.mu.Unlock()
+	packs, releaseKnowledge, err := r.knowledge().Attach(r.app.ctx, reg, knowledge)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseKnowledge()
 	// The run's own context: quitting cancels it, the engine returns and
 	// tears down, and shutdown waits for that (services_quit.go).
 	ctx, cancel := context.WithCancel(r.app.ctx)
@@ -590,6 +623,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		Ref:                ref,
 		Task:               task,
 		InputPaths:         inputPaths,
+		Knowledge:          packs,
 		OutDir:             outDir,
 		KeepProfile:        keepProfile,
 		TimeoutSeconds:     timeoutSec,
@@ -626,6 +660,7 @@ func runResultView(res *run.Result) *RunResultView {
 		Turns:            res.Turns,
 		AttestationState: res.AttestationState,
 		Policy:           res.Policy,
+		Knowledge:        res.Knowledge,
 	}
 }
 
@@ -776,4 +811,25 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 	}
 	return r.app.askConsent("Run "+ref+" anyway?",
 		"This run accepts "+strings.Join(accepting, ", and ")+". The receipt will record the consent. Continue?")
+}
+
+// knowledge is the local knowledge store's wiring (internal/knowledge).
+func (r *RunAPI) knowledge() knowledge.Env {
+	if r.knowledgeEnv != nil {
+		return *r.knowledgeEnv
+	}
+	return knowledge.Default()
+}
+
+// releaseSessionKnowledge removes the opened copies of the packs attached
+// to the session that ended, once: EndSession and quitting may both get
+// here.
+func (r *RunAPI) releaseSessionKnowledge() {
+	r.liveMu.Lock()
+	f := r.sessionKnowledge
+	r.sessionKnowledge = nil
+	r.liveMu.Unlock()
+	if f != nil {
+		f()
+	}
 }

@@ -9,6 +9,7 @@
 # The rule, written down where the copy lives.
 the honest-posture rule, stated in the shared UI module :: an agent is "scanned, N findings, signed" — never "safe"
 the honest-posture rule, stated on the report view :: never a "safe" claim
+the honest-posture rule, stated where the Knowledge panel's copy lives (agentry-desktop#273) :: a pack "safe", "secure" or "private" (plan §3).
 
 # A value in someone else's vocabulary, not a claim of ours: the registry's
 # MCP vulnerability verdict is the string "safe" on the wire

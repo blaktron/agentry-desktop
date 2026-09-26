@@ -663,6 +663,231 @@ export namespace installed {
 
 }
 
+export namespace knowledge {
+	
+	export class Dropped {
+	    path: string;
+	    reason: string;
+	    kept?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Dropped(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.reason = source["reason"];
+	        this.kept = source["kept"];
+	    }
+	}
+	export class BuildResult {
+	    name: string;
+	    pages: number;
+	    bytes: number;
+	    documents: string[];
+	    skipped?: string[];
+	    dropped?: Dropped[];
+	    stopped?: string;
+	    key: string;
+	    agentryStale?: boolean;
+	    rewrapped?: string[];
+	    inputTokens: number;
+	    outputTokens: number;
+	    costUsd: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BuildResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.pages = source["pages"];
+	        this.bytes = source["bytes"];
+	        this.documents = source["documents"];
+	        this.skipped = source["skipped"];
+	        this.dropped = this.convertValues(source["dropped"], Dropped);
+	        this.stopped = source["stopped"];
+	        this.key = source["key"];
+	        this.agentryStale = source["agentryStale"];
+	        this.rewrapped = source["rewrapped"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.costUsd = source["costUsd"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Pack {
+	    name: string;
+	    id?: string;
+	    agentryId?: string;
+	    pages: number;
+	    bytes: number;
+	    scan: string;
+	    scanState: string;
+	    local: boolean;
+	    inAgentry: boolean;
+	    changed: boolean;
+	    where: string;
+	    key?: string;
+	    wrapper?: string;
+	    registry?: string;
+	    opensOffline: boolean;
+	    updated?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Pack(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.id = source["id"];
+	        this.agentryId = source["agentryId"];
+	        this.pages = source["pages"];
+	        this.bytes = source["bytes"];
+	        this.scan = source["scan"];
+	        this.scanState = source["scanState"];
+	        this.local = source["local"];
+	        this.inAgentry = source["inAgentry"];
+	        this.changed = source["changed"];
+	        this.where = source["where"];
+	        this.key = source["key"];
+	        this.wrapper = source["wrapper"];
+	        this.registry = source["registry"];
+	        this.opensOffline = source["opensOffline"];
+	        this.updated = source["updated"];
+	    }
+	}
+	export class List {
+	    packs: Pack[];
+	    registry: string;
+	    signedIn: boolean;
+	    agentry?: string;
+	    problems?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new List(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.packs = this.convertValues(source["packs"], Pack);
+	        this.registry = source["registry"];
+	        this.signedIn = source["signedIn"];
+	        this.agentry = source["agentry"];
+	        this.problems = source["problems"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Page {
+	    path: string;
+	    title: string;
+	    summary?: string;
+	    markdown: string;
+	    truncated?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Page(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	        this.summary = source["summary"];
+	        this.markdown = source["markdown"];
+	        this.truncated = source["truncated"];
+	    }
+	}
+	export class PageInfo {
+	    path: string;
+	    title: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PageInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.title = source["title"];
+	    }
+	}
+	export class Preview {
+	    name: string;
+	    index: Page;
+	    pages: PageInfo[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Preview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.index = this.convertValues(source["index"], Page);
+	        this.pages = this.convertValues(source["pages"], PageInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace main {
 	
 	export class UpgradeRef {
@@ -1098,6 +1323,18 @@ export namespace main {
 		}
 	}
 	
+	export class ExportView {
+	    dir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dir = source["dir"];
+	    }
+	}
 	export class FindingView {
 	    scanner: string;
 	    severity: string;
@@ -1741,6 +1978,7 @@ export namespace main {
 	    turns: number;
 	    attestationState: string;
 	    policy?: receipt.Policy;
+	    knowledge?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -1765,6 +2003,7 @@ export namespace main {
 	        this.turns = source["turns"];
 	        this.attestationState = source["attestationState"];
 	        this.policy = this.convertValues(source["policy"], receipt.Policy);
+	        this.knowledge = source["knowledge"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2016,6 +2255,8 @@ export namespace main {
 	    user: UserView;
 	    tokenStore: string;
 	    pinNote: string;
+	    knowledgeRewrapped?: string[];
+	    knowledgeNote?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SignInResult(source);
@@ -2026,6 +2267,8 @@ export namespace main {
 	        this.user = this.convertValues(source["user"], UserView);
 	        this.tokenStore = source["tokenStore"];
 	        this.pinNote = source["pinNote"];
+	        this.knowledgeRewrapped = source["knowledgeRewrapped"];
+	        this.knowledgeNote = source["knowledgeNote"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

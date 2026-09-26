@@ -17,9 +17,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
+import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { main, trust } from "../../wailsjs/go/models";
+import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, shortDigest } from "../ui";
 import { STEP_LABEL, needList, setupSteps, type StepKey } from "../runSetup";
 import SessionChat from "./SessionChat";
@@ -27,6 +28,7 @@ import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
+import { fmtBytes, pagesOf, scanBadge } from "../knowledge";
 
 export default function RunPanel({
   registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep,
@@ -69,6 +71,11 @@ export default function RunPanel({
   // file intake question may pick one of these (plan §4, Details), and a
   // folder is never offered for it.
   const [pickedFiles, setPickedFiles] = useState<string[]>([]);
+  // The knowledge packs kept on this computer, and the ones to attach
+  // (plan knowledge.md §4.5): by name; Go opens each from the store after
+  // the gates, and the receipt names what was mounted.
+  const [packs, setPacks] = useState<knowledge.Pack[] | null>(null);
+  const [attach, setAttach] = useState<string[]>([]);
   const [outDir, setOutDir] = useState("");
   const [keep, setKeep] = useState(true);
   // D-012: the keep toggle is sent only once the user touches it; an
@@ -113,6 +120,7 @@ export default function RunPanel({
   useEffect(() => {
     RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
     RunAPI.GatewayRequirements(registry, ns, name).then(setMcp).catch(() => setMcp(null));
+    KnowledgeAPI.List(registry).then((l) => setPacks(l.packs.filter((p) => p.local))).catch(() => setPacks([]));
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
         setProfile(p);
@@ -220,7 +228,10 @@ export default function RunPanel({
   const steps = setupSteps({
     servers: mcp?.declaredServers?.length ?? 0,
     secrets: profile?.declaredSecrets.length ?? 0,
+    knowledge: !inAgentry && (packs?.length ?? 0) > 0,
   });
+  // What a run on this machine attaches: the ticked packs still kept here.
+  const attached = inAgentry ? [] : attach.filter((n) => (packs ?? []).some((p) => p.name === n));
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
@@ -395,7 +406,7 @@ export default function RunPanel({
     try {
       const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
       const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned);
+      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached);
       setResult(r);
     } catch (e) {
       setRunErr(String(e));
@@ -596,6 +607,43 @@ export default function RunPanel({
               </>
             )}
 
+            {step === "knowledge" && (
+              <>
+                <p className="muted small">
+                  Attach knowledge packs kept on this computer. Each is mounted read-only at{" "}
+                  <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the BriefAgent
+                  reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
+                  <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
+                  they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
+                  its digest. A run needs none.
+                </p>
+                <div className="knowledge-attach-list">
+                {(packs ?? []).map((p) => {
+                  const scan = scanBadge(p);
+                  return (
+                    <label key={p.name} className="knowledge-attach">
+                      <input
+                        type="checkbox"
+                        checked={attach.includes(p.name)}
+                        onChange={(e) => setAttach(e.target.checked ? [...attach, p.name] : attach.filter((n) => n !== p.name))}
+                      />
+                      <span className="grow">
+                        <span className="row nowrap knowledge-attach-head">
+                          <span className="mono">{p.name}</span>
+                          <span className={`badge ${scan.cls}`.trim()}>{scan.text}</span>
+                        </span>
+                        <span className="muted small" style={{ display: "block" }}>
+                          {pagesOf(p.pages)} · {fmtBytes(p.bytes)} ·{" "}
+                          {p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+                </div>
+              </>
+            )}
+
             {step === "tools" && (
               <>
                 {(mcp?.declaredServers?.length ?? 0) > 0 && (
@@ -757,6 +805,15 @@ export default function RunPanel({
                     <span className="mono small selectable">{inputs.length === 0 ? "none" : inputs.join(", ")}</span>
                     <Button variant="link" onClick={() => goTo(steps.indexOf("files"))} aria-label="Edit files">Edit</Button>
                   </dd>
+                  {steps.includes("knowledge") && (
+                    <>
+                      <dt>Knowledge</dt>
+                      <dd>
+                        <span className="mono small selectable">{attached.length === 0 ? "none" : attached.join(", ")}</span>
+                        <Button variant="link" onClick={() => goTo(steps.indexOf("knowledge"))} aria-label="Edit knowledge">Edit</Button>
+                      </dd>
+                    </>
+                  )}
                   {profile && profile.declaredSecrets.length > 0 && (
                     <>
                       <dt>Keys</dt>
@@ -978,6 +1035,7 @@ export default function RunPanel({
             acceptUnscanned={unscanned && acceptUnscanned}
             allowVulnerableMCP={refused && allowVulnerableMCP}
             intakeAnswers={intakeAnswers()}
+            knowledge={attached}
             opening={profile?.opening ?? ""}
             onResult={(r, err) => {
               setSessionActive(false);
@@ -1021,6 +1079,7 @@ export default function RunPanel({
             tone={result.status === "ok" ? "ok" : "bad"}
             error={result.error || undefined}
             resultJson={result.resultJson}
+            knowledge={result.knowledge}
           >
             <Card className="selectable">
               <div className="row">

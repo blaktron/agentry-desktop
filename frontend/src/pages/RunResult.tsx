@@ -18,7 +18,7 @@ import { RevealText, plainName } from "../reveal";
 import { Button, ErrorBox } from "../ui";
 
 export function RunResultView({
-  runId, headline, tone, error, resultJson, children,
+  runId, headline, tone, error, resultJson, knowledge, children,
 }: {
   runId: string;
   headline: string;
@@ -26,6 +26,9 @@ export function RunResultView({
   error?: string;
   /** The run/v1 envelope's result, as JSON text. */
   resultJson: string;
+  /** The receipt's knowledge line: the packs this run could search, and how
+   *  they were mounted (plan knowledge.md §4.5); unset when none was. */
+  knowledge?: string;
   /** Run details: what the view used to show first. */
   children?: React.ReactNode;
 }) {
@@ -54,6 +57,13 @@ export function RunResultView({
         <h4 id="run-result-message">The result</h4>
         <ResultBody raw={resultJson} />
       </section>
+
+      {knowledge && (
+        <section aria-labelledby="run-result-knowledge">
+          <h4 id="run-result-knowledge">Knowledge this run could search</h4>
+          <p className="mono small selectable">{knowledge}</p>
+        </section>
+      )}
 
       <section aria-labelledby="run-result-files">
         <div className="spread">
