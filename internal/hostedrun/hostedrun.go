@@ -107,6 +107,25 @@ type Status struct {
 	Caller        *Caller `json:"caller,omitempty"`
 	// KnowledgeBuild is absent from a registry from before the build kind.
 	KnowledgeBuild *BuildPrice `json:"knowledgeBuild,omitempty"`
+	// KnowledgeAttach says whether a run here may attach knowledge packs,
+	// and how many (agentry-enterprise#172); absent from a registry from
+	// before, where a run In Agentry attaches none.
+	KnowledgeAttach *KnowledgeAttach `json:"knowledgeAttach,omitempty"`
+}
+
+// KnowledgeAttach is the status route's knowledgeAttach block.
+type KnowledgeAttach struct {
+	Enabled  bool `json:"enabled"`
+	MaxPacks int  `json:"maxPacks"`
+}
+
+// Attached is one knowledge pack a run attaches, as the registry records
+// it: the account's pack by its registry id and name, and from the run's
+// hand-off to a sandbox host the digest of the tree it was given.
+type Attached struct {
+	Pack   string `json:"pack"`
+	Name   string `json:"name"`
+	Digest string `json:"digest,omitempty"`
 }
 
 // RunnersOnline is how many runners, of either kind, can take a run now.
@@ -186,6 +205,7 @@ type Run struct {
 	Inputs          []Artefact      `json:"inputs"`
 	Outputs         []Artefact      `json:"outputs"`
 	QueuePosition   int             `json:"queuePosition,omitempty"`
+	Knowledge       []Attached      `json:"knowledge,omitempty"`
 	CreatedAt       time.Time       `json:"createdAt"`
 	StartedAt       *time.Time      `json:"startedAt,omitempty"`
 	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
@@ -242,6 +262,10 @@ type CreateRequest struct {
 	Task     string            `json:"task,omitempty"`
 	Intake   map[string]string `json:"intake,omitempty"`
 	Inputs   []string          `json:"inputs,omitempty"`
+	// Knowledge are the registry ids of the account's packs in Agentry a
+	// run attaches (agentry-enterprise#172, Knowledge M7); a build takes
+	// none.
+	Knowledge []string `json:"knowledge,omitempty"`
 }
 
 // Client talks to one registry's runs extension as one account.

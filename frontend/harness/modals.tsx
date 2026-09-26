@@ -60,6 +60,16 @@
 //                                 (shots.mjs clicks Run): the receipt's
 //                                 knowledge line under the result
 //
+// Knowledge attached to a run In Agentry (agentry-desktop#275):
+//   #runpanel-hosted-knowledge          the Knowledge step In Agentry: packs
+//                                       kept and scanned in Agentry can be
+//                                       ticked; one kept only here offers
+//                                       Upload to Agentry; one being scanned
+//                                       there says so
+//   #runpanel-hosted-knowledge-finished a run In Agentry with a pack
+//                                       attached, done — pass: the receipt's
+//                                       knowledge line under the result
+//
 // A run on this machine, finished (shots.mjs clicks Run on the review):
 //   #runpanel-local-finished      its Run details name the operator policy
 //                                 it enforced, the runner home's default
@@ -117,12 +127,16 @@ const guide = hostileGuide
 const fileIntakeShape = view === "runpanel-file-intake";
 // A finished local run: no intake question, so Run on the review is enabled.
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
-const knowledgeShape = view === "runpanel-step-knowledge" || view === "runpanel-knowledge-finished";
+const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
+const knowledgeShape = view === "runpanel-step-knowledge" || view === "runpanel-knowledge-finished" || hostedKnowledge;
 const knowledgePacks = knowledgeShape
   ? [
-    { name: "incident-runbooks", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: false },
-    { name: "oncall-notes", pages: 12, bytes: 184_320, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: true },
-    { name: "supplier-contracts", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
+    { name: "incident-runbooks", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, agentryReady: true, changed: false, where: "this computer and Agentry", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: false },
+    { name: "oncall-notes", pages: 12, bytes: 184_320, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, agentryReady: false, changed: false, where: "this computer", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: true },
+    { name: "supplier-contracts", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, agentryReady: true, changed: false, where: "Agentry", opensOffline: false },
+    ...(hostedKnowledge
+      ? [{ name: "vendor-sla", pages: 3, bytes: 41_000, scan: "being scanned in Agentry", scanState: "scanning", local: false, inAgentry: true, agentryReady: false, changed: false, where: "Agentry", opensOffline: false }]
+      : []),
   ]
   : [];
 const localResult = {
@@ -182,6 +196,7 @@ const availability = {
   caps: { timeoutSeconds: 300, maxTurns: 20, maxTokens: 20000 },
   balance: 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
+  knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
 };
 
 const hostedBase = {
@@ -233,6 +248,15 @@ hostedRuns.hostile = {
       "pay\u200Bpal invoice attached.",
   ),
 };
+hostedRuns["hosted-knowledge-finished"] = {
+  ...hostedRuns.finished,
+  knowledge: [{ name: "incident-runbooks", digest: "sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }],
+  capabilitiesEnforced: {
+    ...hostedRuns.finished.capabilitiesEnforced,
+    knowledge: "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only",
+  },
+  knowledgeLine: "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only",
+};
 const hostedRun = hostedRuns[hostedState] ?? null;
 
 // What the result view lists from the run folder (RunAPI.RunOutputs).
@@ -270,6 +294,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-local-finished": "review",
   "runpanel-step-knowledge": "knowledge",
   "runpanel-knowledge-finished": "review",
+  "runpanel-hosted-knowledge": "knowledge",
   "runpanel-local-finished-env": "review",
 };
 
@@ -380,7 +405,7 @@ if (view === "install-unscanned" || view === "install-mcp-env") {
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "unavailable" ? "hosted" : undefined}
+        initialMode={hostedState === "hosted" || hostedState === "unavailable" || hostedKnowledge ? "hosted" : undefined}
         initialStep={STEP_OF[view]}
       />
     </>,

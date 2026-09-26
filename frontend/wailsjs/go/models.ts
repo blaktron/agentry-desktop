@@ -797,6 +797,7 @@ export namespace knowledge {
 	    scanState: string;
 	    local: boolean;
 	    inAgentry: boolean;
+	    agentryReady: boolean;
 	    changed: boolean;
 	    where: string;
 	    note?: string;
@@ -820,6 +821,7 @@ export namespace knowledge {
 	        this.scanState = source["scanState"];
 	        this.local = source["local"];
 	        this.inAgentry = source["inAgentry"];
+	        this.agentryReady = source["agentryReady"];
 	        this.changed = source["changed"];
 	        this.where = source["where"];
 	        this.note = source["note"];
@@ -1632,6 +1634,9 @@ export namespace main {
 	    caps?: HostedCapsView;
 	    balance: number;
 	    balanceKnown: boolean;
+	    knowledgeAttach: boolean;
+	    maxPacks?: number;
+	    knowledgeNote?: string;
 	    maxInputFiles: number;
 	    maxInputBytes: number;
 	
@@ -1657,6 +1662,9 @@ export namespace main {
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
+	        this.knowledgeAttach = source["knowledgeAttach"];
+	        this.maxPacks = source["maxPacks"];
+	        this.knowledgeNote = source["knowledgeNote"];
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
 	    }
@@ -1680,6 +1688,20 @@ export namespace main {
 		}
 	}
 	
+	export class HostedPackView {
+	    name: string;
+	    digest?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedPackView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.digest = source["digest"];
+	    }
+	}
 	export class HostedRunView {
 	    id: string;
 	    ref: string;
@@ -1705,6 +1727,8 @@ export namespace main {
 	    settled: boolean;
 	    receiptKept: boolean;
 	    capabilitiesEnforced?: {[key: string]: string};
+	    knowledgeLine?: string;
+	    knowledge?: HostedPackView[];
 	    attestationState?: string;
 	    adapter?: string;
 	    resultJson?: string;
@@ -1746,6 +1770,8 @@ export namespace main {
 	        this.settled = source["settled"];
 	        this.receiptKept = source["receiptKept"];
 	        this.capabilitiesEnforced = source["capabilitiesEnforced"];
+	        this.knowledgeLine = source["knowledgeLine"];
+	        this.knowledge = this.convertValues(source["knowledge"], HostedPackView);
 	        this.attestationState = source["attestationState"];
 	        this.adapter = source["adapter"];
 	        this.resultJson = source["resultJson"];

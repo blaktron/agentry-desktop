@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -98,6 +99,13 @@ type HostedAvailabilityView struct {
 	// registry has no billing extension or the read failed.
 	Balance      int64 `json:"balance"`
 	BalanceKnown bool  `json:"balanceKnown"`
+	// KnowledgeAttach says a run In Agentry here may attach the account's
+	// packs kept in Agentry (agentry-enterprise#172), at most MaxPacks:
+	// the registry says so and the token reads knowledge. KnowledgeNote
+	// says why not where the registry would but the token cannot.
+	KnowledgeAttach bool   `json:"knowledgeAttach"`
+	MaxPacks        int    `json:"maxPacks,omitempty"`
+	KnowledgeNote   string `json:"knowledgeNote,omitempty"`
 
 	MaxInputFiles int   `json:"maxInputFiles"`
 	MaxInputBytes int64 `json:"maxInputBytes"`
@@ -156,10 +164,17 @@ type HostedRunView struct {
 	// pushed before that — has the panel say so rather than read one from
 	// a file in the outputs.
 	ReceiptKept bool `json:"receiptKept"`
-	// CapabilitiesEnforced is the receipt's block, listed verbatim.
+	// CapabilitiesEnforced is the receipt's block, listed verbatim; its
+	// knowledge line is also KnowledgeLine, which the result view shows
+	// under the result as a local run's is.
 	CapabilitiesEnforced map[string]string `json:"capabilitiesEnforced,omitempty"`
-	AttestationState     string            `json:"attestationState,omitempty"`
-	Adapter              string            `json:"adapter,omitempty"`
+	KnowledgeLine        string            `json:"knowledgeLine,omitempty"`
+	// Knowledge are the packs the run attaches, as the registry records
+	// them: each by name, and from its hand-off the digest of the tree it
+	// was given (agentry-desktop#275).
+	Knowledge        []HostedPackView `json:"knowledge,omitempty"`
+	AttestationState string           `json:"attestationState,omitempty"`
+	Adapter          string           `json:"adapter,omitempty"`
 
 	// ResultJSON is result.json as the run wrote it, rendered by the same
 	// component a local run's result is.
@@ -176,6 +191,12 @@ type HostedRunView struct {
 	// Final says this is the last word on the run: it is over and its
 	// artefacts are downloaded.
 	Final bool `json:"final"`
+}
+
+// HostedPackView is one knowledge pack a run In Agentry attaches.
+type HostedPackView struct {
+	Name   string `json:"name"`
+	Digest string `json:"digest,omitempty"`
 }
 
 // HostedStartView is what starting (or reattaching to) a hosted run
@@ -245,6 +266,13 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 			v.InputTokensPerCredit, v.OutputTokensPerCredit = st.Caller.InputTokensPerCredit, st.Caller.OutputTokensPerCredit
 			v.Caps = &HostedCapsView{TimeoutSeconds: st.Caller.Caps.TimeoutSeconds, MaxTurns: st.Caller.Caps.MaxTurns, MaxTokens: st.Caller.Caps.MaxTokens}
 		}
+		if ka := st.KnowledgeAttach; ka != nil && ka.Enabled {
+			if facts.ScopesKnown && !slices.Contains(facts.Scopes, hostedrun.ScopeKnowledgeRead) {
+				v.KnowledgeNote = "This computer's token for " + reg + " does not carry " + hostedrun.ScopeKnowledgeRead + ", which attaching knowledge to a run In Agentry needs. It was minted before this app asked for it: sign in again to attach packs."
+			} else {
+				v.KnowledgeAttach, v.MaxPacks = true, ka.MaxPacks
+			}
+		}
 	}
 	if sub, err := fetchSubscription(ctx, reg, token); err == nil && sub != nil {
 		v.Balance, v.BalanceKnown = sub.Balance, true
@@ -258,7 +286,15 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // StartHostedRun uploads the run's input files, creates the run and starts
 // following it. The panel has shown the declared contract and collected
 // the intake answers first: nothing is created until Run is clicked.
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string) (*HostedStartView, error) {
+//
+// packs names the account's knowledge packs to attach (agentry-desktop#275;
+// plan knowledge.md §4.5): each must be one this computer's Knowledge list
+// shows as kept in Agentry and scanned there, and it is sent as the
+// registry's id for it — a name the list does not show that way is refused
+// here, before anything is uploaded, so the page cannot attach what it was
+// not offered. The registry checks again that each is the account's and
+// ready.
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (*HostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	token := settings.TokenFor(reg)
@@ -285,6 +321,10 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil && sig.Unscanned() {
 		return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
 	}
+	attach, err := r.packsInAgentry(reg, packs)
+	if err != nil {
+		return nil, err
+	}
 	files, err := hostedrun.StageInputs(inputPaths)
 	if err != nil {
 		return nil, err
@@ -297,7 +337,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 		}
 		return nil, err
 	}
-	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids})
+	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach})
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil
@@ -310,6 +350,43 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	}
 	r.followHosted(reg, token, dir, created)
 	return &HostedStartView{Run: hostedRunView(created, dir, nil, "", "", false)}, nil
+}
+
+// packsInAgentry resolves the pack names a run In Agentry attaches to the
+// registry's ids for them, from the Knowledge list for reg: each once, each
+// kept in Agentry and scanned there. None is none.
+func (r *RunAPI) packsInAgentry(reg string, names []string) ([]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	list, err := r.knowledge().List(r.ctx(), reg)
+	if err != nil {
+		return nil, fmt.Errorf("list the knowledge packs to attach: %w", err)
+	}
+	var ids []string
+	seen := map[string]bool{}
+	for _, name := range names {
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		found := false
+		for _, p := range list.Packs {
+			if p.Name != name || !p.InAgentry {
+				continue
+			}
+			found = true
+			if !p.AgentryReady || p.AgentryID == "" {
+				return nil, fmt.Errorf("the knowledge pack %s is not ready in Agentry: attach it once Agentry has scanned it", name)
+			}
+			ids = append(ids, p.AgentryID)
+			break
+		}
+		if !found {
+			return nil, fmt.Errorf("the knowledge pack %s is not kept in Agentry; upload it from the Knowledge page to attach it to a run In Agentry", name)
+		}
+	}
+	return ids, nil
 }
 
 // AttachHostedRun reattaches to this account's active run, if there is
@@ -549,6 +626,10 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 	}
 	v.ReceiptKept = !r.Receipt.Empty()
 	v.CapabilitiesEnforced = r.Receipt.CapabilitiesEnforced
+	v.KnowledgeLine = r.Receipt.CapabilitiesEnforced["knowledge"]
+	for _, k := range r.Knowledge {
+		v.Knowledge = append(v.Knowledge, HostedPackView{Name: k.Name, Digest: k.Digest})
+	}
 	v.AttestationState = r.Receipt.Attestation.State
 	v.Adapter = r.Receipt.Harness.Adapter
 	if len(got) == 0 {

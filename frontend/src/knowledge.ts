@@ -41,6 +41,36 @@ export function attachable(p: knowledge.Pack): boolean {
   return p.local;
 }
 
+/** Whether a run In Agentry can attach the pack (agentry-desktop#275):
+ *  Agentry keeps it and has scanned it. A pack kept only here is uploaded
+ *  first; one being scanned there waits for the scan. */
+export function attachableInAgentry(p: knowledge.Pack): boolean {
+  return p.inAgentry && p.agentryReady;
+}
+
+/** Why a pack cannot be attached to a run In Agentry, or what attaching it
+ *  means, in a sentence for the step's row. */
+export function inAgentryLine(p: knowledge.Pack): string {
+  if (!p.inAgentry) return "kept on this computer only: upload it to Agentry to attach it to a run there";
+  if (!p.agentryReady) {
+    return p.scanState === "scanning"
+      ? "attach it once Agentry's scan of it ends"
+      : p.scanState === "failed"
+        ? `Agentry's scan could not read it: upload it again${p.local ? "" : " from a computer that keeps it"} to attach it`
+        : `Agentry holds no pages of it yet: upload it${p.local ? "" : " from a computer that keeps it"} to attach it`;
+  }
+  if (p.local && p.changed) return "the run gets the copy Agentry keeps, which is older than this computer's: upload it again first to attach this one";
+  return "kept in Agentry; the run reads Agentry's copy";
+}
+
+/** The Knowledge step's check before Next: at most the registry's number
+ *  of packs for a run In Agentry. */
+export function tooManyPacks(count: number, max: number | undefined): string | null {
+  if (!max || count <= max) return null;
+  const over = count - max;
+  return `A run In Agentry attaches at most ${max} knowledge ${max === 1 ? "pack" : "packs"}. Untick ${over === 1 ? "one" : over} to go on.`;
+}
+
 /** The sentence a sign-in adds when it moved packs off this computer's key
  *  (plan D20); empty when it moved none. */
 export function rewrapLine(res: { knowledgeRewrapped?: string[]; knowledgeNote?: string }): string {

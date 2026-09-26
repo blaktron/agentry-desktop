@@ -66,6 +66,11 @@ type hostedFake struct {
 	noReceipt bool
 	created   *hostedrun.CreateRequest
 	refuse    func(w http.ResponseWriter)
+	// attach says the status route offers knowledgeAttach
+	// (agentry-enterprise#172); packs are the account's packs in Agentry,
+	// as GET /knowledge/packs lists them.
+	attach bool
+	packs  []map[string]any
 }
 
 func (f *hostedFake) start(t *testing.T) string {
@@ -128,13 +133,26 @@ func (f *hostedFake) start(t *testing.T) string {
 	mux.HandleFunc("GET /api/v1/x/runs/status", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		hostedJSON(w, http.StatusOK, map[string]any{
+		st := map[string]any{
 			"enabled": f.enabled, "workersOnline": 0, "hostsOnline": 1, "queued": 0,
 			"caller": map[string]any{
 				"tier": "standard", "caps": map[string]any{"timeoutSeconds": 300, "maxTurns": 20, "maxTokens": 20000},
 				"holdCredits": 20, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
 			},
-		})
+		}
+		if f.attach {
+			st["knowledgeAttach"] = map[string]any{"enabled": true, "maxPacks": 5}
+		}
+		hostedJSON(w, http.StatusOK, st)
+	})
+	mux.HandleFunc("GET /api/v1/knowledge/packs", func(w http.ResponseWriter, _ *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		packs := f.packs
+		if packs == nil {
+			packs = []map[string]any{}
+		}
+		hostedJSON(w, http.StatusOK, packs)
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/inputs", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
@@ -154,6 +172,13 @@ func (f *hostedFake) start(t *testing.T) string {
 			ID: "22222222-2222-2222-2222-222222222222", Ref: req.Ref, Digest: "sha256:abc", Mode: "autonomous",
 			Status: hostedrun.StatusQueued, QueuePosition: 3, HoldCredits: 20,
 			Caps: hostedrun.Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, CreatedAt: time.Now().UTC(),
+		}
+		for _, id := range req.Knowledge {
+			for _, p := range f.packs {
+				if p["id"] == id {
+					f.run.Knowledge = append(f.run.Knowledge, hostedrun.Attached{Pack: id, Name: p["name"].(string)})
+				}
+			}
 		}
 		hostedJSON(w, http.StatusCreated, f.run)
 	})
@@ -217,6 +242,11 @@ func (f *hostedFake) finish(outcome, exitClass string, settled int64) {
 	// envelope as the receipt (agentry-enterprise#121); a run pushed before
 	// that (noReceipt) has none.
 	f.run.Receipt = hostedrun.Receipt{CapabilitiesEnforced: map[string]string{"runtime": "runsc: the agent container"}}
+	for i, k := range f.run.Knowledge {
+		// The host's CLI names each pack it mounted (agentry-enterprise#172).
+		f.run.Knowledge[i].Digest = "sha256:" + strings.Repeat("2b", 32)
+		f.run.Receipt.CapabilitiesEnforced["knowledge"] = k.Name + " mounted read-only at /knowledge/" + k.Name + " (sha256:…, 4 pages, 6903 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only"
+	}
 	f.run.Receipt.Attestation.State = "unsigned"
 	f.run.Receipt.Harness.Adapter = "docker-agent"
 	if f.noReceipt {
@@ -310,7 +340,25 @@ func newRunAPI(t *testing.T) (*RunAPI, *emitted) {
 		}
 	}
 	t.Cleanup(func() { emitEvent = old })
-	return &RunAPI{app: &App{ctx: context.Background()}}, e
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	// Cleanups run last-registered first, so this one runs before
+	// emitEvent is put back: a follow still going when the test ends is
+	// stopped and waited for, or its next report reaches the real Wails
+	// runtime, which exits the test binary on a context that is not its
+	// own. It does not run before a cleanup registered after it (fastPoll's):
+	// a test whose follow may still be going when it ends calls fastPoll
+	// first.
+	t.Cleanup(func() {
+		if cur := r.hostedCurrent(); cur != nil && cur.done != nil {
+			cur.cancel()
+			select {
+			case <-cur.done:
+			case <-time.After(10 * time.Second):
+				t.Error("a run In Agentry's follow did not stop within 10s of the test's end")
+			}
+		}
+	})
+	return r, e
 }
 
 // emitted collects what the panel would have received: the run-log lines
@@ -437,7 +485,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	outDir := t.TempDir()
 	r.app.markPicked(inputDir, outDir) // what the native pickers record (D-030)
 
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"})
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +584,7 @@ func TestAPushedRunWithNoReceiptListsNone(t *testing.T) {
 	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
@@ -559,7 +607,7 @@ func TestHostedRunWithALostOutputListsNothing(t *testing.T) {
 	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
@@ -588,7 +636,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 
 	out1 := t.TempDir()
 	r.app.markPicked(out1)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil, nil)
 	if err != nil {
 		t.Fatalf("a refusal is a result, not an error: %v", err)
 	}
@@ -613,7 +661,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	f.mu.Unlock()
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil)
+	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -658,7 +706,7 @@ func TestAttachAndCancel(t *testing.T) {
 		t.Fatalf("attach = %+v", att)
 	}
 	// A second start is refused while one is being followed.
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil); err == nil ||
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err == nil ||
 		!strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("a second start: %v", err)
 	}
@@ -718,4 +766,119 @@ func waitForFinal(t *testing.T, events *emitted) *HostedRunView {
 	}
 	t.Fatal("the run never reported a final state")
 	return nil
+}
+
+// remotePack is one pack in Agentry as the core's list answers it.
+func remotePack(id, name, state string) map[string]any {
+	p := map[string]any{
+		"id": id, "name": name, "state": state, "bytes": 6903, "files": 9, "pages": 4,
+		"digest":     "sha256:" + strings.Repeat("2b", 32),
+		"wrappedKey": map[string]any{"kind": "certificate", "recipient": "serial:42", "key": "AAAA"},
+		"createdAt":  "2026-09-26T13:15:18Z", "updatedAt": "2026-09-26T13:17:30Z",
+	}
+	if state == "ready" {
+		p["scan"] = map[string]any{"schema": "agentry.knowledge-scan/v1", "stages": []any{}, "read": map[string]any{"sources": 3, "wiki": 6, "bytes": 6903, "notRead": []any{}},
+			"review": map[string]any{"configured": true, "provider": "typesafe", "sourceChunks": 1, "wikiChunks": 1}, "findings": []any{}}
+	}
+	return p
+}
+
+// A run In Agentry attaches the account's packs kept in Agentry
+// (agentry-desktop#275; agentry-enterprise#172): the availability says the
+// registry takes them, the create carries each by the registry's id, and
+// the result lists what the run was given and the receipt's knowledge
+// line. A pack that is not in Agentry, or not scanned there yet, is
+// refused by name before anything is uploaded or created.
+func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
+	const ready, scanning = "e1f8fcda-25b8-44df-9ebd-d27298fa5f0a", "4cb3f36e-213f-4423-bccb-055d505845e0"
+	f := &hostedFake{
+		enabled: true, attach: true,
+		scopes:  []string{"agent:read", "user:profile", "run:read", "run:write", "knowledge:read", "knowledge:write"},
+		packs:   []map[string]any{remotePack(ready, "runbook", "ready"), remotePack(scanning, "rescanned", "scanning")},
+		outputs: map[string]string{"result.json": hostedEnvelope},
+	}
+	reg := f.start(t)
+	signIn(t, reg)
+	fastPoll(t) // before newRunAPI, so its follow stops before the poll is put back
+	r, events := newRunAPI(t)
+	outDir := t.TempDir()
+	r.app.markPicked(outDir)
+
+	v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.KnowledgeAttach || v.MaxPacks != 5 || v.KnowledgeNote != "" {
+		t.Fatalf("availability = %+v", v)
+	}
+
+	for name, want := range map[string]string{"elsewhere": "not kept in Agentry", "rescanned": "not ready in Agentry"} {
+		_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{name})
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("attaching %s: %v, want %q", name, err, want)
+		}
+	}
+	f.mu.Lock()
+	created := f.created
+	f.mu.Unlock()
+	if created != nil {
+		t.Fatalf("a refused pack still created a run: %+v", created)
+	}
+
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{"runbook", "runbook"})
+	if err != nil || start.Refusal != "" {
+		t.Fatalf("start: %+v %v", start, err)
+	}
+	f.mu.Lock()
+	created = f.created
+	f.mu.Unlock()
+	if !slices.Equal(created.Knowledge, []string{ready}) {
+		t.Fatalf("the create's knowledge = %v, want the registry's id once", created.Knowledge)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
+	final := waitForFinal(t, events)
+	if len(final.Knowledge) != 1 || final.Knowledge[0].Name != "runbook" {
+		t.Fatalf("the run's packs = %+v", final.Knowledge)
+	}
+	if !strings.Contains(final.KnowledgeLine, "mounted read-only at /knowledge/runbook") {
+		t.Fatalf("the knowledge line = %q", final.KnowledgeLine)
+	}
+
+	// A run with none sends none. The first run's views go, so the wait
+	// below is for this run's end.
+	f.mu.Lock()
+	f.run, f.created = nil, nil
+	f.mu.Unlock()
+	events.mu.Lock()
+	events.runs = nil
+	events.mu.Unlock()
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	created = f.created
+	f.mu.Unlock()
+	if created == nil || created.Knowledge != nil {
+		t.Fatalf("a run with no packs sent %+v", created)
+	}
+	// Let the follow end with the test, so it emits into nothing after.
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
+	waitForFinal(t, events)
+}
+
+// A token minted before the app asked for knowledge:read cannot attach:
+// the availability says why, rather than offering a step the registry
+// would refuse.
+func TestHostedKnowledgeNeedsTheTokensKnowledgeRead(t *testing.T) {
+	f := &hostedFake{enabled: true, attach: true}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.KnowledgeAttach || !strings.Contains(v.KnowledgeNote, "knowledge:read") {
+		t.Fatalf("availability = %+v", v)
+	}
 }
