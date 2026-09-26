@@ -85,7 +85,7 @@ under this computer's key, and `#knowledge-empty` none. Create knowledge's
 steps are `#create-documents`, `#create-name`, `#create-review` (the recap and
 the sentence that nothing the Creator reads or writes is scanned) and
 `#create-blocked` (docker not ready, Create greyed); `#create-building` streams
-a build's log, `#create-done` shows what it made, and `#add-review` is Add
+a build's log, `#create-done` shows what it made, `#hosted-where`, `#hosted-review`, `#hosted-running` and `#hosted-done` are a build In Agentry (agentry-desktop#274), and `#add-review` is Add
 documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
 page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.

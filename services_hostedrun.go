@@ -85,13 +85,15 @@ type HostedAvailabilityView struct {
 	RunnersOnline int `json:"runnersOnline"`
 	Queued        int `json:"queued"`
 
-	// Tier, HoldCredits, TokensPerCredit and Caps are the registry's
-	// numbers for a run of this account's; the app does no arithmetic of
-	// its own with them.
-	Tier            string          `json:"tier,omitempty"`
-	HoldCredits     int64           `json:"holdCredits"`
-	TokensPerCredit int64           `json:"tokensPerCredit"`
-	Caps            *HostedCapsView `json:"caps,omitempty"`
+	// Tier, HoldCredits, the two rates and Caps are the registry's numbers
+	// for a run of this account's; the app does no arithmetic of its own
+	// with them. A credit buys InputTokensPerCredit tokens the model reads
+	// or OutputTokensPerCredit it writes (agentry-enterprise#171).
+	Tier                  string          `json:"tier,omitempty"`
+	HoldCredits           int64           `json:"holdCredits"`
+	InputTokensPerCredit  int64           `json:"inputTokensPerCredit"`
+	OutputTokensPerCredit int64           `json:"outputTokensPerCredit"`
+	Caps                  *HostedCapsView `json:"caps,omitempty"`
 	// Balance is the account's credits; BalanceKnown is false when the
 	// registry has no billing extension or the read failed.
 	Balance      int64 `json:"balance"`
@@ -239,7 +241,8 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		facts.Enabled, facts.StatusKnown = st.Enabled, true
 		v.Enabled, v.RunnersOnline, v.Queued = st.Enabled, st.RunnersOnline(), st.Queued
 		if st.Caller != nil {
-			v.Tier, v.HoldCredits, v.TokensPerCredit = st.Caller.Tier, st.Caller.HoldCredits, st.Caller.TokensPerCredit
+			v.Tier, v.HoldCredits = st.Caller.Tier, st.Caller.HoldCredits
+			v.InputTokensPerCredit, v.OutputTokensPerCredit = st.Caller.InputTokensPerCredit, st.Caller.OutputTokensPerCredit
 			v.Caps = &HostedCapsView{TimeoutSeconds: st.Caller.Caps.TimeoutSeconds, MaxTurns: st.Caller.Caps.MaxTurns, MaxTokens: st.Caller.Caps.MaxTokens}
 		}
 	}
@@ -345,7 +348,9 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	}
 	for i := range runs {
 		active := &runs[i]
-		if !hostedrun.Active(active.Status) {
+		// A knowledge build in flight is the Knowledge panel's to follow:
+		// its result is a pack, not outputs in this folder.
+		if !hostedrun.Active(active.Status) || active.IsBuild() {
 			continue
 		}
 		dir, err := hostedOutDir(outDir, active)

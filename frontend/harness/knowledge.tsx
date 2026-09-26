@@ -82,6 +82,29 @@ const buildLog = [
   "tool: write_report wiki/topics/buckets.md",
 ];
 
+// In Agentry (agentry-desktop#274): the registry's answer and a build's
+// states, as the Go side reports them. Offered only on the #hosted-* states,
+// so the local flow's shots keep their three steps.
+const hostedState = hash.startsWith("hosted-");
+const availability = {
+  offered: hostedState, available: hostedState, holdCredits: 100, scanCredits: 1, timeoutSeconds: 3600, maxTurns: 300,
+  balance: 494, balanceKnown: true, unmetered: false, maxInputFiles: 20, maxInputBytes: 10 << 20,
+};
+const hostedRunning = {
+  id: "01a0de6e-c1fa-70fe-80ec-8b2cbba957df", name: "handbook", status: "running", state: "running",
+  statusLine: "The build is running on a sandbox host.", cancelRequested: false, holdCredits: 100, settledCredits: 0,
+  settled: false, scanCredits: 0, applied: false, pages: 0, bytes: 0, inputTokens: 0, outputTokens: 0, turns: 0,
+  documents: [{ name: "storage-guide.pdf", bytes: 412000 }, { name: "buckets.md", bytes: 3100 }], canContinue: false,
+  downloaded: false, final: false,
+};
+const hostedDone = {
+  ...hostedRunning, status: "finished", state: "done — pass", statusLine: "", outcome: "succeeded",
+  outcomeLine: "The Knowledge Creator finished.", outcomeTone: "ok", settledCredits: 2, settled: true, scanCredits: 1,
+  applied: true, pages: 4, bytes: 5300, inputTokens: 23056, outputTokens: 2501, turns: 10, downloaded: true,
+  kept: "Downloaded handbook: 4 pages, kept on this computer, encrypted to your account's key, which Agentry holds.",
+  scanState: "scanned", scan: "scanned, 1 finding (medium)", final: true,
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
 g.go = { main: {
@@ -96,6 +119,11 @@ g.go = { main: {
     Download: async () => "Downloaded supplier-contracts.",
     Export: async () => ({ dir: "/home/me/Documents/handbook" }),
     Delete: async () => undefined,
+    HostedAvailability: async () => availability,
+    AttachHostedBuild: async () => ({}),
+    StartHostedBuild: async () => new Promise(() => {}),
+    ContinueHostedBuild: async () => new Promise(() => {}),
+    CancelHostedBuild: async () => hostedRunning,
   },
   RunAPI: {
     SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" }),
@@ -130,8 +158,12 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 const docs = ["/home/me/Documents/storage-guide.pdf", "/home/me/Documents/handbook"];
-const create = hash.startsWith("create-") || hash === "add-review";
-const step = hash === "create-name" ? "name" : hash === "create-review" || hash === "create-blocked" || hash === "add-review" ? "review" : "documents";
+const create = hash.startsWith("create-") || hash === "add-review" || hostedState;
+const step =
+  hash === "create-name" ? "name"
+  : hash === "hosted-where" ? "where"
+  : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" ? "review"
+  : "documents";
 
 createRoot(document.getElementById("root")!).render(
   <div data-preview="knowledge">
@@ -149,6 +181,9 @@ createRoot(document.getElementById("root")!).render(
         initialName={hash === "add-review" ? undefined : "handbook"}
         initialBuilding={hash === "create-building"}
         initialResult={hash === "create-done" ? (result as never) : undefined}
+        initialAvailability={hostedState ? (availability as never) : undefined}
+        initialWhere={hash === "hosted-review" || hash === "hosted-where" ? "agentry" : undefined}
+        initialHosted={hash === "hosted-running" ? (hostedRunning as never) : hash === "hosted-done" ? (hostedDone as never) : undefined}
       />
     )}
   </div>,

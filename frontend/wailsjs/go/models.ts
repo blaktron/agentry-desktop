@@ -1627,7 +1627,8 @@ export namespace main {
 	    queued: number;
 	    tier?: string;
 	    holdCredits: number;
-	    tokensPerCredit: number;
+	    inputTokensPerCredit: number;
+	    outputTokensPerCredit: number;
 	    caps?: HostedCapsView;
 	    balance: number;
 	    balanceKnown: boolean;
@@ -1651,7 +1652,8 @@ export namespace main {
 	        this.queued = source["queued"];
 	        this.tier = source["tier"];
 	        this.holdCredits = source["holdCredits"];
-	        this.tokensPerCredit = source["tokensPerCredit"];
+	        this.inputTokensPerCredit = source["inputTokensPerCredit"];
+	        this.outputTokensPerCredit = source["outputTokensPerCredit"];
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
@@ -1887,6 +1889,172 @@ export namespace main {
 	    }
 	}
 	
+	export class KnowledgeHostedAvailabilityView {
+	    offered: boolean;
+	    available: boolean;
+	    reason?: string;
+	    remedy?: string;
+	    holdCredits: number;
+	    scanCredits: number;
+	    timeoutSeconds: number;
+	    maxTurns: number;
+	    balance: number;
+	    balanceKnown: boolean;
+	    pool?: string;
+	    unmetered: boolean;
+	    maxInputFiles: number;
+	    maxInputBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeHostedAvailabilityView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.offered = source["offered"];
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	        this.remedy = source["remedy"];
+	        this.holdCredits = source["holdCredits"];
+	        this.scanCredits = source["scanCredits"];
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.maxTurns = source["maxTurns"];
+	        this.balance = source["balance"];
+	        this.balanceKnown = source["balanceKnown"];
+	        this.pool = source["pool"];
+	        this.unmetered = source["unmetered"];
+	        this.maxInputFiles = source["maxInputFiles"];
+	        this.maxInputBytes = source["maxInputBytes"];
+	    }
+	}
+	export class KnowledgeHostedBuildView {
+	    id: string;
+	    name: string;
+	    status: string;
+	    state: string;
+	    statusLine: string;
+	    queuePosition?: number;
+	    cancelRequested: boolean;
+	    outcome?: string;
+	    outcomeLine?: string;
+	    outcomeTone?: string;
+	    error?: string;
+	    holdCredits: number;
+	    settledCredits: number;
+	    settled: boolean;
+	    scanCredits: number;
+	    applied: boolean;
+	    pages: number;
+	    bytes: number;
+	    note?: string;
+	    inputTokens: number;
+	    outputTokens: number;
+	    turns: number;
+	    documents: HostedArtefactView[];
+	    canContinue: boolean;
+	    downloaded: boolean;
+	    kept?: string;
+	    downloadError?: string;
+	    scanState?: string;
+	    scan?: string;
+	    final: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeHostedBuildView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.status = source["status"];
+	        this.state = source["state"];
+	        this.statusLine = source["statusLine"];
+	        this.queuePosition = source["queuePosition"];
+	        this.cancelRequested = source["cancelRequested"];
+	        this.outcome = source["outcome"];
+	        this.outcomeLine = source["outcomeLine"];
+	        this.outcomeTone = source["outcomeTone"];
+	        this.error = source["error"];
+	        this.holdCredits = source["holdCredits"];
+	        this.settledCredits = source["settledCredits"];
+	        this.settled = source["settled"];
+	        this.scanCredits = source["scanCredits"];
+	        this.applied = source["applied"];
+	        this.pages = source["pages"];
+	        this.bytes = source["bytes"];
+	        this.note = source["note"];
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.turns = source["turns"];
+	        this.documents = this.convertValues(source["documents"], HostedArtefactView);
+	        this.canContinue = source["canContinue"];
+	        this.downloaded = source["downloaded"];
+	        this.kept = source["kept"];
+	        this.downloadError = source["downloadError"];
+	        this.scanState = source["scanState"];
+	        this.scan = source["scan"];
+	        this.final = source["final"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class KnowledgeHostedStartView {
+	    build?: KnowledgeHostedBuildView;
+	    refusal?: string;
+	    detail?: string;
+	    balance?: number;
+	    hold?: number;
+	    resetsAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeHostedStartView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.build = this.convertValues(source["build"], KnowledgeHostedBuildView);
+	        this.refusal = source["refusal"];
+	        this.detail = source["detail"];
+	        this.balance = source["balance"];
+	        this.hold = source["hold"];
+	        this.resetsAt = source["resetsAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class MCPToolRow {
 	    tool: string;
 	    grantedBy: string;
