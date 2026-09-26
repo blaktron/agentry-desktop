@@ -325,6 +325,57 @@ export namespace build {
 
 }
 
+export namespace drafter {
+	
+	export class Match {
+	    ref: string;
+	    why: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Match(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.why = source["why"];
+	    }
+	}
+	export class Source {
+	    url: string;
+	    used: string;
+	    withheld?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Source(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.used = source["used"];
+	        this.withheld = source["withheld"];
+	    }
+	}
+	export class WithheldSource {
+	    tool: string;
+	    url: string;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WithheldSource(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tool = source["tool"];
+	        this.url = source["url"];
+	        this.reason = source["reason"];
+	    }
+	}
+
+}
+
 export namespace install {
 	
 	export class CodingAgentExport {
@@ -1323,6 +1374,152 @@ export namespace main {
 		}
 	}
 	
+	export class JevKeyView {
+	    stored: boolean;
+	    source?: string;
+	    envName: string;
+	    envSet: boolean;
+	    ready: boolean;
+	    keyStoreErr?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JevKeyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stored = source["stored"];
+	        this.source = source["source"];
+	        this.envName = source["envName"];
+	        this.envSet = source["envSet"];
+	        this.ready = source["ready"];
+	        this.keyStoreErr = source["keyStoreErr"];
+	    }
+	}
+	export class DescribeStatusView {
+	    key: JevKeyView;
+	    search: string;
+	    searchSentence: string;
+	    modelName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DescribeStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = this.convertValues(source["key"], JevKeyView);
+	        this.search = source["search"];
+	        this.searchSentence = source["searchSentence"];
+	        this.modelName = source["modelName"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DraftAIReviewView {
+	    read: number;
+	    passed: number;
+	    withheld: number;
+	    notScanned: number;
+	    withheldSources: drafter.WithheldSource[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftAIReviewView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.read = source["read"];
+	        this.passed = source["passed"];
+	        this.withheld = source["withheld"];
+	        this.notScanned = source["notScanned"];
+	        this.withheldSources = this.convertValues(source["withheldSources"], drafter.WithheldSource);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DraftView {
+	    model?: build.Model;
+	    decodeNotes: string[];
+	    notes: string;
+	    matches: drafter.Match[];
+	    sources: drafter.Source[];
+	    openQuestions: string[];
+	    aiReview: DraftAIReviewView;
+	    manifestError?: string;
+	    drafterModel?: string;
+	    runId?: string;
+	    outDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.model = this.convertValues(source["model"], build.Model);
+	        this.decodeNotes = source["decodeNotes"];
+	        this.notes = source["notes"];
+	        this.matches = this.convertValues(source["matches"], drafter.Match);
+	        this.sources = this.convertValues(source["sources"], drafter.Source);
+	        this.openQuestions = source["openQuestions"];
+	        this.aiReview = this.convertValues(source["aiReview"], DraftAIReviewView);
+	        this.manifestError = source["manifestError"];
+	        this.drafterModel = source["drafterModel"];
+	        this.runId = source["runId"];
+	        this.outDir = source["outDir"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ExportView {
 	    dir: string;
 	
@@ -1673,6 +1870,23 @@ export namespace main {
 	        this.choices = source["choices"];
 	    }
 	}
+	export class JevKeyTestView {
+	    ok: boolean;
+	    message: string;
+	    from?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JevKeyTestView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.message = source["message"];
+	        this.from = source["from"];
+	    }
+	}
+	
 	export class MCPToolRow {
 	    tool: string;
 	    grantedBy: string;

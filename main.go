@@ -39,7 +39,7 @@ func main() {
 	installAPI := &InstallAPI{app: app, engine: install.NewEngine()}
 	validateAPI := &ValidateAPI{app: app}
 	runAPI := &RunAPI{app: app}
-	buildAPI := &BuildAPI{app: app}
+	buildAPI := &BuildAPI{app: app, run: runAPI}
 	knowledgeAPI := &KnowledgeAPI{app: app, run: runAPI}
 	selfUpdateAPI := newSelfUpdateAPI(app)
 

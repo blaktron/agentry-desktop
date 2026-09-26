@@ -1,0 +1,99 @@
+// The person's own AI Review key (plan builder-rework.md D25, #282): their
+// TypeSafe Jev key, which Describe it, on this computer scans with. It is
+// kept in the OS keychain beside the model key (RunAPI.StoreJevKey, the one
+// call that carries it), shown as saved and never as its value, and Test
+// key makes one small call and says TypeSafe's answer in plain words.
+import { useEffect, useState } from "react";
+import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import { main } from "../../wailsjs/go/models";
+import { Button, Card, ErrorBox, Input, Notice } from "../ui";
+
+/** Where the key stands, in one sentence. */
+export function jevKeySentence(k: main.JevKeyView): string {
+  if (k.envSet) return `$${k.envName} is set where this app was started, and a draft uses it before the keychain.`;
+  if (k.stored && k.source === "keyring") return "Saved in this computer's keychain.";
+  if (k.stored) return "A key is in the keychain, but the runner policy does not read it from there. Save it again to fix that.";
+  return "No key saved. Drafting on this computer is off until you add one.";
+}
+
+export function AIReviewKeyCard() {
+  const [status, setStatus] = useState<main.JevKeyView | null>(null);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tested, setTested] = useState<main.JevKeyTestView | null>(null);
+
+  useEffect(() => {
+    RunAPI.JevKeyStatus().then(setStatus).catch((e) => setError(String(e)));
+  }, []);
+
+  async function act(label: string, fn: () => Promise<void>) {
+    setBusy(label);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const save = () =>
+    act("save", async () => {
+      const k = await RunAPI.StoreJevKey(key);
+      setKey("");
+      setTested(null);
+      setStatus(k);
+    });
+
+  const test = () =>
+    act("test", async () => {
+      setTested(await RunAPI.TestJevKey());
+    });
+
+  const forget = () =>
+    act("forget", async () => {
+      setTested(null);
+      setStatus(await RunAPI.ForgetJevKey());
+    });
+
+  return (
+    <Card>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Your own TypeSafe Jev key. When you describe a BriefAgent and draft it on this computer, AI Review reads your
+        description, and every page and search result the draft reads, with this key before the model sees any of it.
+        What it flags is held back. It is kept in this computer&apos;s keychain next to your model key: not in a file,
+        and never shown here.
+      </p>
+      {status && <p className="small" role="status">{jevKeySentence(status)}</p>}
+      {status?.keyStoreErr && <Notice tone="warn">The keychain could not be asked: {status.keyStoreErr}.</Notice>}
+      <label className="field">
+        <span className="field-label">Jev key</span>
+        <div className="row">
+          <Input
+            type="password" className="grow mono" autoComplete="off" aria-label="Jev key"
+            placeholder={status?.stored ? "saved on this computer — paste a new one to replace it" : "Paste your TypeSafe Jev key"}
+            value={key} onChange={(e) => setKey(e.target.value)} disabled={!!busy}
+          />
+          <Button variant="primary" disabled={!!busy || !key.trim()} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
+        </div>
+      </label>
+      <div className="row">
+        <Button disabled={!!busy || !status?.ready} title={status?.ready ? "one small call to TypeSafe with the key a draft would use" : "save a key first"} onClick={test}>
+          {busy === "test" ? "Testing…" : "Test key"}
+        </Button>
+        {status?.stored && (
+          <Button disabled={!!busy} onClick={forget}>{busy === "forget" ? "Forgetting…" : "Forget the saved key"}</Button>
+        )}
+      </div>
+      {tested && (
+        <Notice tone={tested.ok ? "info" : "warn"}>
+          {tested.message}
+          {tested.from ? <span className="muted"> (tested the key from {tested.from})</span> : null}
+        </Notice>
+      )}
+      <ErrorBox error={error} />
+    </Card>
+  );
+}

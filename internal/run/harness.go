@@ -185,6 +185,10 @@ func ChosenHarnesses() ([]Harness, error) {
 // policy: the policy when the file exists, nil when it does not, an error
 // when it is broken. (GetStatus keeps its own read: it reports defaults in
 // place of a missing file, which these surfaces must not.)
+// PolicyIfPresent is the runner policy this app's runs obey, or nil when
+// there is none yet; it creates nothing.
+func PolicyIfPresent() (*policy.Policy, error) { return loadPolicyIfPresent() }
+
 func loadPolicyIfPresent() (*policy.Policy, error) {
 	policyPath, err := policy.DefaultPath()
 	if err != nil {

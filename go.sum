@@ -9,10 +9,10 @@ github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7D
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/bep/debounce v1.2.1 h1:v67fRdBA9UQu2NhLFXrSg0Brw7CexQekrBwDMM8bzeY=
 github.com/bep/debounce v1.2.1/go.mod h1:H8yggRPQKLUhUoqrJC1bO2xNya7vanpDl7xR3ISbCJ0=
-github.com/blaktron/agentry v0.6.1-dev.4.0.20260926004210-9fcc2495130f h1:U9Fud6U6vl8QbYmgeBV+a756l/I92xC4rb3L4KKQ6Yg=
-github.com/blaktron/agentry v0.6.1-dev.4.0.20260926004210-9fcc2495130f/go.mod h1:DoxM2Gh//daes3ObXxzQrYR1TkiuI6osLuWUrFyzStQ=
-github.com/blaktron/agentry-cli v0.6.2 h1:AxRN8//ORWL1o8tVOTVBfxi8D/beJsLFCebw+On+mD4=
-github.com/blaktron/agentry-cli v0.6.2/go.mod h1:pNBE0jUoWX+X3VWmqcC7RZIG2hU8Zkc9NdZBBVf7X4g=
+github.com/blaktron/agentry v0.6.1-dev.5.0.20260926024241-f0f1d0d612d5 h1:LXd6/07EQ2ZVGNRkuCaUIVSaWlKxUVgfx4AZ7fCYods=
+github.com/blaktron/agentry v0.6.1-dev.5.0.20260926024241-f0f1d0d612d5/go.mod h1:DoxM2Gh//daes3ObXxzQrYR1TkiuI6osLuWUrFyzStQ=
+github.com/blaktron/agentry-cli v0.6.4-0.20260926120819-f32adf466376 h1:ccwpMH/DLgJqUkpB3EO8e7q7bV5UGog1/rcS4vaaWtg=
+github.com/blaktron/agentry-cli v0.6.4-0.20260926120819-f32adf466376/go.mod h1:2lvqDdmhdF7TIJ0eokBHem1VWPJs1V9PH1MngXTc8wk=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
 github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMFLdQ=
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=

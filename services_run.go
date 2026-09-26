@@ -447,6 +447,87 @@ func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	return r.SetupStatus()
 }
 
+// JevKeyView is where the person's own AI Review key stands (plan
+// builder-rework.md D25, #282): saved in this machine's keychain or not,
+// whether the policy reads it from there, and whether the variable a draft
+// reads first is set. Never the key.
+type JevKeyView struct {
+	Stored      bool   `json:"stored"`
+	Source      string `json:"source,omitempty"`
+	EnvName     string `json:"envName"`
+	EnvSet      bool   `json:"envSet"`
+	Ready       bool   `json:"ready"`
+	KeyStoreErr string `json:"keyStoreErr,omitempty"`
+}
+
+// JevKeyStatus reports the AI Review key's standing. Read-only: it reads the
+// keychain's presence marker, never the key, and creates no policy.
+func (r *RunAPI) JevKeyStatus() (*JevKeyView, error) {
+	st, err := run.GetJevKeyStatus()
+	if err != nil {
+		return nil, err
+	}
+	return jevKeyView(st), nil
+}
+
+func jevKeyView(st *run.JevKeyStatus) *JevKeyView {
+	return &JevKeyView{Stored: st.Stored, Source: st.Source, EnvName: st.EnvName, EnvSet: st.EnvSet, Ready: st.Ready(), KeyStoreErr: st.KeyStoreErr}
+}
+
+// StoreJevKey puts the person's TypeSafe Jev key into the OS keychain and
+// records the keychain as its source in the runner policy. It is the one
+// call that carries the key, kept to one argument so a dispatch error's log
+// line (desktop#102) has as little to carry as possible; the key is written
+// nowhere else. A keychain that cannot be reached is a named refusal, and
+// the policy is left as it was.
+func (r *RunAPI) StoreJevKey(key string) (*JevKeyView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.StoreJevKey(key, logw); err != nil {
+		return nil, err
+	}
+	return r.JevKeyStatus()
+}
+
+// ForgetJevKey removes the AI Review key from the keychain and the keychain
+// from the policy's sources.
+func (r *RunAPI) ForgetJevKey() (*JevKeyView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.ForgetJevKey(logw); err != nil {
+		return nil, err
+	}
+	return r.JevKeyStatus()
+}
+
+// JevKeyTestView is Test key's answer in plain words, and which key it
+// tried: "the keychain" or the variable's name.
+type JevKeyTestView struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+	From    string `json:"from,omitempty"`
+}
+
+// TestJevKey makes one small call to TypeSafe with the key a draft on this
+// computer would scan with, and says the answer: it works, TypeSafe refused
+// it (401, 403), is limiting it (429), or could not be reached. The key goes
+// to TypeSafe's endpoint and nowhere else; the answer carries no key.
+func (r *RunAPI) TestJevKey() (*JevKeyTestView, error) {
+	res, err := run.TestJevKey(r.app.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &JevKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
+}
+
 // ProfileStatusView is a BriefAgent signature's MCP-profile state (§P2).
 // Secret NAMES only — no surface ever returns a value.
 type ProfileStatusView struct {
