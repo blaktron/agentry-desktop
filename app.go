@@ -108,6 +108,43 @@ func (a *App) requirePicked(what, p string) error {
 	return fmt.Errorf("%s %q was not chosen through the file dialog; pick it there", what, p)
 }
 
+// requirePickedResolved is requirePicked for a path whose bytes leave the
+// machine (a document a build uploads, agentry-desktop#274): the path must
+// be one a picker returned, or under one, both as written and once links
+// are resolved. requirePicked compares the paths as text, so a link inside
+// a picked folder could otherwise name a file outside it.
+func (a *App) requirePickedResolved(what, p string) error {
+	if err := a.requirePicked(what, p); err != nil {
+		return err
+	}
+	clean := filepath.Clean(p)
+	real, err := filepath.EvalSymlinks(clean)
+	if err != nil {
+		return fmt.Errorf("%s %q: %w", what, p, err)
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for root := range a.picked {
+		if root != clean && !within(root, clean) {
+			continue
+		}
+		realRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			continue
+		}
+		if real == realRoot || within(realRoot, real) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s %q reaches outside the folder it was chosen from through a link; pick the file itself", what, p)
+}
+
+// within reports whether p lies under dir.
+func within(dir, p string) bool {
+	rel, err := filepath.Rel(dir, p)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+}
+
 // startup saves the runtime context.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx

@@ -6,6 +6,18 @@ export function Add(arg1, arg2, arg3) {
   return window['go']['main']['KnowledgeAPI']['Add'](arg1, arg2, arg3);
 }
 
+export function AttachHostedBuild(arg1) {
+  return window['go']['main']['KnowledgeAPI']['AttachHostedBuild'](arg1);
+}
+
+export function CancelHostedBuild() {
+  return window['go']['main']['KnowledgeAPI']['CancelHostedBuild']();
+}
+
+export function ContinueHostedBuild(arg1, arg2) {
+  return window['go']['main']['KnowledgeAPI']['ContinueHostedBuild'](arg1, arg2);
+}
+
 export function Create(arg1, arg2, arg3) {
   return window['go']['main']['KnowledgeAPI']['Create'](arg1, arg2, arg3);
 }
@@ -26,6 +38,10 @@ export function Export(arg1, arg2) {
   return window['go']['main']['KnowledgeAPI']['Export'](arg1, arg2);
 }
 
+export function HostedAvailability(arg1) {
+  return window['go']['main']['KnowledgeAPI']['HostedAvailability'](arg1);
+}
+
 export function List(arg1) {
   return window['go']['main']['KnowledgeAPI']['List'](arg1);
 }
@@ -36,6 +52,10 @@ export function Preview(arg1, arg2) {
 
 export function ReadPage(arg1, arg2, arg3) {
   return window['go']['main']['KnowledgeAPI']['ReadPage'](arg1, arg2, arg3);
+}
+
+export function StartHostedBuild(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['KnowledgeAPI']['StartHostedBuild'](arg1, arg2, arg3, arg4);
 }
 
 export function Upload(arg1, arg2) {

@@ -132,7 +132,7 @@ func (f *hostedFake) start(t *testing.T) string {
 			"enabled": f.enabled, "workersOnline": 0, "hostsOnline": 1, "queued": 0,
 			"caller": map[string]any{
 				"tier": "standard", "caps": map[string]any{"timeoutSeconds": 300, "maxTurns": 20, "maxTokens": 20000},
-				"holdCredits": 20, "tokensPerCredit": 1000,
+				"holdCredits": 20, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
 			},
 		})
 	})

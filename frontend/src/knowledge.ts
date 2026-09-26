@@ -61,3 +61,28 @@ export function unscannedWarning(model: string): string {
     "which is recorded as “not scanned” until you upload it to Agentry, where it is scanned."
   );
 }
+
+/** What a build In Agentry holds (agentry-desktop#274), in the site's own
+ *  words: both numbers are the registry's, and the scan's credit is inside
+ *  the hold, never on top of it (DEV-149's M6 addendum, DEV-150). */
+export function buildHoldLine(hold: number, scan: number): string {
+  if (hold === 0) return "This build holds no credits: the organization that pays for your builds is not metered.";
+  return `This build holds ${hold} credits and settles from the tokens it uses, plus ${scan === 1 ? "1 credit" : `${scan} credits`} to scan the pack when the build changes it, never more than it holds.`;
+}
+
+/** What a finished build cost, from the registry's settlement. */
+export function buildCreditsLine(v: { holdCredits: number; settledCredits: number; settled: boolean; scanCredits: number }): string {
+  if (!v.settled) return `${v.holdCredits} credits are held for this build.`;
+  if (v.settledCredits === 0) return `${v.holdCredits} credits were held and all of them were released: this build cost nothing.`;
+  const scan = v.scanCredits > 0 ? ` (${v.scanCredits === 1 ? "1 of them" : `${v.scanCredits} of them`} for the pack's scan)` : "";
+  return `${v.holdCredits} credits were held; ${v.settledCredits} settled${scan} and the rest was released.`;
+}
+
+/** Before a build In Agentry: what goes where, what runs it, and what
+ *  comes back. */
+export function inAgentryNote(registry: string): string {
+  return (
+    `The documents go to ${registry}, where the Knowledge Creator runs against the platform's model, for credits. ` +
+    "The pack is kept in Agentry, encrypted under a key of its own, and scanned there; once the scan ends, it is downloaded and kept on this computer too."
+  );
+}

@@ -5,6 +5,12 @@ import {main} from '../models';
 
 export function Add(arg1:string,arg2:string,arg3:Array<string>):Promise<knowledge.BuildResult>;
 
+export function AttachHostedBuild(arg1:string):Promise<main.KnowledgeHostedStartView>;
+
+export function CancelHostedBuild():Promise<main.KnowledgeHostedBuildView>;
+
+export function ContinueHostedBuild(arg1:string,arg2:string):Promise<main.KnowledgeHostedStartView>;
+
 export function Create(arg1:string,arg2:string,arg3:Array<string>):Promise<knowledge.BuildResult>;
 
 export function CreatorModel():Promise<string>;
@@ -15,10 +21,14 @@ export function Download(arg1:string,arg2:string):Promise<string>;
 
 export function Export(arg1:string,arg2:string):Promise<main.ExportView>;
 
+export function HostedAvailability(arg1:string):Promise<main.KnowledgeHostedAvailabilityView>;
+
 export function List(arg1:string):Promise<knowledge.List>;
 
 export function Preview(arg1:string,arg2:string):Promise<knowledge.Preview>;
 
 export function ReadPage(arg1:string,arg2:string,arg3:string):Promise<knowledge.Page>;
+
+export function StartHostedBuild(arg1:string,arg2:string,arg3:string,arg4:Array<string>):Promise<main.KnowledgeHostedStartView>;
 
 export function Upload(arg1:string,arg2:string):Promise<string>;
