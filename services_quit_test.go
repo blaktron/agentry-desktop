@@ -70,7 +70,7 @@ func startRun(t *testing.T, r *RunAPI, f *fakeEngine) (run.Request, chan error) 
 	t.Helper()
 	errc := make(chan error, 1)
 	go func() {
-		_, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false)
+		_, err := r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil)
 		errc <- err
 	}()
 	select {

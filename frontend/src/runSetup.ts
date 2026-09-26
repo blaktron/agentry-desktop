@@ -5,20 +5,24 @@
 // manifest the same way (agentry-web lib/run-setup), so a release asks for
 // the same things on either client.
 
-export type StepKey = "start" | "files" | "tools" | "details" | "review";
+export type StepKey = "start" | "files" | "knowledge" | "tools" | "details" | "review";
 
 export const STEP_LABEL: Record<StepKey, string> = {
   start: "Before you start",
   files: "Files",
+  knowledge: "Knowledge",
   tools: "Connect tools",
   details: "Details",
   review: "Review and start",
 };
 
 // setupSteps leaves Connect tools out when the release declares neither an
-// MCP server nor a key: a step with nothing on it is not shown.
-export function setupSteps(release: { servers: number; secrets: number }): StepKey[] {
+// MCP server nor a key, and Knowledge out when no pack can be attached (none
+// is kept on this computer, or the run is In Agentry, which attaches packs
+// from Knowledge M7): a step with nothing on it is not shown.
+export function setupSteps(release: { servers: number; secrets: number; knowledge?: boolean }): StepKey[] {
   const steps: StepKey[] = ["start", "files"];
+  if (release.knowledge) steps.push("knowledge");
   if (release.servers > 0 || release.secrets > 0) steps.push("tools");
   steps.push("details", "review");
   return steps;

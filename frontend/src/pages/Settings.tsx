@@ -3,6 +3,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } from "../ui";
+import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
 import { CodingAgentsCard } from "./CodingAgents";
 
@@ -66,7 +67,7 @@ export default function Settings({
       if (!signIn) return;
       const res = await SettingsAPI.SignIn(signIn.url, signIn.token.trim());
       setNotice(
-        `Signed in to ${signIn.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600; no keychain available)"}. Signing keys: ${res.pinNote}`,
+        `Signed in to ${signIn.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600; no keychain available)"}. Signing keys: ${res.pinNote}${rewrapLine(res)}`,
       );
       setSignIn(null);
       await onChanged();
@@ -136,7 +137,7 @@ export default function Settings({
                       try {
                         const res = await SettingsAPI.SignInViaBrowser(r.url);
                         setNotice(
-                          `Signed in to ${r.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600)"}. Signing keys: ${res.pinNote}`,
+                          `Signed in to ${r.url} as ${res.user.handle} — PAT stored in ${res.tokenStore === "keyring" ? "the OS keychain" : "the settings file (0600)"}. Signing keys: ${res.pinNote}${rewrapLine(res)}`,
                         );
                         await onChanged();
                       } catch (e) {

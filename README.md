@@ -85,6 +85,22 @@ The product never claims an agent is "safe". The language is always:
   (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
   writes), with per-item capabilities and update checks. Uninstall deletes
   client-managed directories only: a directory you picked is never deleted.
+- **Knowledge** — the knowledge packs a run can search: cited pages the
+  built-in Knowledge Creator compiles from your documents, kept with them, at
+  most 10 MB each. They are kept in the runner home in the CLI's own sealed
+  store (`agentry knowledge` lists and opens the same packs): each is
+  encrypted under a key of its own, which the registry you are signed in to
+  wraps for your account (on SecureAgentry to your account's key, which
+  Agentry holds; on a core registry to a key it keeps for you), so a pack
+  opens on any computer you sign in on. Signed out, this computer's key in the keychain
+  wraps it instead, until your next sign-in moves it. **Create knowledge** and
+  **Add documents** run the Creator on this computer against your runner
+  policy's model, for no credits, and say before the build that nothing they
+  read or write is scanned; **Upload to Agentry** keeps a copy there, where it
+  is scanned, and **Download** brings one back. **Export unencrypted…** asks
+  in a native dialog, then writes the pack into a folder you pick and shows
+  that folder. A run's setup has a Knowledge step: an attached pack is mounted
+  read-only for the run's tools, and the receipt names it.
 - **Validate** — an author drop-zone. Point it at a local BriefAgent folder and
   it runs the manifest rules, the S1 inventory (content-sniffed binaries,
   nested archives, encoding), and the S3/S4 hidden-content and
@@ -126,9 +142,13 @@ the same libraries the server and CLI use —
 | run lifecycle (policy, compile, engine, gateway, profiles, setup) | `…/pkg/runner/*` |
 
 Bound services (`services.go`, `services_auth.go`, `services_build.go`,
-`services_prereqs.go`, `services_run.go`) expose flat view models to the
-frontend; engines live in
-`internal/{registry,install,validate,settings,run,build,mcpvuln,version}`.
+`services_knowledge.go`, `services_prereqs.go`, `services_run.go`) expose flat
+view models to the frontend; engines live in
+`internal/{registry,install,validate,settings,run,build,knowledge,mcpvuln,version}`.
+The local knowledge store is the CLI's `pkg/knowledge/store` and its registry
+client `pkg/knowledge/remote`. `internal/knowledge` wires them to this app's
+runner home, keychain and sign-in, and repeats the CLI's create, add and attach
+flows (which live in the CLI's `package main`) over the same library calls.
 
 The app puts credentials in the OS keychain, under the same service/account
 convention as the CLI, so signing in from either client signs in both. With

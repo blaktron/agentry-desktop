@@ -266,6 +266,13 @@ type Request struct {
 	Task               string
 	// InputPaths feed the read-only /inputs channel (§P4).
 	InputPaths []string
+	// Knowledge are the knowledge packs attached to the run, already
+	// opened by the caller (the local store's attach, after the picker
+	// gates; plan knowledge.md §4.5): the engine copies each into the
+	// run, mounts it read-only at /knowledge/<name> on the tools
+	// container only, and names it in the receipt. The caller removes its
+	// own opened copies once the run returns.
+	Knowledge []engine.AttachedPack
 	// OutDir is where reports/receipts land ("" = ~/Downloads/agentry-out/
 	// <ns>-<name>-<runid>).
 	OutDir string
@@ -323,6 +330,9 @@ type Result struct {
 	// (default, env) and the digest the plan was compiled against. Nil
 	// when the envelope carries none.
 	Policy *receipt.Policy
+	// Knowledge is the receipt's knowledge line: what was mounted and
+	// how, "" when no pack was attached.
+	Knowledge string
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -565,6 +575,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			OutDir:          outDir,
 			Task:            task,
 			InputPaths:      req.InputPaths,
+			Knowledge:       req.Knowledge,
 			Intake:          answers,
 			Adapter:         ad,
 			Policy:          pol,
@@ -618,6 +629,7 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 		Turns:            env.Usage.Turns,
 		AttestationState: env.Attestation.State,
 		Policy:           env.Policy,
+		Knowledge:        env.CapabilitiesEnforced["knowledge"],
 	}
 }
 

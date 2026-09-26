@@ -897,3 +897,20 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-reach dt { color: var(--color-muted); overflow-wrap: anywhere; }
 .build-reach dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .step-recap { grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); }
+
+/* The Knowledge panel (plan knowledge.md §4.8, agentry-desktop#273): a
+   pack's preview is its pages beside the page shown, each side scrolling
+   on its own; the run setup's Knowledge step lists the packs to attach. */
+.knowledge-preview { display: grid; grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr); gap: 14px; max-height: 60vh; }
+.knowledge-pages { overflow-y: auto; border-right: 1px solid var(--color-border); padding-right: 8px; }
+.knowledge-pages .nav-item { overflow-wrap: anywhere; }
+.knowledge-page { overflow-y: auto; min-width: 0; }
+.knowledge-attach { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
+.knowledge-attach-list .knowledge-attach:last-child { border-bottom: 0; }
+.knowledge-attach input { margin-top: 3px; }
+.knowledge-attach-head { gap: 8px; }
+/* What a build made: plain rows, the value beside its label. */
+.knowledge-facts { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 10px 0; }
+.knowledge-facts dt { color: var(--color-muted); }
+.knowledge-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.knowledge-row-actions { margin-top: 10px; flex-wrap: wrap; gap: 6px; }

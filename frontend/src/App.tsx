@@ -7,6 +7,7 @@ import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
+import Knowledge from "./pages/Knowledge";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings from "./pages/Settings";
@@ -19,6 +20,7 @@ export type Route =
   // one; back: where the ← link returns to.
   | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "installed" }
   | { page: "installed" }
+  | { page: "knowledge" }
   | { page: "validate" }
   | { page: "build" }
   | { page: "settings" };
@@ -110,6 +112,7 @@ export default function App() {
         </div>
         {navItem("Browse", "browse")}
         {navItem("Installed", "installed", installedUpdates)}
+        {navItem("Knowledge", "knowledge")}
         {navItem("Build", "build")}
         {navItem("Validate", "validate")}
         {navItem("Settings", "settings")}
@@ -179,6 +182,7 @@ export default function App() {
             onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
           />
         )}
+        {route.page === "knowledge" && <Knowledge registry={registry} onOpenSettings={() => nav({ page: "settings" })} />}
         {route.page === "build" && <Build registry={registry} />}
         {route.page === "validate" && <Validate />}
         {route.page === "settings" && (
