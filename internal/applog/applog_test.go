@@ -28,8 +28,8 @@ func dispatchError(message, err string) string {
 	return fmt.Sprintf("process message error: %s -> %s", message, err)
 }
 
-// The three secret-carrying calls, each forced into the dispatcher's error
-// path: a stale binding's argument mismatch, and a panic inside the method.
+// The secret-carrying calls, each forced into the dispatcher's error path:
+// a stale binding's argument mismatch, and a panic inside the method.
 func TestADispatchErrorOnASecretCarryingCallLogsNoArgument(t *testing.T) {
 	cases := []struct{ name, message, err string }{
 		{"sign-in, stale binding",
@@ -41,6 +41,9 @@ func TestADispatchErrorOnASecretCarryingCallLogsNoArgument(t *testing.T) {
 		{"StoreModelKey, a secret with the separator in it",
 			`C{"name":"main.RunAPI.StoreModelKey","args":["anthropic","sk -> ` + canary + `"],"callbackID":"x-3"}`,
 			"boom"},
+		{"StoreJevKey, stale binding (the person's AI Review key, #282)",
+			`C{"name":"main.RunAPI.StoreJevKey","args":["` + canary + `","extra"],"callbackID":"x-5"}`,
+			"error parsing arguments: expected 1 arguments, got 2"},
 		{"call by id (obfuscated build)",
 			`c{"id":17,"args":["https://r","` + canary + `"],"callbackID":"x-4"}`,
 			"error parsing arguments: bad"},

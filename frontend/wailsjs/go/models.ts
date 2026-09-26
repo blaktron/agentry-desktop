@@ -1673,6 +1673,44 @@ export namespace main {
 	        this.choices = source["choices"];
 	    }
 	}
+	export class JevKeyTestView {
+	    ok: boolean;
+	    message: string;
+	    from?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JevKeyTestView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.message = source["message"];
+	        this.from = source["from"];
+	    }
+	}
+	export class JevKeyView {
+	    stored: boolean;
+	    source?: string;
+	    envName: string;
+	    envSet: boolean;
+	    ready: boolean;
+	    keyStoreErr?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new JevKeyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stored = source["stored"];
+	        this.source = source["source"];
+	        this.envName = source["envName"];
+	        this.envSet = source["envSet"];
+	        this.ready = source["ready"];
+	        this.keyStoreErr = source["keyStoreErr"];
+	    }
+	}
 	export class MCPToolRow {
 	    tool: string;
 	    grantedBy: string;

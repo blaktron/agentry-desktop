@@ -2,12 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
+	corejudge "github.com/blaktron/agentry/pkg/judge"
 	"github.com/blaktron/agentry/pkg/manifest"
 
+	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -99,5 +108,62 @@ func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
 	}
 	if noConnect := profileStatusView(&run.ProfileInfo{Guide: &manifest.Guide{Overview: "x"}}); noConnect.Guide.Connect == nil {
 		t.Fatal("an absent connect map must be an empty object")
+	}
+}
+
+// The person's own AI Review key (#282, plan builder-rework.md D25), as the
+// model key is held: StoreJevKey is the one call that carries it inward;
+// no view StoreJevKey, JevKeyStatus, TestJevKey or ForgetJevKey returns
+// carries it back, and no progress line the page is sent does either.
+func TestTheJevKeyIsNeverShownBackOrLogged(t *testing.T) {
+	const secret = "jev-never-shown-back-3b9e"
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	keyring.MockInit()
+	t.Setenv(modelkey.EnvNoKeyring, "")
+	t.Setenv(policy.DefaultJudgeKeyEnv, "")
+	var events []string
+	emit := emitEvent
+	emitEvent = func(_ *App, name string, data ...any) { events = append(events, fmt.Sprint(name, data)) }
+	t.Cleanup(func() { emitEvent = emit })
+
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	views := []any{}
+	v, err := r.StoreJevKey(secret)
+	if err != nil || !v.Stored || !v.Ready || v.Source != "keyring" || v.EnvName != policy.DefaultJudgeKeyEnv {
+		t.Fatalf("store: %+v %v", v, err)
+	}
+	views = append(views, v)
+	s, err := r.JevKeyStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	views = append(views, s)
+	run.SetAskJevForTest(t, func(_ context.Context, key string) error {
+		return &corejudge.StatusError{Status: 401, Snippet: "bad key " + key}
+	})
+	tv, err := r.TestJevKey()
+	if err != nil || tv.OK || !strings.Contains(tv.Message, "(401)") || tv.From != "the keychain" {
+		t.Fatalf("test: %+v %v", tv, err)
+	}
+	views = append(views, tv)
+	f, err := r.ForgetJevKey()
+	if err != nil || f.Stored || f.Ready {
+		t.Fatalf("forget: %+v %v", f, err)
+	}
+	views = append(views, f)
+	for _, v := range views {
+		if b, _ := json.Marshal(v); strings.Contains(string(b), secret) {
+			t.Fatalf("a view carries the key: %s", b)
+		}
+	}
+	if len(events) == 0 {
+		t.Fatal("no progress line was sent: the check below would prove nothing")
+	}
+	for _, e := range events {
+		if strings.Contains(e, secret) {
+			t.Fatalf("a progress line carries the key: %s", e)
+		}
 	}
 }

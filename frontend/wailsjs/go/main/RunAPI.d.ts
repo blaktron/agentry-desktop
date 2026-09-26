@@ -20,6 +20,8 @@ export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
 export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
+export function ForgetJevKey():Promise<main.JevKeyView>;
+
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
 
 export function HarnessStatus():Promise<Array<main.HarnessView>>;
@@ -27,6 +29,8 @@ export function HarnessStatus():Promise<Array<main.HarnessView>>;
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedAvailabilityView>;
 
 export function InstallDocker():Promise<main.PrereqView>;
+
+export function JevKeyStatus():Promise<main.JevKeyView>;
 
 export function ListModels(arg1:string,arg2:string,arg3:string):Promise<main.CatalogView>;
 
@@ -52,4 +56,8 @@ export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<st
 
 export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>):Promise<main.SessionView>;
 
+export function StoreJevKey(arg1:string):Promise<main.JevKeyView>;
+
 export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusView>;
+
+export function TestJevKey():Promise<main.JevKeyTestView>;

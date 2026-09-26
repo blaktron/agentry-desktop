@@ -6,6 +6,7 @@ import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } fro
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
 import { CodingAgentsCard } from "./CodingAgents";
+import { AIReviewKeyCard } from "./AIReviewKey";
 
 export default function Settings({
   settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup,
@@ -203,6 +204,9 @@ export default function Settings({
       </p>
 
       <RuntimeSetup advanced />
+
+      <h2>AI Review key</h2>
+      <AIReviewKeyCard />
 
       {signIn && (
         <Modal title={`Sign in to ${signIn.url}`} onClose={() => setSignIn(null)}>

@@ -5,7 +5,7 @@
 // is the raw JSON of the call, arguments included (agentry-desktop#102).
 // Three of the app's calls carry a secret as an argument: the personal
 // access token on SignIn, MCP secret values on SaveProfile, the model key
-// on StoreModelKey. No secret reaches a log (ARCHITECTURE §9), so this
+// on StoreModelKey, the person's AI Review key on StoreJevKey. No secret reaches a log (ARCHITECTURE §9), so this
 // logger rewrites that line to the kind of message, the method name and
 // the error, and withholds the arguments. It also withholds the trace-level
 // "json call result data" line, whose body is a call's result.
