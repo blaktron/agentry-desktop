@@ -30,6 +30,55 @@ const HINTS = [
 // form (the tab unmounts on every change).
 let keptDescription = { text: "", hints: ["", "", ""] };
 
+// A draft outlives the page. It takes minutes, and Build unmounts on every
+// tab change, so the call in flight, the lines it has logged and the draft
+// or refusal it ends with are kept here, and whichever page is showing when
+// it lands takes it (takeLandedDraft). Only one can be in flight: the run
+// lock holds it in Go too.
+let inflight: Promise<void> | null = null;
+let inflightLog: string[] = [];
+let landed: main.DraftView | null = null;
+let landedError: string | null = null;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((f) => f());
+
+/** Whether a draft is being made now. */
+export function draftInFlight(): boolean {
+  return inflight !== null;
+}
+
+/** The draft that finished and no page has taken yet, taken. */
+export function takeLandedDraft(): main.DraftView | null {
+  const v = landed;
+  landed = null;
+  return v;
+}
+
+function startDraft(registry: string, text: string, hints: string[]) {
+  inflightLog = [];
+  landedError = null;
+  const off = EventsOn("build:draft-log", (line: string) => {
+    inflightLog = [...inflightLog, line];
+    notify();
+  });
+  inflight = BuildAPI.DescribeOnThisComputer(registry, text, hints)
+    .then((v) => {
+      if (v.model) {
+        landed = v;
+        keptDescription = { text: "", hints: ["", "", ""] };
+      } else {
+        landedError = "The Drafter returned no draft the form can open.";
+      }
+    })
+    .catch((e) => { landedError = String(e); })
+    .finally(() => {
+      off();
+      inflight = null;
+      notify();
+    });
+  notify();
+}
+
 export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   registry: string;
   onDrafted: (v: main.DraftView) => void;
@@ -39,49 +88,50 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   const [hints, setHints] = useState<string[]>(keptDescription.hints);
   const [status, setStatus] = useState<main.DescribeStatusView | null>(null);
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [log, setLog] = useState<string[]>([]);
+  const [, redraw] = useState(0);
   const logRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => {
     BuildAPI.DescribeStatus().then(setStatus).catch((e) => setError(String(e)));
     RunAPI.SetupStatus().then(setSetup).catch(() => {});
   }, []);
+  useEffect(() => {
+    const f = () => redraw((n) => n + 1);
+    listeners.add(f);
+    return () => { listeners.delete(f); };
+  }, []);
   useEffect(() => { keptDescription = { text, hints }; }, [text, hints]);
-  useEffect(() => EventsOn("build:draft-log", (line: string) => setLog((p) => [...p, line])), []);
-  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
+  // A draft that landed, while this page showed or before it came back.
+  useEffect(() => {
+    const v = takeLandedDraft();
+    if (v) onDrafted(v);
+  });
+  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [inflightLog.length]);
 
+  const busy = draftInFlight();
+  const shownError = error ?? (busy ? null : landedError);
   const key = status?.key;
   const dockerOk = setup?.dockerOk ?? false;
   const ready = !!key?.ready && dockerOk && text.trim() !== "";
 
-  async function draft() {
-    setBusy(true);
+  function draft() {
     setError(null);
-    setLog([]);
-    try {
-      const v = await BuildAPI.DescribeOnThisComputer(registry, text, hints.map((h) => h.trim()).filter(Boolean));
-      keptDescription = { text: "", hints: ["", "", ""] };
-      onDrafted(v);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
+    startDraft(registry, text, hints.map((h) => h.trim()).filter(Boolean));
   }
 
   return (
     <section aria-labelledby="describe-heading">
       <h2 id="describe-heading">Describe it</h2>
       <p className="muted small">
-        Say what the BriefAgent should do, in plain words. The Drafter searches the registry and the web, reads what it
-        finds, and drafts the BriefAgent: what it may reach, its instructions, the questions a run asks and what a person
-        reads first. The draft opens on Review, and nothing is saved or submitted until you do it.
+        Say what the BriefAgent should do, in plain words. The Drafter searches the registry, and the web when you have a
+        search provider, reads what it finds, and drafts the BriefAgent: what it may reach, its instructions, the
+        questions a run asks and what a person reads first. The draft opens on Review. Nothing is written into a
+        BriefAgent folder or submitted until you save or publish it.
       </p>
       <Card>
         <label className="small" style={{ display: "block" }}>Describe what the BriefAgent should do
-          <Textarea rows={6} style={{ width: "100%" }} value={text} disabled={busy} maxLength={30000}
+          <Textarea rows={6} style={{ width: "100%" }} value={text} disabled={busy}
             onChange={(e) => setText(e.target.value)}
             placeholder="e.g. Check a CSV file I add for missing values, duplicate rows and columns whose values are not all the same format, and report the problems per column." />
         </label>
@@ -96,16 +146,13 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
 
       <h3 className="small">Where it runs</h3>
       <Card>
-        <label className="check-row" style={{ margin: 0 }}>
-          <input type="radio" name="describe-where" checked readOnly />
-          <span>
-            <strong>On this computer</strong>{" "}
-            <span className="muted">
-              — against the model your runner policy names ({status?.model ?? "…"}), for no credits. Your own AI Review
-              key reads the description and every result first.
-            </span>
+        <p className="small" style={{ marginTop: 0 }}>
+          <strong>On this computer</strong>{" "}
+          <span className="muted">
+            — against the model your runner policy names ({status?.modelName ?? "…"}), for no credits. Your own AI Review
+            key reads the description and every result first.
           </span>
-        </label>
+        </p>
         {key && (key.ready
           ? <p className="small" style={{ marginBottom: 0 }}>AI Review uses your key {key.envSet ? <>from <span className="mono">${key.envName}</span></> : "from this computer's keychain"}.</p>
           : (
@@ -122,16 +169,17 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
       </Card>
 
       <p className="small">
-        Your description, the Drafter&apos;s searches and the pages it reads go to TypeSafe (AI Review), to your search
-        provider when you have one, and to the sites it reads, so the description should hold no secret. AI Review reads
-        every result before the Drafter&apos;s model does, and holds back what it flags.
+        Your description, the Drafter&apos;s searches and the pages it reads go to TypeSafe (AI Review), to your model&apos;s
+        provider, to your search provider when you have one, and to the sites it reads, so the description should hold no
+        secret. AI Review reads every result before the Drafter&apos;s model does, and holds back what it flags. The
+        run&apos;s receipts and the draft are kept in your Downloads folder, under <span className="mono">agentry-out</span>.
       </p>
       <div className="row">
         <Button variant="primary" disabled={!ready || busy} onClick={draft}>{busy ? "Drafting…" : "Draft it"}</Button>
-        {busy && <span className="muted small">A draft takes a few minutes. It asks first, then runs as this app&apos;s one run.</span>}
+        {busy && <span className="muted small">A draft takes a few minutes, and it is this app&apos;s one run while it lasts. You can leave this page; the draft opens here when it is done.</span>}
       </div>
-      {log.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 200, overflow: "auto", marginTop: 12 }}>{log.join("\n")}</pre>}
-      <ErrorBox error={error} />
+      {inflightLog.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 200, overflow: "auto", marginTop: 12 }}>{inflightLog.join("\n")}</pre>}
+      <ErrorBox error={shownError} />
     </section>
   );
 }

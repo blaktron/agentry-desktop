@@ -129,11 +129,12 @@ The product never claims an agent is "safe". The language is always:
     - Without a key, drafting on this computer is off, and the page says
       where to add one.
     - A native dialog asks before anything leaves this computer. Your
-      description, the searches and the pages go to TypeSafe, to your search
-      provider and to the sites read, so the description should hold no
-      secret.
+      description, the searches and the pages go to TypeSafe, to your model's
+      provider, to your search provider when you have one, and to the sites
+      read, so the description should hold no secret.
     - The draft is a run like any other: it holds the run lock, and quitting
-      ends it.
+      ends it. You can leave the page while it runs, and the draft opens on
+      Build when it is done.
     - The draft opens on Review with what the Drafter found beside it: what
       AI Review read and held back, the published BriefAgents that already do
       the task (each with a link to its page), what the description leaves

@@ -41,7 +41,9 @@ type JevKeyStatus struct {
 	KeyStoreErr string
 }
 
-// Ready reports whether a draft on this computer would find a key.
+// Ready reports whether a draft on this computer would find a key. It is
+// pkg/drafter's read, the variable and then the keychain for a keyring
+// source, answered from presence alone, since a status never reads a key.
 func (s *JevKeyStatus) Ready() bool {
 	return s.EnvSet || (s.Stored && s.Source == modelkey.SourceKeyring)
 }
@@ -187,8 +189,12 @@ func sayJevAnswer(err error) (bool, string) {
 		return false, "TypeSafe is limiting requests with this key right now (429). Try again in a minute."
 	case errors.As(err, &se):
 		return false, fmt.Sprintf("TypeSafe answered %d, so the key was not confirmed. Try again later.", se.Status)
-	case errors.As(err, &ue) || errors.Is(err, context.DeadlineExceeded):
-		return false, "TypeSafe could not be reached, so the key was not confirmed: " + err.Error()
+	case errors.Is(err, context.DeadlineExceeded):
+		return false, "TypeSafe did not answer in time, so the key was not confirmed. Check this computer's connection and try again."
+	case errors.As(err, &ue):
+		// The dial's own words (no such host, connection refused) say what
+		// to check; the request's URL and method do not.
+		return false, "TypeSafe could not be reached, so the key was not confirmed: " + ue.Err.Error() + "."
 	default:
 		return false, "TypeSafe's answer was not one AI Review can use, so the key was not confirmed: " + err.Error()
 	}

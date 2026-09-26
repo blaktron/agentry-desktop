@@ -95,6 +95,20 @@ func TestStoreJevKeyRefusedByTheKeychainLeavesThePolicy(t *testing.T) {
 	if err := StoreJevKey("   ", &log); err == nil {
 		t.Fatal("an empty key was stored")
 	}
+	// A policy that exists is left byte for byte, too.
+	pol := policy.Default()
+	pol.Judge.APIKeyEnv = "MY_JEV"
+	if err := policy.Save(path, pol); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(path)
+	if err := StoreJevKey(testJevKey, &log); err == nil {
+		t.Fatal("stored with the keychain switched off")
+	}
+	after, _ := os.ReadFile(path)
+	if string(before) != string(after) {
+		t.Fatalf("a refused store changed the policy:\n%s", after)
+	}
 }
 
 func TestForgetJevKeyRemovesTheEntryAndTheSource(t *testing.T) {
@@ -160,7 +174,7 @@ func TestTestJevKeySaysTheVendorsAnswer(t *testing.T) {
 		{"500", &corejudge.StatusError{Status: 500}, false, "TypeSafe answered 500"},
 		{"unreachable", fmt.Errorf("judge: typesafe request: %w", &url.Error{Op: "Post", URL: "https://api.typesafe.ai/v1/systemone?k=" + testJevKey,
 			Err: errors.New("dial tcp: lookup api.typesafe.ai: no such host")}), false, "TypeSafe could not be reached"},
-		{"timeout", fmt.Errorf("judge: typesafe request: %w", context.DeadlineExceeded), false, "TypeSafe could not be reached"},
+		{"timeout", fmt.Errorf("judge: typesafe request: %w", context.DeadlineExceeded), false, "TypeSafe did not answer in time"},
 		{"odd answer", errors.New(`judge: typesafe served model "jev-2", not the pinned "jev-1.13.0"`), false, "not one AI Review can use"},
 	}
 	for _, c := range cases {
@@ -176,7 +190,7 @@ func TestTestJevKeySaysTheVendorsAnswer(t *testing.T) {
 			if len(asked) != 1 || asked[0] != testJevKey {
 				t.Fatalf("asked with %d keys", len(asked))
 			}
-			if res.OK != c.ok || !strings.Contains(res.Message, c.want) || res.From != "the keychain" {
+			if res.OK != c.ok || !strings.Contains(res.Message, c.want) || res.From != "the keychain" || strings.Contains(res.Message, "api.typesafe.ai/v1") {
 				t.Fatalf("result %+v", res)
 			}
 			noValue(t, "the result", res)

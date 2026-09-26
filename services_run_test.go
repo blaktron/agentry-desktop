@@ -118,7 +118,7 @@ func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
 func TestTheJevKeyIsNeverShownBackOrLogged(t *testing.T) {
 	const secret = "jev-never-shown-back-3b9e"
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	keyring.MockInit()
 	t.Setenv(modelkey.EnvNoKeyring, "")

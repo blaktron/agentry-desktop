@@ -94,7 +94,7 @@ func newDescribeFixture(t *testing.T) *describeFixture {
 			return &receipt.Envelope{Status: "ok", RunID: r.RunID, Harness: receipt.Harness{Model: "openai/qwen3.8-flash-next"},
 				Result: json.RawMessage(`{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
 					"summary": "Turns meeting notes into actions.", "license": "Apache-2.0", "modes": ["autonomous"], "x-extra": 1},
-					"matches": [{"ref": "acme/minutes", "why": "writes minutes"}], "sources": [], "openQuestions": ["Dates?"]}`),
+					"matches": [{"ref": "acme/minutes", "why": "writes minutes"}], "sources": [{"url": "https://bad.example/", "used": "the format", "withheld": false}], "openQuestions": ["Dates?"]}`),
 				Web: &receipt.Web{Scan: toolsrv.WebScanJev, Read: 3, Passed: 2, Withheld: 1}}, nil
 		},
 	}
@@ -120,7 +120,7 @@ func TestDescribeWithoutAKeyIsRefusedBeforeAnyDialog(t *testing.T) {
 		t.Fatalf("asked %v, scanned %d, ran %d", f.asked, f.scan.read, len(f.runs))
 	}
 	st, err := f.b.DescribeStatus()
-	if err != nil || st.Key.Ready || st.Search != "no-provider" || st.Model == "" {
+	if err != nil || st.Key.Ready || st.Search != "no-provider" || st.ModelName == "" {
 		t.Fatalf("status %+v %v", st, err)
 	}
 }
@@ -174,6 +174,11 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	// AI Review's record instead, as text, never as links.
 	if v.Notes != "Its notes: **bold** <script>alert(1)</script>" {
 		t.Fatalf("notes %q", v.Notes)
+	}
+	// The Drafter says it used the page AI Review withheld; the record
+	// wins, so the page never offers it as a link.
+	if len(v.Sources) != 1 || v.Sources[0].URL != "https://bad.example/" || !v.Sources[0].Withheld {
+		t.Fatalf("sources %+v", v.Sources)
 	}
 	if len(v.DecodeNotes) == 0 || !strings.Contains(strings.Join(v.DecodeNotes, " "), "x-extra") {
 		t.Fatalf("decode notes %q", v.DecodeNotes)

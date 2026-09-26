@@ -87,7 +87,7 @@ func TestLiveDescribe(t *testing.T) {
 	if err != nil || !st.Key.Ready || st.Key.EnvSet {
 		t.Fatalf("status: %+v %v", st, err)
 	}
-	t.Logf("status: model %s; %s", st.Model, st.SearchSentence)
+	t.Logf("status: model %s; %s", st.ModelName, st.SearchSentence)
 
 	dv, err := b.DescribeOnThisComputer(reg,
 		"Check a CSV file I add for data-quality problems: missing values, duplicate rows, and columns whose values are not all the same format. Report the problems per column.",

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -14,17 +15,19 @@ import (
 // FromDraft decodes a draft into the form's Model (plan builder-rework.md
 // §7.5, D15, D16): the Drafter's manifest, which it writes as JSON, and its
 // instructions. It is data to the form and nothing else. Nothing is opened,
-// launched, read or written; the draft reaches disk only when the person
-// saves into a folder they pick natively. So:
+// launched, read or written; the draft reaches a BriefAgent folder only
+// when the person saves it into one they pick natively. So:
 //   - Known fields only. What the form cannot hold is dropped, and each
 //     dropped field is named in the notes.
 //   - A value of the wrong shape (an object where a name belongs), a key
 //     named twice, a manifest or instructions over the form's limits, or
 //     instructions that are not text refuse the draft.
-//   - A path is text. An instruction file that is not one file at the
-//     folder's root becomes AGENT.md, and the notes say so; paths in the
-//     contract are shown as written, for the form's rules and the person to
-//     judge.
+//   - A path is text. An instruction file that is not one Markdown file at
+//     the folder's root, other than the README Save writes, becomes
+//     AGENT.md (the CLI's rendering holds a draft to the same rule), and the
+//     notes say so: a name the draft chose must not pick which file a save
+//     writes the instructions over. Paths in the contract are shown as
+//     written, for the form's rules and the person to judge.
 //
 // The draft is published under the person's namespace: a non-empty
 // namespace replaces the Drafter's guess, and the notes say so. The notes
@@ -56,7 +59,7 @@ func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []s
 	if dropped := unknownFields(obj, draftFields, ""); len(dropped) > 0 {
 		notes = append(notes, "The form cannot hold these fields of the draft, so they were left out: "+strings.Join(dropped, ", ")+".")
 	}
-	if f := m.InstructionFile; f != "" && (!instructionFileRE.MatchString(f) || strings.Contains(f, "..")) {
+	if f := m.InstructionFile; f != "" && (!draftInstructionRE.MatchString(f) || strings.EqualFold(f, "README.md")) {
 		notes = append(notes, fmt.Sprintf("The draft named its instruction file %q, which is not one file in the BriefAgent's folder; here it is %s.", f, defaultInstructionFile))
 		m.InstructionFile = defaultInstructionFile
 	}
@@ -73,6 +76,10 @@ func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []s
 	m.HadComments = false
 	return m, notes, nil
 }
+
+// draftInstructionRE is an instruction file a draft may name: one Markdown
+// file at the folder's root, the rule pkg/drafter's Render holds a draft to.
+var draftInstructionRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.md$`)
 
 // draftFields is schema v2 as the form holds it, for naming what a draft
 // carries beyond it: a map is an object whose keys are known, a one-element

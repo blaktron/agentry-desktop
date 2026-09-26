@@ -16,7 +16,7 @@ export function jevKeySentence(k: main.JevKeyView): string {
   return "No key saved. Drafting on this computer is off until you add one.";
 }
 
-export function AIReviewKeyCard({ onChanged }: { onChanged?: (k: main.JevKeyView) => void } = {}) {
+export function AIReviewKeyCard() {
   const [status, setStatus] = useState<main.JevKeyView | null>(null);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,17 +39,12 @@ export function AIReviewKeyCard({ onChanged }: { onChanged?: (k: main.JevKeyView
     }
   }
 
-  const changed = (k: main.JevKeyView) => {
-    setStatus(k);
-    onChanged?.(k);
-  };
-
   const save = () =>
     act("save", async () => {
       const k = await RunAPI.StoreJevKey(key);
       setKey("");
       setTested(null);
-      changed(k);
+      setStatus(k);
     });
 
   const test = () =>
@@ -60,7 +55,7 @@ export function AIReviewKeyCard({ onChanged }: { onChanged?: (k: main.JevKeyView
   const forget = () =>
     act("forget", async () => {
       setTested(null);
-      changed(await RunAPI.ForgetJevKey());
+      setStatus(await RunAPI.ForgetJevKey());
     });
 
   return (

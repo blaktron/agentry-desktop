@@ -467,7 +467,11 @@ func (r *RunAPI) JevKeyStatus() (*JevKeyView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &JevKeyView{Stored: st.Stored, Source: st.Source, EnvName: st.EnvName, EnvSet: st.EnvSet, Ready: st.Ready(), KeyStoreErr: st.KeyStoreErr}, nil
+	return jevKeyView(st), nil
+}
+
+func jevKeyView(st *run.JevKeyStatus) *JevKeyView {
+	return &JevKeyView{Stored: st.Stored, Source: st.Source, EnvName: st.EnvName, EnvSet: st.EnvSet, Ready: st.Ready(), KeyStoreErr: st.KeyStoreErr}
 }
 
 // StoreJevKey puts the person's TypeSafe Jev key into the OS keychain and

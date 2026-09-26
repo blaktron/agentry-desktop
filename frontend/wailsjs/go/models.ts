@@ -1400,7 +1400,7 @@ export namespace main {
 	    key: JevKeyView;
 	    search: string;
 	    searchSentence: string;
-	    model: string;
+	    modelName: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DescribeStatusView(source);
@@ -1411,7 +1411,7 @@ export namespace main {
 	        this.key = this.convertValues(source["key"], JevKeyView);
 	        this.search = source["search"];
 	        this.searchSentence = source["searchSentence"];
-	        this.model = source["model"];
+	        this.modelName = source["modelName"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

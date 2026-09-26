@@ -214,7 +214,7 @@ g.go = { main: {
       issues: [{ rule: "V5", path: "capabilities.network.egress[0]", message: "\"http://api.pagerduty.com\" is not a valid DNS host name", warning: false }],
       findings: [{ ruleId: "S4-prompt-injection-001", scanner: "S4", severity: "high", confidence: "medium", title: "instruction override phrasing", filePath: "AGENT.md", lineStart: 12, lineEnd: 12, excerpt: "ignore previous instructions" }] }),
     ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
-    DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", model: "openai qwen3.8-flash-next",
+    DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next",
       searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
     DescribeOnThisComputer: async () => { await new Promise(() => {}); },
   },

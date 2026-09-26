@@ -134,7 +134,7 @@ type DescribeStatusView struct {
 	Key            JevKeyView `json:"key"`
 	Search         string     `json:"search"`
 	SearchSentence string     `json:"searchSentence"`
-	Model          string     `json:"model"`
+	ModelName      string     `json:"modelName"`
 }
 
 // DescribeStatus reads it: presence markers and whether a variable is set,
@@ -144,11 +144,7 @@ func (b *BuildAPI) DescribeStatus() (*DescribeStatusView, error) {
 	if err != nil {
 		return nil, err
 	}
-	k := st.Key
-	return &DescribeStatusView{
-		Key:    JevKeyView{Stored: k.Stored, Source: k.Source, EnvName: k.EnvName, EnvSet: k.EnvSet, Ready: k.Ready(), KeyStoreErr: k.KeyStoreErr},
-		Search: string(st.Search), SearchSentence: st.SearchSentence, Model: st.Model,
-	}, nil
+	return &DescribeStatusView{Key: *jevKeyView(st.Key), Search: string(st.Search), SearchSentence: st.SearchSentence, ModelName: st.ModelName}, nil
 }
 
 // DraftView is a finished draft for the Build page: the form's Model, what
@@ -198,15 +194,16 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	if err != nil {
 		return nil, err
 	}
-	goes := "TypeSafe (AI Review)"
+	goes := "TypeSafe (AI Review), your model's provider"
 	if p.Search == drafter.SearchOn {
 		goes += ", your search provider"
 	}
 	if err := b.app.askConsent("Draft on this computer?",
-		"The Drafter runs on this computer against the model your runner policy names ("+p.Model()+"), for no credits. "+
+		"The Drafter runs on this computer against the model your runner policy names ("+p.ModelName()+"), for no credits. "+
 			"AI Review (TypeSafe's Jev) reads your description first, with your key, then every search result, page and registry answer "+
-			"before the model does, and holds back what it flags. Your description goes to "+goes+" and to the sites the Drafter reads, "+
-			"so it should hold no secret. Nothing is saved or submitted until you save or publish the draft. Continue?"); err != nil {
+			"before the model does, and holds back what it flags. Your description goes to "+goes+" and the sites the Drafter reads, "+
+			"so it should hold no secret. The run's receipts and the draft are kept in your Downloads folder under agentry-out; "+
+			"nothing is written into a BriefAgent folder or submitted until you save or publish it. Continue?"); err != nil {
 		return nil, err
 	}
 	ns := ""
@@ -227,9 +224,12 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	return draftView(res), nil
 }
 
+// draftView is a finished draft as the page takes it. The sources AI Review
+// withheld are marked from its record, the run's ledger, whatever the
+// Drafter said of them, so a flagged address is never offered as a link.
 func draftView(res *draft.Result) *DraftView {
 	d := res.Draft
-	v := &DraftView{Model: res.Model, DecodeNotes: res.Notes, Notes: drafterNotes(d), Matches: d.Matches, Sources: d.Sources,
+	v := &DraftView{Model: res.Model, DecodeNotes: res.Notes, Notes: drafterNotes(d), Matches: d.Matches, Sources: markWithheld(d),
 		OpenQuestions: d.OpenQuestions, ManifestError: d.ManifestError, OutDir: res.OutDir}
 	if v.DecodeNotes == nil {
 		v.DecodeNotes = []string{}
@@ -244,6 +244,27 @@ func draftView(res *draft.Result) *DraftView {
 		v.AIReview.WithheldSources = []drafter.WithheldSource{}
 	}
 	return v
+}
+
+// markWithheld is the Drafter's sources, each one AI Review withheld marked
+// so from its record, and each withheld text the Drafter did not list added.
+func markWithheld(d *drafter.Draft) []drafter.Source {
+	out := append([]drafter.Source{}, d.Sources...)
+	if d.AIReview == nil {
+		return out
+	}
+	for _, w := range d.AIReview.WithheldSources {
+		found := false
+		for i := range out {
+			if out[i].URL == w.URL {
+				out[i].Withheld, found = true, true
+			}
+		}
+		if !found {
+			out = append(out, drafter.Source{URL: w.URL, Withheld: true})
+		}
+	}
+	return out
 }
 
 // drafterNotes is the Drafter's own notes, without the "Withheld by AI

@@ -107,6 +107,18 @@ func TestFromDraftHoldsAHostileDraftAsData(t *testing.T) {
 	if c := m.Check(); c.Problems["basics"] == "" {
 		t.Fatalf("the form's rules must refuse the name: %+v", c.Problems)
 	}
+	// Nor may a draft choose which file a save writes the instructions
+	// over: only a Markdown file of its own at the root (the CLI's rule).
+	for _, name := range []string{"agent.yaml", "README.md", "readme.md", "LICENSE", ".gitignore", "SKILL.txt"} {
+		n := strings.Replace(draftManifest, `"entrypoints": {"instruction": "AGENT.md"}`, `"entrypoints": {"instruction": "`+name+`"}`, 1)
+		m, notes, err := FromDraft([]byte(n), "x", "alice")
+		if err != nil || m.InstructionFile != "AGENT.md" || !strings.Contains(strings.Join(notes, "\n"), name) {
+			t.Fatalf("%s: instruction file %q, notes %q, %v", name, m.InstructionFile, notes, err)
+		}
+	}
+	if m, _, err := FromDraft([]byte(strings.Replace(draftManifest, `"instruction": "AGENT.md"`, `"instruction": "INSTRUCTIONS.md"`, 1)), "x", "alice"); err != nil || m.InstructionFile != "INSTRUCTIONS.md" {
+		t.Fatalf("a Markdown file of the draft's own is kept: %+v %v", m, err)
+	}
 
 	// Refused outright: too large, not an object, a value of the wrong
 	// shape, a key named twice, instructions that are not text or too long.

@@ -23,7 +23,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
-import { DescribePanel, DraftNotes } from "./BuildDescribe";
+import { DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
@@ -205,7 +205,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [touched, setTouched] = useState(!!kept || !!initialDraft);
   // The Drafter's notes, while its draft is in the form.
   const [drafted, setDrafted] = useState<main.DraftView | null>(kept?.drafted ?? initialDraft);
-  const [view, setView] = useState<View>(initialView);
+  // A draft still being made is followed on Describe it.
+  const [view, setView] = useState<View>(draftInFlight() ? "describe" : initialView);
   const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
   const asked = useRef(new Set<string>());
   const [at, setAt] = useState(initialStep);
@@ -230,6 +231,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     }
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
   }, [registry, initialDraft]);
+
+  // A draft that finished while the tab was away opens now.
+  useEffect(() => {
+    const v = takeLandedDraft();
+    if (v) takeDraft(v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
@@ -387,15 +395,24 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     goTo(at + 1);
   }
 
+  // What an earlier save, validate, publish or step check said, cleared
+  // whenever the form is replaced.
+  function resetOutcome() {
+    setResult(null);
+    setPubResult(null);
+    setStepProblem(null);
+    setNotice(null);
+    setError(null);
+  }
+
   function startOver() {
     kept = null;
     setDrafted(null);
+    resetOutcome();
     asked.current.clear();
     setServerChecks({});
     setTouched(false);
     setDir("");
-    setResult(null);
-    setPubResult(null);
     setModel(null);
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
   }
@@ -409,11 +426,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setDrafted(v);
     setTouched(true);
     setDir("");
-    setResult(null);
-    setPubResult(null);
-    setStepProblem(null);
-    setNotice(null);
-    setError(null);
+    resetOutcome();
     setView("steps");
     setAt(stepOf("review"));
   }

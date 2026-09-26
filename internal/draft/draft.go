@@ -46,17 +46,15 @@ type Plan struct {
 	Search     drafter.SearchState
 }
 
-// Model names the model the runner policy gives the Drafter.
-func (p *Plan) Model() string {
-	if m := strings.TrimSpace(p.Policy.Model.Provider + " " + p.Policy.Model.Name); m != "" {
+// ModelName names the model the runner policy gives the Drafter.
+func (p *Plan) ModelName() string { return modelName(p.Policy) }
+
+// modelName names the model pol gives a run, as the log and the page say it.
+func modelName(pol *policy.Policy) string {
+	if m := strings.TrimSpace(pol.Model.Provider + " " + pol.Model.Name); m != "" {
 		return m
 	}
 	return "none configured"
-}
-
-// SearchSentence says what web search the draft has.
-func (p *Plan) SearchSentence() string {
-	return SearchSentence(p.Search, p.Policy)
 }
 
 // SearchSentence says what web search a draft has under pol.
@@ -71,6 +69,7 @@ func SearchSentence(s drafter.SearchState, pol *policy.Policy) string {
 	return "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows."
 }
 
+// providerName is a search provider's name as a person knows it.
 func providerName(p string) string {
 	if p == "youcom" {
 		return "You.com"
@@ -155,7 +154,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	_, _ = fmt.Fprintf(logw, "AI Review passed the description. The Drafter runs on this computer against the model your runner policy names (%s), for no credits. %s "+
 		"Every result goes to AI Review with your key before the model reads it, and this computer reads each page from its site. It submits nothing.\n",
-		p.Model(), p.SearchSentence())
+		p.ModelName(), SearchSentence(p.Search, p.Policy))
 
 	home, err := run.Home()
 	if err != nil {
@@ -210,9 +209,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 type Status struct {
 	Key    *run.JevKeyStatus
 	Search drafter.SearchState
-	// SearchSentence says it in words; Model names the policy's model.
+	// SearchSentence says it in words; ModelName names the policy's model.
 	SearchSentence string
-	Model          string
+	ModelName      string
 }
 
 // keyPresent reports whether the keychain holds provider's entry, from its
@@ -225,16 +224,15 @@ func GetStatus() (*Status, error) {
 	if err != nil {
 		return nil, err
 	}
-	polFile, err := policy.Resolve("")
+	pol, err := run.PolicyIfPresent()
 	if err != nil {
 		return nil, err
 	}
-	pol := policy.Default()
-	if loaded, _, lerr := policy.Load(polFile.Path); lerr == nil {
-		pol = loaded
-	} else if !errors.Is(lerr, os.ErrNotExist) {
-		return nil, fmt.Errorf("operator policy: %w", lerr)
+	if pol == nil {
+		pol = policy.Default()
 	}
+	// pkg/drafter's search rule (a provider named, and its key in the
+	// variable or, for a keyring source, the keychain), from presence alone.
 	search := drafter.SearchNoProvider
 	if w := pol.WebSearch; w.On() {
 		search = drafter.SearchNoKey
@@ -246,6 +244,5 @@ func GetStatus() (*Status, error) {
 			}
 		}
 	}
-	p := &Plan{Policy: pol, Search: search}
-	return &Status{Key: key, Search: search, SearchSentence: p.SearchSentence(), Model: p.Model()}, nil
+	return &Status{Key: key, Search: search, SearchSentence: SearchSentence(search, pol), ModelName: modelName(pol)}, nil
 }

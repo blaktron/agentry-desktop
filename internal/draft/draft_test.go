@@ -31,7 +31,7 @@ const (
 func isolate(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	keyring.MockInit()
 	t.Setenv(modelkey.EnvNoKeyring, "")
@@ -129,8 +129,8 @@ func TestPrepareReadsThePersonsKeysAndSaysWhatSearchItHas(t *testing.T) {
 	if !strings.Contains(p.Task, "Summarize my meeting notes.") || !strings.Contains(p.Task, "- Slack") || strings.Contains(p.Task, testJev) {
 		t.Fatalf("task %q", p.Task)
 	}
-	if p.SearchSentence() == "" || strings.Contains(p.SearchSentence(), testJev) {
-		t.Fatalf("search sentence %q", p.SearchSentence())
+	if s := SearchSentence(p.Search, p.Policy); s == "" || strings.Contains(s, testJev) || p.ModelName() == "" {
+		t.Fatalf("search sentence %q, model %q", s, p.ModelName())
 	}
 }
 
@@ -264,7 +264,7 @@ func readAll(r localrun.Run) (string, error) {
 func TestStatusReadsNoKey(t *testing.T) {
 	isolate(t)
 	st, err := GetStatus()
-	if err != nil || st.Key.Ready() || st.Search != drafter.SearchNoProvider || st.Model == "" {
+	if err != nil || st.Key.Ready() || st.Search != drafter.SearchNoProvider || st.ModelName == "" {
 		t.Fatalf("%+v %v", st, err)
 	}
 	path, _ := policy.DefaultPath()
