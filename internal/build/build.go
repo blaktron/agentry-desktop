@@ -914,6 +914,28 @@ func Load(dir string) (*Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read agent.yaml: %w", err)
 	}
+	m, err := decodeManifest(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parse agent.yaml: %w", err)
+	}
+	m.HadComments = hasComments(raw)
+
+	// The instruction file is read only from the picked folder itself: an
+	// entrypoint naming a path outside it is not followed (the form's rules
+	// then refuse to save it until it names a file at the root).
+	if instructionFileRE.MatchString(m.instructionFile()) && !strings.Contains(m.instructionFile(), "..") {
+		if b, rerr := os.ReadFile(filepath.Join(dir, m.instructionFile())); rerr == nil { //nolint:gosec
+			m.Instructions = string(b)
+		}
+	}
+	return m, nil
+}
+
+// decodeManifest reads a manifest's YAML shape (JSON is YAML too, which is
+// how a draft's manifest comes) into the form's Model: every field of schema
+// v2, and a v1 kind as its mode. It reads no file. A value of a shape the
+// field cannot take (an object where a string belongs) is an error.
+func decodeManifest(raw []byte) (*Model, error) {
 	var doc struct {
 		SchemaVersion string   `yaml:"schemaVersion"`
 		Name          string   `yaml:"name"`
@@ -988,7 +1010,7 @@ func Load(dir string) (*Model, error) {
 		} `yaml:"publish"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("parse agent.yaml: %w", err)
+		return nil, err
 	}
 	m := Default(doc.Namespace)
 	m.Name, m.Version = doc.Name, doc.Version
@@ -1011,7 +1033,7 @@ func Load(dir string) (*Model, error) {
 		case "prompt-agent":
 			m.InstructionFile = "AGENT.md"
 		default:
-			return nil, fmt.Errorf("agent.yaml declares the withdrawn kind %q; the Build surface authors instruction-file BriefAgents", doc.Kind)
+			return nil, fmt.Errorf("the manifest declares the withdrawn kind %q; the Build surface authors instruction-file BriefAgents", doc.Kind)
 		}
 	}
 	for _, a := range doc.Authors {
@@ -1055,16 +1077,6 @@ func Load(dir string) (*Model, error) {
 		m.Dependencies = append(m.Dependencies, DependencyRow{Ref: d.Ref, Version: d.Version})
 	}
 	m.PublishInclude, m.PublishChannel = orEmpty(doc.Publish.Include), doc.Publish.Channel
-	m.HadComments = hasComments(raw)
-
-	// The instruction file is read only from the picked folder itself: an
-	// entrypoint naming a path outside it is not followed (the form's rules
-	// then refuse to save it until it names a file at the root).
-	if instructionFileRE.MatchString(m.instructionFile()) && !strings.Contains(m.instructionFile(), "..") {
-		if b, rerr := os.ReadFile(filepath.Join(dir, m.instructionFile())); rerr == nil { //nolint:gosec
-			m.Instructions = string(b)
-		}
-	}
 	return m, nil
 }
 
