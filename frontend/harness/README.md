@@ -65,6 +65,22 @@ every section at once, and `#build-comments` is a loaded `agent.yaml` with
 comments, which a save does not keep. `BuildAPI.Check` is mocked with a
 passing answer, so each step shows the lines it writes.
 
+The Knowledge panel (agentry-desktop#273) has its own entry, `knowledge.html`
+(`knowledge.tsx`): `#knowledge` is the list signed in (a pack kept here only,
+one in both places scanned in Agentry, one changed since its upload, one in
+Agentry only, one Agentry is still scanning), `#knowledge-signed-out` a pack
+under this computer's key, and `#knowledge-empty` none. Create knowledge's
+steps are `#create-documents`, `#create-name`, `#create-review` (the recap and
+the sentence that nothing the Creator reads or writes is scanned) and
+`#create-blocked` (docker not ready, Create greyed); `#create-building` streams
+a build's log, `#create-done` shows what it made, and `#add-review` is Add
+documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
+page with raw HTML, a script, an image, a `javascript:` link and a
+right-to-left override, which `shots.mjs` fails if any of it becomes markup.
+The run setup's Knowledge step is `modals.html#runpanel-step-knowledge`, and
+`#runpanel-knowledge-finished` a local run with a pack attached, whose result
+shows the receipt's knowledge line.
+
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:

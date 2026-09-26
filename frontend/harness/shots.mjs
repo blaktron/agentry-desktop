@@ -57,6 +57,25 @@ const states = [
   // name the operator policy the run enforced and how its path was chosen.
   { name: "runpanel-local-finished", url: "/modals.html#runpanel-local-finished", note: "a local run finished: Run details name the operator policy, the runner home's default, and its digest abbreviated", click: ['button:text-is("Run")', "details.run-details > summary"], expectText: "/home/chris/.agentry/runner/policy.yaml" },
   { name: "runpanel-local-finished-env", url: "/modals.html#runpanel-local-finished-env", note: "the same run with the runner home relocated by AGENTRY_RUNNER_HOME: the source says so", click: ['button:text-is("Run")', "details.run-details > summary"], expectText: "AGENTRY_RUNNER_HOME, set in the environment" },
+  // Knowledge on a run on this machine (agentry-desktop#273): the step that
+  // lists the packs kept here, and a finished run's knowledge line.
+  { name: "runpanel-step-knowledge", url: "/modals.html#runpanel-step-knowledge", note: "the Knowledge step: the packs kept on this computer, each with its scan state and whether it opens offline, and one kept in Agentry only, not attachable here", expectText: "download it on the Knowledge page" },
+  { name: "runpanel-knowledge-finished", url: "/modals.html#runpanel-knowledge-finished", note: "a local run with a pack attached, finished: the receipt's knowledge line under the result", click: ['button:text-is("Run")'], expectText: "Knowledge this run could search" },
+  // The Knowledge panel (agentry-desktop#273, plan knowledge.md §4.8): the
+  // list in each state, Create knowledge's steps, a build under way and
+  // done, a pack's preview, and a hostile page that must render as text.
+  { name: "knowledge", url: "/knowledge.html#knowledge", note: "signed in: kept here (not scanned, opens offline), in both places (scanned in Agentry, 2 findings), changed since upload, in Agentry only, being scanned", locator: '[data-preview="knowledge"]', expectText: "Encrypted to your account's key at secureagentry.net, which Agentry holds" },
+  { name: "knowledge-signed-out", url: "/knowledge.html#knowledge-signed-out", note: "not signed in: a pack under this computer's key, and why Agentry's copies are not listed", locator: '[data-preview="knowledge"]', expectText: "Encrypted to this computer's key" },
+  { name: "knowledge-empty", url: "/knowledge.html#knowledge-empty", note: "no pack yet: Create knowledge", locator: '[data-preview="knowledge"]', expectText: "No knowledge packs yet" },
+  { name: "knowledge-create-documents", url: "/knowledge.html#create-documents", note: "Create knowledge: the documents, from the native pickers only", expectText: "Step 1 of 3: Documents" },
+  { name: "knowledge-create-name", url: "/knowledge.html#create-name", note: "Create knowledge: the name, and where a run finds it", expectText: "Step 2 of 3: Name" },
+  { name: "knowledge-create-review", url: "/knowledge.html#create-review", note: "the review: before anything runs, that the Creator runs here against the policy's model and nothing it reads or writes is scanned", expectText: "Nothing it reads or writes is scanned" },
+  { name: "knowledge-create-blocked", url: "/knowledge.html#create-blocked", note: "docker not ready: the sentence, Create knowledge greyed", expectText: "Docker is not ready", expectDisabledButton: "Create knowledge" },
+  { name: "knowledge-create-building", url: "/knowledge.html#create-building", note: "the build under way: its log streaming", expectText: "decode: storage-guide.pdf" },
+  { name: "knowledge-create-done", url: "/knowledge.html#create-done", note: "what the build made: pages, the key, what was not read, a dropped page, the tokens", expectText: "Made handbook: 48 pages" },
+  { name: "knowledge-add-review", url: "/knowledge.html#add-review", note: "Add documents: the review, the same warning", expectText: "Step 2 of 2: Review" },
+  { name: "knowledge-preview", url: "/knowledge.html#preview", note: "a pack's index and its pages, rendered by the run-output reader", expectText: "Rotating a key" },
+  { name: "knowledge-preview-hostile", url: "/knowledge.html#preview-hostile", note: "a hostile page: no markup of its own, no image, no javascript: link, the right-to-left override shown", click: '.knowledge-pages button:has-text("Buckets")', expectText: "U+202E", expectNone: ".knowledge-page img, .knowledge-page script, .knowledge-page iframe, .knowledge-page b[onclick], .knowledge-page a[href^='javascript']" },
   { name: "agent-mcp-env", url: "/pages.html#agent-mcp-env", note: "the agent page's MCP tab: a declared server's plain env beneath its line, a server without env unchanged (agentry-desktop#62)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("MCP servers")' },
   { name: "install-mcp-env", url: "/modals.html#install-mcp-env", note: "the install review: each declared server's pin, tools and plain env (agentry-desktop#62)", click: "button:has-text('Verify')" },
   { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard's review of a release admitted without a scan: the mark and the consent (M23)", click: "button:has-text('Verify')" },
@@ -212,6 +231,11 @@ try {
         // Agent output makes no markup of its own (agentry-desktop#227).
         const n = await page.locator(state.expectNone).count();
         if (n !== 0) throw new Error(`${state.name}: ${n} element(s) matching ${state.expectNone}`);
+      }
+      if (state.expectDisabledButton) {
+        // A blocker greys the button; the script says so, not only the shot.
+        const b = page.locator(".modal").getByRole("button", { name: state.expectDisabledButton }).first();
+        if (await b.isEnabled()) throw new Error(`${state.name}: ${state.expectDisabledButton} is enabled with a blocker showing`);
       }
       if (state.expectPlaceholder) {
         // The task field's placeholder is the author's (agentry-desktop#228).

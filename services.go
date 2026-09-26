@@ -22,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -35,6 +36,9 @@ type SettingsAPI struct {
 	app *App
 	// open replaces App.OpenExternal in tests; nil means the real browser.
 	open func(url string) error
+	// knowledgeEnv is the local knowledge store's wiring, for the rewrap
+	// a sign-in makes (D20); nil is this app's.
+	knowledgeEnv *knowledge.Env
 }
 
 // RegistryView is one configured registry as the frontend sees it.
@@ -250,6 +254,11 @@ type SignInResult struct {
 	TokenStore string `json:"tokenStore"`
 	// PinNote is the signing-key TOFU outcome, §11 login row.
 	PinNote string `json:"pinNote"`
+	// KnowledgeRewrapped names the knowledge packs this computer's key
+	// wrapped that the sign-in moved to the account's key (plan
+	// knowledge.md D20); KnowledgeNote says why some were not moved.
+	KnowledgeRewrapped []string `json:"knowledgeRewrapped,omitempty"`
+	KnowledgeNote      string   `json:"knowledgeNote,omitempty"`
 }
 
 // SignIn validates a PAT against the registry, stores it, and pins the
@@ -280,7 +289,12 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 		}
 	}
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
-	return &SignInResult{User: *user, TokenStore: store, PinNote: pin}, nil
+	res := &SignInResult{User: *user, TokenStore: store, PinNote: pin}
+	// Packs kept while signed out are encrypted to this computer's key;
+	// from this sign-in on, the account's key at this registry wraps them,
+	// so they open on the account's other computers too (D20).
+	res.KnowledgeRewrapped, res.KnowledgeNote = rewrapKnowledge(s.app.ctx, knowledgeEnv(s.knowledgeEnv), url)
+	return res, nil
 }
 
 // SignOut removes the stored credential for a registry.

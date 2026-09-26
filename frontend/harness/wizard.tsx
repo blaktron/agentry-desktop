@@ -135,7 +135,7 @@ function Backdrop() {
   return (
     <div className="shell" style={{ height: "100vh" }}>
       <div className="sidebar"><div className="brand"><Wordmark sub="Desktop" /></div>
-        {["Browse", "Installed", "Build", "Validate", "Settings"].map((n) => <button key={n} className={`nav-item ${n === "Browse" ? "active" : ""}`}>{n}</button>)}
+        {["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"].map((n) => <button key={n} className={`nav-item ${n === "Browse" ? "active" : ""}`}>{n}</button>)}
       </div>
       <div className="content" />
     </div>

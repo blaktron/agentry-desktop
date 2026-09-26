@@ -30,6 +30,11 @@ ALLOW="${COPY_CHECK_ALLOW:-$HERE/copy-allow.txt}"
 # The words, matched whole and case-insensitively. "secure" does not match
 # secureagentry.net: a word boundary needs a non-word character after it.
 WORDS='safe|safely|secure|securely|secured|guarantee|guarantees|guaranteed|trusted'
+# The Knowledge panel's copy also never calls a pack "private" (plan
+# knowledge.md §3; agentry-desktop#273): it says what holds the pack's key
+# instead. Checked over its own files only, since "private" is the product's
+# word elsewhere (a private BriefAgent, a private organization agent).
+KNOWLEDGE_WORDS="$WORDS|private|privately"
 
 # The files this app's copy lives in: the frontend it ships (not the
 # dev-only harness, not the generated bindings) and its Go sources (not
@@ -76,20 +81,30 @@ strip_allowed() {
     }'
 }
 
+# knowledge_file <path>: whether the file is the Knowledge panel's copy.
+knowledge_file() {
+  case "${1#"$ROOT"/}" in
+    frontend/src/knowledge.ts | frontend/src/pages/Knowledge*.tsx | services_knowledge.go | internal/knowledge/*) return 0 ;;
+  esac
+  return 1
+}
+
 check_tree() {
-  local status=0 file hit
+  local status=0 file hit words
   SPANS="$(allowed_spans)"
   while IFS= read -r file; do
+    words="$WORDS"
+    knowledge_file "$file" && words="$KNOWLEDGE_WORDS"
     while IFS= read -r hit; do
       # What is left once the allowed spans are gone must carry no word.
       # (>/dev/null, not -q: grep -q would cut the writer off and pipefail
       # would read its EPIPE as the answer; agentry-desktop#236.)
-      if ! strip_allowed "${hit#*:}" | grep -iE "\\b($WORDS)\\b" >/dev/null; then
+      if ! strip_allowed "${hit#*:}" | grep -iE "\\b($words)\\b" >/dev/null; then
         continue
       fi
       printf '%s:%s\n' "${file#"$ROOT"/}" "$hit" >&2
       status=1
-    done < <(grep -nIiE "\\b($WORDS)\\b" "$file" || true)
+    done < <(grep -nIiE "\\b($words)\\b" "$file" || true)
   done < <(copy_files)
   return $status
 }
@@ -106,6 +121,19 @@ if [ "${1:-}" = "--self-test" ]; then
   printf 'export const line = "This run wrote three reports.";\n' > "$tmp/frontend/src/Bad.tsx"
   if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
     echo "self-test FAILED: honest copy was refused" >&2
+    exit 1
+  fi
+  # The Knowledge panel's files also refuse "private"; the rest do not.
+  mkdir -p "$tmp/frontend/src/pages"
+  printf 'export const line = "Your pack is private.";\n' > "$tmp/frontend/src/pages/KnowledgeBad.tsx"
+  if COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
+    echo "self-test FAILED: the Knowledge panel calling a pack private passed the check" >&2
+    exit 1
+  fi
+  rm -f "$tmp/frontend/src/pages/KnowledgeBad.tsx"
+  printf 'export const line = "Publish it as a private BriefAgent.";\n' > "$tmp/frontend/src/Bad.tsx"
+  if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
+    echo "self-test FAILED: \"private\" was refused outside the Knowledge panel" >&2
     exit 1
   fi
   # An allowed span exempts itself, never the rest of its line: the first

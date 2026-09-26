@@ -52,6 +52,14 @@
 //                             characters, on Before you start
 //   #runpanel-guided-hostile-tools  the same guide's key help on Connect tools
 //
+// Knowledge attached to a run on this machine (plan knowledge.md §4.5,
+// agentry-desktop#273):
+//   #runpanel-step-knowledge      the Knowledge step: the packs kept on this
+//                                 computer, each with its scan state
+//   #runpanel-knowledge-finished  a local run with a pack attached, finished
+//                                 (shots.mjs clicks Run): the receipt's
+//                                 knowledge line under the result
+//
 // A run on this machine, finished (shots.mjs clicks Run on the review):
 //   #runpanel-local-finished      its Run details name the operator policy
 //                                 it enforced, the runner home's default
@@ -108,7 +116,15 @@ const guide = hostileGuide
   };
 const fileIntakeShape = view === "runpanel-file-intake";
 // A finished local run: no intake question, so Run on the review is enabled.
-const localFinished = view.startsWith("runpanel-local-finished");
+const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
+const knowledgeShape = view === "runpanel-step-knowledge" || view === "runpanel-knowledge-finished";
+const knowledgePacks = knowledgeShape
+  ? [
+    { name: "incident-runbooks", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: false },
+    { name: "oncall-notes", pages: 12, bytes: 184_320, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: true },
+    { name: "supplier-contracts", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
+  ]
+  : [];
 const localResult = {
   status: "ok", exitCode: 0, runId: "01K5ZQ4W7X2M9N3P6R8T0V1Y2B", ref: "demo1/incident-summarizer@1.2.0",
   digest: "sha256:9c356fd0d20fef07", resultJson: JSON.stringify("INC-4821 began at 02:14 UTC with elevated 5xx on the checkout service. Draft report written to reports/report.md."),
@@ -122,6 +138,9 @@ const localResult = {
       : { path: "/home/chris/.agentry/runner/policy.yaml", source: "default" }),
     sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
   },
+  knowledge: view === "runpanel-knowledge-finished"
+    ? "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only"
+    : undefined,
 };
 const profile = keysShape
   ? {
@@ -235,7 +254,7 @@ const runOutputs = view === "runpanel-hostile"
 
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.
-const STEP_OF: Record<string, "start" | "files" | "tools" | "details" | "review"> = {
+const STEP_OF: Record<string, StepKey> = {
   "runpanel-keys": "review",
   "runpanel-keys-saved": "tools",
   "runpanel-file-intake": "review",
@@ -249,6 +268,8 @@ const STEP_OF: Record<string, "start" | "files" | "tools" | "details" | "review"
   "runpanel-guided-details": "details",
   "runpanel-guided-hostile-tools": "tools",
   "runpanel-local-finished": "review",
+  "runpanel-step-knowledge": "knowledge",
+  "runpanel-knowledge-finished": "review",
   "runpanel-local-finished-env": "review",
 };
 
@@ -285,6 +306,11 @@ g.go = { main: {
     Confirm: async () => ({ dir: "/home/chris/agents/incident-summarizer" }),
     Cancel: async () => {},
   },
+  // The packs kept on this computer, for the Knowledge step; none unless
+  // the state shows one.
+  KnowledgeAPI: {
+    List: async () => ({ packs: knowledgePacks, registry: "https://secureagentry.net", signedIn: true }),
+  },
   App: { OpenExternal: async () => {} },
 } };
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
@@ -298,6 +324,7 @@ g.runtime = {
 };
 
 import RunPanel from "../src/pages/RunPanel";
+import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";
@@ -310,7 +337,7 @@ function Backdrop() {
   return (
     <div className="shell" style={{ height: "100vh" }}>
       <div className="sidebar"><div className="brand"><Wordmark sub="Desktop" /></div>
-        {["Browse", "Installed", "Build", "Validate", "Settings"].map((n) => <button key={n} className={`nav-item ${n === "Browse" ? "active" : ""}`}>{n}</button>)}
+        {["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"].map((n) => <button key={n} className={`nav-item ${n === "Browse" ? "active" : ""}`}>{n}</button>)}
       </div>
       <div className="content" />
     </div>

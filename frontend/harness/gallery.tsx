@@ -13,7 +13,7 @@ import {
 import type { trust } from "../wailsjs/go/models";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const nav = ["Browse", "Installed", "Build", "Validate", "Settings"];
+  const nav = ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"];
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">

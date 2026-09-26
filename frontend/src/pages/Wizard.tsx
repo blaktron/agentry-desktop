@@ -10,6 +10,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
+import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
 import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
 
@@ -138,7 +139,7 @@ function SignInStep({
       const u = await ensureRegistry();
       const res = await SettingsAPI.SignInViaBrowser(u);
       await onChanged();
-      setNote(`Signed in as ${res.user.handle}.`);
+      setNote(`Signed in as ${res.user.handle}.${rewrapLine(res)}`);
     } catch (e) {
       // A user cancel is a notice, not a failure (mirrors Settings).
       if (String(e).includes("cancelled")) setNote("Sign-in cancelled.");
@@ -155,7 +156,7 @@ function SignInStep({
       const res = await SettingsAPI.SignIn(u, token.trim());
       await onChanged();
       setToken(""); setPasteMode(false);
-      setNote(`Signed in as ${res.user.handle}.`);
+      setNote(`Signed in as ${res.user.handle}.${rewrapLine(res)}`);
     } catch (e) {
       setError(String(e));
     } finally {

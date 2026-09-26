@@ -82,7 +82,8 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 // authorize page's URL. Browse and install, Build → publish and identity
 // are what the registry has always minted for a desktop sign-in; a run In
 // Agentry adds run:read and run:write (plan hosted-runs.md §6, agentry
-// #348). The registry decides what it grants — the scope set of a desktop
+// #348), and Knowledge knowledge:read and knowledge:write. The registry
+// decides what it grants — the scope set of a desktop
 // grant is fixed server-side so no caller can widen it — so this names
 // what the app asks for, and HostedAvailability reads back what the token
 // actually carries. A registry that does not know the parameter ignores
@@ -90,6 +91,10 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 var requestedScopes = []string{
 	"agent:read", "agent:publish", "repo:read", "repo:write", "user:profile",
 	hostedrun.ScopeRunRead, hostedrun.ScopeRunWrite,
+	// The Knowledge panel's packs in Agentry, and the wrap and unwrap of
+	// their keys (plan knowledge.md §4.3); the core's desktop grant has
+	// carried both since agentry#609.
+	"knowledge:read", "knowledge:write",
 }
 
 // authorizeURL is the flow's authorize page plus the scopes the app asks
