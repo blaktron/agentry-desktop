@@ -434,18 +434,42 @@ func TestApplySetupRefusesABaseURLForAKnownProvider(t *testing.T) {
 	}
 }
 
-func TestApplySetupRefusesPlainHTTPOffLoopback(t *testing.T) {
+// A custom endpoint may be plain http on any host since
+// agentry-desktop#317 (D-042): it is stored, and the form warns. Any other
+// scheme, and a URL without a host, is still refused.
+func TestApplySetupAcceptsPlainHTTPAndRefusesOtherSchemes(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, readyImagesFake())
-	for _, u := range []string{"http://models.example", "http://10.0.0.5:8000/v1", "ftp://models.example", "models.example"} {
-		err := ApplySetup(context.Background(), SetupOpts{Provider: "custom", BaseURL: u}, &strings.Builder{})
-		if err == nil {
+	for _, u := range []string{"ftp://models.example", "models.example", "file:///etc/passwd", "http://"} {
+		if err := ApplySetup(context.Background(), SetupOpts{Provider: "custom", Model: "m", BaseURL: u}, &strings.Builder{}); err == nil {
 			t.Fatalf("base URL %q accepted", u)
 		}
 	}
-	for _, u := range []string{"https://models.example/v1", "http://localhost:11434/v1", "http://127.0.0.1:8000"} {
+	for _, u := range []string{"https://models.example/v1", "http://localhost:11434/v1", "http://127.0.0.1:8000", "http://models.example", "http://10.0.0.5:8000/v1", "http://gpu-box.lan:8000/v1"} {
 		if err := ApplySetup(context.Background(), SetupOpts{Provider: "custom", Model: "m", BaseURL: u}, &strings.Builder{}); err != nil {
 			t.Fatalf("base URL %q refused: %v", u, err)
+		}
+	}
+}
+
+// EndpointWarning is the CLI's sentence: said for plain http off this
+// machine, silent for https and loopback (agentry-desktop#317).
+func TestEndpointWarningIsSaidForPlainHTTPOffLoopbackOnly(t *testing.T) {
+	for u, warn := range map[string]bool{
+		"http://gpu-box.lan:8000/v1": true,
+		"http://100.64.1.2:8000/v1":  true,
+		"https://llm.example.net/v1": false,
+		"http://localhost:11434/v1":  false,
+		"http://127.0.0.1:8000":      false,
+		"":                           false,
+		"not yet a url":              false,
+	} {
+		w := EndpointWarning(u)
+		if (w != "") != warn {
+			t.Errorf("EndpointWarning(%q) = %q, want warn=%v", u, w, warn)
+		}
+		if warn && (!strings.Contains(w, "plain http") || !strings.Contains(w, "https")) {
+			t.Errorf("EndpointWarning(%q) = %q: it must name plain http and recommend https", u, w)
 		}
 	}
 }

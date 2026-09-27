@@ -121,6 +121,21 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy }: {
   }
 
   const needsBaseURL = provider === "custom";
+
+  // Plain http off this machine is allowed (agentry-desktop#317, D-042) and
+  // said out loud: the sentence is the CLI's, asked as the URL changes, so
+  // both clients word it the same. It gates nothing.
+  const [endpointWarning, setEndpointWarning] = useState("");
+  useEffect(() => {
+    const u = baseURL.trim();
+    if (!needsBaseURL || !u) {
+      setEndpointWarning("");
+      return;
+    }
+    let live = true;
+    RunAPI.EndpointWarning(u).then((w) => { if (live) setEndpointWarning(w); }).catch(() => { if (live) setEndpointWarning(""); });
+    return () => { live = false; };
+  }, [baseURL, needsBaseURL]);
   // A stored key counts for the provider it is stored under — the status
   // lists them all (desktop#141) — so a switch of provider needs a key
   // typed unless one is on this machine for the new one too.
@@ -256,9 +271,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy }: {
               type="text" className="mono" placeholder="https://llm.example.net/v1"
               value={baseURL} onChange={(e) => changeBaseURL(e.target.value)} disabled={!!busy}
             />
-            <span className="muted small field-hint">The base URL of an OpenAI-compatible endpoint; the run can reach this host and nothing else.</span>
+            <span className="muted small field-hint">The base URL of an OpenAI-compatible endpoint; the run can reach this host and nothing else. Use https where the endpoint offers it.</span>
           </label>
         )}
+        {needsBaseURL && endpointWarning && <Notice tone="warn">{endpointWarning}</Notice>}
 
         {keyMode === "keyring" && (
           <label className="field">

@@ -18,6 +18,8 @@ export function ChosenHarnesses():Promise<Array<main.HarnessView>>;
 
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
+export function EndpointWarning(arg1:string):Promise<string>;
+
 export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
 export function ForgetJevKey():Promise<main.JevKeyView>;
