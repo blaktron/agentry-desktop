@@ -563,7 +563,15 @@ func TestOfferMatrix(t *testing.T) {
 		{"interactive only", with(func(f *Facts) { f.Modes = []string{"interactive"} }), false, false, "", ""},
 		{"no mode declared", with(func(f *Facts) { f.Modes = nil }), false, false, "", ""},
 		{"both modes", with(func(f *Facts) { f.Modes = []string{"autonomous", "interactive"} }), true, true, "", ""},
-		{"a declared secret", with(func(f *Facts) { f.DeclaredSecrets = []string{"PAGERDUTY_TOKEN"} }), true, false, "PAGERDUTY_TOKEN", ""},
+		// A registry that keeps no secrets: hosted runs D7's refusal.
+		{"a declared secret, no vault", with(func(f *Facts) { f.DeclaredSecrets = []string{"PAGERDUTY_TOKEN"} }), true, false, "PAGERDUTY_TOKEN", "this machine"},
+		// A registry with the vault, and a token that may set a secret
+		// (plan D13): offered, and the start asks for what is missing.
+		{"a declared secret, the vault and the scope", with(func(f *Facts) {
+			f.DeclaredSecrets, f.Vault, f.Scopes = []string{"PAGERDUTY_TOKEN"}, true, append(full, ScopeSecretWrite)
+		}), true, true, "", ""},
+		{"a declared secret, the vault, an old token", with(func(f *Facts) { f.DeclaredSecrets, f.Vault = []string{"PAGERDUTY_TOKEN"}, true }), true, false, ScopeSecretWrite, "Sign in again"},
+		{"no secret declared, no secret:write", with(func(f *Facts) { f.Vault = true }), true, true, "", ""},
 		{"an old token", with(func(f *Facts) { f.Scopes = []string{"agent:read"} }), true, false, "run:read", "Sign in again"},
 		{"read but not write", with(func(f *Facts) { f.Scopes = []string{ScopeRunRead} }), true, false, "run:write", "Sign in again"},
 		{"scopes unreadable", with(func(f *Facts) { f.ScopesKnown = false; f.Scopes = nil }), true, false, "did not say what the stored token may do", "Sign in again"},

@@ -24,7 +24,7 @@ import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, needList, setupSteps, type StepKey } from "../runSetup";
 import SessionChat from "./SessionChat";
-import { HostedCredits, HostedProgress, HostedResult, HostedUnavailable } from "./HostedRun";
+import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable } from "./HostedRun";
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
@@ -214,7 +214,9 @@ export default function RunPanel({
   } else if (!setup.dockerOk) {
     blockers.push("Docker is not ready — set it up in Settings → Agent runs" + (hosted?.offered ? ", or run this release In Agentry." : "."));
   }
-  if (needsProfile && profile) {
+  // The release's own profile is this machine's: a run In Agentry takes its
+  // keys from the account's secrets there instead (agentry-desktop#300).
+  if (!inAgentry && needsProfile && profile) {
     const servers = mcp?.servers ?? [];
     const server = servers.length === 1 ? servers[0] : "this release";
     blockers.push(`Save the keys for ${server}: ${profile.declaredSecrets.join(", ")} (or leave them to the environment).`);
@@ -261,6 +263,10 @@ export default function RunPanel({
   if (inAgentry && accepts?.required && !steps.includes("knowledge")) {
     blockers.push("This release needs a knowledge pack of your own, which a run In Agentry cannot attach here. Run it on this computer.");
   }
+  // The ask for the declared secrets the account does not keep has its own
+  // Save and start; Run waits while it is open.
+  const asking = inAgentry && hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0;
+  if (asking) blockers.push("Enter the secrets this run needs above, then Save and start — or Cancel.");
   const canRun = !busy && blockers.length === 0;
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
@@ -568,6 +574,7 @@ export default function RunPanel({
                           docker engine and no operator policy for it.
                         </p>
                         <HostedCredits hosted={hosted} />
+                        <HostedSecretsNote hosted={hosted} />
                         {unsigned && (
                           <Notice tone="warn">
                             This registry published no attestation for this version. A run In Agentry verifies the release
@@ -767,8 +774,17 @@ export default function RunPanel({
                     <DeclaredServersTable servers={mcp?.declaredServers} />
                   </>
                 )}
+                {/* In Agentry the keys are the account's secrets there, asked
+                    for at the start (agentry-desktop#300); the profile below
+                    is this machine's. */}
+                {inAgentry && hosted && profile && profile.declaredSecrets.length > 0 && (
+                  <>
+                    <h4>Keys</h4>
+                    <HostedSecretsNote hosted={hosted} />
+                  </>
+                )}
                 {/* Guided MCP-profile setup (§P3). */}
-                {profile && profile.declaredSecrets.length > 0 && (
+                {!inAgentry && profile && profile.declaredSecrets.length > 0 && (
                   <>
                     <h4>Keys</h4>
                     {!formOpen && profile.exists && (
@@ -938,8 +954,14 @@ export default function RunPanel({
                     <>
                       <dt>Keys</dt>
                       <dd>
-                        <span>{profile.exists ? "saved for this release" : "not saved yet"}</span>
-                        <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit keys">Edit</Button>
+                        <span>
+                          {inAgentry
+                            ? "your account's secrets in Agentry; one it does not keep is asked for when you start"
+                            : profile.exists ? "saved for this release" : "not saved yet"}
+                        </span>
+                        {!inAgentry && (
+                          <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit keys">Edit</Button>
+                        )}
                       </dd>
                     </>
                   )}
@@ -1077,7 +1099,18 @@ export default function RunPanel({
                 )}
                 {/* A refused create, as a sentence — and, for credits, the way
                     onward the Build page already offers (desktop#74). */}
-                {hostedRefusal?.refusal && (
+                {/* The declared secrets the account does not keep: asked for
+                    here, each with Keep it for later runs unticked, then the
+                    start is made again (plan D12, agentry-desktop#300). */}
+                {hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0 && (
+                  <HostedSecretsAsk
+                    registry={registry}
+                    names={hostedRefusal.missing ?? []}
+                    onSaved={() => { setHostedRefusal(null); void runInAgentry(); }}
+                    onCancel={() => setHostedRefusal(null)}
+                  />
+                )}
+                {hostedRefusal?.refusal && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && (
                   <Notice tone="warn">
                     <strong>
                       {hostedRefusal.refusal === "credits-exhausted"

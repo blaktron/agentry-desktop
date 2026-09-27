@@ -30,6 +30,14 @@ export function ChosenHarnesses() {
   return window['go']['main']['RunAPI']['ChosenHarnesses']();
 }
 
+export function DeleteHostedSecret(arg1, arg2) {
+  return window['go']['main']['RunAPI']['DeleteHostedSecret'](arg1, arg2);
+}
+
+export function DiscardHostedSecrets(arg1) {
+  return window['go']['main']['RunAPI']['DiscardHostedSecrets'](arg1);
+}
+
 export function EndSession(arg1) {
   return window['go']['main']['RunAPI']['EndSession'](arg1);
 }
@@ -66,6 +74,10 @@ export function JevKeyStatus() {
   return window['go']['main']['RunAPI']['JevKeyStatus']();
 }
 
+export function KeepsSecrets(arg1) {
+  return window['go']['main']['RunAPI']['KeepsSecrets'](arg1);
+}
+
 export function ListModels(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['ListModels'](arg1, arg2, arg3);
 }
@@ -94,8 +106,16 @@ export function SaveProfile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['RunAPI']['SaveProfile'](arg1, arg2, arg3, arg4);
 }
 
+export function SecretsPageURL(arg1) {
+  return window['go']['main']['RunAPI']['SecretsPageURL'](arg1);
+}
+
 export function SendTurn(arg1) {
   return window['go']['main']['RunAPI']['SendTurn'](arg1);
+}
+
+export function SetHostedSecret(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['RunAPI']['SetHostedSecret'](arg1, arg2, arg3, arg4);
 }
 
 export function SetupStatus() {

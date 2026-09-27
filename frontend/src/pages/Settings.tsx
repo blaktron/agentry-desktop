@@ -6,6 +6,7 @@ import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } fro
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
 import { CodingAgentsCard } from "./CodingAgents";
+import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
 
 export default function Settings({
@@ -167,6 +168,9 @@ export default function Settings({
           </div>
         </Card>
       ))}
+      {/* The account's secrets for runs In Agentry, where the active
+          registry keeps them (agentry-desktop#300). */}
+      {activeRegistry && <SecretsCard registry={activeRegistry} />}
 
       <h2>Add a registry</h2>
       <Toolbar>
