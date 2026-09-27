@@ -123,6 +123,14 @@ export function fmtBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** A size in the binary units the CLI's consent and the native dialog use
+ * ("4.2 MiB"), for a line of the contract a person consents to. */
+export function fmtBinaryBytes(n: number): string {
+  if (n < 1024) return `${n} bytes`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
 export function fmtDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);

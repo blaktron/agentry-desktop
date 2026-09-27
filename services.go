@@ -1104,7 +1104,8 @@ func contractConsentText(plan, export *install.Plan) string {
 
 // shippedKnowledgeText names the knowledge packs a release ships with their
 // sizes where the archive gave them, "aws-docs (4.2 MiB), notes" (plan
-// knowledge.md §4.6; the CLI's consent line, agentry-cli#389).
+// knowledge.md §4.6; the CLI's consent line, agentry-cli#389, in the same
+// binary units as the install review's fmtBinaryBytes).
 func shippedKnowledgeText(plan *install.Plan) string {
 	size := map[string]int64{}
 	for _, p := range plan.ShippedKnowledge {

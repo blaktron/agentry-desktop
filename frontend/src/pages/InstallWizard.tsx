@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { install } from "../../wailsjs/go/models";
-import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBytes, shortDigest } from "../ui";
+import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
@@ -263,11 +263,11 @@ function CapsTable({ caps, shipped }: { caps: install.Plan["capabilities"]; ship
   // The knowledge packs the release ships in its archive (plan knowledge.md
   // §4.6): part of the contract, each with its size from the archive.
   if (list(caps.knowledge)) {
-    const size = (name: string) => (shipped ?? []).find((p) => p.name === name)?.bytes;
-    rows.push([
-      "knowledge",
-      "ships " + (caps.knowledge ?? []).map((n) => (size(n) != null ? `${n} (${fmtBytes(size(n)!)})` : n)).join(", "),
-    ]);
+    const sized = (name: string) => {
+      const bytes = (shipped ?? []).find((p) => p.name === name)?.bytes;
+      return bytes != null ? `${name} (${fmtBinaryBytes(bytes)})` : name;
+    };
+    rows.push(["knowledge", "ships " + (caps.knowledge ?? []).map(sized).join(", ")]);
   }
   if (rows.length === 0) return <p className="muted">None declared (pure text).</p>;
   return (

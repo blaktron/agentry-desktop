@@ -20,7 +20,8 @@ import (
 // run's own copy of the workspace and holds it to that digest, so what is
 // mounted is what the archive covers. A pack that does not load is a
 // verification failure; an attached pack that takes a shipped pack's name
-// is refused, since both would mount at /knowledge/<name>.
+// is refused, since both would mount at /knowledge/<name>. It repeats the
+// CLI's shippedKnowledge, which lives in its package main (D-006).
 func withShippedKnowledge(workspaceDir string, m *manifest.Manifest, meta *installdir.Meta, attached []engine.AttachedPack, logw io.Writer) ([]engine.AttachedPack, error) {
 	ships := m.ShippedPacks()
 	if len(ships) == 0 {

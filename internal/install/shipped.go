@@ -23,8 +23,9 @@ type ShippedPack struct {
 // shippedPackSizes reads a release archive's tar headers (zstd, as the
 // registry builds it) and sums, for each shipped pack, the sizes of the
 // files of its tree — what the consent shows before anything is unpacked,
-// the CLI's rule (agentry-cli#389). It reads within the install's own
-// bounds, since it runs before the consent.
+// the CLI's rule (agentry-cli#389), replicated because it lives in the
+// CLI's package main (D-006). It reads within the install's own bounds,
+// since it runs before the consent.
 func shippedPackSizes(archive []byte, ships []string) (map[string]int64, error) {
 	if len(ships) == 0 {
 		return nil, nil
@@ -35,7 +36,12 @@ func shippedPackSizes(archive []byte, ships []string) (map[string]int64, error) 
 	}
 	defer zr.Close()
 	lim := extractLimits()
-	tr := tar.NewReader(io.LimitReader(zr, lim.MaxTotalBytes+(64<<20)))
+	// As the extractor bounds it: the total, and the compression ratio.
+	limit := lim.MaxTotalBytes + (64 << 20)
+	if r := int64(len(archive)) * lim.MaxRatio; lim.MaxRatio > 0 && r < limit {
+		limit = r
+	}
+	tr := tar.NewReader(io.LimitReader(zr, limit))
 	out := map[string]int64{}
 	var total int64
 	for files := 0; ; files++ {

@@ -256,6 +256,11 @@ export default function RunPanel({
   // A release that requires a pack of the person's own cannot run without one.
   const needsOwnPack = !!accepts?.required && steps.includes("knowledge") && attached.length === 0;
   if (needsOwnPack) blockers.push("This release needs a knowledge pack of your own: attach one on the Knowledge step.");
+  // In Agentry without the Knowledge step (the registry attaches no pack to a
+  // hosted run here), a required ask cannot be met there at all.
+  if (inAgentry && accepts?.required && !steps.includes("knowledge")) {
+    blockers.push("This release needs a knowledge pack of your own, which a run In Agentry cannot attach here. Run it on this computer.");
+  }
   const canRun = !busy && blockers.length === 0;
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
@@ -680,10 +685,11 @@ export default function RunPanel({
                       </Fragment>
                     ))}
                     . {ships.length === 1 ? "It is" : "Each is"} mounted read-only at <span className="mono">/knowledge/&lt;name&gt;</span> from the release&apos;s own
-                    files, the ones its attestation covers, in every run; the packs below are yours to add beside them.
+                    files, held to the digest of the archive this computer verified, in every run; the packs below are yours to add
+                    beside them.
                   </p>
                 )}
-                {(packs?.length ?? 0) === 0 && (
+                {!inAgentry && (packs?.length ?? 0) === 0 && (
                   <p className="muted small">No knowledge pack is kept on this computer. Make one on the Knowledge page.</p>
                 )}
                 {inAgentry ? (
