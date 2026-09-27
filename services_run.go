@@ -399,6 +399,9 @@ type CatalogView struct {
 	Models   []ModelView `json:"models"`
 	Kind     string      `json:"kind"`
 	Notice   string      `json:"notice,omitempty"`
+	// Warning is the plain-http sentence for the endpoint asked, ""
+	// for https and loopback (agentry-desktop#317).
+	Warning string `json:"warning,omitempty"`
 }
 
 // ModelView is one listed model.
@@ -419,11 +422,19 @@ func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error)
 	if err != nil {
 		return nil, err
 	}
-	v := &CatalogView{Provider: cat.Provider, Models: make([]ModelView, 0, len(cat.Models)), Kind: cat.Kind, Notice: cat.Notice}
+	v := &CatalogView{Provider: cat.Provider, Models: make([]ModelView, 0, len(cat.Models)), Kind: cat.Kind, Notice: cat.Notice, Warning: cat.Warning}
 	for _, m := range cat.Models {
 		v.Models = append(v.Models, ModelView{ID: m.ID, DisplayName: m.DisplayName})
 	}
 	return v, nil
+}
+
+// EndpointWarning is the sentence the setup form shows under a custom
+// endpoint's URL when the key would reach it over plain http off this
+// machine, and "" for https, loopback, or anything not yet a URL
+// (agentry-desktop#317, D-042). It carries no key and asks no network.
+func (r *RunAPI) EndpointWarning(baseURL string) string {
+	return run.EndpointWarning(baseURL)
 }
 
 // StoreModelKey puts the model key for provider into the OS keychain — the

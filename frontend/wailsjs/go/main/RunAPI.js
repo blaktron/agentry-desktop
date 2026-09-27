@@ -34,6 +34,10 @@ export function EndSession(arg1) {
   return window['go']['main']['RunAPI']['EndSession'](arg1);
 }
 
+export function EndpointWarning(arg1) {
+  return window['go']['main']['RunAPI']['EndpointWarning'](arg1);
+}
+
 export function ForgetHarness(arg1) {
   return window['go']['main']['RunAPI']['ForgetHarness'](arg1);
 }

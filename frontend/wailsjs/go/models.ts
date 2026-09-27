@@ -1274,6 +1274,7 @@ export namespace main {
 	    models: ModelView[];
 	    kind: string;
 	    notice?: string;
+	    warning?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CatalogView(source);
@@ -1285,6 +1286,7 @@ export namespace main {
 	        this.models = this.convertValues(source["models"], ModelView);
 	        this.kind = source["kind"];
 	        this.notice = source["notice"];
+	        this.warning = source["warning"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
