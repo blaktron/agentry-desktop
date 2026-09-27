@@ -166,6 +166,11 @@ type Plan struct {
 	Unscanned bool `json:"unscanned"`
 
 	Capabilities installed.CapSnapshot `json:"capabilities"`
+	// ShippedKnowledge is each knowledge pack the release ships in its
+	// archive (the manifest's knowledge.ships, whose names are in
+	// Capabilities.Knowledge), with its size where the archive's headers
+	// gave it.
+	ShippedKnowledge []ShippedPack `json:"shippedKnowledge"`
 	// MCPServers is each declared MCP server's pin, tool allowlist and
 	// plain env, for the review (agentry-desktop#62); never a secret.
 	MCPServers []mcpview.Server `json:"mcpServers"`
@@ -342,11 +347,22 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		Unsigned:    att.State == trust.StateUnsigned,
 		Unscanned:   att.State == trust.StateUnscanned,
 
-		Capabilities: installed.Snapshot(m.Capabilities),
+		Capabilities: installed.Snapshot(m.Contract()),
 		MCPServers:   mcpview.Of(m.Capabilities),
 		Target:       target,
 		Paths:        paths,
 		Secrets:      append([]string(nil), m.Capabilities.Secrets...),
+	}
+	// The packs the release ships, with their sizes from the verified
+	// archive's headers, for the consent (plan knowledge.md §4.6): a size
+	// that cannot be read leaves the name alone.
+	sizes, _ := shippedPackSizes(archive, m.ShippedPacks())
+	for _, name := range m.ShippedPacks() {
+		sp := ShippedPack{Name: name}
+		if n, ok := sizes[name]; ok {
+			sp.Bytes = &n
+		}
+		plan.ShippedKnowledge = append(plan.ShippedKnowledge, sp)
 	}
 	if w := undeclaredTargetWarning(m, target); w != "" {
 		plan.TargetWarning = w
@@ -483,7 +499,7 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	if err := holdToConsented(p.manifest, m, plan); err != nil {
 		return nil, err
 	}
-	plan.Capabilities = installed.Snapshot(m.Capabilities)
+	plan.Capabilities = installed.Snapshot(m.Contract())
 
 	res := &Result{Dest: plan.Paths.Dest}
 	// after runs once the record is saved: the runner target's replace of
@@ -673,7 +689,7 @@ func holdToConsented(consented, archive *manifest.Manifest, plan Plan) error {
 	if consented == nil || archive == nil || consented == archive {
 		return nil
 	}
-	widened := installed.ArchiveWidenings(consented.Capabilities, archive.Capabilities)
+	widened := installed.ArchiveWidenings(consented.Contract(), archive.Contract())
 	if len(widened) == 0 {
 		return nil
 	}

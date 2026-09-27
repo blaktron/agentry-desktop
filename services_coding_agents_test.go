@@ -19,6 +19,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/installed"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -277,5 +278,25 @@ func TestCodingAgentsSettingsSurface(t *testing.T) {
 	v, _ = sAPI.CodingAgents()
 	if len(v.Chosen) != 1 || v.Chosen[0].Name != "codex" || v.Export.Target != "agents-md" || v.Export.Dir != picked {
 		t.Fatalf("after forgetting claude: %+v", v)
+	}
+}
+
+// TestContractDialogNamesShippedKnowledge (agentry-desktop#277): the
+// consent names each knowledge pack the release ships, with its size, and
+// an update that ships one more is a widening the dialog carries.
+func TestContractDialogNamesShippedKnowledge(t *testing.T) {
+	size := int64(216)
+	first := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.0.0", NeedsCapabilityConfirm: true,
+		Capabilities:     installed.CapSnapshot{EgressHosts: []string{"api.example.com"}, Knowledge: []string{"aws-docs", "notes"}},
+		ShippedKnowledge: []install.ShippedPack{{Name: "aws-docs", Bytes: &size}, {Name: "notes"}}}
+	if got := contractConsentText(first, nil); !strings.Contains(got, "• knowledge: ships aws-docs (216 bytes), notes") {
+		t.Fatalf("first install dialog:\n%s", got)
+	}
+	prev := installed.Snapshot(manifest.Capabilities{})
+	next := installed.Snapshot(manifest.Capabilities{Knowledge: []string{"aws-docs"}})
+	d := installed.DiffCapabilities(prev, next)
+	update := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.1.0", PrevVersion: "1.0.0", RequiresWidenedConfirm: d.HasWidened(), Diff: &d, Capabilities: next}
+	if got := contractConsentText(update, nil); !strings.Contains(got, "widens what it may do") || !strings.Contains(got, "• ships knowledge: aws-docs") {
+		t.Fatalf("update dialog:\n%s", got)
 	}
 }

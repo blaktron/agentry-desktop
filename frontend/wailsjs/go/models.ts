@@ -469,6 +469,20 @@ export namespace install {
 	        this.releaseDir = source["releaseDir"];
 	    }
 	}
+	export class ShippedPack {
+	    name: string;
+	    bytes?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShippedPack(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.bytes = source["bytes"];
+	    }
+	}
 	export class Plan {
 	    id: string;
 	    registry: string;
@@ -483,6 +497,7 @@ export namespace install {
 	    unsigned: boolean;
 	    unscanned: boolean;
 	    capabilities: installed.CapSnapshot;
+	    shippedKnowledge: ShippedPack[];
 	    mcpServers: mcpview.Server[];
 	    needsCapabilityConfirm: boolean;
 	    prevVersion?: string;
@@ -515,6 +530,7 @@ export namespace install {
 	        this.unsigned = source["unsigned"];
 	        this.unscanned = source["unscanned"];
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
+	        this.shippedKnowledge = this.convertValues(source["shippedKnowledge"], ShippedPack);
 	        this.mcpServers = this.convertValues(source["mcpServers"], mcpview.Server);
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
 	        this.prevVersion = source["prevVersion"];
@@ -565,6 +581,7 @@ export namespace install {
 	        this.warning = source["warning"];
 	    }
 	}
+	
 	export class UpdateInfo {
 	    key: installed.Key;
 	    current: string;
@@ -624,6 +641,7 @@ export namespace installed {
 	    dataAccess?: string[];
 	    mcpServers?: string[];
 	    mcpServerEnv?: {[key: string]: any};
+	    knowledge?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CapSnapshot(source);
@@ -642,6 +660,7 @@ export namespace installed {
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = source["mcpServers"];
 	        this.mcpServerEnv = source["mcpServerEnv"];
+	        this.knowledge = source["knowledge"];
 	    }
 	}
 	export class Key {
@@ -1927,6 +1946,20 @@ export namespace main {
 	    }
 	}
 	
+	export class KnowledgeAcceptsView {
+	    prompt: string;
+	    required: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeAcceptsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.prompt = source["prompt"];
+	        this.required = source["required"];
+	    }
+	}
 	export class KnowledgeHostedAvailabilityView {
 	    offered: boolean;
 	    available: boolean;
@@ -2246,6 +2279,8 @@ export namespace main {
 	    modes: string[];
 	    opening: string;
 	    guide?: GuideView;
+	    shipsKnowledge: string[];
+	    acceptsKnowledge?: KnowledgeAcceptsView;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileStatusView(source);
@@ -2264,6 +2299,8 @@ export namespace main {
 	        this.modes = source["modes"];
 	        this.opening = source["opening"];
 	        this.guide = this.convertValues(source["guide"], GuideView);
+	        this.shipsKnowledge = source["shipsKnowledge"];
+	        this.acceptsKnowledge = this.convertValues(source["acceptsKnowledge"], KnowledgeAcceptsView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

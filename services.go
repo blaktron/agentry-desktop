@@ -1090,6 +1090,9 @@ func contractConsentText(plan, export *install.Plan) string {
 		if len(c.Secrets) > 0 {
 			lines = append(lines, "  • secrets: "+strings.Join(c.Secrets, ", "))
 		}
+		if len(c.Knowledge) > 0 {
+			lines = append(lines, "  • knowledge: ships "+shippedKnowledgeText(plan))
+		}
 	}
 	closing := "The runner is configured to enforce this contract."
 	if export != nil {
@@ -1097,6 +1100,38 @@ func contractConsentText(plan, export *install.Plan) string {
 	}
 	lines = append(lines, "", closing+" Install?")
 	return strings.Join(lines, "\n")
+}
+
+// shippedKnowledgeText names the knowledge packs a release ships with their
+// sizes where the archive gave them, "aws-docs (4.2 MiB), notes" (plan
+// knowledge.md §4.6; the CLI's consent line, agentry-cli#389).
+func shippedKnowledgeText(plan *install.Plan) string {
+	size := map[string]int64{}
+	for _, p := range plan.ShippedKnowledge {
+		if p.Bytes != nil {
+			size[p.Name] = *p.Bytes
+		}
+	}
+	parts := make([]string, 0, len(plan.Capabilities.Knowledge))
+	for _, name := range plan.Capabilities.Knowledge {
+		if n, ok := size[name]; ok {
+			name += " (" + byteSize(n) + ")"
+		}
+		parts = append(parts, name)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// byteSize is a size in the binary units the CLI's consent uses: "216
+// bytes", "46.9 KiB", "4.2 MiB".
+func byteSize(n int64) string {
+	switch {
+	case n < 1<<10:
+		return fmt.Sprintf("%d bytes", n)
+	case n < 1<<20:
+		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
+	}
+	return fmt.Sprintf("%.1f MiB", float64(n)/(1<<20))
 }
 
 // runnerHomeOr is the runner home a runner plan's agent directory sits
