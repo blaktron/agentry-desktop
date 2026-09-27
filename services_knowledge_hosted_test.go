@@ -30,12 +30,15 @@ import (
 
 // buildFake is the registry.
 type buildFake struct {
-	mu        sync.Mutex
-	reg       *knowledgetest.Registry
-	url       string
-	token     string
-	scopes    []string
-	enabled   bool
+	mu      sync.Mutex
+	reg     *knowledgetest.Registry
+	url     string
+	token   string
+	scopes  []string
+	enabled bool
+	// standard marks the caller's payer on Standard: the registry's
+	// caller.build.allowed is false (DEV-162).
+	standard  bool
 	balance   int64
 	run       *hostedrun.Run
 	created   []hostedrun.CreateRequest
@@ -103,7 +106,7 @@ func newBuildFake(t *testing.T) *buildFake {
 			"caller": map[string]any{
 				"tier": "pro", "caps": map[string]any{"timeoutSeconds": 900, "maxTurns": 60, "maxTokens": 5000000},
 				"holdCredits": 200, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
-				"build": map[string]any{"caps": map[string]any{"timeoutSeconds": 3600, "maxTurns": 300, "maxTokens": 5000000}, "holdCredits": 100},
+				"build": map[string]any{"caps": map[string]any{"timeoutSeconds": 3600, "maxTurns": 300, "maxTokens": 5000000}, "holdCredits": 100, "allowed": !f.standard},
 			},
 		})
 	})
@@ -324,6 +327,21 @@ func TestHostedBuildAvailabilityStatesTheHoldAndRefusesInWords(t *testing.T) {
 	f.mu.Unlock()
 	if v, _ = k.HostedAvailability(f.url); v.Available || !strings.Contains(v.Reason, "already has a run In Agentry in flight") {
 		t.Fatalf("with a run in flight: %+v", v)
+	}
+	// On Standard (DEV-162): In Agentry is not choosable, the reason is the
+	// site's sentence, and the way out is the registry's subscription page.
+	f.mu.Lock()
+	f.run, f.standard = nil, true
+	f.mu.Unlock()
+	if v, _ = k.HostedAvailability(f.url); v.Available || !strings.Contains(v.Reason, "part of Pro, Business and Enterprise") ||
+		v.UpgradeURL != f.url+"/settings/subscription?upgrade=pro" {
+		t.Fatalf("on Standard: %+v", v)
+	}
+	f.mu.Lock()
+	f.standard = false
+	f.mu.Unlock()
+	if v, _ = k.HostedAvailability(f.url); !v.Available || v.UpgradeURL != "" {
+		t.Fatalf("on Pro again: %+v", v)
 	}
 	// Signed out: the choice is absent, and Create knowledge is local.
 	k.run.knowledgeEnv.TokenFor = func(string) string { return "" }

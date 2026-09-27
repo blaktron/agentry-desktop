@@ -1965,6 +1965,7 @@ export namespace main {
 	    available: boolean;
 	    reason?: string;
 	    remedy?: string;
+	    upgradeUrl?: string;
 	    holdCredits: number;
 	    scanCredits: number;
 	    timeoutSeconds: number;
@@ -1986,6 +1987,7 @@ export namespace main {
 	        this.available = source["available"];
 	        this.reason = source["reason"];
 	        this.remedy = source["remedy"];
+	        this.upgradeUrl = source["upgradeUrl"];
 	        this.holdCredits = source["holdCredits"];
 	        this.scanCredits = source["scanCredits"];
 	        this.timeoutSeconds = source["timeoutSeconds"];

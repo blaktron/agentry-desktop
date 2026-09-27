@@ -47,6 +47,10 @@ type Offer struct {
 	// empty when there is none yet.
 	Reason string
 	Remedy string
+	// Upgrade says the way out is a higher tier: the client offers a link
+	// to the registry's subscription page, opened in the system browser
+	// (DEV-162: creating knowledge in Agentry is Pro and above).
+	Upgrade bool
 }
 
 // Decide applies the rule. Not signed in, no runs extension, or a release

@@ -21,7 +21,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
@@ -246,6 +246,17 @@ export default function KnowledgeCreate({
                   <p className="muted small">
                     In Agentry is not available: {avail.reason}
                     {avail.remedy ? ` ${avail.remedy}` : ""}
+                    {/* Creating knowledge in Agentry is Pro and above (DEV-162,
+                        agentry-desktop#328): the registry's subscription page, in
+                        the system browser, never inside the app. */}
+                    {avail.upgradeUrl && (
+                      <>
+                        {" "}
+                        <Button variant="link" onClick={() => void OpenExternal(avail.upgradeUrl!)}>
+                          See Pro
+                        </Button>
+                      </>
+                    )}
                   </p>
                 )}
                 {inAgentry && <HostedCost avail={avail} />}
