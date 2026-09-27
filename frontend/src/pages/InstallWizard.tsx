@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { install } from "../../wailsjs/go/models";
-import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, shortDigest } from "../ui";
+import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
@@ -169,7 +169,7 @@ export default function InstallWizard({
             )}
 
             <h3>Declared capabilities</h3>
-            <CapsTable caps={plan.capabilities} />
+            <CapsTable caps={plan.capabilities} shipped={plan.shippedKnowledge} />
             {(plan.mcpServers ?? []).length > 0 && (
               <>
                 <h3>Declared MCP servers</h3>
@@ -251,7 +251,7 @@ export default function InstallWizard({
   );
 }
 
-function CapsTable({ caps }: { caps: install.Plan["capabilities"] }) {
+function CapsTable({ caps, shipped }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[] }) {
   const rows: [string, string][] = [];
   const list = (v?: string[]) => (v && v.length ? v.join(", ") : "");
   if (list(caps.egressHosts)) rows.push(["network egress", list(caps.egressHosts)]);
@@ -260,6 +260,15 @@ function CapsTable({ caps }: { caps: install.Plan["capabilities"] }) {
   if (list(caps.execCommands)) rows.push(["exec", list(caps.execCommands)]);
   if (list(caps.secrets)) rows.push(["secrets", list(caps.secrets)]);
   if (list(caps.dataAccess)) rows.push(["data access", list(caps.dataAccess)]);
+  // The knowledge packs the release ships in its archive (plan knowledge.md
+  // §4.6): part of the contract, each with its size from the archive.
+  if (list(caps.knowledge)) {
+    const sized = (name: string) => {
+      const bytes = (shipped ?? []).find((p) => p.name === name)?.bytes;
+      return bytes != null ? `${name} (${fmtBinaryBytes(bytes)})` : name;
+    };
+    rows.push(["knowledge", "ships " + (caps.knowledge ?? []).map(sized).join(", ")]);
+  }
   if (rows.length === 0) return <p className="muted">None declared (pure text).</p>;
   return (
     <table className="caps-table selectable">

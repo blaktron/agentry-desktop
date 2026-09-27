@@ -562,6 +562,19 @@ type ProfileStatusView struct {
 	// The page shows the overview as restricted markdown and the rest as
 	// text, never as markup the author controls.
 	Guide *GuideView `json:"guide,omitempty"`
+	// ShipsKnowledge names the knowledge packs the release ships (plan
+	// knowledge.md §4.6), mounted in every run of it on this computer.
+	ShipsKnowledge []string `json:"shipsKnowledge"`
+	// AcceptsKnowledge is the release's ask for a pack of the person's own,
+	// shown in the Knowledge step and never to the agent; nil when none.
+	AcceptsKnowledge *KnowledgeAcceptsView `json:"acceptsKnowledge,omitempty"`
+}
+
+// KnowledgeAcceptsView is the manifest's knowledge.accepts: one plain line
+// for the Knowledge step, and whether the step may be skipped.
+type KnowledgeAcceptsView struct {
+	Prompt   string `json:"prompt"`
+	Required bool   `json:"required"`
 }
 
 // GuideView is manifest v2's guide block for the run setup: Overview on
@@ -598,6 +611,10 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Intake:            []IntakeQuestionView{},
 		Modes:             emptyNotNil(p.Modes),
 		Opening:           p.Opening,
+		ShipsKnowledge:    emptyNotNil(p.ShipsKnowledge),
+	}
+	if a := p.AcceptsKnowledge; a != nil {
+		v.AcceptsKnowledge = &KnowledgeAcceptsView{Prompt: a.Prompt, Required: a.Required}
 	}
 	for _, q := range p.Intake {
 		v.Intake = append(v.Intake, IntakeQuestionView{ID: q.ID, Prompt: q.Prompt, Type: string(q.Type), Required: q.Required, Choices: emptyNotNil(q.Choices)})

@@ -62,6 +62,10 @@ const states = [
   // Knowledge on a run on this machine (agentry-desktop#273): the step that
   // lists the packs kept here, and a finished run's knowledge line.
   { name: "runpanel-step-knowledge", url: "/modals.html#runpanel-step-knowledge", note: "the Knowledge step: the packs kept on this computer, each with its scan state and whether it opens offline, and one kept in Agentry only, not attachable here", expectText: "download it on the Knowledge page" },
+  // A release that ships a pack and requires one of the person's own
+  // (agentry-desktop#277): the ask, the shipped pack, Next held.
+  { name: "runpanel-step-knowledge-ships", url: "/modals.html#runpanel-step-knowledge-ships", note: "the Knowledge step of a release that ships pagerduty-docs and requires a pack of the person's own: its ask, its shipped pack, and Next held while none is ticked", click: ['button:has-text("Next:")'], expectText: "This release needs a knowledge pack of your own" },
+  { name: "install-ships-knowledge", url: "/modals.html#install-ships-knowledge", note: "the install review of a release that ships a pack: the contract's knowledge row with its size", click: "button:has-text('Verify')", expectText: "ships pagerduty-docs (4.2 MiB)" },
   { name: "runpanel-knowledge-finished", url: "/modals.html#runpanel-knowledge-finished", note: "a local run with a pack attached, finished: the receipt's knowledge line under the result", click: ['button:text-is("Run")'], expectText: "Knowledge this run could search" },
   // The Knowledge panel (agentry-desktop#273, plan knowledge.md §4.8): the
   // list in each state, Create knowledge's steps, a build under way and

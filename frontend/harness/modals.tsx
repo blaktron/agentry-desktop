@@ -60,6 +60,14 @@
 //                                 (shots.mjs clicks Run): the receipt's
 //                                 knowledge line under the result
 //
+// A release that ships a pack and asks for one of the person's own
+// (agentry-desktop#277, plan knowledge.md §4.6):
+//   #runpanel-step-knowledge-ships  the Knowledge step: the release's ask,
+//                                   required; its shipped pack; the packs
+//                                   kept here, none ticked, so Next is held
+//   #install-ships-knowledge        the install review: the contract's
+//                                   knowledge row with the pack's size
+//
 // Knowledge attached to a run In Agentry (agentry-desktop#275):
 //   #runpanel-hosted-knowledge          the Knowledge step In Agentry: packs
 //                                       kept and scanned in Agentry can be
@@ -128,7 +136,8 @@ const fileIntakeShape = view === "runpanel-file-intake";
 // A finished local run: no intake question, so Run on the review is enabled.
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
-const knowledgeShape = view === "runpanel-step-knowledge" || view === "runpanel-knowledge-finished" || hostedKnowledge;
+const shipsShape = view === "runpanel-step-knowledge-ships" || view === "install-ships-knowledge";
+const knowledgeShape = view === "runpanel-step-knowledge" || view === "runpanel-knowledge-finished" || hostedKnowledge || shipsShape;
 const knowledgePacks = knowledgeShape
   ? [
     { name: "incident-runbooks", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, agentryReady: true, changed: false, where: "this computer and Agentry", key: "your account's key at secureagentry.net, which Agentry holds", wrapper: "registry", registry: "secureagentry.net", opensOffline: false },
@@ -174,6 +183,9 @@ const profile = keysShape
       : localFinished ? []
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
     opening: "What incident should I look at?",
+    ...(shipsShape
+      ? { shipsKnowledge: ["pagerduty-docs"], acceptsKnowledge: { prompt: "Your team's own incident runbooks", required: true } }
+      : { shipsKnowledge: [] }),
   };
 const setup = { dockerOk: true, imagesReady: true, timeoutSeconds: 900, maxTurns: 60, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" };
 const mcp = {
@@ -293,6 +305,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-guided-hostile-tools": "tools",
   "runpanel-local-finished": "review",
   "runpanel-step-knowledge": "knowledge",
+  "runpanel-step-knowledge-ships": "knowledge",
   "runpanel-knowledge-finished": "review",
   "runpanel-hosted-knowledge": "knowledge",
   "runpanel-local-finished-env": "review",
@@ -322,7 +335,10 @@ g.go = { main: {
       modes: ["autonomous"], summary: "Summarises an incident channel into a report card, redacting secrets first.",
       digest: "sha256:9c356fd0d20fef07123ba7c4a1b2c3d4e5f6a7b8", yanked: false,
       attestation: att, unsigned: false, unscanned: view === "install-unscanned",
-      capabilities: { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
+      capabilities: view === "install-ships-knowledge"
+        ? { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", fsWritePaths: ["reports"], secrets: ["PAGERDUTY_TOKEN"], knowledge: ["pagerduty-docs"] }
+        : { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
+      shippedKnowledge: view === "install-ships-knowledge" ? [{ name: "pagerduty-docs", bytes: 4_404_019 }] : [],
       needsCapabilityConfirm: true, prevVersion: "", diff: null, requiresWidenedConfirm: false,
       vulnerabilities: [], vulnerabilityLine: "have no known high or critical advisories", vulnerabilityRefusal: "",
       target: "agents-md", paths: { dest: "/home/chris/agents/incident-summarizer", managed: true, managedRoot: "/home/chris/agents", agentsMd: "/home/chris/agents/AGENTS.md" },
@@ -389,7 +405,7 @@ function ChatSample() {
 }
 
 const el = document.getElementById("root")!;
-if (view === "install-unscanned" || view === "install-mcp-env") {
+if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge") {
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);

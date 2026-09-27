@@ -180,6 +180,11 @@ func capabilityLines(c manifest.Capabilities) []string {
 		}
 		lines = append(lines, line)
 	}
+	// Shipped knowledge (plan knowledge.md §4.6): packs inside the release
+	// the agent reads, part of what is consented to (the CLI's line).
+	if len(c.Knowledge) > 0 {
+		lines = append(lines, "knowledge: ships "+strings.Join(c.Knowledge, ", "))
+	}
 	return lines
 }
 
@@ -210,7 +215,7 @@ func isZeroCapabilities(c manifest.Capabilities) bool {
 	return c.Network.Egress.IsZero() &&
 		c.Filesystem.Read.IsZero() && c.Filesystem.Write.IsZero() &&
 		c.Exec.IsZero() &&
-		len(c.Secrets) == 0 && len(c.DataAccess) == 0
+		len(c.Secrets) == 0 && len(c.DataAccess) == 0 && len(c.Knowledge) == 0
 }
 
 func renderEgress(e manifest.Egress) string {
