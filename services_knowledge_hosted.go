@@ -54,6 +54,10 @@ type KnowledgeHostedAvailabilityView struct {
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
 	Remedy    string `json:"remedy,omitempty"`
+	// UpgradeURL is the registry's subscription page, set where the way out
+	// is Pro (DEV-162); the page opens it through App.OpenExternal, in the
+	// system browser.
+	UpgradeURL string `json:"upgradeUrl,omitempty"`
 
 	// HoldCredits is what a build of this account's holds (0 for a member
 	// of an unmetered organization); ScanCredits is the scan's credit
@@ -165,6 +169,7 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 		if st.Caller != nil && st.Caller.Build != nil {
 			v.HoldCredits = st.Caller.Build.HoldCredits
 			v.TimeoutSeconds, v.MaxTurns = st.Caller.Build.Caps.TimeoutSeconds, st.Caller.Build.Caps.MaxTurns
+			f.Allowed = st.Caller.Build.Allowed
 		}
 	}
 	if runs, err := client.List(ctx); err == nil {
@@ -180,6 +185,9 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 	}
 	o := hostedrun.DecideBuild(f)
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
+	if o.Upgrade {
+		v.UpgradeURL = reg + "/settings/subscription?upgrade=pro"
+	}
 	return v, nil
 }
 

@@ -33,6 +33,11 @@ func TestDecideBuild(t *testing.T) {
 		{"an older registry", func(f *BuildFacts) { f.Price = nil }, true, false, "not taking knowledge builds"},
 		{"a run in flight", func(f *BuildFacts) { f.Active = &Run{Status: StatusRunning} }, true, false, "already has a run In Agentry"},
 		{"a build in flight", func(f *BuildFacts) { f.Active = &Run{Status: StatusQueued, Kind: KindKnowledgeBuild} }, true, false, "already has a build In Agentry"},
+		// Creating knowledge in Agentry is Pro and above (DEV-162,
+		// agentry-desktop#328): the registry's caller.build.allowed decides.
+		{"a Standard payer", func(f *BuildFacts) { f.Allowed = ptr(false) }, true, false, "part of Pro, Business and Enterprise"},
+		{"a payer the registry allows", func(f *BuildFacts) { f.Allowed = ptr(true) }, true, true, ""},
+		{"a registry that predates allowed", func(f *BuildFacts) { f.Allowed = nil }, true, true, ""},
 	}
 	for _, c := range cases {
 		f := ok
@@ -43,6 +48,24 @@ func TestDecideBuild(t *testing.T) {
 		}
 	}
 }
+
+// The Pro case is the one that offers the upgrade, and names the way to
+// build without it: on this computer, with the person's own provider.
+func TestABuildThatIsProOffersTheUpgrade(t *testing.T) {
+	f := BuildFacts{SignedIn: true, Knowledge: true, Runs: true, ScopesKnown: true, StatusKnown: true,
+		Scopes: []string{ScopeRunRead, ScopeRunWrite, ScopeKnowledgeRead, ScopeKnowledgeWrite},
+		Price:  &BuildPrice{Enabled: true, HoldCredits: 100, ScanCredits: 1}, Allowed: ptr(false)}
+	o := DecideBuild(f)
+	if !o.Upgrade || !strings.Contains(o.Remedy, "on this computer with your own model provider") {
+		t.Fatalf("the Pro case: %+v", o)
+	}
+	f.Allowed = ptr(true)
+	if o := DecideBuild(f); o.Upgrade {
+		t.Fatalf("an allowed payer is offered the upgrade: %+v", o)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestCanContinue(t *testing.T) {
 	b := func(status, outcome, note string) *Run {

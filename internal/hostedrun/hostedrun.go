@@ -82,6 +82,10 @@ type Caller struct {
 type TierPrice struct {
 	Caps        Caps  `json:"caps"`
 	HoldCredits int64 `json:"holdCredits"`
+	// Allowed is on a knowledge build's line alone: whether the caller's
+	// payer may create knowledge in Agentry (DEV-162); nil from a registry
+	// that predates it.
+	Allowed *bool `json:"allowed,omitempty"`
 }
 
 // BuildPrice is what a knowledge build costs here, to anyone
