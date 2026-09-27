@@ -230,14 +230,21 @@ export default function RunPanel({
   if (unscanned && inAgentry) blockers.push("A run In Agentry is not offered for an unscanned release.");
   if (unscanned && !inAgentry && !acceptUnscanned) blockers.push("Tick \u201cRun an unscanned release\u201d.");
   if (refused && !allowVulnerableMCP) blockers.push("Tick \u201cAllow vulnerable MCP servers for this run\u201d.");
-  const canRun = !busy && blockers.length === 0;
 
+  // What the release says about knowledge (plan knowledge.md §4.6): the
+  // packs it ships, mounted in every run on this computer, and what it asks
+  // the person to attach, shown here and never to the agent.
+  const ships = profile?.shipsKnowledge ?? [];
+  const accepts = profile?.acceptsKnowledge;
   const steps = setupSteps({
     servers: mcp?.declaredServers?.length ?? 0,
     secrets: profile?.declaredSecrets.length ?? 0,
     // In Agentry, only where the registry attaches packs to a hosted run
-    // and this computer's token may read them (agentry-desktop#275).
-    knowledge: (packs?.length ?? 0) > 0 && (!inAgentry || !!hosted?.knowledgeAttach),
+    // and this computer's token may read them (agentry-desktop#275); on
+    // this computer also when the release ships a pack or asks for one.
+    knowledge: inAgentry
+      ? ((packs?.length ?? 0) > 0 || !!accepts) && !!hosted?.knowledgeAttach
+      : (packs?.length ?? 0) > 0 || ships.length > 0 || !!accepts,
   });
   // What a run attaches: the ticked packs it can take where it runs — kept
   // here for this machine, kept and scanned in Agentry for a run there.
@@ -246,6 +253,15 @@ export default function RunPanel({
   // for this machine does not ride along to a run In Agentry that offers
   // none, and the review shows exactly what goes.
   const attached = steps.includes("knowledge") ? attach.filter((n) => (packs ?? []).some((p) => canAttach(p) && p.name === n)) : [];
+  // A release that requires a pack of the person's own cannot run without one.
+  const needsOwnPack = !!accepts?.required && steps.includes("knowledge") && attached.length === 0;
+  if (needsOwnPack) blockers.push("This release needs a knowledge pack of your own: attach one on the Knowledge step.");
+  // In Agentry without the Knowledge step (the registry attaches no pack to a
+  // hosted run here), a required ask cannot be met there at all.
+  if (inAgentry && accepts?.required && !steps.includes("knowledge")) {
+    blockers.push("This release needs a knowledge pack of your own, which a run In Agentry cannot attach here. Run it on this computer.");
+  }
+  const canRun = !busy && blockers.length === 0;
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
@@ -274,6 +290,9 @@ export default function RunPanel({
       return needsProfile
         ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
         : "Save the keys or cancel the change to go on.";
+    }
+    if (step === "knowledge" && needsOwnPack) {
+      return "This release needs a knowledge pack of your own. Attach one to go on.";
     }
     if (step === "knowledge" && inAgentry) {
       const p = tooManyPacks(attached.length, hosted?.maxPacks);
@@ -650,6 +669,29 @@ export default function RunPanel({
 
             {step === "knowledge" && (
               <>
+                {accepts && (
+                  <p className="selectable">
+                    <strong>This release asks:</strong> {accepts.prompt}
+                    {accepts.required ? " (required)" : ""}
+                  </p>
+                )}
+                {!inAgentry && ships.length > 0 && (
+                  <p className="muted small">
+                    The release ships {ships.length === 1 ? "a knowledge pack" : "knowledge packs"} of its own:{" "}
+                    {ships.map((n, i) => (
+                      <Fragment key={n}>
+                        {i > 0 ? ", " : ""}
+                        <span className="mono">{n}</span>
+                      </Fragment>
+                    ))}
+                    . {ships.length === 1 ? "It is" : "Each is"} mounted read-only at <span className="mono">/knowledge/&lt;name&gt;</span> from the release&apos;s own
+                    files, held to the digest of the archive this computer verified, in every run; the packs below are yours to add
+                    beside them.
+                  </p>
+                )}
+                {!inAgentry && (packs?.length ?? 0) === 0 && (
+                  <p className="muted small">No knowledge pack is kept on this computer. Make one on the Knowledge page.</p>
+                )}
                 {inAgentry ? (
                   <p className="muted small">
                     Attach knowledge packs Agentry keeps for your account. Each is mounted read-only at{" "}
@@ -659,7 +701,8 @@ export default function RunPanel({
                     <span className="mono">knowledge_read</span>; commands the release declares run in that container too,
                     so they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack
                     and its digest.
-                    {hosted?.maxPacks ? ` A run In Agentry attaches at most ${hosted.maxPacks}.` : ""} A run needs none.
+                    {hosted?.maxPacks ? ` A run In Agentry attaches at most ${hosted.maxPacks}.` : ""}
+                    {accepts?.required ? "" : " A run needs none."}
                   </p>
                 ) : (
                   <p className="muted small">
@@ -668,7 +711,7 @@ export default function RunPanel({
                     reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
                     <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
                     they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
-                    its digest. A run needs none.
+                    its digest.{accepts?.required ? "" : " A run needs none."}
                   </p>
                 )}
                 <div className="knowledge-attach-list">
@@ -878,7 +921,9 @@ export default function RunPanel({
                     <>
                       <dt>Knowledge</dt>
                       <dd>
-                        <span className="mono small selectable">{attached.length === 0 ? "none" : attached.join(", ")}</span>
+                        <span className="mono small selectable">
+                          {[...(inAgentry ? [] : ships.map((n) => `${n} (shipped with the release)`)), ...attached].join(", ") || "none"}
+                        </span>
                         <Button variant="link" onClick={() => goTo(steps.indexOf("knowledge"))} aria-label="Edit knowledge">Edit</Button>
                       </dd>
                     </>

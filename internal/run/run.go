@@ -139,6 +139,14 @@ type ProfileInfo struct {
 	// agentry-desktop#228), shown to the person and never to the agent.
 	// Nil when the release carries none.
 	Guide *manifest.Guide
+	// ShipsKnowledge names the knowledge packs the release ships in its
+	// archive (knowledge.ships; plan knowledge.md §4.6), mounted in every
+	// run beside what the person attaches.
+	ShipsKnowledge []string
+	// AcceptsKnowledge is what the release asks the person to attach, shown
+	// in the run setup's Knowledge step and never to the agent; nil when it
+	// asks for nothing.
+	AcceptsKnowledge *manifest.KnowledgeAccepts
 }
 
 // Declared reports what a release declares, from the registry's resolve
@@ -184,9 +192,13 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		Digest:          sig.Digest,
 		DeclaredSecrets: allSecretNames(sig.Manifest),
 		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
-		CapabilityLines: capabilityLines(sig.Manifest.Capabilities),
+		CapabilityLines: capabilityLines(sig.Manifest.Contract()),
 		Intake:          sig.Manifest.Intake,
 		Guide:           sig.Manifest.Guide,
+		ShipsKnowledge:  sig.Manifest.ShippedPacks(),
+	}
+	if k := sig.Manifest.Knowledge; k != nil {
+		info.AcceptsKnowledge = k.Accepts
 	}
 	for _, mode := range sig.Manifest.SupportedModes() {
 		info.Modes = append(info.Modes, string(mode))
@@ -389,6 +401,11 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if err != nil {
 		return nil, err
 	}
+	// The packs the release ships, mounted beside the person's own.
+	knowledgePacks, err := withShippedKnowledge(workspaceDir, m, meta, req.Knowledge, logw)
+	if err != nil {
+		return nil, err
+	}
 
 	// The §R5 capability record: the app showed the declared contract on
 	// the page and in the run panel, and the Run click is the acceptance
@@ -575,7 +592,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			OutDir:          outDir,
 			Task:            task,
 			InputPaths:      req.InputPaths,
-			Knowledge:       req.Knowledge,
+			Knowledge:       knowledgePacks,
 			Intake:          answers,
 			Adapter:         ad,
 			Policy:          pol,
@@ -887,7 +904,7 @@ func recordCapabilities(m *manifest.Manifest, meta *installdir.Meta, home string
 	if prev := state.Find(key); prev != nil {
 		managed = prev.Managed
 	}
-	state.Upsert(key, meta.Version, installed.Snapshot(m.Capabilities), managed)
+	state.Upsert(key, meta.Version, installed.Snapshot(m.Contract()), managed)
 	if err := installed.Save(state); err != nil {
 		_, _ = fmt.Fprintf(logw, "warning: %v — the accepted capability contract could not be recorded\n", err)
 	}
