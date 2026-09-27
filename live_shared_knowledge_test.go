@@ -6,7 +6,7 @@ package main
 // that shares a pack. Skipped unless these are set:
 //
 //	AGENTRY_LIVE_SHARED_REGISTRY=https://dev.secureagentry.net \
-//	AGENTRY_LIVE_SHARED_TOKEN=<the member's PAT, knowledge:read and knowledge:write> \
+//	AGENTRY_LIVE_SHARED_TOKEN=<the member's PAT: knowledge:read, knowledge:write and user:profile, as the app's sign-in carries> \
 //	AGENTRY_LIVE_SHARED_ADMIN_TOKEN=<an admin's PAT with org:admin, to remove the member> \
 //	AGENTRY_LIVE_SHARED_ORG=<the organization> AGENTRY_LIVE_SHARED_MEMBER=<the member's handle> \
 //	AGENTRY_LIVE_SHARED_PACK=<a ready shared pack, not marked exportable> \
@@ -105,7 +105,7 @@ func TestLiveSharedKnowledge(t *testing.T) {
 				return p
 			}
 		}
-		t.Fatalf("the list does not offer %s: %+v (%s)", pack, l.Packs, l.Agentry)
+		t.Fatalf("the list does not offer %s: %+v (%s %s)", pack, l.Packs, l.Agentry, l.Shared)
 		return knowledge.Pack{}
 	}
 	if p := find(); !p.Shared || p.Org != org || p.Local {
