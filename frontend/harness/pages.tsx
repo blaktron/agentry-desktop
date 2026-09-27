@@ -334,7 +334,16 @@ g.go = { main: {
     },
     AddToDockerGroup: async () => ({ state: "pendingRestart" }),
     RestartNow: async () => undefined,
-    SetupStatus: async () => ({ dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+    SetupStatus: async () => (window.location.hash === "#setup-custom-http"
+      ? { dockerOk: true, imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
+      : { dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+    // The CLI's sentence (setup.PlainHTTPWarning) for plain http off this
+    // machine; "" for https and loopback (agentry-desktop#317).
+    EndpointWarning: async (u: string) => {
+      const m = /^http:\/\/([^/:]+)/i.exec(u.trim());
+      if (!m || m[1] === "localhost" || m[1].startsWith("127.")) return "";
+      return `${u.trim()} uses plain http: the API key and the prompts travel unencrypted to ${m[1]}. Use https if the endpoint supports it.`;
+    },
     ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" }] }),
     JevKeyStatus: async () => jevKeyView,
     StoreJevKey: async () => ({ stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true }),

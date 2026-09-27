@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -210,9 +209,9 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	// and the agent's only egress becomes that host — so it is judged
 	// before anything is stored: the custom provider only (the page shows
 	// the field for that one; Go enforced nothing, so script in the
-	// webview could aim a known provider at any host), and https, or
-	// plain http to loopback for a local server (security review
-	// 2026-09-20 §8.4; D-030).
+	// webview could aim a known provider at any host), and http or https
+	// (security review 2026-09-20 §8.4, D-030; plain http off loopback
+	// since D-042, with the form's warning).
 	if err := checkBaseURL(provider, opts.BaseURL); err != nil {
 		return err
 	}
@@ -314,6 +313,9 @@ type Catalog struct {
 	Models   []setup.Model
 	Kind     string
 	Notice   string
+	// Warning is the plain-http sentence for the endpoint the key was
+	// sent to, "" for https and loopback (agentry-desktop#317).
+	Warning string
 }
 
 // ListModels asks provider's models listing with key — the typed key, or
@@ -321,8 +323,9 @@ type Catalog struct {
 // variable, else the OS keychain's entry for the provider) — and
 // returns what it listed (agentry-cli#170, agentry-desktop#131). The key
 // crosses this call inward and reaches nothing but the provider's endpoint
-// (setup.ListModels: https only off loopback, no redirect followed, the
-// key in no error); the catalog carries names, never the key.
+// (setup.ListModels: http or https, a plain-http endpoint off this machine
+// carried out with its warning, no redirect followed, the key in no
+// error); the catalog carries names, never the key.
 func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	key = strings.TrimSpace(key)
@@ -346,7 +349,7 @@ func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, e
 		// wrapper says so by doing it again over anything it passes on.
 		return nil, errors.New(strings.ReplaceAll(err.Error(), key, "<key>"))
 	}
-	out := &Catalog{Provider: cat.Provider, Models: cat.Models, Kind: policy.CredentialKindOf(provider, key)}
+	out := &Catalog{Provider: cat.Provider, Models: cat.Models, Kind: policy.CredentialKindOf(provider, key), Warning: cat.Warning}
 	if out.Kind == policy.KeyKindSubscription {
 		out.Notice = policy.SubscriptionTokenSentence
 	}
@@ -401,8 +404,11 @@ func SetListModelsForTest(t interface{ Cleanup(func()) }, f func(context.Context
 }
 
 // checkBaseURL is ApplySetup's rule for a model base URL: none for a known
-// provider (its endpoint is the provider's), and for the custom provider
-// https, or http to loopback.
+// provider (its endpoint is the provider's), and for the custom provider an
+// absolute http or https URL with a host. Plain http off this machine is
+// the operator's choice since agentry-desktop#317 (D-042, amending D-030):
+// it is stored, and the form says what it costs (EndpointWarning); any
+// other scheme is refused.
 func checkBaseURL(provider, baseURL string) error {
 	if baseURL == "" {
 		return nil
@@ -412,25 +418,18 @@ func checkBaseURL(provider, baseURL string) error {
 	}
 	u, err := url.Parse(baseURL)
 	if err != nil || u.Host == "" || u.Hostname() == "" {
-		return fmt.Errorf("the base URL must be an absolute https URL: %q", baseURL)
+		return fmt.Errorf("the base URL must be an absolute http(s) URL: %q", baseURL)
 	}
 	switch u.Scheme {
-	case "https":
+	case "https", "http":
 		return nil
-	case "http":
-		if isLoopbackHost(u.Hostname()) {
-			return nil
-		}
-		return fmt.Errorf("the base URL must use https off this machine: %q would send the model key in clear", baseURL)
 	default:
-		return fmt.Errorf("the base URL must use https: %q", baseURL)
+		return fmt.Errorf("the base URL must use https (or http): %q", baseURL)
 	}
 }
 
-func isLoopbackHost(host string) bool {
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
+// EndpointWarning is the sentence the form shows for a model base URL the
+// key would reach over plain http off this machine, "" otherwise: the
+// CLI's wording (setup.PlainHTTPWarning, DR-45), so both clients say the
+// same thing.
+func EndpointWarning(baseURL string) string { return setup.PlainHTTPWarning(baseURL) }

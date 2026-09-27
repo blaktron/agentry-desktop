@@ -118,6 +118,7 @@ const states = [
   { name: "wizard-runtime-prepared", url: "/wizard.html#2-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "wizard-runtime-prepare-refused", url: "/wizard.html#2-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "settings-agent-runs-advanced", url: "/pages.html", note: "Settings → Agent runs with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
+  { name: "settings-agent-runs-custom-http", url: "/pages.html#setup-custom-http", note: "Settings → Agent runs, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https (agentry-desktop#317)", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
   // Settings → Coding agents (agentry-desktop#148, D6): the coding agent,
   // the export it implies, its folder, the switch off by default; and
   // the agent page's one-off link, named for the coding agent, opening

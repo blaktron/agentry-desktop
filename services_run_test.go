@@ -58,6 +58,25 @@ func TestListModelsReturnsNamesNeverTheKey(t *testing.T) {
 	}
 }
 
+// A listing's plain-http warning reaches the page (agentry-desktop#317), and
+// the binding the form asks as the URL is typed says the same sentence.
+func TestListModelsAndEndpointWarningCarryThePlainHTTPWarning(t *testing.T) {
+	run.SetListModelsForTest(t, func(_ context.Context, provider, baseURL, key string) (*setup.Catalog, error) {
+		return &setup.Catalog{Provider: provider, Models: []setup.Model{{ID: "m"}}, Warning: setup.PlainHTTPWarning(baseURL)}, nil
+	})
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	v, err := r.ListModels("custom", "http://gpu-box.lan:8000/v1", "k")
+	if err != nil || !strings.Contains(v.Warning, "plain http") {
+		t.Fatalf("view = %+v, %v", v, err)
+	}
+	if w := r.EndpointWarning("http://gpu-box.lan:8000/v1"); w != v.Warning {
+		t.Fatalf("EndpointWarning = %q, listing warning = %q", w, v.Warning)
+	}
+	if w := r.EndpointWarning("https://llm.example.net/v1"); w != "" {
+		t.Fatalf("https warned: %q", w)
+	}
+}
+
 // The setup view carries which providers have a stored key (desktop#141)
 // as names only — the badge's fact for whichever provider the form shows;
 // the policy-provider boolean it carried is not on the wire any more. An
