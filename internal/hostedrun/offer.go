@@ -8,10 +8,14 @@ import "strings"
 // one table to test — the app never finds out by making a request that
 // 403s.
 
-// The PAT scopes a hosted run needs (agentry#348).
+// The PAT scopes a hosted run needs (agentry#348), and the one a run of a
+// release that declares a secret needs besides: the start sets each
+// declared secret the account does not keep (agentry#676; plan
+// hosted-credentials-vault.md D13).
 const (
-	ScopeRunRead  = "run:read"
-	ScopeRunWrite = "run:write"
+	ScopeRunRead     = "run:read"
+	ScopeRunWrite    = "run:write"
+	ScopeSecretWrite = "secret:write"
 )
 
 // Facts are what the app knows about a registry and a release before it
@@ -26,6 +30,9 @@ type Facts struct {
 	// DeclaredSecrets are the secrets the release declares — its own and
 	// its declared MCP servers' (D7).
 	DeclaredSecrets []string
+	// Vault is true when the registry's /meta lists `vault`: it keeps an
+	// account's secrets for hosted runs (agentry-desktop#300).
+	Vault bool
 	// Scopes are the token's scopes as the registry reports them;
 	// ScopesKnown is false when they could not be read.
 	Scopes      []string
@@ -61,12 +68,13 @@ func Decide(f Facts) Offer {
 		return Offer{}
 	}
 	o := Offer{Offered: true}
+	secrets := len(f.DeclaredSecrets) > 0
 	switch {
-	case len(f.DeclaredSecrets) > 0:
-		// D7: the hosted credentials vault is a separate effort, and
-		// until it exists the platform holds no secret of anyone's.
+	case secrets && !f.Vault:
+		// D7: a registry without the vault holds no secret of anyone's.
 		o.Reason = "This release declares " + secretList(f.DeclaredSecrets) +
-			", and a run In Agentry has nowhere to keep a key of yours yet. Run it on this machine, where the key stays in the release's own profile."
+			", and this registry keeps no secrets for runs In Agentry."
+		o.Remedy = "Run it on this machine, where the key stays in the release's own profile."
 	case !f.ScopesKnown:
 		o.Reason = "This registry did not say what the stored token may do, so the app cannot tell whether it may start a run."
 		o.Remedy = "Sign in again from Settings."
@@ -74,6 +82,11 @@ func Decide(f Facts) Offer {
 		o.Reason = "The token stored for this registry does not carry " + ScopeRunRead + " and " + ScopeRunWrite +
 			", which a run In Agentry needs. It was minted before this app asked for them."
 		o.Remedy = "Sign in again from Settings to mint a token that carries them."
+	case secrets && !has(f.Scopes, ScopeSecretWrite):
+		o.Reason = "This release declares " + secretList(f.DeclaredSecrets) +
+			", and the token stored for this registry does not carry " + ScopeSecretWrite +
+			", which a run In Agentry needs to set a secret your account does not keep. It was minted before this app asked for it."
+		o.Remedy = "Sign in again from Settings to mint a token that carries it."
 	case f.StatusKnown && !f.Enabled:
 		o.Reason = "This registry is not taking hosted runs at the moment."
 		o.Remedy = "Run it on this machine, or try again later."

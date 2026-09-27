@@ -56,6 +56,12 @@ type RunAPI struct {
 	// so it must not wait on — or be waited on by — the run lock above.
 	hostedMu sync.Mutex
 	hosted   *hostedFollow
+	// held are the secrets this app set for a start In Agentry and did not
+	// keep, by registry: deleted again if the start does not start, left
+	// for the vault to remove when the run ends if it does
+	// (agentry-desktop#300). Names only.
+	heldMu sync.Mutex
+	held   map[string]map[string]bool
 
 	// live is the run or session in flight, so quitting can end it and
 	// sweep what it built (services_quit.go, agentry-desktop#125).

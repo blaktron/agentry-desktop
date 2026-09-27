@@ -10,6 +10,7 @@ import (
 	"archive/tar"
 	"context"
 	"encoding/json"
+	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -71,6 +72,17 @@ type hostedFake struct {
 	// as GET /knowledge/packs lists them.
 	attach bool
 	packs  []map[string]any
+	// vaultSets and vaultDeletes record the vault's two write routes
+	// (agentry-desktop#300); vaultAnswer, when set, answers a set instead.
+	vaultSets    []vaultSet
+	vaultDeletes []string
+	vaultAnswer  func(w http.ResponseWriter, body []byte)
+}
+
+// vaultSet is one PUT as the vault received it: the name, the body whole.
+type vaultSet struct {
+	Name string
+	Body string
 }
 
 func (f *hostedFake) start(t *testing.T) string {
@@ -157,6 +169,27 @@ func (f *hostedFake) start(t *testing.T) string {
 	mux.HandleFunc("POST /api/v1/x/runs/inputs", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
 		hostedJSON(w, http.StatusCreated, map[string]any{"id": "input-" + name, "name": name, "bytes": r.ContentLength})
+	})
+	mux.HandleFunc("PUT /api/v1/x/vault/me/secrets/{name}", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if r.Header.Get("Authorization") != "Bearer "+hostedTestToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		f.vaultSets = append(f.vaultSets, vaultSet{Name: r.PathValue("name"), Body: string(body)})
+		if f.vaultAnswer != nil {
+			f.vaultAnswer(w, body)
+			return
+		}
+		hostedJSON(w, http.StatusCreated, map[string]any{"name": r.PathValue("name")})
+	})
+	mux.HandleFunc("DELETE /api/v1/x/vault/me/secrets/{name}", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.vaultDeletes = append(f.vaultDeletes, r.PathValue("name"))
+		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -394,7 +427,14 @@ func TestHostedAvailability(t *testing.T) {
 		{"a core registry", func(f *hostedFake) { f.extensions = []string{} }, false, false, ""},
 		{"billing but no runs", func(f *hostedFake) { f.extensions = []string{"billing"} }, false, false, ""},
 		{"interactive only", func(f *hostedFake) { f.modes = []string{"interactive"} }, false, false, ""},
-		{"a declared secret", func(f *hostedFake) { f.secrets = []string{"PAGERDUTY_TOKEN"} }, true, false, "PAGERDUTY_TOKEN"},
+		{"a declared secret, no vault", func(f *hostedFake) { f.secrets = []string{"PAGERDUTY_TOKEN"} }, true, false, "keeps no secrets"},
+		{"a declared secret, the vault and secret:write", func(f *hostedFake) {
+			f.secrets, f.extensions = []string{"PAGERDUTY_TOKEN"}, []string{"billing", "runs", "vault"}
+			f.scopes = []string{"agent:read", "user:profile", "run:read", "run:write", "secret:write"}
+		}, true, true, ""},
+		{"a declared secret, the vault, a token from before", func(f *hostedFake) {
+			f.secrets, f.extensions = []string{"PAGERDUTY_TOKEN"}, []string{"billing", "runs", "vault"}
+		}, true, false, "secret:write"},
 		{"a token from before", func(f *hostedFake) { f.scopes = []string{"agent:read", "user:profile"} }, true, false, "run:read"},
 		{"the token list refused", func(f *hostedFake) { f.tokensStatus = http.StatusForbidden }, true, false, "did not say what the stored token may do"},
 		{"hosted runs off", func(f *hostedFake) { f.enabled = false }, true, false, "not taking hosted runs"},

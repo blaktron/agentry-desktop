@@ -294,6 +294,12 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    // Settings' Secrets card (agentry-desktop#300): the registry keeps
+    // secrets; a save and a delete answer as the vault does.
+    KeepsSecrets: async () => true,
+    SetHostedSecret: async () => {},
+    DeleteHostedSecret: async () => {},
+    SecretsPageURL: async () => "https://secureagentry.net/settings/secrets",
     ChosenHarnesses: async () => codingChosen,
     HarnessStatus: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: codingChosen.some((c) => c.name === h.name) })),
     ChooseHarness: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: true })),
