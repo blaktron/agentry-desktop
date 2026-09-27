@@ -99,6 +99,13 @@ func (k *KnowledgeAPI) Download(reg, name string) (string, error) {
 	return k.env().Download(k.app.ctx, reg, name)
 }
 
+// DownloadShared keeps a copy of org's shared pack on this computer
+// (Knowledge M8): its key stays the organization's, asked for at every
+// open, so it opens only while the person is a member and signed in.
+func (k *KnowledgeAPI) DownloadShared(reg, org, name string) (string, error) {
+	return k.env().DownloadShared(k.app.ctx, reg, org, name)
+}
+
 // ExportView is where an export wrote the pack.
 type ExportView struct {
 	Dir string `json:"dir"`
@@ -114,9 +121,13 @@ func (k *KnowledgeAPI) Export(reg, name string) (*ExportView, error) {
 	if err != nil {
 		return nil, err
 	}
+	shared := ""
+	if en.Key.Org != "" {
+		shared = "It is " + en.Key.Org + "'s shared pack: Agentry exports it, to the organization's admins and, once an admin marks it exportable, to its members, and the copy you save stays yours if you leave. "
+	}
 	if err := k.app.askConsent("Export "+name+" unencrypted?",
 		"This writes the knowledge pack "+name+" ("+kn.CountPages(en.Manifest.Pages)+") and the documents it was made from, in the clear, into a folder you choose. "+
-			"The copy there is not encrypted: anyone who can read that folder can read it. Continue?"); err != nil {
+			shared+"The copy there is not encrypted: anyone who can read that folder can read it. Continue?"); err != nil {
 		return nil, err
 	}
 	parent, err := k.app.chooseDirectory("Export " + name + " into…")

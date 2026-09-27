@@ -5,8 +5,8 @@ go 1.27.0
 require (
 	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.6.10
-	github.com/blaktron/agentry-cli v0.6.10
+	github.com/blaktron/agentry v0.6.11-dev.1.0.20260927071222-7a64a3821b72
+	github.com/blaktron/agentry-cli v0.6.11-0.20260927092659-dca523666b2f
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sys v0.48.0

@@ -128,23 +128,33 @@ export default function Knowledge({
       {packs.map((p) => {
         // The row's actions sit on their own line under what the pack is:
         // five of them beside the text would leave it a narrow column.
+        // An organization's shared pack (Knowledge M8) is read here and
+        // written in Agentry by its admins: no Add documents or Upload,
+        // Export only as the organization allows, and Delete removes this
+        // computer's copy alone.
         const actions = p.local ? (
           <>
             <Button onClick={() => setPreview(p.name)}>Preview</Button>
-            <Button onClick={() => setFlow({ mode: "add", name: p.name })}>Add documents</Button>
-            {list?.signedIn && (!p.inAgentry || p.changed) && (
+            {!p.shared && <Button onClick={() => setFlow({ mode: "add", name: p.name })}>Add documents</Button>}
+            {!p.shared && list?.signedIn && (!p.inAgentry || p.changed) && (
               <Button busy={is("upload", p.name)} busyLabel="Uploading…" onClick={() => act("upload", p.name, () => KnowledgeAPI.Upload(registry, p.name))}>
                 Upload to Agentry
               </Button>
             )}
-            <Button busy={is("export", p.name)} busyLabel="Exporting…" onClick={() => exportPack(p)}>Export unencrypted…</Button>
-            <Button variant="danger" busy={is("delete", p.name)} busyLabel="Deleting…" onClick={() => (p.inAgentry ? setDeleting(p) : deletePack(p, false))}>
+            {p.canExport && (
+              <Button busy={is("export", p.name)} busyLabel="Exporting…" onClick={() => exportPack(p)}>Export unencrypted…</Button>
+            )}
+            <Button variant="danger" busy={is("delete", p.name)} busyLabel="Deleting…" onClick={() => (p.inAgentry && !p.shared ? setDeleting(p) : deletePack(p, false))}>
               Delete
             </Button>
           </>
         ) : (
           list?.signedIn && p.scanState !== "scanning" && p.scanState !== "empty" && (
-            <Button busy={is("download", p.name)} busyLabel="Downloading…" onClick={() => act("download", p.name, () => KnowledgeAPI.Download(registry, p.name))}>
+            <Button
+              busy={is("download", p.name)}
+              busyLabel="Downloading…"
+              onClick={() => act("download", p.name, () => (p.shared && p.org ? KnowledgeAPI.DownloadShared(registry, p.org, p.name) : KnowledgeAPI.Download(registry, p.name)))}
+            >
               Download
             </Button>
           )
@@ -157,6 +167,8 @@ export default function Knowledge({
                 <span className="row agent-row-badges">
                   <span className={`badge ${scanTone(p)}`.trim()}>{p.scan}</span>
                   <span className="badge">{p.where}</span>
+                  {p.shared && <span className="badge kind" title="an organization's shared pack: its members read it, its admins change it in Agentry">shared by {p.org}</span>}
+                  {p.shared && p.exportable && <span className="badge">members may export</span>}
                   {p.changed && <span className="badge warn" title="kept in both places, and changed on this computer since its upload">changed since upload</span>}
                 </span>
               </div>
@@ -165,11 +177,13 @@ export default function Knowledge({
                 {p.local ? (
                   <>
                     Encrypted to {p.key}
-                    {p.wrapper === "registry" && (p.opensOffline ? ". Opens offline: its key is cached in this computer's keychain." : `. Opens once ${p.registry} unwraps its key.`)}
+                    {p.wrapper === "registry" && p.shared && ". Opens only while you are a member and signed in: its unwrapped key is asked for every time, never kept on this computer."}
+                    {p.wrapper === "registry" && !p.shared && (p.opensOffline ? ". Opens offline: its key is cached in this computer's keychain." : `. Opens once ${p.registry} unwraps its key.`)}
+                    {p.shared && !p.canExport && " Only its admins export it unencrypted, unless one of them marks it exportable."}
                     {p.wrapper === "machine" && ". Opens on this computer only."}
                   </>
                 ) : (
-                  <>Kept in Agentry{list?.signedIn && p.scanState !== "scanning" && p.scanState !== "empty" ? "; download it to attach it to a run on this computer." : "."}</>
+                  <>{p.shared ? `Shared by ${p.org} in Agentry` : "Kept in Agentry"}{list?.signedIn && p.scanState !== "scanning" && p.scanState !== "empty" ? "; download it to attach it to a run on this computer." : "."}</>
                 )}
                 {p.note && <> {p.note}</>}
               </div>
@@ -179,6 +193,7 @@ export default function Knowledge({
         );
       })}
       {list?.agentry && <p className="muted small">{list.agentry}</p>}
+      {list?.shared && <p className="muted small">{list.shared}</p>}
 
       {deleting && (
         <Modal title={`Delete ${deleting.name}?`} onClose={() => setDeleting(null)}>

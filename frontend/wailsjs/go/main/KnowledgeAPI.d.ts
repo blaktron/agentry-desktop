@@ -19,6 +19,8 @@ export function Delete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function Download(arg1:string,arg2:string):Promise<string>;
 
+export function DownloadShared(arg1:string,arg2:string,arg3:string):Promise<string>;
+
 export function Export(arg1:string,arg2:string):Promise<main.ExportView>;
 
 export function HostedAvailability(arg1:string):Promise<main.KnowledgeHostedAvailabilityView>;

@@ -633,3 +633,23 @@ func TestHostedBuildRefusesALinkOutOfAPickedFolder(t *testing.T) {
 		t.Fatalf("uploaded %q", names)
 	}
 }
+
+// TestARunInAgentryRefusesANameTwoCopiesHold (Knowledge M8): a person's
+// own pack and an organization's shared one of the same name, both kept in
+// Agentry, are two copies; a run In Agentry attaching the name is refused
+// rather than given whichever sorts first. A pack kept in both places is
+// one copy.
+func TestARunInAgentryRefusesANameTwoCopiesHold(t *testing.T) {
+	packs := []knowledge.Pack{
+		{Name: "handbook", InAgentry: true, AgentryID: "a", Local: true},
+		{Name: "handbook", InAgentry: true, AgentryID: "a"},
+		{Name: "runbook", InAgentry: true, AgentryID: "r"},
+	}
+	if n := inAgentryNamed(packs, "handbook"); n != 1 {
+		t.Fatalf("one copy kept in both places counts %d", n)
+	}
+	packs = append(packs, knowledge.Pack{Name: "handbook", InAgentry: true, AgentryID: "b", Shared: true, Org: "acme"})
+	if n := inAgentryNamed(packs, "handbook"); n != 2 {
+		t.Fatalf("a personal and a shared copy count %d", n)
+	}
+}

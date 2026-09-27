@@ -136,8 +136,12 @@ func (e Env) Add(ctx context.Context, req BuildRequest) (*BuildResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.Find(req.Name); err != nil {
+	kept, err := s.Find(req.Name)
+	if err != nil {
 		return nil, err
+	}
+	if kept.Key.Org != "" {
+		return nil, fmt.Errorf("add documents to knowledge pack %s: %w", req.Name, store.ErrShared)
 	}
 	scratch, done, err := s.Scratch()
 	if err != nil {
