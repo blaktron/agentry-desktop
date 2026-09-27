@@ -693,7 +693,7 @@ export default function RunPanel({
                             ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
                             : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
                       </span>
-                      {inAgentry && p.local && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
+                      {inAgentry && p.local && !p.shared && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
                         <Button
                           variant="link"
                           disabled={uploading !== null}

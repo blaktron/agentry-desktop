@@ -805,6 +805,10 @@ export namespace knowledge {
 	    wrapper?: string;
 	    registry?: string;
 	    opensOffline: boolean;
+	    shared: boolean;
+	    org?: string;
+	    exportable: boolean;
+	    canExport: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Pack(source);
@@ -829,6 +833,10 @@ export namespace knowledge {
 	        this.wrapper = source["wrapper"];
 	        this.registry = source["registry"];
 	        this.opensOffline = source["opensOffline"];
+	        this.shared = source["shared"];
+	        this.org = source["org"];
+	        this.exportable = source["exportable"];
+	        this.canExport = source["canExport"];
 	    }
 	}
 	export class List {
@@ -836,6 +844,7 @@ export namespace knowledge {
 	    registry: string;
 	    signedIn: boolean;
 	    agentry?: string;
+	    shared?: string;
 	    problems?: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -848,6 +857,7 @@ export namespace knowledge {
 	        this.registry = source["registry"];
 	        this.signedIn = source["signedIn"];
 	        this.agentry = source["agentry"];
+	        this.shared = source["shared"];
 	        this.problems = source["problems"];
 	    }
 	

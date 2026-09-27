@@ -14,6 +14,15 @@
 // key in the keychain wraps it instead, and the next sign-in rewraps it
 // (D20). The words say what holds the key, by the wrapper's kind, and never
 // call a pack "safe", "secure" or "private" (plan §3).
+//
+// An organization's shared packs (Knowledge M8, agentry-desktop#276; plan
+// §4.7, D13, D26) are listed beside the person's own for each organization
+// they are an active member of, and kept by the same store (agentry-cli#380,
+// DR-46): a shared pack's key is asked for through the organization's
+// route every time it is opened, and never kept in the keychain or in this
+// app's memory, so a member who is removed keeps a sealed copy they can no
+// longer open. Export of a shared pack is the registry's to allow: its
+// admins, and members once an admin marks the pack exportable.
 package knowledge
 
 import (
@@ -47,6 +56,17 @@ type Env struct {
 	TokenFor func(regURL string) string
 	// HTTP is the client every registry request goes through.
 	HTTP *http.Client
+	// Orgs overrides how the signed-in person's active memberships at a
+	// registry are read, for a test (nil: GET /user, as memberships reads
+	// it); the panel lists their shared packs.
+	Orgs func(ctx context.Context, regURL string) ([]Membership, error)
+}
+
+// Membership is an organization the person is an active member of, and
+// their role in it.
+type Membership struct {
+	Org   string
+	Admin bool
 }
 
 // Default is this app's wiring: the runner home the CLI shares, the OS
@@ -54,6 +74,48 @@ type Env struct {
 // honours it), and the sign-in Settings keeps.
 func Default() Env {
 	return Env{Home: policy.Home, Keys: store.OSKeychain{}, TokenFor: settings.TokenFor, HTTP: registry.HTTPClient}
+}
+
+// memberships is the signed-in person's active memberships at regURL (GET
+// /user). The URL is held to Settings' rule before a token is looked up
+// for it, as registry does, because the token is found by host alone
+// (agentry-desktop#307's lesson). A pending membership holds nothing, and
+// is left out.
+func (e Env) memberships(ctx context.Context, regURL string) ([]Membership, error) {
+	if e.Orgs != nil {
+		return e.Orgs(ctx, regURL)
+	}
+	if err := settings.ValidateURL(regURL); err != nil {
+		return nil, fmt.Errorf("the registry: %w", err)
+	}
+	token := ""
+	if e.TokenFor != nil {
+		token = e.TokenFor(regURL)
+	}
+	if token == "" {
+		return nil, nil
+	}
+	c, err := registry.New(regURL, token)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.GetCurrentUserWithResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, registry.Problem("read your organizations", res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body)
+	}
+	var out []Membership
+	if u := res.JSON200; u.Orgs != nil {
+		for _, o := range *u.Orgs {
+			if o.State != nil && string(*o.State) != "active" {
+				continue
+			}
+			out = append(out, Membership{Org: o.Handle, Admin: string(o.Role) == "admin"})
+		}
+	}
+	return out, nil
 }
 
 // Store is the local store, with current as the registry new packs are
@@ -64,7 +126,21 @@ func (e Env) Store(current string) (*store.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.New(home, store.Options{Keys: e.Keys, Current: settings.Normalize(current), Registries: e.registry}), nil
+	return store.New(home, store.Options{Keys: e.Keys, Current: settings.Normalize(current), Registries: e.registry, Shared: e.shared}), nil
+}
+
+// shared is the signed-in client of org's shared packs at the registry at
+// u, held to the same rule as registry: the URL first, then the token.
+func (e Env) shared(u, org string) (store.Shared, error) {
+	reg, err := e.registry(u)
+	if err != nil {
+		return nil, err
+	}
+	c, ok := reg.(*remote.Client)
+	if !ok {
+		return nil, fmt.Errorf("%s: this app's registry client does not reach an organization's packs", u)
+	}
+	return c.Shared(org), nil
 }
 
 // registry is the signed-in client of the registry at u, or ErrSignedOut.
@@ -134,6 +210,21 @@ type Pack struct {
 	// or a key the registry unwrapped once and the keychain caches. It is
 	// read from the cache's presence marker, never the key.
 	OpensOffline bool `json:"opensOffline"`
+	// Shared is an organization's shared pack (Knowledge M8), Org its
+	// organization; Exportable says an admin marked it exportable by
+	// members, as the organization's list read for this answer says (false
+	// when it could not be read).
+	Shared     bool   `json:"shared"`
+	Org        string `json:"org,omitempty"`
+	Exportable bool   `json:"exportable"`
+	// CanExport says the panel offers Export: the person's own pack, or a
+	// shared one they administer or an admin marked exportable (D26). The
+	// registry decides again when it is asked.
+	CanExport bool `json:"canExport"`
+
+	// agentryRegistry is the registry a kept copy's record names for its
+	// copy in Agentry, for matching it against that registry's list.
+	agentryRegistry string
 }
 
 // List is the panel: the packs, and what the registry shown is to them.
@@ -145,6 +236,9 @@ type List struct {
 	SignedIn bool   `json:"signedIn"`
 	// Agentry says why Agentry's copies are not listed, "" when they are.
 	Agentry string `json:"agentry,omitempty"`
+	// Shared says why an organization's shared packs are not listed, ""
+	// when they are, or when there are none to list (Knowledge M8).
+	Shared string `json:"shared,omitempty"`
 	// Problems are entries of the store that could not be read.
 	Problems []string `json:"problems,omitempty"`
 }
@@ -198,7 +292,9 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 	matched := map[string]bool{}
 	for _, en := range entries {
 		p := localPack(s, en)
-		if a := en.Key.Agentry; a != nil && listed && settings.Normalize(a.Registry) == reg {
+		// A shared pack's copy in Agentry is the organization's, matched
+		// against the organization's list (addShared), not the person's.
+		if a := en.Key.Agentry; a != nil && en.Key.Org == "" && listed && settings.Normalize(a.Registry) == reg {
 			if r, ok := findRemote(remotes, a.ID); ok {
 				matched[r.ID] = true
 				p.agentryCopy(r, en.Manifest.SHA256)
@@ -217,6 +313,7 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 			out.Packs = append(out.Packs, remotePack(r))
 		}
 	}
+	e.addShared(ctx, s, out, reg, out.SignedIn)
 	sort.SliceStable(out.Packs, func(i, j int) bool {
 		if out.Packs[i].Name != out.Packs[j].Name {
 			return out.Packs[i].Name < out.Packs[j].Name
@@ -224,6 +321,63 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 		return out.Packs[i].Local && !out.Packs[j].Local
 	})
 	return out, nil
+}
+
+// addShared puts the organization's shared packs in the list: for each
+// organization the person is an active member of, the packs it shares in
+// Agentry, matched to the copies kept here, and the kept copies' export as
+// the person's role and Agentry's mark allow. A read that does not answer
+// is said in Agentry beside the rest, and the kept copies are still listed.
+func (e Env) addShared(ctx context.Context, s *store.Store, out *List, reg string, signedIn bool) {
+	var orgs []Membership
+	if signedIn {
+		var err error
+		if orgs, err = e.memberships(ctx, reg); err != nil {
+			out.Shared = "Your organizations' shared packs could not be listed: " + err.Error()
+		}
+	}
+	admin := map[string]bool{}
+	remotes := map[string][]store.Remote{}
+	for _, m := range orgs {
+		admin[m.Org] = m.Admin
+		sh, err := e.shared(reg, m.Org)
+		if err == nil {
+			remotes[m.Org], err = sh.List(ctx)
+		}
+		if err != nil {
+			out.Shared = strings.TrimSpace(out.Shared + " " + m.Org + "'s shared packs could not be listed: " + err.Error())
+			delete(remotes, m.Org)
+		}
+	}
+	matched := map[string]bool{}
+	for i := range out.Packs {
+		p := &out.Packs[i]
+		if !p.Shared {
+			continue
+		}
+		rs, ok := remotes[p.Org]
+		if !ok || settings.Normalize(p.agentryRegistry) != reg {
+			continue
+		}
+		if r, ok := findRemote(rs, p.AgentryID); ok {
+			matched[r.ID] = true
+			p.agentryCopy(r, "")
+			p.Exportable = r.Exportable
+			p.CanExport = admin[p.Org] || r.Exportable
+		} else {
+			p.InAgentry, p.AgentryID = false, ""
+			p.Where, p.Note = whereLocal, p.Org+" no longer shares this pack, or you are no longer one of its members: the copy here opens only while you are."
+		}
+	}
+	for org, rs := range remotes {
+		for _, r := range rs {
+			if !matched[r.ID] {
+				p := remotePack(r)
+				p.Shared, p.Org, p.Exportable = true, org, r.Exportable
+				out.Packs = append(out.Packs, p)
+			}
+		}
+	}
 }
 
 // Where a pack is kept, in the panel's words.
@@ -241,9 +395,10 @@ func localPack(s *store.Store, en store.Entry) Pack {
 		Scan: m.Scan.Describe(), ScanState: localScanState(m.Scan),
 		Local: true, Where: whereLocal,
 		Key: KeyHolder(en), Wrapper: string(en.Key.Wrapper),
+		Shared: en.Key.Org != "", Org: en.Key.Org, CanExport: en.Key.Org == "",
 	}
 	if a := en.Key.Agentry; a != nil {
-		p.InAgentry, p.Where, p.AgentryID = true, whereBoth, a.ID
+		p.InAgentry, p.Where, p.AgentryID, p.agentryRegistry = true, whereBoth, a.ID, a.Registry
 		p.Changed = a.Digest != m.SHA256
 	}
 	switch en.Key.Wrapper {
@@ -251,7 +406,9 @@ func localPack(s *store.Store, en store.Entry) Pack {
 		p.OpensOffline = true
 	case store.WrapperRegistry:
 		p.Registry = hostOf(en.Key.Registry)
-		p.OpensOffline = s.Cached(m.ID)
+		// A shared pack's key is never cached (DR-46): it does not open
+		// offline, whatever the keychain holds.
+		p.OpensOffline = en.Key.Org == "" && s.Cached(m.ID)
 	}
 	return p
 }
@@ -278,6 +435,9 @@ func KeyHolder(en store.Entry) string {
 		return en.KeyHolder()
 	}
 	host := hostOf(en.Key.Registry)
+	if en.Key.Org != "" {
+		return en.Key.Org + "'s organization key at " + host + ", which Agentry holds; it opens the pack's key only for the organization's current members"
+	}
 	switch en.Key.WrappedKey.Kind {
 	case kindCertificate:
 		return "your account's key at " + host + ", which Agentry holds"
@@ -406,6 +566,24 @@ func (e Env) Download(ctx context.Context, current, name string) (string, error)
 		return "", err
 	}
 	return fmt.Sprintf("Downloaded %s: %s, kept on this computer, encrypted to %s.", name, kn.CountPages(en.Manifest.Pages), KeyHolder(en)), nil
+}
+
+// DownloadShared keeps a copy of org's shared pack on this computer,
+// checked in full, under the organization's wrapped key, which is asked for
+// again every time it is opened.
+func (e Env) DownloadShared(ctx context.Context, current, org, name string) (string, error) {
+	s, err := e.Store(current)
+	if err != nil {
+		return "", err
+	}
+	if !e.SignedIn(current) {
+		return "", fmt.Errorf("download %s's knowledge pack %s: sign in to %s in Settings first", org, name, hostOf(settings.Normalize(current)))
+	}
+	en, err := s.DownloadShared(ctx, org, name)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Downloaded %s: %s, kept on this computer, encrypted to %s. It opens only while you are a member and signed in.", name, kn.CountPages(en.Manifest.Pages), KeyHolder(en)), nil
 }
 
 // Delete removes the pack from this computer — its sealed tree, its

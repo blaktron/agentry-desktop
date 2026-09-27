@@ -24,6 +24,7 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -370,6 +371,11 @@ func (r *RunAPI) packsInAgentry(reg string, names []string) ([]string, error) {
 			continue
 		}
 		seen[name] = true
+		// A name a person's own pack and an organization's shared one
+		// both hold in Agentry is refused rather than guessed.
+		if n := inAgentryNamed(list.Packs, name); n > 1 {
+			return nil, fmt.Errorf("more than one knowledge pack named %s is kept in Agentry (yours and an organization's, or two organizations'): rename one to attach it to a run In Agentry", name)
+		}
 		found := false
 		for _, p := range list.Packs {
 			if p.Name != name || !p.InAgentry {
@@ -387,6 +393,18 @@ func (r *RunAPI) packsInAgentry(reg string, names []string) ([]string, error) {
 		}
 	}
 	return ids, nil
+}
+
+// inAgentryNamed counts the packs of name kept in Agentry, by their copy
+// there: a pack kept in both places is one.
+func inAgentryNamed(packs []knowledge.Pack, name string) int {
+	ids := map[string]bool{}
+	for _, p := range packs {
+		if p.Name == name && p.InAgentry && p.AgentryID != "" {
+			ids[p.AgentryID] = true
+		}
+	}
+	return len(ids)
 }
 
 // AttachHostedRun reattaches to this account's active run, if there is
