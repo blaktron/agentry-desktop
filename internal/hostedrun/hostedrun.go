@@ -474,6 +474,9 @@ type Refusal struct {
 	ResetsAt string
 	Tier     string
 	Known    bool
+	// Missing are the declared secrets a 409 secret-missing names: the
+	// ones the start asks for (agentry-desktop#300).
+	Missing []string
 }
 
 // Sentence is the refusal as one line of prose, with no JSON in it.
@@ -499,13 +502,14 @@ func (r *Refusal) Error() string {
 func refusalFrom(op string, status int, body []byte) *Refusal {
 	r := &Refusal{Op: op, Status: status}
 	var p struct {
-		Type     string `json:"type"`
-		Title    string `json:"title"`
-		Detail   string `json:"detail"`
-		Balance  *int64 `json:"balance"`
-		Hold     *int64 `json:"hold"`
-		ResetsAt string `json:"resetsAt"`
-		Tier     string `json:"tier"`
+		Type     string   `json:"type"`
+		Title    string   `json:"title"`
+		Detail   string   `json:"detail"`
+		Balance  *int64   `json:"balance"`
+		Hold     *int64   `json:"hold"`
+		ResetsAt string   `json:"resetsAt"`
+		Tier     string   `json:"tier"`
+		Missing  []string `json:"missing"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
 		r.Detail = strings.TrimSpace(string(body))
@@ -518,7 +522,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 	if i := strings.LastIndex(r.Slug, "/"); i >= 0 {
 		r.Slug = r.Slug[i+1:]
 	}
-	r.Title, r.Detail, r.ResetsAt, r.Tier = p.Title, p.Detail, p.ResetsAt, p.Tier
+	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing
 	if p.Balance != nil {
 		r.Balance, r.Known = *p.Balance, true
 	}

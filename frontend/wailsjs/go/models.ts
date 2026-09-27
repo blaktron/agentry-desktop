@@ -1670,6 +1670,7 @@ export namespace main {
 	    knowledgeNote?: string;
 	    maxInputFiles: number;
 	    maxInputBytes: number;
+	    declaredSecrets?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedAvailabilityView(source);
@@ -1698,6 +1699,7 @@ export namespace main {
 	        this.knowledgeNote = source["knowledgeNote"];
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
+	        this.declaredSecrets = source["declaredSecrets"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1840,6 +1842,7 @@ export namespace main {
 	    balance?: number;
 	    hold?: number;
 	    resetsAt?: string;
+	    missing?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedStartView(source);
@@ -1853,6 +1856,7 @@ export namespace main {
 	        this.balance = source["balance"];
 	        this.hold = source["hold"];
 	        this.resetsAt = source["resetsAt"];
+	        this.missing = source["missing"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

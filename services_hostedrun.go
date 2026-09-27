@@ -110,6 +110,12 @@ type HostedAvailabilityView struct {
 
 	MaxInputFiles int   `json:"maxInputFiles"`
 	MaxInputBytes int64 `json:"maxInputBytes"`
+
+	// DeclaredSecrets are the secrets the release declares, its own and
+	// its MCP servers', by name: a secret the account keeps in Agentry is
+	// used as it is, one it does not keep is asked for at the start
+	// (agentry-desktop#300).
+	DeclaredSecrets []string `json:"declaredSecrets,omitempty"`
 }
 
 // HostedArtefactView is one artefact of a run and, once downloaded, where
@@ -217,6 +223,9 @@ type HostedStartView struct {
 	Balance  int64  `json:"balance,omitempty"`
 	Hold     int64  `json:"hold,omitempty"`
 	ResetsAt string `json:"resetsAt,omitempty"`
+	// Missing are the declared secrets a secret-missing refusal names: the
+	// ones the panel asks for (agentry-desktop#300).
+	Missing []string `json:"missing,omitempty"`
 }
 
 // HostedAvailability answers the panel's first question about a release:
@@ -236,6 +245,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		exts, err := extensionsOf(ctx, reg)
 		if err == nil {
 			facts.Extension = hasString(exts, "runs")
+			facts.Vault = hasString(exts, "vault")
 		}
 		v.Extension = facts.Extension
 	}
@@ -255,6 +265,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		return nil, err
 	}
 	facts.Modes, facts.DeclaredSecrets = modes, secrets
+	v.DeclaredSecrets = secrets
 
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
 
@@ -295,9 +306,25 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // here, before anything is uploaded, so the page cannot attach what it was
 // not offered. The registry checks again that each is the account's and
 // ready.
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (*HostedStartView, error) {
+//
+// The secrets this app set for the start and did not keep
+// (SetHostedSecret with keep false) are deleted again when the run does
+// not start, whatever stopped it; when it starts, the vault removes them
+// as the run ends (plan hosted-credentials-vault.md D12).
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
+	// createUnknown is a create whose answer never came back: the run may
+	// exist and hold the secrets, so they are left to it, or to the
+	// vault's sweep, rather than deleted from under it.
+	createUnknown := false
+	defer func() {
+		if (err == nil && view != nil && view.Run != nil) || createUnknown {
+			r.forgetHeld(reg)
+			return
+		}
+		r.DiscardHostedSecrets(reg)
+	}()
 	token := settings.TokenFor(reg)
 	if token == "" {
 		return nil, fmt.Errorf("sign in to %s to run In Agentry", reg)
@@ -343,6 +370,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil
 		}
+		createUnknown = true
 		return nil, err
 	}
 	dir, err := hostedOutDir(outDir, created)
@@ -569,6 +597,7 @@ func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 	v := &HostedStartView{
 		Refusal: refusal.Slug, Detail: refusal.Sentence(),
 		Balance: refusal.Balance, Hold: refusal.Hold, ResetsAt: refusal.ResetsAt,
+		Missing: refusal.Missing,
 	}
 	// No destination here: the panel asks SettingsAPI.OpenUpgrade for it
 	// at the moment a person clicks, so the registry's answer is checked

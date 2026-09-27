@@ -133,6 +133,13 @@ Run enabled); `#runpanel-file-intake` a release that asks for a file up
 front. `shots.mjs` asserts the line, the button's state and the collapsed
 disclosure.
 
+A run In Agentry of a release that declares a secret (agentry-desktop#300):
+`#runpanel-hosted-secrets` in `modals.html` is Review and start In Agentry,
+where the Keys row says the account's secrets are used. `shots.mjs` clicks
+Run In Agentry, the mock answers `secret-missing` for `PAGERDUTY_TOKEN`, and
+the ask shows with Keep it for later runs unticked and Run held behind it.
+Settings' Secrets card (`settings-secrets`) is in `pages.html`.
+
 The one-click install and its checks (agentry-desktop#146, #147) are
 `#agent-installed`, `#agent-installed-older`, `#agent-installed-unreachable`,
 `#agent-install-refused`, `#agent-installing` and `#installed-updates` in

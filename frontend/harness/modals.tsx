@@ -78,6 +78,13 @@
 //                                       attached, done — pass: the receipt's
 //                                       knowledge line under the result
 //
+// A run In Agentry of a release that declares a secret (agentry-desktop#300):
+//   #runpanel-hosted-secrets      Review and start In Agentry: the note on
+//                                 what the start asks for; shots.mjs clicks
+//                                 Run In Agentry and the registry answers
+//                                 secret-missing, so the ask shows, Keep it
+//                                 for later runs unticked
+//
 // A run on this machine, finished (shots.mjs clicks Run on the review):
 //   #runpanel-local-finished      its Run details name the operator policy
 //                                 it enforced, the runner home's default
@@ -136,6 +143,10 @@ const fileIntakeShape = view === "runpanel-file-intake";
 // A finished local run: no intake question, so Run on the review is enabled.
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
+const hostedSecrets = view === "runpanel-hosted-secrets";
+// The first start of #runpanel-hosted-secrets is refused secret-missing;
+// the one after the ask is saved is queued.
+let hostedStarts = 0;
 const shipsShape = view === "runpanel-step-knowledge-ships" || view === "install-ships-knowledge";
 const knowledgeShape = view === "runpanel-step-knowledge" || view === "runpanel-knowledge-finished" || hostedKnowledge || shipsShape;
 const knowledgePacks = knowledgeShape
@@ -180,7 +191,7 @@ const profile = keysShape
     modes: ["autonomous", "interactive"],
     intake: fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
-      : localFinished ? []
+      : localFinished || view === "runpanel-hosted-secrets" ? []
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
     opening: "What incident should I look at?",
     ...(shipsShape
@@ -209,6 +220,7 @@ const availability = {
   balance: 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
+  declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [],
 };
 
 const hostedBase = {
@@ -308,6 +320,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-step-knowledge-ships": "knowledge",
   "runpanel-knowledge-finished": "review",
   "runpanel-hosted-knowledge": "knowledge",
+  "runpanel-hosted-secrets": "review",
   "runpanel-local-finished-env": "review",
 };
 
@@ -321,7 +334,11 @@ g.go = { main: {
     SaveProfile: async () => ({ ...profile, exists: true, storedSecretNames: profile.declaredSecrets }),
     HostedAvailability: async () => availability,
     AttachHostedRun: async () => ({ run: hostedRun }),
-    StartHostedRun: async () => ({ run: hostedRuns.queued }),
+    StartHostedRun: async () => (hostedSecrets && hostedStarts++ === 0
+      ? { refusal: "secret-missing", detail: "A declared secret is missing: The release declares secrets you have not set: PAGERDUTY_TOKEN.", missing: ["PAGERDUTY_TOKEN"] }
+      : { run: hostedRuns.queued }),
+    SetHostedSecret: async () => {},
+    DiscardHostedSecrets: async () => {},
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
     RunAgent: async () => localResult,
     RunOutputs: async () => runOutputs,
@@ -421,7 +438,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "unavailable" || hostedKnowledge ? "hosted" : undefined}
+        initialMode={hostedState === "hosted" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted" : undefined}
         initialStep={STEP_OF[view]}
       />
     </>,

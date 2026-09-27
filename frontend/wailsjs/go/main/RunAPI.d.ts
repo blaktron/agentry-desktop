@@ -16,6 +16,10 @@ export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
 export function ChosenHarnesses():Promise<Array<main.HarnessView>>;
 
+export function DeleteHostedSecret(arg1:string,arg2:string):Promise<void>;
+
+export function DiscardHostedSecrets(arg1:string):Promise<void>;
+
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
 
 export function EndpointWarning(arg1:string):Promise<string>;
@@ -34,6 +38,8 @@ export function InstallDocker():Promise<main.PrereqView>;
 
 export function JevKeyStatus():Promise<main.JevKeyView>;
 
+export function KeepsSecrets(arg1:string):Promise<boolean>;
+
 export function ListModels(arg1:string,arg2:string,arg3:string):Promise<main.CatalogView>;
 
 export function PrereqStatus():Promise<main.PrereqView>;
@@ -48,7 +54,11 @@ export function RunOutputs(arg1:string):Promise<main.RunOutputsView>;
 
 export function SaveProfile(arg1:string,arg2:string,arg3:Record<string, string>,arg4:boolean):Promise<main.ProfileStatusView>;
 
+export function SecretsPageURL(arg1:string):Promise<string>;
+
 export function SendTurn(arg1:string):Promise<void>;
+
+export function SetHostedSecret(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 
 export function SetupStatus():Promise<main.SetupStatusView>;
 
