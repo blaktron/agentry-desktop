@@ -94,7 +94,10 @@ func (e Env) Export(ctx context.Context, current, name, parent string) (string, 
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("export: the folder chosen cannot be written into: %w", err)
 	}
-	if _, err := s.Open(ctx, name, dst); err != nil {
+	// The store's Export opens the person's own pack here, and sends an
+	// organization's shared pack's export through the registry, which
+	// decides (DR-46, D26).
+	if _, err := s.Export(ctx, name, dst); err != nil {
 		// The folder is this export's own, made by it: nothing half
 		// written is left behind in the person's folder.
 		_ = os.RemoveAll(dst)

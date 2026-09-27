@@ -34,6 +34,10 @@ export function Download(arg1, arg2) {
   return window['go']['main']['KnowledgeAPI']['Download'](arg1, arg2);
 }
 
+export function DownloadShared(arg1, arg2, arg3) {
+  return window['go']['main']['KnowledgeAPI']['DownloadShared'](arg1, arg2, arg3);
+}
+
 export function Export(arg1, arg2) {
   return window['go']['main']['KnowledgeAPI']['Export'](arg1, arg2);
 }

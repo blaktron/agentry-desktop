@@ -19,6 +19,9 @@ import (
 type memKeys struct {
 	mu sync.Mutex
 	m  map[string]string
+	// sets is every account written, in order: what a test reads to say
+	// a key never reached the keychain.
+	sets []string
 }
 
 func newKeys() *memKeys { return &memKeys{m: map[string]string{}} }
@@ -37,6 +40,7 @@ func (k *memKeys) Set(a, v string) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.m[a] = v
+	k.sets = append(k.sets, a)
 	return nil
 }
 

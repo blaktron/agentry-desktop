@@ -51,6 +51,7 @@ export function attachableInAgentry(p: knowledge.Pack): boolean {
 /** Why a pack cannot be attached to a run In Agentry, or what attaching it
  *  means, in a sentence for the step's row. */
 export function inAgentryLine(p: knowledge.Pack): string {
+  if (p.shared && !p.inAgentry) return `${p.org} does not list this pack in Agentry now, so a run there cannot attach it`;
   if (!p.inAgentry) return "kept on this computer only: upload it to Agentry to attach it to a run there";
   if (!p.agentryReady) {
     return p.scanState === "scanning"
