@@ -44,7 +44,16 @@ type BuildFacts struct {
 	StatusKnown bool
 	// Active is the account's run or build in flight, nil for none.
 	Active *Run
+	// Allowed is the registry's caller.build.allowed: whether this
+	// account's payer may create knowledge in Agentry, Pro and above
+	// (DEV-162, agentry-desktop#328). nil from a registry that predates it,
+	// which offered every tier a build.
+	Allowed *bool
 }
+
+// BuildIsProSentence is the site's sentence for a payer the registry does
+// not let build (agentry-web#587), so every client says the same thing.
+const BuildIsProSentence = "Creating knowledge in Agentry is part of Pro, Business and Enterprise."
 
 // DecideBuild applies the rule. Signed out, or a registry without the
 // knowledge extension, means the choice is absent and Create knowledge is
@@ -72,6 +81,10 @@ func DecideBuild(f BuildFacts) Offer {
 	case f.Price == nil || !f.Price.Enabled:
 		o.Reason = "This registry is not taking knowledge builds at the moment."
 		o.Remedy = "Build it on this computer, or try again later."
+	case f.Allowed != nil && !*f.Allowed:
+		o.Reason = BuildIsProSentence
+		o.Remedy = "Create it on this computer with your own model provider, for no credits, then Upload to Agentry; or upgrade to Pro."
+		o.Upgrade = true
 	case f.Active != nil:
 		what := "a run"
 		if f.Active.IsBuild() {

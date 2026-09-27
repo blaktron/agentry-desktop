@@ -13,6 +13,8 @@
 //   #create-building      the build under way, its log streaming
 //   #create-done          what the build made
 //   #add-review           Add documents' review
+//   #hosted-where-pro     the Where step for a Standard account: In Agentry
+//                         not choosable, the Pro sentence and See Pro (DEV-162)
 //   #preview              a pack's index and pages
 //   #preview-hostile      a page with raw HTML, a script, an image, a
 //                         javascript: link and a right-to-left override
@@ -89,6 +91,14 @@ const hostedState = hash.startsWith("hosted-");
 const availability = {
   offered: hostedState, available: hostedState, holdCredits: 100, scanCredits: 1, timeoutSeconds: 3600, maxTurns: 300,
   balance: 494, balanceKnown: true, unmetered: false, maxInputFiles: 20, maxInputBytes: 10 << 20,
+  ...(hash === "hosted-where-pro"
+    ? {
+        available: false,
+        reason: "Creating knowledge in Agentry is part of Pro, Business and Enterprise.",
+        remedy: "Create it on this computer with your own model provider, for no credits, then Upload to Agentry; or upgrade to Pro.",
+        upgradeUrl: REG + "/settings/subscription?upgrade=pro",
+      }
+    : {}),
 };
 const hostedRunning = {
   id: "01a0de6e-c1fa-70fe-80ec-8b2cbba957df", name: "handbook", status: "running", state: "running",
@@ -161,7 +171,7 @@ const docs = ["/home/me/Documents/storage-guide.pdf", "/home/me/Documents/handbo
 const create = hash.startsWith("create-") || hash === "add-review" || hostedState;
 const step =
   hash === "create-name" ? "name"
-  : hash === "hosted-where" ? "where"
+  : hash === "hosted-where" || hash === "hosted-where-pro" ? "where"
   : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" ? "review"
   : "documents";
 
