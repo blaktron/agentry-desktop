@@ -4,6 +4,7 @@
 // The copy names what holds a pack's key and what read it, and never calls
 // a pack "safe", "secure" or "private" (plan §3).
 import { knowledge } from "../wailsjs/go/models";
+import { fmtBytes } from "./ui";
 
 /** A pack name: 1-64 lowercase letters, digits, '.', '-' or '_', starting
  *  with a letter or a digit — one directory under /knowledge in a run. */
@@ -149,4 +150,22 @@ export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): stri
     `This build may run for up to ${minutes} minutes${maxTurns > 0 ? ` and ${maxTurns} turns` : ""}, ` +
     "and shows its progress as it goes. If it stops at a limit, the pack keeps the pages it wrote that pass its checks, and Add documents continues it."
   );
+}
+
+/** Agentry keeps packs of at most 10 MB (Go's knowledge.MaxBytes), for the
+ *  pack list, which has no answer from Go that carries it; a pack made on
+ *  this computer may hold up to 1 GB (agentry-cli#429, agentry-desktop#354). */
+export const AGENTRY_MAX_BYTES = 10 * 1024 * 1024;
+
+/** The Documents step's warning past Agentry's cap. */
+export function largeDocumentsWarning(bytes: number, agentryMax: number): string {
+  return (
+    `The documents come to ${fmtBytes(bytes)}. A build that size can take a very long time, ` +
+    `and the pack will stay on this computer: Agentry keeps packs of at most ${fmtCap(agentryMax)}, so it cannot be uploaded, shared or built In Agentry.`
+  );
+}
+
+/** A cap as a person reads it: "10 MB", "1 GB" (Go's knowledge.FormatCap). */
+export function fmtCap(n: number): string {
+  return n >= 1024 * 1024 * 1024 && n % (1024 * 1024 * 1024) === 0 ? `${n / (1024 * 1024 * 1024)} GB` : `${Math.round(n / (1024 * 1024))} MB`;
 }

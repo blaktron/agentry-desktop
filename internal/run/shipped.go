@@ -40,6 +40,12 @@ func withShippedKnowledge(workspaceDir string, m *manifest.Manifest, meta *insta
 		if p.Manifest.Name != name {
 			return nil, engine.Classify(engine.ExitVerify, fmt.Errorf("the release ships the knowledge pack %s, and its manifest.json names %s", name, p.Manifest.Name))
 		}
+		// A shipped pack is Agentry's to carry, so Agentry's cap holds, as
+		// in the CLI's shippedKnowledge (agentry-cli#429): Load now takes a
+		// pack of up to this computer's 1 GB.
+		if p.Manifest.Bytes > knowledge.MaxBytes {
+			return nil, engine.Classify(engine.ExitVerify, fmt.Errorf("the release ships the knowledge pack %s at %d bytes; a shipped pack is at most %s", name, p.Manifest.Bytes, knowledge.FormatCap(knowledge.MaxBytes)))
+		}
 		a := engine.AttachPack(p)
 		a.Shipped = &engine.ShippedFrom{InWorkspace: manifest.KnowledgeDir + "/" + name, Release: release}
 		_, _ = fmt.Fprintf(logw, "knowledge pack %s: %s, %d bytes, %s, shipped with the release — mounted read-only at %s/%s\n",

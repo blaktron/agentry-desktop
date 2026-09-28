@@ -16,8 +16,12 @@ import { useCallback, useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";
 import { Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, fmtBytes } from "../ui";
-import { pagesOf, scanTone } from "../knowledge";
+import { AGENTRY_MAX_BYTES, fmtCap, pagesOf, scanTone } from "../knowledge";
 import KnowledgePreview from "./KnowledgePreview";
+
+// A pack made on this computer may hold up to 1 GB; Agentry keeps packs of
+// at most 10 MB, so a larger one offers no Upload (agentry-desktop#354).
+const pastAgentryCap = (p: knowledge.Pack) => p.bytes > AGENTRY_MAX_BYTES;
 
 export default function Knowledge({
   registry, onOpenSettings, onCreate, rev, previewRequest, onPreviewRequestSeen, initialPreview,
@@ -105,7 +109,7 @@ export default function Knowledge({
     <div data-page="knowledge">
       <PageHeader
         title="Knowledge"
-        sub={<>Knowledge packs a run can search: cited pages the Knowledge Creator compiles from your documents, kept with the documents themselves, at most 10 MB each. The <span className="mono">agentry knowledge</span> CLI keeps the same packs.</>}
+        sub={<>Knowledge packs a run can search: cited pages the Knowledge Creator compiles from your documents, kept with the documents themselves. A pack made on this computer holds up to 1 GB; Agentry keeps packs of at most 10 MB. The <span className="mono">agentry knowledge</span> CLI keeps the same packs.</>}
         actions={<Button variant="primary" onClick={() => onCreate()}>Create knowledge</Button>}
       />
 
@@ -148,7 +152,7 @@ export default function Knowledge({
           <>
             <Button onClick={() => setPreview({ registry, name: p.name })}>Preview</Button>
             {!p.shared && <Button onClick={() => onCreate(p.name)}>Add documents</Button>}
-            {!p.shared && list?.signedIn && (!p.inAgentry || p.changed) && (
+            {!p.shared && list?.signedIn && (!p.inAgentry || p.changed) && !pastAgentryCap(p) && (
               <Button busy={is("upload", p.name)} busyLabel="Uploading…" onClick={() => act("upload", p.name, () => KnowledgeAPI.Upload(registry, p.name))}>
                 Upload to Agentry
               </Button>
@@ -185,6 +189,11 @@ export default function Knowledge({
                 </span>
               </div>
               <div className="agent-row-summary muted">{pagesOf(p.pages)} · {fmtBytes(p.bytes)}</div>
+              {p.local && !p.shared && pastAgentryCap(p) && (
+                <div className="muted small">
+                  Past the {fmtCap(AGENTRY_MAX_BYTES)} Agentry keeps, so it stays on this computer: it cannot be uploaded, shared or attached to a run In Agentry.
+                </div>
+              )}
               <div className="agent-row-meta muted small">
                 {p.local ? (
                   <>
