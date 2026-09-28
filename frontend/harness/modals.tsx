@@ -219,13 +219,17 @@ const runDefaults = {
   outputDir: view === "runpanel-default-folder" ? "/home/me/agentry-runs" : "",
 };
 
+// #runpanel-default-agentry-signedout: signed out, where Go offers no run In
+// Agentry at all and says the app is not signed in.
+const signedOut = hostedState === "default-agentry-signedout";
+
 const availability = {
-  offered: true, available: hostedState !== "unavailable",
+  offered: !signedOut, available: hostedState !== "unavailable" && !signedOut,
   reason: hostedState === "unavailable"
     ? "The token stored for this registry does not carry run:read and run:write, which a run In Agentry needs. It was minted before this app asked for them."
     : "",
   remedy: hostedState === "unavailable" ? "Sign in again from Settings to mint a token that carries them." : "",
-  signedIn: true, extension: true, enabled: true, runnersOnline: 1, queued: 2,
+  signedIn: !signedOut, extension: true, enabled: true, runnersOnline: 1, queued: 2,
   tier: "standard", holdCredits: 20, tokensPerCredit: 1000,
   caps: { timeoutSeconds: 300, maxTurns: 20, maxTokens: 20000 },
   balance: 46, balanceKnown: true,

@@ -80,7 +80,7 @@ export function needList(release: { intake: Question[]; secrets: string[]; serve
 // without a scan (which is never run In Agentry from this app). Nothing is
 // started by it: Run is still the person's click on Review and start, after
 // the credits the run holds are shown.
-export type HostedOffer = { offered: boolean; available: boolean } | null;
+export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean } | null;
 // RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
 // (settings.RunWhereHere, settings.RunWhereAgentry).
 export type RunWhere = "here" | "agentry";
@@ -99,8 +99,10 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
     ? "a release admitted without a scan is not run In Agentry from this app"
     : hosted === null
       ? "the app could not tell whether this registry offers a run In Agentry for it"
-      : !hosted.offered
-        ? "a run In Agentry is not offered for this BriefAgent on this registry"
-        : "In Agentry is unavailable for it (the notice below says why)";
+      : hosted.signedIn === false
+        ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
+        : !hosted.offered
+          ? "a run In Agentry is not offered for this BriefAgent on this registry"
+          : "In Agentry is unavailable for it (the notice below says why)";
   return `Your Run defaults say In Agentry, but ${why}, so this run starts on this computer.`;
 }

@@ -48,6 +48,7 @@ const states = [
   // and says why; the saved folder filled in on Review and start.
   { name: "runpanel-default-agentry", url: "/modals.html#runpanel-default-agentry", note: "where to run saved as In Agentry: the Where step opens with it chosen, the credits it holds shown", expectText: ["What to have ready", "This run holds 20 credits"], expectChecked: 'input[name="run-mode"] >> nth=-1' },
   { name: "runpanel-default-agentry-unscanned", url: "/modals.html#runpanel-default-agentry-unscanned", note: "the same default for a release admitted without a scan: it starts on this computer, and the step says why", expectText: "Your Run defaults say In Agentry, but a release admitted without a scan is not run In Agentry from this app, so this run starts on this computer." },
+  { name: "runpanel-default-agentry-signedout", url: "/modals.html#runpanel-default-agentry-signedout", note: "the same default, signed out: it starts on this computer and names the sign-in", expectText: "a run In Agentry needs you signed in to this registry" },
   { name: "runpanel-default-folder", url: "/modals.html#runpanel-default-folder", note: "a saved output folder, filled in on Review and start; Choose… still picks another", expectText: "Review and start", expectValue: ['.modal input.mono[readonly]', "/home/me/agentry-runs"] },
   // The guided run setup (agentry-desktop#226): one state per step.
   { name: "runpanel-step-files", url: "/modals.html#runpanel-step-files", note: "Files: no file chosen yet, Add files and Add folder", expectText: "Step 2 of" },
