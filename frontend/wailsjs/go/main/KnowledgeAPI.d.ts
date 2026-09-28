@@ -19,6 +19,8 @@ export function CreatorModel():Promise<string>;
 
 export function Delete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
+export function DocumentsSize(arg1:Array<string>):Promise<main.DocumentsView>;
+
 export function Download(arg1:string,arg2:string):Promise<string>;
 
 export function DownloadShared(arg1:string,arg2:string,arg3:string):Promise<string>;

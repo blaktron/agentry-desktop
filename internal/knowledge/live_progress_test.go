@@ -11,6 +11,7 @@ package knowledge
 //	  go test -run TestLiveBuildProgress -v -timeout 40m ./internal/knowledge/
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -77,5 +78,44 @@ func TestLiveBuildProgress(t *testing.T) {
 	}
 	if !sawPages || !sawTurns || res.Pages == 0 {
 		t.Fatalf("no pages or turns reported: %+v, result %+v", got, res)
+	}
+}
+
+// A build on this computer past Agentry's 10 MB, live (agentry-desktop#354):
+// one short note the Creator reads and an 11 MB file no decoder reads. The
+// old cap refused the documents before anything ran; now the build runs,
+// warns first, and makes the pack. Same variables as TestLiveBuildProgress.
+func TestLiveBuildPastAgentrysCap(t *testing.T) {
+	pol := os.Getenv("AGENTRY_LIVE_BUILD_POLICY")
+	if pol == "" {
+		t.Skip("set AGENTRY_LIVE_BUILD_POLICY to run a live build")
+	}
+	raw, err := os.ReadFile(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := knowledgetest.NewRegistry(t)
+	e := testEnv(t, reg, reg.Token("ana"), newKeys())
+	home := homeOf(t, e)
+	if err := os.WriteFile(filepath.Join(home, "policy.yaml"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(policy.HomeEnv, home)
+	docs := t.TempDir()
+	if err := os.WriteFile(filepath.Join(docs, "depots.md"), []byte("# Depots\n\nThe Rotterdam depot opens at 06:00 and closes at 22:00. Its cold room holds 40 pallets.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docs, "scan.bin"), bytes.Repeat([]byte{0, 1, 2, 3}, (11<<20)/4), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var log strings.Builder
+	res, err := e.Create(context.Background(), BuildRequest{Registry: reg.URL, Name: "big-docs", Documents: []string{docs}, RunID: "live-354", Log: &log})
+	t.Logf("log:\n%s", log.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("result: %d pages, %d bytes, skipped %v", res.Pages, res.Bytes, res.Skipped)
+	if !strings.Contains(log.String(), "can take a very long time") || res.Pages == 0 {
+		t.Fatalf("result %+v", res)
 	}
 }

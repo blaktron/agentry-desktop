@@ -366,3 +366,30 @@ func TestQuittingMidRunRemovesTheAttachedCopyBeforeShutdownReturns(t *testing.T)
 	}
 	<-errc
 }
+
+// The Documents step sizes only what the native picker returned, walking
+// folders, and names both caps (agentry-desktop#354, D-030).
+func TestDocumentsSizeSizesOnlyPickedDocuments(t *testing.T) {
+	f := newKnowledgeFixture(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("12345"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub", "b.txt"), []byte("123"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.k.DocumentsSize([]string{dir}); err == nil {
+		t.Fatal("a folder the picker did not return was sized")
+	}
+	f.k.app.markPicked(dir)
+	v, err := f.k.DocumentsSize([]string{dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Bytes != 8 || v.LocalMaxBytes != kn.MaxLocalBytes || v.AgentryMaxBytes != kn.MaxBytes {
+		t.Fatalf("view = %+v", v)
+	}
+}

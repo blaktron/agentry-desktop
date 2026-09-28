@@ -1,6 +1,7 @@
 package run
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -60,6 +61,44 @@ func TestShippedKnowledgeInARun(t *testing.T) {
 		_, err := withShippedKnowledge(ws, m, meta, nil, io.Discard)
 		var ce *engine.ClassifiedError
 		if !errors.As(err, &ce) || ce.Code != engine.ExitVerify {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("a shipped pack past Agentry's cap", func(t *testing.T) {
+		// Load takes a pack of up to 1 GB since agentry-cli#429; a shipped
+		// pack is Agentry's to carry and keeps its 10 MB (agentry-desktop#354).
+		ws := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(ws, "knowledge"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		dir := filepath.Join(ws, "knowledge", "aws-docs")
+		if err := knowledge.CopyPack(knowledgetest.Make(t, "aws-docs", nil).Dir, dir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "sources", "big.txt"), []byte(strings.Repeat("x", knowledge.MaxBytes+1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		d, err := knowledge.TreeDigest(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, knowledge.ManifestFile))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pm knowledge.Manifest
+		if err := json.Unmarshal(raw, &pm); err != nil {
+			t.Fatal(err)
+		}
+		pm.SHA256, pm.Bytes = d.SHA256, d.Bytes
+		raw, _ = json.Marshal(pm)
+		if err := os.WriteFile(filepath.Join(dir, knowledge.ManifestFile), raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		m := &manifest.Manifest{SchemaVersion: "2", Knowledge: &manifest.Knowledge{Ships: []manifest.ShippedKnowledge{{Name: "aws-docs"}}}}
+		_, err = withShippedKnowledge(ws, m, meta, nil, io.Discard)
+		var ce *engine.ClassifiedError
+		if !errors.As(err, &ce) || ce.Code != engine.ExitVerify || !strings.Contains(err.Error(), "a shipped pack is at most 10 MB") {
 			t.Fatalf("err = %v", err)
 		}
 	})
