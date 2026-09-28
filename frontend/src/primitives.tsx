@@ -187,7 +187,7 @@ export function Recap({ rows }: { rows: { label: string; value: React.ReactNode;
         <React.Fragment key={r.label}>
           <dt>{r.label}</dt>
           <dd>
-            <span>{r.value}</span>
+            <div className="step-recap-value">{r.value}</div>
             {r.onEdit && <button className="ghost small" onClick={r.onEdit} aria-label={`Edit ${r.label}`}>Edit</button>}
           </dd>
         </React.Fragment>

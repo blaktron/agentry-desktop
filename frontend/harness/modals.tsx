@@ -112,9 +112,9 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // line above Run names them and nothing else; #runpanel-file-intake a
 // release that asks for a file up front — the intake form shows and the
 // unanswered question is what the line names.
-const guidedShape = view.startsWith("runpanel-guided");
+const guidedShape = view.startsWith("runpanel-guided") || view === "toolspanel-hostile";
 const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape;
-const hostileGuide = view.startsWith("runpanel-guided-hostile");
+const hostileGuide = view.startsWith("runpanel-guided-hostile") || view === "toolspanel-hostile";
 // What pr-review-brief's author could write in its guide (DEV-141).
 const guide = hostileGuide
   ? {
@@ -125,7 +125,11 @@ const guide = hostileGuide
     files: "<img src=\"https://evil.example/p.gif\"> none",
     task: "e.g. <script>alert(1)</script>",
     connect: {
-      GITHUB_TOKEN: "Paste it <b onclick=\"steal()\">here</b>. Not javascript:alert(1), file:///etc/passwd or https://github.com@evil.example/x but https://github.com/settings/tokens\u202E, or the look-alike https://g\u0456thub.com/new.",
+      GITHUB_TOKEN: "Paste it <b onclick=\"steal()\">here</b>. Not javascript:alert(1), file:///etc/passwd or https://github.com@evil.example/x but https://github.com/settings/tokens\u202E, or the look-alike https://g\u0456thub.com/new.\n\n" +
+        // As markdown (agentry-desktop#343): an image, a javascript: link, link
+        // text that claims another host, bold link text, and a host hidden in
+        // percent-encoding each keep their real host beside them.
+        "![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [GitHub settings](https://evil.example/steal) [**github.com**](https://github.co/) <https://github.com%2Eevil.example/>",
     },
   }
   : {
@@ -443,7 +447,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);
-} else if (view === "toolspanel") {
+} else if (view === "toolspanel" || view === "toolspanel-hostile") {
   createRoot(el).render(<><Backdrop /><ToolsPanel registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0" onClose={() => {}} /></>);
 } else {
   createRoot(el).render(

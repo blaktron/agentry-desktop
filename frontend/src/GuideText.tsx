@@ -1,9 +1,11 @@
 // One line of the run setup's guide text (manifest v2's guide block,
 // DEV-141; plan guided-runs.md §4, M7; agentry-desktop#228): a line of
 // "What to have ready" (the author's prepare list, or the derived one,
-// which can carry the author's files line), the files hint and a key's
-// connect help. The author's text comes from a release, so it is shown as
-// text, never as markup:
+// which can carry the author's files line) and the files hint. A key's
+// connect help is markdown since DEV-167 and goes through KeyHelp and
+// AgentMarkdown, with each link's host shown (agentry-desktop#343).
+// The author's text comes from a release, so it is shown as text, never as
+// markup:
 //
 //   - React escapes it, and every invisible character shows as a chip;
 //   - an absolute http: or https: URL in it becomes a link that hands the
