@@ -147,6 +147,6 @@ export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): stri
     "Creating knowledge is a big job. A few short documents take a few minutes; a large set, a model running on this " +
     "computer, or a frontier model at high reasoning can take more than 20 minutes. " +
     `This build may run for up to ${minutes} minutes${maxTurns > 0 ? ` and ${maxTurns} turns` : ""}, ` +
-    "and shows its progress as it goes. If it stops at a limit, the pack keeps the pages it wrote and Add documents continues it."
+    "and shows its progress as it goes. If it stops at a limit, the pack keeps the pages it wrote that pass its checks, and Add documents continues it."
   );
 }

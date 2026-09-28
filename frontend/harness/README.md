@@ -84,8 +84,12 @@ Agentry only, one Agentry is still scanning), `#knowledge-signed-out` a pack
 under this computer's key, and `#knowledge-empty` none. Create knowledge's
 steps are `#create-documents`, `#create-name`, `#create-review` (the recap and
 the sentence that nothing the Creator reads or writes is scanned) and
-`#create-blocked` (docker not ready, Create greyed); `#create-building` streams
-a build's log, `#create-done` shows what it made, `#hosted-where`, `#hosted-review`, `#hosted-running` and `#hosted-done` are a build In Agentry (agentry-desktop#274), and `#add-review` is Add
+`#create-blocked` (docker not ready, Create greyed); since agentry-desktop#352
+`#create-review` and `#add-review` also say a build is a big job and how long it
+may run, and `#create-building` shows the build's progress from scripted
+`knowledge:build-progress` events (time against the limit, turns, pages
+written, tokens) over its folded log, which `knowledge-create-building-log`
+opens, `#create-done` shows what it made, `#hosted-where`, `#hosted-review`, `#hosted-running` and `#hosted-done` are a build In Agentry (agentry-desktop#274), and `#add-review` is Add
 documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
 page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.

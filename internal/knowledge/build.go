@@ -89,17 +89,7 @@ func CreatorBudgets(pol *policy.Policy) spec.Budgets {
 // PolicyBudgets is CreatorBudgets for the policy this app's runs obey,
 // read without creating it, for the review step's sentence on how long a
 // build may take.
-func PolicyBudgets() spec.Budgets {
-	polFile, err := policy.Resolve("")
-	if err != nil {
-		return CreatorBudgets(nil)
-	}
-	pol, _, err := policy.Load(polFile.Path)
-	if err != nil {
-		return CreatorBudgets(nil)
-	}
-	return CreatorBudgets(pol)
-}
+func PolicyBudgets() spec.Budgets { return CreatorBudgets(loadPolicy()) }
 
 // BuildResult is what one build made, for the panel's result.
 type BuildResult struct {
@@ -250,9 +240,14 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		b = build.Build
 	}
 	budgets := CreatorBudgets(pol)
-	logf(req.Log, "A build takes a while: it may run for up to %d minutes and %d turns.", budgets.TimeoutSeconds/60, budgets.MaxTurns)
+	turns := ""
+	if budgets.MaxTurns > 0 {
+		turns = fmt.Sprintf(" and %d turns", budgets.MaxTurns)
+	}
+	logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", budgets.TimeoutSeconds/60, turns)
 	prog := newProgressMeter(req.Progress, budgets, filepath.Join(outDir, "reports", kn.WikiDir))
 	stop := prog.watch()
+	defer stop()
 	res, err := b(ctx, dockerx.New(), build.Options{
 		PackDir: dir, Name: name, Documents: req.Documents,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
@@ -284,16 +279,20 @@ func CreatorModel(pol *policy.Policy) string {
 
 // PolicyModel is CreatorModel for the policy this app's runs obey, read
 // without creating it.
-func PolicyModel() string {
+func PolicyModel() string { return CreatorModel(loadPolicy()) }
+
+// loadPolicy is the policy this app's runs obey, read without creating
+// it; nil when there is none or it cannot be read.
+func loadPolicy() *policy.Policy {
 	polFile, err := policy.Resolve("")
 	if err != nil {
-		return "none configured"
+		return nil
 	}
 	pol, _, err := policy.Load(polFile.Path)
 	if err != nil {
-		return "none configured"
+		return nil
 	}
-	return CreatorModel(pol)
+	return pol
 }
 
 func buildResult(res *build.Result, en store.Entry) *BuildResult {
@@ -358,10 +357,13 @@ func (m *progressMeter) watch() (stop func()) {
 			}
 		}
 	}()
+	var once sync.Once
 	return func() {
-		close(done)
-		wg.Wait()
-		m.countPages()
+		once.Do(func() {
+			close(done)
+			wg.Wait()
+			m.countPages()
+		})
 	}
 }
 
@@ -370,33 +372,37 @@ func (m *progressMeter) usage(u receipt.Usage) {
 		return
 	}
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.p.Turns, m.p.InputTokens, m.p.OutputTokens = u.Turns, u.InputTokens, u.OutputTokens
-	m.mu.Unlock()
-	m.emit()
+	m.report(m.p)
 }
 
 func (m *progressMeter) countPages() {
 	n := 0
-	_ = filepath.WalkDir(m.wiki, func(_ string, d fs.DirEntry, err error) error {
-		if err == nil && d.Type().IsRegular() && strings.HasSuffix(d.Name(), ".md") {
+	// A page as the apply step will read it: a regular .md file that is
+	// not an index or the log, which the application writes itself.
+	// WalkDir follows no link, so a link the run left is not walked.
+	_ = filepath.WalkDir(m.wiki, func(rel string, d fs.DirEntry, err error) error {
+		if err == nil && d.Type().IsRegular() && strings.HasSuffix(d.Name(), ".md") &&
+			d.Name() != kn.IndexFile && rel != filepath.Join(m.wiki, kn.LogFile) {
 			n++
 		}
 		return nil
 	})
 	m.mu.Lock()
-	changed := n != m.p.Pages
-	m.p.Pages = n
-	m.mu.Unlock()
-	if changed {
-		m.emit()
+	defer m.mu.Unlock()
+	if n != m.p.Pages {
+		m.p.Pages = n
+		m.report(m.p)
 	}
 }
 
+// emit reports under the lock, so two reports from the usage and the
+// counting goroutines arrive in the order they were made.
 func (m *progressMeter) emit() {
 	m.mu.Lock()
-	p := m.p
-	m.mu.Unlock()
-	m.report(p)
+	defer m.mu.Unlock()
+	m.report(m.p)
 }
 
 func logf(w io.Writer, format string, a ...any) {

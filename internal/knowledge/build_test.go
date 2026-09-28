@@ -182,6 +182,23 @@ func TestABuildReportsItsProgress(t *testing.T) {
 		if err := os.MkdirAll(wiki, 0o700); err != nil {
 			return nil, err
 		}
+		// A link, to a page or to a folder of pages, is never followed.
+		outside := t.TempDir()
+		if err := os.WriteFile(filepath.Join(outside, "elsewhere.md"), []byte("x"), 0o600); err != nil {
+			return nil, err
+		}
+		if err := os.Symlink(filepath.Join(outside, "elsewhere.md"), filepath.Join(wiki, "linked.md")); err != nil {
+			return nil, err
+		}
+		if err := os.Symlink(outside, filepath.Join(wiki, "linked-dir")); err != nil {
+			return nil, err
+		}
+		// An index and the log are the application's, never counted.
+		for _, f := range []string{"index.md", "log.md"} {
+			if err := os.WriteFile(filepath.Join(o.OutDir, "reports", "wiki", f), []byte("x"), 0o600); err != nil {
+				return nil, err
+			}
+		}
 		for i, name := range []string{"a.md", "b.md"} {
 			if err := os.WriteFile(filepath.Join(wiki, name), []byte("---\ntitle: x\n---\n"), 0o600); err != nil {
 				return nil, err

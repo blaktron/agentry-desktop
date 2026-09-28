@@ -42,7 +42,7 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere, initialProgress,
+  registry, addTo, onClose, onPreview, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
@@ -60,8 +60,6 @@ export default function KnowledgeCreate({
   initialAvailability?: main.KnowledgeHostedAvailabilityView;
   initialHosted?: main.KnowledgeHostedBuildView;
   initialWhere?: "local" | "agentry";
-  /** Harness-only: a build in progress's last report. */
-  initialProgress?: BuildProgress;
 }) {
   const [avail, setAvail] = useState<main.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
   const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? "local");
@@ -80,7 +78,7 @@ export default function KnowledgeCreate({
   const [building, setBuilding] = useState(initialBuilding ?? false);
   const [log, setLog] = useState<string[]>([]);
   const [budget, setBudget] = useState<main.CreatorBudgetView | null>(null);
-  const [progress, setProgress] = useState<BuildProgress | null>(initialProgress ?? null);
+  const [progress, setProgress] = useState<BuildProgress | null>(null);
   const [result, setResult] = useState<knowledge.BuildResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -322,10 +320,10 @@ export default function KnowledgeCreate({
           <Spinner label={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`} />
           <p className="muted small">
             The Knowledge Creator is decoding the documents and writing the pages. This can take a long time; the pages it has
-            written count up as it goes.
+            written count up as it goes, and are checked when it finishes, which may drop some.
           </p>
           <BuildProgressView progress={progress} />
-          <details className="build-log">
+          <details className="knowledge-log">
             <summary>Build log</summary>
             <pre ref={logRef} className="run-log selectable" aria-label="Build log">{log.join("\n")}</pre>
           </details>
@@ -392,8 +390,9 @@ export default function KnowledgeCreate({
 // BuildProgressView is how far a build on this computer has got: the time
 // it has run against its timeout, as a bar and a clock, the turns against
 // the turn budget, the pages the Creator has written so far and the tokens
-// it has used. Before the first report it says the build is starting.
-export function BuildProgressView({ progress }: { progress: BuildProgress | null }) {
+// it has used. Before the first report it says the build is starting. The
+// pages are counted as written: the apply step checks them after the run.
+function BuildProgressView({ progress }: { progress: BuildProgress | null }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -403,9 +402,9 @@ export function BuildProgressView({ progress }: { progress: BuildProgress | null
   const elapsed = Math.max(0, (now - progress.startedAt) / 1000);
   const share = progress.timeoutSeconds > 0 ? Math.min(1, elapsed / progress.timeoutSeconds) : 0;
   return (
-    <div className="build-progress">
+    <div className="knowledge-progress">
       <div
-        className="build-progress-bar"
+        className="knowledge-progress-bar"
         role="progressbar"
         aria-label="Time used of the build's limit"
         aria-valuemin={0}

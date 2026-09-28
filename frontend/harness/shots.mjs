@@ -76,17 +76,16 @@ const states = [
   { name: "knowledge-empty", url: "/knowledge.html#knowledge-empty", note: "no pack yet: Create knowledge", locator: '[data-preview="knowledge"]', expectText: "No knowledge packs yet" },
   { name: "knowledge-create-documents", url: "/knowledge.html#create-documents", note: "Create knowledge: the documents, from the native pickers only", expectText: "Step 1 of 3: Documents" },
   { name: "knowledge-create-name", url: "/knowledge.html#create-name", note: "Create knowledge: the name, and where a run finds it", expectText: "Step 2 of 3: Name" },
-  { name: "knowledge-create-review", url: "/knowledge.html#create-review", note: "the review: before anything runs, that the Creator runs here against the policy's model and nothing it reads or writes is scanned", expectText: "Nothing it reads or writes is scanned" },
-  { name: "knowledge-create-review-time", url: "/knowledge.html#create-review", note: "the review also says a build is a big job and how long it may run: at least 30 minutes (agentry-desktop#352)", expectText: "may run for up to 30 minutes and 60 turns" },
+  { name: "knowledge-create-review", url: "/knowledge.html#create-review", note: "the review: before anything runs, that the Creator runs here against the policy's model and nothing it reads or writes is scanned, and that a build is a big job that may run for up to 30 minutes (agentry-desktop#352)", expectText: ["Nothing it reads or writes is scanned", "may run for up to 30 minutes and 60 turns"] },
   { name: "knowledge-create-blocked", url: "/knowledge.html#create-blocked", note: "docker not ready: the sentence, Create knowledge greyed", expectText: "Docker is not ready", expectDisabledButton: "Create knowledge" },
-  { name: "knowledge-create-building", url: "/knowledge.html#create-building", note: "the build under way: time against its limit, turns, the pages written so far, the tokens; its log folded beneath (agentry-desktop#352)", expectText: "Pages written" },
+  { name: "knowledge-create-building", url: "/knowledge.html#create-building", note: "the build under way, driven by knowledge:build-progress events: time against its limit, turns, the pages written so far, the tokens; its log folded beneath (agentry-desktop#352)", expectText: ["Pages written", "14 of up to 60"] },
   { name: "knowledge-create-building-log", url: "/knowledge.html#create-building", note: "the build under way with its log opened, streaming", click: 'summary:has-text("Build log")', expectText: "decode: storage-guide.pdf" },
   { name: "knowledge-create-done", url: "/knowledge.html#create-done", note: "what the build made: pages, the key, what was not read, a dropped page, the tokens", expectText: "Made handbook: 48 pages" },
   { name: "knowledge-hosted-where", url: "/knowledge.html#hosted-where", note: "In Agentry beside this computer (agentry-desktop#274): the choice, and what it holds", expectText: "Step 3 of 4: Where" },
   { name: "knowledge-hosted-review", url: "/knowledge.html#hosted-review", note: "the review for a build In Agentry: where the documents go, the hold with the scan's credit inside it", expectText: "plus 1 credit to scan the pack" },
   { name: "knowledge-hosted-running", url: "/knowledge.html#hosted-running", note: "a build In Agentry under way: where it stands, the hold, Cancel", expectText: "100 credits are held for this build." },
   { name: "knowledge-hosted-done", url: "/knowledge.html#hosted-done", note: "a build In Agentry done: the pages, the settlement with the scan's credit, the pack kept here with its scan", expectText: "2 settled (1 of them for the pack's scan)" },
-  { name: "knowledge-add-review", url: "/knowledge.html#add-review", note: "Add documents: the review, the same warning", expectText: "Step 2 of 2: Review" },
+  { name: "knowledge-add-review", url: "/knowledge.html#add-review", note: "Add documents: the review, the same warnings", expectText: ["Step 2 of 2: Review", "may run for up to 30 minutes"] },
   { name: "knowledge-preview", url: "/knowledge.html#preview", note: "a pack's index and its pages, rendered by the run-output reader", expectText: "Rotating a key" },
   { name: "knowledge-preview-hostile", url: "/knowledge.html#preview-hostile", note: "a hostile page: no markup of its own, no image, no javascript: link, the right-to-left override shown", click: '.knowledge-pages button:has-text("Buckets")', expectText: "U+202E", expectNone: ".knowledge-page img, .knowledge-page script, .knowledge-page iframe, .knowledge-page b[onclick], .knowledge-page a[href^='javascript']" },
   // A pack a build left short, and a render fault's way back (agentry-desktop#351).
@@ -264,9 +263,10 @@ try {
         await page.locator(sel).first().click();
         await page.waitForTimeout(400);
       }
-      if (state.expectText) {
+      // expectText may name several sentences, each of which must show.
+      for (const want of [state.expectText ?? []].flat()) {
         const text = await page.locator(state.locator ?? "body").innerText();
-        if (!text.includes(state.expectText)) throw new Error(`${state.name}: the page does not show "${state.expectText}"`);
+        if (!text.includes(want)) throw new Error(`${state.name}: the page does not show "${want}"`);
       }
       if (state.expectNone) {
         // Agent output makes no markup of its own (agentry-desktop#227).

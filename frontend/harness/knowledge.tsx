@@ -148,8 +148,18 @@ g.go = { main: {
 } };
 // The build's log, streamed as the Go side streams it. The app's EventsOn
 // goes through EventsOnMultiple (the wails runtime shim).
-const subscribe = (name: string, cb: (line: string) => void) => {
+// The progress counts up as the Go side reports it: the start, then usage
+// and pages (agentry-desktop#352).
+const started = Date.now() - 754_000;
+const progressReports = [
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, pages: 0 },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 9, inputTokens: 101_400, outputTokens: 6_120, pages: 3 },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 },
+];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const subscribe = (name: string, cb: (v: any) => void) => {
   if (name === "knowledge:build-log" && hash === "create-building") setTimeout(() => buildLog.forEach((l) => cb(l)), 50);
+  if (name === "knowledge:build-progress" && hash === "create-building") progressReports.forEach((p, i) => setTimeout(() => cb(p), 60 + 60 * i));
   return () => {};
 };
 g.runtime = {
@@ -209,7 +219,6 @@ createRoot(document.getElementById("root")!).render(
         initialDocuments={hash === "create-documents" || step !== "documents" ? docs : []}
         initialName={hash === "add-review" ? undefined : "handbook"}
         initialBuilding={hash === "create-building"}
-        initialProgress={hash === "create-building" ? { startedAt: Date.now() - 754_000, timeoutSeconds: 1800, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 } : undefined}
         initialResult={hash === "create-done" ? (result as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" ? "agentry" : undefined}
