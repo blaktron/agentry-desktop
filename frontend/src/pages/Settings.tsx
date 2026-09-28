@@ -3,12 +3,13 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
-import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } from "../ui";
+import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar, fmtDuration } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
+import type { RunWhere } from "../runSetup";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
@@ -253,18 +254,11 @@ export function codingStatus(v: main.CodingAgentsView): string {
   return `Install also writes each BriefAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
 }
 
-// duration says a number of seconds the way a person would.
-export function duration(sec: number): string {
-  if (sec % 3600 === 0) return `${sec / 3600} hour${sec === 3600 ? "" : "s"}`;
-  if (sec % 60 === 0) return `${sec / 60} minute${sec === 60 ? "" : "s"}`;
-  return `${sec} second${sec === 1 ? "" : "s"}`;
-}
-
 // The Run defaults card's line: the timeout and where runs go, and Docker
 // when it is what stands in the way.
 export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusView | null): string {
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
-  const line = `Runs stop after ${duration(d.timeoutSeconds)}, ${where}.`;
+  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.`;
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
 }
 
@@ -290,7 +284,7 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // a consent: every run still asks what it asks.
 function RunDefaultsSettings() {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
-  const [d, setD] = useState<main.RunDefaultsView | null>(null);
+  const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
   const [timeoutText, setTimeoutText] = useState("");
   const [turns, setTurns] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -299,15 +293,15 @@ function RunDefaultsSettings() {
   const read = () => RunAPI.SetupStatus().then(setSetup).catch((e) => setErr(String(e)));
   // The fields take the saved budgets on the first read and after a budgets
   // save only, so choosing where to run keeps a timeout typed and not saved.
-  const took = (v: main.RunDefaultsView, budgets: boolean) => {
-    setD(v);
+  const show = (v: main.RunDefaultsView, budgets: boolean) => {
+    setDefaults(v);
     if (!budgets) return;
     setTimeoutText(String(v.timeoutSeconds));
     setTurns(String(v.maxTurns));
   };
   useEffect(() => {
     read();
-    SettingsAPI.RunDefaults().then((v) => took(v, true)).catch((e) => setErr(String(e)));
+    SettingsAPI.RunDefaults().then((v) => show(v, true)).catch((e) => setErr(String(e)));
   }, []);
 
   async function act(fn: () => Promise<main.RunDefaultsView>, said?: string) {
@@ -315,7 +309,7 @@ function RunDefaultsSettings() {
     setErr(null);
     setSaved(null);
     try {
-      took(await fn(), !!said);
+      show(await fn(), !!said);
       if (said) setSaved(said);
     } catch (e) {
       setErr(String(e));
@@ -324,15 +318,15 @@ function RunDefaultsSettings() {
     }
   }
 
-  const t = parseInt(timeoutText, 10);
-  const m = parseInt(turns, 10);
-  const budgetsValid = /^\d+$/.test(timeoutText.trim()) && t >= 1 && /^\d+$/.test(turns.trim()) && m >= 0;
-  const budgetsChanged = !!d && (t !== d.timeoutSeconds || m !== d.maxTurns);
+  const timeoutSeconds = parseInt(timeoutText, 10);
+  const maxTurns = parseInt(turns, 10);
+  const budgetsValid = /^\d+$/.test(timeoutText.trim()) && timeoutSeconds >= 1 && /^\d+$/.test(turns.trim()) && maxTurns >= 0;
+  const budgetsChanged = !!defaults && (timeoutSeconds !== defaults.timeoutSeconds || maxTurns !== defaults.maxTurns);
 
   return (
     <>
       <ErrorBox error={err} />
-      {d && (
+      {defaults && (
         <>
           <PartSection id="budgets" title="Timeout and turns">
             <Card>
@@ -349,13 +343,13 @@ function RunDefaultsSettings() {
                 </label>
                 <Button variant="primary" disabled={busy || !budgetsValid || !budgetsChanged}
                   title={!budgetsValid ? "a timeout of at least 1 second, and 0 or more turns" : ""}
-                  onClick={() => act(() => SettingsAPI.SetRunBudgets(t, m), "Saved.")}>
+                  onClick={() => act(() => SettingsAPI.SetRunBudgets(timeoutSeconds, maxTurns), "Saved.")}>
                   Save
                 </Button>
               </div>
               <p className="muted small" style={{ marginBottom: 0 }}>
                 A run stops when it reaches either. These are the runner policy&apos;s
-                (<span className="mono selectable">{d.policyPath}</span>), so the <span className="mono">agentry</span> CLI
+                (<span className="mono selectable">{defaults.policyPath}</span>), so the <span className="mono">agentry</span> CLI
                 runs with them too. A run&apos;s own fields under Advanced can only ask for less.
               </p>
               {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
@@ -364,9 +358,9 @@ function RunDefaultsSettings() {
           <PartSection id="where" title="Where to run">
             <Card>
               <div className="row" style={{ gap: 14 }}>
-                {([["here", "This computer"], ["agentry", "In Agentry"]] as const).map(([w, label]) => (
+                {([["here", "This computer"], ["agentry", "In Agentry"]] as [RunWhere, string][]).map(([w, label]) => (
                   <label key={w} className="check-row" style={{ margin: 0 }}>
-                    <input type="radio" name="run-where" checked={d.where === w} disabled={busy}
+                    <input type="radio" name="run-where" checked={defaults.where === w} disabled={busy}
                       onChange={() => act(() => SettingsAPI.SetRunWhere(w))} />
                     <span>{label}</span>
                   </label>
@@ -383,12 +377,12 @@ function RunDefaultsSettings() {
             <Card>
               <div className="row">
                 <span className="grow mono selectable">
-                  {d.outputDir || <span className="muted">None chosen: each run writes under ~/Downloads/agentry-out.</span>}
+                  {defaults.outputDir || <span className="muted">None chosen: each run writes under ~/Downloads/agentry-out.</span>}
                 </span>
                 <Button disabled={busy} onClick={() => act(SettingsAPI.ChooseDefaultOutputDir)}>
-                  {d.outputDir ? "Choose another…" : "Choose…"}
+                  {defaults.outputDir ? "Choose another…" : "Choose…"}
                 </Button>
-                {d.outputDir && <Button disabled={busy} onClick={() => act(SettingsAPI.ClearDefaultOutputDir)}>Clear</Button>}
+                {defaults.outputDir && <Button disabled={busy} onClick={() => act(SettingsAPI.ClearDefaultOutputDir)}>Clear</Button>}
               </div>
               <p className="muted small" style={{ marginBottom: 0 }}>
                 Chosen here, through the file dialog. The run setup fills it in and you can pick another for one run.

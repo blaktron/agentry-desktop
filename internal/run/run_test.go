@@ -201,7 +201,7 @@ func TestInstallMetaRoundTrip(t *testing.T) {
 func TestResolveOutDirDefault(t *testing.T) {
 	t.Setenv("HOME", t.TempDir()) // never touch the real ~/Downloads
 	sig := testSig(t, nil)
-	got, err := resolveOutDir("", sig, "cafe0123")
+	got, err := resolveOutDir("", false, sig, "cafe0123")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestResolveOutDirDefault(t *testing.T) {
 func TestResolveOutDirExplicit(t *testing.T) {
 	sig := testSig(t, nil)
 	dir := filepath.Join(t.TempDir(), "picked", "out")
-	got, err := resolveOutDir(dir, sig, "cafe0123")
+	got, err := resolveOutDir(dir, false, sig, "cafe0123")
 	if err != nil || got != dir {
 		t.Fatalf("resolveOutDir = %q %v, want %q", got, err, dir)
 	}
@@ -231,7 +231,7 @@ func TestResolveOutDirExplicit(t *testing.T) {
 func TestResolveOutDirNoHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	sig := testSig(t, nil)
-	if _, err := resolveOutDir("", sig, "cafe0123"); err == nil || !strings.Contains(err.Error(), "output folder") {
+	if _, err := resolveOutDir("", false, sig, "cafe0123"); err == nil || !strings.Contains(err.Error(), "output folder") {
 		t.Fatalf("err = %v, want the pick-a-folder hint", err)
 	}
 }

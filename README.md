@@ -205,7 +205,8 @@ The product never claims an agent is "safe". The language is always:
       every run.
     - **Output folder**: chosen here through the file dialog and kept in
       `desktop.yaml`. The run setup fills it in and you can pick another for
-      one run. A run admits it as an output folder only, never as an input.
+      one run. Each run writes into a folder of its own inside it, and a run
+      admits it as an output folder only, never as an input.
     - The Docker engine's state and, on Linux, its setup.
   - **Provider settings**: the LLM provider form and the AI Review key.
 

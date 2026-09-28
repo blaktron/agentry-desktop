@@ -81,6 +81,9 @@ export function needList(release: { intake: Question[]; secrets: string[]; serve
 // started by it: Run is still the person's click on Review and start, after
 // the credits the run holds are shown.
 export type HostedOffer = { offered: boolean; available: boolean } | null;
+// RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
+// (settings.RunWhereHere, settings.RunWhereAgentry).
+export type RunWhere = "here" | "agentry";
 
 export function inAgentryByDefault(where: string | undefined, hosted: HostedOffer, unscanned: boolean): boolean {
   return where === "agentry" && !!hosted?.offered && hosted.available && !unscanned;
@@ -88,13 +91,16 @@ export function inAgentryByDefault(where: string | undefined, hosted: HostedOffe
 
 // whereFallback is the sentence the Where step shows when the default says
 // In Agentry and this run starts on this computer instead; null otherwise.
-// A mode that is offered but unavailable has its own notice with the reason.
+// hosted is null when the offer could not be read. A mode that is offered but
+// unavailable has its own notice with the reason.
 export function whereFallback(where: string | undefined, hosted: HostedOffer, unscanned: boolean): string | null {
   if (where !== "agentry" || inAgentryByDefault(where, hosted, unscanned)) return null;
   const why = unscanned
     ? "a release admitted without a scan is not run In Agentry from this app"
-    : !hosted?.offered
-      ? "a run In Agentry is not offered for this BriefAgent on this registry"
-      : "In Agentry is unavailable for it (the notice below says why)";
+    : hosted === null
+      ? "the app could not tell whether this registry offers a run In Agentry for it"
+      : !hosted.offered
+        ? "a run In Agentry is not offered for this BriefAgent on this registry"
+        : "In Agentry is unavailable for it (the notice below says why)";
   return `Your Run defaults say In Agentry, but ${why}, so this run starts on this computer.`;
 }

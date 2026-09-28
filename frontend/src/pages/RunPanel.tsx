@@ -89,6 +89,10 @@ export default function RunPanel({
   // person chooses otherwise for this run.
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
   const modeChosen = useRef(false);
+  // Whether In Agentry was chosen by the default rather than by the person:
+  // if the offer or the release's verdict then rules it out, the step goes
+  // back to this computer.
+  const byDefault = useRef(false);
   const chooseMode = (m: string) => { modeChosen.current = true; setMode(m); };
   const [keep, setKeep] = useState(true);
   // D-012: the keep toggle is sent only once the user touches it; an
@@ -175,7 +179,13 @@ export default function RunPanel({
         // runs needs run:read, and a token without it must not be sent to
         // a route that would refuse it.
         if (!h.available) return;
-        return RunAPI.AttachHostedRun(registry, outDir.trim()).then((a) => {
+        // The folder a reattached run downloads into is the one the field
+        // would hold: Run defaults' saved folder, which may not have been
+        // read into it yet.
+        return SettingsAPI.RunDefaults()
+          .then((d) => d.outputDir ?? "", () => "")
+          .then((saved) => RunAPI.AttachHostedRun(registry, outDir.trim() || saved))
+          .then((a) => {
           if (!live || !a.run) return;
           setMode("hosted");
           setHostedRun(a.run);
@@ -220,8 +230,15 @@ export default function RunPanel({
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
     if (modeChosen.current || initialMode || hostedRun || !profile) return;
-    if (inAgentryByDefault(defaults?.where, hosted, unscanned)) setMode("hosted");
-  }, [defaults, hosted, unscanned, profile, hostedRun, initialMode]);
+    const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned);
+    if (allowed && mode !== "hosted") {
+      byDefault.current = true;
+      setMode("hosted");
+    } else if (!allowed && byDefault.current && mode === "hosted") {
+      byDefault.current = false;
+      setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
+    }
+  }, [defaults, hosted, unscanned, profile, hostedRun, initialMode, mode]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
   const hostedActive = !!hostedRun && (hostedRun.status === "queued" || hostedRun.status === "claimed" || hostedRun.status === "running");
   // What still stands between this form and a run, each in a sentence the

@@ -14,7 +14,8 @@ import (
 // RunDefaultsView is Settings → Run defaults (plan settings-cards.md D2,
 // D13; agentry-desktop#347). The timeout and max turns are the runner
 // policy's budgets, which the CLI runs with too; where runs go and the
-// output folder are this app's own, in desktop.yaml.
+// output folder are this app's own, in desktop.yaml. A broken policy file is
+// said, not hidden behind the defaults, as Settings' status says it.
 type RunDefaultsView struct {
 	TimeoutSeconds int    `json:"timeoutSeconds"`
 	MaxTurns       int    `json:"maxTurns"`
@@ -62,10 +63,7 @@ func (s *SettingsAPI) SetRunWhere(where string) (*RunDefaultsView, error) {
 // from this file (App.requireOutputDir, D-044), never an input root. A
 // cancelled picker changes nothing.
 func (s *SettingsAPI) ChooseDefaultOutputDir() (*RunDefaultsView, error) {
-	if s.app.pickDirectory == nil {
-		return nil, errors.New("no directory picker is available")
-	}
-	dir, err := s.app.pickDirectory(s.app.ctx, "Choose the default output folder for runs")
+	dir, err := s.app.pickDirectoryUnmarked("Choose the default output folder for runs")
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -205,5 +208,51 @@ func TestRunDefaultsReadTheBudgetsThePolicyHolds(t *testing.T) {
 	}
 	if _, err := s.SetRunBudgets(0, 5); err == nil {
 		t.Fatal("a zero timeout was accepted")
+	}
+}
+
+func TestEachRunGetsItsOwnFolderInsideTheSavedOne(t *testing.T) {
+	// Every run shares the saved folder, so none is handed the folder
+	// itself: the agent's output mount is read-write, and one run must not
+	// see or change what another left (review of agentry-desktop#347). A
+	// folder picked for one run is that run's, as before.
+	saved := t.TempDir()
+	app, s := runDefaultsApp(t, saved)
+	if _, err := s.ChooseDefaultOutputDir(); err != nil {
+		t.Fatal(err)
+	}
+	var got []run.Request
+	r := &RunAPI{app: app, inFlightDir: t.TempDir(),
+		engineRun: func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+			got = append(got, req)
+			return &run.Result{}, nil
+		}}
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, 0, false, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	picked := t.TempDir()
+	app.markPicked(picked)
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, picked, nil, 0, 0, false, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || !got[0].OutDirIsRoot || got[1].OutDirIsRoot {
+		t.Fatalf("OutDirIsRoot = %v, want the saved folder a root and the picked one not", got)
+	}
+}
+
+func TestARunInAgentryLandsInItsOwnFolderInsideTheSavedOne(t *testing.T) {
+	saved := t.TempDir()
+	_, s := runDefaultsApp(t, saved)
+	if _, err := s.ChooseDefaultOutputDir(); err != nil {
+		t.Fatal(err)
+	}
+	run := &hostedrun.Run{ID: "3f2a9c1d", Ref: "acme/notes@1.0.0"}
+	got, err := hostedOutDir(saved, run)
+	if err != nil || got != filepath.Join(saved, "acme-notes-3f2a9c1d") {
+		t.Fatalf("hostedOutDir(saved) = %q, %v; want acme-notes-3f2a9c1d inside it", got, err)
+	}
+	picked := t.TempDir()
+	if got, err := hostedOutDir(picked, run); err != nil || got != picked {
+		t.Fatalf("hostedOutDir(picked) = %q, %v; want the picked folder as it is", got, err)
 	}
 }
