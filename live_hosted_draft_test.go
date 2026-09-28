@@ -176,6 +176,35 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 	}
 
 	if os.Getenv("AGENTRY_LIVE_HOSTED_DRAFT_PUBLISH") == "1" {
+		// The person fixes in Step by step what the form's checks name before
+		// they publish (plan §7.5): here, the two rules a draft has been seen
+		// to fail: a guide that says too much, a choice named twice.
+		m := *d.Model
+		for i := range m.Guide.Connect {
+			if len(m.Guide.Connect[i].Help) > 300 {
+				m.Guide.Connect[i].Help = m.Guide.Connect[i].Help[:297] + "..."
+			}
+		}
+		if len(m.Guide.Prepare) > 10 {
+			m.Guide.Prepare = m.Guide.Prepare[:10]
+		}
+		for i := range m.Intake {
+			seen := map[string]bool{}
+			var kept []string
+			for _, c := range m.Intake[i].Choices {
+				if !seen[c] {
+					seen[c] = true
+					kept = append(kept, c)
+				}
+			}
+			m.Intake[i].Choices = kept
+		}
+		if c := m.Check(); c.First != nil {
+			t.Fatalf("the form's checks still name %s: %s", c.First.Section, c.First.Problem)
+		}
+		if err := b.Save(dir, m); err != nil {
+			t.Fatal(err)
+		}
 		pub, err := b.Publish(reg, dir, "private")
 		if err != nil {
 			t.Fatal(err)
