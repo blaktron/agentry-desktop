@@ -19,7 +19,9 @@ export type SettingsSection = "registry" | "updates" | "coding-agents" | "run-de
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
-export type SettingsPart = "registries" | "add-registry" | "desktop" | "briefagents" | "provider" | "ai-review-key";
+export type SettingsPart =
+  | "registries" | "add-registry" | "desktop" | "briefagents"
+  | "budgets" | "where" | "output" | "docker" | "provider" | "ai-review-key";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -42,8 +44,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "run-defaults", title: "Run defaults",
-    sentence: "What a run on this computer needs before it can start: the Docker engine BriefAgent runs use.",
-    parts: [],
+    sentence: "How long a run may take, where runs go and where their files land, and the Docker engine runs on this computer use.",
+    parts: [
+      { id: "budgets", label: "Timeout and turns" }, { id: "where", label: "Where to run" },
+      { id: "output", label: "Output folder" }, { id: "docker", label: "Docker engine" },
+    ],
   },
   {
     id: "provider", title: "Provider settings",
@@ -156,6 +161,7 @@ type Statuses = {
   coding?: main.CodingAgentsView | null;
   setup?: main.SetupStatusView | null;
   jev?: main.JevKeyView | null;
+  defaults?: main.RunDefaultsView | null;
 };
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
@@ -172,6 +178,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     SettingsAPI.CodingAgents().then(put("coding")).catch(() => put("coding")(null));
     RunAPI.SetupStatus().then(put("setup")).catch(() => put("setup")(null));
     RunAPI.JevKeyStatus().then(put("jev")).catch(() => put("jev")(null));
+    SettingsAPI.RunDefaults().then(put("defaults")).catch(() => put("defaults")(null));
     return () => { live = false; };
   }, []);
 
@@ -179,7 +186,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     registry: registryStatus(settings, activeRegistry),
     updates: st.update ? updateStatus(st.update) : null,
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
-    "run-defaults": st.setup ? runStatus(st.setup) : null,
+    "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
   };
 
@@ -246,6 +253,21 @@ export function codingStatus(v: main.CodingAgentsView): string {
   return `Install also writes each BriefAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
 }
 
+// duration says a number of seconds the way a person would.
+export function duration(sec: number): string {
+  if (sec % 3600 === 0) return `${sec / 3600} hour${sec === 3600 ? "" : "s"}`;
+  if (sec % 60 === 0) return `${sec / 60} minute${sec === 60 ? "" : "s"}`;
+  return `${sec} second${sec === 1 ? "" : "s"}`;
+}
+
+// The Run defaults card's line: the timeout and where runs go, and Docker
+// when it is what stands in the way.
+export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusView | null): string {
+  const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
+  const line = `Runs stop after ${duration(d.timeoutSeconds)}, ${where}.`;
+  return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
+}
+
 export function runStatus(s: main.SetupStatusView): string {
   if (!s.dockerOk) return "Docker is not ready, so BriefAgents cannot run on this computer yet.";
   if (!s.imagesReady) return "Docker answers. The run images are fetched on the first run.";
@@ -261,22 +283,126 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
   return parts.join(" · ") + ".";
 }
 
-// RunDefaultsSettings is Settings → Run defaults. Until M4 adds the defaults
-// (agentry-desktop#347) it holds the Docker engine's prerequisites, which
-// were in Agent runs before; the card says nothing when the engine answers,
-// so the section says so itself.
+// RunDefaultsSettings is Settings → Run defaults (plan settings-cards.md
+// D2, D13; agentry-desktop#347): the timeout and max turns the runner policy
+// holds, which the CLI runs with too; where the run setup starts; the output
+// folder it fills in; and the Docker engine's prerequisites. None of them is
+// a consent: every run still asks what it asks.
 function RunDefaultsSettings() {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
+  const [d, setD] = useState<main.RunDefaultsView | null>(null);
+  const [timeoutText, setTimeoutText] = useState("");
+  const [turns, setTurns] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const read = () => RunAPI.SetupStatus().then(setSetup).catch((e) => setErr(String(e)));
-  useEffect(() => { read(); }, []);
+  // The fields take the saved budgets on the first read and after a budgets
+  // save only, so choosing where to run keeps a timeout typed and not saved.
+  const took = (v: main.RunDefaultsView, budgets: boolean) => {
+    setD(v);
+    if (!budgets) return;
+    setTimeoutText(String(v.timeoutSeconds));
+    setTurns(String(v.maxTurns));
+  };
+  useEffect(() => {
+    read();
+    SettingsAPI.RunDefaults().then((v) => took(v, true)).catch((e) => setErr(String(e)));
+  }, []);
+
+  async function act(fn: () => Promise<main.RunDefaultsView>, said?: string) {
+    setBusy(true);
+    setErr(null);
+    setSaved(null);
+    try {
+      took(await fn(), !!said);
+      if (said) setSaved(said);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const t = parseInt(timeoutText, 10);
+  const m = parseInt(turns, 10);
+  const budgetsValid = /^\d+$/.test(timeoutText.trim()) && t >= 1 && /^\d+$/.test(turns.trim()) && m >= 0;
+  const budgetsChanged = !!d && (t !== d.timeoutSeconds || m !== d.maxTurns);
+
   return (
     <>
-      <h2>Docker engine</h2>
       <ErrorBox error={err} />
-      {setup && (setup.dockerOk
-        ? <Card><p className="small" style={{ margin: 0 }}>{runStatus(setup)}</p></Card>
-        : <PrereqCard onDone={async () => { await read(); }} />)}
+      {d && (
+        <>
+          <PartSection id="budgets" title="Timeout and turns">
+            <Card>
+              <div className="row">
+                <label className="row" style={{ gap: 6 }}>
+                  <span className="small">Timeout (seconds)</span>
+                  <Input type="number" min={1} style={{ width: 120 }} value={timeoutText} disabled={busy}
+                    onChange={(e) => { setTimeoutText(e.target.value); setSaved(null); }} />
+                </label>
+                <label className="row" style={{ gap: 6 }}>
+                  <span className="small">Max turns (0 = unlimited)</span>
+                  <Input type="number" min={0} style={{ width: 120 }} value={turns} disabled={busy}
+                    onChange={(e) => { setTurns(e.target.value); setSaved(null); }} />
+                </label>
+                <Button variant="primary" disabled={busy || !budgetsValid || !budgetsChanged}
+                  title={!budgetsValid ? "a timeout of at least 1 second, and 0 or more turns" : ""}
+                  onClick={() => act(() => SettingsAPI.SetRunBudgets(t, m), "Saved.")}>
+                  Save
+                </Button>
+              </div>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                A run stops when it reaches either. These are the runner policy&apos;s
+                (<span className="mono selectable">{d.policyPath}</span>), so the <span className="mono">agentry</span> CLI
+                runs with them too. A run&apos;s own fields under Advanced can only ask for less.
+              </p>
+              {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
+            </Card>
+          </PartSection>
+          <PartSection id="where" title="Where to run">
+            <Card>
+              <div className="row" style={{ gap: 14 }}>
+                {([["here", "This computer"], ["agentry", "In Agentry"]] as const).map(([w, label]) => (
+                  <label key={w} className="check-row" style={{ margin: 0 }}>
+                    <input type="radio" name="run-where" checked={d.where === w} disabled={busy}
+                      onChange={() => act(() => SettingsAPI.SetRunWhere(w))} />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                The run setup starts on this choice, and you can change it for any run. Where a run In Agentry is not
+                offered for a BriefAgent, it starts on this computer and says why. A run In Agentry still shows the credits
+                it holds before you start it, and every consent is asked on every run.
+              </p>
+            </Card>
+          </PartSection>
+          <PartSection id="output" title="Output folder">
+            <Card>
+              <div className="row">
+                <span className="grow mono selectable">
+                  {d.outputDir || <span className="muted">None chosen: each run writes under ~/Downloads/agentry-out.</span>}
+                </span>
+                <Button disabled={busy} onClick={() => act(SettingsAPI.ChooseDefaultOutputDir)}>
+                  {d.outputDir ? "Choose another…" : "Choose…"}
+                </Button>
+                {d.outputDir && <Button disabled={busy} onClick={() => act(SettingsAPI.ClearDefaultOutputDir)}>Clear</Button>}
+              </div>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                Chosen here, through the file dialog. The run setup fills it in and you can pick another for one run.
+                Each run writes into a folder of its own inside it. A run never reads from it unless you add it as an input.
+              </p>
+            </Card>
+          </PartSection>
+        </>
+      )}
+      <PartSection id="docker" title="Docker engine">
+        {setup && (setup.dockerOk
+          ? <Card><p className="small" style={{ margin: 0 }}>{runStatus(setup)}</p></Card>
+          : <PrereqCard onDone={async () => { await read(); }} />)}
+      </PartSection>
     </>
   );
 }

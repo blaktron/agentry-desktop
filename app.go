@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -106,6 +107,23 @@ func (a *App) requirePicked(what, p string) error {
 		}
 	}
 	return fmt.Errorf("%s %q was not chosen through the file dialog; pick it there", what, p)
+}
+
+// requireOutputDir is requirePicked for a run's output folder, which may
+// also be the one Run defaults saved (D-044): Go reads it from its own
+// settings file, so the page cannot name it, and it admits that folder
+// exactly — as an output folder only, never a folder under it and never an
+// input, which still needs this session's picker.
+func (a *App) requireOutputDir(p string) error {
+	err := a.requirePicked("output directory", p)
+	if err == nil {
+		return nil
+	}
+	if st, lerr := settings.Load(); lerr == nil && st.DefaultOutputDir != "" &&
+		filepath.Clean(st.DefaultOutputDir) == filepath.Clean(p) {
+		return nil
+	}
+	return err
 }
 
 // requirePickedResolved is requirePicked for a path whose bytes leave the

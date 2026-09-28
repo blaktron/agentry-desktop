@@ -116,6 +116,15 @@ own route as App does, so `settings-open-<section>` clicks a card,
 buttons that open Settings the way App's callers do (the sidebar's update
 line, the setup notice, Knowledge's sign-in, Describe it's missing key);
 `shots.mjs` checks which page shows and that a named part is in view.
+Run defaults (agentry-desktop#347) is `settings-run-defaults` (the four
+defaults and Docker) and `settings-run-defaults-saved` (a timeout typed and
+saved, In Agentry chosen, a folder picked, as the mocks answer for Go). In
+the run setup, `modals.html#runpanel-default-agentry` opens with In Agentry
+chosen by default, `#runpanel-default-agentry-unscanned` starts a release
+admitted without a scan on this computer and says why, and
+`#runpanel-default-folder` shows the saved folder filled in on Review and
+start. `shots.mjs` can `fill` a field before its clicks and assert
+`expectChecked` and `expectValue`.
 `#status-refused` makes every status binding refuse: the five cards stay and
 only the registry's line, which reads no binding, is left.
 

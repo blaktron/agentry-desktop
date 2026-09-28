@@ -43,6 +43,12 @@ const states = [
   { name: "runpanel-keys", url: "/modals.html#runpanel-keys", note: "pr-review-brief's shape, on Review and start: keys unsaved, the line above Run names them", expectBlocker: "Save the keys for github-mcp-server-js: GITHUB_TOKEN", expectRunDisabled: true },
   { name: "runpanel-keys-saved", url: "/modals.html#runpanel-keys-saved", note: "Connect tools: the key saved, shown by name only", click: 'button:has-text("Save keys")', expectText: "Stored for this exact release: GITHUB_TOKEN" },
   { name: "runpanel-file-intake", url: "/modals.html#runpanel-file-intake", note: "a release that asks for a file up front: on Review and start the line names the unanswered question", expectBlocker: "The incident channel's export (a file)", expectRunDisabled: true },
+  // Run defaults in the run setup (agentry-desktop#347): In Agentry chosen by
+  // default where it is offered; a release that cannot run there starts here
+  // and says why; the saved folder filled in on Review and start.
+  { name: "runpanel-default-agentry", url: "/modals.html#runpanel-default-agentry", note: "where to run saved as In Agentry: the Where step opens with it chosen, the credits it holds shown", expectText: "What to have ready", expectChecked: 'input[name="run-mode"] >> nth=-1' },
+  { name: "runpanel-default-agentry-unscanned", url: "/modals.html#runpanel-default-agentry-unscanned", note: "the same default for a release admitted without a scan: it starts on this computer, and the step says why", expectText: "Your Run defaults say In Agentry, but a release admitted without a scan is not run In Agentry from this app, so this run starts on this computer." },
+  { name: "runpanel-default-folder", url: "/modals.html#runpanel-default-folder", note: "a saved output folder, filled in on Review and start; Choose… still picks another", expectText: "Review and start", expectValue: ['.modal input.mono[readonly]', "/home/me/agentry-runs"] },
   // The guided run setup (agentry-desktop#226): one state per step.
   { name: "runpanel-step-files", url: "/modals.html#runpanel-step-files", note: "Files: no file chosen yet, Add files and Add folder", expectText: "Step 2 of" },
   { name: "runpanel-step-tools", url: "/modals.html#runpanel-step-tools", note: "Connect tools: the declared MCP server's pin and tools, then its key", expectText: "Step 3 of 5: Connect tools" },
@@ -196,7 +202,7 @@ const states = [
   // card's status line; each section page; a card opened, a part's link
   // followed, the way back; and each deep link App gives a caller.
   { name: "page-settings", url: "/pages.html", note: "Settings under the shell: five cards, each with its sentence, its status line and its parts", locator: '[data-preview="settings"]',
-    expectText: ["Registry settings", "Update settings", "Coding agents", "Run defaults", "Provider settings", "secureagentry.net, signed in.", "Agentry Desktop 0.2.0 is available.", "AI Review key saved", "Settings file:"],
+    expectText: ["Registry settings", "Update settings", "Coding agents", "Run defaults", "Provider settings", "secureagentry.net, signed in.", "Agentry Desktop 0.2.0 is available.", "AI Review key saved", "Runs stop after 15 minutes, on this computer.", "Settings file:"],
     expectSection: "landing" },
   { name: "settings-open-registry", url: "/pages.html", note: "the Registry settings card opened: the registries, Secrets and Add a registry under ← Settings", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card:has-text("Registry settings") .settings-card-link', expectSection: "registry", expectText: ["← Settings", "Registries", "Add a registry", "Secrets for runs In Agentry"] },
@@ -220,6 +226,15 @@ const states = [
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
   { name: "settings-back-provider", url: "/pages.html?settings=provider", note: "← Settings on Provider settings returns to the cards", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
+  // Run defaults (agentry-desktop#347): the four defaults and Docker; a
+  // budget saved, In Agentry chosen and a folder picked, as Go answers.
+  { name: "settings-run-defaults", url: "/pages.html?settings=run-defaults", note: "Run defaults: timeout and turns (the policy's, which the CLI shares), where to run, the output folder, Docker", locator: '[data-preview="settings"]',
+    expectSection: "run-defaults", expectText: ["Timeout (seconds)", "the agentry CLI runs with them too", "Where to run", "every consent is asked on every run", "None chosen", "Docker engine"],
+    expectValue: ['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "900"] },
+  { name: "settings-run-defaults-saved", url: "/pages.html?settings=run-defaults", note: "a timeout of 1800 s saved, In Agentry chosen, a folder picked", locator: '[data-preview="settings"]',
+    fill: [['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "1800"]],
+    click: ['[data-preview="settings"] input[name="run-where"] >> nth=1', '[data-preview="settings"] #settings-part-output button:has-text("Choose")', '[data-preview="settings"] #settings-part-budgets button:has-text("Save")'],
+    expectSection: "run-defaults", expectText: ["Saved.", "/home/me/agentry-runs"], expectChecked: '[data-preview="settings"] input[name="run-where"] >> nth=1' },
   { name: "settings-deeplink-selfupdate", url: "/pages.html", note: "the sidebar's newer-version line opens Update settings", locator: '[data-preview="settings"]', click: '[data-deeplink="selfUpdate"]', expectSection: "updates", expectPart: "desktop" },
   { name: "settings-deeplink-setup", url: "/pages.html", note: "Browse's setup notice opens Provider settings", locator: '[data-preview="settings"]', click: '[data-deeplink="setupNotice"]', expectSection: "provider" },
   { name: "settings-deeplink-knowledge", url: "/pages.html", note: "Knowledge's Not signed in opens Registry settings at the registries", locator: '[data-preview="settings"]', click: '[data-deeplink="knowledgeSignIn"]', expectSection: "registry", expectPart: "registries" },
@@ -294,6 +309,10 @@ try {
         await page.locator("details.advanced > summary").first().click();
         await page.waitForTimeout(200);
       }
+      // A field filled first, as a person would type it.
+      for (const [sel, val] of state.fill ?? []) {
+        await page.locator(sel).first().fill(val);
+      }
       // A state behind a click — a tab, a wizard's next step — or a few in
       // order (click as a list: Run, then Run details) is reached the way a
       // person reaches it.
@@ -341,6 +360,14 @@ try {
       }
       if (state.expectCollapsed) {
         if (await page.locator(state.expectCollapsed).first().getAttribute("open") !== null) throw new Error(`${state.name}: ${state.expectCollapsed} is open with nothing chosen`);
+      }
+      if (state.expectChecked) {
+        if (!(await page.locator(state.expectChecked).first().isChecked())) throw new Error(`${state.name}: ${state.expectChecked} is not checked`);
+      }
+      if (state.expectValue) {
+        const [sel, want] = state.expectValue;
+        const got = await page.locator(sel).first().inputValue();
+        if (got !== want) throw new Error(`${state.name}: ${sel} holds "${got}", not "${want}"`);
       }
       if (state.expectSection) {
         // The route, not only the shot: which Settings page is showing.

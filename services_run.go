@@ -900,7 +900,7 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 			return err
 		}
 	}
-	if err := r.app.requirePicked("output directory", outDir); err != nil {
+	if err := r.app.requireOutputDir(outDir); err != nil {
 		return err
 	}
 	var accepting []string

@@ -195,6 +195,10 @@ const validateResult = {
   issues: [], inventory: [], findings: [], readErrors: [],
 };
 
+// Settings → Run defaults (agentry-desktop#347): the policy's budgets,
+// runs on this computer, no folder saved.
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "" };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
 g.go = { main: {
@@ -300,6 +304,13 @@ g.go = { main: {
     },
     OpenUpgrade: async () => undefined,
     CodingAgents: async () => codingView(),
+    // Settings → Run defaults (agentry-desktop#347): the saves answer as Go
+    // would, and the picker "returns" a folder.
+    RunDefaults: async () => runDefaultsView,
+    SetRunBudgets: async (t: number, m: number) => (runDefaultsView = { ...runDefaultsView, timeoutSeconds: t, maxTurns: m }),
+    SetRunWhere: async (w: string) => (runDefaultsView = { ...runDefaultsView, where: w }),
+    ChooseDefaultOutputDir: async () => (runDefaultsView = { ...runDefaultsView, outputDir: "/home/me/agentry-runs" }),
+    ClearDefaultOutputDir: async () => (runDefaultsView = { ...runDefaultsView, outputDir: "" }),
     SetInstallIntoCodingAgent: async (on: boolean) => { codingSwitch = on; return codingView(); },
     ChooseCodingAgentProjectDir: async () => codingView(),
   },
@@ -397,6 +408,7 @@ if (window.location.hash === "#status-refused") {
   g.go.main.SettingsAPI.CodingAgents = refuse;
   g.go.main.RunAPI.SetupStatus = refuse;
   g.go.main.RunAPI.JevKeyStatus = refuse;
+  g.go.main.SettingsAPI.RunDefaults = refuse;
 }
 g.runtime = {
   EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, EventsOnce: () => () => {},

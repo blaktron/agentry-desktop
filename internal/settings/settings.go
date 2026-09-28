@@ -85,7 +85,24 @@ type Settings struct {
 	// none chosen yet. The Claude skill has no such setting: it lives in
 	// ~/.claude/skills, where Claude Code reads.
 	CodingAgentProjectDir string `yaml:"codingAgentProjectDir,omitempty" json:"codingAgentProjectDir,omitempty"`
+	// RunWhere is Settings → Run defaults → Where to run (plan
+	// settings-cards.md D2, D13; agentry-desktop#347): RunWhereHere or
+	// RunWhereAgentry, "" meaning this computer. It only pre-selects the run
+	// setup's Where step; the credit hold and every consent are still asked
+	// on each run.
+	RunWhere string `yaml:"runWhere,omitempty" json:"runWhere,omitempty"`
+	// DefaultOutputDir is Settings → Run defaults → Output folder, chosen
+	// through the native picker on that page and nowhere else, "" for none.
+	// A run's gate admits it as an output folder because it is read from
+	// this file, never as an input root (D-044).
+	DefaultOutputDir string `yaml:"defaultOutputDir,omitempty" json:"defaultOutputDir,omitempty"`
 }
+
+// Where a run goes when Run defaults says nothing else.
+const (
+	RunWhereHere    = "here"
+	RunWhereAgentry = "agentry"
+)
 
 // UpdateCheckEnabled says whether the app should look for a newer Agentry
 // Desktop. Unset means yes: a person who has never opened Settings should

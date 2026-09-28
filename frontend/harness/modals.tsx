@@ -208,6 +208,17 @@ const mcp = {
   secretNames: keysShape ? ["GITHUB_TOKEN"] : [], embeddedTools: [],
 };
 
+// Settings → Run defaults (agentry-desktop#347): #runpanel-default-agentry
+// has where to run saved as In Agentry, and the setup opens with it chosen;
+// #runpanel-default-agentry-unscanned the same for a release admitted without
+// a scan, which starts on this computer and says why; #runpanel-default-folder
+// a saved output folder, filled in on Review and start.
+const runDefaults = {
+  timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml",
+  where: view.startsWith("runpanel-default-agentry") ? "agentry" : "here",
+  outputDir: view === "runpanel-default-folder" ? "/home/me/agentry-runs" : "",
+};
+
 const availability = {
   offered: true, available: hostedState !== "unavailable",
   reason: hostedState === "unavailable"
@@ -322,10 +333,12 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-hosted-knowledge": "knowledge",
   "runpanel-hosted-secrets": "review",
   "runpanel-local-finished-env": "review",
+  "runpanel-default-folder": "review",
 };
 
 const g = window as any;
 g.go = { main: {
+  SettingsAPI: { RunDefaults: async () => runDefaults },
   RunAPI: {
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp,
     ProfileStatus: async () => profile,
@@ -387,7 +400,7 @@ import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";
 
-const att = (hostedState === "unscanned" || view === "install-unscanned"
+const att = (hostedState === "unscanned" || hostedState === "default-agentry-unscanned" || view === "install-unscanned"
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
   : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified" }) as any;
 

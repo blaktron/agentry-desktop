@@ -338,7 +338,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 			return nil, err
 		}
 	}
-	if err := r.app.requirePicked("output directory", outDir); err != nil {
+	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
 	}
 	// A release the registry admitted without a scan is not run In
@@ -443,7 +443,7 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	// result view lists and reveals afterwards, is one a native picker
 	// returned, as for StartHostedRun (D-030, D-035): never a path the page
 	// typed.
-	if err := r.app.requirePicked("output directory", outDir); err != nil {
+	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
 	}
 	reg = settings.Normalize(reg)
