@@ -320,7 +320,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
           ))}
         {status && <p className="muted small" style={{ marginBottom: 0 }}>{status.searchSentence}</p>}
         {setup && !dockerOk && (
-          <Notice tone="warn">The Drafter runs in containers, and docker is not ready on this computer{setup.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Agent runs sets it up.</Notice>
+          <Notice tone="warn">The Drafter runs in containers, and docker is not ready on this computer{setup.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Run defaults sets it up.</Notice>
         )}
       </Card>
 

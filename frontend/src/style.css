@@ -941,3 +941,21 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .knowledge-facts dt { color: var(--color-muted); }
 .knowledge-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .knowledge-row-actions { margin-top: 10px; flex-wrap: wrap; gap: 6px; }
+
+/* Settings as five cards (agentry-desktop#346, settings-cards.md D3, D12):
+   each card is one link — its title's button stretched over the card — and
+   the part links sit above that stretch so each opens its own part. */
+.settings-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+.settings-card { position: relative; margin: 0; }
+.settings-card:hover { border-color: var(--color-accent); }
+.settings-card p { margin: 6px 0 0; }
+.settings-card-link {
+  border: none; background: none; padding: 0; text-align: left;
+  color: var(--color-fg); font-size: 15px;
+}
+.settings-card-link::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+.settings-card-link:focus-visible::after { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.settings-card-status { color: var(--color-fg); }
+.settings-card-parts { position: relative; z-index: 1; }
+.settings-back { margin: 0 0 8px; }
+.settings-part { scroll-margin-top: 12px; }

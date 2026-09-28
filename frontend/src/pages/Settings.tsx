@@ -1,16 +1,74 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
+import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar } from "../ui";
 import { rewrapLine } from "../knowledge";
-import { RuntimeSetup } from "./RuntimeSetup";
-import { CodingAgentsCard } from "./CodingAgents";
+import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
+import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
 
+// Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
+// agentry-desktop#346): the landing is a card per section, each card the
+// whole of a link to its section page, with one sentence, a status line
+// and its parts as links; each section page holds the cards Settings held
+// before, moved unchanged, under a "← Settings" link back.
+export type SettingsSection = "registry" | "updates" | "coding-agents" | "run-defaults" | "provider";
+
+// The parts a landing link or a deep link can name; each section page
+// renders its part under the anchor settings-part-<id>.
+export type SettingsPart = "registries" | "add-registry" | "desktop" | "briefagents" | "provider" | "ai-review-key";
+type Part = { id: SettingsPart; label: string };
+
+// SECTIONS is the landing's order and each section's parts. A part's id is
+// the anchor its section page scrolls to when the landing's link names it.
+export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[] }[] = [
+  {
+    id: "registry", title: "Registry settings",
+    sentence: "The registries this app talks to, your sign-in to each, and the secrets runs In Agentry use where a registry keeps them.",
+    parts: [{ id: "registries", label: "Registries" }, { id: "add-registry", label: "Add a registry" }],
+  },
+  {
+    id: "updates", title: "Update settings",
+    sentence: "Whether this app looks for a newer Agentry Desktop, and how BriefAgents installed here are updated.",
+    parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "briefagents", label: "BriefAgents" }],
+  },
+  {
+    id: "coding-agents", title: "Coding agents",
+    sentence: "The coding agent on this computer, and whether Install also puts a BriefAgent where it reads.",
+    parts: [],
+  },
+  {
+    id: "run-defaults", title: "Run defaults",
+    sentence: "What a run on this computer needs before it can start: the Docker engine BriefAgent runs use.",
+    parts: [],
+  },
+  {
+    id: "provider", title: "Provider settings",
+    sentence: "The AI provider and model runs use, and your own AI Review key.",
+    parts: [{ id: "provider", label: "Model provider" }, { id: "ai-review-key", label: "AI Review key" }],
+  },
+];
+
+// Where each place that opens Settings goes (agentry-desktop#346): straight
+// to the section it means rather than to the landing.
+export const SETTINGS_FOR = {
+  // the sidebar's line for a newer Agentry Desktop
+  selfUpdate: { section: "updates", part: "desktop" },
+  // the "Setup isn't finished" notice on Browse
+  setupNotice: { section: "provider" },
+  // Knowledge's "Not signed in" notice
+  knowledgeSignIn: { section: "registry", part: "registries" },
+  // Build's Describe it, whose drafting needs the AI Review key
+  describeKey: { section: "provider", part: "ai-review-key" },
+} satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
+
+export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
+
 export default function Settings({
-  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup,
+  settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen,
 }: {
   settings: main.SettingsView | null;
   activeRegistry: string;
@@ -19,6 +77,218 @@ export default function Settings({
   // Re-open the first-run guided setup. Optional so the page renders in the
   // harness without the App shell (agentry-desktop#41).
   onRunSetup?: () => void;
+  // The section page shown, or the landing when absent; part is the anchor
+  // within it the landing's link named.
+  section?: SettingsSection;
+  part?: SettingsPart;
+  // Opens a section (and a part of it), or the landing with none.
+  onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
+}) {
+  // A part named by the landing's link is scrolled to once its section has
+  // rendered; the page's own scroll starts at the top otherwise.
+  useEffect(() => {
+    if (!section || !settings) return;
+    const el = part ? document.getElementById(`settings-part-${part}`) : null;
+    if (el) el.scrollIntoView({ block: "start" });
+  }, [section, part, settings]);
+
+  if (!settings) return <div className="empty">Loading settings…</div>;
+
+  if (!section) {
+    return <SettingsLanding settings={settings} activeRegistry={activeRegistry} onRunSetup={onRunSetup} onOpen={onOpen} />;
+  }
+
+  const meta = SECTIONS.find((s) => s.id === section);
+  return (
+    <div data-settings-section={section}>
+      <p className="small settings-back"><Button variant="link" onClick={() => onOpen()}>← Settings</Button></p>
+      <PageHeader title={meta?.title ?? "Settings"} sub={meta?.sentence} />
+      {section === "registry" && (
+        <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} />
+      )}
+      {section === "updates" && (
+        <>
+          <PartSection id="desktop" title="Agentry Desktop"><SelfUpdateCard /></PartSection>
+          <PartSection id="briefagents" title="BriefAgents">
+            <Card>
+              <label className="row gap">
+                <input type="checkbox" checked={false} disabled onChange={() => {}} />
+                <span>Update BriefAgents automatically</span>
+              </label>
+              <div className="muted small">
+                Not offered yet. The app checks the ones installed here for newer versions on launch and when you
+                open a BriefAgent; Update on its page is yours to click.
+              </div>
+            </Card>
+          </PartSection>
+        </>
+      )}
+      {section === "coding-agents" && <CodingAgentsCard />}
+      {section === "run-defaults" && <RunDefaultsSettings />}
+      {section === "provider" && (
+        <>
+          <div id="settings-part-provider" className="settings-part">
+            <RuntimeSetup advanced heading="Model provider" onOpenPrereqs={() => onOpen("run-defaults")} />
+          </div>
+          <PartSection id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></PartSection>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PartSection({ id, title, children }: { id: SettingsPart; title: string; children: React.ReactNode }) {
+  return (
+    <section id={`settings-part-${id}`} className="settings-part">
+      <h2>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+// The landing's status lines, one per card, from bindings the page already
+// had and that read only this computer: the settings file, the self-update
+// status the background check left, the coding-agent export, the runner
+// policy and Docker, the AI Review key's presence. None calls a registry,
+// so none carries a token. A read that fails drops its line, never its card.
+type Statuses = {
+  update?: main.SelfUpdateView | null;
+  coding?: main.CodingAgentsView | null;
+  setup?: main.SetupStatusView | null;
+  jev?: main.JevKeyView | null;
+};
+
+function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
+  settings: main.SettingsView;
+  activeRegistry: string;
+  onRunSetup?: () => void;
+  onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
+}) {
+  const [st, setSt] = useState<Statuses>({});
+  useEffect(() => {
+    let live = true;
+    const put = <K extends keyof Statuses>(k: K) => (v: Statuses[K]) => { if (live) setSt((cur) => ({ ...cur, [k]: v })); };
+    SelfUpdateAPI.SelfUpdateStatus().then(put("update")).catch(() => put("update")(null));
+    SettingsAPI.CodingAgents().then(put("coding")).catch(() => put("coding")(null));
+    RunAPI.SetupStatus().then(put("setup")).catch(() => put("setup")(null));
+    RunAPI.JevKeyStatus().then(put("jev")).catch(() => put("jev")(null));
+    return () => { live = false; };
+  }, []);
+
+  const status: Record<SettingsSection, React.ReactNode> = {
+    registry: registryStatus(settings, activeRegistry),
+    updates: st.update ? updateStatus(st.update) : null,
+    "coding-agents": st.coding ? codingStatus(st.coding) : null,
+    "run-defaults": st.setup ? runStatus(st.setup) : null,
+    provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
+  };
+
+  return (
+    <div data-settings-section="landing">
+      <PageHeader
+        title="Settings"
+        sub="Each card opens one group of settings."
+        actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
+      />
+      <div className="settings-cards">
+        {SECTIONS.map((s) => (
+          <div key={s.id} className="card settings-card">
+            {/* The title's button is stretched over the whole card, so the
+                card is one link; the part links sit above it. */}
+            <button type="button" className="settings-card-link" onClick={() => onOpen(s.id)}>
+              <strong>{s.title}</strong>
+            </button>
+            <p className="muted small">{s.sentence}</p>
+            {status[s.id] && <p className="small settings-card-status" role="status">{status[s.id]}</p>}
+            {s.parts.length > 1 && (
+              <p className="small settings-card-parts">
+                {s.parts.map((p, i) => (
+                  <React.Fragment key={p.id}>
+                    {i > 0 && " · "}
+                    <Button variant="link" onClick={() => onOpen(s.id, p.id)}>{p.label}</Button>
+                  </React.Fragment>
+                ))}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="muted small selectable">
+        Settings file: <span className="mono">{settings.configPath}</span>. Install records and pinned
+        signing keys are shared with the CLI under the same directory.
+      </p>
+    </div>
+  );
+}
+
+const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
+
+export function registryStatus(settings: main.SettingsView, activeRegistry: string): string {
+  const r = settings.registries.find((x) => x.url === activeRegistry);
+  if (!r) return settings.registries.length ? "No registry in use." : "No registry added yet.";
+  return `${hostOf(r.url)}, ${r.hasToken ? "signed in" : "not signed in"}.`;
+}
+
+export function updateStatus(v: main.SelfUpdateView): string {
+  if (!v.channel) return "This build has no update channel.";
+  if (v.available) return v.available.retired
+    ? `${v.available.version} exists, signed by a retired key, and will not be installed.`
+    : `Agentry Desktop ${v.available.version} is available. You are running ${v.current}.`;
+  if (!v.enabled) return "Not looking for newer versions.";
+  if (v.err) return "The last check did not complete.";
+  if (v.checked && !v.nothing) return `Up to date (${v.current}) when last checked.`;
+  return `Running ${v.current}.`;
+}
+
+export function codingStatus(v: main.CodingAgentsView): string {
+  const x = v.export;
+  if (!x.enabled) return "Install puts BriefAgents in the runner home only.";
+  return `Install also writes each BriefAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
+}
+
+export function runStatus(s: main.SetupStatusView): string {
+  if (!s.dockerOk) return "Docker is not ready, so BriefAgents cannot run on this computer yet.";
+  if (!s.imagesReady) return "Docker answers. The run images are fetched on the first run.";
+  return "Docker answers and the run images are ready.";
+}
+
+// The key's line says where it comes from and never what it is (D-040):
+// "saved" only when the keychain holds it and the policy reads it there.
+export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyView | null): string {
+  const parts: string[] = [];
+  if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}` : "No provider chosen yet");
+  if (k) parts.push(k.envSet ? `AI Review key from $${k.envName}` : k.stored && k.source === "keyring" ? "AI Review key saved" : "No AI Review key");
+  return parts.join(" · ") + ".";
+}
+
+// RunDefaultsSettings is Settings → Run defaults. Until M4 adds the defaults
+// (agentry-desktop#347) it holds the Docker engine's prerequisites, which
+// were in Agent runs before; the card says nothing when the engine answers,
+// so the section says so itself.
+function RunDefaultsSettings() {
+  const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const read = () => RunAPI.SetupStatus().then(setSetup).catch((e) => setErr(String(e)));
+  useEffect(() => { read(); }, []);
+  return (
+    <>
+      <h2>Docker engine</h2>
+      <ErrorBox error={err} />
+      {setup && (setup.dockerOk
+        ? <Card><p className="small" style={{ margin: 0 }}>{runStatus(setup)}</p></Card>
+        : <PrereqCard onDone={async () => { await read(); }} />)}
+    </>
+  );
+}
+
+// RegistrySettings is Settings → Registry settings: the registries with
+// their sign-in, account and organizations lines, the account's secrets,
+// and Add a registry — the cards that opened the one Settings page before.
+function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistry }: {
+  settings: main.SettingsView;
+  activeRegistry: string;
+  onChanged: () => Promise<main.SettingsView>;
+  onSelectRegistry: (url: string) => void;
 }) {
   const [newURL, setNewURL] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +304,7 @@ export default function Settings({
   const [accounts, setAccounts] = useState<Record<string, main.AccountView>>({});
   useEffect(() => {
     let cancelled = false;
-    const signedIn = (settings?.registries ?? []).filter((r) => r.hasToken);
+    const signedIn = settings.registries.filter((r) => r.hasToken);
     Promise.all(signedIn.map(async (r) => [r.url, await SettingsAPI.Account(r.url).catch(() => null)] as const)).then((pairs) => {
       if (cancelled) return;
       const next: Record<string, main.AccountView> = {};
@@ -42,7 +312,7 @@ export default function Settings({
       setAccounts(next);
     });
     return () => { cancelled = true; };
-  }, [settings?.registries]);
+  }, [settings.registries]);
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true);
@@ -75,16 +345,12 @@ export default function Settings({
       await onChanged();
     });
 
-  if (!settings) return <div className="empty">Loading settings…</div>;
-
   return (
-    <div>
-      <PageHeader
-        title="Settings"
-        sub={<>Registries this app talks to. Credentials live in the OS keychain under the same convention the <span className="mono">agentry</span> CLI uses, so a sign-in here works there too.</>}
-        actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
-      />
-
+    <>
+      <p className="muted small">
+        Credentials live in the OS keychain under the same convention the <span className="mono">agentry</span> CLI
+        uses, so a sign-in here works there too.
+      </p>
       <ErrorBox error={error} />
       {browserWait && (
         <Notice tone="info">
@@ -96,6 +362,8 @@ export default function Settings({
       )}
       {notice && <Notice tone="ok">{notice}</Notice>}
 
+      <section id="settings-part-registries" className="settings-part">
+      <h2>Registries</h2>
       {settings.registries.map((r) => (
         <Card key={r.url}>
           <div className="spread">
@@ -168,10 +436,12 @@ export default function Settings({
           </div>
         </Card>
       ))}
+      </section>
       {/* The account's secrets for runs In Agentry, where the active
           registry keeps them (agentry-desktop#300). */}
       {activeRegistry && <SecretsCard registry={activeRegistry} />}
 
+      <section id="settings-part-add-registry" className="settings-part">
       <h2>Add a registry</h2>
       <Toolbar>
         <Input
@@ -184,33 +454,7 @@ export default function Settings({
         />
         <Button variant="primary" disabled={busy || !newURL.trim()} onClick={addRegistry}>Add</Button>
       </Toolbar>
-      <h2>Agentry Desktop</h2>
-      <SelfUpdateCard />
-
-      <h2>BriefAgents</h2>
-      <Card>
-        <label className="row gap">
-          <input type="checkbox" checked={false} disabled onChange={() => {}} />
-          <span>Update BriefAgents automatically</span>
-        </label>
-        <div className="muted small">
-          Not offered yet. The app checks the ones installed here for newer versions on launch and when you
-          open a BriefAgent; Update on its page is yours to click.
-        </div>
-      </Card>
-
-      <h2>Coding agents</h2>
-      <CodingAgentsCard />
-
-      <p className="muted small selectable">
-        Settings file: <span className="mono">{settings.configPath}</span>. Install records and pinned
-        signing keys are shared with the CLI under the same directory.
-      </p>
-
-      <RuntimeSetup advanced />
-
-      <h2>AI Review key</h2>
-      <AIReviewKeyCard />
+      </section>
 
       {signIn && (
         <Modal title={`Sign in to ${signIn.url}`} onClose={() => setSignIn(null)}>
@@ -237,7 +481,7 @@ export default function Settings({
             </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 }
 

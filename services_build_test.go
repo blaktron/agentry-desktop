@@ -113,7 +113,7 @@ func saveDescribeKey(t *testing.T) {
 func TestDescribeWithoutAKeyIsRefusedBeforeAnyDialog(t *testing.T) {
 	f := newDescribeFixture(t)
 	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
-	if err == nil || !strings.Contains(err.Error(), "Settings → AI Review key") {
+	if err == nil || !strings.Contains(err.Error(), "Settings → Provider settings → AI Review key") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(f.asked) != 0 || f.scan.read != 0 || len(f.runs) != 0 {

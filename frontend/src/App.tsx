@@ -11,7 +11,7 @@ import Knowledge from "./pages/Knowledge";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
-import Settings from "./pages/Settings";
+import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
 import { Button, Notice, Wordmark } from "./ui";
@@ -25,7 +25,9 @@ export type Route =
   | { page: "knowledge" }
   | { page: "validate" }
   | { page: "build" }
-  | { page: "settings" };
+  // section: one of Settings' five section pages, or the landing's cards
+  // when absent; part: the anchor within it (settings-cards.md D12).
+  | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app
@@ -137,7 +139,7 @@ export default function App() {
             <div className="update-line">
               <button
                 type="button"
-                onClick={() => setRoute({ page: "settings" })}
+                onClick={() => setRoute({ page: "settings", ...SETTINGS_FOR.selfUpdate })}
                 title={
                   newer.available.retired
                     ? `Agentry Desktop ${newer.available.version} is signed with a key that has since been retired: genuine but out of date, and it will not be installed — open Settings`
@@ -176,7 +178,7 @@ export default function App() {
                   {setupMissing.map((m) => <li key={m}>{m}</li>)}
                 </ul>
                 <div className="row">
-                  <Button variant="primary" onClick={() => nav({ page: "settings" })}>Open Settings</Button>
+                  <Button variant="primary" onClick={() => nav({ page: "settings", ...SETTINGS_FOR.setupNotice })}>Open Settings</Button>
                   <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
                 </div>
               </Notice>
@@ -203,7 +205,7 @@ export default function App() {
           {route.page === "knowledge" && (
           <Knowledge
             registry={registry}
-            onOpenSettings={() => nav({ page: "settings" })}
+            onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.knowledgeSignIn })}
             onCreate={(addTo) => {
               // A build in flight is brought back rather than a second
               // started (one build at a time); a flow that is over, or not
@@ -217,7 +219,7 @@ export default function App() {
           />
         )}
           {route.page === "build" && (
-            <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings" })} />
+            <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} />
           )}
           {route.page === "validate" && <Validate />}
           {route.page === "settings" && (
@@ -227,6 +229,9 @@ export default function App() {
               onChanged={refreshSettings}
               onSelectRegistry={setRegistry}
               onRunSetup={() => setShowWizard(true)}
+              section={route.section}
+              part={route.part}
+              onOpen={(section, part) => nav({ page: "settings", section, part })}
             />
           )}
         </Recover>

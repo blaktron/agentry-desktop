@@ -3,6 +3,7 @@
 // components render in a plain browser for screenshots — the bindings
 // resolve through window.go at call time, so setting it before render is
 // enough. Not shipped (outside tsconfig's include and the app's build).
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
@@ -182,7 +183,7 @@ const draftedView = buildHash.startsWith("drafted") ? {
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
 } : null;
-// Settings → AI Review key: saved by default; #aireview-none has none;
+// Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
 // #aireview-refused answers Test key with TypeSafe's 401.
 const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
   ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }
@@ -388,6 +389,15 @@ g.go = { main: {
       : { ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
   },
 } };
+// pages.html#status-refused: every binding the Settings landing reads a
+// status line from refuses, so the shot shows the cards without them.
+if (window.location.hash === "#status-refused") {
+  const refuse = async () => { throw new Error("refused (harness)"); };
+  g.go.main.SelfUpdateAPI.SelfUpdateStatus = refuse;
+  g.go.main.SettingsAPI.CodingAgents = refuse;
+  g.go.main.RunAPI.SetupStatus = refuse;
+  g.go.main.RunAPI.JevKeyStatus = refuse;
+}
 g.runtime = {
   EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, EventsOnce: () => () => {},
   EventsOff: () => {}, EventsEmit: () => {}, LogPrint: () => {},
@@ -398,7 +408,7 @@ import AgentPage from "../src/pages/AgentPage";
 import Installed from "../src/pages/Installed";
 import Build from "../src/pages/Build";
 import Validate from "../src/pages/Validate";
-import Settings from "../src/pages/Settings";
+import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 
 const settingsView = {
   defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml",
@@ -427,6 +437,28 @@ function Shell({ active, children }: { active: string; children: React.ReactNode
   );
 }
 
+// Settings as five cards (agentry-desktop#346): the preview keeps its own
+// route, as App does, so a shot can open a card, follow a part's link, come
+// back by "← Settings", and follow each deep link App gives the places that
+// open Settings. ?settings=<section> opens on a section page; the hash keeps
+// picking the states the cards themselves show.
+function SettingsPreview() {
+  const q = new URLSearchParams(window.location.search);
+  const [at, setAt] = useState<{ section?: SettingsSection; part?: SettingsPart }>({ section: (q.get("settings") || undefined) as SettingsSection | undefined });
+  return (
+    <>
+      <Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
+        onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })} />
+      <div className="harness-deeplinks muted small" style={{ marginTop: 24 }}>
+        Deep links (harness only):{" "}
+        {Object.entries(SETTINGS_FOR).map(([name, to]) => (
+          <button key={name} type="button" data-deeplink={name} onClick={() => setAt(to)}>{name}</button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 createRoot(document.getElementById("root")!).render(
   <div>
     <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
@@ -435,6 +467,6 @@ createRoot(document.getElementById("root")!).render(
     <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced"} initialStep={buildStep}
       initialDraft={draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
-    <div data-preview="settings"><Shell active="Settings"><Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}} /></Shell></div>
+    <div data-preview="settings"><Shell active="Settings"><SettingsPreview /></Shell></div>
   </div>,
 );
