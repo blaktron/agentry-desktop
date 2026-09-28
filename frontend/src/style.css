@@ -296,6 +296,10 @@ input[type="text"], input[type="password"], input[type="search"], input[type="nu
 }
 input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--color-accent) 40%, transparent); border-color: var(--color-accent); }
 
+/* A render fault's way back (Recover.tsx, agentry-desktop#351). */
+.recover { padding: 24px; max-width: 720px; }
+.recover h2 { margin-top: 0; }
+
 .error-box {
   border: 1px solid var(--color-sev-high);
   background: color-mix(in srgb, var(--color-sev-high) 8%, transparent);
