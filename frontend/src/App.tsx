@@ -12,6 +12,7 @@ import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
+import { Recover } from "./Recover";
 import { Button, Notice, Wordmark } from "./ui";
 
 export type Route =
@@ -149,6 +150,9 @@ export default function App() {
         </div>
       </div>
       <div className="content">
+        {/* A render fault shows its way back here, under a sidebar that
+            still works (agentry-desktop#351). */}
+        <Recover what="This page" resetKey={JSON.stringify(route)}>
         {route.page === "browse" && setupMissing && (
           <div className="setup-banner">
             <Notice tone="warn">
@@ -196,6 +200,7 @@ export default function App() {
             onRunSetup={() => setShowWizard(true)}
           />
         )}
+        </Recover>
       </div>
       {showWizard && settings && (
         <Wizard

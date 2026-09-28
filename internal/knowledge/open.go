@@ -202,9 +202,11 @@ func pagePath(p string) bool {
 }
 
 // listPages is every page under wiki/ but the indexes and the log, by
-// path, with the title its frontmatter gives.
+// path, with the title its frontmatter gives. A pack with none answers an
+// empty list, never nil: nil encodes as null, and the preview once took
+// that for a list and blanked the app (agentry-desktop#351).
 func listPages(root *os.Root) ([]PageInfo, error) {
-	var out []PageInfo
+	out := []PageInfo{}
 	err := fs.WalkDir(root.FS(), kn.WikiDir, func(rel string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !d.Type().IsRegular() || !strings.HasSuffix(rel, ".md") {
 			return err

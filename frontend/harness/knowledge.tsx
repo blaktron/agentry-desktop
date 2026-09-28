@@ -18,6 +18,10 @@
 //   #preview              a pack's index and pages
 //   #preview-hostile      a page with raw HTML, a script, an image, a
 //                         javascript: link and a right-to-left override
+//   #preview-empty        a pack a build left short: its index and no page,
+//                         the list answered as null (agentry-desktop#351)
+//   #render-fault         a page that throws while rendering, caught by
+//                         Recover under a sidebar that still works (#351)
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
@@ -61,7 +65,7 @@ const page = hostile
     path: "wiki/topics/buckets.md", title: "Buckets", summary: "Naming and regions",
     markdown: "A bucket name is globally unique across every account [src: doc:storage-guide.pdf].\n\n## Naming\n\nLowercase letters, digits and hyphens, 3 to 63 characters. See the [provider's page](https://example.com/storage/naming).\n",
   };
-const preview = {
+const preview = hash === "preview-empty" ? { name: "handbook", index: { ...index, markdown: "# handbook\n\n0 pages.\n" }, pages: null } : {
   name: "handbook", index,
   pages: [
     { path: "wiki/procedures/rotate-a-key.md", title: "Rotating a key" },
@@ -151,6 +155,11 @@ g.runtime = {
 };
 
 import Knowledge from "../src/pages/Knowledge";
+import { Recover } from "../src/Recover";
+
+function Boom(): React.ReactNode {
+  throw new TypeError("Cannot read properties of null (reading 'map')");
+}
 import KnowledgeCreate from "../src/pages/KnowledgeCreate";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -178,7 +187,9 @@ const step =
 createRoot(document.getElementById("root")!).render(
   <div data-preview="knowledge">
     <Shell>
-      <Knowledge registry={REG} onOpenSettings={() => {}} initialPreview={hash.startsWith("preview") ? "handbook" : undefined} />
+      <Recover what="This page">
+        {hash === "render-fault" ? <Boom /> : <Knowledge registry={REG} onOpenSettings={() => {}} initialPreview={hash.startsWith("preview") ? "handbook" : undefined} />}
+      </Recover>
     </Shell>
     {create && (
       <KnowledgeCreate
