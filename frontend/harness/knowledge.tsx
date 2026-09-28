@@ -10,7 +10,8 @@
 //   #knowledge-empty      no pack yet
 //   #create-documents | #create-name | #create-review | #create-blocked
 //                         Create knowledge's steps (blocked: docker not ready)
-//   #create-building      the build under way, its log streaming
+//   #create-building      the build under way: time, turns, pages written
+//                         and tokens over its folded log (#352)
 //   #create-done          what the build made
 //   #add-review           Add documents' review
 //   #hosted-where-pro     the Where step for a Standard account: In Agentry
@@ -125,6 +126,7 @@ g.go = { main: {
   KnowledgeAPI: {
     List: async () => list,
     CreatorModel: async () => "anthropic claude-sonnet-4-5",
+    CreatorBudget: async () => ({ timeoutSeconds: 1800, maxTurns: 60 }),
     Preview: async () => preview,
     ReadPage: async () => page,
     Create: async () => new Promise(() => {}),
@@ -146,8 +148,18 @@ g.go = { main: {
 } };
 // The build's log, streamed as the Go side streams it. The app's EventsOn
 // goes through EventsOnMultiple (the wails runtime shim).
-const subscribe = (name: string, cb: (line: string) => void) => {
+// The progress counts up as the Go side reports it: the start, then usage
+// and pages (agentry-desktop#352).
+const started = Date.now() - 754_000;
+const progressReports = [
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, pages: 0 },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 9, inputTokens: 101_400, outputTokens: 6_120, pages: 3 },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 },
+];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const subscribe = (name: string, cb: (v: any) => void) => {
   if (name === "knowledge:build-log" && hash === "create-building") setTimeout(() => buildLog.forEach((l) => cb(l)), 50);
+  if (name === "knowledge:build-progress" && hash === "create-building") progressReports.forEach((p, i) => setTimeout(() => cb(p), 60 + 60 * i));
   return () => {};
 };
 g.runtime = {

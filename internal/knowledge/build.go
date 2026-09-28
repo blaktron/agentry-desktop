@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
@@ -14,6 +16,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 
 	"github.com/blaktron/agentry-desktop/internal/version"
@@ -41,7 +44,52 @@ type BuildRequest struct {
 	Build Builder
 	// Log receives the build's progress, line by line.
 	Log io.Writer
+	// Progress, when set, is told how far the build has got: at its start,
+	// at every usage the harness reports, and whenever the count of pages
+	// the Creator has written changes (agentry-desktop#352).
+	Progress func(Progress)
 }
+
+// CreatorTimeoutSeconds is the least a build on this computer is given
+// (agentry-desktop#352): a local model, or a frontier model at high
+// reasoning, can take more than 20 minutes to draft a pack, where the
+// runner policy's run budget defaults to 15. A policy that allows more
+// keeps its own.
+const CreatorTimeoutSeconds = 1800
+
+// Progress is how far one build has got, for the panel's building view.
+type Progress struct {
+	// StartedAt is when the build began, in Unix milliseconds: the panel
+	// counts the elapsed time itself.
+	StartedAt      int64 `json:"startedAt"`
+	TimeoutSeconds int   `json:"timeoutSeconds"`
+	MaxTurns       int   `json:"maxTurns"`
+	// Turns, InputTokens and OutputTokens are the Creator run's usage as
+	// the harness last reported it.
+	Turns        int   `json:"turns"`
+	InputTokens  int64 `json:"inputTokens"`
+	OutputTokens int64 `json:"outputTokens"`
+	// Pages counts the pages the Creator has written so far. The apply
+	// step checks them after the run, and may drop some.
+	Pages int `json:"pages"`
+}
+
+// CreatorBudgets are the budgets a build on this computer runs under: the
+// runner policy's, with a timeout of at least CreatorTimeoutSeconds.
+func CreatorBudgets(pol *policy.Policy) spec.Budgets {
+	b := spec.Budgets{TimeoutSeconds: CreatorTimeoutSeconds}
+	if pol == nil {
+		return b
+	}
+	b.MaxTurns, b.MaxCostUSD = pol.Budgets.MaxTurns, pol.Budgets.MaxCostUSD
+	b.TimeoutSeconds = max(pol.Budgets.TimeoutSeconds, CreatorTimeoutSeconds)
+	return b
+}
+
+// PolicyBudgets is CreatorBudgets for the policy this app's runs obey,
+// read without creating it, for the review step's sentence on how long a
+// build may take.
+func PolicyBudgets() spec.Budgets { return CreatorBudgets(loadPolicy()) }
 
 // BuildResult is what one build made, for the panel's result.
 type BuildResult struct {
@@ -191,13 +239,23 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	if b == nil {
 		b = build.Build
 	}
+	budgets := CreatorBudgets(pol)
+	turns := ""
+	if budgets.MaxTurns > 0 {
+		turns = fmt.Sprintf(" and %d turns", budgets.MaxTurns)
+	}
+	logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", budgets.TimeoutSeconds/60, turns)
+	prog := newProgressMeter(req.Progress, budgets, filepath.Join(outDir, "reports", kn.WikiDir))
+	stop := prog.watch()
+	defer stop()
 	res, err := b(ctx, dockerx.New(), build.Options{
 		PackDir: dir, Name: name, Documents: req.Documents,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
 		Build: version.Build(), Now: time.Now(), OutDir: outDir,
-		Budgets: &spec.Budgets{TimeoutSeconds: pol.Budgets.TimeoutSeconds, MaxTurns: pol.Budgets.MaxTurns, MaxCostUSD: pol.Budgets.MaxCostUSD},
-		RunID:   req.RunID, Stderr: req.Log,
+		Budgets: &budgets,
+		RunID:   req.RunID, Stderr: req.Log, OnUsage: prog.usage,
 	})
+	stop()
 	if err != nil {
 		if res != nil && len(res.Skipped) > 0 {
 			logf(req.Log, "not read (no decoder reads them, or the decoder failed): %s", strings.Join(res.Skipped, ", "))
@@ -221,16 +279,20 @@ func CreatorModel(pol *policy.Policy) string {
 
 // PolicyModel is CreatorModel for the policy this app's runs obey, read
 // without creating it.
-func PolicyModel() string {
+func PolicyModel() string { return CreatorModel(loadPolicy()) }
+
+// loadPolicy is the policy this app's runs obey, read without creating
+// it; nil when there is none or it cannot be read.
+func loadPolicy() *policy.Policy {
 	polFile, err := policy.Resolve("")
 	if err != nil {
-		return "none configured"
+		return nil
 	}
 	pol, _, err := policy.Load(polFile.Path)
 	if err != nil {
-		return "none configured"
+		return nil
 	}
-	return CreatorModel(pol)
+	return pol
 }
 
 func buildResult(res *build.Result, en store.Entry) *BuildResult {
@@ -250,6 +312,97 @@ func buildResult(res *build.Result, en store.Entry) *BuildResult {
 		out.InputTokens, out.OutputTokens, out.CostUSD = env.Usage.InputTokens, env.Usage.OutputTokens, env.Usage.CostUSD
 	}
 	return out
+}
+
+// progressMeter tells a build's Progress what it has done: the harness's
+// usage as it arrives, and the pages written, counted under the run's
+// reports/wiki, which the run's output mount fills as the Creator writes.
+type progressMeter struct {
+	report func(Progress)
+	wiki   string
+	mu     sync.Mutex
+	p      Progress
+}
+
+// progressEvery is how often the pages written are counted; a test
+// shortens it.
+var progressEvery = 2 * time.Second
+
+func newProgressMeter(report func(Progress), b spec.Budgets, wiki string) *progressMeter {
+	return &progressMeter{report: report, wiki: wiki, p: Progress{
+		StartedAt: time.Now().UnixMilli(), TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns,
+	}}
+}
+
+// watch reports the start, then counts the pages until the returned stop
+// is called; stop counts once more, so the last page written is reported.
+func (m *progressMeter) watch() (stop func()) {
+	if m.report == nil {
+		return func() {}
+	}
+	m.emit()
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		t := time.NewTicker(progressEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				m.countPages()
+			}
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			close(done)
+			wg.Wait()
+			m.countPages()
+		})
+	}
+}
+
+func (m *progressMeter) usage(u receipt.Usage) {
+	if m.report == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.p.Turns, m.p.InputTokens, m.p.OutputTokens = u.Turns, u.InputTokens, u.OutputTokens
+	m.report(m.p)
+}
+
+func (m *progressMeter) countPages() {
+	n := 0
+	// A page as the apply step will read it: a regular .md file that is
+	// not an index or the log, which the application writes itself.
+	// WalkDir follows no link, so a link the run left is not walked.
+	_ = filepath.WalkDir(m.wiki, func(rel string, d fs.DirEntry, err error) error {
+		if err == nil && d.Type().IsRegular() && strings.HasSuffix(d.Name(), ".md") &&
+			d.Name() != kn.IndexFile && rel != filepath.Join(m.wiki, kn.LogFile) {
+			n++
+		}
+		return nil
+	})
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if n != m.p.Pages {
+		m.p.Pages = n
+		m.report(m.p)
+	}
+}
+
+// emit reports under the lock, so two reports from the usage and the
+// counting goroutines arrive in the order they were made.
+func (m *progressMeter) emit() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.report(m.p)
 }
 
 func logf(w io.Writer, format string, a ...any) {

@@ -117,3 +117,36 @@ export function inAgentryNote(registry: string): string {
     "The pack is kept in Agentry, encrypted under a key of its own, and scanned there; once the scan ends, it is downloaded and kept on this computer too."
   );
 }
+
+/** How far a build on this computer has got, as Go's knowledge.Progress
+ *  emits it on knowledge:build-progress (agentry-desktop#352). */
+export type BuildProgress = {
+  startedAt: number;
+  timeoutSeconds: number;
+  maxTurns: number;
+  turns: number;
+  inputTokens: number;
+  outputTokens: number;
+  pages: number;
+};
+
+/** Seconds as m:ss, or h:mm:ss past an hour. */
+export function fmtClock(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/** The warning the review step gives before a build on this computer: it
+ *  is long work, and how long it may run. */
+export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): string {
+  const minutes = Math.round(timeoutSeconds / 60);
+  return (
+    "Creating knowledge is a big job. A few short documents take a few minutes; a large set, a model running on this " +
+    "computer, or a frontier model at high reasoning can take more than 20 minutes. " +
+    `This build may run for up to ${minutes} minutes${maxTurns > 0 ? ` and ${maxTurns} turns` : ""}, ` +
+    "and shows its progress as it goes. If it stops at a limit, the pack keeps the pages it wrote that pass its checks, and Add documents continues it."
+  );
+}
