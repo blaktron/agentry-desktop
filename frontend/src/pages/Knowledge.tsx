@@ -30,8 +30,9 @@ export default function Knowledge({
   onCreate: (addTo?: string) => void;
   /** Changes when a build has ended, so the list is read again. */
   rev?: number;
-  /** A pack whose preview a finished build asked for, from App. */
-  previewRequest?: string | null;
+  /** A pack whose preview a finished build asked for, from App, with the
+   *  registry the build kept it for. */
+  previewRequest?: { registry: string; name: string } | null;
   onPreviewRequestSeen?: () => void;
   /** Harness-only: open with this pack's preview showing. */
   initialPreview?: string;
@@ -41,7 +42,9 @@ export default function Knowledge({
   const [notice, setNotice] = useState<string | null>(null);
   // The one action in flight, as "<action>:<name>", so its button reads busy.
   const [busy, setBusy] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(initialPreview ?? null);
+  const [preview, setPreview] = useState<{ registry: string; name: string } | null>(
+    initialPreview ? { registry, name: initialPreview } : null,
+  );
   // A pack kept in both places asks here which copies to delete; the native
   // dialog then asks again, in Go.
   const [deleting, setDeleting] = useState<knowledge.Pack | null>(null);
@@ -143,7 +146,7 @@ export default function Knowledge({
         // computer's copy alone.
         const actions = p.local ? (
           <>
-            <Button onClick={() => setPreview(p.name)}>Preview</Button>
+            <Button onClick={() => setPreview({ registry, name: p.name })}>Preview</Button>
             {!p.shared && <Button onClick={() => onCreate(p.name)}>Add documents</Button>}
             {!p.shared && list?.signedIn && (!p.inAgentry || p.changed) && (
               <Button busy={is("upload", p.name)} busyLabel="Uploading…" onClick={() => act("upload", p.name, () => KnowledgeAPI.Upload(registry, p.name))}>
@@ -217,7 +220,7 @@ export default function Knowledge({
           </div>
         </Modal>
       )}
-      {preview && <KnowledgePreview registry={registry} name={preview} onClose={() => setPreview(null)} />}
+      {preview && <KnowledgePreview registry={preview.registry} name={preview.name} onClose={() => setPreview(null)} />}
     </div>
   );
 }

@@ -238,3 +238,37 @@ func TestABuildReportsItsProgress(t *testing.T) {
 		t.Fatalf("last progress = %+v", last)
 	}
 }
+
+// A build stopped from the card (its context cancelled) keeps the pages the
+// run wrote: the pack is sealed under a context that outlives the
+// cancellation, so the registry's wrap still answers. Before
+// agentry-desktop#353's fix the seal ran on the cancelled context and the
+// pages were lost; a pack being extended is resealed the same way.
+func TestAStoppedBuildIsStillKeptSealed(t *testing.T) {
+	reg := knowledgetest.NewRegistry(t)
+	e := testEnv(t, reg, reg.Token("ana"), newKeys())
+	t.Setenv(policy.HomeEnv, homeOf(t, e))
+	var seen build.Options
+	for _, add := range []bool{false, true} {
+		ctx, cancel := context.WithCancel(context.Background())
+		inner := fakeCreator(t, &seen, context.Canceled)
+		stopped := func(c context.Context, d dockerx.Client, o build.Options) (*build.Result, error) {
+			cancel() // StopBuild, while the Creator runs
+			return inner(c, d, o)
+		}
+		req := BuildRequest{Registry: reg.URL, Name: "handbook", Documents: documents(t), Build: stopped}
+		var res *BuildResult
+		var err error
+		if add {
+			res, err = e.Add(ctx, req)
+		} else {
+			res, err = e.Create(ctx, req)
+		}
+		if err != nil {
+			t.Fatalf("add=%v: the stopped build was not kept: %v", add, err)
+		}
+		if res.Stopped == "" || res.Pages == 0 {
+			t.Fatalf("add=%v: result = %+v", add, res)
+		}
+	}
+}

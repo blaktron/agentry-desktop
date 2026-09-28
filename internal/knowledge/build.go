@@ -163,7 +163,9 @@ func (e Env) Create(ctx context.Context, req BuildRequest) (*BuildResult, error)
 	if err != nil {
 		return nil, err
 	}
-	en, err := s.Keep(ctx, dir)
+	sealCtx, cancel := sealContext(ctx)
+	defer cancel()
+	en, err := s.Keep(sealCtx, dir)
 	if err != nil {
 		return nil, fmt.Errorf("the pack was built but could not be kept sealed, so it was not kept: %w", err)
 	}
@@ -204,13 +206,28 @@ func (e Env) Add(ctx context.Context, req BuildRequest) (*BuildResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	en, err := s.Reseal(ctx, req.Name, dir)
+	sealCtx, cancel := sealContext(ctx)
+	defer cancel()
+	en, err := s.Reseal(sealCtx, req.Name, dir)
 	if err != nil {
 		return nil, err
 	}
 	out := buildResult(res, en)
 	out.AgentryStale = en.Key.Agentry != nil
 	return out, nil
+}
+
+// sealTimeout bounds keeping a built pack once the build's own context may
+// be over; a test shortens it.
+var sealTimeout = 2 * time.Minute
+
+// sealContext is the context a built pack is kept sealed under. A build
+// stopped by StopBuild has its context cancelled, and the pages it wrote
+// were applied; sealing them needs the registry's wrap or unwrap, which a
+// cancelled context would fail at once, losing them. So the seal outlives
+// the build's cancellation, bounded by sealTimeout (agentry-desktop#353).
+func sealContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), sealTimeout)
 }
 
 // runBuild runs the Creator over dir against the runner policy's model,

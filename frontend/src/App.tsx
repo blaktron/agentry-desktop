@@ -36,9 +36,11 @@ export default function App() {
   const [route, setRoute] = useState<Route>({ page: "browse" });
   const [knowledgeFlow, setKnowledgeFlow] = useState<KnowledgeFlow | null>(null);
   const [flowMinimized, setFlowMinimized] = useState(false);
-  // Bumped when a build ends, so the Knowledge list is read again.
+  const [flowInFlight, setFlowInFlight] = useState(false);
+  // Bumped when a build ends (and when its flow closes), so the Knowledge
+  // list is read again.
   const [knowledgeRev, setKnowledgeRev] = useState(0);
-  const [previewRequest, setPreviewRequest] = useState<string | null>(null);
+  const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
   const [registry, setRegistry] = useState<string>("");
@@ -203,9 +205,10 @@ export default function App() {
             registry={registry}
             onOpenSettings={() => nav({ page: "settings" })}
             onCreate={(addTo) => {
-              // A flow already open, in its card or not, is brought back
-              // rather than a second started: one build at a time.
-              if (!knowledgeFlow) setKnowledgeFlow({ registry, addTo });
+              // A build in flight is brought back rather than a second
+              // started (one build at a time); a flow that is over, or not
+              // yet started, gives way to the one asked for.
+              if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, addTo });
               setFlowMinimized(false);
             }}
             rev={knowledgeRev}
@@ -235,16 +238,24 @@ export default function App() {
           minimized={flowMinimized}
           onMinimize={() => setFlowMinimized(true)}
           onRestore={() => setFlowMinimized(false)}
+          onInFlight={(v) => {
+            setFlowInFlight(v);
+            if (!v) setKnowledgeRev((n) => n + 1);
+          }}
           onClose={() => {
             setKnowledgeFlow(null);
             setFlowMinimized(false);
+            setFlowInFlight(false);
             setKnowledgeRev((n) => n + 1);
           }}
           onPreview={(name) => {
             setKnowledgeFlow(null);
             setFlowMinimized(false);
+            setFlowInFlight(false);
             setKnowledgeRev((n) => n + 1);
-            setPreviewRequest(name);
+            // The pack is the build's registry's, which the person may
+            // have switched away from while it ran.
+            setPreviewRequest({ registry: knowledgeFlow.registry, name });
             setRoute({ page: "knowledge" });
           }}
         />

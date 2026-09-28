@@ -16,8 +16,9 @@
 // kept in Agentry and scanned there, then downloaded here. The step states
 // the hold, the scan's credit inside it, the caps and the balance before
 // anything is uploaded; the build is followed until it is over, and one
-// that stopped short offers Continue. Closing the dialog leaves a build In
-// Agentry running; reopening it follows the build again.
+// that stopped short offers Continue. Closing the dialog while it runs keeps
+// it in the corner card (below) until it is over; an app started while a
+// build In Agentry runs follows it again when Create knowledge opens.
 //
 // A build on this computer is long work (agentry-desktop#352): the review
 // step says so and how long it may run (at least 30 minutes, Go's
@@ -28,9 +29,11 @@
 // mounts this flow above the pages, and closing the dialog while a build
 // runs, or Run in the background, shrinks it to a card in the bottom-right
 // corner. The card keeps the build's progress, opens the full view again,
-// stops the build (on this computer: KnowledgeAPI.StopBuild keeps the pages
-// that pass the apply step; In Agentry: the registry's cancel), and, once
-// the build is over, says how it ended. The run lock is unchanged: a run
+// stops the build (on this computer: KnowledgeAPI.StopBuild, after which
+// the pages written that pass the apply step are kept sealed, the seal
+// outliving the stop; In Agentry: the registry's cancel), and, once
+// the build is over, says how it ended and offers Preview (and Continue, for
+// a build In Agentry that stopped short). The run lock is unchanged: a run
 // started meanwhile is refused with the reason, as it always was.
 import { useEffect, useRef, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
@@ -51,7 +54,7 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
@@ -63,6 +66,9 @@ export default function KnowledgeCreate({
   /** Shrink to the corner card, and back. */
   onMinimize?: () => void;
   onRestore?: () => void;
+  /** Told whenever the build starts or ends, so App can refresh the list
+   *  when it ends and replace a flow that is over. */
+  onInFlight?: (inFlight: boolean) => void;
   /** Harness-only: open on this step with these answers. */
   initialStep?: Step;
   initialDocuments?: string[];
@@ -191,12 +197,19 @@ export default function KnowledgeCreate({
   }
 
   const [stopping, setStopping] = useState(false);
+  // In flight: the dialog's close shrinks it to the corner card instead.
+  const inFlight = building || (!!hosted && !hosted.final);
+  useEffect(() => {
+    onInFlight?.(inFlight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inFlight]);
   async function stopLocal() {
     setStopping(true);
     try {
       await KnowledgeAPI.StopBuild();
-    } catch (e) {
-      setError(String(e));
+    } catch {
+      // The build ended as Stop was pressed: its own result or error is
+      // what the view shows, not this.
       setStopping(false);
     }
   }
@@ -220,8 +233,6 @@ export default function KnowledgeCreate({
 
   const title = addTo ? `Add documents to ${addTo}` : "Create knowledge";
   const running = building || result || error || hosted || refusal;
-  // In flight: the dialog's close shrinks it to the corner card instead.
-  const inFlight = building || (!!hosted && !hosted.final);
   const minimize = onMinimize ?? (() => {});
 
   if (minimized) {
@@ -261,6 +272,9 @@ export default function KnowledgeCreate({
           {hosted && !hosted.final && !hosted.cancelRequested && hosted.status !== "finished" && hosted.status !== "cancelled" && (
             <Button onClick={cancelHosted}>Cancel the build</Button>
           )}
+          {!inFlight && result && <Button onClick={() => onPreview(result.name)}>Preview</Button>}
+          {hosted?.final && hosted.downloaded && <Button onClick={() => onPreview(hosted.name)}>Preview</Button>}
+          {hosted?.final && hosted.canContinue && <Button onClick={() => continueHosted(hosted.id)}>Continue</Button>}
           {!inFlight && <Button onClick={onClose}>Dismiss</Button>}
           <Button variant="primary" onClick={onRestore}>Open</Button>
         </div>
