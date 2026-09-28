@@ -6,8 +6,8 @@
 // and nothing of it is kept on disk in the clear (KnowledgeAPI.ReadPage).
 //
 // A pack a build left short may hold no page besides its index (the apply
-// step drops the pages it cannot take): the preview says so rather than
-// assuming a list (agentry-desktop#351, where a null list blanked the app).
+// step drops the pages it cannot take): the preview says so, and reads a
+// missing list as none (agentry-desktop#351, where a null list blanked the app).
 import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";
@@ -25,15 +25,16 @@ export default function KnowledgePreview({ registry, name, onClose }: { registry
     KnowledgeAPI.Preview(registry, name)
       .then((v) => {
         setPv(v);
-        setPage(v.index ?? null);
+        setPage(v.index);
       })
       .catch((e) => setError(String(e)));
   }, [registry, name]);
 
   const pages = pv?.pages ?? [];
+  const empty = pv !== null && pages.length === 0;
   async function open(path: string) {
     if (!pv) return;
-    if (pv.index && path === pv.index.path) {
+    if (path === pv.index.path) {
       setPage(pv.index);
       return;
     }
@@ -59,10 +60,8 @@ export default function KnowledgePreview({ registry, name, onClose }: { registry
       {pv && (
         <div className="knowledge-preview">
           <nav className="knowledge-pages" aria-label="Pages">
-            {pv.index && (
-              <button className={`nav-item ${page?.path === pv.index.path ? "active" : ""}`} onClick={() => open(pv.index.path)}>Index</button>
-            )}
-            {pages.length === 0 && <p className="muted small">No pages yet.</p>}
+            <button className={`nav-item ${page?.path === pv.index.path ? "active" : ""}`} onClick={() => open(pv.index.path)}>Index</button>
+            {empty && <p className="muted small">No pages yet.</p>}
             {pages.map((p) => (
               <button key={p.path} className={`nav-item ${page?.path === p.path ? "active" : ""}`} title={p.path} onClick={() => open(p.path)}>
                 <RevealText text={p.title} />
@@ -70,10 +69,10 @@ export default function KnowledgePreview({ registry, name, onClose }: { registry
             ))}
           </nav>
           <article className="knowledge-page" aria-label={page ? `Page ${page.path}` : "Page"}>
-            {pages.length === 0 && (
+            {empty && (
               <p className="muted small">
                 The Knowledge Creator kept no page in this pack besides its index: the build stopped, or the pages it wrote
-                were dropped. Add documents with the same documents builds it again.
+                were dropped. Run Add documents with the same documents to build it again.
               </p>
             )}
             {loading && <Spinner />}

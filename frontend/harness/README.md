@@ -89,6 +89,10 @@ a build's log, `#create-done` shows what it made, `#hosted-where`, `#hosted-revi
 documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
 page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.
+`#preview-empty` is a pack a build left short, its index and no page with the
+list answered as null, and `#render-fault` a page that throws while rendering,
+caught by `Recover` under a sidebar that still works, whose Try again
+`shots.mjs` presses to see the page come back (agentry-desktop#351).
 The run setup's Knowledge step is `modals.html#runpanel-step-knowledge`, and
 `#runpanel-knowledge-finished` a local run with a pack attached, whose result
 shows the receipt's knowledge line.

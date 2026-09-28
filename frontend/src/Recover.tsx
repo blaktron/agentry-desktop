@@ -6,18 +6,19 @@
 // (the sidebar stays usable, and moving to another page starts it afresh)
 // and main.tsx one around App itself, whose way back is a reload.
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { Button, ErrorBox } from "./ui";
+import { RevealText } from "./reveal";
+import { Button } from "./ui";
 
 type Props = {
   children: ReactNode;
-  /** Where the fault happened, for the heading ("This page", "Agentry Desktop"). */
-  what: string;
+  /** What stopped, for the heading ("This page", "Agentry Desktop"). */
+  subject: string;
   /** A change of key (the page moved) starts the children afresh. */
   resetKey?: string;
   /** The way back; unset, Try again renders the children afresh. */
   onRecover?: () => void;
   recoverLabel?: string;
-  /** What else the person can do, after "Nothing you kept was changed by this." */
+  /** What the person can do next, after the sentence that says what happened. */
   hint?: string;
 };
 
@@ -48,11 +49,15 @@ export class Recover extends Component<Props, State> {
     };
     return (
       <div className="recover" role="alert">
-        <h2>{this.props.what} stopped with an error</h2>
+        <h2>{this.props.subject} stopped with an error</h2>
         <p className="muted">
-          Something on it could not be shown. Nothing you kept was changed by this. {this.props.hint ?? "Try again, or choose another page on the left."}
+          The error happened while showing it. {this.props.hint ?? "Try again, or choose another page on the left."}
         </p>
-        <ErrorBox error={error.message || String(error)} />
+        {/* The message can quote what was being shown, a model's page
+            among it: text only, with hidden characters revealed. */}
+        <div className="error-box selectable">
+          <RevealText text={error.message || String(error)} />
+        </div>
         <div className="row">
           <Button variant="primary" onClick={recover}>{this.props.recoverLabel ?? "Try again"}</Button>
         </div>

@@ -12,8 +12,8 @@ root.render(
     <React.StrictMode>
         {/* The last catch: a fault in the shell itself would otherwise
             leave a blank window (agentry-desktop#351). */}
-        <Recover what="Agentry Desktop" recoverLabel="Reload" onRecover={() => window.location.reload()}
-                 hint="Reload opens it again where it starts.">
+        <Recover subject="Agentry Desktop" recoverLabel="Reload" onRecover={() => window.location.reload()}
+                 hint="Reload starts it again from the beginning.">
             <App/>
         </Recover>
     </React.StrictMode>

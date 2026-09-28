@@ -90,6 +90,7 @@ const states = [
   // A pack a build left short, and a render fault's way back (agentry-desktop#351).
   { name: "knowledge-preview-empty", url: "/knowledge.html#preview-empty", note: "a pack with its index and no page, the list answered as null: the preview says no pages yet, never a blank window", expectText: "No pages yet" },
   { name: "render-fault", url: "/knowledge.html#render-fault", note: "a page that throws while rendering: what went wrong and Try again, under a sidebar that still works", expectText: "This page stopped with an error" },
+  { name: "render-fault-recovered", url: "/knowledge.html#render-fault", note: "Try again after the fault clears: the page renders afresh", click: 'button:has-text("Try again")', locator: '[data-preview="knowledge"]', expectText: "Knowledge packs a run can search" },
   { name: "agent-mcp-env", url: "/pages.html#agent-mcp-env", note: "the agent page's MCP tab: a declared server's plain env beneath its line, a server without env unchanged (agentry-desktop#62)", locator: '[data-preview="agent"]', click: '[data-preview="agent"] button.tab:has-text("MCP servers")' },
   { name: "install-mcp-env", url: "/modals.html#install-mcp-env", note: "the install review: each declared server's pin, tools and plain env (agentry-desktop#62)", click: "button:has-text('Verify')" },
   { name: "install-unscanned", url: "/modals.html#install-unscanned", note: "the install wizard's review of a release admitted without a scan: the mark and the consent (M23)", click: "button:has-text('Verify')" },

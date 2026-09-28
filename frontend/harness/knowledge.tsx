@@ -156,11 +156,15 @@ g.runtime = {
 
 import Knowledge from "../src/pages/Knowledge";
 import { Recover } from "../src/Recover";
-
-function Boom(): React.ReactNode {
-  throw new TypeError("Cannot read properties of null (reading 'map')");
-}
 import KnowledgeCreate from "../src/pages/KnowledgeCreate";
+
+// #render-fault: a page that throws while rendering, as the preview did on a
+// null list (agentry-desktop#351), until Try again clears the fault.
+let faulty = hash.startsWith("render-fault");
+function MaybeBoom({ children }: { children: React.ReactNode }) {
+  if (faulty) throw new TypeError("Cannot read properties of null (reading 'map')");
+  return <>{children}</>;
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   const nav = ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"];
@@ -187,8 +191,10 @@ const step =
 createRoot(document.getElementById("root")!).render(
   <div data-preview="knowledge">
     <Shell>
-      <Recover what="This page">
-        {hash === "render-fault" ? <Boom /> : <Knowledge registry={REG} onOpenSettings={() => {}} initialPreview={hash.startsWith("preview") ? "handbook" : undefined} />}
+      <Recover subject="This page" onRecover={() => { faulty = false; }}>
+        <MaybeBoom>
+          <Knowledge registry={REG} onOpenSettings={() => {}} initialPreview={hash.startsWith("preview") ? "handbook" : undefined} />
+        </MaybeBoom>
       </Recover>
     </Shell>
     {create && (

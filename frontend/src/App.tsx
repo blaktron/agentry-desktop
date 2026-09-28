@@ -152,54 +152,54 @@ export default function App() {
       <div className="content">
         {/* A render fault shows its way back here, under a sidebar that
             still works (agentry-desktop#351). */}
-        <Recover what="This page" resetKey={JSON.stringify(route)}>
-        {route.page === "browse" && setupMissing && (
-          <div className="setup-banner">
-            <Notice tone="warn">
-              <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
-              it cannot sign in, run or build anything until it is:
-              <ul className="setup-banner-list">
-                {setupMissing.map((m) => <li key={m}>{m}</li>)}
-              </ul>
-              <div className="row">
-                <Button variant="primary" onClick={() => nav({ page: "settings" })}>Open Settings</Button>
-                <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
-              </div>
-            </Notice>
-          </div>
-        )}
-        {route.page === "browse" && (
-          <Browse registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
-        )}
-        {route.page === "agent" && (
-          <AgentPage
-            registry={route.registry ?? registry}
-            ns={route.ns}
-            name={route.name}
-            backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
-            onBack={() => nav({ page: route.back ?? "browse" })}
-          />
-        )}
-        {route.page === "installed" && (
-          <Installed
-            onBrowse={() => nav({ page: "browse" })}
-            onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
-          />
-        )}
-        {route.page === "knowledge" && <Knowledge registry={registry} onOpenSettings={() => nav({ page: "settings" })} />}
-        {route.page === "build" && (
-          <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings" })} />
-        )}
-        {route.page === "validate" && <Validate />}
-        {route.page === "settings" && (
-          <Settings
-            settings={settings}
-            activeRegistry={registry}
-            onChanged={refreshSettings}
-            onSelectRegistry={setRegistry}
-            onRunSetup={() => setShowWizard(true)}
-          />
-        )}
+        <Recover subject="This page" resetKey={JSON.stringify(route)}>
+          {route.page === "browse" && setupMissing && (
+            <div className="setup-banner">
+              <Notice tone="warn">
+                <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
+                it cannot sign in, run or build anything until it is:
+                <ul className="setup-banner-list">
+                  {setupMissing.map((m) => <li key={m}>{m}</li>)}
+                </ul>
+                <div className="row">
+                  <Button variant="primary" onClick={() => nav({ page: "settings" })}>Open Settings</Button>
+                  <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
+                </div>
+              </Notice>
+            </div>
+          )}
+          {route.page === "browse" && (
+            <Browse registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
+          )}
+          {route.page === "agent" && (
+            <AgentPage
+              registry={route.registry ?? registry}
+              ns={route.ns}
+              name={route.name}
+              backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
+              onBack={() => nav({ page: route.back ?? "browse" })}
+            />
+          )}
+          {route.page === "installed" && (
+            <Installed
+              onBrowse={() => nav({ page: "browse" })}
+              onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
+            />
+          )}
+          {route.page === "knowledge" && <Knowledge registry={registry} onOpenSettings={() => nav({ page: "settings" })} />}
+          {route.page === "build" && (
+            <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings" })} />
+          )}
+          {route.page === "validate" && <Validate />}
+          {route.page === "settings" && (
+            <Settings
+              settings={settings}
+              activeRegistry={registry}
+              onChanged={refreshSettings}
+              onSelectRegistry={setRegistry}
+              onRunSetup={() => setShowWizard(true)}
+            />
+          )}
         </Recover>
       </div>
       {showWizard && settings && (
