@@ -621,6 +621,30 @@ func TestRunHappyPath(t *testing.T) {
 	}
 }
 
+// TestARunWithNoTaskRunsTheAgentsOwnInstruction keeps the run setup's
+// promise ("Left empty, its own instruction runs with no extra task"): a
+// run whose task is left empty hands the harness the release's own
+// instruction, not an empty stdin, which docker-agent refuses (exit 14;
+// agentry-cli#449, taken with the pin on v0.6.18, #372).
+func TestARunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
+	_, regURL, fd, _ := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	req.Task = ""
+
+	var log strings.Builder
+	res, err := Run(context.Background(), req, &log)
+	if err != nil {
+		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
+	}
+	if res.Status != "ok" {
+		t.Fatalf("view = %+v", res)
+	}
+	if got := fd.Foreground["-agent"].GotStdin; got != "# Reporter\n\nWrite the report.\n" {
+		t.Errorf("agent stdin = %q, want the release's own instruction", got)
+	}
+}
+
 // TestRunRefusesAnEditedPlan is desktop#255's acceptance through Run: a
 // plan.json edited after the desktop compiled it (the contract widened,
 // every compared field intact) refuses the next run with the verify class
