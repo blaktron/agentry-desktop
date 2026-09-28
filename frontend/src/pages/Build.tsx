@@ -14,16 +14,17 @@
 // folder is chosen at Save, so a person can start without one.
 //
 // Since #282 (plan builder-rework.md M8, D5, D25) the start page has a third
-// way in, Describe it: a draft made on this computer by the built-in
-// Drafter (BuildDescribe.tsx), decoded into the Model and opened on Review
-// with the Drafter's notes beside it.
+// way in, Describe it: a draft made by the built-in Drafter
+// (BuildDescribe.tsx), since #281 (M7) In Agentry as well as on this
+// computer, decoded into the Model and opened on Review with the Drafter's
+// notes beside it and Describe again under them.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
-import { DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
+import { DescribeAgain, DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
@@ -853,7 +854,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           </button>
           <button className="card build-way" onClick={() => switchTo("describe")}>
             <strong>Describe it</strong>
-            <span className="muted small">Say what it should do, and the Drafter drafts it on this computer with your own model and AI Review key, for no credits. You check every part before you save.</span>
+            <span className="muted small">Say what it should do, and the Drafter drafts it In Agentry for credits, or on this computer with your own model and AI Review key. You check every part before you save.</span>
           </button>
         </div>
         {touched && (
@@ -910,6 +911,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         ) : (
           <>
             {drafted && <DraftNotes v={drafted} onOpenAgent={onOpenAgent} />}
+            {drafted && <DescribeAgain registry={registry} v={drafted} model={m} onStarted={() => switchTo("describe")} />}
             <Recap
               rows={[
                 { label: "Basics", value: <><span className="mono">{m.name || "no name yet"}</span>: {sentence(m.summary) || "no summary yet."} Runs {(m.modes ?? []).join(" and ") || "in no mode yet"}.</>, onEdit: () => goTo(stepOf("basics")) },

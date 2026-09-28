@@ -472,8 +472,9 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	for i := range runs {
 		active := &runs[i]
 		// A knowledge build in flight is the Knowledge panel's to follow:
-		// its result is a pack, not outputs in this folder.
-		if !hostedrun.Active(active.Status) || active.IsBuild() {
+		// its result is a pack, not outputs in this folder; a draft in
+		// flight is the Build tab's, whose result is a draft in the form.
+		if !hostedrun.Active(active.Status) || active.IsBuild() || active.IsDraft() {
 			continue
 		}
 		dir, err := hostedOutDir(outDir, active)

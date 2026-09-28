@@ -39,10 +39,60 @@ const eventKnowledgeHosted = "knowledge:hosted-build"
 // being scanned is refused a download.
 var hostedScanWait = 15 * time.Minute
 
-// hostedBuilds is the one build In Agentry this app follows.
-type hostedBuilds struct {
+// hostedSlot is the one hosted job of a kind this app follows: the
+// Knowledge panel's build In Agentry, or the Build tab's draft In Agentry.
+// A claim holds it across a start's round trip (a follow with no id yet),
+// so a double click is refused before anything is sent.
+type hostedSlot struct {
 	mu  sync.Mutex
 	cur *hostedFollow
+}
+
+// claim takes the slot, or refuses with busy when it is held.
+func (s *hostedSlot) claim(busy string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur != nil {
+		return errors.New(busy)
+	}
+	s.cur = &hostedFollow{cancel: func() {}}
+	return nil
+}
+
+// release gives back a claim that did not become a follow.
+func (s *hostedSlot) release() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur != nil && s.cur.id == "" {
+		s.cur = nil
+	}
+}
+
+// follow makes f the slot's follow, unless another is already followed (a
+// reattach that raced a start): one follower.
+func (s *hostedSlot) follow(f *hostedFollow) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur != nil && s.cur.id != "" {
+		return false
+	}
+	s.cur = f
+	return true
+}
+
+// done empties the slot when f is still its follow.
+func (s *hostedSlot) done(f *hostedFollow) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur == f {
+		s.cur = nil
+	}
+}
+
+func (s *hostedSlot) current() *hostedFollow {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cur
 }
 
 // KnowledgeHostedAvailabilityView answers "is In Agentry offered for
@@ -432,26 +482,15 @@ func (k *KnowledgeAPI) createHosted(ctx context.Context, reg, token, name string
 func (k *KnowledgeAPI) followHostedBuild(reg, token, name string, started *hostedrun.Run) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{registry: reg, id: started.ID, cancel: cancel, done: make(chan struct{})}
-	k.hosted.mu.Lock()
-	if k.hosted.cur != nil && k.hosted.cur.id != "" {
-		// Already followed (a reattach that raced a start): one follower.
-		k.hosted.mu.Unlock()
+	if !k.hosted.follow(f) {
 		cancel()
 		return
 	}
-	k.hosted.cur = f
-	k.hosted.mu.Unlock()
 	client := hostedrun.New(reg, token)
 	go func() {
 		defer close(f.done)
 		defer cancel()
-		defer func() {
-			k.hosted.mu.Lock()
-			if k.hosted.cur == f {
-				k.hosted.cur = nil
-			}
-			k.hosted.mu.Unlock()
-		}()
+		defer k.hosted.done(f)
 		final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
 			Poll:     hostedPoll,
 			OnStatus: func(r *hostedrun.Run) { emitEvent(k.app, eventKnowledgeHosted, hostedBuildView(r, false)) },
@@ -528,23 +567,11 @@ func (k *KnowledgeAPI) landHostedBuild(ctx context.Context, reg, name string, fi
 // claimHosted takes the follow slot for a build about to be started or
 // reattached, or refuses when one is already followed or being started.
 func (k *KnowledgeAPI) claimHosted() error {
-	k.hosted.mu.Lock()
-	defer k.hosted.mu.Unlock()
-	if k.hosted.cur != nil {
-		return fmt.Errorf("a build In Agentry is already in progress: wait for it to finish, or cancel it")
-	}
-	k.hosted.cur = &hostedFollow{cancel: func() {}}
-	return nil
+	return k.hosted.claim("a build In Agentry is already in progress: wait for it to finish, or cancel it")
 }
 
 // releaseHosted gives back a claim that did not become a follow.
-func (k *KnowledgeAPI) releaseHosted() {
-	k.hosted.mu.Lock()
-	defer k.hosted.mu.Unlock()
-	if k.hosted.cur != nil && k.hosted.cur.id == "" {
-		k.hosted.cur = nil
-	}
-}
+func (k *KnowledgeAPI) releaseHosted() { k.hosted.release() }
 
 // isStoreRefusal is a refusal of the local store's that a retry will not
 // change: a name or a pack it will not replace.
@@ -552,11 +579,7 @@ func isStoreRefusal(err error) bool {
 	return errors.Is(err, store.ErrNameTaken) || errors.Is(err, store.ErrRemoteNotFound)
 }
 
-func (k *KnowledgeAPI) hostedCurrent() *hostedFollow {
-	k.hosted.mu.Lock()
-	defer k.hosted.mu.Unlock()
-	return k.hosted.cur
-}
+func (k *KnowledgeAPI) hostedCurrent() *hostedFollow { return k.hosted.current() }
 
 // hostedRefusal is the registry's refusal as the panel renders it.
 func hostedRefusal(r *hostedrun.Refusal) *KnowledgeHostedStartView {

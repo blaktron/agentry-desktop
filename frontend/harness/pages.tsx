@@ -130,7 +130,7 @@ const buildCheck = {
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
 const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, publish: 6, review: 7, validate: 7, drafted: 7, "drafted-hostile": 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, publish: 6, review: 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it (#282): #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
@@ -138,7 +138,31 @@ const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 
 // image, a javascript: link and a right-to-left override.
 const buildDescribe = buildHash.startsWith("describe");
 const hostileDraft = buildHash === "drafted-hostile";
+// Describe it In Agentry (#281): #build-describe-agentry offers it with the
+// hold, the caps and the balance; #build-describe-agentry-short is a payer
+// short of the hold; #build-describe-agentry-drafting follows one queued;
+// #build-describe-signedout offers it but asks for an account;
+// #build-drafted-agentry opens Review on a draft made In Agentry, with
+// Describe again under the notes.
+const describeAgentry = buildHash.startsWith("describe-agentry");
+const describeSignedOut = buildHash === "describe-signedout";
+const agentryDraft = buildHash === "drafted-agentry";
+const describeHosted = describeSignedOut
+  ? { offered: true, available: false, signedIn: false, reason: "Drafting In Agentry spends credits, so it needs an account.", remedy: "Sign in from Settings.",
+      holdCredits: 0, inputsSentence: "", timeoutSeconds: 0, maxTurns: 0, maxPages: 0, balance: 0, balanceKnown: false, unmetered: false, short: false }
+  : { offered: true, available: true, signedIn: true, holdCredits: 41,
+      holdSentence: "This draft holds 41 credits and settles from what it uses: the tokens its model reads and writes, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds.",
+      inputsSentence: "Your description and the Drafter's searches go to a search provider, to AI Review (TypeSafe's Jev) and to the sites the Drafter reads, so the description should hold no secret. AI Review reads every result before the Drafter's model does, and holds back what it flags.",
+      timeoutSeconds: 1200, maxTurns: 60, maxPages: 40, balance: buildHash === "describe-agentry-short" ? 12 : 496, balanceKnown: true, unmetered: false,
+      short: buildHash === "describe-agentry-short" };
+const hostedDrafting = buildHash === "describe-agentry-drafting"
+  ? { id: "01a0e424-0000-0000-0000-000000000000", status: "queued", state: "queued", statusLine: "waiting for a runner — number 1 in the queue",
+      queuePosition: 1, cancelRequested: false, holdCredits: 41, creditsLine: "41 credits are held for this draft.", final: false }
+  : null;
 const draftedView = buildHash.startsWith("drafted") ? {
+  where: agentryDraft ? "agentry" : "here", description: "Check a CSV file I add for missing values, duplicate rows and mixed formats.", hints: [],
+  unmentioned: agentryDraft ? ["api.csvlint.io"] : [], moreProblems: 0,
+  problems: agentryDraft ? ["V14 guide.prepare: 13 prepare items; the maximum is 10"] : [],
   model: { ...buildModel, name: "csv-quality-check", namespace: "demo1", version: "0.1.0",
     summary: "Checks a CSV you add for missing values, duplicate rows and mixed formats, per column.",
     egressMode: "none", egressHosts: [], fsRead: "none", fsWrite: "none", fsWritePaths: [], secrets: [], mcpServers: [], dataAccess: ["files"],
@@ -154,7 +178,7 @@ const draftedView = buildHash.startsWith("drafted") ? {
   sources: [{ url: hostileDraft ? "javascript:alert(document.cookie)" : "https://www.rfc-editor.org/rfc/rfc4180", used: "the CSV format", withheld: false },
     ...(hostileDraft ? [{ url: "https://evil.example/inject", used: "", withheld: true }] : [])],
   openQuestions: ["Should dates be ISO 8601?", "One file per run, or several?"],
-  aiReview: { read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
+  aiReview: { scan: agentryDraft ? "registry" : "jev", read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
 } : null;
@@ -217,6 +241,11 @@ g.go = { main: {
     DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next",
       searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
     DescribeOnThisComputer: async () => { await new Promise(() => {}); },
+    DescribeInAgentryStatus: async () => describeHosted,
+    AttachHostedDraft: async () => (hostedDrafting ? { draft: hostedDrafting } : {}),
+    DescribeInAgentry: async () => { await new Promise(() => {}); },
+    CancelHostedDraft: async () => ({ ...hostedDrafting, cancelRequested: true }),
+    DescribeAgainText: async () => "What the person wants changed now:\n…",
   },
   ValidateAPI: { Run: async () => validateResult },
   // The account line on a signed-in registry's card (agentry-desktop#74,

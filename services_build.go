@@ -42,6 +42,8 @@ type BuildAPI struct {
 	// substitutes; nil is the core's pkg/judge and this machine's docker.
 	draftScanner func(key string) (webscan.Scanner, error)
 	draftRunner  func(context.Context, localrun.Run) (*receipt.Envelope, error)
+	// hosted is the one draft In Agentry this app follows (#281).
+	hosted hostedSlot
 }
 
 // NewModel returns a fresh form model. The namespace defaults to the
@@ -163,11 +165,36 @@ type DraftView struct {
 	DrafterModel  string            `json:"drafterModel,omitempty"`
 	RunID         string            `json:"runId,omitempty"`
 	OutDir        string            `json:"outDir"`
+	// Where says where the draft was made: draftHere or draftInAgentry.
+	Where string `json:"where"`
+	// Description and Hints are what the person asked for, for Describe
+	// again: a Describe again's description is read back to the person's
+	// first words there.
+	Description string   `json:"description"`
+	Hints       []string `json:"hints"`
+	// Unmentioned are the hosts the draft reaches that the person's words
+	// do not name, "*" included (plan §7.6); Problems are the rules it
+	// still fails as the post-step recorded them, with MoreProblems past
+	// the first draft.MaxProblems.
+	Unmentioned  []string `json:"unmentioned"`
+	Problems     []string `json:"problems"`
+	MoreProblems int      `json:"moreProblems"`
 }
+
+// Where a draft was made (DraftView.Where): on this computer with the
+// person's own key, or on a sandbox host with AI Review through the
+// registry (#281). The page reads the same two words.
+const (
+	draftHere      = "here"
+	draftInAgentry = "agentry"
+)
 
 // DraftAIReviewView is AI Review's record of a draft: the receipt's counts
 // and each text it held back from the model, with why.
 type DraftAIReviewView struct {
+	// Scan is where the texts were scanned: "jev" with the person's own
+	// key, "registry" through the registry for a draft In Agentry.
+	Scan            string                   `json:"scan"`
 	Read            int                      `json:"read"`
 	Passed          int                      `json:"passed"`
 	Withheld        int                      `json:"withheld"`
@@ -221,7 +248,16 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	if err != nil {
 		return nil, err
 	}
-	return draftView(res), nil
+	v := draftView(res)
+	v.Where, v.Description, v.Hints = draftHere, description, append([]string{}, hints...)
+	v.markHosts()
+	return v, nil
+}
+
+// markHosts marks the hosts the draft reaches that the person's own words
+// do not name, from the form's Model and the view's description and hints.
+func (v *DraftView) markHosts() {
+	v.Unmentioned = draft.UnmentionedHosts(v.Model, draft.PersonsWords(v.Description, v.Hints))
 }
 
 // draftView is a finished draft as the page takes it. The sources AI Review
@@ -230,15 +266,17 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 func draftView(res *draft.Result) *DraftView {
 	d := res.Draft
 	v := &DraftView{Model: res.Model, DecodeNotes: res.Notes, Notes: drafterNotes(d), Matches: d.Matches, Sources: markWithheld(d),
-		OpenQuestions: d.OpenQuestions, ManifestError: d.ManifestError, OutDir: res.OutDir}
+		OpenQuestions: d.OpenQuestions, ManifestError: d.ManifestError, OutDir: res.OutDir, Hints: []string{}}
 	if v.DecodeNotes == nil {
 		v.DecodeNotes = []string{}
 	}
+	v.Problems, v.MoreProblems = draft.Problems(d)
+	v.Unmentioned = []string{}
 	if d.Drafter != nil {
 		v.DrafterModel, v.RunID = d.Drafter.Model, d.Drafter.RunID
 	}
 	if a := d.AIReview; a != nil {
-		v.AIReview = DraftAIReviewView{Read: a.Read, Passed: a.Passed, Withheld: a.Withheld, NotScanned: a.NotScanned, WithheldSources: a.WithheldSources}
+		v.AIReview = DraftAIReviewView{Scan: a.Scan, Read: a.Read, Passed: a.Passed, Withheld: a.Withheld, NotScanned: a.NotScanned, WithheldSources: a.WithheldSources}
 	}
 	if v.AIReview.WithheldSources == nil {
 		v.AIReview.WithheldSources = []drafter.WithheldSource{}

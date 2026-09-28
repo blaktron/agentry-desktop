@@ -188,6 +188,11 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("the Drafter's answer was not a draft (its receipts are in %s): %w", outDir, err)
 	}
+	// The texts the page renders beside Review are held to the bounds a
+	// hosted draft's are (Decode), so both ways in show the same draft.
+	if err := holdDraft(d); err != nil {
+		return nil, fmt.Errorf("the draft could not be opened in the form (it is in %s): %w", outDir, err)
+	}
 	raw, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return nil, err

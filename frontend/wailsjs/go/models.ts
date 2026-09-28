@@ -1407,6 +1407,48 @@ export namespace main {
 		}
 	}
 	
+	export class DescribeHostedView {
+	    offered: boolean;
+	    available: boolean;
+	    reason?: string;
+	    remedy?: string;
+	    signedIn: boolean;
+	    holdCredits: number;
+	    holdSentence?: string;
+	    inputsSentence: string;
+	    timeoutSeconds: number;
+	    maxTurns: number;
+	    maxPages: number;
+	    balance: number;
+	    balanceKnown: boolean;
+	    pool?: string;
+	    unmetered: boolean;
+	    short: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DescribeHostedView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.offered = source["offered"];
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	        this.remedy = source["remedy"];
+	        this.signedIn = source["signedIn"];
+	        this.holdCredits = source["holdCredits"];
+	        this.holdSentence = source["holdSentence"];
+	        this.inputsSentence = source["inputsSentence"];
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.maxTurns = source["maxTurns"];
+	        this.maxPages = source["maxPages"];
+	        this.balance = source["balance"];
+	        this.balanceKnown = source["balanceKnown"];
+	        this.pool = source["pool"];
+	        this.unmetered = source["unmetered"];
+	        this.short = source["short"];
+	    }
+	}
 	export class JevKeyView {
 	    stored: boolean;
 	    source?: string;
@@ -1466,6 +1508,7 @@ export namespace main {
 		}
 	}
 	export class DraftAIReviewView {
+	    scan: string;
 	    read: number;
 	    passed: number;
 	    withheld: number;
@@ -1478,6 +1521,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scan = source["scan"];
 	        this.read = source["read"];
 	        this.passed = source["passed"];
 	        this.withheld = source["withheld"];
@@ -1515,6 +1559,12 @@ export namespace main {
 	    drafterModel?: string;
 	    runId?: string;
 	    outDir: string;
+	    where: string;
+	    description: string;
+	    hints: string[];
+	    unmentioned: string[];
+	    problems: string[];
+	    moreProblems: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DraftView(source);
@@ -1533,6 +1583,12 @@ export namespace main {
 	        this.drafterModel = source["drafterModel"];
 	        this.runId = source["runId"];
 	        this.outDir = source["outDir"];
+	        this.where = source["where"];
+	        this.description = source["description"];
+	        this.hints = source["hints"];
+	        this.unmentioned = source["unmentioned"];
+	        this.problems = source["problems"];
+	        this.moreProblems = source["moreProblems"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1700,6 +1756,105 @@ export namespace main {
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
 	        this.declaredSecrets = source["declaredSecrets"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class HostedDraftView {
+	    id: string;
+	    status: string;
+	    state: string;
+	    statusLine: string;
+	    queuePosition?: number;
+	    cancelRequested: boolean;
+	    outcome?: string;
+	    outcomeLine?: string;
+	    outcomeTone?: string;
+	    error?: string;
+	    holdCredits: number;
+	    creditsLine: string;
+	    draft?: DraftView;
+	    draftError?: string;
+	    final: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedDraftView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.status = source["status"];
+	        this.state = source["state"];
+	        this.statusLine = source["statusLine"];
+	        this.queuePosition = source["queuePosition"];
+	        this.cancelRequested = source["cancelRequested"];
+	        this.outcome = source["outcome"];
+	        this.outcomeLine = source["outcomeLine"];
+	        this.outcomeTone = source["outcomeTone"];
+	        this.error = source["error"];
+	        this.holdCredits = source["holdCredits"];
+	        this.creditsLine = source["creditsLine"];
+	        this.draft = this.convertValues(source["draft"], DraftView);
+	        this.draftError = source["draftError"];
+	        this.final = source["final"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HostedDraftStartView {
+	    draft?: HostedDraftView;
+	    refusal?: string;
+	    detail?: string;
+	    balance?: number;
+	    hold?: number;
+	    resetsAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedDraftStartView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.draft = this.convertValues(source["draft"], HostedDraftView);
+	        this.refusal = source["refusal"];
+	        this.detail = source["detail"];
+	        this.balance = source["balance"];
+	        this.hold = source["hold"];
+	        this.resetsAt = source["resetsAt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
