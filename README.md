@@ -115,11 +115,35 @@ The product never claims an agent is "safe". The language is always:
     Next, and shows the lines it writes to `agent.yaml`.
   - **Advanced** shows every field at once. It is the same form as Step by
     step, so switching loses nothing.
-  - **Describe it** drafts one from a plain description, with three optional
-    hints. The built-in Drafter (the one `agentry draft` runs) drafts it on
-    this computer against the model your runner policy names, for no credits.
-    It searches the registry and, when your policy names a search provider
-    and you have a key for it, the web, then reads the pages it finds.
+  - **Describe it** drafts one from a plain description, with the site's
+    three optional hints (the services or sites it works with, how it runs,
+    an example of the output). The built-in Drafter (the one `agentry draft`
+    runs) drafts it in one of two places, **In Agentry** or **on this
+    computer**, and the page offers In Agentry first where it can be chosen.
+
+    **In Agentry** the Drafter runs on Agentry's infrastructure against the
+    platform's model, for credits, and needs you signed in.
+    - Before Draft it the page states the hold in the site's sentence ("This
+      draft holds 41 credits and settles from what it uses: …"), your
+      balance, the draft's caps, and where your words go: to a search
+      provider, to AI Review (TypeSafe's Jev) and to the sites the Drafter
+      reads, so the description should hold no secret. AI Review reads every
+      result through the registry before the Drafter's model does. A payer
+      short of the hold is told so before anything is sent.
+    - The page follows the draft (queued, then drafting) with its hold and
+      **Cancel this draft**, and a reopened app picks it up again.
+    - When it ends, its output is unpacked into
+      `~/Downloads/agentry-out/agentry-drafter-<id>`, and `draft.json` there
+      is read into the form as data. It must be a file of at most 4 MiB, the
+      fields the form cannot hold are dropped and named, and a value past its
+      bound refuses the whole draft. Nothing in the output is opened or
+      launched.
+    - The settlement names its searches' and AI Review's parts.
+
+    **On this computer** it runs against the model your runner policy names,
+    for no credits. It searches the registry and, when your policy names a
+    search provider and you have a key for it, the web, then reads the pages
+    it finds.
     - AI Review reads your description first, and then every search result,
       page and registry answer before the Drafter's model does, with your own
       AI Review key (Settings → **AI Review key**). What AI Review flags, or
@@ -135,11 +159,18 @@ The product never claims an agent is "safe". The language is always:
     - The draft is a run like any other: it holds the run lock, and quitting
       ends it. You can leave the page while it runs, and the draft opens on
       Build when it is done.
-    - The draft opens on Review with what the Drafter found beside it: what
-      AI Review read and held back, the published BriefAgents that already do
-      the task (each with a link to its page), what the description leaves
-      open, the Drafter's notes (shown as a run's result is, with no HTML and
-      no images) and its sources.
+
+    **Either way:**
+    - The draft opens on Review with what the Drafter found
+      beside it: what AI Review read and held back, **the hosts the draft may
+      reach that your description did not name**, the rules the draft still
+      fails, the published BriefAgents that already do the task (each with a
+      link to its page), what the description leaves open, the Drafter's
+      notes (shown as a run's result is, with no HTML and no images) and its
+      sources.
+    - **Describe again**, on Review, takes a note on what should change and
+      makes a new draft in the same place from what you first asked and the
+      draft as it stands in the form. The new draft replaces this one.
     - The draft is decoded into the form as data. Fields the form cannot hold
       are dropped and named, and an instruction file outside the folder
       becomes `AGENT.md`.
