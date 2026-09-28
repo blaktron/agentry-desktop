@@ -28,15 +28,15 @@ func TestTheMarkIsTheSameEverywhere(t *testing.T) {
 			t.Fatalf("%s: %v", file, err)
 		}
 		src := string(b)
-		for name, want := range map[string]string{
-			"the shield":           markShield,
-			"the facet":            markFacet,
-			"the facet's opacity":  markFacetOpacity,
-			"the A":                markA,
-			"the A's evenodd rule": "evenodd",
+		for _, part := range []struct{ name, want string }{
+			{"the shield", markShield},
+			{"the facet", markFacet},
+			{"the facet's opacity", markFacetOpacity},
+			{"the A", markA},
+			{"the A's evenodd rule", "evenodd"},
 		} {
-			if !strings.Contains(src, want) {
-				t.Errorf("%s does not carry %s (%q)", file, name, want)
+			if !strings.Contains(src, part.want) {
+				t.Errorf("%s does not carry %s (%q)", file, part.name, part.want)
 			}
 		}
 		if strings.Contains(src, oldCheck) {

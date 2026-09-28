@@ -2,7 +2,8 @@
 // lib/brand-mark.ts, drawn by its components/brand.tsx) so the desktop
 // carries the same identity: a shield whose right half is a shade darker,
 // with a delta A cut in the page ground (agentry-desktop#367), inline SVG
-// taking the page's own tokens (--color-accent on --color-bg), and an
+// taking the page's own tokens (--color-accent on --color-bg; the facet is
+// black at 22% over the accent, one value for both themes), and an
 // "Agentry" wordmark. This is the generic Agentry mark, not a
 // SecureAgentry-brand asset — the desktop is the open-core client. The app
 // icon (build/appicon.svg) draws the same paths; brand_test.go holds them
