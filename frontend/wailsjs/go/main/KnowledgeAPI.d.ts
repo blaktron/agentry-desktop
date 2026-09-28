@@ -13,6 +13,8 @@ export function ContinueHostedBuild(arg1:string,arg2:string):Promise<main.Knowle
 
 export function Create(arg1:string,arg2:string,arg3:Array<string>):Promise<knowledge.BuildResult>;
 
+export function CreatorBudget():Promise<main.CreatorBudgetView>;
+
 export function CreatorModel():Promise<string>;
 
 export function Delete(arg1:string,arg2:string,arg3:boolean):Promise<void>;

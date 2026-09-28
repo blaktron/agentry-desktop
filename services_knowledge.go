@@ -26,6 +26,11 @@ import (
 // eventKnowledgeLog carries a Creator build's progress, line by line.
 const eventKnowledgeLog = "knowledge:build-log"
 
+// eventKnowledgeProgress carries how far a build on this computer has got
+// (knowledge.Progress): elapsed against the timeout, turns, the pages
+// written so far (agentry-desktop#352).
+const eventKnowledgeProgress = "knowledge:build-progress"
+
 // KnowledgeAPI is the Knowledge panel's bound surface.
 type KnowledgeAPI struct {
 	app *App
@@ -54,6 +59,20 @@ func (k *KnowledgeAPI) List(reg string) (*knowledge.List, error) {
 // Creator, for the sentence the review step says before a build.
 func (k *KnowledgeAPI) CreatorModel() string { return knowledge.PolicyModel() }
 
+// CreatorBudgetView is how long a build on this computer may run, for the
+// review step's warning that a build takes a while (agentry-desktop#352).
+type CreatorBudgetView struct {
+	TimeoutSeconds int `json:"timeoutSeconds"`
+	MaxTurns       int `json:"maxTurns"`
+}
+
+// CreatorBudget answers the budgets a build on this computer runs under:
+// the runner policy's, with at least 30 minutes.
+func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
+	b := knowledge.PolicyBudgets()
+	return CreatorBudgetView{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns}
+}
+
 // Create makes a new pack named name from the documents with the
 // Knowledge Creator on this computer and keeps it sealed. Every document
 // must be one the native picker returned. The build takes the run lock;
@@ -77,7 +96,10 @@ func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) 
 	// quitting mid-build ends it and sweeps them (services_quit.go).
 	var res *knowledge.BuildResult
 	err := k.run.asRun("the Knowledge Creator", eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
-		req := knowledge.BuildRequest{Registry: reg, Name: name, Documents: documents, RunID: runID, Build: k.build, Log: logw}
+		req := knowledge.BuildRequest{
+			Registry: reg, Name: name, Documents: documents, RunID: runID, Build: k.build, Log: logw,
+			Progress: func(p knowledge.Progress) { emitEvent(k.app, eventKnowledgeProgress, p) },
+		}
 		var err error
 		if add {
 			res, err = k.env().Add(ctx, req)
