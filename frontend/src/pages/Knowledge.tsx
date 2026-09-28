@@ -17,18 +17,23 @@ import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";
 import { Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, fmtBytes } from "../ui";
 import { pagesOf, scanTone } from "../knowledge";
-import KnowledgeCreate from "./KnowledgeCreate";
 import KnowledgePreview from "./KnowledgePreview";
 
-type Flow = { mode: "create" } | { mode: "add"; name: string };
-
 export default function Knowledge({
-  registry, onOpenSettings, initialFlow, initialPreview,
+  registry, onOpenSettings, onCreate, rev, previewRequest, onPreviewRequestSeen, initialPreview,
 }: {
   registry: string;
   onOpenSettings: () => void;
-  /** Harness-only: open with Create knowledge or Add documents showing. */
-  initialFlow?: Flow;
+  /** Create knowledge, or Add documents to addTo. The flow lives in App, not
+   *  here, so a build goes on in its corner card while the person moves
+   *  between pages (agentry-desktop#353). */
+  onCreate: (addTo?: string) => void;
+  /** Changes when a build has ended, so the list is read again. */
+  rev?: number;
+  /** A pack whose preview a finished build asked for, from App, with the
+   *  registry the build kept it for. */
+  previewRequest?: { registry: string; name: string } | null;
+  onPreviewRequestSeen?: () => void;
   /** Harness-only: open with this pack's preview showing. */
   initialPreview?: string;
 }) {
@@ -37,8 +42,9 @@ export default function Knowledge({
   const [notice, setNotice] = useState<string | null>(null);
   // The one action in flight, as "<action>:<name>", so its button reads busy.
   const [busy, setBusy] = useState<string | null>(null);
-  const [flow, setFlow] = useState<Flow | null>(initialFlow ?? null);
-  const [preview, setPreview] = useState<string | null>(initialPreview ?? null);
+  const [preview, setPreview] = useState<{ registry: string; name: string } | null>(
+    initialPreview ? { registry, name: initialPreview } : null,
+  );
   // A pack kept in both places asks here which copies to delete; the native
   // dialog then asks again, in Go.
   const [deleting, setDeleting] = useState<knowledge.Pack | null>(null);
@@ -51,7 +57,13 @@ export default function Knowledge({
       })
       .catch((e) => setError(String(e)));
   }, [registry]);
-  useEffect(refresh, [refresh]);
+  useEffect(refresh, [refresh, rev]);
+  useEffect(() => {
+    if (previewRequest) {
+      setPreview(previewRequest);
+      onPreviewRequestSeen?.();
+    }
+  }, [previewRequest, onPreviewRequestSeen]);
 
   async function act(action: string, name: string, call: () => Promise<string | void>) {
     setBusy(`${action}:${name}`);
@@ -94,7 +106,7 @@ export default function Knowledge({
       <PageHeader
         title="Knowledge"
         sub={<>Knowledge packs a run can search: cited pages the Knowledge Creator compiles from your documents, kept with the documents themselves, at most 10 MB each. The <span className="mono">agentry knowledge</span> CLI keeps the same packs.</>}
-        actions={<Button variant="primary" onClick={() => setFlow({ mode: "create" })}>Create knowledge</Button>}
+        actions={<Button variant="primary" onClick={() => onCreate()}>Create knowledge</Button>}
       />
 
       {list && (list.signedIn ? (
@@ -120,7 +132,7 @@ export default function Knowledge({
       {!list && !error && <Spinner />}
 
       {list && packs.length === 0 && (
-        <EmptyState title="No knowledge packs yet" action={<Button variant="primary" onClick={() => setFlow({ mode: "create" })}>Create knowledge</Button>}>
+        <EmptyState title="No knowledge packs yet" action={<Button variant="primary" onClick={() => onCreate()}>Create knowledge</Button>}>
           Make one from your documents. The Knowledge Creator runs on this computer against the model your runner policy names.
         </EmptyState>
       )}
@@ -134,8 +146,8 @@ export default function Knowledge({
         // computer's copy alone.
         const actions = p.local ? (
           <>
-            <Button onClick={() => setPreview(p.name)}>Preview</Button>
-            {!p.shared && <Button onClick={() => setFlow({ mode: "add", name: p.name })}>Add documents</Button>}
+            <Button onClick={() => setPreview({ registry, name: p.name })}>Preview</Button>
+            {!p.shared && <Button onClick={() => onCreate(p.name)}>Add documents</Button>}
             {!p.shared && list?.signedIn && (!p.inAgentry || p.changed) && (
               <Button busy={is("upload", p.name)} busyLabel="Uploading…" onClick={() => act("upload", p.name, () => KnowledgeAPI.Upload(registry, p.name))}>
                 Upload to Agentry
@@ -208,22 +220,7 @@ export default function Knowledge({
           </div>
         </Modal>
       )}
-      {flow && (
-        <KnowledgeCreate
-          registry={registry}
-          addTo={flow.mode === "add" ? flow.name : undefined}
-          onClose={() => {
-            setFlow(null);
-            refresh();
-          }}
-          onPreview={(name) => {
-            setFlow(null);
-            refresh();
-            setPreview(name);
-          }}
-        />
-      )}
-      {preview && <KnowledgePreview registry={registry} name={preview} onClose={() => setPreview(null)} />}
+      {preview && <KnowledgePreview registry={preview.registry} name={preview.name} onClose={() => setPreview(null)} />}
     </div>
   );
 }

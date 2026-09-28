@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
@@ -244,6 +245,58 @@ func TestKnowledgeBuildIsARunUnderTheRunLock(t *testing.T) {
 	}
 	if res.Name != "notes" || res.Pages != 1 {
 		t.Fatalf("result = %+v", res)
+	}
+}
+
+// StopBuild stops the build in flight and nothing else: the Creator's
+// context is cancelled and the build returns; with no build running, or a
+// run holding the lock instead, it refuses and cancels nothing
+// (agentry-desktop#353).
+func TestStopBuildStopsOnlyAKnowledgeBuild(t *testing.T) {
+	f := newKnowledgeFixture(t)
+	if err := f.k.StopBuild(); err == nil {
+		t.Fatal("StopBuild with nothing running passed")
+	}
+	cancelled := false
+	l, err := f.k.run.beginRun("acme/triage@1.0.0", func() { cancelled = true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.k.StopBuild(); err == nil || cancelled {
+		t.Fatalf("StopBuild during a run: %v, cancelled %v", err, cancelled)
+	}
+	f.k.run.endRun(l)
+
+	doc := filepath.Join(t.TempDir(), "guide.txt")
+	if err := os.WriteFile(doc, []byte("the guide\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f.k.app.markPicked(doc)
+	started := make(chan struct{})
+	f.k.build = func(ctx context.Context, _ dockerx.Client, _ build.Options) (*build.Result, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := f.k.Create(f.reg.URL, "notes", []string{doc})
+		done <- err
+	}()
+	<-started
+	if err := f.k.StopBuild(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("the stopped build returned %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the build did not stop")
+	}
+	if f.k.run.current() != nil {
+		t.Fatal("the stopped build is still the run in flight")
 	}
 }
 

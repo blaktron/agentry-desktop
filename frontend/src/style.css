@@ -488,6 +488,20 @@ table.declared-servers td { overflow-wrap: anywhere; }
 .knowledge-progress-bar { height: 6px; border-radius: 3px; background: var(--color-border); overflow: hidden; margin-bottom: 8px; }
 .knowledge-progress-bar > span { display: block; height: 100%; background: var(--color-accent); transition: width 1s linear; }
 @media (prefers-reduced-motion: reduce) { .knowledge-progress-bar > span { transition: none; } }
+/* A running build's corner card (KnowledgeCreate minimized, agentry-desktop#353):
+   above the page, below a dialog, out of the sidebar's way. */
+.build-card {
+  position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 340px; max-width: calc(100vw - 32px);
+  background: var(--color-surface, var(--color-bg)); color: var(--color-fg);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); padding: 12px 14px;
+}
+.build-card-head { display: flex; align-items: center; gap: 8px; }
+.build-card-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent); animation: build-card-pulse 1.4s ease-in-out infinite; flex: none; }
+@keyframes build-card-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .build-card-dot { animation: none; } }
+.build-card-line { margin: 6px 0 0; }
+.build-card-actions { justify-content: flex-end; margin-top: 8px; }
 .knowledge-log > summary { cursor: pointer; margin: 8px 0; }
 
 .run-log {

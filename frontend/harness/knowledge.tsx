@@ -13,6 +13,10 @@
 //   #create-building      the build under way: time, turns, pages written
 //                         and tokens over its folded log (#352)
 //   #create-done          what the build made
+//   #card-building        a build shrunk to its corner card over the page,
+//                         its progress counting up (agentry-desktop#353)
+//   #card-done            the card once the build is over: how it ended
+//   #card-hosted          a build In Agentry in its card
 //   #add-review           Add documents' review
 //   #hosted-where-pro     the Where step for a Standard account: In Agentry
 //                         not choosable, the Pro sentence and See Pro (DEV-162)
@@ -140,6 +144,7 @@ g.go = { main: {
     StartHostedBuild: async () => new Promise(() => {}),
     ContinueHostedBuild: async () => new Promise(() => {}),
     CancelHostedBuild: async () => hostedRunning,
+    StopBuild: async () => undefined,
   },
   RunAPI: {
     SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" }),
@@ -158,8 +163,9 @@ const progressReports = [
 ];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const subscribe = (name: string, cb: (v: any) => void) => {
-  if (name === "knowledge:build-log" && hash === "create-building") setTimeout(() => buildLog.forEach((l) => cb(l)), 50);
-  if (name === "knowledge:build-progress" && hash === "create-building") progressReports.forEach((p, i) => setTimeout(() => cb(p), 60 + 60 * i));
+  const live = hash === "create-building" || hash === "card-building";
+  if (name === "knowledge:build-log" && live) setTimeout(() => buildLog.forEach((l) => cb(l)), 50);
+  if (name === "knowledge:build-progress" && live) progressReports.forEach((p, i) => setTimeout(() => cb(p), 60 + 60 * i));
   return () => {};
 };
 g.runtime = {
@@ -193,7 +199,8 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 const docs = ["/home/me/Documents/storage-guide.pdf", "/home/me/Documents/handbook"];
-const create = hash.startsWith("create-") || hash === "add-review" || hostedState;
+const card = hash.startsWith("card-");
+const create = hash.startsWith("create-") || hash === "add-review" || hostedState || card;
 const step =
   hash === "create-name" ? "name"
   : hash === "hosted-where" || hash === "hosted-where-pro" ? "where"
@@ -218,11 +225,14 @@ createRoot(document.getElementById("root")!).render(
         initialStep={step}
         initialDocuments={hash === "create-documents" || step !== "documents" ? docs : []}
         initialName={hash === "add-review" ? undefined : "handbook"}
-        initialBuilding={hash === "create-building"}
-        initialResult={hash === "create-done" ? (result as never) : undefined}
+        minimized={card}
+        onMinimize={() => {}}
+        onRestore={() => {}}
+        initialBuilding={hash === "create-building" || hash === "card-building"}
+        initialResult={hash === "create-done" || hash === "card-done" ? (result as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" ? "agentry" : undefined}
-        initialHosted={hash === "hosted-running" ? (hostedRunning as never) : hash === "hosted-done" ? (hostedDone as never) : undefined}
+        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" ? (hostedDone as never) : undefined}
       />
     )}
   </div>,
