@@ -26,6 +26,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
+import { KeyHelpList } from "../KeyHelp";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
 // The §19 instruction-file quota, as internal/build's maxInstructionBytes.
@@ -699,12 +700,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             </label>
           </div>
           <div style={{ marginTop: 8 }}>
-            <span className="small">help for each key it needs: where to create it, which scopes</span>
+            <span className="small">help for each key it needs: where to create it, which scopes (markdown, up to 2,000 characters each)</span>
             {connect.map((c, k) => (
-              <div className="row" key={k} style={{ marginTop: 4 }}>
+              <div className="row" key={k} style={{ marginTop: 4, alignItems: "flex-start" }}>
                 <input type="text" className="mono" aria-label="key name" placeholder="GITHUB_TOKEN" style={{ width: 200 }} value={c.secret}
                   onChange={(e) => setGuide({ connect: connect.map((x, j) => (j === k ? new build.ConnectRow({ ...x, secret: e.target.value }) : x)) })} />
-                <input type="text" className="grow" aria-label="help" maxLength={300} placeholder="Create a fine-grained token with read access to pull requests" value={c.help}
+                <textarea className="grow" aria-label="help" rows={3} maxLength={2000} style={inputStyle}
+                  placeholder={"1. Open GitHub → Settings → Developer settings → Fine-grained tokens.\n2. Give it read access to pull requests."} value={c.help}
                   onChange={(e) => setGuide({ connect: connect.map((x, j) => (j === k ? new build.ConnectRow({ ...x, help: e.target.value }) : x)) })} />
                 <Button type="button" onClick={() => setGuide({ connect: connect.filter((_, j) => j !== k) })}>remove</Button>
               </div>
@@ -719,6 +721,12 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                 <>
                   <strong className="small">What to have ready</strong>
                   <ul className="run-need">{need.map((n, k) => <li key={k}>{n}</li>)}</ul>
+                </>
+              )}
+              {connect.some((c) => c.secret.trim() && c.help.trim()) && (
+                <>
+                  <strong className="small">Where to get each key</strong>
+                  <KeyHelpList rows={connect} />
                 </>
               )}
             </div>
@@ -919,7 +927,16 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                 { label: "Tools and web access", value: `The internet: ${net[0].value}. ${(m.mcpServers ?? []).length === 0 ? "No MCP servers." : `${m.mcpServers.length} MCP ${m.mcpServers.length === 1 ? "server" : "servers"}.`}`, onEdit: () => goTo(stepOf("tools")) },
                 { label: "Files, commands and data", value: local.map((r) => `${r.what}: ${r.value}`).join(". ") + ".", onEdit: () => goTo(stepOf("access")) },
                 { label: "Questions", value: (m.intake ?? []).length === 0 ? "None" : m.intake.map((q) => q.id).join(", "), onEdit: () => goTo(stepOf("questions")) },
-                { label: "Before a run", value: g && (g.overview || (g.prepare ?? []).some((s) => s.trim()) || g.files || g.task || (g.connect ?? []).length) ? "Written" : "Not written: the run setup uses the summary and the contract", onEdit: () => goTo(stepOf("guide")) },
+                {
+                  label: "Before a run",
+                  value: g && (g.overview || (g.prepare ?? []).some((s) => s.trim()) || g.files || g.task || (g.connect ?? []).length) ? (
+                    <>
+                      Written
+                      <KeyHelpList rows={g.connect ?? []} />
+                    </>
+                  ) : "Not written: the run setup uses the summary and the contract",
+                  onEdit: () => goTo(stepOf("guide")),
+                },
                 { label: "Publishing", value: <><span className="mono">{m.namespace || "?"}/{m.name || "?"}@{m.version || "?"}</span>, {visibility}, licence {m.license || "none"}</>, onEdit: () => goTo(stepOf("publish")) },
               ]}
             />

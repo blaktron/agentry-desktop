@@ -28,6 +28,7 @@ import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSe
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
+import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
 
 export default function RunPanel({
@@ -859,11 +860,12 @@ export default function RunPanel({
                               onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
                             />
                             {/* The author's help for this key: where to create
-                                it, which access it needs. Text, never markup. */}
+                                it, which access it needs, as markdown under
+                                the output reader's rules (DEV-167). */}
                             {connectHelp(guide?.connect, s) && (
-                              <p className="muted small run-key-help">
-                                <GuideText text={connectHelp(guide?.connect, s)} />
-                              </p>
+                              <div className="run-key-help">
+                                <AuthorHelp name={s} help={connectHelp(guide?.connect, s)} />
+                              </div>
                             )}
                           </div>
                         ))}

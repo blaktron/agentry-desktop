@@ -109,7 +109,11 @@ const buildModel = {
   fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN"],
   mcpServers: [{ source: "npm", package: "@cyanheads/osv-advisory-mcp-server", version: "0.1.13", tools: [], secrets: [], egress: ["api.osv.dev"], env: [{ name: "LOG_LEVEL", value: "info" }] }],
   dataAccess: ["tickets"], intake: [], opening: "", idleTimeoutSeconds: 0,
-  guide: { overview: "Reads the incident channel and returns a one-page report card.", prepare: ["The incident number", "Read access to the channel"], files: "", task: "Summarise INC-1234", connect: [{ secret: "PAGERDUTY_TOKEN", help: "Create a read-only API key under Integrations" }] },
+  guide: { overview: "Reads the incident channel and returns a one-page report card.", prepare: ["The incident number", "Read access to the channel"], files: "", task: "Summarise INC-1234", connect: [{ secret: "PAGERDUTY_TOKEN", help: window.location.hash.endsWith("-hostile") && window.location.hash.startsWith("#build-") && !window.location.hash.startsWith("#build-drafted")
+    // agentry-desktop#343: a key's help is markdown (DEV-167). A hostile one
+    // on Before a run's preview and on Review shows as text there.
+    ? "1. Open **Integrations → API Access Keys**.\n2. Create a *read-only* key.\n\n<b onclick=\"steal()\">now</b> ![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [PagerDuty](https://evil.example/pd) https://support.pagerduty.com/keys\u202E and https://p\u0430gerduty.com/new <https://pagerduty.com%2Eevil.example/>"
+    : "Create a read-only API key under Integrations" }] },
   authors: [], runtimeModels: [], runtimeInterfaces: ["claude-skill", "agents-md"], dependencies: [], publishChannel: "", publishInclude: [],
   hadComments: window.location.hash === "#build-comments",
   instructions: "You summarise an incident channel. Read it, redact secrets, and write reports/report.md.",
@@ -131,7 +135,7 @@ const buildCheck = {
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
 const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, publish: 6, review: 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it (#282): #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
