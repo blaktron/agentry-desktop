@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -108,6 +109,33 @@ func (a *App) requirePicked(what, p string) error {
 	return fmt.Errorf("%s %q was not chosen through the file dialog; pick it there", what, p)
 }
 
+// requireOutputDir is requirePicked for a run's output folder, which may
+// also be the one Run defaults saved (D-044): Go reads it from its own
+// settings file, so the page cannot name it, and it admits that folder
+// exactly — as an output folder only, never a folder under it and never an
+// input, which still needs this session's picker.
+func (a *App) requireOutputDir(p string) error {
+	err := a.requirePicked("output directory", p)
+	if err == nil {
+		return nil
+	}
+	if isSavedOutputDir(p) {
+		return nil
+	}
+	return err
+}
+
+// isSavedOutputDir says whether p is Run defaults' saved output folder, which
+// every run shares and so hands each run a folder of its own inside it
+// (D-044), whether or not it was also picked in this session.
+func isSavedOutputDir(p string) bool {
+	if p == "" {
+		return false
+	}
+	st, err := settings.Load()
+	return err == nil && st.DefaultOutputDir != "" && filepath.Clean(st.DefaultOutputDir) == filepath.Clean(p)
+}
+
 // requirePickedResolved is requirePicked for a path whose bytes leave the
 // machine (a document a build uploads, agentry-desktop#274): the path must
 // be one a picker returned, or under one, both as written and once links
@@ -166,14 +194,21 @@ func (a *App) ChooseDirectory(title string) (string, error) {
 // project directory), through the seam a test substitutes: what it
 // returns is the picker's by construction, never a path the page passed.
 func (a *App) chooseDirectory(title string) (string, error) {
-	if a.pickDirectory == nil {
-		return "", fmt.Errorf("no directory picker is available")
-	}
-	dir, err := a.pickDirectory(a.ctx, title)
+	dir, err := a.pickDirectoryUnmarked(title)
 	if err == nil {
 		a.markPicked(dir)
 	}
 	return dir, err
+}
+
+// pickDirectoryUnmarked opens the native directory picker and records
+// nothing in the picked set: for a folder chosen for one use only, as Run
+// defaults' output folder is (D-044).
+func (a *App) pickDirectoryUnmarked(title string) (string, error) {
+	if a.pickDirectory == nil {
+		return "", fmt.Errorf("no directory picker is available")
+	}
+	return a.pickDirectory(a.ctx, title)
 }
 
 // ChooseFiles opens the native multi-file picker and returns the chosen

@@ -72,3 +72,37 @@ export function needList(release: { intake: Question[]; secrets: string[]; serve
   }
   return out;
 }
+
+// Run defaults' "where to run" (plan settings-cards.md D13;
+// agentry-desktop#347) only pre-selects the Where step. inAgentryByDefault
+// says whether it may pick In Agentry for this run: the default says so, the
+// mode is offered and available here, and the release is not one admitted
+// without a scan (which is never run In Agentry from this app). Nothing is
+// started by it: Run is still the person's click on Review and start, after
+// the credits the run holds are shown.
+export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean } | null;
+// RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
+// (settings.RunWhereHere, settings.RunWhereAgentry).
+export type RunWhere = "here" | "agentry";
+
+export function inAgentryByDefault(where: string | undefined, hosted: HostedOffer, unscanned: boolean): boolean {
+  return where === "agentry" && !!hosted?.offered && hosted.available && !unscanned;
+}
+
+// whereFallback is the sentence the Where step shows when the default says
+// In Agentry and this run starts on this computer instead; null otherwise.
+// hosted is null when the offer could not be read. A mode that is offered but
+// unavailable has its own notice with the reason.
+export function whereFallback(where: string | undefined, hosted: HostedOffer, unscanned: boolean): string | null {
+  if (where !== "agentry" || inAgentryByDefault(where, hosted, unscanned)) return null;
+  const why = unscanned
+    ? "a release admitted without a scan is not run In Agentry from this app"
+    : hosted === null
+      ? "the app could not tell whether this registry offers a run In Agentry for it"
+      : hosted.signedIn === false
+        ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
+        : !hosted.offered
+          ? "a run In Agentry is not offered for this BriefAgent on this registry"
+          : "In Agentry is unavailable for it (the notice below says why)";
+  return `Your Run defaults say In Agentry, but ${why}, so this run starts on this computer.`;
+}

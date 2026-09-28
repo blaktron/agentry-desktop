@@ -131,6 +131,13 @@ export function fmtBinaryBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+/** A number of seconds the way a person says it: "15 minutes", "2 hours". */
+export function fmtDuration(sec: number): string {
+  if (sec % 3600 === 0) return `${sec / 3600} hour${sec === 3600 ? "" : "s"}`;
+  if (sec % 60 === 0) return `${sec / 60} minute${sec === 60 ? "" : "s"}`;
+  return `${sec} second${sec === 1 ? "" : "s"}`;
+}
+
 export function fmtDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);

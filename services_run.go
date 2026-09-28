@@ -143,6 +143,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		InputPaths:         inputPaths,
 		Knowledge:          packs,
 		OutDir:             outDir,
+		OutDirIsRoot:       isSavedOutputDir(outDir),
 		KeepProfile:        keepProfile,
 		TimeoutSeconds:     timeoutSec,
 		MaxTurns:           maxTurns,
@@ -732,6 +733,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		InputPaths:         inputPaths,
 		Knowledge:          packs,
 		OutDir:             outDir,
+		OutDirIsRoot:       isSavedOutputDir(outDir),
 		KeepProfile:        keepProfile,
 		TimeoutSeconds:     timeoutSec,
 		MaxTurns:           maxTurns,
@@ -900,7 +902,7 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 			return err
 		}
 	}
-	if err := r.app.requirePicked("output directory", outDir); err != nil {
+	if err := r.app.requireOutputDir(outDir); err != nil {
 		return err
 	}
 	var accepting []string
