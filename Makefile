@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # unsigned Windows package, which PR and workstation builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate linux-icons version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -193,11 +193,24 @@ package-linux:
 smoke-linux-packages:
 	scripts/acceptance/linux-packages.sh build/linux/agentry-desktop-$(VERSION)-linux-amd64.deb build/linux/agentry-desktop-$(VERSION)-linux-amd64.rpm build/linux/agentry-desktop-$(VERSION)-linux-amd64 build/linux/smoke/agentry-desktop-previous.deb build/linux/smoke/agentry-desktop-previous.rpm
 
-# The Linux packages' icons: build/appicon.png at the hicolor sizes, committed
-# under build/nfpm/icons (ImageMagick renders them; nothing does at build
-# time). Run and commit after changing the app icon.
-linux-icons:
-	for s in 16 32 48 64 128 256 512; do magick build/appicon.png -resize $${s}x$${s} build/nfpm/icons/agentry-desktop-$${s}.png; done
+# Every platform's app icon, rendered from two committed sources
+# (agentry-desktop#367): build/appicon.svg, the mark on its tile, and
+# build/appicon-small.svg, the bare mark for 16 to 32 pixels. The outputs
+# are committed, since nothing renders them at build time: build/appicon.png
+# (1024, which Wails turns into the macOS bundle's iconfile.icns),
+# build/windows/icon.ico (16 to 256; Wails uses it as it is) and the Linux
+# packages' hicolor sizes under build/nfpm/icons. ImageMagick with its
+# librsvg delegate renders them, with -strip so a re-run is byte-identical.
+# Run and commit after changing either SVG.
+ICON_TMP := build/.icons
+app-icons:
+	rm -rf $(ICON_TMP) && mkdir -p $(ICON_TMP)
+	magick -background none build/appicon.svg -depth 8 -strip build/appicon.png
+	for s in 16 24 32; do magick -background none -density 1200 build/appicon-small.svg -resize $${s}x$${s} -depth 8 -strip $(ICON_TMP)/$${s}.png; done
+	for s in 48 64 128 256 512; do magick build/appicon.png -resize $${s}x$${s} -depth 8 -strip $(ICON_TMP)/$${s}.png; done
+	magick $(ICON_TMP)/16.png $(ICON_TMP)/24.png $(ICON_TMP)/32.png $(ICON_TMP)/48.png $(ICON_TMP)/64.png $(ICON_TMP)/128.png $(ICON_TMP)/256.png build/windows/icon.ico
+	for s in 16 32 48 64 128 256 512; do cp $(ICON_TMP)/$${s}.png build/nfpm/icons/agentry-desktop-$${s}.png; done
+	rm -rf $(ICON_TMP)
 
 package: package-darwin package-windows package-linux
 
@@ -217,7 +230,7 @@ version-check:
 	echo "tag $$tag names productVersion $$pv"
 
 clean:
-	rm -rf build/bin build/linux frontend/dist
+	rm -rf build/bin build/linux build/.icons frontend/dist
 
 # The version the Makefile stamps (the release workflow names the bundle by it).
 version:

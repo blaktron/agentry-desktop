@@ -23,9 +23,10 @@
 # not the build container's glibc, so the package refuses a distribution
 # that would fail at first launch and admits every one that would not.
 #
-# The icons are build/appicon.png rendered at the hicolor sizes with
-# ImageMagick (`make linux-icons`); re-render and commit them when the app
-# icon changes — nothing regenerates them at build time.
+# The icons are build/appicon.svg (and build/appicon-small.svg below 48)
+# rendered at the hicolor sizes with ImageMagick (`make app-icons`);
+# re-render and commit them when the app icon changes — nothing
+# regenerates them at build time.
 #
 # ${DESKTOP_VERSION} is what the Makefile stamps into the binary (git
 # describe without the tag's v: 0.1.0 on a tag, 0.1.0-9-g<sha> past it);
