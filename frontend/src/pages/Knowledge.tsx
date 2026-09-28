@@ -16,12 +16,12 @@ import { useCallback, useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";
 import { Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, fmtBytes } from "../ui";
-import { AGENTRY_MAX_BYTES, pagesOf, scanTone } from "../knowledge";
+import { AGENTRY_MAX_BYTES, fmtCap, pagesOf, scanTone } from "../knowledge";
+import KnowledgePreview from "./KnowledgePreview";
 
 // A pack made on this computer may hold up to 1 GB; Agentry keeps packs of
 // at most 10 MB, so a larger one offers no Upload (agentry-desktop#354).
 const pastAgentryCap = (p: knowledge.Pack) => p.bytes > AGENTRY_MAX_BYTES;
-import KnowledgePreview from "./KnowledgePreview";
 
 export default function Knowledge({
   registry, onOpenSettings, onCreate, rev, previewRequest, onPreviewRequestSeen, initialPreview,
@@ -191,7 +191,7 @@ export default function Knowledge({
               <div className="agent-row-summary muted">{pagesOf(p.pages)} · {fmtBytes(p.bytes)}</div>
               {p.local && !p.shared && pastAgentryCap(p) && (
                 <div className="muted small">
-                  Past the 10 MB Agentry keeps, so it stays on this computer: it cannot be uploaded, shared or attached to a run In Agentry.
+                  Past the {fmtCap(AGENTRY_MAX_BYTES)} Agentry keeps, so it stays on this computer: it cannot be uploaded, shared or attached to a run In Agentry.
                 </div>
               )}
               <div className="agent-row-meta muted small">

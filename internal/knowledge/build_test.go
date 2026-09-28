@@ -276,3 +276,31 @@ func TestAStoppedBuildIsStillKeptSealed(t *testing.T) {
 		}
 	}
 }
+
+// Past Agentry's 10 MB of documents, a build on this computer says first
+// that it can take a very long time and that the pack stays here
+// (agentry-desktop#354); under it, nothing is said.
+func TestABuildPastAgentrysCapSaysSoFirst(t *testing.T) {
+	reg := knowledgetest.NewRegistry(t)
+	e := testEnv(t, reg, reg.Token("ana"), newKeys())
+	t.Setenv(policy.HomeEnv, homeOf(t, e))
+	big := filepath.Join(t.TempDir(), "big.txt")
+	if err := os.WriteFile(big, []byte(strings.Repeat("x", kn.MaxBytes+1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var seen build.Options
+	var log strings.Builder
+	if _, err := e.Create(context.Background(), BuildRequest{Registry: reg.URL, Name: "big", Documents: []string{big}, Build: fakeCreator(t, &seen, nil), Log: &log}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(log.String(), "can take a very long time") || !strings.Contains(log.String(), "stay on this computer") {
+		t.Fatalf("log = %q", log.String())
+	}
+	log.Reset()
+	if _, err := e.Create(context.Background(), BuildRequest{Registry: reg.URL, Name: "small", Documents: documents(t), Build: fakeCreator(t, &seen, nil), Log: &log}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(log.String(), "can take a very long time") {
+		t.Fatalf("a small build warned: %q", log.String())
+	}
+}

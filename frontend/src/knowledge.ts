@@ -4,6 +4,7 @@
 // The copy names what holds a pack's key and what read it, and never calls
 // a pack "safe", "secure" or "private" (plan §3).
 import { knowledge } from "../wailsjs/go/models";
+import { fmtBytes } from "./ui";
 
 /** A pack name: 1-64 lowercase letters, digits, '.', '-' or '_', starting
  *  with a letter or a digit — one directory under /knowledge in a run. */
@@ -151,18 +152,16 @@ export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): stri
   );
 }
 
-/** Agentry keeps packs of at most 10 MB; a pack made on this computer may
- *  hold up to 1 GB, documents included (agentry-cli#429, agentry-desktop#354).
- *  Go's DocumentsView carries both; these are the same numbers for the
- *  views that have no answer from Go to read them from. */
+/** Agentry keeps packs of at most 10 MB (Go's knowledge.MaxBytes), for the
+ *  pack list, which has no answer from Go that carries it; a pack made on
+ *  this computer may hold up to 1 GB (agentry-cli#429, agentry-desktop#354). */
 export const AGENTRY_MAX_BYTES = 10 * 1024 * 1024;
-export const LOCAL_MAX_BYTES = 1024 * 1024 * 1024;
 
 /** The Documents step's warning past Agentry's cap. */
-export function largeDocumentsWarning(bytes: number): string {
+export function largeDocumentsWarning(bytes: number, agentryMax: number): string {
   return (
-    `The documents come to ${(bytes / (1024 * 1024)).toFixed(1)} MB. A build that size can take a very long time, ` +
-    "and the pack will stay on this computer: Agentry keeps packs of at most 10 MB, so it cannot be uploaded, shared or built In Agentry."
+    `The documents come to ${fmtBytes(bytes)}. A build that size can take a very long time, ` +
+    `and the pack will stay on this computer: Agentry keeps packs of at most ${fmtCap(agentryMax)}, so it cannot be uploaded, shared or built In Agentry.`
   );
 }
 

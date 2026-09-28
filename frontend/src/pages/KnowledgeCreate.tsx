@@ -60,15 +60,13 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, initialSize, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
   addTo?: string;
   onClose: () => void;
   onPreview: (name: string) => void;
-  /** Harness-only: what the documents come to. */
-  initialSize?: main.DocumentsView;
   /** Shown as the corner card rather than the dialog; App owns it. */
   minimized?: boolean;
   /** Shrink to the corner card, and back. */
@@ -106,7 +104,7 @@ export default function KnowledgeCreate({
   const [building, setBuilding] = useState(initialBuilding ?? false);
   const [log, setLog] = useState<string[]>([]);
   const [budget, setBudget] = useState<main.CreatorBudgetView | null>(null);
-  const [size, setSize] = useState<main.DocumentsView | null>(initialSize ?? null);
+  const [size, setSize] = useState<main.DocumentsView | null>(null);
   const [progress, setProgress] = useState<BuildProgress | null>(null);
   const [result, setResult] = useState<knowledge.BuildResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -139,14 +137,21 @@ export default function KnowledgeCreate({
     }
   }, []);
   useEffect(() => EventsOn("knowledge:hosted-build", (v: main.KnowledgeHostedBuildView) => setHosted(v)), []);
+  // sizing: the documents are being sized, so Next waits for the answer;
+  // an answer for documents since changed is dropped.
+  const [sizing, setSizing] = useState(false);
   useEffect(() => {
-    if (docs.length === 0) {
-      setSize(null);
-      return;
-    }
-    if (initialSize) return;
-    KnowledgeAPI.DocumentsSize(docs).then(setSize).catch(() => setSize(null));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSize(null);
+    if (docs.length === 0) return;
+    let live = true;
+    setSizing(true);
+    KnowledgeAPI.DocumentsSize(docs)
+      .then((v) => live && setSize(v))
+      .catch(() => live && setSize(null))
+      .finally(() => live && setSizing(false));
+    return () => {
+      live = false;
+    };
   }, [docs]);
   const pastAgentry = !!size && size.bytes > size.agentryMaxBytes;
   const pastLocal = !!size && size.bytes > size.localMaxBytes;
@@ -167,6 +172,7 @@ export default function KnowledgeCreate({
   function next() {
     const p =
       step === "documents" && docs.length === 0 ? "Add at least one document or folder."
+      : step === "documents" && sizing ? "Still adding up the documents' size; try again in a moment."
       : step === "documents" && pastLocal ? `The documents come to ${fmtBytes(size!.bytes)}; a knowledge pack made on this computer, its documents included, is at most ${fmtCap(size!.localMaxBytes)}. Remove some.`
       : step === "name" ? nameProblem(name)
       : null;
@@ -341,7 +347,7 @@ export default function KnowledgeCreate({
                     {docs.length === 1 ? "1 file or folder" : `${docs.length} files and folders`}, {fmtBytes(size.bytes)} together.
                   </p>
                 )}
-                {pastAgentry && !pastLocal && <Notice tone="warn">{largeDocumentsWarning(size!.bytes)}</Notice>}
+                {pastAgentry && !pastLocal && <Notice tone="warn">{largeDocumentsWarning(size!.bytes, size!.agentryMaxBytes)}</Notice>}
                 <div className="row">
                   <Button onClick={addFiles}>Add files…</Button>
                   <Button onClick={addFolder}>Add folder…</Button>
