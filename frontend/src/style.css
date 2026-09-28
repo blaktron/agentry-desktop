@@ -855,6 +855,14 @@ details.advanced[open] > summary { margin-bottom: 6px; }
    the field (agentry-desktop#228). */
 .run-key { display: grid; grid-template-columns: minmax(220px, auto) 1fr; column-gap: 10px; row-gap: 4px; align-items: center; margin-bottom: 8px; }
 .run-key-help { grid-column: 2; margin: 0; }
+/* A release guide's help for a key (DEV-167, agentry-desktop#343): markdown
+   in a frame that names it as the author's, so nothing in it reads as the
+   app's own field. */
+.key-help { border: 1px solid var(--color-border); border-radius: 6px; padding: 6px 10px; background: var(--color-surface); }
+.key-help-caption { margin: 0; }
+.key-help .readme p { margin: 0.4em 0; }
+.key-help .link-host { color: var(--color-muted); font-size: 0.9em; }
+.key-help-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .run-recap, .step-recap {
   display: grid;
   grid-template-columns: minmax(8rem, max-content) 1fr;
@@ -870,7 +878,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   gap: 12px;
   min-width: 0;
 }
-.run-recap dd > span, .step-recap dd > span { min-width: 0; overflow-wrap: anywhere; }
+.run-recap dd > span, .step-recap dd > span, .step-recap-value { min-width: 0; overflow-wrap: anywhere; }
 .run-recap-task { white-space: pre-wrap; }
 .run-step-problem, .step-problem {
   color: var(--color-sev-high);

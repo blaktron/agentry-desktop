@@ -546,6 +546,15 @@ func sectionOf(path string) Section {
 // the publish channel (closed vocabularies). Save refuses a model that
 // breaks one, and refuses a file that does not parse back.
 func q(s string) string {
+	// A value over several lines is one double-quoted string (a JSON string
+	// is a YAML double-quoted scalar). yaml.Marshal would write a block
+	// scalar indented for column 0, which parses under a key at two spaces
+	// (the overview) and breaks under one at four (a key's help, which may
+	// span lines since DEV-167; agentry-desktop#343).
+	if strings.ContainsAny(s, "\n\r") {
+		out, _ := json.Marshal(s)
+		return string(out)
+	}
 	out, _ := yaml.Marshal(s)
 	return strings.TrimSpace(string(out))
 }

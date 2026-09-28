@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/blaktron/agentry/pkg/manifest"
 
@@ -490,6 +491,39 @@ func TestCheckAttributesProblemsToSections(t *testing.T) {
 	m.EgressMode = "all"
 	if res := m.Check(); res.First != nil || len(res.Warnings) == 0 {
 		t.Errorf("\"*\" egress for the BriefAgent is a warning, not a refusal: %+v %v", res.First, res.Warnings)
+	}
+}
+
+// A key's help is markdown of up to 2,000 characters that may span lines,
+// through the pinned core's V10 (agentry#707, DEV-167; agentry-desktop#343):
+// Check takes it, writes it as one quoted string, and refuses 2,001 and an
+// escape character.
+func TestCheckTakesMarkdownKeyHelpOfUpTo2000Characters(t *testing.T) {
+	md := "1. Open **Settings → Developer settings → Fine-grained tokens**.\n2. Give it *read* access.\n\n\t- [Their guide](https://docs.github.com/)\n"
+	pad := func(n int) string { return md + strings.Repeat("é", n-utf8.RuneCountInString(md)) }
+	for _, c := range []struct {
+		name, help string
+		ok         bool
+	}{
+		{"2,000 characters over lines", pad(2000), true},
+		{"2,001 characters", pad(2001), false},
+		{"an escape character", "Create a key \x1b]8;;https://evil.example/\x07here", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m := model()
+			m.Guide.Connect = []ConnectRow{{Secret: "EXAMPLE_TOKEN", Help: c.help}}
+			res := m.Check()
+			got := res.Problems["guide"] + res.Problems["publish"]
+			if c.ok && got != "" {
+				t.Fatalf("valid help refused: %q", got)
+			}
+			if !c.ok && !strings.Contains(got, "guide.connect.EXAMPLE_TOKEN") {
+				t.Fatalf("want a problem at guide.connect.EXAMPLE_TOKEN, got %q", got)
+			}
+			if c.ok && !strings.Contains(res.YAML, "EXAMPLE_TOKEN: \"1. Open") {
+				t.Fatalf("the help is not one quoted string:\n%s", res.YAML)
+			}
+		})
 	}
 }
 
