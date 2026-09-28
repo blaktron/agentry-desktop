@@ -66,6 +66,10 @@ export function StartHostedBuild(arg1, arg2, arg3, arg4) {
   return window['go']['main']['KnowledgeAPI']['StartHostedBuild'](arg1, arg2, arg3, arg4);
 }
 
+export function StopBuild() {
+  return window['go']['main']['KnowledgeAPI']['StopBuild']();
+}
+
 export function Upload(arg1, arg2) {
   return window['go']['main']['KnowledgeAPI']['Upload'](arg1, arg2);
 }

@@ -8,6 +8,7 @@ import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
 import Knowledge from "./pages/Knowledge";
+import KnowledgeCreate from "./pages/KnowledgeCreate";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings from "./pages/Settings";
@@ -26,8 +27,19 @@ export type Route =
   | { page: "build" }
   | { page: "settings" };
 
+// The one Create knowledge or Add documents flow, above the pages so a build
+// goes on in its corner card while the person uses the rest of the app
+// (agentry-desktop#353). One at a time, as the run lock allows one build.
+type KnowledgeFlow = { registry: string; addTo?: string };
+
 export default function App() {
   const [route, setRoute] = useState<Route>({ page: "browse" });
+  const [knowledgeFlow, setKnowledgeFlow] = useState<KnowledgeFlow | null>(null);
+  const [flowMinimized, setFlowMinimized] = useState(false);
+  // Bumped when a build ends, so the Knowledge list is read again.
+  const [knowledgeRev, setKnowledgeRev] = useState(0);
+  const [previewRequest, setPreviewRequest] = useState<string | null>(null);
+  const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
@@ -186,7 +198,21 @@ export default function App() {
               onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
             />
           )}
-          {route.page === "knowledge" && <Knowledge registry={registry} onOpenSettings={() => nav({ page: "settings" })} />}
+          {route.page === "knowledge" && (
+          <Knowledge
+            registry={registry}
+            onOpenSettings={() => nav({ page: "settings" })}
+            onCreate={(addTo) => {
+              // A flow already open, in its card or not, is brought back
+              // rather than a second started: one build at a time.
+              if (!knowledgeFlow) setKnowledgeFlow({ registry, addTo });
+              setFlowMinimized(false);
+            }}
+            rev={knowledgeRev}
+            previewRequest={previewRequest}
+            onPreviewRequestSeen={clearPreviewRequest}
+          />
+        )}
           {route.page === "build" && (
             <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings" })} />
           )}
@@ -202,6 +228,27 @@ export default function App() {
           )}
         </Recover>
       </div>
+      {knowledgeFlow && (
+        <KnowledgeCreate
+          registry={knowledgeFlow.registry}
+          addTo={knowledgeFlow.addTo}
+          minimized={flowMinimized}
+          onMinimize={() => setFlowMinimized(true)}
+          onRestore={() => setFlowMinimized(false)}
+          onClose={() => {
+            setKnowledgeFlow(null);
+            setFlowMinimized(false);
+            setKnowledgeRev((n) => n + 1);
+          }}
+          onPreview={(name) => {
+            setKnowledgeFlow(null);
+            setFlowMinimized(false);
+            setKnowledgeRev((n) => n + 1);
+            setPreviewRequest(name);
+            setRoute({ page: "knowledge" });
+          }}
+        />
+      )}
       {showWizard && settings && (
         <Wizard
           settings={settings}

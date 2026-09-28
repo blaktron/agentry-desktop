@@ -89,7 +89,9 @@ the sentence that nothing the Creator reads or writes is scanned) and
 may run, and `#create-building` shows the build's progress from scripted
 `knowledge:build-progress` events (time against the limit, turns, pages
 written, tokens) over its folded log, which `knowledge-create-building-log`
-opens, `#create-done` shows what it made, `#hosted-where`, `#hosted-review`, `#hosted-running` and `#hosted-done` are a build In Agentry (agentry-desktop#274), and `#add-review` is Add
+opens, `#create-done` shows what it made; since agentry-desktop#353 `#card-building`,
+`#card-done` and `#card-hosted` show a build shrunk to its corner card over the
+page (no backdrop: `shots.mjs` fails them on one), `#hosted-where`, `#hosted-review`, `#hosted-running` and `#hosted-done` are a build In Agentry (agentry-desktop#274), and `#add-review` is Add
 documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
 page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.

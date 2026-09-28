@@ -23,6 +23,15 @@
 // step says so and how long it may run (at least 30 minutes, Go's
 // CreatorBudgets), and the build shows its progress as it goes (elapsed
 // against the timeout, turns, the pages written so far) over its log.
+//
+// A running build does not take over the app (agentry-desktop#353): App
+// mounts this flow above the pages, and closing the dialog while a build
+// runs, or Run in the background, shrinks it to a card in the bottom-right
+// corner. The card keeps the build's progress, opens the full view again,
+// stops the build (on this computer: KnowledgeAPI.StopBuild keeps the pages
+// that pass the apply step; In Agentry: the registry's cancel), and, once
+// the build is over, says how it ended. The run lock is unchanged: a run
+// started meanwhile is refused with the reason, as it always was.
 import { useEffect, useRef, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
@@ -42,13 +51,18 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
   addTo?: string;
   onClose: () => void;
   onPreview: (name: string) => void;
+  /** Shown as the corner card rather than the dialog; App owns it. */
+  minimized?: boolean;
+  /** Shrink to the corner card, and back. */
+  onMinimize?: () => void;
+  onRestore?: () => void;
   /** Harness-only: open on this step with these answers. */
   initialStep?: Step;
   initialDocuments?: string[];
@@ -176,9 +190,22 @@ export default function KnowledgeCreate({
     }
   }
 
+  const [stopping, setStopping] = useState(false);
+  async function stopLocal() {
+    setStopping(true);
+    try {
+      await KnowledgeAPI.StopBuild();
+    } catch (e) {
+      setError(String(e));
+      setStopping(false);
+    }
+  }
+  const cancelHosted = () => KnowledgeAPI.CancelHostedBuild().then(setHosted).catch((e) => setError(String(e)));
+
   async function build() {
     if (inAgentry) return startHosted();
     setBuilding(true);
+    setStopping(false);
     setError(null);
     setLog([]);
     setProgress(null);
@@ -193,8 +220,56 @@ export default function KnowledgeCreate({
 
   const title = addTo ? `Add documents to ${addTo}` : "Create knowledge";
   const running = building || result || error || hosted || refusal;
+  // In flight: the dialog's close shrinks it to the corner card instead.
+  const inFlight = building || (!!hosted && !hosted.final);
+  const minimize = onMinimize ?? (() => {});
+
+  if (minimized) {
+    const packName = hosted?.name || addTo || name;
+    let line: string;
+    let tone = "";
+    if (building) line = "";
+    else if (hosted && !hosted.final) line = hosted.statusLine || hosted.state;
+    else if (hosted) {
+      line = hosted.applied ? `${hosted.name}: ${pagesOf(hosted.pages)}` : hosted.outcomeLine || hosted.state;
+      tone = hosted.outcome === "succeeded" ? "ok" : hosted.canContinue ? "warn" : "bad";
+    } else if (result) {
+      line = `${addTo ? "Added to" : "Made"} ${result.name}: ${pagesOf(result.pages)}${result.stopped ? ", stopped before it finished" : ""}`;
+      tone = result.stopped ? "warn" : "ok";
+    } else if (error) {
+      line = addTo ? `Nothing was added to ${addTo}` : "No pack was made";
+      tone = "bad";
+    } else if (refusal) {
+      line = "The registry did not start the build";
+      tone = "bad";
+    } else line = "";
+    return (
+      <aside className="build-card" role="status" aria-live="polite" aria-label={`Knowledge build: ${packName}`}>
+        <div className="build-card-head">
+          {inFlight && <span className="build-card-dot" aria-hidden />}
+          <strong className="grow">
+            {inFlight ? (addTo ? `Adding documents to ${addTo}` : `Creating ${packName}`) : `${packName}: the build is over`}
+            {inFlight && hosted ? " In Agentry" : ""}
+          </strong>
+        </div>
+        {building && <BuildProgressView progress={progress} compact />}
+        {line && <p className={`small build-card-line${tone ? ` run-outcome-${tone}` : ""}`}>{line}</p>}
+        <div className="row build-card-actions">
+          {building && (
+            <Button onClick={stopLocal} disabled={stopping}>{stopping ? "Stopping…" : "Stop"}</Button>
+          )}
+          {hosted && !hosted.final && !hosted.cancelRequested && hosted.status !== "finished" && hosted.status !== "cancelled" && (
+            <Button onClick={cancelHosted}>Cancel the build</Button>
+          )}
+          {!inFlight && <Button onClick={onClose}>Dismiss</Button>}
+          <Button variant="primary" onClick={onRestore}>Open</Button>
+        </div>
+      </aside>
+    );
+  }
+
   return (
-    <Modal title={title} onClose={building ? () => {} : onClose} wide>
+    <Modal title={title} onClose={inFlight ? minimize : onClose} wide>
       {!running && (
         <>
           <StepList labels={steps.map((s) => LABEL[s])} at={at} />
@@ -327,6 +402,14 @@ export default function KnowledgeCreate({
             <summary>Build log</summary>
             <pre ref={logRef} className="run-log selectable" aria-label="Build log">{log.join("\n")}</pre>
           </details>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button onClick={stopLocal} disabled={stopping}>{stopping ? "Stopping…" : "Stop the build"}</Button>
+            {onMinimize && <Button variant="primary" onClick={onMinimize}>Run in the background</Button>}
+          </div>
+          <p className="muted small">
+            In the background, the build goes on in a card in the corner and the rest of the app stays usable. Stop keeps
+            the pages written so far that pass their checks.
+          </p>
         </>
       )}
 
@@ -359,18 +442,18 @@ export default function KnowledgeCreate({
         <>
           <Spinner label={hosted.statusLine || hosted.state} />
           <p className="muted small">
-            The Knowledge Creator runs In Agentry on {hosted.documents?.length ?? 0} documents. This window can close: the build goes on,
-            and Create knowledge follows it again when reopened.
+            The Knowledge Creator runs In Agentry on {hosted.documents?.length ?? 0} documents. Run in the background keeps it in a card
+            in the corner while you use the rest of the app; the build goes on in Agentry either way.
           </p>
           <p className="small">{buildCreditsLine(hosted)}</p>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             {!hosted.cancelRequested && hosted.status !== "finished" && hosted.status !== "cancelled" && (
-              <Button onClick={() => KnowledgeAPI.CancelHostedBuild().then(setHosted).catch((e) => setError(String(e)))}>Cancel the build</Button>
+              <Button onClick={cancelHosted}>Cancel the build</Button>
             )}
             {(hosted.status === "finished" || hosted.status === "cancelled") && (
-              <Button onClick={() => KnowledgeAPI.CancelHostedBuild().then(setHosted).catch((e) => setError(String(e)))}>Stop waiting</Button>
+              <Button onClick={cancelHosted}>Stop waiting</Button>
             )}
-            <Button onClick={onClose}>Close</Button>
+            {onMinimize ? <Button variant="primary" onClick={onMinimize}>Run in the background</Button> : <Button onClick={onClose}>Close</Button>}
           </div>
         </>
       )}
@@ -392,7 +475,7 @@ export default function KnowledgeCreate({
 // the turn budget, the pages the Creator has written so far and the tokens
 // it has used. Before the first report it says the build is starting. The
 // pages are counted as written: the apply step checks them after the run.
-function BuildProgressView({ progress }: { progress: BuildProgress | null }) {
+function BuildProgressView({ progress, compact }: { progress: BuildProgress | null; compact?: boolean }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -401,18 +484,32 @@ function BuildProgressView({ progress }: { progress: BuildProgress | null }) {
   if (!progress) return <p className="muted small">Starting the build…</p>;
   const elapsed = Math.max(0, (now - progress.startedAt) / 1000);
   const share = progress.timeoutSeconds > 0 ? Math.min(1, elapsed / progress.timeoutSeconds) : 0;
+  const bar = (
+    <div
+      className="knowledge-progress-bar"
+      role="progressbar"
+      aria-label="Time used of the build's limit"
+      aria-valuemin={0}
+      aria-valuemax={progress.timeoutSeconds}
+      aria-valuenow={Math.floor(elapsed)}
+    >
+      <span style={{ width: `${share * 100}%` }} />
+    </div>
+  );
+  if (compact) {
+    return (
+      <div className="knowledge-progress">
+        {bar}
+        <p className="small muted">
+          {fmtClock(elapsed)}
+          {progress.timeoutSeconds > 0 && <> of up to {fmtClock(progress.timeoutSeconds)}</>} · {pagesOf(progress.pages)} written
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="knowledge-progress">
-      <div
-        className="knowledge-progress-bar"
-        role="progressbar"
-        aria-label="Time used of the build's limit"
-        aria-valuemin={0}
-        aria-valuemax={progress.timeoutSeconds}
-        aria-valuenow={Math.floor(elapsed)}
-      >
-        <span style={{ width: `${share * 100}%` }} />
-      </div>
+      {bar}
       <dl className="knowledge-facts">
         <dt>Time</dt>
         <dd>

@@ -86,6 +86,27 @@ func (k *KnowledgeAPI) Add(reg, name string, documents []string) (*knowledge.Bui
 	return k.runBuild(reg, name, documents, true)
 }
 
+// knowledgeRunRef names a Creator build as the run in flight: what quitting
+// says it ends, and how StopBuild tells a build from a run.
+const knowledgeRunRef = "the Knowledge Creator"
+
+// StopBuild stops the build on this computer that is running, from the
+// corner card or the building view (agentry-desktop#353): its context is
+// cancelled, the Creator run tears down as a quit's does, and the pages it
+// wrote that pass the apply step are kept, as a build stopped at its
+// timeout keeps them. It stops only a Knowledge Creator build, never a run
+// or a session, and says so when none is running.
+func (k *KnowledgeAPI) StopBuild() error {
+	r := k.run
+	r.liveMu.Lock()
+	defer r.liveMu.Unlock()
+	if r.live == nil || r.live.ref != knowledgeRunRef {
+		return errors.New("no knowledge build is running on this computer")
+	}
+	r.live.cancel()
+	return nil
+}
+
 func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) (*knowledge.BuildResult, error) {
 	for _, p := range documents {
 		if err := k.app.requirePicked("document", p); err != nil {
@@ -95,7 +116,7 @@ func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) 
 	// A build is a run: the Creator's containers carry the run id, so
 	// quitting mid-build ends it and sweeps them (services_quit.go).
 	var res *knowledge.BuildResult
-	err := k.run.asRun("the Knowledge Creator", eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
+	err := k.run.asRun(knowledgeRunRef, eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		req := knowledge.BuildRequest{
 			Registry: reg, Name: name, Documents: documents, RunID: runID, Build: k.build, Log: logw,
 			Progress: func(p knowledge.Progress) { emitEvent(k.app, eventKnowledgeProgress, p) },
