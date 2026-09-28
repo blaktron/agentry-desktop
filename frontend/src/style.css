@@ -891,6 +891,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 12px 0; }
 .build-way { text-align: left; display: block; width: 100%; padding: 16px; }
 .build-way strong { display: block; font-size: 15px; margin-bottom: 4px; }
+/* Describe it's place to draft (#281): the chosen one is outlined. */
+.card.selected { border-color: var(--color-accent); }
 .build-writes > summary { cursor: pointer; }
 .build-writes pre { margin: 6px 0 0; overflow-x: auto; }
 .build-reach { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; }

@@ -86,11 +86,7 @@ func DecideBuild(f BuildFacts) Offer {
 		o.Remedy = "Create it on this computer with your own model provider, for no credits, then Upload to Agentry; or upgrade to Pro."
 		o.Upgrade = true
 	case f.Active != nil:
-		what := "a run"
-		if f.Active.IsBuild() {
-			what = "a build"
-		}
-		o.Reason = "This account already has " + what + " In Agentry in flight. Agentry runs one at a time."
+		o.Reason = "This account already has " + ActiveWhat(f.Active) + " In Agentry in flight. Agentry runs one at a time."
 		o.Remedy = "Wait for it to finish, or cancel it."
 	default:
 		o.Available = true

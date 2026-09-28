@@ -42,6 +42,8 @@ type BuildAPI struct {
 	// substitutes; nil is the core's pkg/judge and this machine's docker.
 	draftScanner func(key string) (webscan.Scanner, error)
 	draftRunner  func(context.Context, localrun.Run) (*receipt.Envelope, error)
+	// hosted is the one draft In Agentry this app follows (#281).
+	hosted hostedBuilds
 }
 
 // NewModel returns a fresh form model. The namespace defaults to the
@@ -163,11 +165,23 @@ type DraftView struct {
 	DrafterModel  string            `json:"drafterModel,omitempty"`
 	RunID         string            `json:"runId,omitempty"`
 	OutDir        string            `json:"outDir"`
+	// Where says where the draft was made: "here", on this computer with
+	// the person's own key, or "agentry", on a sandbox host with AI Review
+	// through the registry (#281).
+	Where string `json:"where"`
+	// Description and Hints are what the person asked for, for Describe
+	// again: a Describe again's description is read back to the person's
+	// first words there.
+	Description string   `json:"description"`
+	Hints       []string `json:"hints"`
 }
 
 // DraftAIReviewView is AI Review's record of a draft: the receipt's counts
 // and each text it held back from the model, with why.
 type DraftAIReviewView struct {
+	// Scan is where the texts were scanned: "jev" with the person's own
+	// key, "registry" through the registry for a draft In Agentry.
+	Scan            string                   `json:"scan"`
 	Read            int                      `json:"read"`
 	Passed          int                      `json:"passed"`
 	Withheld        int                      `json:"withheld"`
@@ -221,7 +235,9 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	if err != nil {
 		return nil, err
 	}
-	return draftView(res), nil
+	v := draftView(res)
+	v.Where, v.Description, v.Hints = "here", description, append([]string{}, hints...)
+	return v, nil
 }
 
 // draftView is a finished draft as the page takes it. The sources AI Review
@@ -230,7 +246,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 func draftView(res *draft.Result) *DraftView {
 	d := res.Draft
 	v := &DraftView{Model: res.Model, DecodeNotes: res.Notes, Notes: drafterNotes(d), Matches: d.Matches, Sources: markWithheld(d),
-		OpenQuestions: d.OpenQuestions, ManifestError: d.ManifestError, OutDir: res.OutDir}
+		OpenQuestions: d.OpenQuestions, ManifestError: d.ManifestError, OutDir: res.OutDir, Hints: []string{}}
 	if v.DecodeNotes == nil {
 		v.DecodeNotes = []string{}
 	}
@@ -238,7 +254,7 @@ func draftView(res *draft.Result) *DraftView {
 		v.DrafterModel, v.RunID = d.Drafter.Model, d.Drafter.RunID
 	}
 	if a := d.AIReview; a != nil {
-		v.AIReview = DraftAIReviewView{Read: a.Read, Passed: a.Passed, Withheld: a.Withheld, NotScanned: a.NotScanned, WithheldSources: a.WithheldSources}
+		v.AIReview = DraftAIReviewView{Scan: a.Scan, Read: a.Read, Passed: a.Passed, Withheld: a.Withheld, NotScanned: a.NotScanned, WithheldSources: a.WithheldSources}
 	}
 	if v.AIReview.WithheldSources == nil {
 		v.AIReview.WithheldSources = []drafter.WithheldSource{}
