@@ -514,3 +514,45 @@ func TestDescribeAgainTextQuotesTheFormsDraftAsData(t *testing.T) {
 		t.Fatal("Describe again with nothing to change")
 	}
 }
+
+// TestARegistryThatRenamesTheDraftGetsNothingUnpacked: the run's folder is
+// named by the id the create answered, and a final poll that names the
+// draft otherwise (here a path out of agentry-out) unpacks nothing.
+func TestARegistryThatRenamesTheDraftGetsNothingUnpacked(t *testing.T) {
+	f := newDraftFake(t)
+	b, ev, home := hostedDraftAPI(t, f)
+	if _, err := b.DescribeInAgentry(f.url, "Summarise notes.", nil); err != nil {
+		t.Fatal(err)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, nil), 20)
+	f.mu.Lock()
+	f.run.ID = "x/../../../.ssh"
+	f.mu.Unlock()
+	final := ev.final(t)
+	if final.Draft != nil || !strings.Contains(final.DraftError, "was not downloaded") {
+		t.Fatalf("final %+v", final)
+	}
+	if _, err := os.Stat(filepath.Join(home, "Downloads")); !os.IsNotExist(err) {
+		t.Fatalf("a folder was made: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
+		t.Fatalf("the renamed draft wrote outside agentry-out: %v", err)
+	}
+}
+
+// TestADraftSendsNoTokenOverPlainHTTPToARealHost: the token is kept by
+// host, so the page's registry URL is held to Settings' rule first
+// (agentry-desktop#307's rule, for the draft's bindings).
+func TestADraftSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
+	f := newDraftFake(t)
+	b, _, _ := hostedDraftAPI(t, f)
+	if _, err := b.DescribeInAgentryStatus("http://dev.secureagentry.net"); err == nil {
+		t.Fatal("the status was read over plain http")
+	}
+	if _, err := b.DescribeInAgentry("http://dev.secureagentry.net", "Summarise notes.", nil); err == nil {
+		t.Fatal("a draft was started over plain http")
+	}
+	if v, err := b.AttachHostedDraft("http://dev.secureagentry.net"); err != nil || v.Draft != nil {
+		t.Fatalf("%+v %v", v, err)
+	}
+}

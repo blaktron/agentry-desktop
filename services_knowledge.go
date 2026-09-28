@@ -39,7 +39,7 @@ type KnowledgeAPI struct {
 	openFolder func(dir string) error
 	// hosted is the build In Agentry this app follows
 	// (services_knowledge_hosted.go).
-	hosted hostedBuilds
+	hosted hostedSlot
 }
 
 func (k *KnowledgeAPI) env() knowledge.Env { return k.run.knowledge() }

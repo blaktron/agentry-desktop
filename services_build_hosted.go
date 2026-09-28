@@ -105,6 +105,11 @@ type HostedDraftStartView struct {
 // draft be made In Agentry, and what would it hold.
 func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, error) {
 	reg = settings.Normalize(reg)
+	// The token is kept by host, so it goes only to a registry URL that
+	// Settings would accept: https, or plain http on this machine.
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, err
+	}
 	ctx := b.app.ctx
 	token := settings.TokenFor(reg)
 	v := &DescribeHostedView{SignedIn: token != "", InputsSentence: hostedrun.DraftInputsSentence}
@@ -152,6 +157,9 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 // app's one draft In Agentry while it lasts.
 func (b *BuildAPI) DescribeInAgentry(reg, description string, hints []string) (*HostedDraftStartView, error) {
 	reg = settings.Normalize(reg)
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, err
+	}
 	ctx := b.app.ctx
 	token := settings.TokenFor(reg)
 	if token == "" {
@@ -194,7 +202,7 @@ func (b *BuildAPI) DescribeInAgentry(reg, description string, hints []string) (*
 func (b *BuildAPI) AttachHostedDraft(reg string) (*HostedDraftStartView, error) {
 	reg = settings.Normalize(reg)
 	token := settings.TokenFor(reg)
-	if token == "" {
+	if settings.ValidateURL(reg) != nil || token == "" {
 		return &HostedDraftStartView{}, nil
 	}
 	client := hostedrun.New(reg, token)
@@ -267,25 +275,15 @@ func (b *BuildAPI) DescribeAgainText(m build.Model, followUp, firstDescription s
 func (b *BuildAPI) followHostedDraft(reg, token string, started *hostedrun.Run) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{registry: reg, id: started.ID, cancel: cancel, done: make(chan struct{})}
-	b.hosted.mu.Lock()
-	if b.hosted.cur != nil && b.hosted.cur.id != "" {
-		b.hosted.mu.Unlock()
+	if !b.hosted.follow(f) {
 		cancel()
 		return
 	}
-	b.hosted.cur = f
-	b.hosted.mu.Unlock()
 	client := hostedrun.New(reg, token)
 	go func() {
 		defer close(f.done)
 		defer cancel()
-		defer func() {
-			b.hosted.mu.Lock()
-			if b.hosted.cur == f {
-				b.hosted.cur = nil
-			}
-			b.hosted.mu.Unlock()
-		}()
+		defer b.hosted.done(f)
 		final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
 			Poll:     hostedPoll,
 			OnStatus: func(r *hostedrun.Run) { emitEvent(b.app, eventDraftHosted, hostedDraftView(r, false)) },
@@ -303,21 +301,28 @@ func (b *BuildAPI) followHostedDraft(reg, token string, started *hostedrun.Run) 
 			}
 			final = last
 		}
-		emitEvent(b.app, eventDraftHosted, b.landHostedDraft(ctx, client, reg, token, final))
+		emitEvent(b.app, eventDraftHosted, b.landHostedDraft(ctx, client, reg, token, started.ID, final))
 	}()
 }
 
 // landHostedDraft is a finished draft's last step on this computer: its
 // output unpacked into the run's own folder, and its draft.json decoded
-// into the form's Model under the person's namespace.
-func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client, reg, token string, final *hostedrun.Run) *HostedDraftView {
+// into the form's Model under the person's namespace. The folder is named
+// by id, the draft's id as the create (or the reattach) answered and this
+// app checked it, never by what a later poll says: a registry that names
+// the draft otherwise at the end gets nothing unpacked.
+func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client, reg, token, id string, final *hostedrun.Run) *HostedDraftView {
 	v := hostedDraftView(final, true)
 	if final.Status != hostedrun.StatusFinished || final.Outcome != hostedrun.OutcomeSucceeded {
 		return v
 	}
-	outDir, err := run.OutputDir("", drafter.Namespace, drafter.Name, final.ID)
+	if final.ID != id || !validRunID(id) {
+		v.DraftError = fmt.Sprintf("the registry answered the draft %s as %q, so its output was not downloaded", id, final.ID)
+		return v
+	}
+	outDir, err := run.OutputDir("", drafter.Namespace, drafter.Name, id)
 	if err != nil {
-		v.DraftError = err.Error()
+		v.DraftError = "there is no folder for the draft's output on this computer (" + err.Error() + ")"
 		return v
 	}
 	if _, err := client.DownloadOutputs(ctx, final, outDir); err != nil {
@@ -334,41 +339,25 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 		return v
 	}
 	dv := draftView(res)
-	dv.Where = "agentry"
+	dv.Where = draftInAgentry
 	dv.Description = final.Task
 	if final.Draft != nil {
 		dv.Hints = append([]string{}, final.Draft.Hints...)
 	}
+	dv.markHosts()
 	v.Draft = dv
 	return v
 }
 
-// claimHosted takes the follow slot for a draft about to be started or
-// reattached, or refuses when one is already followed or being started.
+// claimHosted, releaseHosted and hostedCurrent are the draft's follow
+// slot (hostedSlot).
 func (b *BuildAPI) claimHosted() error {
-	b.hosted.mu.Lock()
-	defer b.hosted.mu.Unlock()
-	if b.hosted.cur != nil {
-		return fmt.Errorf("a draft In Agentry is already in progress: wait for it to finish, or cancel it")
-	}
-	b.hosted.cur = &hostedFollow{cancel: func() {}}
-	return nil
+	return b.hosted.claim("a draft In Agentry is already in progress: wait for it to finish, or cancel it")
 }
 
-// releaseHosted gives back a claim that did not become a follow.
-func (b *BuildAPI) releaseHosted() {
-	b.hosted.mu.Lock()
-	defer b.hosted.mu.Unlock()
-	if b.hosted.cur != nil && b.hosted.cur.id == "" {
-		b.hosted.cur = nil
-	}
-}
+func (b *BuildAPI) releaseHosted() { b.hosted.release() }
 
-func (b *BuildAPI) hostedCurrent() *hostedFollow {
-	b.hosted.mu.Lock()
-	defer b.hosted.mu.Unlock()
-	return b.hosted.cur
-}
+func (b *BuildAPI) hostedCurrent() *hostedFollow { return b.hosted.current() }
 
 // hostedDraftRefusal is the registry's refusal as the page renders it.
 func hostedDraftRefusal(r *hostedrun.Refusal) *HostedDraftStartView {

@@ -161,6 +161,8 @@ const hostedDrafting = buildHash === "describe-agentry-drafting"
   : null;
 const draftedView = buildHash.startsWith("drafted") ? {
   where: agentryDraft ? "agentry" : "here", description: "Check a CSV file I add for missing values, duplicate rows and mixed formats.", hints: [],
+  unmentioned: agentryDraft ? ["api.csvlint.io"] : [], moreProblems: 0,
+  problems: agentryDraft ? ["V14 guide.prepare: 13 prepare items; the maximum is 10"] : [],
   model: { ...buildModel, name: "csv-quality-check", namespace: "demo1", version: "0.1.0",
     summary: "Checks a CSV you add for missing values, duplicate rows and mixed formats, per column.",
     egressMode: "none", egressHosts: [], fsRead: "none", fsWrite: "none", fsWritePaths: [], secrets: [], mcpServers: [], dataAccess: ["files"],

@@ -165,6 +165,11 @@ function attachHosted(registry: string) {
     .catch(() => {});
 }
 
+// credits is a count of credits, singular for one (the site's creditsPhrase).
+function credits(n: number): string {
+  return n === 1 ? "1 credit" : `${n} credits`;
+}
+
 function minutes(s: number): string {
   const m = Math.round(s / 60);
   return m === 1 ? "1 minute" : `${m} minutes`;
@@ -240,7 +245,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
         </label>
         <p className="small" style={{ marginBottom: 4 }}>Hints, if you have them</p>
         <label className="small" style={{ display: "block", marginTop: 6 }}>The services or sites it works with
-          <input type="text" style={{ width: "100%" }} value={hints.services} placeholder="e.g. GitHub" disabled={busy} maxLength={430}
+          <input type="text" style={{ width: "100%" }} value={hints.services} placeholder="e.g. GitHub" disabled={busy} maxLength={436}
             onChange={(e) => setHints({ ...hints, services: e.target.value })} />
         </label>
         <label className="small" style={{ display: "block", marginTop: 6 }}>How it runs
@@ -252,7 +257,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
           </Select>
         </label>
         <label className="small" style={{ display: "block", marginTop: 6 }}>An example of the output you want
-          <input type="text" style={{ width: "100%" }} value={hints.example} placeholder="e.g. a table of problems per column" disabled={busy} maxLength={430}
+          <input type="text" style={{ width: "100%" }} value={hints.example} placeholder="e.g. a table of problems per column" disabled={busy} maxLength={436}
             onChange={(e) => setHints({ ...hints, example: e.target.value })} />
         </label>
       </Card>
@@ -272,7 +277,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
                 <p style={{ marginBottom: 4 }}>
                   {agentry.holdSentence}
                   {agentry.balanceKnown && !agentry.unmetered && agentry.holdCredits > 0
-                    ? agentry.pool ? ` ${agentry.pool}'s pool has ${agentry.balance} credits.` : ` This account has ${agentry.balance} credits.`
+                    ? agentry.pool ? <> <RevealText text={agentry.pool} />&apos;s pool has {credits(agentry.balance)}.</> : ` This account has ${credits(agentry.balance)}.`
                     : ""}
                 </p>
               )}
@@ -283,7 +288,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
               )}
               {agentry.short && (
                 <Notice tone="warn">
-                  {agentry.pool ? `${agentry.pool}'s pool has` : "This account has"} fewer credits than a draft holds, so the registry will refuse this one.{" "}
+                  {agentry.pool ? <><RevealText text={agentry.pool} />&apos;s pool has</> : "This account has"} fewer credits than a draft holds, so the registry will refuse this one.{" "}
                   <Button variant="link" onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>Credits and upgrade</Button>
                 </Notice>
               )}
@@ -337,7 +342,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
       {localInflight && inflightLog.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 200, overflow: "auto", marginTop: 12 }}>{inflightLog.join("\n")}</pre>}
       {!busy && refusal && <DraftRefusal v={refusal} registry={registry} onError={setError} />}
       {!busy && hosted?.final && !hosted.draft && <p className="small muted">{hosted.creditsLine}</p>}
-      <ErrorBox error={shownError} />
+      {shownError && <div className="error-box selectable"><RevealText text={shownError} /></div>}
     </section>
   );
 }
@@ -402,7 +407,24 @@ export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?
           ))}
         </ul>
       )}
-      {v.manifestError && <Notice tone="warn">The draft is not finished: <RevealText text={v.manifestError} /></Notice>}
+      {(v.unmentioned ?? []).length > 0 && (
+        <Notice tone="warn">
+          <strong>Hosts your description did not name.</strong> The draft may reach{" "}
+          {v.unmentioned.map((h, i) => (
+            <span key={i}>{i > 0 ? ", " : ""}<span className="mono selectable">{h === "*" ? "any host (*)" : <RevealText text={h} />}</span></span>
+          ))}
+          . Check that each one is a host you want it to reach: a host the description never asked for is the shape a page&apos;s injection would take.
+        </Notice>
+      )}
+      {(v.problems ?? []).length > 0 && (
+        <>
+          <h4 className="small">What the draft still fails</h4>
+          <ul className="small">
+            {v.problems.map((p, i) => <li key={i}><RevealText text={p} /></li>)}
+          </ul>
+          {v.moreProblems > 0 && <p className="small muted">…and {v.moreProblems} more.</p>}
+        </>
+      )}
       {(v.decodeNotes ?? []).map((n, i) => <Notice key={i} tone="info"><RevealText text={n} /></Notice>)}
       {(v.matches ?? []).length > 0 && (
         <>

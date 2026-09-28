@@ -1562,6 +1562,9 @@ export namespace main {
 	    where: string;
 	    description: string;
 	    hints: string[];
+	    unmentioned: string[];
+	    problems: string[];
+	    moreProblems: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DraftView(source);
@@ -1583,6 +1586,9 @@ export namespace main {
 	        this.where = source["where"];
 	        this.description = source["description"];
 	        this.hints = source["hints"];
+	        this.unmentioned = source["unmentioned"];
+	        this.problems = source["problems"];
+	        this.moreProblems = source["moreProblems"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

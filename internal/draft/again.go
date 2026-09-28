@@ -3,6 +3,8 @@ package draft
 import (
 	"strings"
 	"unicode/utf8"
+
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 )
 
 // Describe again (plan builder-rework.md §7.1, D11; #281), as the site
@@ -20,7 +22,7 @@ import (
 
 // MaxDescription is a description's bound on the registry, and so what
 // Describe again composes to.
-const MaxDescription = 24 << 10
+const MaxDescription = hostedrun.MaxDraftDescriptionBytes
 
 // MaxFollowUp is Describe again's note on what should change.
 const MaxFollowUp = 4000
