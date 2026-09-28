@@ -212,7 +212,7 @@ export default function RunPanel({
   } else if (!setup) {
     blockers.push("Checking this machine's setup.");
   } else if (!setup.dockerOk) {
-    blockers.push("Docker is not ready — set it up in Settings → Agent runs" + (hosted?.offered ? ", or run this release In Agentry." : "."));
+    blockers.push("Docker is not ready — set it up in Settings → Run defaults" + (hosted?.offered ? ", or run this release In Agentry." : "."));
   }
   // The release's own profile is this machine's: a run In Agentry takes its
   // keys from the account's secrets there instead (agentry-desktop#300).
@@ -598,7 +598,7 @@ export default function RunPanel({
                 {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
                   <Notice tone="warn">
                     The gateway/harness/runner images are not all present yet — this run will install
-                    them first (it can take a few minutes), or prepare them once in Settings → Agent runs.
+                    them first (it can take a few minutes), or prepare them once in Settings → Provider settings.
                   </Notice>
                 )}
                 {profile && profile.capabilityLines.length > 0 && (

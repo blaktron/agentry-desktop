@@ -168,8 +168,8 @@ export default function KnowledgeCreate({
   const inAgentry = where === "agentry";
   if (inAgentry) {
     if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
-  } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Runtime says how to set it up.`);
-  if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Runtime.");
+  } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
+  if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
 
   async function startHosted() {
     setError(null);

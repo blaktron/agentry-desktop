@@ -16,7 +16,7 @@ const PROVIDERS: { id: string; label: string; model: string; apiKeyEnv: string }
   { id: "custom", label: "Custom endpoint (OpenAI-compatible)", model: "", apiKeyEnv: "CUSTOM_API_KEY" },
 ];
 
-const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label ?? id;
+export const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label ?? id;
 
 /** "Agent runs" (RUNNER-PLAN-2 §P1, req 5): the LLM provider BriefAgent
  * runs use, written into the same operator policy the CLI reads
@@ -31,7 +31,7 @@ const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label 
  * endpoint test; the answer fills the model list. Settings (`advanced`)
  * keeps the environment-variable path under Advanced, where a person who
  * sets variables will look and one who does not never has to. */
-export function RuntimeSetup({ heading, intro, advanced = false, onBusy }: {
+export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenPrereqs }: {
   heading?: React.ReactNode;
   intro?: React.ReactNode;
   // Settings shows the advanced choices (the variable, forgetting the
@@ -43,6 +43,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy }: {
   // watching the log. The shorter calls (Get models, the policy write)
   // orphan nothing and are not reported.
   onBusy?: (busy: boolean) => void;
+  // Settings keeps the Docker engine's prerequisites in Run defaults
+  // (settings-cards.md D1): given this, a missing engine is a pointer there
+  // rather than the prerequisites card itself, which the welcome still shows.
+  onOpenPrereqs?: () => void;
 } = {}) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -234,7 +238,13 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy }: {
       <ErrorBox error={error} />
       {notice && <Notice tone="ok">{notice}</Notice>}
 
-      {status && !status.dockerOk && (
+      {status && !status.dockerOk && onOpenPrereqs && (
+        <Notice tone="warn">
+          Docker is not ready on this computer, so runs cannot start and the images cannot be prepared.{" "}
+          <Button variant="link" onClick={onOpenPrereqs}>Run defaults</Button> sets it up.
+        </Notice>
+      )}
+      {status && !status.dockerOk && !onOpenPrereqs && (
         <PrereqCard
           onDone={async () => {
             try { setStatus(await RunAPI.SetupStatus()); } catch { /* badge stays */ }
