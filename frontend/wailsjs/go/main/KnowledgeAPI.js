@@ -22,6 +22,10 @@ export function Create(arg1, arg2, arg3) {
   return window['go']['main']['KnowledgeAPI']['Create'](arg1, arg2, arg3);
 }
 
+export function CreatorBudget() {
+  return window['go']['main']['KnowledgeAPI']['CreatorBudget']();
+}
+
 export function CreatorModel() {
   return window['go']['main']['KnowledgeAPI']['CreatorModel']();
 }

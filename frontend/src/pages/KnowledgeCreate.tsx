@@ -18,6 +18,11 @@
 // anything is uploaded; the build is followed until it is over, and one
 // that stopped short offers Continue. Closing the dialog leaves a build In
 // Agentry running; reopening it follows the build again.
+//
+// A build on this computer is long work (agentry-desktop#352): the review
+// step says so and how long it may run (at least 30 minutes, Go's
+// CreatorBudgets), and the build shows its progress as it goes (elapsed
+// against the timeout, turns, the pages written so far) over its log.
 import { useEffect, useRef, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
@@ -25,7 +30,7 @@ import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/mai
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
-import { buildCreditsLine, buildHoldLine, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
+import { BuildProgress, buildCreditsLine, buildHoldLine, buildTimeWarning, fmtClock, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
 type Step = "documents" | "name" | "where" | "review";
 
@@ -37,7 +42,7 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  registry, addTo, onClose, onPreview, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere, initialProgress,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
@@ -55,6 +60,8 @@ export default function KnowledgeCreate({
   initialAvailability?: main.KnowledgeHostedAvailabilityView;
   initialHosted?: main.KnowledgeHostedBuildView;
   initialWhere?: "local" | "agentry";
+  /** Harness-only: a build in progress's last report. */
+  initialProgress?: BuildProgress;
 }) {
   const [avail, setAvail] = useState<main.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
   const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? "local");
@@ -72,6 +79,8 @@ export default function KnowledgeCreate({
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [building, setBuilding] = useState(initialBuilding ?? false);
   const [log, setLog] = useState<string[]>([]);
+  const [budget, setBudget] = useState<main.CreatorBudgetView | null>(null);
+  const [progress, setProgress] = useState<BuildProgress | null>(initialProgress ?? null);
   const [result, setResult] = useState<knowledge.BuildResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -93,6 +102,7 @@ export default function KnowledgeCreate({
 
   useEffect(() => {
     KnowledgeAPI.CreatorModel().then(setModel).catch(() => setModel("none configured"));
+    KnowledgeAPI.CreatorBudget().then(setBudget).catch(() => setBudget(null));
     RunAPI.SetupStatus().then(setSetup).catch(() => setSetup(null));
     if (!initialAvailability) KnowledgeAPI.HostedAvailability(registry).then(setAvail).catch(() => setAvail(null));
     // A build In Agentry already in flight is followed rather than started
@@ -103,6 +113,7 @@ export default function KnowledgeCreate({
   }, []);
   useEffect(() => EventsOn("knowledge:hosted-build", (v: main.KnowledgeHostedBuildView) => setHosted(v)), []);
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
+  useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [log]);
@@ -172,6 +183,7 @@ export default function KnowledgeCreate({
     setBuilding(true);
     setError(null);
     setLog([]);
+    setProgress(null);
     try {
       setResult(addTo ? await KnowledgeAPI.Add(registry, addTo, docs) : await KnowledgeAPI.Create(registry, name, docs));
     } catch (e) {
@@ -282,7 +294,10 @@ export default function KnowledgeCreate({
                     <HostedCost avail={avail} />
                   </>
                 ) : (
-                  <Notice tone="warn">{unscannedWarning(model || "…")}</Notice>
+                  <>
+                    <Notice tone="warn">{unscannedWarning(model || "…")}</Notice>
+                    {budget && <Notice tone="info">{buildTimeWarning(budget.timeoutSeconds, budget.maxTurns)}</Notice>}
+                  </>
                 )}
                 {blockers.map((b) => (
                   <p key={b} className="step-problem" role="alert">{b}</p>
@@ -305,8 +320,15 @@ export default function KnowledgeCreate({
       {building && (
         <>
           <Spinner label={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`} />
-          <p className="muted small">The Knowledge Creator is decoding the documents and writing the pages. A large pack takes a few minutes.</p>
-          <pre ref={logRef} className="run-log selectable" aria-label="Build log">{log.join("\n")}</pre>
+          <p className="muted small">
+            The Knowledge Creator is decoding the documents and writing the pages. This can take a long time; the pages it has
+            written count up as it goes.
+          </p>
+          <BuildProgressView progress={progress} />
+          <details className="build-log">
+            <summary>Build log</summary>
+            <pre ref={logRef} className="run-log selectable" aria-label="Build log">{log.join("\n")}</pre>
+          </details>
         </>
       )}
 
@@ -364,6 +386,57 @@ export default function KnowledgeCreate({
         />
       )}
     </Modal>
+  );
+}
+
+// BuildProgressView is how far a build on this computer has got: the time
+// it has run against its timeout, as a bar and a clock, the turns against
+// the turn budget, the pages the Creator has written so far and the tokens
+// it has used. Before the first report it says the build is starting.
+export function BuildProgressView({ progress }: { progress: BuildProgress | null }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!progress) return <p className="muted small">Starting the build…</p>;
+  const elapsed = Math.max(0, (now - progress.startedAt) / 1000);
+  const share = progress.timeoutSeconds > 0 ? Math.min(1, elapsed / progress.timeoutSeconds) : 0;
+  return (
+    <div className="build-progress">
+      <div
+        className="build-progress-bar"
+        role="progressbar"
+        aria-label="Time used of the build's limit"
+        aria-valuemin={0}
+        aria-valuemax={progress.timeoutSeconds}
+        aria-valuenow={Math.floor(elapsed)}
+      >
+        <span style={{ width: `${share * 100}%` }} />
+      </div>
+      <dl className="knowledge-facts">
+        <dt>Time</dt>
+        <dd>
+          {fmtClock(elapsed)}
+          {progress.timeoutSeconds > 0 && <> of up to {fmtClock(progress.timeoutSeconds)}</>}
+        </dd>
+        <dt>Turns</dt>
+        <dd>
+          {progress.turns}
+          {progress.maxTurns > 0 && <> of up to {progress.maxTurns}</>}
+        </dd>
+        <dt>Pages written</dt>
+        <dd>{progress.pages}</dd>
+        {(progress.inputTokens > 0 || progress.outputTokens > 0) && (
+          <>
+            <dt>Tokens</dt>
+            <dd>
+              {progress.inputTokens.toLocaleString()} input, {progress.outputTokens.toLocaleString()} output
+            </dd>
+          </>
+        )}
+      </dl>
+    </div>
   );
 }
 

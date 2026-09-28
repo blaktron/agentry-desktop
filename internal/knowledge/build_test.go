@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
@@ -142,4 +144,80 @@ func TestAddResealsUnderTheSameKey(t *testing.T) {
 		t.Fatalf("add to a pack not kept: %v", err)
 	}
 	noPlaintextLeft(t, e)
+}
+
+// A build on this computer is given at least 30 minutes, whatever the
+// runner policy's run budget (15 minutes by default); a policy that allows
+// more keeps its own, and the turns and cost stay the policy's
+// (agentry-desktop#352).
+func TestCreatorBudgetsGiveABuildAtLeastThirtyMinutes(t *testing.T) {
+	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}
+	if b := CreatorBudgets(pol); b.TimeoutSeconds != 1800 || b.MaxTurns != 60 || b.MaxCostUSD != 2 {
+		t.Fatalf("default policy: %+v", b)
+	}
+	pol.Budgets.TimeoutSeconds = 3600
+	if b := CreatorBudgets(pol); b.TimeoutSeconds != 3600 {
+		t.Fatalf("a policy of an hour: %+v", b)
+	}
+	if b := CreatorBudgets(nil); b.TimeoutSeconds != 1800 {
+		t.Fatalf("no policy: %+v", b)
+	}
+}
+
+// A build reports its progress: the budgets at its start, the harness's
+// usage as it arrives, and the pages the Creator has written, counted in the
+// run's reports as they appear; and it runs with the 30-minute floor
+// (agentry-desktop#352).
+func TestABuildReportsItsProgress(t *testing.T) {
+	defer func(d time.Duration) { progressEvery = d }(progressEvery)
+	progressEvery = 10 * time.Millisecond
+	ctx := context.Background()
+	reg := knowledgetest.NewRegistry(t)
+	e := testEnv(t, reg, reg.Token("ana"), newKeys())
+	t.Setenv(policy.HomeEnv, homeOf(t, e))
+	var seen build.Options
+	inner := fakeCreator(t, &seen, nil)
+	writing := func(ctx context.Context, d dockerx.Client, o build.Options) (*build.Result, error) {
+		wiki := filepath.Join(o.OutDir, "reports", "wiki", "topics")
+		if err := os.MkdirAll(wiki, 0o700); err != nil {
+			return nil, err
+		}
+		for i, name := range []string{"a.md", "b.md"} {
+			if err := os.WriteFile(filepath.Join(wiki, name), []byte("---\ntitle: x\n---\n"), 0o600); err != nil {
+				return nil, err
+			}
+			o.OnUsage(receipt.Usage{Turns: i + 1, InputTokens: int64(1000 * (i + 1)), OutputTokens: 100})
+			time.Sleep(30 * time.Millisecond)
+		}
+		return inner(ctx, d, o)
+	}
+	var mu sync.Mutex
+	var got []Progress
+	var log strings.Builder
+	_, err := e.Create(ctx, BuildRequest{
+		Registry: reg.URL, Name: "handbook", Documents: documents(t), Build: writing, Log: &log,
+		Progress: func(p Progress) { mu.Lock(); got = append(got, p); mu.Unlock() },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < CreatorTimeoutSeconds {
+		t.Fatalf("the Creator ran with budgets %+v", seen.Budgets)
+	}
+	if !strings.Contains(log.String(), "A build takes a while") {
+		t.Fatalf("the log did not say a build takes a while: %q", log.String())
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(got) < 3 {
+		t.Fatalf("progress = %+v", got)
+	}
+	first, last := got[0], got[len(got)-1]
+	if first.StartedAt == 0 || first.TimeoutSeconds != seen.Budgets.TimeoutSeconds || first.Turns != 0 || first.Pages != 0 {
+		t.Fatalf("first progress = %+v", first)
+	}
+	// The fake leaves one more page in the reports after the two above.
+	if last.Turns != 2 || last.InputTokens != 2000 || last.Pages != 3 || last.StartedAt != first.StartedAt {
+		t.Fatalf("last progress = %+v", last)
+	}
 }

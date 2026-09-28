@@ -10,7 +10,8 @@
 //   #knowledge-empty      no pack yet
 //   #create-documents | #create-name | #create-review | #create-blocked
 //                         Create knowledge's steps (blocked: docker not ready)
-//   #create-building      the build under way, its log streaming
+//   #create-building      the build under way: time, turns, pages written
+//                         and tokens over its folded log (#352)
 //   #create-done          what the build made
 //   #add-review           Add documents' review
 //   #hosted-where-pro     the Where step for a Standard account: In Agentry
@@ -125,6 +126,7 @@ g.go = { main: {
   KnowledgeAPI: {
     List: async () => list,
     CreatorModel: async () => "anthropic claude-sonnet-4-5",
+    CreatorBudget: async () => ({ timeoutSeconds: 1800, maxTurns: 60 }),
     Preview: async () => preview,
     ReadPage: async () => page,
     Create: async () => new Promise(() => {}),
@@ -207,6 +209,7 @@ createRoot(document.getElementById("root")!).render(
         initialDocuments={hash === "create-documents" || step !== "documents" ? docs : []}
         initialName={hash === "add-review" ? undefined : "handbook"}
         initialBuilding={hash === "create-building"}
+        initialProgress={hash === "create-building" ? { startedAt: Date.now() - 754_000, timeoutSeconds: 1800, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 } : undefined}
         initialResult={hash === "create-done" ? (result as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" ? "agentry" : undefined}
