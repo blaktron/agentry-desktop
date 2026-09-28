@@ -1,5 +1,7 @@
 build/bin
 build/linux
+# make app-icons' working directory, left behind if a render fails
+build/.icons/
 dist
 node_modules
 frontend/dist
