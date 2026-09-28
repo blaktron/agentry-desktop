@@ -76,6 +76,10 @@ type Caller struct {
 	InputTokensPerCredit  int64      `json:"inputTokensPerCredit"`
 	OutputTokensPerCredit int64      `json:"outputTokensPerCredit"`
 	Build                 *TierPrice `json:"build,omitempty"`
+	// Draft is what a hosted draft of the caller's holds, and its caps
+	// (agentry-enterprise#183); nil from a registry from before the draft
+	// kind.
+	Draft *TierPrice `json:"draft,omitempty"`
 }
 
 // TierPrice is a set of caps and what they hold (x-runs.yaml RunTierPrice).
@@ -115,6 +119,10 @@ type Status struct {
 	// and how many (agentry-enterprise#172); absent from a registry from
 	// before, where a run In Agentry attaches none.
 	KnowledgeAttach *KnowledgeAttach `json:"knowledgeAttach,omitempty"`
+	// Draft is a hosted draft's terms here (agentry-enterprise#183), one
+	// set for every tier; absent from a registry from before the draft
+	// kind, which offers no Describe it In Agentry.
+	Draft *DraftTerms `json:"draft,omitempty"`
 }
 
 // KnowledgeAttach is the status route's knowledgeAttach block.
@@ -170,6 +178,7 @@ func (u *Usage) Tokens() int64 {
 const (
 	KindRun            = "run"
 	KindKnowledgeBuild = "knowledge_build"
+	KindDraft          = "draft"
 )
 
 // KnowledgeBuild is a hosted knowledge build's record (x-runs.yaml
@@ -190,29 +199,32 @@ type KnowledgeBuild struct {
 
 // Run is one hosted run as the account reads it (x-runs.yaml `Run`).
 type Run struct {
-	ID              string          `json:"id"`
-	Kind            string          `json:"kind,omitempty"`
-	Build           *KnowledgeBuild `json:"build,omitempty"`
-	Ref             string          `json:"ref"`
-	Digest          string          `json:"digest"`
-	Mode            string          `json:"mode"`
-	Status          string          `json:"status"`
-	Outcome         string          `json:"outcome,omitempty"`
-	ExitClass       string          `json:"exitClass,omitempty"`
-	Error           string          `json:"error,omitempty"`
-	CancelRequested bool            `json:"cancelRequested"`
-	Caps            Caps            `json:"caps"`
-	HoldCredits     int64           `json:"holdCredits"`
-	SettledCredits  *int64          `json:"settledCredits,omitempty"`
-	Usage           *Usage          `json:"usage,omitempty"`
-	Receipt         Receipt         `json:"receipt,omitempty"`
-	Inputs          []Artefact      `json:"inputs"`
-	Outputs         []Artefact      `json:"outputs"`
-	QueuePosition   int             `json:"queuePosition,omitempty"`
-	Knowledge       []Attached      `json:"knowledge,omitempty"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	StartedAt       *time.Time      `json:"startedAt,omitempty"`
-	FinishedAt      *time.Time      `json:"finishedAt,omitempty"`
+	ID    string          `json:"id"`
+	Kind  string          `json:"kind,omitempty"`
+	Build *KnowledgeBuild `json:"build,omitempty"`
+	Draft *Draft          `json:"draft,omitempty"`
+	// Task is the run's task; a draft's is its description.
+	Task            string     `json:"task,omitempty"`
+	Ref             string     `json:"ref"`
+	Digest          string     `json:"digest"`
+	Mode            string     `json:"mode"`
+	Status          string     `json:"status"`
+	Outcome         string     `json:"outcome,omitempty"`
+	ExitClass       string     `json:"exitClass,omitempty"`
+	Error           string     `json:"error,omitempty"`
+	CancelRequested bool       `json:"cancelRequested"`
+	Caps            Caps       `json:"caps"`
+	HoldCredits     int64      `json:"holdCredits"`
+	SettledCredits  *int64     `json:"settledCredits,omitempty"`
+	Usage           *Usage     `json:"usage,omitempty"`
+	Receipt         Receipt    `json:"receipt,omitempty"`
+	Inputs          []Artefact `json:"inputs"`
+	Outputs         []Artefact `json:"outputs"`
+	QueuePosition   int        `json:"queuePosition,omitempty"`
+	Knowledge       []Attached `json:"knowledge,omitempty"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	StartedAt       *time.Time `json:"startedAt,omitempty"`
+	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
 }
 
 // Empty reports whether the registry kept no receipt for the run: a run
@@ -225,6 +237,9 @@ func (r Receipt) Empty() bool {
 
 // IsBuild reports whether this row is a knowledge build, not a run.
 func (r *Run) IsBuild() bool { return r != nil && r.Kind == KindKnowledgeBuild }
+
+// IsDraft reports whether this row is a hosted draft of the Drafter.
+func (r *Run) IsDraft() bool { return r != nil && r.Kind == KindDraft }
 
 // Terminal reports whether the run has stopped moving.
 func (r *Run) Terminal() bool { return r != nil && !Active(r.Status) }
@@ -256,16 +271,19 @@ type Input struct {
 // knowledge build (Kind KindKnowledgeBuild) names exactly one of Name (a
 // new pack), Pack (the account's pack in Agentry, by its registry id) or
 // Continue (a finished or cancelled build, whose documents the registry
-// copies, so it sends no Inputs), and no Ref, Task or Intake.
+// copies, so it sends no Inputs), and no Ref, Task or Intake; a draft
+// (Kind KindDraft) carries a Description and its Hints alone.
 type CreateRequest struct {
-	Kind     string            `json:"kind,omitempty"`
-	Ref      string            `json:"ref,omitempty"`
-	Name     string            `json:"name,omitempty"`
-	Pack     string            `json:"pack,omitempty"`
-	Continue string            `json:"continue,omitempty"`
-	Task     string            `json:"task,omitempty"`
-	Intake   map[string]string `json:"intake,omitempty"`
-	Inputs   []string          `json:"inputs,omitempty"`
+	Kind        string            `json:"kind,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Hints       []string          `json:"hints,omitempty"`
+	Ref         string            `json:"ref,omitempty"`
+	Name        string            `json:"name,omitempty"`
+	Pack        string            `json:"pack,omitempty"`
+	Continue    string            `json:"continue,omitempty"`
+	Task        string            `json:"task,omitempty"`
+	Intake      map[string]string `json:"intake,omitempty"`
+	Inputs      []string          `json:"inputs,omitempty"`
 	// Knowledge are the registry ids of the account's packs in Agentry a
 	// run attaches (agentry-enterprise#172, Knowledge M7); a build takes
 	// none.
