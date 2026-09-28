@@ -8,6 +8,14 @@ The structure is:
 * darwin - macOS specific files
 * windows - Windows specific files
 
+## The app icon
+
+`appicon.svg` (the Agentry mark on its tile) and `appicon-small.svg` (the bare
+mark, for 16 to 32 pixels) are the sources. `make app-icons` renders
+`appicon.png`, which Wails turns into the macOS bundle's `iconfile.icns`,
+`windows/icon.ico` and the Linux packages' `nfpm/icons/`. The outputs are
+committed; re-run it after changing either SVG.
+
 ## Mac
 
 The `darwin` directory holds files specific to Mac builds.
@@ -26,9 +34,7 @@ The `windows` directory contains the manifest and rc files used when building wi
 These may be customised for your application. To return these files to the default state, simply delete them and
 build with `wails build`.
 
-- `icon.ico` - The icon used for the application. This is used when building using `wails build`. If you wish to
-  use a different icon, simply replace this file with your own. If it is missing, a new `icon.ico` file
-  will be created using the `appicon.png` file in the build directory.
+- `icon.ico` - The icon used for the application and its installer, rendered by `make app-icons` (see above).
 - `installer/*` - The files used to create the Windows installer. These are used when building using `wails build`.
 - `info.json` - Application details used for Windows builds. The data here will be used by the Windows installer,
   as well as the application itself (right click the exe -> properties -> details)
