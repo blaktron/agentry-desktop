@@ -98,7 +98,7 @@ func Prepare(registry, description string, hints []string) (*Plan, error) {
 	w, search, err := drafter.LocalWeb(pol, registry)
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads your description and everything the draft reads with it before the model does. Add one under Settings → AI Review key: %w", err)
+		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads your description and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", err)
 	case err != nil:
 		return nil, err
 	}

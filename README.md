@@ -45,9 +45,9 @@ The product never claims an agent is "safe". The language is always:
   the contract grants, the servers involved, declared key NAMES, and the
   embedded-install equivalent. A guided form collects a BriefAgent's keys
   once per release into its MCP profile — values 0600 on disk, never shown,
-  never logged. Settings → **Agent runs** writes the LLM provider into the
+  never logged. Settings → **Provider settings** writes the LLM provider into the
   same operator policy the CLI reads, and can prepare the gateway images up
-  front. On Linux the docker card names the machine's state — `installable`
+  front. On Linux the docker card in Settings → **Run defaults** names the machine's state — `installable`
   (the app installs the engine through `pkexec`), `groupMissing` (the engine
   is in, your user is not in the `docker` group: one button adds you, through
   `pkexec`), `pendingRestart` (installed and in the group, but this session
@@ -146,7 +146,7 @@ The product never claims an agent is "safe". The language is always:
     it finds.
     - AI Review reads your description first, and then every search result,
       page and registry answer before the Drafter's model does, with your own
-      AI Review key (Settings → **AI Review key**). What AI Review flags, or
+      AI Review key (Settings → **Provider settings** → **AI Review key**). What AI Review flags, or
       cannot scan, is held back: the model gets the address and the reason,
       never the text. A description it does not pass stops the draft before
       the Drafter starts.
@@ -182,7 +182,25 @@ The product never claims an agent is "safe". The language is always:
   server's plain configuration included. Opening an existing workspace and
   saving it keeps every field; only comments are lost, and the page says
   so. The folder is chosen at the first save.
-- **Settings → AI Review key** — your own TypeSafe Jev key, which every
+- **Settings** opens on five cards, each a link to its own page with a
+  **← Settings** link back; a card says in one line where things stand
+  (read from this computer only, never from a registry) and links straight
+  to each of its parts. "Run setup again" and the settings file's path stay
+  on the cards' page (agentry-desktop#346, plan settings-cards.md).
+  - **Registry settings**: the registries, with sign-in, the account line and
+    the organizations; the secrets runs In Agentry use; Add a registry.
+  - **Update settings**: whether the app looks for a newer Agentry Desktop,
+    and the BriefAgents auto-update switch (not offered yet).
+  - **Coding agents**: the coding agent, and whether Install also writes a
+    BriefAgent where it reads.
+  - **Run defaults**: the Docker engine's state and, on Linux, its setup.
+  - **Provider settings**: the LLM provider form and the AI Review key.
+
+  The update line in the sidebar opens Update settings, the "Setup isn't
+  finished" notice opens Provider settings, Knowledge's "Not signed in"
+  opens Registry settings, and Describe it's missing AI Review key opens
+  Provider settings at the key.
+- **Settings → Provider settings → AI Review key** — your own TypeSafe Jev key, which every
   local action that requires a scan uses (today, Describe it on this
   computer; plan builder-rework.md D25).
   - Where it is kept: in the OS keychain next to your model key, as the entry
@@ -582,7 +600,7 @@ follow: `agentry-notes/plans/desktop-installers.md`.
 
 The app works against any Agentry registry — the hosted service or one you
 run from the open core ([self-hosting guide](https://github.com/blaktron/agentry/blob/main/docs/self-hosting.md)).
-Add one under Settings → Add a registry: its URL
+Add one under Settings → Registry settings → Add a registry: its URL
 (`http://localhost:8080` for a local stack), then Use. The default is the
 compiled-in registry (`https://secureagentry.net`, or whatever the build
 set through `AGENTRY_DEFAULT_REGISTRY`), recorded as `defaultRegistry` in

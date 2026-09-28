@@ -73,7 +73,7 @@ read and held back, the registry's match with a link to its page, the open
 questions, the notes and the sources. `#build-drafted-hostile` is a draft whose
 notes, match, source and withheld address carry raw HTML, a script, an image,
 `javascript:` links and a right-to-left override; `shots.mjs` fails it if any
-becomes markup or a link. Settings → AI Review key is `settings-aireview-key`
+becomes markup or a link. Settings → Provider settings → AI Review key is `settings-aireview-key`
 (saved), `#aireview-none` (none) and `#aireview-refused` (Test key answered
 401).
 
@@ -104,6 +104,20 @@ caught by `Recover` under a sidebar that still works, whose Try again
 The run setup's Knowledge step is `modals.html#runpanel-step-knowledge`, and
 `#runpanel-knowledge-finished` a local run with a pack attached, whose result
 shows the receipt's knowledge line.
+
+Settings opens on five cards since agentry-desktop#346. `pages.html` shows the
+cards (`page-settings`, which asserts each card and its status line), and
+`pages.html?settings=<section>` opens a section page (`registry`, `updates`,
+`coding-agents`, `run-defaults`, `provider`), where the Settings states above
+are shot; the hash still picks each card's own state. The preview keeps its
+own route as App does, so `settings-open-<section>` clicks a card,
+`settings-part-link` follows a part's link, `settings-back` presses
+**← Settings**, and `settings-deeplink-<caller>` presses the harness-only
+buttons that open Settings the way App's callers do (the sidebar's update
+line, the setup notice, Knowledge's sign-in, Describe it's missing key);
+`shots.mjs` checks which page shows and that a named part is in view.
+`#status-refused` makes every status binding refuse: the five cards stay and
+only the registry's line, which reads no binding, is left.
 
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in

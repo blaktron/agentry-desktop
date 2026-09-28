@@ -114,8 +114,8 @@ const states = [
   { name: "agent-installed-unreachable", url: "/pages.html#agent-installed-unreachable", note: "installed, the registry could not be asked: Update disabled, the reason in the page", locator: '[data-preview="agent"]' },
   { name: "installed-update-warning", url: "/pages.html#installed-update-warning", note: "a runner-home Update that completes with a warning: the engine's sentence on Installed", locator: '[data-preview="installed"]', click: '[data-preview="installed"] button:text-is("Update")', expectText: "agentry/changelog-from-git: operator policy" },
   { name: "installed-badge", url: "/pages.html#installed-updates", note: "the launch check found newer versions: the number on Installed", locator: '[data-preview="installed"] .sidebar' },
-  { name: "settings-secrets", url: "/pages.html", note: "Settings: Secrets for runs In Agentry — save a kept secret by name, delete one, the list on the registry's Secrets page (agentry-desktop#300)", locator: '[data-preview="settings"] .card:has-text("Secrets for runs In Agentry")', expectText: "neither this app nor Agentry shows it again" },
-  { name: "settings-briefagent-updates", url: "/pages.html", note: "Settings: the auto-update switch, shown and disabled, with why", locator: '[data-preview="settings"] .card:has-text("Update BriefAgents automatically")' },
+  { name: "settings-secrets", url: "/pages.html?settings=registry", note: "Settings: Secrets for runs In Agentry — save a kept secret by name, delete one, the list on the registry's Secrets page (agentry-desktop#300)", locator: '[data-preview="settings"] .card:has-text("Secrets for runs In Agentry")', expectText: "neither this app nor Agentry shows it again" },
+  { name: "settings-briefagent-updates", url: "/pages.html?settings=updates", note: "Settings: the auto-update switch, shown and disabled, with why", locator: '[data-preview="settings"] .card:has-text("Update BriefAgents automatically")' },
   // The welcome's runtime step (agentry-desktop#131): the three questions;
   // the model list Get models filled; the failed listing with the model
   // still typeable; a stored subscription token and its sentence.
@@ -133,21 +133,21 @@ const states = [
   { name: "wizard-runtime-preparing", url: "/wizard.html#2-preparing", note: "images preparing: Continue and Back held until the pull ends", locator: ".wizard", prepare: "held" },
   { name: "wizard-runtime-prepared", url: "/wizard.html#2-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "wizard-runtime-prepare-refused", url: "/wizard.html#2-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
-  { name: "settings-agent-runs-advanced", url: "/pages.html", note: "Settings → Agent runs with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
-  { name: "settings-agent-runs-custom-http", url: "/pages.html#setup-custom-http", note: "Settings → Agent runs, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https (agentry-desktop#317)", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
+  { name: "settings-agent-runs-advanced", url: "/pages.html?settings=provider", note: "Settings → Provider settings with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
+  { name: "settings-agent-runs-custom-http", url: "/pages.html?settings=provider#setup-custom-http", note: "Settings → Provider settings, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https (agentry-desktop#317)", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
   // Settings → Coding agents (agentry-desktop#148, D6): the coding agent,
   // the export it implies, its folder, the switch off by default; and
   // the agent page's one-off link, named for the coding agent, opening
   // the wizard on that export.
   // Settings → AI Review key (#282): saved, never shown; none saved; and
   // Test key answered with TypeSafe's refusal in plain words.
-  { name: "settings-aireview-key", url: "/pages.html", note: "Settings → AI Review key: saved in the keychain, the value never shown, Test key and Forget", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Saved in this computer's keychain." },
-  { name: "settings-aireview-key-none", url: "/pages.html#aireview-none", note: "no AI Review key: drafting on this computer is off until one is added; Test key greyed", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Drafting on this computer is off" },
-  { name: "settings-aireview-key-refused", url: "/pages.html#aireview-refused", note: "Test key answered 401: TypeSafe's refusal in plain words, and which key was tried", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', click: '[data-preview="settings"] button:has-text("Test key")', expectText: "TypeSafe refused the key (401)" },
-  { name: "settings-coding-agents", url: "/pages.html", note: "Settings → Coding agents: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
-  { name: "settings-coding-agents-codex", url: "/pages.html#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
-  { name: "settings-coding-agents-none", url: "/pages.html#coding-none", note: "nothing chosen, no folder: AGENTS.md needs a project, the switch cannot go on", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectDisabledSwitch: true },
-  { name: "settings-coding-agents-both", url: "/pages.html#coding-both", note: "both chosen: the Claude skill is what is written, so the switch names Claude Code alone", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectSwitchLabel: "Also install into Claude Code" },
+  { name: "settings-aireview-key", url: "/pages.html?settings=provider", note: "Settings → AI Review key: saved in the keychain, the value never shown, Test key and Forget", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Saved in this computer's keychain." },
+  { name: "settings-aireview-key-none", url: "/pages.html?settings=provider#aireview-none", note: "no AI Review key: drafting on this computer is off until one is added; Test key greyed", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Drafting on this computer is off" },
+  { name: "settings-aireview-key-refused", url: "/pages.html?settings=provider#aireview-refused", note: "Test key answered 401: TypeSafe's refusal in plain words, and which key was tried", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', click: '[data-preview="settings"] button:has-text("Test key")', expectText: "TypeSafe refused the key (401)" },
+  { name: "settings-coding-agents", url: "/pages.html?settings=coding-agents", note: "Settings → Coding agents: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
+  { name: "settings-coding-agents-codex", url: "/pages.html?settings=coding-agents#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
+  { name: "settings-coding-agents-none", url: "/pages.html?settings=coding-agents#coding-none", note: "nothing chosen, no folder: AGENTS.md needs a project, the switch cannot go on", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectDisabledSwitch: true },
+  { name: "settings-coding-agents-both", url: "/pages.html?settings=coding-agents#coding-both", note: "both chosen: the Claude skill is what is written, so the switch names Claude Code alone", locator: '[data-preview="settings"] .card:has-text("Also install into")', expectSwitchLabel: "Also install into Claude Code" },
   { name: "agent-install-coding-agent", url: "/pages.html", note: "the agent page's one-off link opens the wizard preset to the Claude skill", locator: ".modal", click: '[data-preview="agent"] button:has-text("Install into Claude Code")' },
   // The Welcome's Coding agent step, on the same list Settings uses
   // (agentry-desktop#148 moved it): unchanged for the person.
@@ -192,7 +192,32 @@ const states = [
   { name: "page-build-drafted-agentry", url: "/pages.html#build-drafted-agentry", note: "a draft made In Agentry on Review: AI Review through the registry, a host the description did not name, a rule it still fails, and Describe again", locator: '[data-preview="build"]', expectText: "Hosts your description did not name" },
   { name: "page-build-comments", url: "/pages.html#build-comments", note: "a loaded agent.yaml with comments: the notice that a save drops them", locator: '[data-preview="build"]', expectText: "the comments are not kept" },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell", locator: '[data-preview="validate"]' },
-  { name: "page-settings", url: "/pages.html", note: "Settings under the shell", locator: '[data-preview="settings"]' },
+  // Settings as five cards (agentry-desktop#346): the landing with each
+  // card's status line; each section page; a card opened, a part's link
+  // followed, the way back; and each deep link App gives a caller.
+  { name: "page-settings", url: "/pages.html", note: "Settings under the shell: five cards, each with its sentence, its status line and its parts", locator: '[data-preview="settings"]',
+    expectText: ["Registry settings", "Update settings", "Coding agents", "Run defaults", "Provider settings", "secureagentry.net, signed in.", "Agentry Desktop 0.2.0 is available.", "AI Review key saved", "Settings file:"],
+    expectSection: "landing" },
+  { name: "settings-open-registry", url: "/pages.html", note: "the Registry settings card opened: the registries, Secrets and Add a registry under ← Settings", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Registry settings") .settings-card-link', expectSection: "registry", expectText: ["← Settings", "Registries", "Add a registry", "Secrets for runs In Agentry"] },
+  { name: "settings-open-updates", url: "/pages.html", note: "Update settings: the self-update card and the BriefAgents switch", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Update settings") .settings-card-link', expectSection: "updates", expectText: ["Check for newer versions", "Update BriefAgents automatically"] },
+  { name: "settings-open-coding-agents", url: "/pages.html", note: "Coding agents: the chooser and the export switch", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Coding agents") .settings-card-link', expectSection: "coding-agents", expectText: ["Also install into"] },
+  { name: "settings-open-run-defaults", url: "/pages.html", note: "Run defaults: the Docker engine's state (M4 adds the defaults)", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Run defaults") .settings-card-link', expectSection: "run-defaults", expectText: ["Docker engine"] },
+  { name: "settings-open-provider", url: "/pages.html", note: "Provider settings: the model provider form and the AI Review key", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Provider settings") .settings-card-link', expectSection: "provider", expectText: ["Model provider", "Save provider settings", "Your own TypeSafe Jev key"] },
+  { name: "settings-part-link", url: "/pages.html", note: "a part's link on the landing opens its section at that part", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card-parts button:has-text("AI Review key")', expectSection: "provider", expectPart: "ai-review-key" },
+  { name: "settings-back", url: "/pages.html?settings=provider", note: "← Settings on a section page returns to the cards", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
+  { name: "settings-deeplink-selfupdate", url: "/pages.html", note: "the sidebar's newer-version line opens Update settings", locator: '[data-preview="settings"]', click: '[data-deeplink="selfUpdate"]', expectSection: "updates", expectPart: "desktop" },
+  { name: "settings-deeplink-setup", url: "/pages.html", note: "Browse's setup notice opens Provider settings", locator: '[data-preview="settings"]', click: '[data-deeplink="setupNotice"]', expectSection: "provider" },
+  { name: "settings-deeplink-knowledge", url: "/pages.html", note: "Knowledge's Not signed in opens Registry settings at the registries", locator: '[data-preview="settings"]', click: '[data-deeplink="knowledgeSignIn"]', expectSection: "registry", expectPart: "registries" },
+  { name: "settings-deeplink-describe", url: "/pages.html", note: "Build's Describe it without an AI Review key opens Provider settings at the key", locator: '[data-preview="settings"]', click: '[data-deeplink="describeKey"]', expectSection: "provider", expectPart: "ai-review-key" },
+  { name: "settings-status-failed", url: "/pages.html#status-refused", note: "the landing when every status read fails: the five cards stay, their lines drop", locator: '[data-preview="settings"]',
+    expectSection: "landing", expectCards: 5, expectStatusLines: 1 },
   { name: "toolspanel", url: "/modals.html#toolspanel", note: "the tools panel over the shell" },
   { name: "chat", url: "/modals.html#chat", note: "a session's chat pane", locator: ".chat-pane" },
   { name: "wizard-welcome", url: "/wizard.html#0", note: "the first-run wizard: welcome", locator: ".wizard" },
@@ -308,6 +333,28 @@ try {
       }
       if (state.expectCollapsed) {
         if (await page.locator(state.expectCollapsed).first().getAttribute("open") !== null) throw new Error(`${state.name}: ${state.expectCollapsed} is open with nothing chosen`);
+      }
+      if (state.expectSection) {
+        // The route, not only the shot: which Settings page is showing.
+        const at = await page.locator('[data-preview="settings"] [data-settings-section]').first().getAttribute("data-settings-section");
+        if (at !== state.expectSection) throw new Error(`${state.name}: Settings shows "${at}", not "${state.expectSection}"`);
+      }
+      if (state.expectPart) {
+        // A part the link named is scrolled into view.
+        const seen = await page.locator(`#settings-part-${state.expectPart}`).evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return r.top < window.innerHeight && r.bottom > 0;
+        });
+        if (!seen) throw new Error(`${state.name}: the part ${state.expectPart} is not in view`);
+      }
+      if (state.expectCards) {
+        const n = await page.locator('[data-preview="settings"] .settings-card').count();
+        if (n !== state.expectCards) throw new Error(`${state.name}: ${n} cards, not ${state.expectCards}`);
+      }
+      if (state.expectStatusLines !== undefined) {
+        // Only the registry's line, which reads no binding, is left.
+        const n = await page.locator('[data-preview="settings"] .settings-card-status').count();
+        if (n !== state.expectStatusLines) throw new Error(`${state.name}: ${n} status lines, not ${state.expectStatusLines}`);
       }
       if (state.expectSwitchLabel) {
         const label = await page.locator(state.locator).locator('label:has(input[type="checkbox"])').last().innerText();

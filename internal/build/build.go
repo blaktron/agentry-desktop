@@ -1196,7 +1196,7 @@ func Publish(ctx context.Context, regURL, token, dir, visibility string, logw io
 		return nil, fmt.Errorf("parse agent.yaml: %w", err)
 	}
 	if token == "" {
-		return nil, fmt.Errorf("publishing needs a signed-in registry — Settings → Sign in")
+		return nil, fmt.Errorf("publishing needs a signed-in registry — sign in under Settings → Registry settings")
 	}
 	client, err := registry.New(regURL, token)
 	if err != nil {
