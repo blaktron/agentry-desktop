@@ -621,12 +621,12 @@ func TestRunHappyPath(t *testing.T) {
 	}
 }
 
-// TestARunWithNoTaskRunsTheAgentsOwnInstruction keeps the run setup's
+// TestRunWithNoTaskRunsTheAgentsOwnInstruction keeps the run setup's
 // promise ("Left empty, its own instruction runs with no extra task"): a
 // run whose task is left empty hands the harness the release's own
 // instruction, not an empty stdin, which docker-agent refuses (exit 14;
 // agentry-cli#449, taken with the pin on v0.6.18, #372).
-func TestARunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
+func TestRunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
 	_, regURL, fd, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
 	req := request(regURL, filepath.Join(t.TempDir(), "out"))
@@ -640,6 +640,7 @@ func TestARunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
 	if res.Status != "ok" {
 		t.Fatalf("view = %+v", res)
 	}
+	// The fixture release's SKILL.md (runFixture), as the compile reads it.
 	if got := fd.Foreground["-agent"].GotStdin; got != "# Reporter\n\nWrite the report.\n" {
 		t.Errorf("agent stdin = %q, want the release's own instruction", got)
 	}
