@@ -221,6 +221,10 @@ func TestABuildReportsItsProgress(t *testing.T) {
 	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < CreatorTimeoutSeconds {
 		t.Fatalf("the Creator ran with budgets %+v", seen.Budgets)
 	}
+	// A build on this computer takes up to 1 GB (agentry-desktop#354).
+	if seen.MaxBytes != kn.MaxLocalBytes {
+		t.Fatalf("the Creator ran with a cap of %d bytes", seen.MaxBytes)
+	}
 	if !strings.Contains(log.String(), "A build takes a while") {
 		t.Fatalf("the log did not say a build takes a while: %q", log.String())
 	}

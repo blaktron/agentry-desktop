@@ -1521,6 +1521,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class DocumentsView {
+	    bytes: number;
+	    localMaxBytes: number;
+	    agentryMaxBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bytes = source["bytes"];
+	        this.localMaxBytes = source["localMaxBytes"];
+	        this.agentryMaxBytes = source["agentryMaxBytes"];
+	    }
+	}
 	export class DraftAIReviewView {
 	    scan: string;
 	    read: number;

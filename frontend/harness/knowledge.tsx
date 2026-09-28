@@ -10,6 +10,10 @@
 //   #knowledge-empty      no pack yet
 //   #create-documents | #create-name | #create-review | #create-blocked
 //                         Create knowledge's steps (blocked: docker not ready)
+//   #create-documents-large  documents of 48 MB: the warning that the build
+//                         can take a very long time and the pack stays here
+//   #create-documents-huge   documents past 1 GB: Next refused (#354)
+//   #hosted-where-large   the Where step with 48 MB: In Agentry not choosable
 //   #create-building      the build under way: time, turns, pages written
 //                         and tokens over its folded log (#352)
 //   #create-done          what the build made
@@ -49,6 +53,8 @@ const packs = signedOut
     { name: "pricing-2026", id: "kp_5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d", agentryId: "8d2f6a90-1b3c-4e5d-8f7a-6b5c4d3e2f10", pages: 9, bytes: 96_400, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: true, changed: true, where: "this computer and Agentry",
       key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: true },
     { name: "supplier-contracts", agentryId: "b1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
+    { name: "scanned-archive", id: "kp_7e6d5c4b3a2918f7e6d5c4b3a2918f7e", pages: 212, bytes: 231_000_000, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
+      key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: true },
     { name: "vendor-faq", agentryId: "c2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f60", pages: 14, bytes: 402_000, scan: "being scanned in Agentry", scanState: "scanning", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
   ];
 const list = {
@@ -131,6 +137,10 @@ g.go = { main: {
     List: async () => list,
     CreatorModel: async () => "anthropic claude-sonnet-4-5",
     CreatorBudget: async () => ({ timeoutSeconds: 1800, maxTurns: 60 }),
+    DocumentsSize: async () => ({
+      bytes: hash === "create-documents-huge" ? 1_610_612_736 : hash.endsWith("-large") ? 50_331_648 : 2_411_724,
+      localMaxBytes: 1 << 30, agentryMaxBytes: 10 << 20,
+    }),
     Preview: async () => preview,
     ReadPage: async () => page,
     Create: async () => new Promise(() => {}),
@@ -203,7 +213,7 @@ const card = hash.startsWith("card-");
 const create = hash.startsWith("create-") || hash === "add-review" || hostedState || card;
 const step =
   hash === "create-name" ? "name"
-  : hash === "hosted-where" || hash === "hosted-where-pro" ? "where"
+  : hash === "hosted-where" || hash === "hosted-where-pro" || hash === "hosted-where-large" ? "where"
   : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" ? "review"
   : "documents";
 
@@ -223,7 +233,7 @@ createRoot(document.getElementById("root")!).render(
         onClose={() => {}}
         onPreview={() => {}}
         initialStep={step}
-        initialDocuments={hash === "create-documents" || step !== "documents" ? docs : []}
+        initialDocuments={hash.startsWith("create-documents") || step !== "documents" ? docs : []}
         initialName={hash === "add-review" ? undefined : "handbook"}
         minimized={card}
         onMinimize={() => {}}

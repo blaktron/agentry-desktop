@@ -262,6 +262,10 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		turns = fmt.Sprintf(" and %d turns", budgets.MaxTurns)
 	}
 	logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", budgets.TimeoutSeconds/60, turns)
+	if total := DocumentsBytes(req.Documents); total > kn.MaxBytes {
+		logf(req.Log, "The documents come to %.1f MB. A build that size can take a very long time, and the pack will stay on this computer: Agentry keeps packs of at most %s.",
+			float64(total)/(1<<20), kn.FormatCap(kn.MaxBytes))
+	}
 	prog := newProgressMeter(req.Progress, budgets, filepath.Join(outDir, "reports", kn.WikiDir))
 	stop := prog.watch()
 	defer stop()
@@ -271,6 +275,10 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		Build: version.Build(), Now: time.Now(), OutDir: outDir,
 		Budgets: &budgets,
 		RunID:   req.RunID, Stderr: req.Log, OnUsage: prog.usage,
+		// A pack made on this computer may hold up to 1 GB, documents
+		// included; Agentry keeps packs of at most 10 MB (agentry-desktop#354,
+		// agentry-cli#429).
+		MaxBytes: kn.MaxLocalBytes,
 	})
 	stop()
 	if err != nil {
@@ -329,6 +337,25 @@ func buildResult(res *build.Result, en store.Entry) *BuildResult {
 		out.InputTokens, out.OutputTokens, out.CostUSD = env.Usage.InputTokens, env.Usage.OutputTokens, env.Usage.CostUSD
 	}
 	return out
+}
+
+// DocumentsBytes is the size of the regular files the paths name, walking
+// folders and following no link, for the Documents step's total and the
+// warning a large build gets (agentry-desktop#354). A path it cannot read
+// counts nothing here; the build says why.
+func DocumentsBytes(paths []string) int64 {
+	var total int64
+	for _, p := range paths {
+		_ = filepath.WalkDir(p, func(_ string, d fs.DirEntry, err error) error {
+			if err == nil && d.Type().IsRegular() {
+				if info, err := d.Info(); err == nil {
+					total += info.Size()
+				}
+			}
+			return nil
+		})
+	}
+	return total
 }
 
 // progressMeter tells a build's Progress what it has done: the harness's

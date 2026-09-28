@@ -59,6 +59,28 @@ func (k *KnowledgeAPI) List(reg string) (*knowledge.List, error) {
 // Creator, for the sentence the review step says before a build.
 func (k *KnowledgeAPI) CreatorModel() string { return knowledge.PolicyModel() }
 
+// DocumentsView is how much the chosen documents come to, for the
+// Documents step (agentry-desktop#354): a build on this computer takes up
+// to LocalMaxBytes of them, a build In Agentry up to AgentryMaxBytes, and
+// past AgentryMaxBytes the step warns that the build can take a very long
+// time.
+type DocumentsView struct {
+	Bytes           int64 `json:"bytes"`
+	LocalMaxBytes   int64 `json:"localMaxBytes"`
+	AgentryMaxBytes int64 `json:"agentryMaxBytes"`
+}
+
+// DocumentsSize sizes the documents the native picker returned; any other
+// path is refused, as a build refuses it (D-030).
+func (k *KnowledgeAPI) DocumentsSize(documents []string) (*DocumentsView, error) {
+	for _, p := range documents {
+		if err := k.app.requirePicked("document", p); err != nil {
+			return nil, err
+		}
+	}
+	return &DocumentsView{Bytes: knowledge.DocumentsBytes(documents), LocalMaxBytes: kn.MaxLocalBytes, AgentryMaxBytes: kn.MaxBytes}, nil
+}
+
 // CreatorBudgetView is how long a build on this computer may run, for the
 // review step's warning that a build takes a while (agentry-desktop#352).
 type CreatorBudgetView struct {

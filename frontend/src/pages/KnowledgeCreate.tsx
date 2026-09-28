@@ -25,6 +25,12 @@
 // CreatorBudgets), and the build shows its progress as it goes (elapsed
 // against the timeout, turns, the pages written so far) over its log.
 //
+// A build on this computer takes up to 1 GB of documents, a build In
+// Agentry up to 10 MB (agentry-desktop#354, agentry-cli#429): the Documents
+// step shows what the documents come to, warns past 10 MB that the build
+// can take a very long time and that its pack stays on this computer, and
+// refuses past 1 GB; past 10 MB In Agentry is not choosable.
+//
 // A running build does not take over the app (agentry-desktop#353): App
 // mounts this flow above the pages, and closing the dialog while a build
 // runs, or Run in the background, shrinks it to a card in the bottom-right
@@ -42,7 +48,7 @@ import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/mai
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
-import { BuildProgress, buildCreditsLine, buildHoldLine, buildTimeWarning, fmtClock, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
+import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildHoldLine, buildTimeWarning, fmtClock, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
 type Step = "documents" | "name" | "where" | "review";
 
@@ -54,13 +60,15 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  registry, addTo, onClose, onPreview, initialSize, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
   addTo?: string;
   onClose: () => void;
   onPreview: (name: string) => void;
+  /** Harness-only: what the documents come to. */
+  initialSize?: main.DocumentsView;
   /** Shown as the corner card rather than the dialog; App owns it. */
   minimized?: boolean;
   /** Shrink to the corner card, and back. */
@@ -98,6 +106,7 @@ export default function KnowledgeCreate({
   const [building, setBuilding] = useState(initialBuilding ?? false);
   const [log, setLog] = useState<string[]>([]);
   const [budget, setBudget] = useState<main.CreatorBudgetView | null>(null);
+  const [size, setSize] = useState<main.DocumentsView | null>(initialSize ?? null);
   const [progress, setProgress] = useState<BuildProgress | null>(null);
   const [result, setResult] = useState<knowledge.BuildResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +139,17 @@ export default function KnowledgeCreate({
     }
   }, []);
   useEffect(() => EventsOn("knowledge:hosted-build", (v: main.KnowledgeHostedBuildView) => setHosted(v)), []);
+  useEffect(() => {
+    if (docs.length === 0) {
+      setSize(null);
+      return;
+    }
+    if (initialSize) return;
+    KnowledgeAPI.DocumentsSize(docs).then(setSize).catch(() => setSize(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs]);
+  const pastAgentry = !!size && size.bytes > size.agentryMaxBytes;
+  const pastLocal = !!size && size.bytes > size.localMaxBytes;
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
   useEffect(() => {
@@ -145,7 +165,11 @@ export default function KnowledgeCreate({
     setAt(Math.max(0, Math.min(steps.length - 1, i)));
   };
   function next() {
-    const p = step === "documents" && docs.length === 0 ? "Add at least one document or folder." : step === "name" ? nameProblem(name) : null;
+    const p =
+      step === "documents" && docs.length === 0 ? "Add at least one document or folder."
+      : step === "documents" && pastLocal ? `The documents come to ${fmtBytes(size!.bytes)}; a knowledge pack made on this computer, its documents included, is at most ${fmtCap(size!.localMaxBytes)}. Remove some.`
+      : step === "name" ? nameProblem(name)
+      : null;
     if (p) {
       setProblem(p);
       heading.current?.focus();
@@ -168,6 +192,7 @@ export default function KnowledgeCreate({
   const inAgentry = where === "agentry";
   if (inAgentry) {
     if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
+    if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
   } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
   if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
 
@@ -295,7 +320,8 @@ export default function KnowledgeCreate({
                 <p className="muted small">
                   Markdown, text, HTML, CSV, JSON, YAML and source files are read as they are; PDF, DOCX, ODT, EPUB, RTF, PPTX
                   and XLSX, and PNG, JPEG, TIFF or WebP images, as the text decoded from them on this computer first. The
-                  documents are kept in the pack beside its pages; a pack, its documents included, is at most 10 MB.
+                  documents are kept in the pack beside its pages. A pack made on this computer holds up to 1 GB, documents included; one built In
+                  Agentry, 10 MB.
                   {addTo && <> The Creator reads {addTo} as it stands and rewrites the pages the new documents touch.</>}
                 </p>
                 {docs.length > 0 ? (
@@ -310,6 +336,12 @@ export default function KnowledgeCreate({
                 ) : (
                   <p className="muted small">No documents chosen.</p>
                 )}
+                {size && docs.length > 0 && (
+                  <p className="small">
+                    {docs.length === 1 ? "1 file or folder" : `${docs.length} files and folders`}, {fmtBytes(size.bytes)} together.
+                  </p>
+                )}
+                {pastAgentry && !pastLocal && <Notice tone="warn">{largeDocumentsWarning(size!.bytes)}</Notice>}
                 <div className="row">
                   <Button onClick={addFiles}>Add files…</Button>
                   <Button onClick={addFolder}>Add folder…</Button>
@@ -334,13 +366,18 @@ export default function KnowledgeCreate({
                     </span>
                   </label>
                   <label className="check-row">
-                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available} onChange={() => setWhere("agentry")} />
+                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry} onChange={() => setWhere("agentry")} />
                     <span>
                       <strong>In Agentry</strong>{" "}
                       <span className="muted">— on the platform, for credits; the pack is kept in Agentry and scanned, then kept here</span>
                     </span>
                   </label>
                 </div>
+                {avail.available && pastAgentry && (
+                  <p className="muted small">
+                    In Agentry takes at most {fmtCap(size!.agentryMaxBytes)} of documents; these come to {fmtBytes(size!.bytes)}, so this pack is built on this computer.
+                  </p>
+                )}
                 {!avail.available && avail.reason && (
                   <p className="muted small">
                     In Agentry is not available: {avail.reason}
