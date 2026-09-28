@@ -288,6 +288,12 @@ type Request struct {
 	// OutDir is where reports/receipts land ("" = ~/Downloads/agentry-out/
 	// <ns>-<name>-<runid>).
 	OutDir string
+	// OutDirIsRoot says OutDir is a folder every run shares — Run defaults'
+	// saved folder (D-044) — so this run writes into <ns>-<name>-<runid>
+	// inside it: the agent's output mount is read-write, and one run must not
+	// read or change what another left. A folder picked for one run is used
+	// as it is.
+	OutDirIsRoot bool
 	// KeepProfile overrides the completion choice (nil = stored profile,
 	// else the policy default).
 	KeepProfile *bool
@@ -524,7 +530,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			return nil, err
 		}
 	}
-	outDir, err := resolveOutDir(req.OutDir, sig, runID)
+	outDir, err := resolveOutDir(req.OutDir, req.OutDirIsRoot, sig, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -948,9 +954,18 @@ func finishProfile(logw io.Writer, prof *profile.Profile, dir string, keep bool)
 	_, _ = fmt.Fprintln(logw, "MCP profile removed (run completed with keep-profile=false)")
 }
 
-// resolveOutDir picks and creates the output folder for a local run.
-func resolveOutDir(dir string, sig *Signature, runID string) (string, error) {
+// resolveOutDir picks and creates the output folder for a local run: a
+// folder of its own inside dir when dir is shared by every run.
+func resolveOutDir(dir string, root bool, sig *Signature, runID string) (string, error) {
+	if root && dir != "" {
+		dir = RunFolder(dir, sig.Namespace, sig.Name, runID)
+	}
 	return OutputDir(dir, sig.Namespace, sig.Name, runID)
+}
+
+// RunFolder is a run's own folder inside root, named as the default's is.
+func RunFolder(root, namespace, name, runID string) string {
+	return filepath.Join(root, fmt.Sprintf("%s-%s-%s", namespace, name, runID))
 }
 
 // OutputDir picks and creates a run's output folder. The desktop default
@@ -964,8 +979,7 @@ func OutputDir(dir, namespace, name, runID string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("locate home directory (pick an output folder instead): %w", err)
 		}
-		dir = filepath.Join(home, "Downloads", "agentry-out",
-			fmt.Sprintf("%s-%s-%s", namespace, name, runID))
+		dir = RunFolder(filepath.Join(home, "Downloads", "agentry-out"), namespace, name, runID)
 	}
 	abs, err := filepath.Abs(dir)
 	if err != nil {

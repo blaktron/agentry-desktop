@@ -193,7 +193,21 @@ The product never claims an agent is "safe". The language is always:
     and the BriefAgents auto-update switch (not offered yet).
   - **Coding agents**: the coding agent, and whether Install also writes a
     BriefAgent where it reads.
-  - **Run defaults**: the Docker engine's state and, on Linux, its setup.
+  - **Run defaults** (agentry-desktop#347, D-044):
+    - **Timeout and max turns**: the runner policy's budgets, so `agentry
+      run` from the CLI runs with them too. A run's own fields under
+      Advanced can only ask for less.
+    - **Where to run**: This computer or In Agentry. It only pre-selects the
+      run setup's Where step. In Agentry is chosen only where it is offered
+      and available and the release was scanned; otherwise the run starts
+      on this computer and the step says why. The credits a run In Agentry
+      holds are still shown before Run, and every consent is still asked on
+      every run.
+    - **Output folder**: chosen here through the file dialog and kept in
+      `desktop.yaml`. The run setup fills it in and you can pick another for
+      one run. Each run writes into a folder of its own inside it, and a run
+      admits it as an output folder only, never as an input.
+    - The Docker engine's state and, on Linux, its setup.
   - **Provider settings**: the LLM provider form and the AI Review key.
 
   The update line in the sidebar opens Update settings, the "Setup isn't

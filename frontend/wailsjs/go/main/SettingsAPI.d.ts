@@ -10,6 +10,10 @@ export function CancelBrowserSignIn():Promise<boolean>;
 
 export function ChooseCodingAgentProjectDir():Promise<main.CodingAgentsView>;
 
+export function ChooseDefaultOutputDir():Promise<main.RunDefaultsView>;
+
+export function ClearDefaultOutputDir():Promise<main.RunDefaultsView>;
+
 export function CodingAgents():Promise<main.CodingAgentsView>;
 
 export function Get():Promise<main.SettingsView>;
@@ -22,9 +26,15 @@ export function RegistryMeta(arg1:string):Promise<main.MetaView>;
 
 export function RemoveRegistry(arg1:string):Promise<main.SettingsView>;
 
+export function RunDefaults():Promise<main.RunDefaultsView>;
+
 export function SetDefault(arg1:string):Promise<main.SettingsView>;
 
 export function SetInstallIntoCodingAgent(arg1:boolean):Promise<main.CodingAgentsView>;
+
+export function SetRunBudgets(arg1:number,arg2:number):Promise<main.RunDefaultsView>;
+
+export function SetRunWhere(arg1:string):Promise<main.RunDefaultsView>;
 
 export function SignIn(arg1:string,arg2:string):Promise<main.SignInResult>;
 

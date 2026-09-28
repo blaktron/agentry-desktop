@@ -22,7 +22,7 @@ import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
-import { STEP_LABEL, needList, setupSteps, type StepKey } from "../runSetup";
+import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type StepKey } from "../runSetup";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable } from "./HostedRun";
 import { RunResultView } from "./RunResult";
@@ -84,6 +84,16 @@ export default function RunPanel({
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [outDir, setOutDir] = useState("");
+  // Settings → Run defaults (agentry-desktop#347): the saved output folder
+  // fills the field and where to run pre-selects the Where step, until the
+  // person chooses otherwise for this run.
+  const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
+  const modeChosen = useRef(false);
+  // Whether In Agentry was chosen by the default rather than by the person:
+  // if the offer or the release's verdict then rules it out, the step goes
+  // back to this computer.
+  const byDefault = useRef(false);
+  const chooseMode = (m: string) => { modeChosen.current = true; setMode(m); };
   const [keep, setKeep] = useState(true);
   // D-012: the keep toggle is sent only once the user touches it; an
   // untouched toggle sends null, so a no-secret release does not grow an
@@ -110,6 +120,9 @@ export default function RunPanel({
   // In Agentry (hosted runs M6): whether the mode is offered here, the run
   // the registry is executing, and a refused create rendered as a sentence.
   const [hosted, setHosted] = useState<main.HostedAvailabilityView | null>(null);
+  // Whether the offer has been read (or failed to be): until then Run
+  // defaults' fallback sentence has nothing to say.
+  const [hostedKnown, setHostedKnown] = useState(false);
   const [hostedRun, setHostedRun] = useState<main.HostedRunView | null>(null);
   const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
   const [starting, setStarting] = useState(false);
@@ -126,6 +139,12 @@ export default function RunPanel({
 
   useEffect(() => {
     RunAPI.SetupStatus().then(setSetup).catch((e) => setSetupErr(String(e)));
+    SettingsAPI.RunDefaults()
+      .then((d) => {
+        setDefaults(d);
+        if (d.outputDir) setOutDir((cur) => cur || d.outputDir || "");
+      })
+      .catch(() => setDefaults(null));
     RunAPI.GatewayRequirements(registry, ns, name).then(setMcp).catch(() => setMcp(null));
     KnowledgeAPI.List(registry).then((l) => setPacks(l.packs)).catch(() => setPacks([]));
     RunAPI.ProfileStatus(registry, agentRef)
@@ -155,17 +174,24 @@ export default function RunPanel({
       .then((h) => {
         if (!live) return;
         setHosted(h);
+        setHostedKnown(true);
         // Only when the mode can actually be used: listing this account's
         // runs needs run:read, and a token without it must not be sent to
         // a route that would refuse it.
         if (!h.available) return;
-        return RunAPI.AttachHostedRun(registry, outDir.trim()).then((a) => {
+        // The folder a reattached run downloads into is the one the field
+        // would hold: Run defaults' saved folder, which may not have been
+        // read into it yet.
+        return SettingsAPI.RunDefaults()
+          .then((d) => d.outputDir ?? "", () => "")
+          .then((saved) => RunAPI.AttachHostedRun(registry, outDir.trim() || saved))
+          .then((a) => {
           if (!live || !a.run) return;
           setMode("hosted");
           setHostedRun(a.run);
         });
       })
-      .catch(() => setHosted(null));
+      .catch(() => { setHosted(null); setHostedKnown(true); });
     return () => { live = false; };
     // The attach reads the folder as it stands when the panel opens; a
     // later change applies to the next run.
@@ -200,6 +226,20 @@ export default function RunPanel({
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
   const inAgentry = mode === "hosted";
+  // Where to run's default, applied once the offer is known and before the
+  // person has chosen; a run already attached chose for itself.
+  useEffect(() => {
+    if (modeChosen.current || initialMode || hostedRun || !profile) return;
+    const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned);
+    if (allowed && mode !== "hosted") {
+      byDefault.current = true;
+      setMode("hosted");
+    } else if (!allowed && byDefault.current && mode === "hosted") {
+      byDefault.current = false;
+      setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
+    }
+  }, [defaults, hosted, unscanned, profile, hostedRun, initialMode, mode]);
+  const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
   const hostedActive = !!hostedRun && (hostedRun.status === "queued" || hostedRun.status === "claimed" || hostedRun.status === "running");
   // What still stands between this form and a run, each in a sentence the
   // line above the button shows (agentry-desktop#167): the same conditions
@@ -540,7 +580,7 @@ export default function RunPanel({
                     <div className="row" style={{ gap: 14 }}>
                       {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
                         <label key={m} className="check-row" style={{ margin: 0 }}>
-                          <input type="radio" name="run-mode" checked={mode === m} onChange={() => setMode(m)} disabled={running || sessionActive || hostedActive} />
+                          <input type="radio" name="run-mode" checked={mode === m} onChange={() => chooseMode(m)} disabled={running || sessionActive || hostedActive} />
                           <span>
                             <strong>{m}</strong>{" "}
                             <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
@@ -550,7 +590,7 @@ export default function RunPanel({
                       {hosted?.offered && (
                         <label className="check-row" style={{ margin: 0 }}>
                           <input
-                            type="radio" name="run-mode" checked={inAgentry} onChange={() => setMode("hosted")}
+                            type="radio" name="run-mode" checked={inAgentry} onChange={() => chooseMode("hosted")}
                             disabled={running || sessionActive || !hosted.available || unscanned}
                           />
                           <span>
@@ -565,6 +605,7 @@ export default function RunPanel({
                         Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
                       </p>
                     )}
+                    {fallback && !inAgentry && <p className="muted small" style={{ margin: "4px 0" }}>{fallback}</p>}
                     {hosted && <HostedUnavailable hosted={hosted} />}
                     {inAgentry && hosted && (
                       <>
@@ -1000,7 +1041,9 @@ export default function RunPanel({
                     disabled={running}
                   />
                   <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
-                  {outDir && <Button onClick={() => setOutDir("")} disabled={running}>Default</Button>}
+                  {outDir !== (defaults?.outputDir ?? "") && (
+                    <Button onClick={() => setOutDir(defaults?.outputDir ?? "")} disabled={running}>Default</Button>
+                  )}
                 </div>
                 {!inAgentry && (
               <>

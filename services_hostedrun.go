@@ -338,7 +338,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 			return nil, err
 		}
 	}
-	if err := r.app.requirePicked("output directory", outDir); err != nil {
+	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
 	}
 	// A release the registry admitted without a scan is not run In
@@ -443,7 +443,7 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	// result view lists and reveals afterwards, is one a native picker
 	// returned, as for StartHostedRun (D-030, D-035): never a path the page
 	// typed.
-	if err := r.app.requirePicked("output directory", outDir); err != nil {
+	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
 	}
 	reg = settings.Normalize(reg)
@@ -609,7 +609,8 @@ func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 }
 
 // hostedOutDir is the folder a hosted run's artefacts land in: the one the
-// person picked, or the same default a local run would have written to.
+// person picked, a folder of its own inside Run defaults' saved one, or the
+// same default a local run would have written to.
 func hostedOutDir(dir string, r *hostedrun.Run) (string, error) {
 	// The registry names the run, and the name becomes part of a folder's
 	// name here: one that is not an id (a "../", a ".app", a comma) is
@@ -620,6 +621,11 @@ func hostedOutDir(dir string, r *hostedrun.Run) (string, error) {
 	ns, name := "", ""
 	if ref, err := manifest.ParseRef(r.Ref); err == nil {
 		ns, name = ref.Namespace, ref.Name
+	}
+	// Run defaults' saved folder is every run's, so a run In Agentry lands
+	// in a folder of its own inside it, as a local run does (D-044).
+	if isSavedOutputDir(dir) {
+		dir = run.RunFolder(dir, ns, name, r.ID)
 	}
 	return run.OutputDir(dir, ns, name, r.ID)
 }

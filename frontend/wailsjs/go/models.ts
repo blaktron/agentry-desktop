@@ -2558,6 +2558,26 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class RunDefaultsView {
+	    timeoutSeconds: number;
+	    maxTurns: number;
+	    policyPath: string;
+	    where: string;
+	    outputDir?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RunDefaultsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.maxTurns = source["maxTurns"];
+	        this.policyPath = source["policyPath"];
+	        this.where = source["where"];
+	        this.outputDir = source["outputDir"];
+	    }
+	}
 	export class RunOutputsView {
 	    files: OutputFileView[];
 	    skipped: number;

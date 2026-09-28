@@ -18,6 +18,14 @@ export function ChooseCodingAgentProjectDir() {
   return window['go']['main']['SettingsAPI']['ChooseCodingAgentProjectDir']();
 }
 
+export function ChooseDefaultOutputDir() {
+  return window['go']['main']['SettingsAPI']['ChooseDefaultOutputDir']();
+}
+
+export function ClearDefaultOutputDir() {
+  return window['go']['main']['SettingsAPI']['ClearDefaultOutputDir']();
+}
+
 export function CodingAgents() {
   return window['go']['main']['SettingsAPI']['CodingAgents']();
 }
@@ -42,12 +50,24 @@ export function RemoveRegistry(arg1) {
   return window['go']['main']['SettingsAPI']['RemoveRegistry'](arg1);
 }
 
+export function RunDefaults() {
+  return window['go']['main']['SettingsAPI']['RunDefaults']();
+}
+
 export function SetDefault(arg1) {
   return window['go']['main']['SettingsAPI']['SetDefault'](arg1);
 }
 
 export function SetInstallIntoCodingAgent(arg1) {
   return window['go']['main']['SettingsAPI']['SetInstallIntoCodingAgent'](arg1);
+}
+
+export function SetRunBudgets(arg1, arg2) {
+  return window['go']['main']['SettingsAPI']['SetRunBudgets'](arg1, arg2);
+}
+
+export function SetRunWhere(arg1) {
+  return window['go']['main']['SettingsAPI']['SetRunWhere'](arg1);
 }
 
 export function SignIn(arg1, arg2) {
