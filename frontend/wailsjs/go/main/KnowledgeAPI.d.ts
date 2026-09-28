@@ -35,4 +35,6 @@ export function ReadPage(arg1:string,arg2:string,arg3:string):Promise<knowledge.
 
 export function StartHostedBuild(arg1:string,arg2:string,arg3:string,arg4:Array<string>):Promise<main.KnowledgeHostedStartView>;
 
+export function StopBuild():Promise<void>;
+
 export function Upload(arg1:string,arg2:string):Promise<string>;
