@@ -11,7 +11,7 @@ import Knowledge from "./pages/Knowledge";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
-import Settings, { SETTINGS_FOR, SettingsSection } from "./pages/Settings";
+import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
 import { Button, Notice, Wordmark } from "./ui";
@@ -27,8 +27,7 @@ export type Route =
   | { page: "build" }
   // section: one of Settings' five section pages, or the landing's cards
   // when absent; part: the anchor within it (settings-cards.md D12).
-  | { page: "settings"; section?: SettingsSection; part?: string };
-
+  | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app

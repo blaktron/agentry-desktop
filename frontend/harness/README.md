@@ -111,8 +111,8 @@ cards (`page-settings`, which asserts each card and its status line), and
 `coding-agents`, `run-defaults`, `provider`), where the Settings states above
 are shot; the hash still picks each card's own state. The preview keeps its
 own route as App does, so `settings-open-<section>` clicks a card,
-`settings-part-link` follows a part's link, `settings-back` presses
-**← Settings**, and `settings-deeplink-<caller>` presses the harness-only
+`settings-part-link` follows a part's link, `settings-back-<section>` presses
+**← Settings** on each section, and `settings-deeplink-<caller>` presses the harness-only
 buttons that open Settings the way App's callers do (the sidebar's update
 line, the setup notice, Knowledge's sign-in, Describe it's missing key);
 `shots.mjs` checks which page shows and that a named part is in view.

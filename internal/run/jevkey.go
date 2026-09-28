@@ -160,7 +160,7 @@ func TestJevKey(ctx context.Context) (*JevKeyTest, error) {
 	w, _, err := drafter.LocalWeb(pol, "")
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		return &JevKeyTest{Message: "No AI Review key is saved on this computer. Paste your TypeSafe Jev key under Settings → AI Review key, then test it."}, nil
+		return &JevKeyTest{Message: "No AI Review key is saved on this computer. Paste your TypeSafe Jev key under Settings → Provider settings → AI Review key, then test it."}, nil
 	case err != nil:
 		return nil, err
 	}

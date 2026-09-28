@@ -17,7 +17,10 @@ import { AIReviewKeyCard } from "./AIReviewKey";
 // before, moved unchanged, under a "← Settings" link back.
 export type SettingsSection = "registry" | "updates" | "coding-agents" | "run-defaults" | "provider";
 
-type Part = { id: string; label: string };
+// The parts a landing link or a deep link can name; each section page
+// renders its part under the anchor settings-part-<id>.
+export type SettingsPart = "registries" | "add-registry" | "desktop" | "briefagents" | "provider" | "ai-review-key";
+type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
 // the anchor its section page scrolls to when the landing's link names it.
@@ -60,7 +63,7 @@ export const SETTINGS_FOR = {
   knowledgeSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
   describeKey: { section: "provider", part: "ai-review-key" },
-} satisfies Record<string, { section: SettingsSection; part?: string }>;
+} satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
 
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
 
@@ -77,9 +80,9 @@ export default function Settings({
   // The section page shown, or the landing when absent; part is the anchor
   // within it the landing's link named.
   section?: SettingsSection;
-  part?: string;
+  part?: SettingsPart;
   // Opens a section (and a part of it), or the landing with none.
-  onOpen: (section?: SettingsSection, part?: string) => void;
+  onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
 }) {
   // A part named by the landing's link is scrolled to once its section has
   // rendered; the page's own scroll starts at the top otherwise.
@@ -105,8 +108,8 @@ export default function Settings({
       )}
       {section === "updates" && (
         <>
-          <SettingsPart id="desktop" title="Agentry Desktop"><SelfUpdateCard /></SettingsPart>
-          <SettingsPart id="briefagents" title="BriefAgents">
+          <PartSection id="desktop" title="Agentry Desktop"><SelfUpdateCard /></PartSection>
+          <PartSection id="briefagents" title="BriefAgents">
             <Card>
               <label className="row gap">
                 <input type="checkbox" checked={false} disabled onChange={() => {}} />
@@ -117,7 +120,7 @@ export default function Settings({
                 open a BriefAgent; Update on its page is yours to click.
               </div>
             </Card>
-          </SettingsPart>
+          </PartSection>
         </>
       )}
       {section === "coding-agents" && <CodingAgentsCard />}
@@ -127,14 +130,14 @@ export default function Settings({
           <div id="settings-part-provider" className="settings-part">
             <RuntimeSetup advanced heading="Model provider" onOpenPrereqs={() => onOpen("run-defaults")} />
           </div>
-          <SettingsPart id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></SettingsPart>
+          <PartSection id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></PartSection>
         </>
       )}
     </div>
   );
 }
 
-function SettingsPart({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function PartSection({ id, title, children }: { id: SettingsPart; title: string; children: React.ReactNode }) {
   return (
     <section id={`settings-part-${id}`} className="settings-part">
       <h2>{title}</h2>
@@ -159,7 +162,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
   settings: main.SettingsView;
   activeRegistry: string;
   onRunSetup?: () => void;
-  onOpen: (section?: SettingsSection, part?: string) => void;
+  onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
 }) {
   const [st, setSt] = useState<Statuses>({});
   useEffect(() => {
@@ -249,12 +252,13 @@ export function runStatus(s: main.SetupStatusView): string {
   return "Docker answers and the run images are ready.";
 }
 
+// The key's line says where it comes from and never what it is (D-040):
+// "saved" only when the keychain holds it and the policy reads it there.
 export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyView | null): string {
   const parts: string[] = [];
   if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}` : "No provider chosen yet");
-  if (k) parts.push(k.ready ? "AI Review key saved" : "no AI Review key");
-  const line = parts.join(" · ");
-  return line.charAt(0).toUpperCase() + line.slice(1) + ".";
+  if (k) parts.push(k.envSet ? `AI Review key from $${k.envName}` : k.stored && k.source === "keyring" ? "AI Review key saved" : "No AI Review key");
+  return parts.join(" · ") + ".";
 }
 
 // RunDefaultsSettings is Settings → Run defaults. Until M4 adds the defaults

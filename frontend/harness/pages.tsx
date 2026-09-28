@@ -183,7 +183,7 @@ const draftedView = buildHash.startsWith("drafted") ? {
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
 } : null;
-// Settings → AI Review key: saved by default; #aireview-none has none;
+// Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
 // #aireview-refused answers Test key with TypeSafe's 401.
 const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
   ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }
@@ -408,7 +408,7 @@ import AgentPage from "../src/pages/AgentPage";
 import Installed from "../src/pages/Installed";
 import Build from "../src/pages/Build";
 import Validate from "../src/pages/Validate";
-import Settings, { SETTINGS_FOR, SettingsSection } from "../src/pages/Settings";
+import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 
 const settingsView = {
   defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml",
@@ -444,7 +444,7 @@ function Shell({ active, children }: { active: string; children: React.ReactNode
 // picking the states the cards themselves show.
 function SettingsPreview() {
   const q = new URLSearchParams(window.location.search);
-  const [at, setAt] = useState<{ section?: SettingsSection; part?: string }>({ section: (q.get("settings") || undefined) as SettingsSection | undefined });
+  const [at, setAt] = useState<{ section?: SettingsSection; part?: SettingsPart }>({ section: (q.get("settings") || undefined) as SettingsSection | undefined });
   return (
     <>
       <Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
