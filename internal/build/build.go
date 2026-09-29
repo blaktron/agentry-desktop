@@ -765,7 +765,7 @@ func (m *Model) dependencyLines() []string {
 func (m *Model) publishLines() []string {
 	include := compact(m.PublishInclude)
 	if len(include) == 0 {
-		include = []string{"agent.yaml", m.instructionFile(), "README.md", "LICENSE"}
+		include = m.defaultInclude()
 	}
 	out := []string{"publish:", "  include: " + seq(include)}
 	if c := strings.TrimSpace(m.PublishChannel); c != "" {

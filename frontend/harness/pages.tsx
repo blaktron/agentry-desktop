@@ -105,11 +105,13 @@ const buildModel = {
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
   license: "Apache-2.0", summary: "Summarises an incident channel into a report card, redacting secrets first.",
   tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
-  egressMode: "hosts", egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsReadPaths: [],
+  egressMode: "hosts", egressHosts: window.location.hash === "#build-summary-hostile" ? ["api.pagerduty.com", "<img src=x onerror=alert(1)>\u202e"] : ["api.pagerduty.com"], fsRead: "workspace", fsReadPaths: [],
   fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN"],
   mcpServers: [{ source: "npm", package: "@cyanheads/osv-advisory-mcp-server", version: "0.1.13", tools: [], secrets: [], egress: ["api.osv.dev"], env: [{ name: "LOG_LEVEL", value: "info" }] }],
   dataAccess: ["tickets"], intake: [], opening: "", idleTimeoutSeconds: 0,
-  guide: { overview: "Reads the incident channel and returns a one-page report card.", prepare: ["The incident number", "Read access to the channel"], files: "", task: "Summarise INC-1234", connect: [{ secret: "PAGERDUTY_TOKEN", help: window.location.hash.endsWith("-hostile") && window.location.hash.startsWith("#build-") && !window.location.hash.startsWith("#build-drafted")
+  guide: { overview: window.location.hash === "#build-summary-hostile"
+    ? "Reads the channel. <script>alert(1)</script><b onclick=\"steal()\">now</b> ![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) \u202eexe.txt"
+    : "Reads the incident channel and returns a one-page report card.", prepare: ["The incident number", "Read access to the channel"], files: "", task: "Summarise INC-1234", connect: [{ secret: "PAGERDUTY_TOKEN", help: window.location.hash.endsWith("-hostile") && window.location.hash.startsWith("#build-") && !window.location.hash.startsWith("#build-drafted")
     // agentry-desktop#343: a key's help is markdown (DEV-167). A hostile one
     // on Before a run's preview and on Review shows as text there.
     ? "1. Open **Integrations → API Access Keys**.\n2. Create a *read-only* key.\n\n<b onclick=\"steal()\">now</b> ![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [PagerDuty](https://evil.example/pd) https://support.pagerduty.com/keys\u202E and https://p\u0430gerduty.com/new <https://pagerduty.com%2Eevil.example/>"
@@ -134,7 +136,13 @@ const buildCheck = {
 };
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
-const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : "steps";
+// The summary (#344): #build-summary is a QuickAgent written in the form,
+// with every kind of capability; #build-summary-drafted a draft landed on it
+// with AI Review's check and a host the description did not name;
+// #build-summary-hostile an overview, a key's help and a host that carry
+// markup; #build-summary-problem a rule the form still fails, with Fix it.
+const buildSummary = buildHash.startsWith("summary");
+const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
 const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it (#282): #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
@@ -164,13 +172,15 @@ const hostedDrafting = buildHash === "describe-agentry-drafting"
   ? { id: "01a0e424-0000-0000-0000-000000000000", status: "queued", state: "queued", statusLine: "waiting for a runner — number 1 in the queue",
       queuePosition: 1, cancelRequested: false, holdCredits: 41, creditsLine: "41 credits are held for this draft.", final: false }
   : null;
-const draftedView = buildHash.startsWith("drafted") ? {
+const summaryDraft = buildHash === "summary-drafted";
+const draftedView = buildHash.startsWith("drafted") || summaryDraft ? {
   where: agentryDraft ? "agentry" : "here", description: "Check a CSV file I add for missing values, duplicate rows and mixed formats.", hints: [],
-  unmentioned: agentryDraft ? ["api.csvlint.io"] : [], moreProblems: 0,
+  unmentioned: agentryDraft || summaryDraft ? ["api.csvlint.io"] : [], moreProblems: 0,
   problems: agentryDraft ? ["V14 guide.prepare: 13 prepare items; the maximum is 10"] : [],
   model: { ...buildModel, name: "csv-quality-check", namespace: "demo1", version: "0.1.0",
     summary: "Checks a CSV you add for missing values, duplicate rows and mixed formats, per column.",
-    egressMode: "none", egressHosts: [], fsRead: "none", fsWrite: "none", fsWritePaths: [], secrets: [], mcpServers: [], dataAccess: ["files"],
+    egressMode: summaryDraft ? "hosts" : "none", egressHosts: summaryDraft ? ["api.csvlint.io"] : [], fsRead: summaryDraft ? "workspace" : "none",
+    fsWrite: "none", fsWritePaths: [], secrets: [], mcpServers: [], dataAccess: ["files"],
     intake: [{ id: "file", prompt: "The CSV file to check", type: "file", required: true, choices: [] }],
     guide: { overview: "Reads the CSV you add and reports its problems per column.", prepare: ["The CSV file"], files: "One CSV file.", task: "Check sales.csv", connect: [] },
     instructions: "# CSV quality check\n\nRead the CSV under /inputs. For each column, report missing values, duplicate rows and values whose format differs from the rest.\n",
@@ -186,7 +196,42 @@ const draftedView = buildHash.startsWith("drafted") ? {
   aiReview: { scan: agentryDraft ? "registry" : "jev", read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
+  // AI Review's check of the finished draft (agentry-cli#418): C3, as on
+  // nearly every draft until agentry#731, and a hostile id and path.
+  check: {
+    line: { tone: "review", text: "AI Review read the draft as the Drafter finished it, as the pipeline will, and flagged something the release check looks for. Expect the pipeline to send the version to review when you submit it. The details are under How it was drafted, in the form." },
+    rubric: "flagged", draft: "pass", flagged: [], unanswered: "", checks: 1,
+    findings: [{ id: "C3_undeclared_capability", question: "reaching for something the contract does not declare", score: 3, path: "AGENT.md" },
+      ...(hostileDraft ? [{ id: "<img src=x onerror=alert(1)>", question: "", score: 2, path: "javascript:alert(1)\u202e" }] : [])],
+  },
 } : null;
+// BuildAPI.Summary for the harness's own models, approximating internal/build
+// Summarize (no trimming, no empty-help skip). What the summary lists is the
+// Go test's to hold; the harness shows what the page draws from it.
+function summaryFor(m: typeof buildModel, unmentioned: string[]) {
+  const marked = new Set(unmentioned.map((h) => h.toLowerCase()));
+  const host = (h: string) => ({ host: h, unnamed: marked.has(h.toLowerCase()) });
+  const keys: { name: string; help: string; usedBy: string[] }[] = [];
+  const need = (name: string, by: string) => {
+    let k = keys.find((x) => x.name === name);
+    if (!k) { k = { name, help: m.guide.connect.find((c) => c.secret === name)?.help ?? "", usedBy: [] }; keys.push(k); }
+    if (k.usedBy[k.usedBy.length - 1] !== by) k.usedBy.push(by);
+  };
+  m.secrets.forEach((k) => need(k, "the QuickAgent"));
+  const servers = m.mcpServers.map((sv) => {
+    const ref = `${sv.source}:${sv.package}@${sv.version}`;
+    sv.secrets.forEach((k) => need(k, ref));
+    return { ref, tools: sv.tools, hosts: sv.egress.map(host), keys: sv.secrets, config: sv.env.map((e) => e.name) };
+  });
+  const websites = m.egressMode === "all" ? [host("*")] : m.egressMode === "hosts" ? m.egressHosts.map(host) : [];
+  const fs = (mode: string, paths: string[], verb: string) =>
+    mode === "workspace" ? `${verb} the files in its workspace.` : mode === "paths" && paths.length ? `${verb} ${paths.join(", ")} in its workspace.` : null;
+  const grants = [fs(m.fsRead, m.fsReadPaths, "Reads"), fs(m.fsWrite, m.fsWritePaths, "Writes"),
+    m.execCommands.length ? `Runs the ${m.execCommands.length === 1 ? "command" : "commands"} ${m.execCommands.join(", ")}.` : null,
+    m.dataAccess.length ? `Touches these kinds of data: ${m.dataAccess.join(", ")}.` : null].filter((g): g is string => g !== null);
+  return { name: m.name, summary: m.summary, overview: m.guide.overview, keys, websites, servers, grants,
+    anyUnnamed: [...websites, ...servers.flatMap((sv) => sv.hosts)].some((h) => h.unnamed) };
+}
 // Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
 // #aireview-refused answers Test key with TypeSafe's 401.
 const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
@@ -239,7 +284,12 @@ g.go = { main: {
   // The native folder picker, as Build's first save asks it (D-030).
   App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer" },
   BuildAPI: {
-    NewModel: async () => buildModel, Exists: async () => false, Check: async () => buildCheck,
+    NewModel: async () => buildModel, Exists: async () => false,
+    Check: async () => (buildHash === "summary-problem"
+      ? { ...buildCheck, problems: { guide: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" },
+          first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
+      : buildCheck),
+    Summary: async (m: typeof buildModel, unmentioned: string[]) => summaryFor(m, unmentioned ?? []),
     Save: async () => undefined,
     // pages.html#build-validate: a validate run that failed, so the card
     // shows a V-rule problem and a content finding with their place.
@@ -480,7 +530,7 @@ createRoot(document.getElementById("root")!).render(
     <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="Browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced"} initialStep={buildStep}
+    <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
     <div data-preview="settings"><Shell active="Settings"><SettingsPreview /></Shell></div>

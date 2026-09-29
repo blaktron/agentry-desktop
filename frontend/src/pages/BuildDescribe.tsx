@@ -387,13 +387,65 @@ function refParts(ref: string): { ns: string; name: string } | null {
   return m ? { ns: m[1], name: m[2] } : null;
 }
 
+// CheckNotes is AI Review's check of the finished draft in full, in the
+// site's words (agentry-web#651 CheckNotes): the release rubric's verdict and
+// each question at 2 or more with its file, the draft question set's verdict
+// and flags, or why there was no answer. Every string is the draft's, drawn
+// as text. The summary gives it one line; this is where the line points.
+function CheckNotes({ c }: { c: main.DraftCheckView }) {
+  const word = (v: string) => (v === "not_scanned" ? "not scanned" : v);
+  return (
+    <div className="build-check-notes">
+      <h4 className="small">AI Review&apos;s check of the finished draft</h4>
+      <p className="small muted">
+        AI Review read the draft as the Drafter finished it, with the questions the pipeline asks at publish
+        {c.checks === 2 ? ", twice: once before the Drafter's one repair turn and once after" : ""}. What you change in the
+        form is not checked until you submit.
+      </p>
+      {!c.rubric || !c.draft ? (
+        <p className="small">It had no answer: <RevealText text={c.unanswered || "the check did not finish"} />.</p>
+      ) : (
+        <ul className="small">
+          <li>
+            The release check: {word(c.rubric)}.
+            {(c.findings ?? []).length > 0 && (
+              <ul>
+                {c.findings.map((f, i) => (
+                  <li key={i}>
+                    {f.question || <RevealText text={f.id} />} (<RevealText text={f.id.split("_")[0]} />, score {f.score})
+                    {f.path && <> in <span className="mono selectable"><RevealText text={f.path} /></span></>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+          <li>
+            Whether it does what you described: {word(c.draft)}
+            {(c.flagged ?? []).length > 0 && <> (<RevealText text={c.flagged.join(", ")} />)</>}.
+          </li>
+        </ul>
+      )}
+      {(c.findings ?? []).some((f) => f.id === "C3_undeclared_capability") && (
+        // Until blaktron/agentry#731: the rubric's state does not say what the
+        // runner grants every run.
+        <p className="small muted">
+          The release check raises C3 on nearly every drafted QuickAgent for now, because it does not yet know what the
+          runner gives every run. It sends the version to review, not to refusal.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// DraftNotes is Review's folded "How it was drafted" (plan
+// builder-simplify.md §4.3): the plumbing the summary leaves out.
 export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?: (ns: string, name: string) => void }) {
   const ai = v.aiReview;
   const heldBack = ai.withheld + ai.notScanned;
   const how = v.where === "agentry" ? "through the registry" : "with your key";
   return (
-    <Card className="mt">
-      <strong>What the Drafter found</strong>
+    <div className="build-drafted-notes">
+      <strong className="small">What the Drafter found</strong>
       <p className="small">
         {v.where === "agentry" ? "The draft was made In Agentry. " : ""}
         AI Review read {ai.read} {ai.read === 1 ? "result" : "results"} {how} and held back {heldBack}
@@ -407,6 +459,7 @@ export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?
           ))}
         </ul>
       )}
+      {v.check && <CheckNotes c={v.check} />}
       {(v.unmentioned ?? []).length > 0 && (
         <Notice tone="warn">
           <strong>Hosts your description did not name.</strong> The draft may reach{" "}
@@ -471,7 +524,7 @@ export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?
       <p className="muted small selectable" style={{ marginBottom: 0 }}>
         The {v.where === "agentry" ? "draft's output" : "run's receipts"} and <span className="mono">draft.json</span> are in <span className="mono">{v.outDir}</span>.
       </p>
-    </Card>
+    </div>
   );
 }
 

@@ -931,6 +931,16 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-reach { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; }
 .build-reach dt { color: var(--color-muted); overflow-wrap: anywhere; }
 .build-reach dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* The summary (agentry-desktop#344): what it needs as lists, a host the
+   description did not name marked with the medium rule the site uses. */
+.build-summary h4 { margin: 14px 0 4px; }
+.build-summary-list { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.build-summary-list li { overflow-wrap: anywhere; min-width: 0; }
+.build-summary-list .key-help { margin-top: 4px; }
+.build-summary-unnamed { box-shadow: inset 3px 0 0 0 var(--color-sev-medium); padding-left: 10px; }
+.build-drafted > summary { cursor: pointer; }
+.build-drafted-notes { margin-top: 10px; }
+.build-check-notes { margin: 10px 0; }
 .step-recap { grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); }
 
 /* The Knowledge panel (plan knowledge.md §4.8, agentry-desktop#273): a

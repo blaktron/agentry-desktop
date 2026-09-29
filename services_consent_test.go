@@ -95,6 +95,14 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 			return err
 		},
 		"BuildAPI.Save": func() error { return b.Save(typed, build.Model{}) },
+		"BuildAPI.Publish": func() error {
+			_, err := b.Publish("https://r.example", typed, "private")
+			return err
+		},
+		"BuildAPI.Validate": func() error {
+			_, err := b.Validate(typed)
+			return err
+		},
 	} {
 		err := call()
 		if err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
