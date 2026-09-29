@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/blaktron/agentry-cli/pkg/drafter"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
@@ -40,10 +41,12 @@ type BuildAPI struct {
 	// run is the run surface: a draft on this computer holds its lock and
 	// is the run in flight, so quitting ends it and sweeps what it started.
 	run *RunAPI
-	// draftScanner and draftRunner are the Drafter's seams a test
-	// substitutes; nil is the core's pkg/judge and this machine's docker.
+	// draftScanner, draftRunner and draftChecker are the Drafter's seams a
+	// test substitutes; nil is the core's pkg/judge, this machine's docker
+	// and the core's pkg/draftcheck, each with the person's own key.
 	draftScanner func(key string) (webscan.Scanner, error)
 	draftRunner  func(context.Context, localrun.Run) (*receipt.Envelope, error)
+	draftChecker func(*engine.WebRun) (drafter.Checker, error)
 	// hosted is the one draft In Agentry this app follows (#281).
 	hosted hostedSlot
 }
@@ -306,7 +309,8 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	if err := b.app.askConsent("Draft on this computer?",
 		"The Drafter runs on this computer against the model your runner policy names ("+p.ModelName()+"), for no credits. "+
 			"AI Review (TypeSafe's Jev) reads your description first, with your key, then every search result, page and registry answer "+
-			"before the model does, and holds back what it flags. Your description goes to "+goes+" and the sites the Drafter reads, "+
+			"before the model does, and holds back what it flags. It then checks the finished draft, with your description, as the pipeline will at submit. "+
+			"Your description goes to "+goes+" and the sites the Drafter reads, "+
 			"so it should hold no secret. The run's receipts and the draft are kept in your Downloads folder under agentry-out; "+
 			"nothing is written into a QuickAgent folder or submitted until you save or publish it. Continue?"); err != nil {
 		return nil, err
@@ -320,7 +324,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	var res *draft.Result
 	err = b.run.asRun(drafter.Namespace+"/"+drafter.Name, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
-		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner})
+		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker})
 		return err
 	})
 	if err != nil {

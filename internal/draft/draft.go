@@ -2,11 +2,15 @@
 // §7.1, §7.3, D22, D25; #282): the built-in Drafter run here against the
 // runner policy's model, with every input read by AI Review with the
 // person's own Jev key before the model reads it, for no credits. It drives
-// the CLI's own packages: pkg/drafter's Task, LocalWeb, Prescan and Finish,
-// and localrun's Drafter. The order is the plan's and this package keeps it:
-// no key, no draft (Prepare); the description scanned before the Drafter
-// starts (Run); the answer finished as `agentry draft` finishes it; and the
-// draft decoded into the Build form's Model as data (build.FromDraft).
+// the CLI's own packages: pkg/drafter's Task, LocalWeb, Prescan and
+// PostStep, and localrun's Drafter and RepairRun. The order is the plan's
+// and this package keeps it: no key, no draft (Prepare); the description
+// scanned before the Drafter starts (Run); the answer finished as `agentry
+// draft` finishes it, by the same code (agentry-cli#478; #395: corrected,
+// validated, checked by AI Review with the person's key, and given one
+// repair turn when the rules refuse it or the check flags something it can
+// fix, plan builder-simplify.md §5.2, D6); and the draft decoded into the
+// Build form's Model as data (build.FromDraft).
 package draft
 
 import (
@@ -38,12 +42,16 @@ import (
 // task the Drafter is given, the runner policy, and the run's web
 // configuration with the person's own keys.
 type Plan struct {
-	Task       string
-	Policy     *policy.Policy
-	PolicySHA  string
-	PolicyFile policy.File
-	Web        *engine.WebRun
-	Search     drafter.SearchState
+	// Description is the person's own description, which AI Review's check
+	// of the finished draft reads; Task is it with the hints, as the
+	// Drafter is given it.
+	Description string
+	Task        string
+	Policy      *policy.Policy
+	PolicySHA   string
+	PolicyFile  policy.File
+	Web         *engine.WebRun
+	Search      drafter.SearchState
 }
 
 // ModelName names the model the runner policy gives the Drafter.
@@ -102,7 +110,7 @@ func Prepare(registry, description string, hints []string) (*Plan, error) {
 	case err != nil:
 		return nil, err
 	}
-	return &Plan{Task: task, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Web: w, Search: search}, nil
+	return &Plan{Description: description, Task: task, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Web: w, Search: search}, nil
 }
 
 // Request is one draft's run.
@@ -115,8 +123,13 @@ type Request struct {
 	// Scanner builds the description's scanner from the Jev key; nil is
 	// the core's pkg/judge through drafter.CoreJev.
 	Scanner func(key string) (webscan.Scanner, error)
-	// Runner runs the Drafter; nil is localrun on this machine's docker.
+	// Runner runs the Drafter, its first turn and its one repair turn; nil
+	// is localrun on this machine's docker.
 	Runner func(context.Context, localrun.Run) (*receipt.Envelope, error)
+	// Checker builds AI Review's check of the finished draft from the run's
+	// web configuration; nil is drafter.CheckerFor, the core's
+	// pkg/draftcheck with the person's own Jev key.
+	Checker func(*engine.WebRun) (drafter.Checker, error)
 }
 
 // Result is a finished draft: the draft as `agentry draft` records it,
@@ -131,9 +144,16 @@ type Result struct {
 
 // Run makes the draft: AI Review reads the description first and one it
 // does not pass stops the draft before the Drafter starts; then the
-// Drafter runs, its answer is finished (AI Review's record from the run's
-// ledger, the long texts from its reports), written as draft.json beside
-// the receipts, and decoded into the form's Model.
+// Drafter runs, and its answer goes through the CLI's own post-step
+// (drafter.PostStep): AI Review's record from the run's ledger, the long
+// texts from its reports, the slips corrected, the package rendered beside
+// the receipts and checked by `agentry validate`'s own code, AI Review's
+// check of it with the person's key, and one repair turn, without the web
+// tools and given only the rules' report, what the check flagged (with the
+// task) and the Drafter's own manifest and instructions, for a draft the
+// rules refuse or the check flagged for something it can fix. The draft
+// kept is written as draft.json beside the receipts and decoded into the
+// form's Model.
 func Run(ctx context.Context, req Request) (*Result, error) {
 	p := req.Plan
 	logw := req.Log
@@ -171,21 +191,36 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		}
 	}
 	b := p.Policy.Budgets
-	env, err := runner(ctx, localrun.Run{
+	first := localrun.Run{
 		Builtin: localrun.Drafter(), Home: home, Policy: p.Policy, PolicySHA: p.PolicySHA, PolicyFile: &p.PolicyFile,
 		Build: version.Build(), Task: strings.NewReader(p.Task), OutDir: outDir,
 		Budgets: &spec.Budgets{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns, MaxCostUSD: b.MaxCostUSD},
 		RunID:   req.RunID, Stderr: logw, Web: p.Web,
-	})
-	if err != nil {
+	}
+	env, runErr := runner(ctx, first)
+	checkerFor := req.Checker
+	if checkerFor == nil {
+		checkerFor = drafter.CheckerFor
+	}
+	checker, checkerErr := checkerFor(p.Web)
+	post := drafter.PostStep{
+		OutDir: outDir, Description: p.Description, Task: p.Task, Scan: desc, Ref: localrun.Drafter().Ref(), Build: version.Build(),
+		Budgets: *first.Budgets, Checker: checker, CheckerErr: checkerErr, Log: logw,
+		Repair: func(ctx context.Context, t drafter.RepairTurn) (*receipt.Envelope, error) {
+			return runner(ctx, localrun.RepairRun(first, t))
+		},
+	}
+	d, _, err := post.Run(ctx, env, runErr)
+	switch {
+	case err != nil && runErr != nil:
+		// The run failed, or its answer was not a draft and its repair
+		// turn returned none either.
 		var ce *engine.ClassifiedError
 		if errors.As(err, &ce) && ce.Code == engine.ExitOutputSchema {
 			return nil, fmt.Errorf("the Drafter's answer was not a draft, so none was made; its answer and the run's receipts are in %s: %w", outDir, err)
 		}
 		return nil, err
-	}
-	d, err := drafter.Finish(env, outDir, desc, localrun.Drafter().Ref(), version.Build())
-	if err != nil {
+	case err != nil:
 		return nil, fmt.Errorf("the Drafter's answer was not a draft (its receipts are in %s): %w", outDir, err)
 	}
 	// The texts the page renders beside Review are held to the bounds a

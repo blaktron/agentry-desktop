@@ -306,7 +306,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
           <strong>On this computer</strong>{" "}
           <span className="muted">
             — against the model your runner policy names ({status?.modelName ?? "…"}), for no credits. Your own AI Review
-            key reads the description and every result first.
+            key reads the description and every result first, and checks the finished draft.
           </span>
         </label>
         {key && (key.ready

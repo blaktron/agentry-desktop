@@ -29,6 +29,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
+	"github.com/blaktron/agentry/pkg/draftcheck"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
@@ -52,6 +53,20 @@ type describeFixture struct {
 	scan   *passScan
 	runs   []localrun.Run
 	events []string
+	// checks are the webs AI Review's check was built for, and asked how
+	// many times it was asked; it passes, and never reaches TypeSafe.
+	checks []*engine.WebRun
+	asked2 int
+}
+
+// passCheck is AI Review's check of a finished draft, both halves passed.
+type passCheck struct{ f *describeFixture }
+
+func (c passCheck) Check(context.Context, draftcheck.Package) (*drafter.Check, error) {
+	c.f.asked2++
+	return &drafter.Check{Model: "jev-1.13.0", Requests: 5,
+		Rubric: &drafter.CheckRubric{Verdict: drafter.CheckPass, Findings: []drafter.CheckFinding{}, RubricHash: "sha256:r"},
+		Draft:  &drafter.CheckDraft{Verdict: drafter.CheckPass, Flagged: []string{}, QuestionSet: "sha256:d"}}, nil
 }
 
 func newDescribeFixture(t *testing.T) *describeFixture {
@@ -79,10 +94,22 @@ func newDescribeFixture(t *testing.T) *describeFixture {
 			}
 			return f.scan, nil
 		},
+		draftChecker: func(w *engine.WebRun) (drafter.Checker, error) {
+			f.checks = append(f.checks, w)
+			return passCheck{f}, nil
+		},
 		draftRunner: func(_ context.Context, r localrun.Run) (*receipt.Envelope, error) {
 			f.runs = append(f.runs, r)
-			if cur := runAPI.current(); cur == nil || cur.id != r.RunID {
-				t.Fatalf("the Drafter ran outside the run in flight: %+v", cur)
+			// The first turn is the run in flight; the repair turn runs
+			// inside it, under its own run id, in its folder.
+			cur := runAPI.current()
+			switch {
+			case cur == nil:
+				t.Fatal("the Drafter ran outside the run in flight")
+			case len(f.runs) == 1 && cur.id != r.RunID:
+				t.Fatalf("the Drafter's first turn is not the run in flight: %+v", cur)
+			case len(f.runs) > 1 && (r.Web != nil || filepath.Dir(r.OutDir) != f.runs[0].OutDir):
+				t.Fatalf("the repair turn has a web configuration %+v or runs outside the draft's folder: %s", r.Web, r.OutDir)
 			}
 			for name, body := range map[string]string{
 				filepath.Join("reports", "AGENT.md"):            "# Meeting actions\n\nRead the notes.\n",
@@ -159,8 +186,22 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.scan.read != 1 || len(f.runs) != 1 || f.b.run.current() != nil {
+	// The rules refuse this draft (it declares no capabilities and no
+	// instruction), so the CLI's post-step gives it its one repair turn,
+	// without the web tools, under the same run lock (#395).
+	if f.scan.read != 1 || len(f.runs) != 2 || f.b.run.current() != nil {
 		t.Fatalf("scanned %d, ran %d, still in flight %v", f.scan.read, len(f.runs), f.b.run.current())
+	}
+	if f.runs[1].Web != nil || f.runs[1].Builtin != localrun.Drafter().WithoutWebTools() {
+		t.Fatal("the repair turn has the web tools or a web configuration")
+	}
+	// AI Review's check is built with the person's own key, and is not asked
+	// of a draft whose manifest does not parse (its x-extra), since there is
+	// no package to read: the page names the problem instead (internal/draft's
+	// tests hold the check of a draft that renders).
+	if len(f.checks) != 1 || f.checks[0].JevKey != describeJev || f.asked2 != 0 || v.Check != nil ||
+		!strings.Contains(v.ManifestError, "x-extra") || len(v.Problems) == 0 {
+		t.Fatalf("the check built for %+v, asked %d, view %+v (manifestError %q, problems %q)", f.checks, f.asked2, v.Check, v.ManifestError, v.Problems)
 	}
 	if f.runs[0].Web == nil || f.runs[0].Web.JevKey != describeJev {
 		t.Fatal("the run's web configuration does not carry the person's key")
@@ -171,10 +212,12 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	if v.AIReview.Read != 3 || v.AIReview.Withheld != 1 || len(v.AIReview.WithheldSources) != 1 || v.AIReview.WithheldSources[0].URL != "https://bad.example/" {
 		t.Fatalf("aiReview %+v", v.AIReview)
 	}
-	// The notes are the Drafter's text as written, for the page's reader to
-	// render; the withheld list the post-step appends to them is shown from
-	// AI Review's record instead, as text, never as links.
-	if v.Notes != "Its notes: **bold** <script>alert(1)</script>" {
+	// The notes are the Drafter's text as written, then the post-step's own
+	// sections (here the repair turn's), as a hosted draft's are, for the
+	// page's reader to render; the withheld list the post-step appends is
+	// shown from AI Review's record instead, as text, never as links.
+	if !strings.HasPrefix(v.Notes, "Its notes: **bold** <script>alert(1)</script>\n\n## Repaired once\n") ||
+		strings.Contains(v.Notes, "Withheld by AI Review") {
 		t.Fatalf("notes %q", v.Notes)
 	}
 	// The Drafter says it used the page AI Review withheld; the record
