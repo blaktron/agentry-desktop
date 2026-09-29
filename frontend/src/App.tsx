@@ -9,6 +9,8 @@ import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
 import Knowledge from "./pages/Knowledge";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
+import DraftFlow from "./pages/DraftFlow";
+import { CornerHost } from "./progress";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
@@ -42,6 +44,11 @@ export default function App() {
   // Bumped when a build ends (and when its flow closes), so the Knowledge
   // list is read again.
   const [knowledgeRev, setKnowledgeRev] = useState(0);
+  // Bumped by the draft's "Open the draft", so the Build tab opens the
+  // draft that landed whatever view it is on (agentry-desktop#410).
+  const [openDraftRev, setOpenDraftRev] = useState(0);
+  // The corner the running flows' cards stack in (progress.tsx).
+  const [corner, setCorner] = useState<HTMLElement | null>(null);
   const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
@@ -122,6 +129,7 @@ export default function App() {
   );
 
   return (
+    <CornerHost.Provider value={corner}>
     <div className="shell">
       <div className="sidebar">
         <div className="brand">
@@ -219,7 +227,7 @@ export default function App() {
           />
         )}
           {route.page === "build" && (
-            <Build registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} />
+            <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} />
           )}
           {route.page === "validate" && <Validate />}
           {route.page === "settings" && (
@@ -236,6 +244,13 @@ export default function App() {
           )}
         </Recover>
       </div>
+      <DraftFlow
+        registry={registry}
+        onOpenDraft={() => {
+          setRoute({ page: "build" });
+          setOpenDraftRev((n) => n + 1);
+        }}
+      />
       {knowledgeFlow && (
         <KnowledgeCreate
           registry={knowledgeFlow.registry}
@@ -274,6 +289,8 @@ export default function App() {
           onFinish={finishWizard}
         />
       )}
+      <div className="corner-cards" ref={setCorner} />
     </div>
+    </CornerHost.Provider>
   );
 }
