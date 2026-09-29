@@ -205,8 +205,9 @@ const draftedView = buildHash.startsWith("drafted") || summaryDraft ? {
       ...(hostileDraft ? [{ id: "<img src=x onerror=alert(1)>", question: "", score: 2, path: "javascript:alert(1)\u202e" }] : [])],
   },
 } : null;
-// BuildAPI.Summary, as internal/build Summarize draws it (the Go test holds
-// what it lists; this mirrors it for the harness's own models).
+// BuildAPI.Summary for the harness's own models, approximating internal/build
+// Summarize (no trimming, no empty-help skip). What the summary lists is the
+// Go test's to hold; the harness shows what the page draws from it.
 function summaryFor(m: typeof buildModel, unmentioned: string[]) {
   const marked = new Set(unmentioned.map((h) => h.toLowerCase()));
   const host = (h: string) => ({ host: h, unnamed: marked.has(h.toLowerCase()) });

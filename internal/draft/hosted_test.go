@@ -203,6 +203,8 @@ func TestDecodeHoldsAHostileDraftJSONAsData(t *testing.T) {
 			}
 			c["rubric"].(map[string]any)["scores"] = s
 		}),
+		"an oversize verdict":      withCheck(t, func(c map[string]any) { c["rubric"].(map[string]any)["verdict"] = big }),
+		"an oversize score key":    withCheck(t, func(c map[string]any) { c["draft"].(map[string]any)["scores"] = map[string]any{big: 1} }),
 		"an oversize model":        withCheck(t, func(c map[string]any) { c["model"] = big }),
 		"an oversize unanswered":   withCheck(t, func(c map[string]any) { c["unanswered"] = big }),
 		"a negative request count": withCheck(t, func(c map[string]any) { c["requests"] = -1 }),

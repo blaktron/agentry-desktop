@@ -47,10 +47,9 @@ func SetByBuilder(m *Model, words string, taken []string) []string {
 		}
 		m.InstructionFile = defaultInstructionFile
 	}
-	own := []string{"agent.yaml", defaultInstructionFile, "README.md", "LICENSE"}
 	if inc := compact(m.PublishInclude); len(inc) > 0 {
-		if !slices.Equal(inc, own) {
-			notes = append(notes, "The draft's include list is the Builder's own here: agent.yaml, AGENT.md, README.md and LICENSE.")
+		if own := m.defaultInclude(); !slices.Equal(inc, own) {
+			notes = append(notes, "The draft's include list is the Builder's own here: "+strings.Join(own[:len(own)-1], ", ")+" and "+own[len(own)-1]+".")
 		}
 		m.PublishInclude = []string{}
 	}
@@ -59,6 +58,12 @@ func SetByBuilder(m *Model, words string, taken []string) []string {
 		m.Name = name
 	}
 	return notes
+}
+
+// defaultInclude is the include list Save's files make: the manifest, the
+// instruction file, and the README and LICENSE Save writes.
+func (m *Model) defaultInclude() []string {
+	return []string{"agent.yaml", m.instructionFile(), "README.md", "LICENSE"}
 }
 
 // UniqueName is name, or name with the first free -2, -3… when one of

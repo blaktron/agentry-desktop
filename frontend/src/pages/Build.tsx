@@ -282,10 +282,12 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     return () => { live = false; };
   }, [model, view, drafted]);
 
-  // Focus moves to the summary's heading when it opens.
+  // The heading takes focus once the summary is drawn, as a step's does, so
+  // a keyboard or a screen reader starts on it.
+  const summaryShown = summary !== null;
   useEffect(() => {
-    if (view === "summary" && moved.current) summaryHeading.current?.focus();
-  }, [view, summary === null]);
+    if (view === "summary" && summaryShown && moved.current) summaryHeading.current?.focus();
+  }, [view, summaryShown]);
 
   // What the registry last knew of each declared server version, asked once
   // per version while Tools and web access or Review is showing.
@@ -464,6 +466,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   function switchTo(v: View) {
     moved.current = true;
     setStepProblem(null);
+    // The summary is drawn again from the model as it now stands.
+    if (v === "summary") setSummary(null);
     setView(v);
     if (v === "steps") setAt(0);
   }
@@ -894,7 +898,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             headingRef={summaryHeading}
             outcome={outcome}
           />
-        ) : <Spinner />}
+        ) : !error && <Spinner />}
       </div>
     );
   }

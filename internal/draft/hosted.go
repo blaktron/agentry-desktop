@@ -242,5 +242,10 @@ func holdCheck(c *drafter.Check, list func(string, int) error, value func(string
 			errs = append(errs, value("aiReview.check", k, maxDraftShort))
 		}
 	}
-	return errors.Join(errs...)
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -8,7 +8,7 @@ package main
 // settles what it uses):
 //
 //	AGENTRY_LIVE_HOSTED_DRAFT_REGISTRY=https://dev.secureagentry.net \
-//	AGENTRY_LIVE_HOSTED_DRAFT_TOKEN=<a PAT with run:read, run:write, user:profile, agent:write> \
+//	AGENTRY_LIVE_HOSTED_DRAFT_TOKEN=<a PAT with run:read, run:write, user:profile, agent:read, agent:publish> \
 //	go test -run TestLiveDescribeInAgentry -v -timeout 60m .
 //
 // It drafts from a description In Agentry, follows the draft to its end,
@@ -198,8 +198,9 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("submit: %s %s/%s@%s %s", pub.Status, m.Namespace, m.Name, pub.Version, pub.Detail)
-		if pub.Status == "refused" {
-			t.Fatalf("the pipeline refused the draft: %s", pub.Detail)
+		// The pipeline takes it: published, or held for a person's review.
+		if pub.Status != "published" && pub.Status != "needs_review" {
+			t.Fatalf("the pipeline did not take the draft: %s %s", pub.Status, pub.Detail)
 		}
 		return
 	}

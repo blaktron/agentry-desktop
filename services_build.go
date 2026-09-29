@@ -120,6 +120,9 @@ func (b *BuildAPI) ServerChecks(reg string, m build.Model) []mcpvuln.Status {
 // Validate runs the same offline checks the Validate page runs (manifest
 // V-rules + S1/S3/S4), on the saved workspace.
 func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {
+	if err := b.app.requirePicked("folder", dir); err != nil {
+		return nil, err
+	}
 	return validate.Run(dir)
 }
 
@@ -133,6 +136,12 @@ func (b *BuildAPI) Publish(reg, dir, visibility string) (*build.PublishResult, e
 	defer b.mu.Unlock()
 	if visibility != "private" && visibility != "public" {
 		return nil, fmt.Errorf("visibility must be private or public")
+	}
+	// Submit publishes the folder Save wrote, which the native picker gave
+	// (D-030); the binding holds that itself rather than trust the page's
+	// order of calls.
+	if err := b.app.requirePicked("folder", dir); err != nil {
+		return nil, err
 	}
 	logw := (&RunAPI{app: b.app}).eventWriter(eventBuildLog)
 	defer logw.Flush()
@@ -214,6 +223,17 @@ type DraftCheckView struct {
 	Checks int `json:"checks"`
 }
 
+// verdictWord is a verdict the draft wrote, held to the check's three
+// words: anything else is not_scanned, as the site's import reads it, so a
+// draft cannot put words of its own where the page says the verdict.
+func verdictWord(v string) string {
+	switch v {
+	case drafter.CheckPass, drafter.CheckFlagged:
+		return v
+	}
+	return drafter.CheckNotScanned
+}
+
 // DraftFindingView is one rubric question the check scored at 2 or more.
 // Question names it for a person, "" for an id that is not the rubric's.
 type DraftFindingView struct {
@@ -230,7 +250,7 @@ func checkView(c *drafter.Check) *DraftCheckView {
 	}
 	v := &DraftCheckView{Line: draft.CheckLine(c), Findings: []DraftFindingView{}, Flagged: []string{}, Unanswered: c.Unanswered, Checks: c.Checks}
 	if c.Rubric != nil && c.Draft != nil && c.Unanswered == "" {
-		v.Rubric, v.Draft = c.Rubric.Verdict, c.Draft.Verdict
+		v.Rubric, v.Draft = verdictWord(c.Rubric.Verdict), verdictWord(c.Draft.Verdict)
 		for _, f := range c.Rubric.Findings {
 			v.Findings = append(v.Findings, DraftFindingView{ID: f.ID, Question: draft.RubricQuestion(f.ID), Score: f.Score, Path: f.Path})
 		}
@@ -322,7 +342,7 @@ func (v *DraftView) settle(ctx context.Context, reg, token, ns string) {
 	if ns != "" {
 		names, err := ownNames(ctx, reg, token, ns)
 		if err != nil {
-			v.DecodeNotes = append(v.DecodeNotes, fmt.Sprintf("Your QuickAgents' names could not be read, so check that no QuickAgent of yours is already named %s (%v).", v.Model.Name, err))
+			v.DecodeNotes = append(v.DecodeNotes, fmt.Sprintf("Your QuickAgents' names could not be read from the registry, so check that no QuickAgent of yours is already named %s.", v.Model.Name))
 		}
 		taken = names
 	}

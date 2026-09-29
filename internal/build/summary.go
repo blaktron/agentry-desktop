@@ -88,7 +88,7 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	case "all":
 		s.Websites = append(s.Websites, host("*"))
 	case "hosts":
-		for _, h := range nonEmpty(m.EgressHosts) {
+		for _, h := range compact(m.EgressHosts) {
 			s.Websites = append(s.Websites, host(h))
 		}
 	}
@@ -107,13 +107,13 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 			s.Keys[i].UsedBy = append(u, by)
 		}
 	}
-	for _, k := range nonEmpty(m.Secrets) {
+	for _, k := range compact(m.Secrets) {
 		need(k, "the QuickAgent")
 	}
 	for _, srv := range m.MCPServers {
 		ref := srv.Ref()
-		sv := SummaryServer{Ref: ref, Tools: nonEmpty(srv.Tools), Hosts: []SummaryHost{}, Keys: nonEmpty(srv.Secrets), Config: []string{}}
-		for _, h := range nonEmpty(srv.Egress) {
+		sv := SummaryServer{Ref: ref, Tools: compact(srv.Tools), Hosts: []SummaryHost{}, Keys: compact(srv.Secrets), Config: []string{}}
+		for _, h := range compact(srv.Egress) {
 			sv.Hosts = append(sv.Hosts, host(h))
 		}
 		for _, e := range srv.Env {
@@ -128,7 +128,7 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	}
 
 	fs := func(mode string, paths []string, verb string) {
-		switch p := nonEmpty(paths); {
+		switch p := compact(paths); {
 		case mode == "workspace":
 			s.Grants = append(s.Grants, verb+" the files in its workspace.")
 		case mode == "paths" && len(p) > 0:
@@ -137,14 +137,14 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	}
 	fs(m.FSRead, m.FSReadPaths, "Reads")
 	fs(m.FSWrite, m.FSWritePaths, "Writes")
-	if cmds := nonEmpty(m.ExecCommands); len(cmds) > 0 {
+	if cmds := compact(m.ExecCommands); len(cmds) > 0 {
 		word := "commands"
 		if len(cmds) == 1 {
 			word = "command"
 		}
 		s.Grants = append(s.Grants, fmt.Sprintf("Runs the %s %s.", word, strings.Join(cmds, ", ")))
 	}
-	if data := nonEmpty(m.DataAccess); len(data) > 0 {
+	if data := compact(m.DataAccess); len(data) > 0 {
 		s.Grants = append(s.Grants, "Touches these kinds of data: "+strings.Join(data, ", ")+".")
 	}
 	return s
@@ -167,15 +167,4 @@ func (m *Model) keyHelp(name string) string {
 		}
 	}
 	return ""
-}
-
-// nonEmpty is a list's entries trimmed, the empty ones left out, never nil.
-func nonEmpty(in []string) []string {
-	out := []string{}
-	for _, s := range in {
-		if t := strings.TrimSpace(s); t != "" {
-			out = append(out, t)
-		}
-	}
-	return out
 }

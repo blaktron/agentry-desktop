@@ -458,7 +458,7 @@ func TestADraftWhoseNamesCannotBeReadSaysSo(t *testing.T) {
 	if d == nil || d.Model.Name != "meeting-actions" || d.Model.License != "Apache-2.0" {
 		t.Fatalf("draft %+v", d)
 	}
-	if !strings.Contains(strings.Join(d.DecodeNotes, " "), "could not be read, so check that no QuickAgent of yours is already named meeting-actions") {
+	if !strings.Contains(strings.Join(d.DecodeNotes, " "), "could not be read from the registry, so check that no QuickAgent of yours is already named meeting-actions.") {
 		t.Errorf("notes %q", d.DecodeNotes)
 	}
 }
