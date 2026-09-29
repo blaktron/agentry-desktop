@@ -51,7 +51,7 @@ const installedRecs = [
 // that sent no total (a core before agentry#290) gets a list with no count.
 const fresh = window.location.hash === "#fresh";
 // The agent page's one-click Install (agentry-desktop#146, D-031):
-// #agent-installed has the runner-home record for the shown BriefAgent at
+// #agent-installed has the runner-home record for the shown QuickAgent at
 // its latest (Update, disabled); #agent-installed-older at an older
 // version (Update to <latest>); #agent-install-refused makes the one-click
 // call fail the way a declined gate does; #agent-installing never answers,
@@ -237,7 +237,7 @@ g.go = { main: {
     },
   },
   // The native folder picker, as Build's first save asks it (D-030).
-  App: { ChooseDirectory: async () => "/home/me/briefagents/incident-summarizer" },
+  App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer" },
   BuildAPI: {
     NewModel: async () => buildModel, Exists: async () => false, Check: async () => buildCheck,
     Save: async () => undefined,
@@ -359,7 +359,7 @@ g.go = { main: {
           { tool: "read_input", grantedBy: "always granted — operator-provided input files, read-only" },
         ],
         servers: [
-          "BriefAgent Tools — the runner's companion server, served through a per-run Docker MCP Gateway; its tool surface is exactly the table above",
+          "QuickAgent Tools — the runner's companion server, served through a per-run Docker MCP Gateway; its tool surface is exactly the table above",
           "npm:@modelcontextprotocol/server-github@2025.4.8 — declared by the manifest; installed per-signature from the operator's configured registries; tools filtered to get_issue, list_issues, search_issues",
           "pypi:mcp-server-fetch@2025.4.7 — declared by the manifest; installed per-signature from the operator's configured registries",
         ],

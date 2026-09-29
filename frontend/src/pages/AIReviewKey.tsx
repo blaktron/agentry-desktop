@@ -61,7 +61,7 @@ export function AIReviewKeyCard() {
   return (
     <Card>
       <p className="muted small" style={{ marginTop: 0 }}>
-        Your own TypeSafe Jev key. When you describe a BriefAgent and draft it on this computer, AI Review reads your
+        Your own TypeSafe Jev key. When you describe a QuickAgent and draft it on this computer, AI Review reads your
         description, and every page and search result the draft reads, with this key before the model sees any of it.
         What it flags is held back. It is kept in this computer&apos;s keychain next to your model key: not in a file,
         and never shown here.

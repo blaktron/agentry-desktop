@@ -50,7 +50,7 @@ func TestDescribeAgainFitsTheRegistrysBoundAndNeverCutsTheNote(t *testing.T) {
 }
 
 func TestSplitDescribeAgainReadsTheSitesFirstFormat(t *testing.T) {
-	old := "Change this BriefAgent draft as follows:\nAdd Slack.\n\nWhat it was first asked to do:\nSummarise notes.\n\nThe draft as it stands, agent.yaml:\n\n```yaml\nname: x\n```"
+	old := "Change this QuickAgent draft as follows:\nAdd Slack.\n\nWhat it was first asked to do:\nSummarise notes.\n\nThe draft as it stands, agent.yaml:\n\n```yaml\nname: x\n```"
 	follow, first, ok := SplitDescribeAgain(old)
 	if !ok || follow != "Add Slack." || first != "Summarise notes." {
 		t.Fatalf("split %q %q %v", follow, first, ok)

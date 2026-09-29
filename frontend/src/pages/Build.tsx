@@ -1,4 +1,4 @@
-// Build (desktop D-013): author a BriefAgent as a form, save it as a real
+// Build (desktop D-013): author a QuickAgent as a form, save it as a real
 // workspace (the same files `agentry init` writes), validate it with the
 // registry's own scanners, and publish it through the full pipeline. The
 // form is an editor for agent.yaml — the manifest stays the contract, and
@@ -44,7 +44,7 @@ type StepKey = SectionKey | "review";
 
 // The eight steps of plan D4, each with what it is for in two sentences.
 const STEPS: { key: StepKey; label: string; intro: string }[] = [
-  { key: "basics", label: "Basics", intro: "Name the BriefAgent and say in one line what it does. Then choose how it runs." },
+  { key: "basics", label: "Basics", intro: "Name the QuickAgent and say in one line what it does. Then choose how it runs." },
   { key: "instructions", label: "Instructions", intro: "The instruction file tells the agent its one job. Say what it is given, the steps it takes and what it returns." },
   { key: "tools", label: "Tools and web access", intro: "Say which sites it may reach and which MCP servers it uses, with the tools each may call. Everything is off until you list it." },
   { key: "access", label: "Files, commands and data", intro: "Say what else it may touch. The least answer is already chosen." },
@@ -142,7 +142,7 @@ function ServerChecks({ m, checks }: { m: build.Model; checks: Record<string, mc
   );
 }
 
-/** Where the BriefAgent and each of its servers can reach, in plain words. */
+/** Where the QuickAgent and each of its servers can reach, in plain words. */
 function networkReach(m: build.Model): { what: string; value: string }[] {
   const rows = [{
     what: "The internet",
@@ -305,7 +305,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   const openFolder = () =>
     wrap("pick", async () => {
-      const d = await ChooseDirectory("Choose a BriefAgent workspace folder");
+      const d = await ChooseDirectory("Choose a QuickAgent workspace folder");
       if (!d) return;
       if (!(await BuildAPI.Exists(d))) {
         setDir(d);
@@ -319,16 +319,16 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setTouched(true);
       setResult(null);
       setPubResult(null);
-      setNotice(`Loaded the BriefAgent in ${d}.`);
+      setNotice(`Loaded the QuickAgent in ${d}.`);
       if (view === "start" || view === "describe") setView("advanced");
     });
 
   // The folder is chosen at the first save (D-030: it comes from the native
-  // picker). A folder that already holds a different BriefAgent is not
+  // picker). A folder that already holds a different QuickAgent is not
   // written over: open it instead.
   async function ensureDir(): Promise<string> {
     if (dir) return dir;
-    const d = await ChooseDirectory("Choose where to save the BriefAgent");
+    const d = await ChooseDirectory("Choose where to save the QuickAgent");
     if (!d) return "";
     if (await BuildAPI.Exists(d)) {
       setError(`${d} already holds an agent.yaml. Open it with "Open folder…" to edit it, or choose an empty folder.`);
@@ -448,7 +448,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     basics: (
       <>
         <label className="small" style={{ display: "block" }}>name
-          <input style={inputStyle} className="mono" value={m.name} onChange={(e) => set({ name: e.target.value })} placeholder="my-briefagent" />
+          <input style={inputStyle} className="mono" value={m.name} onChange={(e) => set({ name: e.target.value })} placeholder="my-quickagent" />
         </label>
         <label className="small" style={{ display: "block", marginTop: 8 }}>summary (one line, ≤140 chars)
           <input style={inputStyle} maxLength={140} value={m.summary} onChange={(e) => set({ summary: e.target.value })} />
@@ -498,7 +498,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
               <option value="none">no</option>
               <option value="hosts">only these sites</option>
               {/* Any host is Advanced's alone: a declared server's "*" is
-                  always refused, and the BriefAgent's routes it to review. */}
+                  always refused, and the QuickAgent's routes it to review. */}
               {(!stepped || m.egressMode === "all") && <option value="all">any host (*)</option>}
             </select>
           </label>
@@ -573,7 +573,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                 </div>
                 {(srv.secrets ?? []).length > 0 && (
                   <p className="muted small" style={{ margin: "6px 0 0" }}>
-                    It needs {srv.secrets.join(", ")}, so this BriefAgent runs on this computer, not in Agentry, until hosted runs carry keys.
+                    It needs {srv.secrets.join(", ")}, so this QuickAgent runs on this computer, not in Agentry, until hosted runs carry keys.
                   </p>
                 )}
               </div>
@@ -754,7 +754,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           </label>
         </div>
         <label className="small" style={{ display: "block", marginTop: 8 }}>homepage (optional)
-          <input style={inputStyle} value={m.homepage ?? ""} onChange={(e) => set({ homepage: e.target.value })} placeholder="https://github.com/you/your-briefagent" />
+          <input style={inputStyle} value={m.homepage ?? ""} onChange={(e) => set({ homepage: e.target.value })} placeholder="https://github.com/you/your-quickagent" />
         </label>
         <label className="small" style={{ display: "block", marginTop: 8 }}>tags (up to ten)
           <ListInput value={m.tags} onChange={(v) => set({ tags: v })} placeholder="comma, separated" />
@@ -811,7 +811,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const header = (
     <PageHeader
       title="Build"
-      sub={<>Author a BriefAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
+      sub={<>Author a QuickAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
       actions={
         <>
           {view === "steps" && <Button onClick={() => switchTo("advanced")}>Switch to Advanced</Button>}
@@ -874,7 +874,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             <Button variant="link" onClick={startOver}>start a new one</Button>.
           </p>
         )}
-        <p className="muted small">To change a BriefAgent you already have, open its folder: it loads into the form.</p>
+        <p className="muted small">To change a QuickAgent you already have, open its folder: it loads into the form.</p>
       </div>
     );
   }

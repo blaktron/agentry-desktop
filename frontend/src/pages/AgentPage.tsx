@@ -82,7 +82,7 @@ export default function AgentPage({
   [ns, name]);
   useEffect(() => { void refreshInstalls(); }, [refreshInstalls]);
 
-  // The runner-home record for this BriefAgent, if any: what the primary
+  // The runner-home record for this QuickAgent, if any: what the primary
   // button reads to say Install, Installing…, or Update. Whether Update is
   // enabled is the check's answer (agentry-desktop#147, D8): opening the
   // page asks the record's registry once, with the one "newer" rule the
@@ -260,7 +260,7 @@ export default function AgentPage({
         <Modal title={`Remove ${confirmRemove.namespace}/${confirmRemove.name}?`} onClose={() => setConfirmRemove(null)}>
           <p>
             {confirmRemove.target === "runner"
-              ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> — the runner home's copy of this BriefAgent — and its record. The next Run fetches it again.</>
+              ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> — the runner home's copy of this QuickAgent — and its record. The next Run fetches it again.</>
               : confirmRemove.managed
                 ? <>This removes <span className="mono selectable">{confirmRemove.dir}</span> and its host-config entry.</>
                 : <>You chose this directory, so its files are <strong>left in place</strong>; only the install record is removed.</>}
@@ -350,7 +350,7 @@ export default function AgentPage({
               {prov?.state === "unscanned" && (
                 <p className="muted small">
                   The registry admitted this version without a scan: no findings, no report and no attestation stand
-                  behind it. Its organization&apos;s administrator took the BriefAgent off the pipeline, and no scanner
+                  behind it. Its organization&apos;s administrator took the QuickAgent off the pipeline, and no scanner
                   looked at its contents. Installing or running it asks for its own consent; accepting an unsigned release
                   does not cover it.
                 </p>
@@ -512,7 +512,7 @@ function MCPSection({
           <h3>Keys &amp; identities</h3>
           <p className="mono">{info.secretNames.join(", ")}</p>
           <p className="muted small">
-            The runner&apos;s guided setup collects these once into the BriefAgent&apos;s MCP
+            The runner&apos;s guided setup collects these once into the QuickAgent&apos;s MCP
             profile, kept or removed per your choice. Values are never published or shown.
           </p>
         </>
@@ -557,7 +557,7 @@ export function ReportCard({
         </div>
         <p className="muted small" style={{ marginBottom: 0 }}>
           No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
-          BriefAgent off the pipeline, and no scanner looked at its contents. Installing or running it asks for its own
+          QuickAgent off the pipeline, and no scanner looked at its contents. Installing or running it asks for its own
           consent. Status {report.versionStatus}.
         </p>
       </div>

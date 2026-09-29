@@ -26,7 +26,7 @@ export default function Installed({
   const [notice, setNotice] = useState<string | null>(null);
   // What a completed runner-home update did not do (the export it could not
   // write, the policy it could not read, the older version left behind):
-  // the engine's own sentence, named for the BriefAgent, until the next
+  // the engine's own sentence, named for the QuickAgent, until the next
   // action (agentry-desktop#235).
   const [warning, setWarning] = useState<string | null>(null);
   const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
@@ -152,7 +152,7 @@ export default function Installed({
     <div>
       <PageHeader
         title="Installed"
-        sub={<>The BriefAgents this machine has accepted. The <span className="mono">agentry</span> CLI reads and writes the same record (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
+        sub={<>The QuickAgents this machine has accepted. The <span className="mono">agentry</span> CLI reads and writes the same record (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
         actions={<Button onClick={checkUpdates} busy={checking} busyLabel="Checking…" disabled={managed.length === 0}>Check for updates</Button>}
       />
 
@@ -162,7 +162,7 @@ export default function Installed({
       {!records && <Spinner />}
       {records && records.length === 0 && (
         <EmptyState title="Nothing installed yet" action={<Button variant="primary" onClick={onBrowse}>Browse the registry</Button>}>
-          Install a BriefAgent from the registry to see it here.
+          Install a QuickAgent from the registry to see it here.
         </EmptyState>
       )}
 

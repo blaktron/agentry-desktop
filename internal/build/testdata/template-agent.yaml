@@ -1,10 +1,10 @@
-# agent.yaml — the BriefAgent manifest (manifest schema v2).
+# agent.yaml — the QuickAgent manifest (manifest schema v2).
 #
-# This file is the whole contract: what the BriefAgent is, where its
+# This file is the whole contract: what the QuickAgent is, where its
 # instructions live, and — most importantly — what it may touch. The
 # registry scans releases against these declarations, clients display and
 # diff them on install, and the Agentry runner ENFORCES them: an
-# undeclared capability is a tool your BriefAgent simply does not have.
+# undeclared capability is a tool your QuickAgent simply does not have.
 #
 # Every option is shown below; commented lines are the alternatives.
 # Full field-by-field documentation: README.md in this template, and
@@ -15,9 +15,9 @@
 schemaVersion: "2"
 
 # Identity. name is lowercase [a-z0-9-], up to 65 chars; namespace is the
-# publishing handle (yours, or your org's) that owns the BriefAgent.
+# publishing handle (yours, or your org's) that owns the QuickAgent.
 # Rename both — these are placeholders.
-name: my-briefagent
+name: my-quickagent
 namespace: your-namespace
 
 # The run modes this release supports — one or both:
@@ -50,7 +50,7 @@ authors:
   - name: Your Name
     # email: you@example.com
 
-# Optional informational URL, shown on the BriefAgent's page.
+# Optional informational URL, shown on the QuickAgent's page.
 homepage: https://github.com/blaktron/agentry-template
 
 # Optional lowercase [a-z0-9-] tags for search facets.
@@ -118,7 +118,7 @@ runtime:
   interfaces: [claude-skill, agents-md]
 
 # ── The security contract ──────────────────────────────────────────────
-# Closed vocabulary. Empty/omitted = a pure-text BriefAgent (write_report
+# Closed vocabulary. Empty/omitted = a pure-text QuickAgent (write_report
 # and the read-only list_inputs/read_input tools at run time, nothing
 # else). Declare the LEAST you need: reviewers
 # gate on this, installs prompt on it, and the runner enforces it.
@@ -139,7 +139,7 @@ capabilities:
   # none | { commands: [single-token, …] } — commands grants run_command,
   # restricted to exactly these binaries.
   exec: none
-  # Environment variable NAMES the BriefAgent needs — never values. The
+  # Environment variable NAMES the QuickAgent needs — never values. The
   # runner resolves them from the operator's secret source and injects
   # them only into the tools container; the fetch tool can send one as an
   # auth header without the value ever entering model context.
@@ -147,7 +147,7 @@ capabilities:
   # Semantic data categories touched, for review and audit:
   # email | calendar | files | tickets | code | messages | payments | other
   # dataAccess: [tickets]
-  # MCP servers this BriefAgent requires (RUNNER-PLAN-3): exactly one of
+  # MCP servers this QuickAgent requires (RUNNER-PLAN-3): exactly one of
   # npm/pypi per entry, and an EXACT version — the pin is part of this
   # release, so a new version is a new supply-chain decision. The runner
   # installs them from the operator's trusted registries and loads them
@@ -163,7 +163,7 @@ capabilities:
   #       GITHUB_PERMISSION: read-only   # visible in the diff and the review
   #     egress: [api.github.com]    # the server's own outbound allowlist
 
-# Informational in v1 (no auto-install): other BriefAgents this one
+# Informational in v1 (no auto-install): other QuickAgents this one
 # expects to exist.
 # dependencies:
 #   agents:

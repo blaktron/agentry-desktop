@@ -36,14 +36,14 @@ The product never claims an agent is "safe". The language is always:
   the receipt; the operator policy can lift it outright, and the agent page
   shows the verdict per server and, for the publisher, the open dependency
   alerts.
-- **Run** — run a BriefAgent from the app (RUNNER-PLAN-2 §P6) with the same
+- **Run** — run a QuickAgent from the app (RUNNER-PLAN-2 §P6) with the same
   lifecycle `agentry run` executes: verify (digest + DSSE, the install
   gate) → materialize into the shared `~/.agentry/runner` cache → compile
   the capability contract into a run plan → execute in an isolated
   container topology where tools come only from a per-run Docker MCP
   Gateway. Agent pages gain an **MCP servers & tools** section: the tools
   the contract grants, the servers involved, declared key NAMES, and the
-  embedded-install equivalent. A guided form collects a BriefAgent's keys
+  embedded-install equivalent. A guided form collects a QuickAgent's keys
   once per release into its MCP profile — values 0600 on disk, never shown,
   never logged. Settings → **Provider settings** writes the LLM provider into the
   same operator policy the CLI reads, and can prepare the gateway images up
@@ -101,13 +101,13 @@ The product never claims an agent is "safe". The language is always:
   in a native dialog, then writes the pack into a folder you pick and shows
   that folder. A run's setup has a Knowledge step: an attached pack is mounted
   read-only for the run's tools, and the receipt names it.
-- **Validate** — an author drop-zone. Point it at a local BriefAgent folder and
+- **Validate** — an author drop-zone. Point it at a local QuickAgent folder and
   it runs the manifest rules, the S1 inventory (content-sniffed binaries,
   nested archives, encoding), and the S3/S4 hidden-content and
   injection-signature scanners. Those are the same Go packages the
   publication pipeline runs (D-12 local/remote parity by construction), with
   the rule bundle embedded in the binary.
-- **Build** — author a BriefAgent, validate it, and publish it over the same
+- **Build** — author a QuickAgent, validate it, and publish it over the same
   upload path the CLI uses. The tab opens on a start page with three ways in:
   - **Step by step** walks eight steps: Basics, Instructions, Tools and web
     access, Files, commands and data, Questions, Before a run, Publishing,
@@ -164,7 +164,7 @@ The product never claims an agent is "safe". The language is always:
     - The draft opens on Review with what the Drafter found
       beside it: what AI Review read and held back, **the hosts the draft may
       reach that your description did not name**, the rules the draft still
-      fails, the published BriefAgents that already do the task (each with a
+      fails, the published QuickAgents that already do the task (each with a
       link to its page), what the description leaves open, the Drafter's
       notes (shown as a run's result is, with no HTML and no images) and its
       sources.
@@ -174,7 +174,7 @@ The product never claims an agent is "safe". The language is always:
     - The draft is decoded into the form as data. Fields the form cannot hold
       are dropped and named, and an instruction file outside the folder
       becomes `AGENT.md`.
-    - Nothing is written into a BriefAgent folder until you save it into one
+    - Nothing is written into a QuickAgent folder until you save it into one
       you pick. The run's receipts and `draft.json` are kept in
       `~/Downloads/agentry-out/agentry-drafter-<run id>`.
 
@@ -190,9 +190,9 @@ The product never claims an agent is "safe". The language is always:
   - **Registry settings**: the registries, with sign-in, the account line and
     the organizations; the secrets runs In Agentry use; Add a registry.
   - **Update settings**: whether the app looks for a newer Agentry Desktop,
-    and the BriefAgents auto-update switch (not offered yet).
+    and the QuickAgents auto-update switch (not offered yet).
   - **Coding agents**: the coding agent, and whether Install also writes a
-    BriefAgent where it reads.
+    QuickAgent where it reads.
   - **Run defaults** (agentry-desktop#347, D-044):
     - **Timeout and max turns**: the runner policy's budgets, so `agentry
       run` from the CLI runs with them too. A run's own fields under

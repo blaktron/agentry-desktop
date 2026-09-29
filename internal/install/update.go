@@ -50,7 +50,7 @@ func CheckUpdateForKey(ctx context.Context, key installed.Key) (*UpdateInfo, err
 	return nil, nil //nolint:nilnil // no record is the answer, not an error
 }
 
-// CheckUpdateFor resolves the latest version for one BriefAgent's
+// CheckUpdateFor resolves the latest version for one QuickAgent's
 // runner-home record — what the agent page asks on opening
 // (agentry-desktop#147, D8) — through the record's origin, with the one
 // rule every "newer" in this app follows (newerThan). Nil when nothing is

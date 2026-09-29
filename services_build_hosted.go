@@ -11,7 +11,7 @@
 // is over, its sealed output.tar is unpacked into the run's own folder as
 // any run In Agentry's is, and its draft.json is decoded into the Build
 // form's Model as data (internal/draft ReadHosted, D-041): nothing in it
-// is opened or launched, and nothing reaches a BriefAgent folder until the
+// is opened or launched, and nothing reaches a QuickAgent folder until the
 // person saves into one the native picker gives. No platform key reaches
 // this app; the token is the account's own.
 package main
@@ -151,7 +151,7 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 	return v, nil
 }
 
-// DescribeInAgentry drafts a BriefAgent from a description In Agentry.
+// DescribeInAgentry drafts a QuickAgent from a description In Agentry.
 // The description and hints are held to the registry's bounds before
 // anything is sent, and the draft is created and followed; it is this
 // app's one draft In Agentry while it lasts.
@@ -382,7 +382,7 @@ func hostedDraftView(r *hostedrun.Run, final bool) *HostedDraftView {
 		HoldCredits: r.HoldCredits, CreditsLine: draftCreditsLine(r), Final: final,
 	}
 	if r.Status == hostedrun.StatusRunning || r.Status == hostedrun.StatusClaimed {
-		v.StatusLine = "It is drafting the BriefAgent from your description."
+		v.StatusLine = "It is drafting the QuickAgent from your description."
 	}
 	if r.Terminal() {
 		v.OutcomeLine = draftOutcomeLine(r)

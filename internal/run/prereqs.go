@@ -1,5 +1,5 @@
 // Prerequisites detection and guided installation (Settings → "Install
-// prerequisites"): BriefAgent runs need a docker engine; everything else
+// prerequisites"): QuickAgent runs need a docker engine; everything else
 // (gateway/harness images, the runner image) is handled by ApplySetup once
 // an engine answers. This file tells the settings page what is missing and
 // — on Linux, where a package manager plus polkit make it tractable — can

@@ -1,4 +1,4 @@
-// Package build is the Build surface's engine: author a BriefAgent as a
+// Package build is the Build surface's engine: author a QuickAgent as a
 // form, save it as a real workspace (the same files `agentry init` lays
 // down), and publish it to a registry over the same cli-upload path the
 // CLI uses — the client packs a deterministic archive, the server
@@ -71,7 +71,7 @@ type Model struct {
 	// before a run, never the agent.
 	Guide GuideModel `json:"guide"`
 	// RuntimeModels and RuntimeInterfaces are the runtime block. A new
-	// BriefAgent declares both instruction interfaces; a loaded one keeps
+	// QuickAgent declares both instruction interfaces; a loaded one keeps
 	// what it had, which may be nothing.
 	RuntimeModels     []string `json:"runtimeModels"`
 	RuntimeInterfaces []string `json:"runtimeInterfaces"`
@@ -207,7 +207,7 @@ func Default(namespace string) *Model {
 		Authors: []AuthorRow{}, Guide: GuideModel{Prepare: []string{}, Connect: []ConnectRow{}},
 		RuntimeModels: []string{}, RuntimeInterfaces: []string{"claude-skill", "agents-md"},
 		Dependencies: []DependencyRow{}, PublishInclude: []string{},
-		Instructions: "# New BriefAgent\n\nDescribe the one job this agent does: task in, result out.\n\n## What you are given\n\nThe task, and any files under /inputs.\n\n## Steps\n\n1. \n\n## What you return\n\nWrite the report with the write_report tool.\n",
+		Instructions: "# New QuickAgent\n\nDescribe the one job this agent does: task in, result out.\n\n## What you are given\n\nThe task, and any files under /inputs.\n\n## Steps\n\n1. \n\n## What you return\n\nWrite the report with the write_report tool.\n",
 	}
 }
 
@@ -348,7 +348,7 @@ func (m *Model) formProblems() []SectionProblem {
 	if len(m.Intake) > 20 {
 		add(SectionQuestions, "at most 20 intake questions")
 	}
-	// A secret answer is carried by the BriefAgent's own declared secret of
+	// A secret answer is carried by the QuickAgent's own declared secret of
 	// the same upper-cased name. The runner counts capabilities.secrets only
 	// (agentry-cli pkg/runner/intake), never a server's.
 	seenID := map[string]bool{}
@@ -693,7 +693,7 @@ func (m *Model) runtimeLines() []string {
 	return out
 }
 
-// The capability block's two halves: where the BriefAgent and its servers
+// The capability block's two halves: where the QuickAgent and its servers
 // reach (Tools and web access), and the rest of the contract (Files,
 // commands and data). Indented under capabilities:.
 func (m *Model) networkLines() []string {
@@ -1042,7 +1042,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 		case "prompt-agent":
 			m.InstructionFile = "AGENT.md"
 		default:
-			return nil, fmt.Errorf("the manifest declares the withdrawn kind %q; the Build surface authors instruction-file BriefAgents", doc.Kind)
+			return nil, fmt.Errorf("the manifest declares the withdrawn kind %q; the Build surface authors instruction-file QuickAgents", doc.Kind)
 		}
 	}
 	for _, a := range doc.Authors {
