@@ -200,8 +200,8 @@ const draftedView = buildHash.startsWith("drafted") || summaryDraft || landedDra
   aiReview: { scan: agentryDraft ? "registry" : "jev", read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
-  // AI Review's check of the finished draft (agentry-cli#418): C3, as on
-  // nearly every draft until agentry#731, and a hostile id and path.
+  // AI Review's check of the finished draft (agentry-cli#418): a C3 finding,
+  // and a hostile id and path.
   check: {
     line: { tone: "review", text: "AI Review read the draft as the Drafter finished it, as the pipeline will, and flagged something the release check looks for. Expect the pipeline to send the version to review when you submit it. The details are under How it was drafted, in the form." },
     rubric: "flagged", draft: "pass", flagged: [], unanswered: "", checks: 1,
