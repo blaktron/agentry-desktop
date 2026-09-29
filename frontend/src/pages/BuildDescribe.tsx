@@ -271,12 +271,7 @@ function CheckNotes({ c }: { c: main.DraftCheckView }) {
         </ul>
       )}
       {(c.findings ?? []).some((f) => f.id === "C3_undeclared_capability") && (
-        // Until blaktron/agentry#731: the rubric's state does not say what the
-        // runner grants every run.
-        <p className="small muted">
-          The release check raises C3 on nearly every drafted QuickAgent for now, because it does not yet know what the
-          runner gives every run. It sends the version to review, not to refusal.
-        </p>
+        <p className="small muted">This finding sends the version to review when you submit, not to refusal.</p>
       )}
     </div>
   );
