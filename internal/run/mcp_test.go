@@ -121,7 +121,7 @@ func TestRequirementsFromRegistry(t *testing.T) {
 	if got := toolNames(info.ToolRows); !reflect.DeepEqual(got, want) {
 		t.Fatalf("tool rows = %v, want %v", got, want)
 	}
-	if len(info.Servers) != 1 || !strings.Contains(info.Servers[0], "BriefAgent Tools") {
+	if len(info.Servers) != 1 || !strings.Contains(info.Servers[0], "QuickAgent Tools") {
 		t.Errorf("servers = %v", info.Servers)
 	}
 	if !reflect.DeepEqual(info.SecretNames, []string{"RUN_TEST_TOKEN"}) {

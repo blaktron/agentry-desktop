@@ -1,4 +1,4 @@
-// BuildAPI: the Build surface's bindings — author a BriefAgent as a form,
+// BuildAPI: the Build surface's bindings — author a QuickAgent as a form,
 // save it as a real workspace, validate it with the registry's own
 // scanners, and publish it through the full pipeline. Publish progress
 // streams as `build:publish-log` events. Since #282 it also drafts one from
@@ -202,7 +202,7 @@ type DraftAIReviewView struct {
 	WithheldSources []drafter.WithheldSource `json:"withheldSources"`
 }
 
-// DescribeOnThisComputer drafts a BriefAgent from a description with the
+// DescribeOnThisComputer drafts a QuickAgent from a description with the
 // built-in Drafter on this computer (plan builder-rework.md §7.1, D22, D25),
 // in this order:
 //  1. Without the person's own Jev key it refuses, saying where to add one,
@@ -214,7 +214,7 @@ type DraftAIReviewView struct {
 //     every result read by AI Review before its model, and the answer is
 //     finished and decoded into the form's Model.
 //
-// Nothing is written into a BriefAgent folder: the draft reaches one only
+// Nothing is written into a QuickAgent folder: the draft reaches one only
 // when the person saves it where the native picker says.
 func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []string) (*DraftView, error) {
 	p, err := draft.Prepare(reg, description, hints)
@@ -230,7 +230,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 			"AI Review (TypeSafe's Jev) reads your description first, with your key, then every search result, page and registry answer "+
 			"before the model does, and holds back what it flags. Your description goes to "+goes+" and the sites the Drafter reads, "+
 			"so it should hold no secret. The run's receipts and the draft are kept in your Downloads folder under agentry-out; "+
-			"nothing is written into a BriefAgent folder or submitted until you save or publish it. Continue?"); err != nil {
+			"nothing is written into a QuickAgent folder or submitted until you save or publish it. Continue?"); err != nil {
 		return nil, err
 	}
 	ns := ""

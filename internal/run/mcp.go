@@ -71,7 +71,7 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 		Version:  sig.Version,
 		ToolRows: gatewayToolRows(c),
 		Servers: []string{
-			"BriefAgent Tools — the runner's companion server, served through a per-run Docker MCP Gateway; its tool surface is exactly the table above",
+			"QuickAgent Tools — the runner's companion server, served through a per-run Docker MCP Gateway; its tool surface is exactly the table above",
 		},
 		SecretNames:     append([]string(nil), c.Secrets...),
 		EmbeddedTools:   export.HostToolGrants(c),

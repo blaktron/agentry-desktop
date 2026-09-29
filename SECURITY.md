@@ -16,7 +16,7 @@ Particularly interesting here:
 - **Verification bypass** — an install that proceeds on an archive whose
   digest or DSSE attestation does not verify, or that accepts a signing key
   the registry did not publish (keys are pinned at login).
-- **Runner containment** — a BriefAgent run from the app reaching the
+- **Runner containment** — a QuickAgent run from the app reaching the
   network, the filesystem, a subprocess or a secret its manifest did not
   declare (the app runs the same runner as the CLI).
 - **Credential handling** — the browser sign-in's one-time code or the

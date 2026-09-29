@@ -38,7 +38,7 @@ const (
 // queueing it behind one that can run for many minutes.
 var errBusy = errors.New("another run, image setup or knowledge build is already in progress — wait for it to finish")
 
-// RunAPI drives BriefAgent runs from the app.
+// RunAPI drives QuickAgent runs from the app.
 type RunAPI struct {
 	app *App
 	// mu serializes the docker-touching operations: one run (or image
@@ -546,7 +546,7 @@ func (r *RunAPI) TestJevKey() (*JevKeyTestView, error) {
 	return &JevKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
 }
 
-// ProfileStatusView is a BriefAgent signature's MCP-profile state (§P2).
+// ProfileStatusView is a QuickAgent signature's MCP-profile state (§P2).
 // Secret NAMES only — no surface ever returns a value.
 type ProfileStatusView struct {
 	Ref               string   `json:"ref"`
@@ -688,7 +688,7 @@ type RunResultView struct {
 	Knowledge string `json:"knowledge,omitempty"`
 }
 
-// RunAgent executes one BriefAgent run: resolve → digest + DSSE verify →
+// RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
 // materialize into the shared ~/.agentry/runner cache → compile/reuse the
 // run plan → ensure images → run in the isolated container topology →
 // apply the profile keep choice. Log lines stream as `runner:run-log`

@@ -1,4 +1,4 @@
-// The coding agents a person may run BriefAgents through, and the export
+// The coding agents a person may run QuickAgents through, and the export
 // a one-click Install writes for them (agentry-desktop#148, plan
 // desktop-one-click-install.md §6, D6). HarnessChooser is the list the
 // Welcome's Coding agent step shows (agentry-desktop#89): what the runner
@@ -257,9 +257,9 @@ export function CodingAgentsCard() {
             <span>Also install into {agent}</span>
           </label>
           <div className="muted small">
-            Off, Install puts a BriefAgent in the runner home only, where runs read it. On, the same verified
+            Off, Install puts a QuickAgent in the runner home only, where runs read it. On, the same verified
             release is also written as {exportLabel(x.target)}, with its own entry on Installed. A coding agent
-            enforces none of a BriefAgent&apos;s contract; the runner does.
+            enforces none of a QuickAgent&apos;s contract; the runner does.
           </div>
         </>
       )}

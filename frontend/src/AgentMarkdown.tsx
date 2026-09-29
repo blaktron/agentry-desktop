@@ -2,7 +2,7 @@
 // guided-runs.md §5, D7; agentry-desktop#227). The site renders agent
 // output under the same rules (agentry-web components/agent-markdown).
 //
-// The text comes from a BriefAgent's run, so it is treated as hostile:
+// The text comes from a QuickAgent's run, so it is treated as hostile:
 //
 //   - it becomes React elements, never an HTML string, and raw HTML in it
 //     is dropped (skipHtml);

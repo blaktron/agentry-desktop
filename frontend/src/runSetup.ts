@@ -102,7 +102,7 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
       : hosted.signedIn === false
         ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
         : !hosted.offered
-          ? "a run In Agentry is not offered for this BriefAgent on this registry"
+          ? "a run In Agentry is not offered for this QuickAgent on this registry"
           : "In Agentry is unavailable for it (the notice below says why)";
   return `Your Run defaults say In Agentry, but ${why}, so this run starts on this computer.`;
 }

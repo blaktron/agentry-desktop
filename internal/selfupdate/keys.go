@@ -3,7 +3,7 @@
 // says whether a given SHA256SUMS was signed by one of them.
 //
 // The vocabulary, kept apart on purpose (plan desktop-installers.md §7):
-// internal/install already owns "update" for an installed BriefAgent, so the
+// internal/install already owns "update" for an installed QuickAgent, so the
 // app's own mechanism is SELF-UPDATE in code and "a newer Agentry Desktop" in
 // anything a person reads.
 //

@@ -1,4 +1,4 @@
-// Machine setup for BriefAgent runs (RUNNER-PLAN-2 §P1, desktop shape):
+// Machine setup for QuickAgent runs (RUNNER-PLAN-2 §P1, desktop shape):
 // the same pkg/runner/setup logic `agentry setup` drives, behind a form
 // Prompter instead of a TTY — no parallel implementation (§P8).
 package run
@@ -30,7 +30,7 @@ var (
 	listModels      = setup.ListModels
 )
 
-// Status is the setup state of this machine: can it run BriefAgents, and
+// Status is the setup state of this machine: can it run QuickAgents, and
 // with which LLM provider (§P1, req 5).
 type Status struct {
 	DockerOK     bool
@@ -288,7 +288,7 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		true); err != nil {
 		return fmt.Errorf("gateway/docker environment: %w", err)
 	}
-	_, _ = fmt.Fprintln(logw, "setup complete — gateway, harness, and runner images ready; BriefAgents can run")
+	_, _ = fmt.Fprintln(logw, "setup complete — gateway, harness, and runner images ready; QuickAgents can run")
 	return nil
 }
 

@@ -88,7 +88,7 @@ function Welcome({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => void 
         <Mark size={56} />
         <h1>Welcome to Agentry Desktop</h1>
         <p className="page-sub">
-          Browse scanned, signed BriefAgents from a registry, install them with digest and
+          Browse scanned, signed QuickAgents from a registry, install them with digest and
           signature verification on this machine, and run them in isolated containers. This quick
           setup signs you in and prepares the runtime — you can skip it and do either later.
         </p>
@@ -169,7 +169,7 @@ function SignInStep({
       <div className="wizard-body">
         <h1>Sign in to a registry</h1>
         <p className="page-sub">
-          Sign in to install and run BriefAgents. The credential is kept in the OS keychain and
+          Sign in to install and run QuickAgents. The credential is kept in the OS keychain and
           shared with the <span className="mono">agentry</span> CLI. You can also browse anonymously
           and sign in later.
         </p>
@@ -246,7 +246,7 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
           heading="Set up the runtime"
           intro={
             <>
-              BriefAgents run in isolated containers with tools served by a per-run Docker MCP
+              QuickAgents run in isolated containers with tools served by a per-run Docker MCP
               Gateway. Choose the LLM provider those runs use and paste its key — it is kept on this
               machine — then Get models asks the endpoint what it serves. Preparing the images is
               optional now; your first run prepares them if you skip it.
@@ -312,7 +312,7 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
       <div className="wizard-body">
         <h1>Your coding agent</h1>
         <p className="page-sub">
-          Agentry can run BriefAgents through a coding agent you already have — Claude Code or Codex
+          Agentry can run QuickAgents through a coding agent you already have — Claude Code or Codex
           — with <span className="mono">agentry run --adapter claude</span> (or{" "}
           <span className="mono">codex</span>). Choosing one here records where it lives in the runner
           policy; this app's own runs use the container harness either way. Skip if you have neither,
@@ -326,7 +326,7 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
             <h2>Let your coding agent drive Agentry</h2>
             <p className="muted">
               The other direction: Claude Code or Codex searching, verifying, installing and running
-              BriefAgents through the <span className="mono">agentry-mcp</span> server. It needs Node
+              QuickAgents through the <span className="mono">agentry-mcp</span> server. It needs Node
               20 or newer, the <span className="mono">agentry</span> CLI on your PATH and{" "}
               <span className="mono">python3</span>; this app installs none of them and runs nothing
               here — copy the line for your host and run it yourself, with the path to your build of

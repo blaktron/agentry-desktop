@@ -357,7 +357,7 @@ func TestTemplateManifestSurvivesLoadAndSave(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), orig, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte("# my-briefagent\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "AGENT.md"), []byte("# my-quickagent\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	m, err := Load(dir)
@@ -490,7 +490,7 @@ func TestCheckAttributesProblemsToSections(t *testing.T) {
 	m = model()
 	m.EgressMode = "all"
 	if res := m.Check(); res.First != nil || len(res.Warnings) == 0 {
-		t.Errorf("\"*\" egress for the BriefAgent is a warning, not a refusal: %+v %v", res.First, res.Warnings)
+		t.Errorf("\"*\" egress for the QuickAgent is a warning, not a refusal: %+v %v", res.First, res.Warnings)
 	}
 }
 
@@ -553,9 +553,9 @@ func TestBareValuesAreHeldToAGrammar(t *testing.T) {
 	}
 }
 
-// A secret answer is carried by the BriefAgent's own declared secret; the
+// A secret answer is carried by the QuickAgent's own declared secret; the
 // runner does not count a server's (agentry-cli pkg/runner/intake).
-func TestSecretQuestionNeedsTheBriefAgentsOwnKey(t *testing.T) {
+func TestSecretQuestionNeedsTheQuickAgentsOwnKey(t *testing.T) {
 	m := model()
 	m.Secrets = []string{}
 	m.MCPServers[0].Secrets = []string{"API_KEY"}
@@ -565,7 +565,7 @@ func TestSecretQuestionNeedsTheBriefAgentsOwnKey(t *testing.T) {
 	}
 	m.Secrets = []string{"API_KEY"}
 	if err := m.Validate(); err != nil {
-		t.Fatalf("with the BriefAgent's own key it passes, got %v", err)
+		t.Fatalf("with the QuickAgent's own key it passes, got %v", err)
 	}
 }
 

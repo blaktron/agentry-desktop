@@ -34,7 +34,7 @@ const (
 	againAgent  = "\n\nThe current draft's AGENT.md:\n\n"
 	blankLine   = "\n\n"
 	// The site's first format, still read back from drafts made with it.
-	oldHead  = "Change this BriefAgent draft as follows:\n"
+	oldHead  = "Change this QuickAgent draft as follows:\n"
 	oldAsked = "\n\nWhat it was first asked to do:\n"
 	oldDraft = "\n\nThe draft as it stands, agent.yaml:\n\n"
 )

@@ -758,9 +758,9 @@ type InstallAPI struct {
 }
 
 // InstallUpdatesView is a snapshot of the last check of the installed
-// BriefAgents for newer versions: UpdatesStatus never starts one, so a
+// QuickAgents for newer versions: UpdatesStatus never starts one, so a
 // paint costs nothing. The app checks once on launch and when a
-// BriefAgent's page is opened (that one through CheckUpdate); nothing is
+// QuickAgent's page is opened (that one through CheckUpdate); nothing is
 // applied on its own — Update is the person's click.
 type InstallUpdatesView struct {
 	// Checked is when the last check finished; zero means none has.
@@ -777,7 +777,7 @@ type InstallUpdatesView struct {
 }
 
 // start runs the launch check in its own goroutine, once (D8: on launch and
-// on opening a BriefAgent's page; a person's "Check for updates" asks
+// on opening a QuickAgent's page; a person's "Check for updates" asks
 // again; nothing on a timer). It must not delay the first paint.
 func (i *InstallAPI) start(ctx context.Context) {
 	go i.check(ctx)
@@ -845,7 +845,7 @@ func (i *InstallAPI) UpdatesStatus() InstallUpdatesView {
 	return v
 }
 
-// CheckUpdate asks about one BriefAgent's runner-home record, the way the
+// CheckUpdate asks about one QuickAgent's runner-home record, the way the
 // agent page does on opening (D8): nil when nothing is installed for it.
 // The stored view takes the answer, so the badge agrees with the page.
 func (i *InstallAPI) CheckUpdate(namespace, name string) (*install.UpdateInfo, error) {

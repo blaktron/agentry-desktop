@@ -19,7 +19,7 @@ the Build tab matching that status to reword it, so the word is never shown (age
 the Build tab matching that status to reword it, so the word is never shown (agentry-desktop#280) :: case "safe":
 
 # A comment about shell quoting on the prereqs path — "safe to place in a
-# root shell" is about a username's characters, not about a BriefAgent.
+# root shell" is about a username's characters, not about a QuickAgent.
 a comment about shell metacharacters in a username :: whether it is safe to place in
 
 # minisign's own field name. A .minisig file carries an "untrusted comment"

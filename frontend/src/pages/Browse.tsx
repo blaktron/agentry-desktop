@@ -54,7 +54,7 @@ export default function Browse({
     <div>
       <PageHeader
         title="Browse"
-        sub={<span className="selectable">BriefAgents on {registry || "(no registry)"}. Every published version is scanned, and its report is public.</span>}
+        sub={<span className="selectable">QuickAgents on {registry || "(no registry)"}. Every published version is scanned, and its report is public.</span>}
       />
 
       <Toolbar>

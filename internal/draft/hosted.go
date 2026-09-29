@@ -22,7 +22,7 @@ import (
 // That file was written on a sandbox host by a model that read the web, so
 // it is held to bounds before any of it reaches the page, and it is never
 // opened, launched or written anywhere: the form's Model comes from it
-// through build.FromDraft, and a BriefAgent folder gets it only when the
+// through build.FromDraft, and a QuickAgent folder gets it only when the
 // person saves into one they pick natively.
 
 // The bounds a draft.json is held to. A draft over one is refused whole

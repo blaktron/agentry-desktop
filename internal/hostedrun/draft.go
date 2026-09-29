@@ -178,7 +178,7 @@ func creditCount(n int64) string {
 func CheckDraft(description string, hints []string) (string, []string, error) {
 	description = strings.TrimSpace(description)
 	if description == "" {
-		return "", nil, fmt.Errorf("describe what the BriefAgent should do: the description is empty")
+		return "", nil, fmt.Errorf("describe what the QuickAgent should do: the description is empty")
 	}
 	if !utf8.ValidString(description) {
 		return "", nil, fmt.Errorf("the description must be text (UTF-8)")
