@@ -112,6 +112,14 @@ g.go = { main: {
     // The key-only call answers with the provider it stored under listed,
     // the policy untouched (desktop#139, #141).
     StoreModelKey: async (provider: string) => ({ ...setup, keysStored: [...setup.keysStored, provider] }),
+    // The CLI's sentence for plain http off this machine, as pages.tsx
+    // answers it (agentry-desktop#317); without it the step's URL field
+    // throws and the wizard unmounts (agentry-desktop#378).
+    EndpointWarning: async (u: string) => {
+      const m = /^http:\/\/([^/:]+)/i.exec(u.trim());
+      if (!m || m[1] === "localhost" || m[1].startsWith("127.")) return "";
+      return `${u.trim()} uses plain http: the API key and the prompts travel unencrypted to ${m[1]}. Use https if the endpoint supports it.`;
+    },
     ListModels: async () => {
       if (modelsFail) throw new Error("custom: list models: 404 Not Found");
       return catalog;

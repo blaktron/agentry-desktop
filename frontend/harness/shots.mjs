@@ -424,6 +424,13 @@ try {
         await page.locator('input[placeholder^="pick one with Get models"]').fill("qwen3.8-flash");
         await page.getByRole("button", { name: "Save provider settings" }).click();
         await page.waitForTimeout(300);
+        // The refusal shown, and the key kept: the field says it is stored
+        // and is empty, so nothing asks for it again (agentry-desktop#141).
+        const text = await page.locator(".wizard").innerText();
+        if (!text.includes("the base URL must be an absolute https URL")) throw new Error(`${state.name}: the refusal is not shown`);
+        const key = page.locator('input[type="password"]').first();
+        const ph = await key.getAttribute("placeholder");
+        if (!ph?.startsWith("stored on this machine") || (await key.inputValue()) !== "") throw new Error(`${state.name}: the key field reads "${ph}" / "${await key.inputValue()}"`);
       }
       if (state.prepare) {
         // Prepare images now, then a look at the foot: held while the
