@@ -127,7 +127,7 @@ const states = [
   { name: "installed-update-warning", url: "/pages.html#installed-update-warning", note: "a runner-home Update that completes with a warning: the engine's sentence on Installed", locator: '[data-preview="installed"]', click: '[data-preview="installed"] button:text-is("Update")', expectText: "agentry/changelog-from-git: operator policy" },
   { name: "installed-badge", url: "/pages.html#installed-updates", note: "the launch check found newer versions: the number on Installed", locator: '[data-preview="installed"] .sidebar' },
   { name: "settings-secrets", url: "/pages.html?settings=registry", note: "Settings: Secrets for runs In Agentry — save a kept secret by name, delete one, the list on the registry's Secrets page (agentry-desktop#300)", locator: '[data-preview="settings"] .card:has-text("Secrets for runs In Agentry")', expectText: "neither this app nor Agentry shows it again" },
-  { name: "settings-briefagent-updates", url: "/pages.html?settings=updates", note: "Settings: the auto-update switch, shown and disabled, with why", locator: '[data-preview="settings"] .card:has-text("Update BriefAgents automatically")' },
+  { name: "settings-quickagent-updates", url: "/pages.html?settings=updates", note: "Settings: the auto-update switch, shown and disabled, with why", locator: '[data-preview="settings"] .card:has-text("Update QuickAgents automatically")' },
   // The welcome's runtime step (agentry-desktop#131): the three questions;
   // the model list Get models filled; the failed listing with the model
   // still typeable; a stored subscription token and its sentence.
@@ -214,8 +214,8 @@ const states = [
     expectSection: "landing" },
   { name: "settings-open-registry", url: "/pages.html", note: "the Registry settings card opened: the registries, Secrets and Add a registry under ← Settings", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card:has-text("Registry settings") .settings-card-link', expectSection: "registry", expectText: ["← Settings", "Registries", "Add a registry", "Secrets for runs In Agentry"] },
-  { name: "settings-open-updates", url: "/pages.html", note: "Update settings: the self-update card and the BriefAgents switch", locator: '[data-preview="settings"]',
-    click: '[data-preview="settings"] .settings-card:has-text("Update settings") .settings-card-link', expectSection: "updates", expectText: ["Check for newer versions", "Update BriefAgents automatically"] },
+  { name: "settings-open-updates", url: "/pages.html", note: "Update settings: the self-update card and the QuickAgents switch", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] .settings-card:has-text("Update settings") .settings-card-link', expectSection: "updates", expectText: ["Check for newer versions", "Update QuickAgents automatically"] },
   { name: "settings-open-coding-agents", url: "/pages.html", note: "Coding agents: the chooser and the export switch", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card:has-text("Coding agents") .settings-card-link', expectSection: "coding-agents", expectText: ["Also install into"] },
   { name: "settings-open-run-defaults", url: "/pages.html", note: "Run defaults: the Docker engine's state (M4 adds the defaults)", locator: '[data-preview="settings"]',
@@ -424,6 +424,14 @@ try {
         await page.locator('input[placeholder^="pick one with Get models"]').fill("qwen3.8-flash");
         await page.getByRole("button", { name: "Save provider settings" }).click();
         await page.waitForTimeout(300);
+        // The refusal shown, and the key kept: the field says it is stored
+        // and is empty, so nothing asks for it again (agentry-desktop#141).
+        const text = await page.locator(".wizard").innerText();
+        if (!text.includes("the base URL must be an absolute http(s) URL")) throw new Error(`${state.name}: the refusal is not shown`);
+        const key = page.locator('input[type="password"]').first();
+        const ph = await key.getAttribute("placeholder");
+        const typed = await key.inputValue();
+        if (!ph?.startsWith("stored on this machine") || typed !== "") throw new Error(`${state.name}: the key field reads "${ph}" / "${typed}"`);
       }
       if (state.prepare) {
         // Prepare images now, then a look at the foot: held while the

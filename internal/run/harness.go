@@ -1,4 +1,4 @@
-// The coding agents a person may run BriefAgents through (plan
+// The coding agents a person may run QuickAgents through (plan
 // desktop-installers.md §9, agentry-desktop#89): the host harnesses behind
 // the CLI's adapters — Claude Code, Codex — probed on this machine with the
 // same package `agentry doctor --adapter` uses, and the one the person

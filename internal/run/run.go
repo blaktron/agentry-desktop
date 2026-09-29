@@ -121,7 +121,7 @@ func ResolveSignature(ctx context.Context, regURL, ref string, installIntent boo
 	}, nil
 }
 
-// ProfileInfo is a BriefAgent signature's MCP-profile state (§P2/§P3).
+// ProfileInfo is a QuickAgent signature's MCP-profile state (§P2/§P3).
 // Secret VALUES never appear here — names only.
 type ProfileInfo struct {
 	Ref               string
@@ -471,7 +471,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		plan.Harness.Host == nil); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}
-	// The per-BriefAgent exec image the plan names when the agent declares
+	// The per-QuickAgent exec image the plan names when the agent declares
 	// exec (agentry-cli#9, desktop#17): built once, same as the CLI, from
 	// the spec the compiler put on the plan (the catalogued packages and
 	// the mirror, not just the command list; agentry-cli#100). The package

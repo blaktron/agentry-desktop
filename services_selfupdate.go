@@ -7,7 +7,7 @@
 // manager's job for good (D7), so this surface is the whole feature there.
 //
 // The name is SELF-UPDATE throughout, never "update" alone: internal/install
-// already owns that word for an installed BriefAgent, and a person reading
+// already owns that word for an installed QuickAgent, and a person reading
 // either surface should not have to work out which one they are looking at.
 package main
 

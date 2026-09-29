@@ -15,7 +15,7 @@ import (
 // FromDraft decodes a draft into the form's Model (plan builder-rework.md
 // §7.5, D15, D16): the Drafter's manifest, which it writes as JSON, and its
 // instructions. It is data to the form and nothing else. Nothing is opened,
-// launched, read or written; the draft reaches a BriefAgent folder only
+// launched, read or written; the draft reaches a QuickAgent folder only
 // when the person saves it into one they pick natively. So:
 //   - Known fields only. What the form cannot hold is dropped, and each
 //     dropped field is named in the notes.
@@ -60,7 +60,7 @@ func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []s
 		notes = append(notes, "The form cannot hold these fields of the draft, so they were left out: "+strings.Join(dropped, ", ")+".")
 	}
 	if f := m.InstructionFile; f != "" && (!draftInstructionRE.MatchString(f) || strings.EqualFold(f, "README.md")) {
-		notes = append(notes, fmt.Sprintf("The draft named its instruction file %q, which is not one file in the BriefAgent's folder; here it is %s.", f, defaultInstructionFile))
+		notes = append(notes, fmt.Sprintf("The draft named its instruction file %q, which is not one file in the QuickAgent's folder; here it is %s.", f, defaultInstructionFile))
 		m.InstructionFile = defaultInstructionFile
 	}
 	if ns := strings.TrimSpace(namespace); ns != "" && ns != m.Namespace {

@@ -51,7 +51,7 @@ export default function App() {
   // status never starts a check: the app looks on launch and daily in the
   // background, and this only renders what it found.
   const [newer, setNewer] = useState<main.SelfUpdateView | null>(null);
-  // How many installed BriefAgents have a newer version, from the launch
+  // How many installed QuickAgents have a newer version, from the launch
   // check and the agent page's own checks (agentry-desktop#147, D8): the
   // number on Installed. Reading it never starts a check.
   const [installedUpdates, setBriefUpdates] = useState(0);
@@ -117,7 +117,7 @@ export default function App() {
       onClick={() => nav({ page } as Route)}
     >
       {label}
-      {count > 0 && <span className="badge warn nav-count" title={`${count} installed BriefAgent${count === 1 ? " has" : "s have"} a newer version`}>{count}</span>}
+      {count > 0 && <span className="badge warn nav-count" title={`${count} installed QuickAgent${count === 1 ? " has" : "s have"} a newer version`}>{count}</span>}
     </button>
   );
 

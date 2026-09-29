@@ -5,7 +5,7 @@
 #   scripts/copy-check.sh --self-test  prove it fails when it should
 #
 # The honest posture is a rule about words: the app says what ran and what
-# was enforced, and never calls a BriefAgent, a run or a registry "safe",
+# was enforced, and never calls a QuickAgent, a run or a registry "safe",
 # "secure", "guaranteed" or "trusted". The site's prose gate holds the same
 # line for the website (agentry-web scripts/prose/); this is the desktop's
 # half, over the copy this app ships — the frontend's own sources, the
@@ -29,11 +29,13 @@ ALLOW="${COPY_CHECK_ALLOW:-$HERE/copy-allow.txt}"
 
 # The words, matched whole and case-insensitively. "secure" does not match
 # secureagentry.net: a word boundary needs a non-word character after it.
-WORDS='safe|safely|secure|securely|secured|guarantee|guarantees|guaranteed|trusted'
+# The product's old name is a never-word too: it was renamed QuickAgent on
+# 2026-09-28 (agentry#734).
+WORDS='safe|safely|secure|securely|secured|guarantee|guarantees|guaranteed|trusted|briefagent|briefagents'
 # The Knowledge panel's copy also never calls a pack "private" (plan
 # knowledge.md §3; agentry-desktop#273): it says what holds the pack's key
 # instead. Checked over its own files only, since "private" is the product's
-# word elsewhere (a private BriefAgent, a private organization agent).
+# word elsewhere (a private QuickAgent, a private organization agent).
 KNOWLEDGE_WORDS="$WORDS|private|privately"
 
 # The files this app's copy lives in: the frontend it ships (not the
@@ -131,7 +133,7 @@ if [ "${1:-}" = "--self-test" ]; then
     exit 1
   fi
   rm -f "$tmp/frontend/src/pages/KnowledgeBad.tsx"
-  printf 'export const line = "Publish it as a private BriefAgent.";\n' > "$tmp/frontend/src/Bad.tsx"
+  printf 'export const line = "Publish it as a private QuickAgent.";\n' > "$tmp/frontend/src/Bad.tsx"
   if ! COPY_CHECK_ROOT="$tmp" COPY_CHECK_ALLOW="$ALLOW" "$HERE/copy-check.sh" >/dev/null 2>&1; then
     echo "self-test FAILED: \"private\" was refused outside the Knowledge panel" >&2
     exit 1

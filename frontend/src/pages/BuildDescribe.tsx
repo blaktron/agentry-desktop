@@ -11,7 +11,7 @@
 //     BuildAPI.DescribeOnThisComputer refuses without a key and asks in a
 //     native dialog before anything leaves this computer.
 // Either way the draft is decoded in Go into the form's Model as data and
-// opens on Review; nothing is written into a BriefAgent folder until the
+// opens on Review; nothing is written into a QuickAgent folder until the
 // person saves.
 //
 // DraftNotes is what the Drafter said, shown beside Review once a draft is
@@ -232,13 +232,13 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
     <section aria-labelledby="describe-heading">
       <h2 id="describe-heading">Describe it</h2>
       <p className="muted small">
-        Say what the BriefAgent should do, in plain words. The Drafter searches the registry and the web, reads what it
-        finds, and drafts the BriefAgent: what it may reach, its instructions, the questions a run asks and what a person
-        reads first. The draft opens on Review. Nothing is written into a BriefAgent folder or submitted until you save or
+        Say what the QuickAgent should do, in plain words. The Drafter searches the registry and the web, reads what it
+        finds, and drafts the QuickAgent: what it may reach, its instructions, the questions a run asks and what a person
+        reads first. The draft opens on Review. Nothing is written into a QuickAgent folder or submitted until you save or
         publish it.
       </p>
       <Card>
-        <label className="small" style={{ display: "block" }}>Describe what the BriefAgent should do
+        <label className="small" style={{ display: "block" }}>Describe what the QuickAgent should do
           <Textarea rows={6} style={{ width: "100%" }} value={text} disabled={busy}
             onChange={(e) => setText(e.target.value)}
             placeholder="e.g. Check a CSV file I add for missing values, duplicate rows and columns whose values are not all the same format, and report the problems per column." />

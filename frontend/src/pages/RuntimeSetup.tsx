@@ -18,7 +18,7 @@ const PROVIDERS: { id: string; label: string; model: string; apiKeyEnv: string }
 
 export const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label ?? id;
 
-/** "Agent runs" (RUNNER-PLAN-2 §P1, req 5): the LLM provider BriefAgent
+/** "Agent runs" (RUNNER-PLAN-2 §P1, req 5): the LLM provider QuickAgent
  * runs use, written into the same operator policy the CLI reads
  * (~/.agentry/runner/policy.yaml), plus one-click preparation of the
  * docker MCP gateway plane.
@@ -204,7 +204,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");
       setKeyNotice(s.keyNotice ?? null);
       setNotice(pullImages
-        ? "Setup complete — gateway, harness, and runner images ready; BriefAgents can run."
+        ? "Setup complete — gateway, harness, and runner images ready; QuickAgents can run."
         : `Provider settings written to ${s.policyPath}.`);
     } catch (e) {
       setError(String(e));
@@ -228,7 +228,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       <p className="page-sub">
         {intro ?? (
           <>
-            BriefAgent runs happen in isolated containers with tools served by a per-run Docker MCP
+            QuickAgent runs happen in isolated containers with tools served by a per-run Docker MCP
             Gateway. Choose the LLM provider those runs use and paste its key — the same operator
             policy the <span className="mono">agentry</span> CLI reads.
           </>
@@ -380,7 +380,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   );
 }
 
-/** Prerequisites (D-014, agentry-desktop#64): BriefAgent runs need a docker
+/** Prerequisites (D-014, agentry-desktop#64): QuickAgent runs need a docker
  * engine. The card renders the machine's STATE, not an error string:
  * installable → the install through pkexec (the exact command shown before
  * consent); groupMissing → only the group step, through pkexec;
@@ -480,7 +480,7 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
       {prereq.state === "installable" && (
         <>
           <p className="muted small">
-            BriefAgent runs need a docker engine; the MCP gateway and harness images follow
+            QuickAgent runs need a docker engine; the MCP gateway and harness images follow
             automatically once it answers (&quot;Prepare images now&quot; below).
           </p>
           <Elevated

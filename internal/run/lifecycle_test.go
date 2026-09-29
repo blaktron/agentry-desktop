@@ -562,7 +562,7 @@ func TestRunHappyPath(t *testing.T) {
 		t.Errorf("identity fields = %+v", res)
 	}
 	// The fixture declares exec: {commands: [echo]}, so the run builds the
-	// per-BriefAgent exec image the plan names (agentry-cli#9, desktop#17).
+	// per-QuickAgent exec image the plan names (agentry-cli#9, desktop#17).
 	execTag := fixtureExecTag()
 	builtExec := false
 	for _, op := range fd.Ops() {

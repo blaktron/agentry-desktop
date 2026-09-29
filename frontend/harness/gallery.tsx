@@ -115,7 +115,7 @@ function Gallery() {
           <Field label="Provider">
             <Select defaultValue="anthropic"><option>anthropic</option><option>openai</option><option>custom</option></Select>
           </Field>
-          <Field label="Task" hint="What the BriefAgent should do.">
+          <Field label="Task" hint="What the QuickAgent should do.">
             <Textarea rows={3} defaultValue="Summarise the last 24h of the incident channel." />
           </Field>
         </Card>
@@ -128,12 +128,12 @@ function Gallery() {
       <Section title="Messages">
         <Notice tone="info">A neutral status line — waiting for your browser to authorize this app.</Notice>
         <Notice tone="ok">Signed in as @dupres — token stored in the OS keychain.</Notice>
-        <Notice tone="warn">Docker is not available. Install it to run BriefAgents.</Notice>
+        <Notice tone="warn">Docker is not available. Install it to run QuickAgents.</Notice>
         <ErrorBox error="verify failed: digest mismatch (exit 10)" />
       </Section>
 
       <Section title="Empty & loading">
-        <EmptyState title="No installed BriefAgents yet" action={<Button variant="primary">Browse the registry</Button>}>
+        <EmptyState title="No installed QuickAgents yet" action={<Button variant="primary">Browse the registry</Button>}>
           Install one from the registry to see it here.
         </EmptyState>
         <Spinner label="Resolving…" />

@@ -575,7 +575,7 @@ func (e *Engine) AddPendingForTest(plan Plan) { e.pending[plan.ID] = &pending{pl
 // recordKey is the installed.yaml key a plan's install lives under: the
 // run's own consent key for the runner target (registry `runner`, the
 // agent's directory — so a consent given here covers a run, and there is
-// one record per BriefAgent), the registry and the destination for an
+// one record per QuickAgent), the registry and the destination for an
 // export.
 func recordKey(plan Plan) installed.Key {
 	if plan.Target == installdir.Target {
@@ -936,7 +936,7 @@ func sortRecords(recs []installed.Record) {
 // an install here or by `agentry run`'s consent — is one this app manages.
 type Item struct {
 	installed.Record
-	// Origin is the registry this record's BriefAgent is looked up at: the
+	// Origin is the registry this record's QuickAgent is looked up at: the
 	// record's own registry for an export, the app's default registry for
 	// a runner record, whose key names none (a run resolves through the
 	// configured registry; D-031).
@@ -981,7 +981,7 @@ func List() ([]Item, error) {
 	return items, nil
 }
 
-// originFor is the registry a record's BriefAgent is looked up at: the
+// originFor is the registry a record's QuickAgent is looked up at: the
 // record's own for an export; for a runner record, whose key names none,
 // the app's default registry — the one a run resolves through.
 func originFor(rec installed.Record) string {

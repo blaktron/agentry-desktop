@@ -139,7 +139,12 @@ the first-run wizard in `wizard.html` (`#0` welcome, `#1` sign-in, `#2`
 runtime, `#3` coding agent, `#4` done; `#3-missing` shows neither coding
 agent on the machine, `#3-unprobed` the step before "Look for coding
 agents" is clicked, `#4-nothing` the Nothing set up ending when every step
-was skipped — agentry-desktop#89).
+was skipped — agentry-desktop#89). `#2-refused` is a save the backend
+refuses after the key was stored: `shots.mjs` types the custom endpoint's
+form, clicks Save, and fails unless the refusal shows and the key field is
+empty and says the key is stored (agentry-desktop#141, #378). The wizard's
+mock answers every binding the step calls, `EndpointWarning` included; a
+missing one throws inside an effect and unmounts the whole wizard.
 
 The **unscanned** states (M23, agentry-desktop#80) are `#agent-unscanned`
 in `pages.html` — shot twice, on the provenance tab (the badge in the

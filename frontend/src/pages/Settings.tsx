@@ -21,7 +21,7 @@ export type SettingsSection = "registry" | "updates" | "coding-agents" | "run-de
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
-  | "registries" | "add-registry" | "desktop" | "briefagents"
+  | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "where" | "output" | "docker" | "provider" | "ai-review-key";
 type Part = { id: SettingsPart; label: string };
 
@@ -35,12 +35,12 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "updates", title: "Update settings",
-    sentence: "Whether this app looks for a newer Agentry Desktop, and how BriefAgents installed here are updated.",
-    parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "briefagents", label: "BriefAgents" }],
+    sentence: "Whether this app looks for a newer Agentry Desktop, and how QuickAgents installed here are updated.",
+    parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "quickagents", label: "QuickAgents" }],
   },
   {
     id: "coding-agents", title: "Coding agents",
-    sentence: "The coding agent on this computer, and whether Install also puts a BriefAgent where it reads.",
+    sentence: "The coding agent on this computer, and whether Install also puts a QuickAgent where it reads.",
     parts: [],
   },
   {
@@ -115,15 +115,15 @@ export default function Settings({
       {section === "updates" && (
         <>
           <PartSection id="desktop" title="Agentry Desktop"><SelfUpdateCard /></PartSection>
-          <PartSection id="briefagents" title="BriefAgents">
+          <PartSection id="quickagents" title="QuickAgents">
             <Card>
               <label className="row gap">
                 <input type="checkbox" checked={false} disabled onChange={() => {}} />
-                <span>Update BriefAgents automatically</span>
+                <span>Update QuickAgents automatically</span>
               </label>
               <div className="muted small">
                 Not offered yet. The app checks the ones installed here for newer versions on launch and when you
-                open a BriefAgent; Update on its page is yours to click.
+                open a QuickAgent; Update on its page is yours to click.
               </div>
             </Card>
           </PartSection>
@@ -250,8 +250,8 @@ export function updateStatus(v: main.SelfUpdateView): string {
 
 export function codingStatus(v: main.CodingAgentsView): string {
   const x = v.export;
-  if (!x.enabled) return "Install puts BriefAgents in the runner home only.";
-  return `Install also writes each BriefAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
+  if (!x.enabled) return "Install puts QuickAgents in the runner home only.";
+  return `Install also writes each QuickAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
 }
 
 // The Run defaults card's line: the timeout and where runs go, and Docker
@@ -263,7 +263,7 @@ export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusVi
 }
 
 export function runStatus(s: main.SetupStatusView): string {
-  if (!s.dockerOk) return "Docker is not ready, so BriefAgents cannot run on this computer yet.";
+  if (!s.dockerOk) return "Docker is not ready, so QuickAgents cannot run on this computer yet.";
   if (!s.imagesReady) return "Docker answers. The run images are fetched on the first run.";
   return "Docker answers and the run images are ready.";
 }
@@ -368,7 +368,7 @@ function RunDefaultsSettings() {
               </div>
               <p className="muted small" style={{ marginBottom: 0 }}>
                 The run setup starts on this choice, and you can change it for any run. Where a run In Agentry is not
-                offered for a BriefAgent, it starts on this computer and says why. A run In Agentry still shows the credits
+                offered for a QuickAgent, it starts on this computer and says why. A run In Agentry still shows the credits
                 it holds before you start it, and every consent is asked on every run.
               </p>
             </Card>

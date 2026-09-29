@@ -40,7 +40,7 @@ func resolveStub(t *testing.T, version string) string {
 // desktop#147, D8): a read never starts a check; a record whose registry
 // cannot be reached is that record's line and counts nothing; only a row
 // this app manages, whose directory is there, counts toward the badge;
-// one BriefAgent's check on the agent page refreshes its row in place;
+// one QuickAgent's check on the agent page refreshes its row in place;
 // an install, an update or a removal refreshes its row at once.
 func TestInstallUpdatesStatusIsASnapshot(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
@@ -94,7 +94,7 @@ func TestInstallUpdatesStatusIsASnapshot(t *testing.T) {
 		}
 	}
 
-	// The page's own check for a BriefAgent with no runner record: nothing.
+	// The page's own check for a QuickAgent with no runner record: nothing.
 	info, err := i.CheckUpdate("acme", "skill")
 	if err != nil || info != nil {
 		t.Fatalf("no runner record: %+v %v", info, err)

@@ -193,7 +193,7 @@ export default function InstallWizard({
                   <SignedBadge att={plan.attestation} />{" "}
                   <strong>The registry admitted this version without a scan.</strong>{" "}
                   <span className="muted">
-                    No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the BriefAgent off the pipeline, and no scanner looked at its contents.
+                    No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the QuickAgent off the pipeline, and no scanner looked at its contents.
                   </span>
                 </p>
                 <label className="check-row">

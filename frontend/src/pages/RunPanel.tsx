@@ -1,4 +1,4 @@
-// The run surface (RUNNER-PLAN-2 §P6): run a BriefAgent from the app with
+// The run surface (RUNNER-PLAN-2 §P6): run a QuickAgent from the app with
 // the same lifecycle `agentry run` executes.
 //
 // Since the guided run setup (plan guided-runs.md §4, M3;
@@ -38,7 +38,7 @@ export default function RunPanel({
   ns: string;
   name: string;
   version: string;
-  /** The BriefAgent's summary, for Before you start. */
+  /** The QuickAgent's summary, for Before you start. */
   summary?: string;
   /** The page's provenance verification (declared digest); the run
    * re-verifies the downloaded bytes either way. */
@@ -632,7 +632,7 @@ export default function RunPanel({
                 {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
                 {setup && !setup.dockerOk && !inAgentry && (
                   <div className="error-box selectable">
-                    Docker is not available — a BriefAgent run on this machine needs a docker engine.
+                    Docker is not available — a QuickAgent run on this machine needs a docker engine.
                     {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
                     {hosted?.offered ? ", or run this release In Agentry" : ""}.
                   </div>
@@ -681,7 +681,7 @@ export default function RunPanel({
                 )}
                 <p className="muted small">
                   Add the files the task is about. They are provided read-only under{" "}
-                  <span className="mono">/inputs</span>, and the BriefAgent reads them with{" "}
+                  <span className="mono">/inputs</span>, and the QuickAgent reads them with{" "}
                   <span className="mono">list_inputs</span> and <span className="mono">read_input</span>. If it needs none, go on
                   without any.
                   {inAgentry && hosted && (
@@ -745,7 +745,7 @@ export default function RunPanel({
                   <p className="muted small">
                     Attach knowledge packs Agentry keeps for your account. Each is mounted read-only at{" "}
                     <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, on
-                    Agentry&apos;s sandbox host, from the copy Agentry keeps and has scanned, and the BriefAgent reads it
+                    Agentry&apos;s sandbox host, from the copy Agentry keeps and has scanned, and the QuickAgent reads it
                     with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
                     <span className="mono">knowledge_read</span>; commands the release declares run in that container too,
                     so they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack
@@ -756,7 +756,7 @@ export default function RunPanel({
                 ) : (
                   <p className="muted small">
                     Attach knowledge packs kept on this computer. Each is mounted read-only at{" "}
-                    <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the BriefAgent
+                    <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the QuickAgent
                     reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
                     <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
                     they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
@@ -1086,7 +1086,7 @@ export default function RunPanel({
                       <strong>The registry admitted this version without a scan.</strong>{" "}
                       <span className="muted">
                         No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
-                        BriefAgent off the pipeline, and no scanner looked at its contents.
+                        QuickAgent off the pipeline, and no scanner looked at its contents.
                         {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
                       </span>
                     </p>

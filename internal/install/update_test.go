@@ -97,7 +97,7 @@ func TestCheckUpdates(t *testing.T) {
 }
 
 // TestCheckUpdateForTheRunnerRecord (agentry-desktop#147): opening a
-// BriefAgent's page asks about its runner-home record alone — through the
+// QuickAgent's page asks about its runner-home record alone — through the
 // record's origin, the app's default registry — and answers with the one
 // "newer" rule (semver); no record, no question.
 func TestCheckUpdateForTheRunnerRecord(t *testing.T) {

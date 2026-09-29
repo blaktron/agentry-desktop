@@ -216,7 +216,7 @@ export function SecretsCard({ registry }: { registry: string }) {
       <h3 style={{ marginTop: 0 }}>Secrets for runs In Agentry</h3>
       <p className="small">
         A secret is a value a run In Agentry needs, such as an API token, saved under a name in Agentry. When you
-        start a run of a BriefAgent that declares a secret of that name, the value goes into that run&apos;s tools
+        start a run of a QuickAgent that declares a secret of that name, the value goes into that run&apos;s tools
         container only, never into the agent&apos;s own.
       </p>
       <p className="muted small">
@@ -242,7 +242,7 @@ export function SecretsCard({ registry }: { registry: string }) {
       {note && <Notice tone="ok">{note}</Notice>}
       {confirming && (
         <Notice tone="warn">
-          <strong>Delete {name.trim()}?</strong> Its value is gone for good. A run In Agentry of a BriefAgent that declares
+          <strong>Delete {name.trim()}?</strong> Its value is gone for good. A run In Agentry of a QuickAgent that declares
           it asks for it again, and a run already queued fails before it starts, with its credits returned.{" "}
           <Button onClick={remove} disabled={busy}>Delete {name.trim()}</Button>{" "}
           <Button onClick={() => setConfirming(false)} disabled={busy}>Keep it</Button>
