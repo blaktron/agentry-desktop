@@ -113,6 +113,27 @@ func TestQuittingMidRunTearsDownBeforeShutdownReturns(t *testing.T) {
 	}
 }
 
+// A draft's repair turn runs under its own run id (#395): it is recorded for
+// the crash path while it runs, and quitting sweeps it with the run's own.
+func TestARepairTurnIsSweptWithTheRun(t *testing.T) {
+	f := &fakeEngine{started: make(chan run.Request, 1)}
+	r := newQuitAPI(t, f, nil)
+	_, errc := startRun(t, r, f)
+	r.addTurn("ef56ab78")
+	if !recorded(r, "ef56ab78") {
+		t.Fatal("the repair turn has no crash-path record")
+	}
+	r.shutdown()
+	<-errc
+	got := strings.Join(f.steps(), ",")
+	if !strings.Contains(got, "sweep ab12cd34") || !strings.Contains(got, "sweep ef56ab78") {
+		t.Fatalf("shutdown steps %q", got)
+	}
+	if recorded(r, "ab12cd34") || recorded(r, "ef56ab78") {
+		t.Fatal("a crash-path record outlived the run")
+	}
+}
+
 // An engine that does not return in time does not hold the quit hostage:
 // the wait is bounded, and the label sweep runs regardless.
 func TestAHungEngineIsSweptWhenTheWaitRunsOut(t *testing.T) {
