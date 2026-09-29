@@ -240,13 +240,19 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const heading = useRef<HTMLHeadingElement | null>(null);
   const moved = useRef(false);
 
+  // A draft taken into the form while the fresh form was still being made:
+  // the draft wins, whichever answers last (agentry-desktop#410).
+  const tookDraft = useRef(false);
+
   useEffect(() => {
     if (kept) return;
     if (initialDraft?.model) {
       setModel(new build.Model(initialDraft.model));
       return;
     }
-    BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
+    BuildAPI.NewModel(registry)
+      .then((m) => { if (!tookDraft.current) setModel(m); })
+      .catch((e) => setError(String(e)));
   }, [registry, initialDraft]);
 
   // A draft that finished while the tab was away opens now, and so does one
@@ -457,6 +463,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // builder-simplify.md §4.1), private unless switched (D3).
   function takeDraft(v: main.DraftView) {
     if (!v.model) return;
+    tookDraft.current = true;
     moved.current = true;
     setModel(new build.Model(v.model));
     setDrafted(v);
