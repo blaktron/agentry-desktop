@@ -197,7 +197,7 @@ func TestRunMakesADraftAndDecodesItIntoTheModel(t *testing.T) {
 	}
 	r := runs[0]
 	task, _ := readAll(r)
-	if r.Builtin.Ref() != "agentry/drafter@1.0.0" || r.Web != p.Web || r.Web.JevKey != testJev || r.Web.Search != "youcom" || r.Web.SearchKey != testSearch ||
+	if r.Builtin.Ref() != drafter.Namespace+"/"+drafter.Name+"@"+drafter.Version || r.Web != p.Web || r.Web.JevKey != testJev || r.Web.Search != "youcom" || r.Web.SearchKey != testSearch ||
 		len(r.Inputs) != 0 || task != p.Task || strings.Contains(task, testJev) || strings.Contains(task, testSearch) || r.RunID != "run-2" {
 		t.Fatalf("run %+v web %+v task %q", r, r.Web, task)
 	}
