@@ -34,6 +34,10 @@ const sweepWait = 30 * time.Second
 type liveRun struct {
 	id  string
 	ref string
+	// turns are the run ids of the run's later turns: a draft's one repair
+	// turn runs under its own id (drafter.PostStep, #395), so the crash
+	// path records it and quitting sweeps it with the run's own.
+	turns []string
 	// cancel ends the run's engine context: an autonomous run returns and
 	// tears down; a session still starting stops starting. A session that
 	// has started is ended through its End instead, which lets the harness
@@ -73,6 +77,22 @@ func (r *RunAPI) beginRun(ref string, cancel context.CancelFunc) (*liveRun, erro
 	return l, nil
 }
 
+// addTurn records a later turn of the run in flight, under its own run id,
+// before the engine creates anything for it: its crash-path record, and
+// the id quitting sweeps with the run's.
+func (r *RunAPI) addTurn(id string) {
+	r.liveMu.Lock()
+	if r.live != nil {
+		r.live.turns = append(r.live.turns, id)
+	}
+	r.liveMu.Unlock()
+	if dir, err := r.inFlight(); err == nil {
+		if err := run.RecordInFlight(dir, id); err != nil {
+			log.Printf("agentry-desktop: %v", err)
+		}
+	}
+}
+
 // endRun may be called from both ends of a session (EndSession and
 // shutdown): only the call that clears the record releases the attached
 // knowledge and closes done.
@@ -86,6 +106,9 @@ func (r *RunAPI) endRun(l *liveRun) {
 		r.live = nil
 		close(l.done)
 		r.forgetInFlight(l.id)
+		for _, id := range l.turns {
+			r.forgetInFlight(id)
+		}
 	}
 }
 
@@ -184,8 +207,13 @@ func (r *RunAPI) shutdown() {
 	}
 	sweepCtx, cancel := context.WithTimeout(context.Background(), sweepWait)
 	defer cancel()
-	if r.sweepRun(sweepCtx, l.id) == nil {
-		r.forgetInFlight(l.id)
+	r.liveMu.Lock()
+	ids := append([]string{l.id}, l.turns...)
+	r.liveMu.Unlock()
+	for _, id := range ids {
+		if r.sweepRun(sweepCtx, id) == nil {
+			r.forgetInFlight(id)
+		}
 	}
 }
 

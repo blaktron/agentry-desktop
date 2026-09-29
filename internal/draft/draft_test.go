@@ -20,6 +20,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
+	"github.com/blaktron/agentry/pkg/draftcheck"
 )
 
 const (
@@ -69,6 +70,7 @@ func (s *fakeScan) Scan(_ context.Context, src webscan.Source, text string) webs
 
 const answer = `{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
   "summary": "Turns meeting notes into decisions and action items.", "license": "Apache-2.0", "modes": ["autonomous"],
+  "entrypoints": {"instruction": "AGENT.md"},
   "capabilities": {"network": {"egress": "none"}, "filesystem": {"read": "none", "write": "none"}, "exec": "none"},
   "publish": {"include": ["agent.yaml", "AGENT.md", "README.md", "LICENSE"]}},
   "matches": [{"ref": "acme/minutes", "why": "writes minutes"}], "sources": [{"url": "https://ok.example/", "used": "the format"}],
@@ -77,6 +79,41 @@ const answer = `{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "
 const ledger = `{"tool":"web_read","source":"page","url":"https://ok.example/","verdict":"pass"}
 {"tool":"web_read","source":"page","url":"https://bad.example/","verdict":"withheld","score":3,"flagged":["injection"]}
 `
+
+// fakeChecker is AI Review's check of the finished draft as a test scripts
+// it: the nth check answers answers[n], the last one every check after it;
+// it keeps the packages it was asked about and the web configuration it was
+// built for, so no test reaches TypeSafe.
+type fakeChecker struct {
+	answers []*drafter.Check
+	asked   []draftcheck.Package
+	webs    []*engine.WebRun
+}
+
+func (f *fakeChecker) Check(_ context.Context, p draftcheck.Package) (*drafter.Check, error) {
+	f.asked = append(f.asked, p)
+	c := *f.answers[min(len(f.asked), len(f.answers))-1]
+	return &c, nil
+}
+
+func (f *fakeChecker) build(w *engine.WebRun) (drafter.Checker, error) {
+	f.webs = append(f.webs, w)
+	return f, nil
+}
+
+// passCheck and offTaskCheck are the check's answers: both halves passed;
+// the draft question flagged off_task, which a repair can fix.
+func passCheck() *drafter.Check {
+	return &drafter.Check{Model: "jev-1.13.0", Requests: 5, InputTokens: 4000,
+		Rubric: &drafter.CheckRubric{Verdict: drafter.CheckPass, Findings: []drafter.CheckFinding{}, RubricHash: "sha256:r"},
+		Draft:  &drafter.CheckDraft{Verdict: drafter.CheckPass, Flagged: []string{}, QuestionSet: "sha256:d"}}
+}
+
+func offTaskCheck() *drafter.Check {
+	c := passCheck()
+	c.Draft = &drafter.CheckDraft{Verdict: drafter.CheckFlagged, Score: 3, Scores: map[string]int{"off_task": 3}, Flagged: []string{"off_task"}, QuestionSet: "sha256:d"}
+	return c
+}
 
 // fakeRun is the Drafter's run: it records what it was given, writes the
 // reports and the ledger a run writes, and answers with the envelope.
@@ -181,11 +218,12 @@ func TestRunMakesADraftAndDecodesItIntoTheModel(t *testing.T) {
 	}
 	var runs []localrun.Run
 	var log strings.Builder
+	checks := &fakeChecker{answers: []*drafter.Check{passCheck()}}
 	res, err := Run(context.Background(), Request{Plan: p, RunID: "run-2", Namespace: "alice", Log: &log,
 		Scanner: func(string) (webscan.Scanner, error) {
 			return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
 		},
-		Runner: fakeRun(t, &runs, answer, nil)})
+		Runner: fakeRun(t, &runs, answer, nil), Checker: checks.build})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,6 +251,21 @@ func TestRunMakesADraftAndDecodesItIntoTheModel(t *testing.T) {
 	if !strings.HasPrefix(d.Notes, "The Drafter's own notes.\n\n## Withheld by AI Review") {
 		t.Fatalf("notes %q", d.Notes)
 	}
+	// The CLI's post-step (agentry-cli#478; #395): the package rendered and
+	// checked by validate's own code, then AI Review's check with the
+	// person's own key, of the person's own description.
+	if !d.Passed() || d.IsRepaired() {
+		t.Fatalf("validation %s, manifestError %q", d.Validation, d.ManifestError)
+	}
+	if len(checks.webs) != 1 || checks.webs[0] != p.Web || len(checks.asked) != 1 || checks.asked[0].Description != "Summarize my meeting notes." {
+		t.Fatalf("the check was built for %+v and asked %d time(s)", checks.webs, len(checks.asked))
+	}
+	if c := d.AIReview.Check; c == nil || c.Checks != 1 || c.Verdict() != drafter.CheckPass || CheckLine(c) == nil {
+		t.Fatalf("the check %+v", d.AIReview.Check)
+	}
+	if _, err := os.Stat(filepath.Join(res.OutDir, "package", "agent.yaml")); err != nil {
+		t.Fatal("the package was not rendered beside the receipts")
+	}
 	m := res.Model
 	if m.Name != "meeting-actions" || m.Namespace != "alice" || m.Instructions != "# Meeting actions\n\nRead the notes.\n" {
 		t.Fatalf("model %+v", m)
@@ -226,6 +279,139 @@ func TestRunMakesADraftAndDecodesItIntoTheModel(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join(res.OutDir, "draft.json"))
 	if err != nil || strings.Contains(string(b), testJev) || strings.Contains(string(b), testSearch) {
 		t.Fatalf("draft.json: %v", err)
+	}
+	var onDisk struct {
+		Validation json.RawMessage `json:"validation"`
+		AIReview   struct {
+			Check *drafter.Check `json:"check"`
+		} `json:"aiReview"`
+	}
+	if err := json.Unmarshal(b, &onDisk); err != nil || len(onDisk.Validation) == 0 || onDisk.AIReview.Check == nil || onDisk.AIReview.Check.Checks != 1 {
+		t.Fatalf("draft.json carries no validation or check: %v\n%s", err, b)
+	}
+}
+
+// refused is answer with a choice question that lists no choices, a slip
+// the post-step cannot correct without inventing the answers, and with a
+// marker in every field but its manifest that must never reach the repair
+// turn.
+var refused = strings.Replace(strings.Replace(strings.Replace(answer,
+	`"entrypoints": {"instruction": "AGENT.md"},`,
+	`"entrypoints": {"instruction": "AGENT.md"}, "intake": [{"id": "format", "prompt": "Which format?", "type": "choice"}],`, 1),
+	`"ref": "acme/minutes", "why": "writes minutes"`, `"ref": "acme/MATCH-MARKER", "why": "WHY-MARKER"`, 1),
+	`"openQuestions": ["Dates as ISO 8601?"]`, `"openQuestions": ["QUESTION-MARKER?"]`, 1)
+
+// repaired is the repair turn's answer: the manifest again without the
+// refused question, its lists empty, the instructions kept.
+var repaired = `{"manifest": ` + answer[strings.Index(answer, "{\"schemaVersion\""):strings.Index(answer, `,
+  "matches"`)] + `, "matches": [], "sources": [], "openQuestions": []}`
+
+// TestARefusedDraftGetsOneRepairTurnGivenTheRulesReportAlone (#395; plan
+// builder-simplify.md §3, §5.2 step 3): a draft on this computer the rules
+// still refuse gets the CLI's one repair turn, as `agentry draft` gives it:
+// the Drafter again, without its web tools and with no web configuration, so
+// no key reaches it, whose task is the rules' report and its own manifest
+// and instructions and nothing else, not the description, a hint, the notes,
+// a match, a source, an open question or a withheld address. The second
+// answer is validated and checked again, and kept.
+func TestARefusedDraftGetsOneRepairTurnGivenTheRulesReportAlone(t *testing.T) {
+	isolate(t)
+	saveKey(t)
+	p, err := Prepare("https://registry.example", "DESCRIPTION-MARKER: summarize my meeting notes.", []string{"HINT-MARKER"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var runs []localrun.Run
+	first := fakeRun(t, &runs, refused, nil)
+	second := fakeRun(t, &runs, repaired, nil)
+	checks := &fakeChecker{answers: []*drafter.Check{passCheck()}}
+	res, err := Run(context.Background(), Request{Plan: p, RunID: "run-4", Namespace: "alice",
+		Scanner: func(string) (webscan.Scanner, error) {
+			return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
+		},
+		Runner: func(ctx context.Context, r localrun.Run) (*receipt.Envelope, error) {
+			if len(runs) == 0 {
+				return first(ctx, r)
+			}
+			return second(ctx, r)
+		},
+		Checker: checks.build})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("%d run(s)", len(runs))
+	}
+	repair := runs[1]
+	if repair.Builtin != localrun.Drafter().WithoutWebTools() || repair.Web != nil || repair.RunID == runs[0].RunID ||
+		repair.OutDir != filepath.Join(res.OutDir, "repair") || repair.Budgets.MaxTurns > drafter.RepairMaxTurns {
+		t.Fatalf("the repair run %s web %+v out %q budgets %+v", repair.Builtin.Ref(), repair.Web, repair.OutDir, repair.Budgets)
+	}
+	task, _ := readAll(repair)
+	if !strings.HasPrefix(task, "This is your one repair turn.") ||
+		!strings.Contains(task, "- V10 intake[0].choices: type choice requires at least one choice\n") ||
+		!strings.Contains(task, `"name": "meeting-actions"`) || !strings.Contains(task, "Read the notes.") {
+		t.Fatalf("the repair task:\n%s", task)
+	}
+	for _, not := range []string{"DESCRIPTION-MARKER", "HINT-MARKER", "The Drafter's own notes.", "MATCH-MARKER", "WHY-MARKER",
+		"ok.example", "the format", "QUESTION-MARKER", "bad.example", testJev, testSearch} {
+		if strings.Contains(task, not) {
+			t.Errorf("the repair task carries %q", not)
+		}
+	}
+	d := res.Draft
+	if !d.IsRepaired() || !d.Passed() || strings.Contains(string(d.Manifest), "intake") || len(d.Matches) != 1 || len(d.AIReview.WithheldSources) != 1 {
+		t.Fatalf("draft %+v validation %s", d, d.Validation)
+	}
+	if c := d.AIReview.Check; c == nil || c.Checks != 2 || len(checks.asked) != 2 {
+		t.Fatalf("the check %+v, asked %d", d.AIReview.Check, len(checks.asked))
+	}
+	if res.Model.Name != "meeting-actions" || !strings.Contains(d.Notes, "## Repaired once") {
+		t.Fatalf("model %+v notes:\n%s", res.Model, d.Notes)
+	}
+}
+
+// TestACheckFlagSendsALocalDraftToItsRepairTurnWithTheTask: a draft the
+// rules pass that AI Review's check flags for something it can fix
+// (off_task) is given the one repair turn with what was flagged and the task
+// AI Review passed before the first turn, and its second answer is checked
+// again; the summary's line reads the second check.
+func TestACheckFlagSendsALocalDraftToItsRepairTurnWithTheTask(t *testing.T) {
+	isolate(t)
+	saveKey(t)
+	p, err := Prepare("https://registry.example", "Summarize my meeting notes.", []string{"HINT-MARKER"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var runs []localrun.Run
+	first := fakeRun(t, &runs, answer, nil)
+	second := fakeRun(t, &runs, repaired, nil)
+	checks := &fakeChecker{answers: []*drafter.Check{offTaskCheck(), passCheck()}}
+	res, err := Run(context.Background(), Request{Plan: p, RunID: "run-5", Namespace: "alice",
+		Scanner: func(string) (webscan.Scanner, error) {
+			return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
+		},
+		Runner: func(ctx context.Context, r localrun.Run) (*receipt.Envelope, error) {
+			if len(runs) == 0 {
+				return first(ctx, r)
+			}
+			return second(ctx, r)
+		},
+		Checker: checks.build})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("%d run(s)", len(runs))
+	}
+	task, _ := readAll(runs[1])
+	if runs[1].Web != nil || !strings.Contains(task, "## What AI Review flagged\n\n- AI Review off_task, score 3:") ||
+		!strings.Contains(task, "## The task you were given\n\n") || !strings.Contains(task, "HINT-MARKER") || strings.Contains(task, "The Drafter's own notes.") {
+		t.Fatalf("%d run(s); the repair task:\n%s", len(runs), task)
+	}
+	c := res.Draft.AIReview.Check
+	if c.Checks != 2 || c.Verdict() != drafter.CheckPass || CheckLine(c).Text != CheckLine(passCheck()).Text {
+		t.Fatalf("the check %+v", c)
 	}
 }
 

@@ -7,6 +7,7 @@ package main
 // page is given.
 
 import (
+	"cmp"
 	"github.com/blaktron/agentry-cli/pkg/drafter"
 
 	"context"
@@ -29,6 +30,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
+	"github.com/blaktron/agentry/pkg/draftcheck"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
@@ -52,6 +54,26 @@ type describeFixture struct {
 	scan   *passScan
 	runs   []localrun.Run
 	events []string
+	// checks are the web configurations AI Review's check was built for,
+	// and checksAsked how many times it was asked; it passes, and never
+	// reaches TypeSafe.
+	checks      []*engine.WebRun
+	checksAsked int
+	// result is the Drafter's answer; empty is describeAnswer.
+	result string
+	// repairRecorded says the repair turn's crash-path record was on disk
+	// while it ran.
+	repairRecorded bool
+}
+
+// passCheck is AI Review's check of a finished draft, both halves passed.
+type passCheck struct{ f *describeFixture }
+
+func (c passCheck) Check(context.Context, draftcheck.Package) (*drafter.Check, error) {
+	c.f.checksAsked++
+	return &drafter.Check{Model: "jev-1.13.0", Requests: 5,
+		Rubric: &drafter.CheckRubric{Verdict: drafter.CheckPass, Findings: []drafter.CheckFinding{}, RubricHash: "sha256:r"},
+		Draft:  &drafter.CheckDraft{Verdict: drafter.CheckPass, Flagged: []string{}, QuestionSet: "sha256:d"}}, nil
 }
 
 func newDescribeFixture(t *testing.T) *describeFixture {
@@ -79,10 +101,25 @@ func newDescribeFixture(t *testing.T) *describeFixture {
 			}
 			return f.scan, nil
 		},
+		draftChecker: func(w *engine.WebRun) (drafter.Checker, error) {
+			f.checks = append(f.checks, w)
+			return passCheck{f}, nil
+		},
 		draftRunner: func(_ context.Context, r localrun.Run) (*receipt.Envelope, error) {
 			f.runs = append(f.runs, r)
-			if cur := runAPI.current(); cur == nil || cur.id != r.RunID {
-				t.Fatalf("the Drafter ran outside the run in flight: %+v", cur)
+			// The first turn is the run in flight; the repair turn runs
+			// inside it, under its own run id, in its folder.
+			cur := runAPI.current()
+			switch {
+			case cur == nil:
+				t.Fatal("the Drafter ran outside the run in flight")
+			case len(f.runs) == 1 && cur.id != r.RunID:
+				t.Fatalf("the Drafter's first turn is not the run in flight: %+v", cur)
+			case len(f.runs) > 1 && (r.Web != nil || filepath.Dir(r.OutDir) != f.runs[0].OutDir):
+				t.Fatalf("the repair turn has a web configuration %+v or runs outside the draft's folder: %s", r.Web, r.OutDir)
+			case len(f.runs) > 1:
+				_, err := os.Stat(filepath.Join(runAPI.inFlightDir, r.RunID+".json"))
+				f.repairRecorded = err == nil
 			}
 			for name, body := range map[string]string{
 				filepath.Join("reports", "AGENT.md"):            "# Meeting actions\n\nRead the notes.\n",
@@ -94,13 +131,39 @@ func newDescribeFixture(t *testing.T) *describeFixture {
 				_ = os.WriteFile(p, []byte(body), 0o644)
 			}
 			return &receipt.Envelope{Status: "ok", RunID: r.RunID, Harness: receipt.Harness{Model: "openai/qwen3.8-flash-next"},
-				Result: json.RawMessage(`{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
-					"summary": "Turns meeting notes into actions.", "license": "Apache-2.0", "modes": ["autonomous"], "x-extra": 1},
-					"matches": [{"ref": "acme/minutes", "why": "writes minutes"}], "sources": [{"url": "https://bad.example/", "used": "the format", "withheld": false}], "openQuestions": ["Dates?"]}`),
-				Web: &receipt.Web{Scan: toolsrv.WebScanJev, Read: 3, Passed: 2, Withheld: 1}}, nil
+				Result: json.RawMessage(cmp.Or(f.result, describeAnswer)),
+				Web:    &receipt.Web{Scan: toolsrv.WebScanJev, Read: 3, Passed: 2, Withheld: 1}}, nil
 		},
 	}
 	return f
+}
+
+// describeAnswer is the Drafter's answer in the describe fixture: a manifest
+// with a field the form does not read (x-extra), which the decode names and
+// the core's parser refuses.
+const describeAnswer = `{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
+	"summary": "Turns meeting notes into actions.", "license": "Apache-2.0", "modes": ["autonomous"], "x-extra": 1},
+	"matches": [{"ref": "acme/minutes", "why": "writes minutes"}], "sources": [{"url": "https://bad.example/", "used": "the format", "withheld": false}], "openQuestions": ["Dates?"]}`
+
+// A local draft the rules pass is checked by AI Review with the person's
+// own key, and the page's view carries the check's one line for the
+// summary, as a hosted draft's does (#395).
+func TestALocalDraftsViewCarriesItsCheckLine(t *testing.T) {
+	f := newDescribeFixture(t)
+	f.result = `{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
+		"summary": "Turns meeting notes into actions.", "license": "Apache-2.0", "modes": ["autonomous"], "entrypoints": {"instruction": "AGENT.md"},
+		"capabilities": {"network": {"egress": "none"}, "filesystem": {"read": "none", "write": "none"}, "exec": "none"},
+		"publish": {"include": ["agent.yaml", "AGENT.md", "README.md", "LICENSE"]}},
+		"matches": [], "sources": [], "openQuestions": []}`
+	saveDescribeKey(t)
+	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.runs) != 1 || f.checksAsked != 1 || v.Check == nil || v.Check.Checks != 1 || v.Check.Rubric != drafter.CheckPass ||
+		v.Check.Line == nil || !strings.Contains(v.Check.Line.Text, "flagged nothing") || len(v.Problems) != 0 {
+		t.Fatalf("%d run(s), %d check(s), view %+v problems %q", len(f.runs), f.checksAsked, v.Check, v.Problems)
+	}
 }
 
 func saveDescribeKey(t *testing.T) {
@@ -159,8 +222,29 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.scan.read != 1 || len(f.runs) != 1 || f.b.run.current() != nil {
+	// This draft's manifest does not parse (its x-extra), which the rules
+	// report, so the CLI's post-step gives it its one repair turn, without
+	// the web tools, under the same run lock, and recorded for the crash
+	// path while it runs (#395).
+	if f.scan.read != 1 || len(f.runs) != 2 || f.b.run.current() != nil {
 		t.Fatalf("scanned %d, ran %d, still in flight %v", f.scan.read, len(f.runs), f.b.run.current())
+	}
+	if !f.repairRecorded || f.runs[1].RunID == f.runs[0].RunID {
+		t.Fatal("the repair turn ran with no crash-path record of its run id")
+	}
+	if entries, _ := os.ReadDir(f.b.run.inFlightDir); len(entries) != 0 {
+		t.Fatalf("crash-path records outlived the draft: %v", entries)
+	}
+	if f.runs[1].Web != nil || f.runs[1].Builtin != localrun.Drafter().WithoutWebTools() {
+		t.Fatal("the repair turn has the web tools or a web configuration")
+	}
+	// AI Review's check is built with the person's own key, and is not asked
+	// of a draft whose manifest does not parse (its x-extra), since there is
+	// no package to read: the page names the problem instead (internal/draft's
+	// tests hold the check of a draft that renders).
+	if len(f.checks) != 1 || f.checks[0].JevKey != describeJev || f.checksAsked != 0 || v.Check != nil ||
+		!strings.Contains(v.ManifestError, "x-extra") || len(v.Problems) == 0 {
+		t.Fatalf("the check built for %+v, asked %d, view %+v (manifestError %q, problems %q)", f.checks, f.checksAsked, v.Check, v.ManifestError, v.Problems)
 	}
 	if f.runs[0].Web == nil || f.runs[0].Web.JevKey != describeJev {
 		t.Fatal("the run's web configuration does not carry the person's key")
@@ -171,10 +255,12 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	if v.AIReview.Read != 3 || v.AIReview.Withheld != 1 || len(v.AIReview.WithheldSources) != 1 || v.AIReview.WithheldSources[0].URL != "https://bad.example/" {
 		t.Fatalf("aiReview %+v", v.AIReview)
 	}
-	// The notes are the Drafter's text as written, for the page's reader to
-	// render; the withheld list the post-step appends to them is shown from
-	// AI Review's record instead, as text, never as links.
-	if v.Notes != "Its notes: **bold** <script>alert(1)</script>" {
+	// The notes are the Drafter's text as written, then the post-step's own
+	// sections (here the repair turn's), as a hosted draft's are, for the
+	// page's reader to render; the withheld list the post-step appends is
+	// shown from AI Review's record instead, as text, never as links.
+	if !strings.HasPrefix(v.Notes, "Its notes: **bold** <script>alert(1)</script>\n\n## Repaired once\n") ||
+		strings.Contains(v.Notes, "Withheld by AI Review") {
 		t.Fatalf("notes %q", v.Notes)
 	}
 	// The Drafter says it used the page AI Review withheld; the record
