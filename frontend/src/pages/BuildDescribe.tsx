@@ -31,7 +31,6 @@ import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
 import { Button, Card, ErrorBox, Notice, Select, Textarea } from "../ui";
 
-
 // The hints as the site asks them (agentry-web app/build/describe), and the
 // lines the Drafter reads for them (app/build/draft hintsOf): each labelled
 // so it knows which hint it is. A blank one is left out.

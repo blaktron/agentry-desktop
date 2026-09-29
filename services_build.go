@@ -345,8 +345,10 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 
 // draftRunRef names a draft on this computer as the run in flight: what
 // quitting says it ends, and how StopDraft tells a draft from a run or a
-// knowledge build.
-const draftRunRef = drafter.Namespace + "/" + drafter.Name
+// knowledge build. It is words, not the Drafter's ref, so no run or session
+// the page starts (whose ref the page names) can ever carry it, as
+// knowledgeRunRef cannot.
+const draftRunRef = "the Drafter"
 
 // StopDraft stops the draft on this computer that is running, from the
 // progress dialog or its corner card (agentry-desktop#410): its context is

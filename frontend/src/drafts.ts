@@ -25,16 +25,14 @@ export type DraftProgress = {
   stage: "description" | "drafting" | "checking" | "repair" | "";
 };
 
-/** What a draft on this computer that the person stopped ends with. */
-export const STOPPED = "You stopped the draft, so none was made.";
-
 let where: Where | null = null;
 let localInflight: Promise<void> | null = null;
 let inflightLog: string[] = [];
 let progress: DraftProgress | null = null;
-// stopping: Stop was pressed on a draft on this computer, so the error it
-// ends with is the stop's, said as such.
+// stopping: Stop was pressed on a draft on this computer; stopped: the
+// draft ended after it, so the flow says the person stopped it.
 let stopping = false;
+let stopped = false;
 // hosted is the draft In Agentry this app follows, as its last event said;
 // hostedStarting covers the create's round trip.
 let hosted: main.HostedDraftView | null = null;
@@ -47,9 +45,11 @@ let drafted: string | null = null;
 let landedError: string | null = null;
 let refusal: main.HostedDraftStartView | null = null;
 // shown: the flow is up (as the dialog or the card) until it is dismissed;
-// raised counts the times it was asked to open as the dialog.
+// raised counts the times it was asked to open, and asCard says the last
+// ask was for the card (a draft In Agentry the app found running).
 let shown = false;
 let raised = 0;
+let asCard = false;
 const listeners = new Set<() => void>();
 const landers = new Set<() => void>();
 const notify = () => listeners.forEach((f) => f());
@@ -81,20 +81,33 @@ function land(v: main.DraftView | undefined | null, orError: string) {
   }
 }
 
-function begin(w: Where) {
+// follow puts the flow up for a draft made in w: as the dialog for one the
+// person just started, as the card for one the app found running.
+function follow(w: Where, card = false) {
   where = w;
+  shown = true;
+  asCard = card;
+  raised++;
+}
+
+// clear forgets how the last draft ended.
+function clear() {
   landedError = null;
   refusal = null;
   drafted = null;
+  stopped = false;
+  inflightLog = [];
+  progress = null;
+}
+
+function begin(w: Where) {
+  clear();
   landed = null;
-  shown = true;
-  raised++;
+  follow(w);
 }
 
 function startLocal(registry: string, text: string, hints: string[]) {
   begin("here");
-  inflightLog = [];
-  progress = null;
   stopping = false;
   const offLog = EventsOn("build:draft-log", (line: string) => {
     inflightLog = [...inflightLog, line];
@@ -107,7 +120,8 @@ function startLocal(registry: string, text: string, hints: string[]) {
   localInflight = BuildAPI.DescribeOnThisComputer(registry, text, hints)
     .then((v) => land(v, "The Drafter returned no draft the form can open."))
     .catch((e) => {
-      landedError = stopping ? STOPPED : String(e);
+      stopped = stopping;
+      landedError = stopped ? "You stopped the draft, so none was made." : String(e);
     })
     .finally(() => {
       offLog();
@@ -161,7 +175,8 @@ export function startDraft(registry: string, w: Where, text: string, hints: stri
   else startLocal(registry, text, hints);
 }
 
-/** Follows this account's draft In Agentry after the app was reopened. */
+/** Follows this account's draft In Agentry after the app was reopened, in
+ *  the corner card: App asks as it starts, and Describe it as it opens. */
 export function attachHosted(registry: string) {
   if (hosted || hostedStarting) return;
   listenHosted();
@@ -169,9 +184,7 @@ export function attachHosted(registry: string) {
     .then((v) => {
       if (v.draft && !hosted) {
         hosted = v.draft;
-        where = "agentry";
-        shown = true;
-        raised++;
+        follow("agentry", true);
         notify();
       }
     })
@@ -201,6 +214,7 @@ export function cancelHostedDraft(): Promise<void> {
 /** Opens the flow's dialog again, from the card or the Describe it page. */
 export function showDraft(): void {
   if (!shown) return;
+  asCard = false;
   raised++;
   notify();
 }
@@ -210,12 +224,8 @@ export function showDraft(): void {
 export function dismissDraft(): void {
   if (draftInFlight()) return;
   shown = false;
-  landedError = null;
-  refusal = null;
-  drafted = null;
+  clear();
   hosted = null;
-  inflightLog = [];
-  progress = null;
   notify();
 }
 
@@ -223,12 +233,15 @@ export function dismissDraft(): void {
 export type DraftState = {
   shown: boolean;
   raised: number;
+  asCard: boolean;
   where: Where | null;
   inFlight: boolean;
   local: boolean;
   log: string[];
   progress: DraftProgress | null;
   stopping: boolean;
+  /** The draft ended because the person stopped it. */
+  stopped: boolean;
   hosted: main.HostedDraftView | null;
   hostedStarting: boolean;
   drafted: string | null;
@@ -239,7 +252,7 @@ export type DraftState = {
 function snapshot(): DraftState {
   const inFlight = draftInFlight();
   return {
-    shown, raised, where, inFlight, local: localInflight !== null, log: inflightLog, progress, stopping, hosted, hostedStarting,
+    shown, raised, asCard, where, inFlight, local: localInflight !== null, log: inflightLog, progress, stopping, stopped: !inFlight && stopped, hosted, hostedStarting,
     drafted, error: inFlight ? null : landedError, refusal: inFlight ? null : refusal,
   };
 }

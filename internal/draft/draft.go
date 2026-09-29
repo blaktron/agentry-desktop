@@ -142,19 +142,22 @@ type Request struct {
 	Progress func(Progress)
 }
 
-// The stages a draft on this computer goes through, in order; the repair
-// turn and the check after it only when the post-step gives one.
+// Stage is where a draft on this computer is. It goes through them in
+// order; the repair turn and the check after it only when the post-step
+// gives one.
+type Stage string
+
 const (
 	// StageDescription: AI Review reads the description, with the
 	// person's key, before anything else.
-	StageDescription = "description"
+	StageDescription Stage = "description"
 	// StageDrafting: the Drafter's turn, its searches and reads each read
 	// by AI Review first.
-	StageDrafting = "drafting"
+	StageDrafting Stage = "drafting"
 	// StageChecking: the rules and AI Review's check of what it answered.
-	StageChecking = "checking"
+	StageChecking Stage = "checking"
 	// StageRepair: the one repair turn, without the web tools.
-	StageRepair = "repair"
+	StageRepair Stage = "repair"
 )
 
 // Progress is how far one draft has got, for the progress dialog and its
@@ -170,10 +173,10 @@ type Progress struct {
 	MaxTurns       int `json:"maxTurns"`
 	// Turns, InputTokens and OutputTokens are the harness's usage as it
 	// last reported it, the repair turn's counted on from the first's.
-	Turns        int    `json:"turns"`
-	InputTokens  int64  `json:"inputTokens"`
-	OutputTokens int64  `json:"outputTokens"`
-	Stage        string `json:"stage"`
+	Turns        int   `json:"turns"`
+	InputTokens  int64 `json:"inputTokens"`
+	OutputTokens int64 `json:"outputTokens"`
+	Stage        Stage `json:"stage"`
 }
 
 // progressMeter reports a draft's Progress under a lock, so a usage report
@@ -188,7 +191,7 @@ func newProgressMeter(report func(Progress), timeoutSeconds, maxTurns int) *prog
 	return &progressMeter{report: report, p: Progress{StartedAt: time.Now().UnixMilli(), TimeoutSeconds: timeoutSeconds, MaxTurns: maxTurns}}
 }
 
-func (m *progressMeter) stage(s string) {
+func (m *progressMeter) stage(s Stage) {
 	if m.report == nil {
 		return
 	}

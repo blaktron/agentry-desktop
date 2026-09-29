@@ -316,7 +316,7 @@ func TestADraftOnThisComputerReportsItsProgress(t *testing.T) {
 			stages = append(stages, rest)
 		}
 	}
-	if len(stages) == 0 || !strings.Contains(stages[0], draft.StageDescription) || !strings.Contains(stages[len(stages)-1], draft.StageChecking) {
+	if len(stages) == 0 || !strings.Contains(stages[0], string(draft.StageDescription)) || !strings.Contains(stages[len(stages)-1], string(draft.StageChecking)) {
 		t.Fatalf("progress events %q", stages)
 	}
 }
@@ -331,7 +331,9 @@ func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	if err := f.b.StopDraft(); err == nil {
 		t.Fatal("StopDraft with nothing running passed")
 	}
-	for _, ref := range []string{"acme/triage@1.0.0", knowledgeRunRef} {
+	// A run the page started under the Drafter's own ref is a run, not a
+	// draft.
+	for _, ref := range []string{"acme/triage@1.0.0", drafter.Namespace + "/" + drafter.Name, knowledgeRunRef} {
 		cancelled := false
 		l, err := f.b.run.beginRun(ref, func() { cancelled = true })
 		if err != nil {

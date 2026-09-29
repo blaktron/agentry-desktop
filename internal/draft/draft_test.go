@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -522,7 +523,7 @@ func TestARunReportsItsProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var stages []string
+	var stages []Stage
 	for i, g := range got {
 		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 900 || g.MaxTurns != 40 {
 			t.Fatalf("report %d = %+v", i, g)
@@ -531,8 +532,8 @@ func TestARunReportsItsProgress(t *testing.T) {
 			stages = append(stages, g.Stage)
 		}
 	}
-	want := []string{StageDescription, StageDrafting, StageChecking, StageRepair, StageChecking}
-	if strings.Join(stages, ",") != strings.Join(want, ",") {
+	want := []Stage{StageDescription, StageDrafting, StageChecking, StageRepair, StageChecking}
+	if !slices.Equal(stages, want) {
 		t.Fatalf("stages %v, want %v", stages, want)
 	}
 	last := got[len(got)-1]

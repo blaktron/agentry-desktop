@@ -11,6 +11,7 @@ import Knowledge from "./pages/Knowledge";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import { CornerHost } from "./progress";
+import { attachHosted } from "./drafts";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
@@ -80,6 +81,12 @@ export default function App() {
     return s;
   }, []);
 
+  // A draft In Agentry already running for this account is followed from
+  // the start, in its corner card (agentry-desktop#410).
+  useEffect(() => {
+    if (registry) attachHosted(registry);
+  }, [registry]);
+
   useEffect(() => {
     refreshSettings()
       .then((s) => {
@@ -130,167 +137,167 @@ export default function App() {
 
   return (
     <CornerHost.Provider value={corner}>
-    <div className="shell">
-      <div className="sidebar">
-        <div className="brand">
-          <Wordmark sub="Desktop" />
+      <div className="shell">
+        <div className="sidebar">
+          <div className="brand">
+            <Wordmark sub="Desktop" />
+          </div>
+          {navItem("Browse", "browse")}
+          {navItem("Installed", "installed", installedUpdates)}
+          {navItem("Knowledge", "knowledge")}
+          {navItem("Build", "build")}
+          {navItem("Validate", "validate")}
+          {navItem("Settings", "settings")}
+          <div className="foot">
+            {version && <div>v{version}</div>}
+            {newer?.available && !newer.dismissed && (
+              <div className="update-line">
+                <button
+                  type="button"
+                  onClick={() => setRoute({ page: "settings", ...SETTINGS_FOR.selfUpdate })}
+                  title={
+                    newer.available.retired
+                      ? `Agentry Desktop ${newer.available.version} is signed with a key that has since been retired: genuine but out of date, and it will not be installed — open Settings`
+                      : `Agentry Desktop ${newer.available.version} is available — open Settings`
+                  }
+                >
+                  {/* The caveat Settings gives, in the chrome too: a release
+                      signed by a retired key is shown, never offered as an
+                      update (agentry-desktop#124). */}
+                  {newer.available.version} is available{newer.available.retired && " (retired key, not installed)"}
+                </button>
+                <button
+                  type="button"
+                  className="dismiss"
+                  aria-label="Not now"
+                  title="Not now — this comes back next time the app starts"
+                  onClick={() => DismissSelfUpdate().then(setNewer).catch(() => {})}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <div className="nowrap" title={registry}>{registry.replace(/^https?:\/\//, "")}</div>
+          </div>
         </div>
-        {navItem("Browse", "browse")}
-        {navItem("Installed", "installed", installedUpdates)}
-        {navItem("Knowledge", "knowledge")}
-        {navItem("Build", "build")}
-        {navItem("Validate", "validate")}
-        {navItem("Settings", "settings")}
-        <div className="foot">
-          {version && <div>v{version}</div>}
-          {newer?.available && !newer.dismissed && (
-            <div className="update-line">
-              <button
-                type="button"
-                onClick={() => setRoute({ page: "settings", ...SETTINGS_FOR.selfUpdate })}
-                title={
-                  newer.available.retired
-                    ? `Agentry Desktop ${newer.available.version} is signed with a key that has since been retired: genuine but out of date, and it will not be installed — open Settings`
-                    : `Agentry Desktop ${newer.available.version} is available — open Settings`
-                }
-              >
-                {/* The caveat Settings gives, in the chrome too: a release
-                    signed by a retired key is shown, never offered as an
-                    update (agentry-desktop#124). */}
-                {newer.available.version} is available{newer.available.retired && " (retired key, not installed)"}
-              </button>
-              <button
-                type="button"
-                className="dismiss"
-                aria-label="Not now"
-                title="Not now — this comes back next time the app starts"
-                onClick={() => DismissSelfUpdate().then(setNewer).catch(() => {})}
-              >
-                ×
-              </button>
-            </div>
-          )}
-          <div className="nowrap" title={registry}>{registry.replace(/^https?:\/\//, "")}</div>
-        </div>
-      </div>
-      <div className="content">
-        {/* A render fault shows its way back here, under a sidebar that
-            still works (agentry-desktop#351). */}
-        <Recover subject="This page" resetKey={JSON.stringify(route)}>
-          {route.page === "browse" && setupMissing && (
-            <div className="setup-banner">
-              <Notice tone="warn">
-                <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
-                it cannot sign in, run or build anything until it is:
-                <ul className="setup-banner-list">
-                  {setupMissing.map((m) => <li key={m}>{m}</li>)}
-                </ul>
-                <div className="row">
-                  <Button variant="primary" onClick={() => nav({ page: "settings", ...SETTINGS_FOR.setupNotice })}>Open Settings</Button>
-                  <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
-                </div>
-              </Notice>
-            </div>
-          )}
-          {route.page === "browse" && (
-            <Browse registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
-          )}
-          {route.page === "agent" && (
-            <AgentPage
-              registry={route.registry ?? registry}
-              ns={route.ns}
-              name={route.name}
-              backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
-              onBack={() => nav({ page: route.back ?? "browse" })}
+        <div className="content">
+          {/* A render fault shows its way back here, under a sidebar that
+              still works (agentry-desktop#351). */}
+          <Recover subject="This page" resetKey={JSON.stringify(route)}>
+            {route.page === "browse" && setupMissing && (
+              <div className="setup-banner">
+                <Notice tone="warn">
+                  <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
+                  it cannot sign in, run or build anything until it is:
+                  <ul className="setup-banner-list">
+                    {setupMissing.map((m) => <li key={m}>{m}</li>)}
+                  </ul>
+                  <div className="row">
+                    <Button variant="primary" onClick={() => nav({ page: "settings", ...SETTINGS_FOR.setupNotice })}>Open Settings</Button>
+                    <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
+                  </div>
+                </Notice>
+              </div>
+            )}
+            {route.page === "browse" && (
+              <Browse registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
+            )}
+            {route.page === "agent" && (
+              <AgentPage
+                registry={route.registry ?? registry}
+                ns={route.ns}
+                name={route.name}
+                backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
+                onBack={() => nav({ page: route.back ?? "browse" })}
+              />
+            )}
+            {route.page === "installed" && (
+              <Installed
+                onBrowse={() => nav({ page: "browse" })}
+                onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
+              />
+            )}
+            {route.page === "knowledge" && (
+            <Knowledge
+              registry={registry}
+              onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.knowledgeSignIn })}
+              onCreate={(addTo) => {
+                // A build in flight is brought back rather than a second
+                // started (one build at a time); a flow that is over, or not
+                // yet started, gives way to the one asked for.
+                if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, addTo });
+                setFlowMinimized(false);
+              }}
+              rev={knowledgeRev}
+              previewRequest={previewRequest}
+              onPreviewRequestSeen={clearPreviewRequest}
             />
           )}
-          {route.page === "installed" && (
-            <Installed
-              onBrowse={() => nav({ page: "browse" })}
-              onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
-            />
-          )}
-          {route.page === "knowledge" && (
-          <Knowledge
-            registry={registry}
-            onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.knowledgeSignIn })}
-            onCreate={(addTo) => {
-              // A build in flight is brought back rather than a second
-              // started (one build at a time); a flow that is over, or not
-              // yet started, gives way to the one asked for.
-              if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, addTo });
-              setFlowMinimized(false);
+            {route.page === "build" && (
+              <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} />
+            )}
+            {route.page === "validate" && <Validate />}
+            {route.page === "settings" && (
+              <Settings
+                settings={settings}
+                activeRegistry={registry}
+                onChanged={refreshSettings}
+                onSelectRegistry={setRegistry}
+                onRunSetup={() => setShowWizard(true)}
+                section={route.section}
+                part={route.part}
+                onOpen={(section, part) => nav({ page: "settings", section, part })}
+              />
+            )}
+          </Recover>
+        </div>
+        <DraftFlow
+          registry={registry}
+          onOpenDraft={() => {
+            setRoute({ page: "build" });
+            setOpenDraftRev((n) => n + 1);
+          }}
+        />
+        {knowledgeFlow && (
+          <KnowledgeCreate
+            registry={knowledgeFlow.registry}
+            addTo={knowledgeFlow.addTo}
+            minimized={flowMinimized}
+            onMinimize={() => setFlowMinimized(true)}
+            onRestore={() => setFlowMinimized(false)}
+            onInFlight={(v) => {
+              setFlowInFlight(v);
+              if (!v) setKnowledgeRev((n) => n + 1);
             }}
-            rev={knowledgeRev}
-            previewRequest={previewRequest}
-            onPreviewRequestSeen={clearPreviewRequest}
+            onClose={() => {
+              setKnowledgeFlow(null);
+              setFlowMinimized(false);
+              setFlowInFlight(false);
+              setKnowledgeRev((n) => n + 1);
+            }}
+            onPreview={(name) => {
+              setKnowledgeFlow(null);
+              setFlowMinimized(false);
+              setFlowInFlight(false);
+              setKnowledgeRev((n) => n + 1);
+              // The pack is the build's registry's, which the person may
+              // have switched away from while it ran.
+              setPreviewRequest({ registry: knowledgeFlow.registry, name });
+              setRoute({ page: "knowledge" });
+            }}
           />
         )}
-          {route.page === "build" && (
-            <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} />
-          )}
-          {route.page === "validate" && <Validate />}
-          {route.page === "settings" && (
-            <Settings
-              settings={settings}
-              activeRegistry={registry}
-              onChanged={refreshSettings}
-              onSelectRegistry={setRegistry}
-              onRunSetup={() => setShowWizard(true)}
-              section={route.section}
-              part={route.part}
-              onOpen={(section, part) => nav({ page: "settings", section, part })}
-            />
-          )}
-        </Recover>
+        {showWizard && settings && (
+          <Wizard
+            settings={settings}
+            activeRegistry={registry}
+            onChanged={refreshSettings}
+            onSelectRegistry={setRegistry}
+            onFinish={finishWizard}
+          />
+        )}
+        <div className="corner-cards" ref={setCorner} />
       </div>
-      <DraftFlow
-        registry={registry}
-        onOpenDraft={() => {
-          setRoute({ page: "build" });
-          setOpenDraftRev((n) => n + 1);
-        }}
-      />
-      {knowledgeFlow && (
-        <KnowledgeCreate
-          registry={knowledgeFlow.registry}
-          addTo={knowledgeFlow.addTo}
-          minimized={flowMinimized}
-          onMinimize={() => setFlowMinimized(true)}
-          onRestore={() => setFlowMinimized(false)}
-          onInFlight={(v) => {
-            setFlowInFlight(v);
-            if (!v) setKnowledgeRev((n) => n + 1);
-          }}
-          onClose={() => {
-            setKnowledgeFlow(null);
-            setFlowMinimized(false);
-            setFlowInFlight(false);
-            setKnowledgeRev((n) => n + 1);
-          }}
-          onPreview={(name) => {
-            setKnowledgeFlow(null);
-            setFlowMinimized(false);
-            setFlowInFlight(false);
-            setKnowledgeRev((n) => n + 1);
-            // The pack is the build's registry's, which the person may
-            // have switched away from while it ran.
-            setPreviewRequest({ registry: knowledgeFlow.registry, name });
-            setRoute({ page: "knowledge" });
-          }}
-        />
-      )}
-      {showWizard && settings && (
-        <Wizard
-          settings={settings}
-          activeRegistry={registry}
-          onChanged={refreshSettings}
-          onSelectRegistry={setRegistry}
-          onFinish={finishWizard}
-        />
-      )}
-      <div className="corner-cards" ref={setCorner} />
-    </div>
     </CornerHost.Provider>
   );
 }

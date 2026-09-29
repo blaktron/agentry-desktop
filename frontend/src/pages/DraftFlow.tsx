@@ -19,13 +19,13 @@
 import { useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
-import { DraftProgress, DraftState, STOPPED, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
+import { DraftProgress, DraftState, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
 import { fmtClock } from "../knowledge";
 import { CornerCard, TimeBar, useNow } from "../progress";
 import { RevealText } from "../reveal";
 import { Button, ErrorBox, Modal, Notice, Spinner } from "../ui";
 
-const STAGE: Record<string, string> = {
+const STAGE: Record<Exclude<DraftProgress["stage"], "">, string> = {
   description: "AI Review is reading your description",
   drafting: "The Drafter is drafting",
   checking: "AI Review is checking the draft",
@@ -33,7 +33,7 @@ const STAGE: Record<string, string> = {
 };
 
 function stageLine(p: DraftProgress | null): string {
-  return (p && STAGE[p.stage]) || "Starting the draft";
+  return (p?.stage && STAGE[p.stage]) || "Starting the draft";
 }
 
 export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
@@ -44,23 +44,24 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
   initialMinimized?: boolean;
 }) {
   const d = useDraft();
-  const [minimized, setMinimized] = useState(initialMinimized ?? false);
+  // The card is shown for the ask it was minimized under, or when the ask
+  // itself was for the card; a new draft, or Open, is a new ask, so it opens
+  // as the dialog with no frame of the card first.
+  const [cardFor, setCardFor] = useState<number | null>(initialMinimized ? d.raised : null);
+  const minimized = d.asCard || cardFor === d.raised;
+  const minimize = () => setCardFor(d.raised);
   const [err, setErr] = useState<string | null>(null);
-  // A new draft, or Show its progress, opens the dialog.
-  const raised = useRef(d.raised);
-  useEffect(() => {
-    if (d.raised !== raised.current) {
-      raised.current = d.raised;
-      setMinimized(false);
-      setErr(null);
-    }
-  }, [d.raised]);
+  useEffect(() => setErr(null), [d.raised]);
   if (!d.shown) return null;
 
   const inAgentry = d.where === "agentry";
   const hosted = d.hosted;
   const cancel = () => cancelHostedDraft().catch((e) => setErr(String(e)));
   const canCancel = !!hosted && !hosted.final && !hosted.cancelRequested;
+  // Stop reaches a draft once Go has begun it: its first report comes after
+  // the native dialog and inside the run lock, and before then there is
+  // nothing to stop.
+  const canStop = d.local && d.progress !== null;
   const open = () => {
     dismissDraft();
     onOpenDraft();
@@ -69,7 +70,10 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
   if (minimized) {
     let line = "";
     let tone: "" | "ok" | "warn" | "bad" = "";
-    if (d.local) line = stageLine(d.progress);
+    if (err) {
+      line = err;
+      tone = "bad";
+    } else if (d.local) line = stageLine(d.progress);
     else if (d.inFlight) line = hosted ? hosted.statusLine || hosted.state : "Asking Agentry to start the draft";
     else if (d.drafted) {
       line = `Drafted ${d.drafted}`;
@@ -78,8 +82,8 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
       line = "Agentry did not start the draft";
       tone = "bad";
     } else if (d.error) {
-      line = "No draft was made";
-      tone = "bad";
+      line = d.stopped ? "You stopped the draft, so none was made" : "No draft was made";
+      tone = d.stopped ? "warn" : "bad";
     }
     return (
       <CornerCard
@@ -89,12 +93,12 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
         line={line}
         tone={tone}
         actions={<>
-          {d.local && <Button onClick={() => void stopDraft()} disabled={d.stopping}>{d.stopping ? "Stopping…" : "Stop"}</Button>}
+          {canStop && <Button onClick={() => void stopDraft()} disabled={d.stopping}>{d.stopping ? "Stopping…" : "Stop"}</Button>}
           {canCancel && <Button onClick={cancel}>Cancel the draft</Button>}
           {!d.inFlight && <Button onClick={dismissDraft}>Dismiss</Button>}
           {!d.inFlight && d.drafted
             ? <Button variant="primary" onClick={open}>Open the draft</Button>
-            : <Button variant="primary" onClick={() => { setMinimized(false); showDraft(); }}>Open</Button>}
+            : <Button variant="primary" onClick={showDraft}>Open</Button>}
         </>}
       >
         {d.local && <DraftProgressView progress={d.progress} compact />}
@@ -104,7 +108,7 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
 
   const title = d.inFlight ? `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}` : "Describe it";
   return (
-    <Modal title={title} onClose={d.inFlight ? () => setMinimized(true) : dismissDraft} wide>
+    <Modal title={title} onClose={d.inFlight ? minimize : dismissDraft} wide>
       {d.local && (
         <>
           <Spinner label={`${stageLine(d.progress)}…`} />
@@ -118,8 +122,8 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
             <DraftLog lines={d.log} />
           </details>
           <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button onClick={() => void stopDraft()} disabled={d.stopping}>{d.stopping ? "Stopping…" : "Stop the draft"}</Button>
-            <Button variant="primary" onClick={() => setMinimized(true)}>Run in the background</Button>
+            {canStop && <Button onClick={() => void stopDraft()} disabled={d.stopping}>{d.stopping ? "Stopping…" : "Stop the draft"}</Button>}
+            <Button variant="primary" onClick={minimize}>Run in the background</Button>
           </div>
           <p className="muted small">
             In the background, the draft goes on in a card in the corner and the rest of the app stays usable. Stop ends it,
@@ -140,14 +144,14 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
           <ErrorBox error={err} />
           <div className="row" style={{ justifyContent: "flex-end" }}>
             {canCancel && <Button onClick={cancel}>Cancel the draft</Button>}
-            <Button variant="primary" onClick={() => setMinimized(true)}>Run in the background</Button>
+            <Button variant="primary" onClick={minimize}>Run in the background</Button>
           </div>
         </>
       )}
 
       {!d.inFlight && d.drafted && (
         <>
-          <h3 className="run-outcome run-outcome-ok">Drafted {d.drafted}</h3>
+          <h3 className="run-outcome run-outcome-ok">Drafted <RevealText text={d.drafted} /></h3>
           <p>
             The draft opens on the Build tab. It is a starting point: check every part, and what it may reach, before you save
             or publish it.
@@ -181,10 +185,9 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
 // DraftFailed is a draft that ended with no draft: why, in the words Go or
 // the registry gave, then what it used and its log.
 function DraftFailed({ d }: { d: DraftState }) {
-  const stopped = d.error === STOPPED;
   return (
     <>
-      <h3 className={`run-outcome run-outcome-${stopped ? "warn" : "bad"}`}>No draft was made</h3>
+      <h3 className={`run-outcome run-outcome-${d.stopped ? "warn" : "bad"}`}>No draft was made</h3>
       {d.error && <div className="error-box selectable"><RevealText text={d.error} /></div>}
       {d.hosted?.final && <p className="small">{d.hosted.creditsLine}</p>}
       {d.log.length > 0 && <DraftLog lines={d.log} />}
