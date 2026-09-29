@@ -89,7 +89,7 @@ g.go = { main: {
   RunAPI: {
     SetupStatus: async () => setup,
     ApplySetup: async () => {
-      if (refused) throw new Error("the base URL must be an absolute https URL: \"llm.example.net/v1\"");
+      if (refused) throw new Error("the base URL must be an absolute http(s) URL: \"llm.example.net/v1\"");
       if (preparing) await new Promise(() => {});
       if (prepared) await new Promise((r) => setTimeout(r, 400));
       if (prepareRefused) throw new Error("gateway/docker environment: pull docker/mcp-gateway: permission denied while trying to connect to the docker daemon socket");
