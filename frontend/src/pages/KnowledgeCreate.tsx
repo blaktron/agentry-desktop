@@ -48,6 +48,7 @@ import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/mai
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
+import { CornerCard, TimeBar, useNow } from "../progress";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildHoldLine, buildTimeWarning, fmtClock, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
 type Step = "documents" | "name" | "where" | "review";
@@ -269,7 +270,7 @@ export default function KnowledgeCreate({
   if (minimized) {
     const packName = hosted?.name || addTo || name;
     let line: string;
-    let tone = "";
+    let tone: "" | "ok" | "warn" | "bad" = "";
     if (building) line = "";
     else if (hosted && !hosted.final) line = hosted.statusLine || hosted.state;
     else if (hosted) {
@@ -286,17 +287,16 @@ export default function KnowledgeCreate({
       tone = "bad";
     } else line = "";
     return (
-      <aside className="build-card" role="status" aria-live="polite" aria-label={`Knowledge build: ${packName}`}>
-        <div className="build-card-head">
-          {inFlight && <span className="build-card-dot" aria-hidden />}
-          <strong className="grow">
-            {inFlight ? (addTo ? `Adding documents to ${addTo}` : `Creating ${packName}`) : `${packName}: the build is over`}
-            {inFlight && hosted ? " In Agentry" : ""}
-          </strong>
-        </div>
-        {building && <BuildProgressView progress={progress} compact />}
-        {line && <p className={`small build-card-line${tone ? ` run-outcome-${tone}` : ""}`}>{line}</p>}
-        <div className="row build-card-actions">
+      <CornerCard
+        label={`Knowledge build: ${packName}`}
+        running={inFlight}
+        title={<>
+          {inFlight ? (addTo ? `Adding documents to ${addTo}` : `Creating ${packName}`) : `${packName}: the build is over`}
+          {inFlight && hosted ? " In Agentry" : ""}
+        </>}
+        line={line}
+        tone={tone}
+        actions={<>
           {building && (
             <Button onClick={stopLocal} disabled={stopping}>{stopping ? "Stopping…" : "Stop"}</Button>
           )}
@@ -308,8 +308,10 @@ export default function KnowledgeCreate({
           {hosted?.final && hosted.canContinue && <Button onClick={() => continueHosted(hosted.id)}>Continue</Button>}
           {!inFlight && <Button onClick={onClose}>Dismiss</Button>}
           <Button variant="primary" onClick={onRestore}>Open</Button>
-        </div>
-      </aside>
+        </>}
+      >
+        {building && <BuildProgressView progress={progress} compact />}
+      </CornerCard>
     );
   }
 
@@ -533,26 +535,10 @@ export default function KnowledgeCreate({
 // it has used. Before the first report it says the build is starting. The
 // pages are counted as written: the apply step checks them after the run.
 function BuildProgressView({ progress, compact }: { progress: BuildProgress | null; compact?: boolean }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useNow();
   if (!progress) return <p className="muted small">Starting the build…</p>;
   const elapsed = Math.max(0, (now - progress.startedAt) / 1000);
-  const share = progress.timeoutSeconds > 0 ? Math.min(1, elapsed / progress.timeoutSeconds) : 0;
-  const bar = (
-    <div
-      className="knowledge-progress-bar"
-      role="progressbar"
-      aria-label="Time used of the build's limit"
-      aria-valuemin={0}
-      aria-valuemax={progress.timeoutSeconds}
-      aria-valuenow={Math.floor(elapsed)}
-    >
-      <span style={{ width: `${share * 100}%` }} />
-    </div>
-  );
+  const bar = <TimeBar elapsed={elapsed} timeoutSeconds={progress.timeoutSeconds} label="Time used of the build's limit" />;
   if (compact) {
     return (
       <div className="knowledge-progress">

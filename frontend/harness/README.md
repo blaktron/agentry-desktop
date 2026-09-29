@@ -98,6 +98,18 @@ documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
 page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.
 Since agentry-desktop#354 `#create-documents-large` (48 MB: the warning), `#create-documents-huge` (past 1 GB: Next refused) and `#hosted-where-large` (In Agentry not choosable) show the two caps, and `#knowledge` lists a 220 MB pack kept here with no Upload.
+
+A draft's progress (agentry-desktop#410) has its own entry, `drafts.html`
+(`drafts.tsx`), over Describe it: the page starts a draft on load and the
+dialog App mounts follows it. `#draft-local` is a draft on this computer under
+way from scripted `build:draft-progress` events (the stage, time against the
+limit, turns, tokens) over its folded log, which `draft-local-log` opens;
+`#draft-agentry` a draft In Agentry under way; `#draft-landed`, `#draft-failed`
+and `#draft-refused` how a draft ends; `#draft-hostile` a failed draft whose
+error and log carry raw HTML, a script, an image and right-to-left overrides,
+which `shots.mjs` fails if any becomes markup or an override is not revealed.
+`#card-local`, `#card-agentry` and `#card-landed` are the corner card, and
+`#card-stacked` a draft's card and a knowledge build's stacked in App's corner.
 `#preview-empty` is a pack a build left short, its index and no page with the
 list answered as null, and `#render-fault` a page that throws while rendering,
 caught by `Recover` under a sidebar that still works, whose Try again

@@ -31,7 +31,8 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
-import { DescribeAgain, DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
+import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
+import { draftInFlight, takeLandedDraft } from "../drafts";
 import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
@@ -198,13 +199,17 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, onOpenAgent, onOpenSettings }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
   initialStep?: number;
   /** Harness only: open with a draft in the form. */
   initialDraft?: main.DraftView | null;
+  /** Raised by the draft's dialog or card's "Open the draft"
+   *  (agentry-desktop#410): the draft that landed opens now, whatever view
+   *  the tab is on. */
+  openDraftRev?: number;
   /** A registry match's page, for Describe it's "install it instead". */
   onOpenAgent?: (ns: string, name: string) => void;
   /** Settings, for Describe it's missing AI Review key. */
@@ -244,12 +249,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
   }, [registry, initialDraft]);
 
-  // A draft that finished while the tab was away opens now.
+  // A draft that finished while the tab was away opens now, and so does one
+  // the person asked to open from the draft's dialog or card.
   useEffect(() => {
     const v = takeLandedDraft();
     if (v) takeDraft(v);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [openDraftRev]);
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {

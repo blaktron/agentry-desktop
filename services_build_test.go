@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/zalando/go-keyring"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 	"github.com/blaktron/agentry/pkg/draftcheck"
 
+	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -297,5 +299,76 @@ func TestTheChecksVerdictsAreTheChecksOwnWords(t *testing.T) {
 	}
 	if u := checkView(&drafter.Check{Unanswered: "no answer"}); u.Rubric != "" || u.Draft != "" || u.Unanswered != "no answer" {
 		t.Fatalf("unanswered %+v", u)
+	}
+}
+
+// A draft on this computer reports its progress as build:draft-progress,
+// as a knowledge build reports its own (agentry-desktop#410).
+func TestADraftOnThisComputerReportsItsProgress(t *testing.T) {
+	f := newDescribeFixture(t)
+	saveDescribeKey(t)
+	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil); err != nil {
+		t.Fatal(err)
+	}
+	var stages []string
+	for _, e := range f.events {
+		if rest, ok := strings.CutPrefix(e, eventDraftProgress+"["); ok {
+			stages = append(stages, rest)
+		}
+	}
+	if len(stages) == 0 || !strings.Contains(stages[0], string(draft.StageDescription)) || !strings.Contains(stages[len(stages)-1], string(draft.StageChecking)) {
+		t.Fatalf("progress events %q", stages)
+	}
+}
+
+// StopDraft stops the draft in flight and nothing else: the Drafter's
+// context is cancelled and the draft returns; with no draft running, or a
+// run or a knowledge build holding the lock instead, it refuses and
+// cancels nothing (agentry-desktop#410).
+func TestStopDraftStopsOnlyADraft(t *testing.T) {
+	f := newDescribeFixture(t)
+	saveDescribeKey(t)
+	if err := f.b.StopDraft(); err == nil {
+		t.Fatal("StopDraft with nothing running passed")
+	}
+	// A run the page started under the Drafter's own ref is a run, not a
+	// draft.
+	for _, ref := range []string{"acme/triage@1.0.0", drafter.Namespace + "/" + drafter.Name, knowledgeRunRef} {
+		cancelled := false
+		l, err := f.b.run.beginRun(ref, func() { cancelled = true })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.b.StopDraft(); err == nil || cancelled {
+			t.Fatalf("StopDraft while %s runs: %v, cancelled %v", ref, err, cancelled)
+		}
+		f.b.run.endRun(l)
+	}
+
+	started := make(chan struct{})
+	f.b.draftRunner = func(ctx context.Context, _ localrun.Run) (*receipt.Envelope, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
+		done <- err
+	}()
+	<-started
+	if err := f.b.StopDraft(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("the stopped draft returned a draft")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the draft did not stop")
+	}
+	if f.b.run.current() != nil {
+		t.Fatal("the stopped draft is still the run in flight")
 	}
 }

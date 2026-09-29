@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -478,5 +479,65 @@ func TestStatusReadsNoKey(t *testing.T) {
 	}
 	if b, _ := json.Marshal(st); strings.Contains(string(b), testJev) || strings.Contains(string(b), testSearch) {
 		t.Fatalf("the status carries a key: %s", b)
+	}
+}
+
+// A draft reports its progress (agentry-desktop#410), as a knowledge build
+// does: the draft's budgets and start at once, then each stage as it
+// begins — AI Review of the description, the Drafter's turn, AI Review's
+// check of what it answered, the one repair turn and the check after it —
+// and the harness's usage as it arrives, the repair turn's counting on from
+// the first turn's.
+func TestARunReportsItsProgress(t *testing.T) {
+	isolate(t)
+	saveKey(t)
+	p, err := Prepare("https://registry.example", "Summarize my meeting notes.", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Policy.Budgets.TimeoutSeconds, p.Policy.Budgets.MaxTurns = 900, 40
+	var runs []localrun.Run
+	first := fakeRun(t, &runs, refused, nil)
+	second := fakeRun(t, &runs, repaired, nil)
+	var got []Progress
+	checks := &fakeChecker{answers: []*drafter.Check{passCheck()}}
+	_, err = Run(context.Background(), Request{Plan: p, RunID: "run-5", Namespace: "alice",
+		Progress: func(p Progress) { got = append(got, p) },
+		Scanner: func(string) (webscan.Scanner, error) {
+			return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
+		},
+		Runner: func(ctx context.Context, r localrun.Run) (*receipt.Envelope, error) {
+			if r.OnUsage == nil {
+				t.Fatal("a turn ran with no usage reporter")
+			}
+			if len(runs) == 0 {
+				r.OnUsage(receipt.Usage{Turns: 3, InputTokens: 3000, OutputTokens: 300})
+				env, err := first(ctx, r)
+				env.Usage = receipt.Usage{Turns: 3, InputTokens: 3000, OutputTokens: 300}
+				return env, err
+			}
+			r.OnUsage(receipt.Usage{Turns: 1, InputTokens: 500, OutputTokens: 50})
+			return second(ctx, r)
+		},
+		Checker: checks.build})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stages []Stage
+	for i, g := range got {
+		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 900 || g.MaxTurns != 40 {
+			t.Fatalf("report %d = %+v", i, g)
+		}
+		if len(stages) == 0 || stages[len(stages)-1] != g.Stage {
+			stages = append(stages, g.Stage)
+		}
+	}
+	want := []Stage{StageDescription, StageDrafting, StageChecking, StageRepair, StageChecking}
+	if !slices.Equal(stages, want) {
+		t.Fatalf("stages %v, want %v", stages, want)
+	}
+	last := got[len(got)-1]
+	if last.Turns != 4 || last.InputTokens != 3500 || last.OutputTokens != 350 {
+		t.Fatalf("the last report %+v does not count the repair turn on from the first", last)
 	}
 }
