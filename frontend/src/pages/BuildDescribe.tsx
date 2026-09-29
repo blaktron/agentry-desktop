@@ -12,24 +12,24 @@
 //     native dialog before anything leaves this computer.
 // Either way the draft is decoded in Go into the form's Model as data and
 // opens on Review; nothing is written into a QuickAgent folder until the
-// person saves.
+// person saves. The draft itself is kept outside the page (../drafts), and
+// its progress is followed in the dialog and corner card App mounts above
+// the pages (DraftFlow, agentry-desktop#410), as Create knowledge's is.
 //
 // DraftNotes is what the Drafter said, shown beside Review once a draft is
 // in the form, with Describe again under it. All of it is agent-written:
 // the notes render through the run-output reader (AgentMarkdown: no raw
 // HTML, no image, links only to the system browser), a withheld address is
 // plain text and never a link, and every other field is text.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main } from "../../wailsjs/go/models";
+import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
 import { Button, Card, ErrorBox, Notice, Select, Textarea } from "../ui";
-
-type Where = "agentry" | "here";
 
 // The hints as the site asks them (agentry-web app/build/describe), and the
 // lines the Drafter reads for them (app/build/draft hintsOf): each labelled
@@ -47,123 +47,9 @@ function hintLines(h: Hints): string[] {
 }
 
 // The description the page keeps while the tab is away, as Build keeps its
-// form (the tab unmounts on every change).
+// form (the tab unmounts on every change); a draft that lands clears it.
 let kept: { text: string; hints: Hints; where: Where | null } = { text: "", hints: NO_HINTS, where: null };
-
-// A draft outlives the page. It takes minutes, and Build unmounts on every
-// tab change, so the draft in flight, what it has said and the draft or
-// refusal it ends with are kept here, and whichever page is showing when it
-// lands takes it (takeLandedDraft). One can be in flight at a time.
-let localInflight: Promise<void> | null = null;
-let inflightLog: string[] = [];
-// hosted is the draft In Agentry this app follows, as its last event said;
-// hostedStarting covers the create's round trip.
-let hosted: main.HostedDraftView | null = null;
-let hostedStarting = false;
-let hostedListening = false;
-let landed: main.DraftView | null = null;
-let landedError: string | null = null;
-let refusal: main.HostedDraftStartView | null = null;
-const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((f) => f());
-
-/** Whether a draft is being made now, here or In Agentry. */
-export function draftInFlight(): boolean {
-  return localInflight !== null || hostedStarting || (hosted !== null && !hosted.final);
-}
-
-/** The draft that finished and no page has taken yet, taken. */
-export function takeLandedDraft(): main.DraftView | null {
-  const v = landed;
-  landed = null;
-  return v;
-}
-
-function land(v: main.DraftView | undefined | null, orError: string) {
-  if (v?.model) {
-    landed = v;
-    kept = { text: "", hints: NO_HINTS, where: kept.where };
-  } else {
-    landedError = orError;
-  }
-}
-
-function startLocal(registry: string, text: string, hints: string[]) {
-  inflightLog = [];
-  landedError = null;
-  refusal = null;
-  const off = EventsOn("build:draft-log", (line: string) => {
-    inflightLog = [...inflightLog, line];
-    notify();
-  });
-  localInflight = BuildAPI.DescribeOnThisComputer(registry, text, hints)
-    .then((v) => land(v, "The Drafter returned no draft the form can open."))
-    .catch((e) => { landedError = String(e); })
-    .finally(() => {
-      off();
-      localInflight = null;
-      notify();
-    });
-  notify();
-}
-
-// listenHosted follows build:hosted-draft for the app's life: a draft In
-// Agentry reports every state change, and its final word carries the draft.
-function listenHosted() {
-  if (hostedListening) return;
-  hostedListening = true;
-  EventsOn("build:hosted-draft", (v: main.HostedDraftView) => {
-    hosted = v;
-    if (v.final) {
-      const why = [v.outcomeLine, v.error, v.draftError].filter(Boolean).join(" ");
-      land(v.draft, why || "The draft ended with no draft the form can open.");
-    }
-    notify();
-  });
-}
-
-function startHosted(registry: string, text: string, hints: string[]) {
-  listenHosted();
-  landedError = null;
-  refusal = null;
-  hosted = null;
-  hostedStarting = true;
-  notify();
-  BuildAPI.DescribeInAgentry(registry, text, hints)
-    .then((v) => {
-      if (v.draft) {
-        // An event may already have said more than the create's answer.
-        if (!hosted || hosted.id !== v.draft.id) hosted = v.draft;
-      } else {
-        refusal = v;
-      }
-    })
-    .catch((e) => { landedError = String(e); })
-    .finally(() => {
-      hostedStarting = false;
-      notify();
-    });
-}
-
-/** Starts a draft from the page, in the place chosen. */
-export function startDraft(registry: string, where: Where, text: string, hints: string[]) {
-  if (where === "agentry") startHosted(registry, text, hints);
-  else startLocal(registry, text, hints);
-}
-
-/** Follows this account's draft In Agentry after the app was reopened. */
-function attachHosted(registry: string) {
-  if (hosted || hostedStarting) return;
-  listenHosted();
-  BuildAPI.AttachHostedDraft(registry)
-    .then((v) => {
-      if (v.draft && !hosted) {
-        hosted = v.draft;
-        notify();
-      }
-    })
-    .catch(() => {});
-}
+whenLanded(() => { kept = { text: "", hints: NO_HINTS, where: kept.where }; });
 
 // credits is a count of credits, singular for one (the site's creditsPhrase).
 function credits(n: number): string {
@@ -187,8 +73,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   const [agentry, setAgentry] = useState<main.DescribeHostedView | null>(null);
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [, redraw] = useState(0);
-  const logRef = useRef<HTMLPreElement | null>(null);
+  const d = useDraft();
 
   useEffect(() => {
     BuildAPI.DescribeStatus().then(setStatus).catch((e) => setError(String(e)));
@@ -196,11 +81,6 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
     RunAPI.SetupStatus().then(setSetup).catch(() => {});
     attachHosted(registry);
   }, [registry]);
-  useEffect(() => {
-    const f = () => redraw((n) => n + 1);
-    listeners.add(f);
-    return () => { listeners.delete(f); };
-  }, []);
   // In Agentry is chosen first where it can be, as on the site.
   useEffect(() => {
     if (where === null && agentry) setWhere(agentry.available ? "agentry" : "here");
@@ -211,16 +91,13 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
     const v = takeLandedDraft();
     if (v) onDrafted(v);
   });
-  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [inflightLog.length]);
 
-  const busy = draftInFlight();
-  const shownError = error ?? (busy ? null : landedError);
+  const busy = d.inFlight;
   const key = status?.key;
   const dockerOk = setup?.dockerOk ?? false;
   const readyHere = !!key?.ready && dockerOk;
   const readyAgentry = !!agentry?.available;
   const ready = text.trim() !== "" && (where === "agentry" ? readyAgentry : where === "here" && readyHere);
-  const following = hosted && !hosted.final ? hosted : null;
 
   function draft() {
     if (!where) return;
@@ -336,48 +213,16 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
       )}
       <div className="row">
         <Button variant="primary" disabled={!ready || busy} onClick={draft}>{busy ? "Drafting…" : "Draft it"}</Button>
-        {busy && <span className="muted small">A draft takes a few minutes. You can leave this page; the draft opens here when it is done.</span>}
+        {busy && (
+          <span className="muted small">
+            A draft is being made{d.where === "agentry" ? " In Agentry" : ""}. It takes a few minutes, and it goes on while you use the
+            rest of the app; it opens here when it is done.{" "}
+            <Button variant="link" onClick={showDraft}>Show its progress</Button>
+          </span>
+        )}
       </div>
-      {(hostedStarting || following) && <HostedProgress v={following} />}
-      {localInflight && inflightLog.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 200, overflow: "auto", marginTop: 12 }}>{inflightLog.join("\n")}</pre>}
-      {!busy && refusal && <DraftRefusal v={refusal} registry={registry} onError={setError} />}
-      {!busy && hosted?.final && !hosted.draft && <p className="small muted">{hosted.creditsLine}</p>}
-      {shownError && <div className="error-box selectable"><RevealText text={shownError} /></div>}
+      <ErrorBox error={error} />
     </section>
-  );
-}
-
-// HostedProgress is a draft In Agentry while it moves: where it stands, its
-// hold, and Cancel. A pushed draft keeps no log, so there are no lines.
-function HostedProgress({ v }: { v: main.HostedDraftView | null }) {
-  const [err, setErr] = useState<string | null>(null);
-  return (
-    <Card className="mt">
-      <p className="small" style={{ marginTop: 0 }}>
-        <strong>{v ? v.state : "starting"}</strong>{" "}
-        {v ? v.statusLine : "Asking Agentry to start the draft."}
-      </p>
-      {v && <p className="muted small">{v.creditsLine}</p>}
-      {v && !v.cancelRequested && (
-        <Button onClick={() => BuildAPI.CancelHostedDraft().then((c) => { hosted = c; notify(); }).catch((e) => setErr(String(e)))}>Cancel this draft</Button>
-      )}
-      {v?.cancelRequested && <p className="muted small">Cancel asked for. The draft stops, and what it used is settled.</p>}
-      <ErrorBox error={err} />
-    </Card>
-  );
-}
-
-function DraftRefusal({ v, registry, onError }: { v: main.HostedDraftStartView; registry: string; onError: (e: string) => void }) {
-  return (
-    <Notice tone="warn">
-      The draft was not started: <RevealText text={v.detail ?? v.refusal ?? ""} />
-      {v.refusal === "credits-exhausted" && (
-        <>
-          {" "}
-          <Button variant="link" onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => onError(String(e)))}>Credits and upgrade</Button>
-        </>
-      )}
-    </Notice>
   );
 }
 

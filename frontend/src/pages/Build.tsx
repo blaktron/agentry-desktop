@@ -31,7 +31,8 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
-import { DescribeAgain, DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
+import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
+import { draftInFlight, takeLandedDraft } from "../drafts";
 import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
@@ -198,13 +199,17 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, onOpenAgent, onOpenSettings }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
   initialStep?: number;
   /** Harness only: open with a draft in the form. */
   initialDraft?: main.DraftView | null;
+  /** Raised by the draft's dialog or card's "Open the draft"
+   *  (agentry-desktop#410): the draft that landed opens now, whatever view
+   *  the tab is on. */
+  openDraftRev?: number;
   /** A registry match's page, for Describe it's "install it instead". */
   onOpenAgent?: (ns: string, name: string) => void;
   /** Settings, for Describe it's missing AI Review key. */
@@ -235,21 +240,28 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const heading = useRef<HTMLHeadingElement | null>(null);
   const moved = useRef(false);
 
+  // A draft taken into the form while the fresh form was still being made:
+  // the draft wins, whichever answers last (agentry-desktop#410).
+  const tookDraft = useRef(false);
+
   useEffect(() => {
     if (kept) return;
     if (initialDraft?.model) {
       setModel(new build.Model(initialDraft.model));
       return;
     }
-    BuildAPI.NewModel(registry).then(setModel).catch((e) => setError(String(e)));
+    BuildAPI.NewModel(registry)
+      .then((m) => { if (!tookDraft.current) setModel(m); })
+      .catch((e) => setError(String(e)));
   }, [registry, initialDraft]);
 
-  // A draft that finished while the tab was away opens now.
+  // A draft that finished while the tab was away opens now, and so does one
+  // the person asked to open from the draft's dialog or card.
   useEffect(() => {
     const v = takeLandedDraft();
     if (v) takeDraft(v);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [openDraftRev]);
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
@@ -451,6 +463,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // builder-simplify.md §4.1), private unless switched (D3).
   function takeDraft(v: main.DraftView) {
     if (!v.model) return;
+    tookDraft.current = true;
     moved.current = true;
     setModel(new build.Model(v.model));
     setDrafted(v);

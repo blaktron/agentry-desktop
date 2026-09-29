@@ -142,7 +142,7 @@ const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "
 // #build-summary-hostile an overview, a key's help and a host that carry
 // markup; #build-summary-problem a rule the form still fails, with Fix it.
 const buildSummary = buildHash.startsWith("summary");
-const buildView = buildHash === "" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
+const buildView = buildHash === "" || buildHash === "landed" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
 const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it (#282): #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
@@ -173,7 +173,11 @@ const hostedDrafting = buildHash === "describe-agentry-drafting"
       queuePosition: 1, cancelRequested: false, holdCredits: 41, creditsLine: "41 credits are held for this draft.", final: false }
   : null;
 const summaryDraft = buildHash === "summary-drafted";
-const draftedView = buildHash.startsWith("drafted") || summaryDraft ? {
+// #build-landed (agentry-desktop#410): a draft that landed while the tab was
+// away, opened as Build mounts, with the fresh form's NewModel answering
+// after it; the draft must stay in the form.
+const landedDraft = buildHash === "landed";
+const draftedView = buildHash.startsWith("drafted") || summaryDraft || landedDraft ? {
   where: agentryDraft ? "agentry" : "here", description: "Check a CSV file I add for missing values, duplicate rows and mixed formats.", hints: [],
   unmentioned: agentryDraft || summaryDraft ? ["api.csvlint.io"] : [], moreProblems: 0,
   problems: agentryDraft ? ["V14 guide.prepare: 13 prepare items; the maximum is 10"] : [],
@@ -284,7 +288,11 @@ g.go = { main: {
   // The native folder picker, as Build's first save asks it (D-030).
   App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer" },
   BuildAPI: {
-    NewModel: async () => buildModel, Exists: async () => false,
+    NewModel: async () => {
+      if (landedDraft) await new Promise((r) => setTimeout(r, 300));
+      return buildModel;
+    },
+    Exists: async () => false,
     Check: async () => (buildHash === "summary-problem"
       ? { ...buildCheck, problems: { guide: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" },
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
@@ -299,7 +307,7 @@ g.go = { main: {
     ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
     DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next",
       searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
-    DescribeOnThisComputer: async () => { await new Promise(() => {}); },
+    DescribeOnThisComputer: async () => (landedDraft ? draftedView : new Promise(() => {})),
     DescribeInAgentryStatus: async () => describeHosted,
     AttachHostedDraft: async () => (hostedDrafting ? { draft: hostedDrafting } : {}),
     DescribeInAgentry: async () => { await new Promise(() => {}); },
@@ -473,6 +481,7 @@ import Browse from "../src/pages/Browse";
 import AgentPage from "../src/pages/AgentPage";
 import Installed from "../src/pages/Installed";
 import Build from "../src/pages/Build";
+import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 
@@ -525,14 +534,18 @@ function SettingsPreview() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
+const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="Browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
-      initialDraft={draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
+      initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
     <div data-preview="settings"><Shell active="Settings"><SettingsPreview /></Shell></div>
   </div>,
 );
+if (landedDraft) {
+  startDraft(REG, "here", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
+  setTimeout(render, 100);
+} else render();
