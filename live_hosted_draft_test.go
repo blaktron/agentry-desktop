@@ -8,7 +8,7 @@ package main
 // settles what it uses):
 //
 //	AGENTRY_LIVE_HOSTED_DRAFT_REGISTRY=https://dev.secureagentry.net \
-//	AGENTRY_LIVE_HOSTED_DRAFT_TOKEN=<a PAT with run:read, run:write, user:profile, agent:write> \
+//	AGENTRY_LIVE_HOSTED_DRAFT_TOKEN=<a PAT with run:read, run:write, user:profile, agent:read, agent:publish> \
 //	go test -run TestLiveDescribeInAgentry -v -timeout 60m .
 //
 // It drafts from a description In Agentry, follows the draft to its end,
@@ -18,11 +18,19 @@ package main
 // the saved draft and a note, and with AGENTRY_LIVE_HOSTED_DRAFT_PUBLISH=1
 // it publishes the (last) draft privately, which sends it into the
 // pipeline; the account's email must be verified for that.
+//
+// With AGENTRY_LIVE_HOSTED_DRAFT_SUBMIT=1 (agentry-desktop#344, plan
+// builder-simplify.md M5) it takes the summary's path instead of the form's:
+// the draft lands, BuildAPI.Summary draws it, the Builder's own settings
+// (D10) hold, and Submit, the second click, saves it into the picked folder
+// and publishes it privately (D3) with no edit in between. The form's checks
+// must pass as the draft came, or Submit would be greyed.
 
 import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -31,6 +39,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/zalando/go-keyring"
 
+	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -149,6 +158,53 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 	}
 	t.Logf("validate: passed %v, %d errors, %d warnings, %d findings %s", res.Passed, res.ErrorCount, res.WarnCount, len(res.Findings), res.ManifestError)
 
+	if os.Getenv("AGENTRY_LIVE_HOSTED_DRAFT_SUBMIT") == "1" {
+		sum := b.Summary(*d.Model, d.Unmentioned)
+		t.Logf("summary: %s — %s; %d keys, %d websites, %d servers, grants %q; unnamed %v; check %+v",
+			sum.Name, sum.Summary, len(sum.Keys), len(sum.Websites), len(sum.Servers), sum.Grants, sum.AnyUnnamed, d.Check)
+		for _, k := range sum.Keys {
+			t.Logf("  key %s for %v, help %d chars", k.Name, k.UsedBy, len(k.Help))
+		}
+		for _, w := range sum.Websites {
+			t.Logf("  website %s (unnamed %v)", w.Host, w.Unnamed)
+		}
+		for _, sv := range sum.Servers {
+			t.Logf("  server %s tools %v keys %v config %v hosts %+v", sv.Ref, sv.Tools, sv.Keys, sv.Config, sv.Hosts)
+		}
+		m := d.Model
+		if m.Version != build.BuilderVersion || m.InstructionFile != "AGENT.md" || len(m.PublishInclude) != 0 {
+			t.Fatalf("the Builder's settings do not hold: version %q, file %q, include %v", m.Version, m.InstructionFile, m.PublishInclude)
+		}
+		names, err := ownNames(context.Background(), reg, token, m.Namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(names, m.Name) {
+			t.Fatalf("the draft is named %s, which %s already has", m.Name, m.Namespace)
+		}
+		if len(sum.Keys) != len(declaredKeys(m)) || (m.EgressMode == "hosts" && len(sum.Websites) != len(m.EgressHosts)) || len(sum.Servers) != len(m.MCPServers) {
+			t.Fatalf("the summary does not list what the model declares: %+v", sum)
+		}
+		if c := m.Check(); c.First != nil {
+			t.Fatalf("Submit would be greyed: the form's checks name %s: %s", c.First.Section, c.First.Problem)
+		}
+		sdir := t.TempDir()
+		app.markPicked(sdir)
+		if err := b.Save(sdir, *m); err != nil {
+			t.Fatal(err)
+		}
+		pub, err := b.Publish(reg, sdir, "private")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("submit: %s %s/%s@%s %s", pub.Status, m.Namespace, m.Name, pub.Version, pub.Detail)
+		// The pipeline takes it: published, or held for a person's review.
+		if pub.Status != "published" && pub.Status != "needs_review" {
+			t.Fatalf("the pipeline did not take the draft: %s %s", pub.Status, pub.Detail)
+		}
+		return
+	}
+
 	if os.Getenv("AGENTRY_LIVE_HOSTED_DRAFT_AGAIN") == "1" {
 		text, err := b.DescribeAgainText(*d.Model, "Also post the summary to a Slack channel the person names, and ask for that channel before a run.", d.Description)
 		if err != nil {
@@ -214,6 +270,26 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 			t.Fatalf("the pipeline refused the draft: %s", pub.Detail)
 		}
 	}
+}
+
+// declaredKeys is every key the model declares, its own and its servers',
+// each once.
+func declaredKeys(m *build.Model) []string {
+	var out []string
+	for _, k := range append(append([]string{}, m.Secrets...), serverKeys(m)...) {
+		if k = strings.TrimSpace(k); k != "" && !slices.Contains(out, k) {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+func serverKeys(m *build.Model) []string {
+	var out []string
+	for _, s := range m.MCPServers {
+		out = append(out, s.Secrets...)
+	}
+	return out
 }
 
 // FirstDescriptionOf is what the person first asked a draft for.

@@ -33,4 +33,6 @@ export function Save(arg1:string,arg2:build.Model):Promise<void>;
 
 export function ServerChecks(arg1:string,arg2:build.Model):Promise<Array<mcpvuln.Status>>;
 
+export function Summary(arg1:build.Model,arg2:Array<string>):Promise<build.Summary>;
+
 export function Validate(arg1:string):Promise<validate.Result>;

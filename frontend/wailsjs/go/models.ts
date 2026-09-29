@@ -322,6 +322,140 @@ export namespace build {
 	        this.findingCounts = source["findingCounts"];
 	    }
 	}
+	
+	export class SummaryServer {
+	    ref: string;
+	    tools: string[];
+	    hosts: SummaryHost[];
+	    keys: string[];
+	    config: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SummaryServer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.tools = source["tools"];
+	        this.hosts = this.convertValues(source["hosts"], SummaryHost);
+	        this.keys = source["keys"];
+	        this.config = source["config"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SummaryHost {
+	    host: string;
+	    unnamed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SummaryHost(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.unnamed = source["unnamed"];
+	    }
+	}
+	export class SummaryKey {
+	    name: string;
+	    help: string;
+	    usedBy: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SummaryKey(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.help = source["help"];
+	        this.usedBy = source["usedBy"];
+	    }
+	}
+	export class Summary {
+	    name: string;
+	    summary: string;
+	    overview: string;
+	    keys: SummaryKey[];
+	    websites: SummaryHost[];
+	    servers: SummaryServer[];
+	    grants: string[];
+	    anyUnnamed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Summary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.summary = source["summary"];
+	        this.overview = source["overview"];
+	        this.keys = this.convertValues(source["keys"], SummaryKey);
+	        this.websites = this.convertValues(source["websites"], SummaryHost);
+	        this.servers = this.convertValues(source["servers"], SummaryServer);
+	        this.grants = source["grants"];
+	        this.anyUnnamed = source["anyUnnamed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+
+}
+
+export namespace draft {
+	
+	export class Line {
+	    tone: string;
+	    text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Line(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tone = source["tone"];
+	        this.text = source["text"];
+	    }
+	}
 
 }
 
@@ -1577,6 +1711,67 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class DraftFindingView {
+	    id: string;
+	    question: string;
+	    score: number;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftFindingView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.question = source["question"];
+	        this.score = source["score"];
+	        this.path = source["path"];
+	    }
+	}
+	export class DraftCheckView {
+	    line?: draft.Line;
+	    rubric: string;
+	    draft: string;
+	    findings: DraftFindingView[];
+	    flagged: string[];
+	    unanswered: string;
+	    checks: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftCheckView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.line = this.convertValues(source["line"], draft.Line);
+	        this.rubric = source["rubric"];
+	        this.draft = source["draft"];
+	        this.findings = this.convertValues(source["findings"], DraftFindingView);
+	        this.flagged = source["flagged"];
+	        this.unanswered = source["unanswered"];
+	        this.checks = source["checks"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class DraftView {
 	    model?: build.Model;
 	    decodeNotes: string[];
@@ -1595,6 +1790,7 @@ export namespace main {
 	    unmentioned: string[];
 	    problems: string[];
 	    moreProblems: number;
+	    check?: DraftCheckView;
 	
 	    static createFrom(source: any = {}) {
 	        return new DraftView(source);
@@ -1619,6 +1815,7 @@ export namespace main {
 	        this.unmentioned = source["unmentioned"];
 	        this.problems = source["problems"];
 	        this.moreProblems = source["moreProblems"];
+	        this.check = this.convertValues(source["check"], DraftCheckView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

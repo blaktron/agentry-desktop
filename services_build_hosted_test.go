@@ -48,6 +48,8 @@ type draftFake struct {
 	refuse  func(w http.ResponseWriter)
 	// outputs are the files of the draft's output.tar.
 	outputs map[string]string
+	// agentsDown makes the person's QuickAgents unreadable.
+	agentsDown bool
 }
 
 func newDraftFake(t *testing.T) *draftFake {
@@ -66,6 +68,17 @@ func newDraftFake(t *testing.T) *draftFake {
 		}
 		hostedJSON(w, http.StatusOK, map[string]any{"id": "00000000-0000-0000-0000-000000000002", "handle": "chris", "email": "c@example.test",
 			"displayName": "Chris", "emailVerified": true, "totpEnabled": false, "createdAt": "2026-01-02T03:04:05Z"})
+	})
+	// The person's own QuickAgents: one already has the draft's name.
+	mux.HandleFunc("GET /api/v1/agents", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		down := f.agentsDown
+		f.mu.Unlock()
+		if down || r.URL.Query().Get("namespace") != "chris" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		hostedJSON(w, http.StatusOK, []map[string]any{{"namespace": "chris", "name": "meeting-actions"}, {"namespace": "chris", "name": "other"}})
 	})
 	mux.HandleFunc("GET /api/v1/user/tokens", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
@@ -206,7 +219,12 @@ func draftFakeJSON(t *testing.T, edit func(map[string]any)) string {
 		"sources": []any{map[string]any{"url": "https://api.slack.com/methods", "used": "the methods"}},
 		"drafter": map[string]any{"ref": "agentry/drafter@1.0.0", "model": "platform", "runId": draftRunID},
 		"aiReview": map[string]any{"description": "pass", "scan": "registry", "read": 12, "passed": 11, "withheld": 1, "notScanned": 0,
-			"withheldSources": []any{map[string]any{"tool": "web_read", "url": "https://evil.example/inject", "reason": "flagged (injection)"}}},
+			"withheldSources": []any{map[string]any{"tool": "web_read", "url": "https://evil.example/inject", "reason": "flagged (injection)"}},
+			"check": map[string]any{
+				"rubric": map[string]any{"verdict": "flagged", "findings": []any{map[string]any{"id": "C3_undeclared_capability", "score": 3, "path": "AGENT.md"},
+					map[string]any{"id": "__proto__", "score": 2, "path": "README.md"}}, "rubricHash": "sha256:ab"},
+				"draft": map[string]any{"verdict": "pass", "flagged": []any{}, "questionSet": "draft-1"},
+				"model": "jev-1.13.0", "requests": 4, "inputTokens": 9000, "checks": 1}},
 	}
 	if edit != nil {
 		edit(d)
@@ -362,8 +380,35 @@ func TestDescribeInAgentryDraftsFollowsAndDecodesTheDraftAsData(t *testing.T) {
 		t.Fatalf("statuses %v, final %+v", ev.statuses(), final)
 	}
 	d := final.Draft
-	if d.Model.Name != "meeting-actions" || d.Model.Namespace != "chris" || d.Model.Instructions != "# Meeting actions\n\nRead the notes.\n" {
+	if d.Model.Namespace != "chris" || d.Model.Instructions != "# Meeting actions\n\nRead the notes.\n" {
 		t.Fatalf("model %+v: the draft is draft.json's, under the person's namespace, and never package/'s", d.Model)
+	}
+	// What the Builder sets (plan builder-simplify.md D10): a name none of
+	// the person's QuickAgents has, and MIT, since the description names no
+	// licence; each change named.
+	if d.Model.Name != "meeting-actions-2" || d.Model.License != "MIT" || d.Model.Version != "0.1.0" {
+		t.Fatalf("model %+v", d.Model)
+	}
+	notes := strings.Join(d.DecodeNotes, "\n")
+	for _, want := range []string{`You already have a QuickAgent named "meeting-actions", so this draft is named "meeting-actions-2".`,
+		`The draft's licence "Apache-2.0" is MIT here, because your description does not name it.`} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("notes %q do not say %q", d.DecodeNotes, want)
+		}
+	}
+	// AI Review's check: one line for the summary, and its details, each
+	// rubric question named for a person (an id that is not one names
+	// nothing).
+	c := d.Check
+	if c == nil || c.Line == nil || c.Line.Tone != "review" || !strings.Contains(c.Line.Text, "flagged something the release check looks for") ||
+		c.Rubric != "flagged" || c.Draft != "pass" || len(c.Findings) != 2 {
+		t.Fatalf("check %+v", c)
+	}
+	if f := c.Findings[0]; f.ID != "C3_undeclared_capability" || f.Question != "reaching for something the contract does not declare" || f.Path != "AGENT.md" || f.Score != 3 {
+		t.Errorf("finding %+v", f)
+	}
+	if f := c.Findings[1]; f.Question != "" {
+		t.Errorf("an id that is not the rubric's is named: %+v", f)
 	}
 	if d.Where != "agentry" || d.Description != "Turn meeting notes into action items." || len(d.Hints) != 2 || d.AIReview.Scan != "registry" {
 		t.Fatalf("view %+v", d)
@@ -396,6 +441,25 @@ func TestDescribeInAgentryDraftsFollowsAndDecodesTheDraftAsData(t *testing.T) {
 	}
 	if len(written) != 4 {
 		t.Fatalf("wrote %v", written)
+	}
+}
+
+// When the person's QuickAgents cannot be read, the draft keeps its name
+// and the notes say to check it.
+func TestADraftWhoseNamesCannotBeReadSaysSo(t *testing.T) {
+	f := newDraftFake(t)
+	f.agentsDown = true
+	b, ev, _ := hostedDraftAPI(t, f)
+	if _, err := b.DescribeInAgentry(f.url, "Turn meeting notes into action items under the Apache 2.0 licence.", nil); err != nil {
+		t.Fatal(err)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, draftFakeJSON(t, nil), 28)
+	d := ev.final(t).Draft
+	if d == nil || d.Model.Name != "meeting-actions" || d.Model.License != "Apache-2.0" {
+		t.Fatalf("draft %+v", d)
+	}
+	if !strings.Contains(strings.Join(d.DecodeNotes, " "), "could not be read from the registry, so check that no QuickAgent of yours is already named meeting-actions.") {
+		t.Errorf("notes %q", d.DecodeNotes)
 	}
 }
 

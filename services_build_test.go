@@ -7,6 +7,8 @@ package main
 // page is given.
 
 import (
+	"github.com/blaktron/agentry-cli/pkg/drafter"
+
 	"context"
 	"encoding/json"
 	"errors"
@@ -194,5 +196,20 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 		if strings.Contains(e, describeJev) {
 			t.Fatalf("a progress line carries the key: %s", e)
 		}
+	}
+}
+
+// A check's verdicts reach the page as one of the check's three words: a
+// draft.json that writes its own ("safe to publish") reads not_scanned, so
+// no words of the draft's stand where the page says the verdict.
+func TestTheChecksVerdictsAreTheChecksOwnWords(t *testing.T) {
+	c := &drafter.Check{Rubric: &drafter.CheckRubric{Verdict: "safe to publish", Findings: []drafter.CheckFinding{}},
+		Draft: &drafter.CheckDraft{Verdict: "flagged", Flagged: []string{"off_task"}}}
+	v := checkView(c)
+	if v.Rubric != "not_scanned" || v.Draft != "flagged" {
+		t.Fatalf("verdicts %q %q", v.Rubric, v.Draft)
+	}
+	if u := checkView(&drafter.Check{Unanswered: "no answer"}); u.Rubric != "" || u.Draft != "" || u.Unanswered != "no answer" {
+		t.Fatalf("unanswered %+v", u)
 	}
 }
