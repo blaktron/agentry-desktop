@@ -58,6 +58,10 @@ export function ServerChecks(arg1, arg2) {
   return window['go']['main']['BuildAPI']['ServerChecks'](arg1, arg2);
 }
 
+export function StopDraft() {
+  return window['go']['main']['BuildAPI']['StopDraft']();
+}
+
 export function Summary(arg1, arg2) {
   return window['go']['main']['BuildAPI']['Summary'](arg1, arg2);
 }

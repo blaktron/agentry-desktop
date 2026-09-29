@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,6 +33,10 @@ import (
 const (
 	eventBuildLog = "build:publish-log"
 	eventDraftLog = "build:draft-log"
+	// eventDraftProgress carries how far a draft on this computer has got
+	// (draft.Progress): its budgets, the stage and the harness's usage
+	// (agentry-desktop#410).
+	eventDraftProgress = "build:draft-progress"
 )
 
 // BuildAPI drives the Build page.
@@ -323,10 +328,10 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 		}
 	}
 	var res *draft.Result
-	err = b.run.asRun(drafter.Namespace+"/"+drafter.Name, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
+	err = b.run.asRun(draftRunRef, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
 		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
-			OnRepairTurn: b.run.addTurn})
+			OnRepairTurn: b.run.addTurn, Progress: func(p draft.Progress) { emitEvent(b.app, eventDraftProgress, p) }})
 		return err
 	})
 	if err != nil {
@@ -336,6 +341,28 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	v.Where, v.Description, v.Hints = draftHere, description, append([]string{}, hints...)
 	v.settle(b.app.ctx, reg, settings.TokenFor(reg), ns)
 	return v, nil
+}
+
+// draftRunRef names a draft on this computer as the run in flight: what
+// quitting says it ends, and how StopDraft tells a draft from a run or a
+// knowledge build.
+const draftRunRef = drafter.Namespace + "/" + drafter.Name
+
+// StopDraft stops the draft on this computer that is running, from the
+// progress dialog or its corner card (agentry-desktop#410): its context is
+// cancelled and the Drafter's run tears down as a quit's does, and no draft
+// is made. It stops only a draft, never a run, a session or a knowledge
+// build, and says so when none is running. A draft In Agentry is cancelled
+// with CancelHostedDraft instead.
+func (b *BuildAPI) StopDraft() error {
+	r := b.run
+	r.liveMu.Lock()
+	defer r.liveMu.Unlock()
+	if r.live == nil || r.live.ref != draftRunRef {
+		return errors.New("no draft is running on this computer")
+	}
+	r.live.cancel()
+	return nil
 }
 
 // settle is a decoded draft's last step, from either place: what the
