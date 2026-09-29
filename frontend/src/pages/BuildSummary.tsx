@@ -1,0 +1,153 @@
+// The Build tab's summary (plan builder-simplify.md §4.1, D3, D7;
+// agentry-desktop#344), the site's M4 (agentry-web#651) over the desktop's
+// form: the one short page a QuickAgent is submitted from, where a draft
+// lands and where both form views end. How it works, then what it needs:
+// every key with its help, the websites, each MCP server with its tools, and
+// each file, command or data grant, drawn from BuildAPI.Summary (the
+// capability contract in full, and nothing undeclared: internal/build
+// Summarize and its test). Then Submit, private unless switched, and See it in
+// the form. The plumbing (the Drafter's notes, sources, AI Review's counts,
+// the namespace, version, licence, tags, include list, file name and run
+// mode) stays in the form views.
+//
+// Every string here may be the Drafter's: the overview and each key's help
+// go through AgentMarkdown's rules (AuthorHelp frames the help as the
+// author's), and the rest is text through RevealText.
+import type { ReactNode, Ref } from "react";
+import { build, main } from "../../wailsjs/go/models";
+import { AgentMarkdown } from "../AgentMarkdown";
+import { AuthorHelp } from "../KeyHelp";
+import { RevealText } from "../reveal";
+import { Button, Card } from "../ui";
+
+function Hosts({ hosts, label }: { hosts: build.SummaryHost[]; label: string }) {
+  return (
+    <ul className="small build-summary-list" aria-label={label}>
+      {hosts.map((h, i) => (
+        <li key={i}>
+          <span className="mono selectable">{h.host === "*" ? "any host (*)" : <RevealText text={h.host} />}</span>
+          {h.unnamed && <span className="badge warn" style={{ marginLeft: 6 }}>your description did not name it</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SummaryView({
+  s, check, visibility, onVisibility, problem, onForm, onSubmit, submitting, ready, dir, headingRef, outcome,
+}: {
+  s: build.Summary;
+  /** AI Review's check of a draft as one line, or null (a form-written QuickAgent has none). */
+  check: main.DraftCheckView["line"] | null;
+  visibility: string;
+  onVisibility: (pub: boolean) => void;
+  /** The first rule the form still fails, and the step that fixes it; null when it passes. */
+  problem: { label: string; text: string; fix: () => void } | null;
+  onForm: (v: "steps" | "advanced") => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  /** The form's check has answered and nothing else is under way. */
+  ready: boolean;
+  dir: string;
+  headingRef?: Ref<HTMLHeadingElement>;
+  /** The publish log and its verdict, once Submit ran. */
+  outcome?: ReactNode;
+}) {
+  return (
+    <section aria-labelledby="build-summary-heading" className="build-summary">
+      <h2 id="build-summary-heading" ref={headingRef} tabIndex={-1}>Summary</h2>
+      <p className="muted small">How the QuickAgent works and what it needs. Submit it when this is what you want; every other choice is in the form.</p>
+
+      <Card>
+        <strong>How it works</strong>
+        <p style={{ overflowWrap: "anywhere" }}>
+          <span className="mono selectable">{s.name ? <RevealText text={s.name} /> : "no name yet"}</span>:{" "}
+          {s.summary ? <RevealText text={s.summary} /> : "no summary yet"}
+        </p>
+        {s.overview.trim() !== "" && <AgentMarkdown text={s.overview} showHosts />}
+      </Card>
+
+      <Card className="mt">
+        <strong>What it needs</strong>
+        {s.anyUnnamed && (
+          <p className="small build-summary-unnamed">
+            It reaches hosts your description did not name, marked below. Check each one before you submit: a host nobody
+            asked for is what an injected page would add.
+          </p>
+        )}
+
+        <h4 className="small">Keys</h4>
+        {s.keys.length === 0 ? <p className="muted small">None.</p> : (
+          <ul className="small build-summary-list" aria-label="Keys">
+            {s.keys.map((k) => (
+              <li key={k.name}>
+                <span className="mono selectable"><RevealText text={k.name} /></span>
+                <span className="muted">, for <RevealText text={k.usedBy.join(" and ")} /></span>
+                {k.help ? <AuthorHelp name={k.name} help={k.help} /> : <div className="muted small">No help is written for this key.</div>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="muted small">A key is never packed: whoever runs the QuickAgent supplies it.</p>
+
+        <h4 className="small">Websites</h4>
+        {s.websites.length === 0 ? <p className="muted small">None.</p> : <Hosts hosts={s.websites} label="Websites" />}
+
+        <h4 className="small">MCP servers</h4>
+        {s.servers.length === 0 ? <p className="muted small">None.</p> : (
+          <ul className="small build-summary-list" aria-label="MCP servers">
+            {s.servers.map((sv, i) => (
+              <li key={i}>
+                <span className="mono selectable"><RevealText text={sv.ref} /></span>
+                <div>{sv.tools.length === 0 ? "May call all of its tools." : <RevealText text={`Tools: ${sv.tools.join(", ")}.`} />}</div>
+                {sv.keys.length > 0 && <div><RevealText text={`Keys: ${sv.keys.join(", ")}.`} /></div>}
+                {sv.config.length > 0 && <div><RevealText text={`Configuration: ${sv.config.join(", ")}.`} /></div>}
+                {sv.hosts.length === 0 ? <div className="muted">Reaches no website.</div> : <Hosts hosts={sv.hosts} label={`Websites ${sv.ref} reaches`} />}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {s.grants.length > 0 && (
+          <>
+            <h4 className="small">Files, commands and data</h4>
+            <ul className="small build-summary-list" aria-label="Files, commands and data">
+              {s.grants.map((g) => <li key={g}><RevealText text={g} /></li>)}
+            </ul>
+          </>
+        )}
+      </Card>
+
+      {check && <p className={`small ${check.tone === "review" ? "build-summary-unnamed" : "muted"}`}>{check.text}</p>}
+
+      {problem && (
+        <div className="small step-problem" role="alert">
+          <p>It cannot be submitted yet. {problem.label}: <RevealText text={problem.text} />.</p>
+          <Button onClick={problem.fix}>Fix it in {problem.label}</Button>
+        </div>
+      )}
+
+      <label className="check-row" style={{ marginTop: 12 }}>
+        <input type="checkbox" checked={visibility === "public"} onChange={(e) => onVisibility(e.target.checked)} />
+        <span>
+          Make it public
+          <span className="muted small" style={{ display: "block" }}>
+            {visibility === "public" ? "Anyone can find and install it once the pipeline publishes it." : "It stays private unless you switch this on."}
+          </span>
+        </span>
+      </label>
+      <div className="row" style={{ marginTop: 8 }}>
+        <Button variant="primary" disabled={!ready || !!problem} onClick={onSubmit}>{submitting ? "Submitting…" : "Submit"}</Button>
+      </div>
+      <p className="muted small">
+        {dir ? <>It saves into <span className="mono selectable">{dir}</span> first. </> : "Submit first asks where to save the workspace: an empty folder. "}
+        The security pipeline scans it before anything is published.
+      </p>
+      {outcome}
+      <p className="small">
+        See it in the form: <Button variant="link" onClick={() => onForm("steps")}>step by step</Button> or{" "}
+        <Button variant="link" onClick={() => onForm("advanced")}>Advanced</Button>.
+      </p>
+    </section>
+  );
+}

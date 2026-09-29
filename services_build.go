@@ -18,10 +18,12 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
+	"github.com/blaktron/agentry/pkg/apiclient"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
+	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/validate"
 )
@@ -96,6 +98,15 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 // agentry-desktop#280). It reads nothing and writes nothing.
 func (b *BuildAPI) Check(m build.Model) *build.CheckResult {
 	return m.Check()
+}
+
+// Summary is the Build tab's summary of the form's model (plan
+// builder-simplify.md §4.1, agentry-desktop#344): how it works and every
+// capability it declares, with the hosts a draft's description did not name
+// marked (the draft's Unmentioned; none for a QuickAgent written in the
+// form). It reads nothing and writes nothing.
+func (b *BuildAPI) Summary(m build.Model, unmentioned []string) *build.Summary {
+	return m.Summarize(unmentioned)
 }
 
 // ServerChecks asks the registry what it last knew of each declared server
@@ -179,6 +190,53 @@ type DraftView struct {
 	Unmentioned  []string `json:"unmentioned"`
 	Problems     []string `json:"problems"`
 	MoreProblems int      `json:"moreProblems"`
+	// Check is AI Review's check of the finished draft (agentry-cli#418),
+	// or nil for a draft that has none.
+	Check *DraftCheckView `json:"check"`
+}
+
+// DraftCheckView is AI Review's check of a finished draft for the page:
+// the summary's one line, and for Review's folded "How it was drafted"
+// each half's verdict, each rubric question it scored at 2 or more with its
+// file, the draft questions it flagged, and why it had no answer. Every
+// string is text the page renders as text.
+type DraftCheckView struct {
+	Line *draft.Line `json:"line"`
+	// Rubric and Draft are each half's verdict (pass, flagged,
+	// not_scanned), "" when the check had no answer.
+	Rubric     string             `json:"rubric"`
+	Draft      string             `json:"draft"`
+	Findings   []DraftFindingView `json:"findings"`
+	Flagged    []string           `json:"flagged"`
+	Unanswered string             `json:"unanswered"`
+	// Checks is how many checks the post-step asked: 2 when a flag sent
+	// the draft to its one repair turn and the answer was checked again.
+	Checks int `json:"checks"`
+}
+
+// DraftFindingView is one rubric question the check scored at 2 or more.
+// Question names it for a person, "" for an id that is not the rubric's.
+type DraftFindingView struct {
+	ID       string `json:"id"`
+	Question string `json:"question"`
+	Score    int    `json:"score"`
+	Path     string `json:"path"`
+}
+
+// checkView is the check as the page takes it.
+func checkView(c *drafter.Check) *DraftCheckView {
+	if c == nil {
+		return nil
+	}
+	v := &DraftCheckView{Line: draft.CheckLine(c), Findings: []DraftFindingView{}, Flagged: []string{}, Unanswered: c.Unanswered, Checks: c.Checks}
+	if c.Rubric != nil && c.Draft != nil && c.Unanswered == "" {
+		v.Rubric, v.Draft = c.Rubric.Verdict, c.Draft.Verdict
+		for _, f := range c.Rubric.Findings {
+			v.Findings = append(v.Findings, DraftFindingView{ID: f.ID, Question: draft.RubricQuestion(f.ID), Score: f.Score, Path: f.Path})
+		}
+		v.Flagged = append(v.Flagged, c.Draft.Flagged...)
+	}
+	return v
 }
 
 // Where a draft was made (DraftView.Where): on this computer with the
@@ -250,14 +308,47 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	}
 	v := draftView(res)
 	v.Where, v.Description, v.Hints = draftHere, description, append([]string{}, hints...)
-	v.markHosts()
+	v.settle(b.app.ctx, reg, settings.TokenFor(reg), ns)
 	return v, nil
 }
 
-// markHosts marks the hosts the draft reaches that the person's own words
-// do not name, from the form's Model and the view's description and hints.
-func (v *DraftView) markHosts() {
-	v.Unmentioned = draft.UnmentionedHosts(v.Model, draft.PersonsWords(v.Description, v.Hints))
+// settle is a decoded draft's last step, from either place: what the
+// Builder sets on it (plan builder-simplify.md §4.2, D10; build.SetByBuilder),
+// its name made unique among the person's own QuickAgents on reg, then the
+// hosts it reaches that the person's own words do not name marked.
+func (v *DraftView) settle(ctx context.Context, reg, token, ns string) {
+	words := draft.PersonsWords(v.Description, v.Hints)
+	var taken []string
+	if ns != "" {
+		names, err := ownNames(ctx, reg, token, ns)
+		if err != nil {
+			v.DecodeNotes = append(v.DecodeNotes, fmt.Sprintf("Your QuickAgents' names could not be read, so check that no QuickAgent of yours is already named %s (%v).", v.Model.Name, err))
+		}
+		taken = names
+	}
+	v.DecodeNotes = append(v.DecodeNotes, build.SetByBuilder(v.Model, words, taken)...)
+	v.Unmentioned = draft.UnmentionedHosts(v.Model, words)
+}
+
+// ownNames are the names of the QuickAgents in the person's own namespace
+// on reg, for a draft's unique name.
+func ownNames(ctx context.Context, reg, token, ns string) ([]string, error) {
+	client, err := registry.New(reg, token)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.ListAgentsWithResponse(ctx, &apiclient.ListAgentsParams{Namespace: ns})
+	if err != nil {
+		return nil, err
+	}
+	if resp.JSON200 == nil {
+		return nil, registry.Problem("list your QuickAgents", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
+	}
+	names := make([]string, 0, len(*resp.JSON200))
+	for _, a := range *resp.JSON200 {
+		names = append(names, a.Name)
+	}
+	return names, nil
 }
 
 // draftView is a finished draft as the page takes it. The sources AI Review
@@ -280,6 +371,9 @@ func draftView(res *draft.Result) *DraftView {
 	}
 	if v.AIReview.WithheldSources == nil {
 		v.AIReview.WithheldSources = []drafter.WithheldSource{}
+	}
+	if d.AIReview != nil {
+		v.Check = checkView(d.AIReview.Check)
 	}
 	return v
 }

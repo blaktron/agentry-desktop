@@ -161,13 +161,21 @@ The product never claims an agent is "safe". The language is always:
       Build when it is done.
 
     **Either way:**
-    - The draft opens on Review with what the Drafter found
-      beside it: what AI Review read and held back, **the hosts the draft may
-      reach that your description did not name**, the rules the draft still
-      fails, the published QuickAgents that already do the task (each with a
-      link to its page), what the description leaves open, the Drafter's
-      notes (shown as a run's result is, with no HTML and no images) and its
-      sources.
+    - The draft opens on the **summary** (below), so describing it, **Draft
+      it** and **Submit** are the whole path.
+    - What does not depend on the task is the Builder's, whatever the draft
+      said, and each change is named: your namespace, version `0.1.0`, the MIT
+      licence (the licence file Save writes) unless your own words name the
+      draft's, `AGENT.md`, the include list, and a name none of your own
+      QuickAgents already has (`-2`, `-3`…).
+    - Review, in the form views, keeps what the Drafter found folded under
+      **How it was drafted**: AI Review's check of the finished draft (each
+      rubric question it raised, with its file), what AI Review read and held
+      back, **the hosts the draft may reach that your description did not
+      name**, the rules the draft still fails, the published QuickAgents that
+      already do the task (each with a link to its page), what the
+      description leaves open, the Drafter's notes (shown as a run's result
+      is, with no HTML and no images) and its sources.
     - **Describe again**, on Review, takes a note on what should change and
       makes a new draft in the same place from what you first asked and the
       draft as it stands in the form. The new draft replaces this one.
@@ -177,6 +185,18 @@ The product never claims an agent is "safe". The language is always:
     - Nothing is written into a QuickAgent folder until you save it into one
       you pick. The run's receipts and `draft.json` are kept in
       `~/Downloads/agentry-out/agentry-drafter-<run id>`.
+
+  **The summary** is the one publish page, where a draft lands and where
+  both form views end (**Continue to submit**). It says how the QuickAgent
+  works (its summary and the guide's overview) and everything it needs:
+  each key with the author's help, the websites it reaches, each MCP server
+  with its tools, keys, configuration and hosts, and each file, command or
+  data grant, and nothing it does not declare. A host a draft's description
+  did not name is marked, and AI Review's check of a draft gets one line.
+  **Submit** publishes privately unless **Make it public** is switched on;
+  its first save asks for a folder through the native picker. A rule the
+  form still fails is named with **Fix it**, and Submit waits for it. **See
+  it in the form** opens Step by step on Review, or Advanced.
 
   The form covers the whole of manifest schema v2, the run guide and each
   server's plain configuration included. Opening an existing workspace and

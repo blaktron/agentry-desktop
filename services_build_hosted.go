@@ -344,7 +344,7 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 	if final.Draft != nil {
 		dv.Hints = append([]string{}, final.Draft.Hints...)
 	}
-	dv.markHosts()
+	dv.settle(ctx, reg, token, ns)
 	v.Draft = dv
 	return v
 }

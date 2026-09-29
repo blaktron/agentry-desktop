@@ -18,6 +18,13 @@
 // (BuildDescribe.tsx), since #281 (M7) In Agentry as well as on this
 // computer, decoded into the Model and opened on Review with the Drafter's
 // notes beside it and Describe again under them.
+//
+// Since #344 (plan builder-simplify.md M5, D3, D4, D7, D10) a draft lands on
+// the summary (BuildSummary.tsx): how it works and what it needs, then
+// Submit, private unless switched, with the folder asked through the native
+// picker at its first save (D-030). Both form views end on the same summary
+// through Continue to submit, so it is the one publish page, and Review
+// keeps the Drafter's notes folded under "How it was drafted".
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
@@ -25,6 +32,7 @@ import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes, draftInFlight, takeLandedDraft } from "./BuildDescribe";
+import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
 
@@ -38,7 +46,7 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // app's session, and the start page offers it back as Continue.
 let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null } | null = null;
 
-type View = "start" | "steps" | "advanced" | "describe";
+type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
 type StepKey = SectionKey | "review";
 
@@ -214,6 +222,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [at, setAt] = useState(initialStep);
   const [stepProblem, setStepProblem] = useState<string | null>(null);
   const [check, setCheck] = useState<build.CheckResult | null>(null);
+  const [summary, setSummary] = useState<build.Summary | null>(null);
+  const summaryHeading = useRef<HTMLHeadingElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -261,6 +271,21 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     }, 200);
     return () => { live = false; clearTimeout(t); };
   }, [model]);
+
+  // The summary of the model as it stands, while the summary is showing.
+  useEffect(() => {
+    if (!model || view !== "summary") return;
+    let live = true;
+    BuildAPI.Summary(model, drafted?.unmentioned ?? [])
+      .then((s) => { if (live) setSummary(s); })
+      .catch((e) => { if (live) setError(`The summary could not be drawn: ${String(e)}`); });
+    return () => { live = false; };
+  }, [model, view, drafted]);
+
+  // Focus moves to the summary's heading when it opens.
+  useEffect(() => {
+    if (view === "summary" && moved.current) summaryHeading.current?.focus();
+  }, [view, summary === null]);
 
   // What the registry last knew of each declared server version, asked once
   // per version while Tools and web access or Review is showing.
@@ -420,7 +445,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A draft made by Describe it: into the form, with no folder yet (the
-  // first save asks, D-030), and open on Review with the notes beside it.
+  // first save asks, D-030), and open on the summary (plan
+  // builder-simplify.md §4.1), private unless switched (D3).
   function takeDraft(v: main.DraftView) {
     if (!v.model) return;
     moved.current = true;
@@ -428,8 +454,10 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setDrafted(v);
     setTouched(true);
     setDir("");
+    setVisibility("private");
     resetOutcome();
-    setView("steps");
+    setSummary(null);
+    setView("summary");
     setAt(stepOf("review"));
   }
 
@@ -438,6 +466,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setStepProblem(null);
     setView(v);
     if (v === "steps") setAt(0);
+  }
+
+  // The summary's See it in the form: Step by step on Review, where the
+  // notes are, or Advanced.
+  function toForm(v: "steps" | "advanced") {
+    switchTo(v);
+    if (v === "steps") setAt(stepOf("review"));
   }
 
   const stepped = view === "steps";
@@ -791,22 +826,23 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       <div className="row" style={{ marginTop: 12 }}>
         <Button disabled={!!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
         <Button disabled={!!busy} onClick={runValidate}>{busy === "validate" ? "Validating…" : "Save + Validate"}</Button>
-        <Button variant="primary" disabled={!!busy} onClick={publish}>
-          {busy === "publish" ? "Publishing…" : `Save + Publish (${visibility})`}
-        </Button>
+        {/* One publish page (plan builder-simplify.md §4.3): the form
+            views end on the summary, where Submit is. */}
+        <Button variant="primary" disabled={!!busy} onClick={() => switchTo("summary")}>Continue to submit</Button>
       </div>
       <p className="muted small">
         {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : "The first save asks where the workspace goes: an empty folder, or open an existing one."}
       </p>
       {result && <ValidateCard result={result} />}
-      {(log.length > 0 || pubResult) && (
-        <Card className="mt">
-          <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
-          {pubResult && <PublishOutcome pub={pubResult} m={m} registry={registry} onError={setError} />}
-        </Card>
-      )}
     </>
   );
+
+  const outcome = (log.length > 0 || pubResult) ? (
+    <Card className="mt">
+      <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
+      {pubResult && <PublishOutcome pub={pubResult} m={m} registry={registry} onError={setError} />}
+    </Card>
+  ) : null;
 
   const header = (
     <PageHeader
@@ -834,6 +870,34 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       )}
     </>
   );
+
+  if (view === "summary") {
+    const first = check?.first ?? null;
+    const label = first ? STEPS[stepOf(first.section as StepKey)]?.label ?? first.section : "";
+    return (
+      <div>
+        {header}
+        <ErrorBox error={error} />
+        {notice && <Notice tone="info">{notice}</Notice>}
+        {summary ? (
+          <SummaryView
+            s={summary}
+            check={drafted?.check?.line ?? null}
+            visibility={visibility}
+            onVisibility={(pub) => setVisibility(pub ? "public" : "private")}
+            problem={first ? { label, text: first.problem, fix: () => { switchTo("steps"); setAt(stepOf(first.section as StepKey)); } } : null}
+            onForm={toForm}
+            onSubmit={publish}
+            submitting={busy === "publish"}
+            ready={!!check && !busy}
+            dir={dir}
+            headingRef={summaryHeading}
+            outcome={outcome}
+          />
+        ) : <Spinner />}
+      </div>
+    );
+  }
 
   if (view === "describe") {
     return (
@@ -918,7 +982,14 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           </>
         ) : (
           <>
-            {drafted && <DraftNotes v={drafted} onOpenAgent={onOpenAgent} />}
+            {drafted && (
+              // Folded (plan builder-simplify.md §4.3, D7): the summary
+              // leaves the notes out, and Review keeps them one click away.
+              <details className="card mt build-drafted">
+                <summary><strong>How it was drafted</strong></summary>
+                <DraftNotes v={drafted} onOpenAgent={onOpenAgent} />
+              </details>
+            )}
             {drafted && <DescribeAgain registry={registry} v={drafted} model={m} onStarted={() => switchTo("describe")} />}
             <Recap
               rows={[

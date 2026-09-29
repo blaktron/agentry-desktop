@@ -201,6 +201,46 @@ func holdDraft(d *drafter.Draft) error {
 		if a.Read < 0 || a.Passed < 0 || a.Withheld < 0 || a.NotScanned < 0 {
 			return errors.New("the draft's AI Review counts are not counts")
 		}
+		if err := holdCheck(a.Check, list, value); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// holdCheck holds AI Review's check of the finished draft (aiReview.check,
+// agentry-cli#418) as holdDraft holds the rest: the findings' count and
+// each finding's id and path, the flags, the scores, the hash, the model,
+// the question set, each failure, and why a check had no answer.
+func holdCheck(c *drafter.Check, list func(string, int) error, value func(string, string, int) error) error {
+	if c == nil {
+		return nil
+	}
+	if c.Requests < 0 || c.InputTokens < 0 || c.Checks < 0 {
+		return errors.New("the draft's AI Review check counts are not counts")
+	}
+	errs := []error{value("aiReview.check", c.Model, maxDraftShort), value("aiReview.check", c.Unanswered, maxDraftReason)}
+	if r := c.Rubric; r != nil {
+		errs = append(errs, list("rubric findings", len(r.Findings)), list("rubric scores", len(r.Scores)),
+			value("aiReview.check", r.Verdict, maxDraftShort), value("aiReview.check", r.RubricHash, maxDraftShort),
+			value("aiReview.check", r.Failure, maxDraftReason))
+		for _, f := range r.Findings {
+			errs = append(errs, value("aiReview.check", f.ID, maxDraftShort), value("aiReview.check", f.Path, maxDraftURL))
+		}
+		for k := range r.Scores {
+			errs = append(errs, value("aiReview.check", k, maxDraftShort))
+		}
+	}
+	if d := c.Draft; d != nil {
+		errs = append(errs, list("draft flags", len(d.Flagged)), list("draft scores", len(d.Scores)),
+			value("aiReview.check", d.Verdict, maxDraftShort), value("aiReview.check", d.QuestionSet, maxDraftShort),
+			value("aiReview.check", d.Failure, maxDraftReason))
+		for _, f := range d.Flagged {
+			errs = append(errs, value("aiReview.check", f, maxDraftShort))
+		}
+		for k := range d.Scores {
+			errs = append(errs, value("aiReview.check", k, maxDraftShort))
+		}
+	}
+	return errors.Join(errs...)
 }

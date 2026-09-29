@@ -44,6 +44,38 @@ func draftDoc(t *testing.T, edit func(map[string]any)) []byte {
 	return raw
 }
 
+// goodCheck is aiReview.check as the post-step writes it: a rubric that
+// flagged C3 on AGENT.md, and the draft question set's pass.
+func goodCheck() map[string]any {
+	return map[string]any{
+		"rubric": map[string]any{"verdict": "flagged", "scores": map[string]any{"C1_injection": 0, "C3_undeclared_capability": 3},
+			"findings": []any{map[string]any{"id": "C3_undeclared_capability", "score": 3, "path": "AGENT.md"}}, "rubricHash": "sha256:ab"},
+		"draft": map[string]any{"verdict": "pass", "score": 0, "scores": map[string]any{"off_task": 0}, "flagged": []any{}, "questionSet": "draft-1"},
+		"model": "jev-1.13.0", "requests": 4, "inputTokens": 9000, "checks": 1,
+	}
+}
+
+// withCheck is a draft.json whose aiReview.check a test edits.
+func withCheck(t *testing.T, edit func(map[string]any)) []byte {
+	t.Helper()
+	return draftDoc(t, func(d map[string]any) {
+		c := goodCheck()
+		edit(c)
+		d["aiReview"].(map[string]any)["check"] = c
+	})
+}
+
+func TestDecodeReadsAIReviewsCheckOfTheFinishedDraft(t *testing.T) {
+	d, _, _, err := Decode(withCheck(t, func(map[string]any) {}), "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := d.AIReview.Check
+	if c == nil || c.Rubric.Verdict != "flagged" || c.Rubric.Findings[0].Path != "AGENT.md" || c.Draft.QuestionSet != "draft-1" || c.Checks != 1 {
+		t.Fatalf("check %+v", c)
+	}
+}
+
 func TestDecodeReadsAHostedDraftIntoTheModel(t *testing.T) {
 	d, m, notes, err := Decode(draftDoc(t, nil), "alice")
 	if err != nil {
@@ -136,7 +168,46 @@ func TestDecodeHoldsAHostileDraftJSONAsData(t *testing.T) {
 			d["sources"] = s
 		}),
 		"a negative count": draftDoc(t, func(d map[string]any) { d["aiReview"].(map[string]any)["read"] = -1 }),
-		"oversize file":    append([]byte(`{"manifest":`+hostedManifest+`,"validation":"`), append([]byte(strings.Repeat("v", MaxDraftJSONBytes)), []byte(`"}`)...)...),
+		// AI Review's check of the finished draft (aiReview.check,
+		// agentry-cli#418), each text and list of it held to a bound.
+		"too many findings": withCheck(t, func(c map[string]any) {
+			var f []any
+			for range maxDraftList + 1 {
+				f = append(f, map[string]any{"id": "C1_injection", "score": 3, "path": "AGENT.md"})
+			}
+			c["rubric"].(map[string]any)["findings"] = f
+		}),
+		"an oversize finding path": withCheck(t, func(c map[string]any) {
+			c["rubric"].(map[string]any)["findings"] = []any{map[string]any{"id": "C1_injection", "score": 3, "path": big}}
+		}),
+		"an oversize finding id": withCheck(t, func(c map[string]any) {
+			c["rubric"].(map[string]any)["findings"] = []any{map[string]any{"id": big, "score": 3, "path": "AGENT.md"}}
+		}),
+		"an oversize rubric hash": withCheck(t, func(c map[string]any) { c["rubric"].(map[string]any)["rubricHash"] = big }),
+		"an oversize rubric failure": withCheck(t, func(c map[string]any) {
+			c["rubric"].(map[string]any)["failure"] = big
+		}),
+		"an oversize draft failure": withCheck(t, func(c map[string]any) { c["draft"].(map[string]any)["failure"] = big }),
+		"an oversize question set":  withCheck(t, func(c map[string]any) { c["draft"].(map[string]any)["questionSet"] = big }),
+		"too many flags": withCheck(t, func(c map[string]any) {
+			var f []any
+			for range maxDraftList + 1 {
+				f = append(f, "off_task")
+			}
+			c["draft"].(map[string]any)["flagged"] = f
+		}),
+		"too many scores": withCheck(t, func(c map[string]any) {
+			s := map[string]any{}
+			for i := range maxDraftList + 1 {
+				s[strings.Repeat("s", i+1)] = 1
+			}
+			c["rubric"].(map[string]any)["scores"] = s
+		}),
+		"an oversize model":        withCheck(t, func(c map[string]any) { c["model"] = big }),
+		"an oversize unanswered":   withCheck(t, func(c map[string]any) { c["unanswered"] = big }),
+		"a negative request count": withCheck(t, func(c map[string]any) { c["requests"] = -1 }),
+		"a check of a shape":       draftDoc(t, func(d map[string]any) { d["aiReview"].(map[string]any)["check"] = "pass" }),
+		"oversize file":            append([]byte(`{"manifest":`+hostedManifest+`,"validation":"`), append([]byte(strings.Repeat("v", MaxDraftJSONBytes)), []byte(`"}`)...)...),
 	}
 	for name, raw := range refused {
 		t.Run(name, func(t *testing.T) {
