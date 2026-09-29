@@ -401,8 +401,11 @@ func TestACheckFlagSendsALocalDraftToItsRepairTurnWithTheTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task, _ := readAll(runs[len(runs)-1])
-	if len(runs) != 2 || runs[1].Web != nil || !strings.Contains(task, "## What AI Review flagged\n\n- AI Review off_task, score 3:") ||
+	if len(runs) != 2 {
+		t.Fatalf("%d run(s)", len(runs))
+	}
+	task, _ := readAll(runs[1])
+	if runs[1].Web != nil || !strings.Contains(task, "## What AI Review flagged\n\n- AI Review off_task, score 3:") ||
 		!strings.Contains(task, "## The task you were given\n\n") || !strings.Contains(task, "HINT-MARKER") || strings.Contains(task, "The Drafter's own notes.") {
 		t.Fatalf("%d run(s); the repair task:\n%s", len(runs), task)
 	}

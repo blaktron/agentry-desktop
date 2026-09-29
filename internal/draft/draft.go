@@ -126,6 +126,10 @@ type Request struct {
 	// Runner runs the Drafter, its first turn and its one repair turn; nil
 	// is localrun on this machine's docker.
 	Runner func(context.Context, localrun.Run) (*receipt.Envelope, error)
+	// OnRepairTurn is told the repair turn's run id before it starts, so the
+	// caller's crash path can record and sweep it as it does the draft's
+	// own; nil tells nobody.
+	OnRepairTurn func(runID string)
 	// Checker builds AI Review's check of the finished draft from the run's
 	// web configuration; nil is drafter.CheckerFor, the core's
 	// pkg/draftcheck with the person's own Jev key.
@@ -207,8 +211,15 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		OutDir: outDir, Description: p.Description, Task: p.Task, Scan: desc, Ref: localrun.Drafter().Ref(), Build: version.Build(),
 		Budgets: *first.Budgets, Checker: checker, CheckerErr: checkerErr, Log: logw,
 		Repair: func(ctx context.Context, t drafter.RepairTurn) (*receipt.Envelope, error) {
+			if req.OnRepairTurn != nil {
+				req.OnRepairTurn(t.RunID)
+			}
 			return runner(ctx, localrun.RepairRun(first, t))
 		},
+		// The embedded rule bundle, as the desktop's own Validate uses: the
+		// app has no rules checkout or --rules-update cache of its own
+		// (DR-43's addendum names the difference from `agentry draft`).
+		Rules: nil,
 	}
 	d, _, err := post.Run(ctx, env, runErr)
 	switch {

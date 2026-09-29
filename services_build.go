@@ -309,7 +309,8 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	if err := b.app.askConsent("Draft on this computer?",
 		"The Drafter runs on this computer against the model your runner policy names ("+p.ModelName()+"), for no credits. "+
 			"AI Review (TypeSafe's Jev) reads your description first, with your key, then every search result, page and registry answer "+
-			"before the model does, and holds back what it flags. It then checks the finished draft, with your description, as the pipeline will at submit. "+
+			"before the model does, and holds back what it flags. It then sends the finished draft and your description to TypeSafe for AI Review's check, "+
+			"with the questions the pipeline asks at publish, and if the rules refuse the draft or the check flags something it can fix, the model has one more turn, with no web access, to fix it. "+
 			"Your description goes to "+goes+" and the sites the Drafter reads, "+
 			"so it should hold no secret. The run's receipts and the draft are kept in your Downloads folder under agentry-out; "+
 			"nothing is written into a QuickAgent folder or submitted until you save or publish it. Continue?"); err != nil {
@@ -324,7 +325,8 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	var res *draft.Result
 	err = b.run.asRun(drafter.Namespace+"/"+drafter.Name, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
-		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker})
+		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
+			OnRepairTurn: b.run.addTurn})
 		return err
 	})
 	if err != nil {
