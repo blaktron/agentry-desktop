@@ -15,7 +15,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText, plainName } from "../reveal";
-import { Button, ErrorBox, fmtBytes } from "../ui";
+import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
 
 export function RunResultView({
   runId, headline, tone, error, resultJson, knowledge, unsafeExec, children,
@@ -172,3 +172,61 @@ function ResultBody({ raw }: { raw: string }) {
   );
 }
 
+
+/** A run on this computer's Run details, under its result: the envelope's
+ *  badges and usage, its folder, receipts and plan digest, the operator
+ *  policy it enforced (agentry-cli#152, agentry-desktop#269), and its log.
+ *  The run's flow and a chat's result both draw it. */
+export function LocalRunDetails({ result, log }: { result: main.RunResultView; log: string[] }) {
+  return (
+    <>
+      <Card className="selectable">
+        <div className="row">
+          {result.status === "ok"
+            ? <span className="badge ok">ok</span>
+            : <span className="badge bad">error (exit {result.exitCode})</span>}
+          <span className={`badge ${result.attestationState === "verified" ? "ok" : "warn"}`}>
+            attestation: {result.attestationState}
+          </span>
+          <span className="muted small">
+            {result.turns} turns · {result.inputTokens + result.outputTokens} tokens ·{" "}
+            {(result.wallMs / 1000).toFixed(1)}s{result.costUsd > 0 ? ` · $${result.costUsd.toFixed(4)}` : ""}
+          </span>
+        </div>
+        <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
+        <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
+        <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>
+        {/* The operator policy the run enforced (agentry-cli#152,
+            agentry-desktop#269): which file, and how its path was
+            chosen, since a relocated runner home is inherited
+            silently from the environment. */}
+        {result.policy && (
+          <>
+            <div className="kv"><span className="k">operator policy</span><span className="mono">{result.policy.path}</span></div>
+            <div className="kv"><span className="k">policy chosen by</span><span>{policySourceLabel(result.policy.source)}</span></div>
+            {result.policy.sha256 && (
+              <div className="kv"><span className="k">policy digest</span><span className="mono" title={result.policy.sha256}>{shortDigest(result.policy.sha256)}</span></div>
+            )}
+          </>
+        )}
+      </Card>
+      {log.length > 0 && (
+        <>
+          <h4>Run log</h4>
+          <pre className="run-log selectable">{log.join("\n")}</pre>
+        </>
+      )}
+    </>
+  );
+}
+
+// policySourceLabel says how the run's policy path was chosen, from the
+// envelope's policy.source (agentry-cli#152). The desktop has no
+// --policy, so "flag" is never its own; an unknown source is shown as is.
+function policySourceLabel(source: string): string {
+  switch (source) {
+    case "default": return "the runner home's policy.yaml (the default)";
+    case "env": return "AGENTRY_RUNNER_HOME, set in the environment this app started from";
+    default: return source;
+  }
+}

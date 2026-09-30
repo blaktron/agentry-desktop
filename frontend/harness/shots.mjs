@@ -131,6 +131,16 @@ const states = [
   { name: "draft-card-agentry", url: "/drafts.html#card-agentry", note: "a draft In Agentry in its card: the status line and Cancel the draft", expectText: ["Drafting a QuickAgent In Agentry", "The Drafter is running on a sandbox host.", "Cancel the draft"], expectNone: ".modal-backdrop" },
   { name: "draft-card-landed", url: "/drafts.html#card-landed", note: "the card once a draft landed: Drafted, Open the draft and Dismiss", expectText: ["Describe it: the draft is over", "Drafted csv-quality-check", "Open the draft", "Dismiss"], expectNone: ".modal-backdrop" },
   { name: "draft-card-stacked", url: "/drafts.html#card-stacked", note: "a draft In Agentry's card and a knowledge build's card stacked in App's corner, neither covering the other", expectText: ["Drafting a QuickAgent In Agentry", "Creating handbook"], expectNone: ".modal-backdrop" },
+  // A run on this computer followed above the pages (agentry-desktop#465).
+  { name: "run-running", url: "/runs.html#run-running", note: "a run on this computer under way, driven by runner:run-progress: time against its limit, turns, tokens; its log folded; Stop the run and Run in the background", expectText: ["Running demo1/incident-summarizer@1.2.0", "7 of up to 60", "48,210 input", "Stop the run", "Run in the background"] },
+  { name: "run-running-log", url: "/runs.html#run-running", note: "the same with its log opened: this run's lines, and not another run's", click: 'summary:has-text("Run log")', expectText: "tool: read_input incident-channel.txt", expectNoText: "A LINE OF ANOTHER RUN" },
+  { name: "run-background", url: "/runs.html#run-running", note: "Run in the background from the dialog: the dialog goes and the card takes its place", click: 'button:has-text("Run in the background")', expectText: ["Running demo1/incident-summarizer@1.2.0", "7 turns", "Stop", "Open"], expectNone: ".modal-backdrop" },
+  { name: "run-card", url: "/runs.html#run-card", note: "the run shrunk to its corner card over Installed, which stays usable: the time and turns, Stop and Open", expectText: ["Running demo1/incident-summarizer@1.2.0", "7 turns", "Stop", "Open"], expectNone: ".modal-backdrop" },
+  { name: "run-stopped", url: "/runs.html#run-stopped", note: "a run stopped from its card: the card says so, with Dismiss and Open", expectText: ["the run is over", "You stopped the run. Its receipts are written as far as it got.", "Dismiss"], expectNone: ".modal-backdrop" },
+  { name: "run-finished", url: "/runs.html#run-finished", note: "the run over: the result first, the files in its folder, Run details naming the operator policy; Back to the setup and Dismiss", expectText: ["Finished.", "INC-4821 began at 02:14 UTC", "Files in the run folder", "Back to the setup", "Dismiss"] },
+  { name: "run-failed", url: "/runs.html#run-failed", note: "a run that ended with no result: Go's words and its log", expectText: ["The run did not finish.", "Cannot connect to the Docker daemon", "tool: read_input incident-channel.txt"] },
+  { name: "run-hostile", url: "/runs.html#run-hostile", note: "a finished run whose result, files and log carry raw HTML, a script, an image and a right-to-left override: all drawn as text (D-035)", click: "details.run-details > summary", expectText: ["U+202E", "<img src=x onerror=alert(1)>"], expectNone: ".modal img, .modal script, .modal iframe, .modal b[onclick], .modal a[href^='javascript']" },
+  { name: "run-card-stacked", url: "/runs.html#run-card-stacked", note: "the run's card and a draft In Agentry's card stacked in App's corner, neither covering the other", expectText: ["Running demo1/incident-summarizer@1.2.0", "Drafting a QuickAgent In Agentry"], expectNone: ".modal-backdrop" },
   { name: "knowledge-create-building-background", url: "/knowledge.html#create-building", note: "the building view offers Stop the build and Run in the background", expectText: ["Stop the build", "Run in the background"] },
   // A pack a build left short, and a render fault's way back (agentry-desktop#351).
   { name: "knowledge-preview-empty", url: "/knowledge.html#preview-empty", note: "a pack with its index and no page, the list answered as null: the preview says no pages yet, never a blank window", expectText: "No pages yet" },
@@ -449,6 +459,12 @@ try {
       for (const want of [state.expectText ?? []].flat()) {
         const text = await page.locator(state.locator ?? "body").innerText();
         if (!text.includes(want)) throw new Error(`${state.name}: the page does not show "${want}"`);
+      }
+      // expectNoText: a sentence that must not show anywhere, such as a line
+      // of another run's log (agentry-desktop#465).
+      for (const unwanted of [state.expectNoText ?? []].flat()) {
+        const text = await page.locator(state.locator ?? "body").innerText();
+        if (text.includes(unwanted)) throw new Error(`${state.name}: the page shows "${unwanted}"`);
       }
       if (state.expectNone) {
         // Agent output makes no markup of its own (agentry-desktop#227).

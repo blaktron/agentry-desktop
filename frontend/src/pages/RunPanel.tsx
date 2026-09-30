@@ -22,17 +22,19 @@ import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
-import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type StepKey } from "../runSetup";
+import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
+import { startLocalRun } from "../runs";
+import { headlineOf } from "../localRun";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
-import { RunResultView } from "./RunResult";
+import { LocalRunDetails, RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
 
 export default function RunPanel({
-  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false,
+  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false, initialForm,
 }: {
   registry: string;
   ns: string;
@@ -52,8 +54,12 @@ export default function RunPanel({
    * (agentry-desktop#425): no registry holds it, so it is not offered In
    * Agentry, and its run needs the unsigned consent. */
   local?: boolean;
+  /** The answers as the person left them, when Back to the setup reopens
+   *  the setup of a run that is over (agentry-desktop#465). */
+  initialForm?: RunForm;
 }) {
   const agentRef = `${ns}/${name}@${version}`;
+  const f0 = initialForm;
 
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [setupErr, setSetupErr] = useState<string | null>(null);
@@ -67,28 +73,28 @@ export default function RunPanel({
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Run form.
-  const [task, setTask] = useState("");
-  const [intakeValues, setIntakeValues] = useState<Record<string, string>>({});
-  const [mode, setMode] = useState("");
+  const [task, setTask] = useState(f0?.task ?? "");
+  const [intakeValues, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
+  const [mode, setMode] = useState(f0?.mode ?? "");
   const [sessionActive, setSessionActive] = useState(false);
-  const [inputs, setInputs] = useState<string[]>([]);
+  const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
   // file intake question may pick one of these (plan §4, Details), and a
   // folder is never offered for it.
-  const [pickedFiles, setPickedFiles] = useState<string[]>([]);
+  const [pickedFiles, setPickedFiles] = useState<string[]>(f0?.pickedFiles ?? []);
   // The knowledge packs listed for the Knowledge step (plan knowledge.md
   // §4.5) — those kept here can be attached, those kept only in Agentry are
   // shown with where to download them — and the ones to attach, by name; Go
   // opens each from the store after the gates, and the receipt names what
   // was mounted.
   const [packs, setPacks] = useState<knowledge.Pack[] | null>(null);
-  const [attach, setAttach] = useState<string[]>([]);
+  const [attach, setAttach] = useState<string[]>(f0?.attach ?? []);
   // A pack kept only here being uploaded from the Knowledge step, so a run
   // In Agentry can attach it once Agentry has scanned it; and what the
   // upload said.
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
-  const [outDir, setOutDir] = useState("");
+  const [outDir, setOutDir] = useState(f0?.outDir ?? "");
   // Settings → Run defaults (agentry-desktop#347): the saved output folder
   // fills the field and where to run pre-selects the Where step, until the
   // person chooses otherwise for this run.
@@ -108,29 +114,31 @@ export default function RunPanel({
       .catch(() => live && setUnsafeNotice({ on: true, line: "Whether Unsafe Mode is on could not be read. Run defaults shows the switch.", unplaced: [] }));
     return () => { live = false; };
   }, [registry, agentRef]);
-  const modeChosen = useRef(false);
+  const modeChosen = useRef(!!f0);
   // Whether In Agentry was chosen by the default rather than by the person:
   // if the offer or the release's verdict then rules it out, the step goes
   // back to this computer.
   const byDefault = useRef(false);
   const chooseMode = (m: string) => { modeChosen.current = true; setMode(m); };
-  const [keep, setKeep] = useState(true);
+  const [keep, setKeep] = useState(f0?.keep ?? true);
   // D-012: the keep toggle is sent only once the user touches it; an
   // untouched toggle sends null, so a no-secret release does not grow an
   // empty profile per run, while an explicit keep is recorded.
-  const [keepTouched, setKeepTouched] = useState(false);
-  const [timeoutSec, setTimeoutSec] = useState("");
-  const [maxTurns, setMaxTurns] = useState("");
-  const [acceptUnsigned, setAcceptUnsigned] = useState(false);
+  const [keepTouched, setKeepTouched] = useState(f0?.keepTouched ?? false);
+  const [timeoutSec, setTimeoutSec] = useState(f0?.timeoutSec ?? "");
+  const [maxTurns, setMaxTurns] = useState(f0?.maxTurns ?? "");
+  const [acceptUnsigned, setAcceptUnsigned] = useState(f0?.acceptUnsigned ?? false);
   // Its own consent (M23): an unscanned release is not an unsigned one.
-  const [acceptUnscanned, setAcceptUnscanned] = useState(false);
+  const [acceptUnscanned, setAcceptUnscanned] = useState(f0?.acceptUnscanned ?? false);
   // The registry's verdict on the declared MCP servers (agentry#177): a
   // known high/critical advisory refuses the run unless this override
   // (recorded in the receipt) or the operator policy allows it.
   const [mcp, setMcp] = useState<main.MCPView | null>(null);
-  const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(false);
+  const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(f0?.allowVulnerableMCP ?? false);
 
-  // Run state.
+  // Run state. running: a run on this computer is being handed to the
+  // run's flow, from Run until Go reports that it has begun (the native
+  // consent comes first), when this setup closes (agentry-desktop#465).
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [result, setResult] = useState<main.RunResultView | null>(null);
@@ -150,7 +158,7 @@ export default function RunPanel({
 
   // The guided setup: which step shows, a step's own sentence when Next is
   // refused, and the heading focus moves to when the step changes.
-  const [stepKey, setStepKey] = useState<StepKey>(initialStep ?? "start");
+  const [stepKey, setStepKey] = useState<StepKey>(initialStep ?? (f0 ? "review" : "start"));
   const [stepProblem, setStepProblem] = useState<string | null>(null);
   const stepHeading = useRef<HTMLHeadingElement | null>(null);
   const moved = useRef(false);
@@ -162,7 +170,7 @@ export default function RunPanel({
     SettingsAPI.RunDefaults()
       .then((d) => {
         setDefaults(d);
-        if (d.outputDir) setOutDir((cur) => cur || d.outputDir || "");
+        if (d.outputDir && !f0) setOutDir((cur) => cur || d.outputDir || "");
       })
       .catch(() => setDefaults(null));
     // A local install's tool surface is its own (agentry-desktop#425); a
@@ -172,21 +180,27 @@ export default function RunPanel({
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
         setProfile(p);
+        setFormKeep(p.keep);
+        // A setup reopened from a run keeps the answers it had.
+        if (f0) return;
         setMode(initialMode ?? ((p.modes ?? []).includes("autonomous") || (p.modes ?? []).length === 0 ? "autonomous" : p.modes[0]));
         setKeep(p.keep);
         setKeepTouched(false);
-        setFormKeep(p.keep);
         if (p.declaredSecrets.length > 0 && !p.exists) setFormOpen(true);
       })
       .catch((e) => setProfileErr(String(e)));
   }, [registry, agentRef]);
 
+  // A chat's log, while this setup's own chat is under way. A run on this
+  // computer is followed by the run's flow, by its id (runner:run-line), so
+  // this setup never shows another run's lines (agentry-desktop#465).
   useEffect(() => {
+    if (!sessionActive) return;
     const off = EventsOn("runner:run-log", (line: string) => {
       setLog((prev) => [...prev, line]);
     });
     return off;
-  }, []);
+  }, [sessionActive]);
 
   // In Agentry: is the mode offered for this release, and does this
   // account already have a run the panel should reattach to (D11)?
@@ -349,7 +363,7 @@ export default function RunPanel({
   const step = steps[at];
   // Once a run is under way, or has left something to show, the panel is
   // the run, not the setup.
-  const started = running || sessionActive || !!result || log.length > 0 || (inAgentry && !!hostedRun);
+  const started = sessionActive || !!result || log.length > 0 || (inAgentry && !!hostedRun);
 
   // Focus follows the step, and returns to it when the run view gives way
   // to the setup again.
@@ -545,11 +559,22 @@ export default function RunPanel({
     setRunErr(null);
     setResult(null);
     setLog([]);
+    const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
+    const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
+    const form: RunForm = {
+      mode, task, inputs, pickedFiles, intakeValues, attach, outDir, timeoutSec, maxTurns, keep, keepTouched,
+      acceptUnsigned, acceptUnscanned, allowVulnerableMCP,
+    };
     try {
-      const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
-      const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-      const r = await RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached);
-      setResult(r);
+      // The run's flow follows it from here: this setup closes once Go
+      // reports the run has begun, and stays, with Go's words, if it never
+      // does (the consent declined, another job running, a gate refused).
+      await startLocalRun(
+        { panel: { registry, ns, name, version, summary, attestation, local }, form },
+        agentRef,
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached),
+      );
+      onClose();
     } catch (e) {
       setRunErr(String(e));
     } finally {
@@ -561,7 +586,7 @@ export default function RunPanel({
     ? starting ? "Starting…" : hostedActive ? "In a session In Agentry…" : "Start session In Agentry"
     : inAgentry
     ? starting ? "Starting…" : hostedActive ? "Running In Agentry…" : "Run In Agentry"
-    : running ? "Running…" : mode === "interactive" ? "Start session" : "Run";
+    : running ? "Starting…" : mode === "interactive" ? "Start session" : "Run";
   const modeWord = sessionInAgentry ? "an interactive session In Agentry" : inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
   const answered = (profile?.intake ?? []).filter((q) => q.type !== "secret");
 
@@ -1344,14 +1369,13 @@ export default function RunPanel({
           />
         )}
 
-        {/* Live log: a run on this machine only (a run In Agentry has none),
-            in view while it runs and when it ended with no result to show,
-            and under Run details once a result is there. */}
-        {!inAgentry && (running || (log.length > 0 && !result)) && (
+        {/* A chat's setup log, when it ended with no result to show (a run
+            on this computer is followed by the run's flow, and a run In
+            Agentry has no log); under Run details once a result is there. */}
+        {!inAgentry && log.length > 0 && !result && (
           <>
             <h3>Run log</h3>
-            <pre ref={logRef} className="run-log selectable">{log.join("\n")}{running ? "\n…" : ""}</pre>
-            {running && <Spinner label="Running — the container topology streams its progress above." />}
+            <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
           </>
         )}
 
@@ -1370,54 +1394,19 @@ export default function RunPanel({
           </RunResultView>
         )}
 
-        {/* A run or a session on this machine: the result first; the
+        {/* A chat on this machine that has ended: the result first; the
             envelope's badges, usage, paths and the log are its Run details. */}
         {result && (
           <RunResultView
             runId={result.runId}
-            headline={result.status === "ok" ? "Finished." : `It ended in an error (exit ${result.exitCode}).`}
-            tone={result.status === "ok" ? "ok" : "bad"}
+            headline={headlineOf(result).line}
+            tone={headlineOf(result).tone}
             error={result.error || undefined}
             resultJson={result.resultJson}
             knowledge={result.knowledge}
             unsafeExec={result.unsafeExec}
           >
-            <Card className="selectable">
-              <div className="row">
-                {result.status === "ok"
-                  ? <span className="badge ok">ok</span>
-                  : <span className="badge bad">error (exit {result.exitCode})</span>}
-                <span className={`badge ${result.attestationState === "verified" ? "ok" : "warn"}`}>
-                  attestation: {result.attestationState}
-                </span>
-                <span className="muted small">
-                  {result.turns} turns · {result.inputTokens + result.outputTokens} tokens ·{" "}
-                  {(result.wallMs / 1000).toFixed(1)}s{result.costUsd > 0 ? ` · $${result.costUsd.toFixed(4)}` : ""}
-                </span>
-              </div>
-              <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
-              <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
-              <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>
-              {/* The operator policy the run enforced (agentry-cli#152,
-                  agentry-desktop#269): which file, and how its path was
-                  chosen, since a relocated runner home is inherited
-                  silently from the environment. */}
-              {result.policy && (
-                <>
-                  <div className="kv"><span className="k">operator policy</span><span className="mono">{result.policy.path}</span></div>
-                  <div className="kv"><span className="k">policy chosen by</span><span>{policySourceLabel(result.policy.source)}</span></div>
-                  {result.policy.sha256 && (
-                    <div className="kv"><span className="k">policy digest</span><span className="mono" title={result.policy.sha256}>{shortDigest(result.policy.sha256)}</span></div>
-                  )}
-                </>
-              )}
-            </Card>
-            {log.length > 0 && (
-              <>
-                <h4>Run log</h4>
-                <pre className="run-log selectable">{log.join("\n")}</pre>
-              </>
-            )}
+            <LocalRunDetails result={result} log={log} />
           </RunResultView>
         )}
 
@@ -1430,17 +1419,6 @@ export default function RunPanel({
       </div>
     </div>
   );
-}
-
-// policySourceLabel says how the run's policy path was chosen, from the
-// envelope's policy.source (agentry-cli#152). The desktop has no
-// --policy, so "flag" is never its own; an unknown source is shown as is.
-function policySourceLabel(source: string): string {
-  switch (source) {
-    case "default": return "the runner home's policy.yaml (the default)";
-    case "env": return "AGENTRY_RUNNER_HOME, set in the environment this app started from";
-    default: return source;
-  }
 }
 
 // hostedHeadline is how a run In Agentry ended, in a sentence: a pass says
