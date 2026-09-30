@@ -183,10 +183,15 @@ const states = [
   // Every page under the shell and every step of the first-run wizard, so a
   // change to the token table (agentry-desktop#49) is seen everywhere it
   // lands, not only in the states above.
-  { name: "page-browse", url: "/pages.html", note: "Browse under the shell", locator: '[data-preview="browse"]' },
+  { name: "page-browse", url: "/pages.html", note: "Browse under the shell: Validate is not listed outside Build (agentry-desktop#422)", locator: '[data-preview="browse"]', expectOrder: ['[data-preview="browse"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Settings"]] },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell", locator: '[data-preview="agent"]' },
   { name: "page-installed", url: "/pages.html", note: "Installed under the shell", locator: '[data-preview="installed"]' },
-  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Describe it first as on the site, then Step by step and Advanced (agentry-desktop#421)", locator: '[data-preview="build"]', expectText: "Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.", expectOrder: ['[data-preview="build"] .build-way strong', ["Describe it", "Step by step", "Advanced"]] },
+  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Describe it first as on the site, then Step by step and Advanced (agentry-desktop#421)", locator: '[data-preview="build"]', expectText: "Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.", expectOrder: [
+    ['[data-preview="build"] .build-way strong', ["Describe it", "Step by step", "Advanced"]],
+    // Validate is Build's sub-item, shown while Build is open (agentry-desktop#422).
+    ['[data-preview="build"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"]],
+    ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
+  ] },
   // The Build tab's views (plan builder-rework.md §5, agentry-desktop#280):
   // a step with its reach summary and the lines it writes, the preview of
   // what a person sees before a run, Review's recap, and Advanced.
@@ -230,7 +235,11 @@ const states = [
   { name: "page-build-summary-hostile", url: "/pages.html#build-summary-hostile", note: "a hostile overview, key help and host on the summary: no markup of its own, no image, no javascript: link, the override shown", locator: '[data-preview="build"]', expectText: ["U+202E", "<img src=x onerror=alert(1)>"], expectNone: '[data-preview="build"] .build-summary img, [data-preview="build"] .build-summary script, [data-preview="build"] .build-summary b[onclick], [data-preview="build"] .build-summary a[href^="javascript"]' },
   { name: "page-build-summary-problem", url: "/pages.html#build-summary-problem", note: "the summary of a QuickAgent a rule still refuses: the rule named with Fix it in its step, Submit greyed", locator: '[data-preview="build"]', expectText: ["It cannot be submitted yet. Before a run:", "Fix it in Before a run"], expectDisabledSummarySubmit: true },
   { name: "page-build-comments", url: "/pages.html#build-comments", note: "a loaded agent.yaml with comments: the notice that a save drops them", locator: '[data-preview="build"]', expectText: "the comments are not kept" },
-  { name: "page-validate", url: "/pages.html", note: "Validate under the shell", locator: '[data-preview="validate"]' },
+  { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it (agentry-desktop#422)", locator: '[data-preview="validate"]', expectOrder: [
+    ['[data-preview="validate"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"]],
+    ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "Validate"]],
+    ['[data-preview="validate"] .sidebar [aria-current="page"]', ["Validate"]],
+  ] },
   // Settings as five cards (agentry-desktop#346): the landing with each
   // card's status line; each section page; a card opened, a part's link
   // followed, the way back; and each deep link App gives a caller.
@@ -404,10 +413,13 @@ try {
       }
       if (state.expectOrder) {
         // The order of a set of elements, read from the page, not the
-        // picture (agentry-desktop#421, the Build start page's ways in).
-        const [sel, want] = state.expectOrder;
-        const got = (await page.locator(sel).allInnerTexts()).map((t) => t.trim());
-        if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error(`${state.name}: ${sel} reads ${got.join(" | ")}, not ${want.join(" | ")}`);
+        // picture (agentry-desktop#421, the Build start page's ways in). One
+        // [selector, texts] pair, or a list of them.
+        const pairs = Array.isArray(state.expectOrder[0]) ? state.expectOrder : [state.expectOrder];
+        for (const [sel, want] of pairs) {
+          const got = (await page.locator(sel).allInnerTexts()).map((t) => t.trim());
+          if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error(`${state.name}: ${sel} reads ${got.join(" | ")}, not ${want.join(" | ")}`);
+        }
       }
       if (state.expectMinWidth) {
         // A layout check, not only a picture: every matching element keeps

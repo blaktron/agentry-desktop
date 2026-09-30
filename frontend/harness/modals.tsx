@@ -416,6 +416,7 @@ import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";
+import { SidebarNav } from "../src/nav";
 
 const att = (hostedState === "unscanned" || hostedState === "default-agentry-unscanned" || view === "install-unscanned"
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
@@ -425,7 +426,7 @@ function Backdrop() {
   return (
     <div className="shell" style={{ height: "100vh" }}>
       <div className="sidebar"><div className="brand"><Wordmark sub="Desktop" /></div>
-        {["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"].map((n) => <button key={n} className={`nav-item ${n === "Browse" ? "active" : ""}`}>{n}</button>)}
+        <SidebarNav page="browse" />
       </div>
       <div className="content" />
     </div>

@@ -17,6 +17,7 @@ import Build from "./pages/Build";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
+import { SidebarNav } from "./nav";
 import { Button, Notice, Wordmark } from "./ui";
 
 export type Route =
@@ -125,15 +126,6 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
-  const navItem = (label: string, page: Route["page"], count = 0) => (
-    <button
-      className={`nav-item ${route.page === page || (page === "browse" && route.page === "agent") ? "active" : ""}`}
-      onClick={() => nav({ page } as Route)}
-    >
-      {label}
-      {count > 0 && <span className="badge warn nav-count" title={`${count} installed QuickAgent${count === 1 ? " has" : "s have"} a newer version`}>{count}</span>}
-    </button>
-  );
 
   return (
     <CornerHost.Provider value={corner}>
@@ -142,12 +134,7 @@ export default function App() {
           <div className="brand">
             <Wordmark sub="Desktop" />
           </div>
-          {navItem("Browse", "browse")}
-          {navItem("Installed", "installed", installedUpdates)}
-          {navItem("Knowledge", "knowledge")}
-          {navItem("Build", "build")}
-          {navItem("Validate", "validate")}
-          {navItem("Settings", "settings")}
+          <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} />
           <div className="foot">
             {version && <div>v{version}</div>}
             {newer?.available && !newer.dismissed && (

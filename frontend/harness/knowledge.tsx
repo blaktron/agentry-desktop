@@ -34,6 +34,7 @@
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
+import { SidebarNav } from "../src/nav";
 
 const hash = window.location.hash.replace(/^#/, "") || "knowledge";
 const signedOut = hash === "knowledge-signed-out";
@@ -195,12 +196,11 @@ function MaybeBoom({ children }: { children: React.ReactNode }) {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const nav = ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"];
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        {nav.map((n) => <button key={n} className={`nav-item ${n === "Knowledge" ? "active" : ""}`}>{n}</button>)}
+        <SidebarNav page="knowledge" />
         <div className="foot"><div>v0.6.1</div><div className="nowrap">{HOST}</div></div>
       </div>
       <div className="content">{children}</div>
