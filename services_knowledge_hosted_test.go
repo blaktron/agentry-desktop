@@ -250,7 +250,7 @@ func hostedBuildAPI(t *testing.T, f *buildFake) (*KnowledgeAPI, *buildEvents) {
 		HTTP:     http.DefaultClient,
 	}
 	app := &App{ctx: context.Background()}
-	r := &RunAPI{app: app, knowledgeEnv: &env, inFlightDir: t.TempDir()}
+	r := &RunAPI{app: app, knowledgeEnv: &env, runnerHomeDir: t.TempDir()}
 	k := &KnowledgeAPI{app: app, run: r}
 	// Registered last, so it runs first: a follow still going when the test
 	// ends is stopped and waited for before the globals it reads are put

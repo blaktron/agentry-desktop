@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,11 +84,27 @@ func TestRecordInFlightThenForget(t *testing.T) {
 	}
 }
 
+// scratchOf makes the scratch directory a run of the fixture release would
+// have under home, with a secrets file in it, and returns its path.
+func scratchOf(t *testing.T, home, runID string) string {
+	t.Helper()
+	dir := filepath.Join(home, "agents", "acme", "reporter", "1.0.0-0123456789ab", "runs", runID)
+	if err := os.MkdirAll(filepath.Join(dir, "cfg", "gateway"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cfg", "gateway", "secrets.env"), []byte("K=v\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
 // At startup a record whose owner is gone is swept by its run id and
 // removed; a live owner's record and this process's own are left alone,
 // and nothing but the dead run's label is ever asked about — so a CLI
-// run's containers, under their own run id, are never touched.
+// run's containers, under their own run id, are never touched, nor its
+// scratch directory, nor a second desktop's live run's.
 func TestSweepOrphanedSweepsOnlyADeadOwnersRun(t *testing.T) {
+	home := isolateRunEnv(t)
 	fake := &dockerx.Fake{
 		ByLabel: map[string][]string{
 			"agentry.run=dead0001": {"agentry-dead0001-agent", "agentry-dead0001-gateway"},
@@ -95,11 +112,9 @@ func TestSweepOrphanedSweepsOnlyADeadOwnersRun(t *testing.T) {
 			"agentry.run=c11c0003": {"agentry-c11c0003-agent"}, // a CLI run: no record
 		},
 	}
-	prev := newDockerClient
-	newDockerClient = func() dockerx.Client { return fake }
-	t.Cleanup(func() { newDockerClient = prev })
+	withFakeDocker(t, fake)
 
-	dir := filepath.Join(t.TempDir(), InFlightDirName)
+	dir := filepath.Join(home, InFlightDirName)
 	pid, start := deadPID(t)
 	writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start})
 	parent := os.Getppid()
@@ -113,6 +128,11 @@ func TestSweepOrphanedSweepsOnlyADeadOwnersRun(t *testing.T) {
 	writeRecord(t, dir, inFlight{RunID: "bad", PID: pid})
 	if err := os.WriteFile(filepath.Join(dir, "abcdef01.json"), []byte(`{"run_id":"abcdef02","pid":1}`), 0o600); err != nil {
 		t.Fatal(err)
+	}
+	dead := scratchOf(t, home, "dead0001")
+	kept := []string{
+		scratchOf(t, home, "a11e0002"), scratchOf(t, home, "5e1f0004"), scratchOf(t, home, "c11c0003"),
+		scratchOf(t, home, "abcdef01"), scratchOf(t, home, "abcdef02"),
 	}
 
 	swept, err := SweepOrphaned(context.Background(), dir, Sweep)
@@ -139,10 +159,82 @@ func TestSweepOrphanedSweepsOnlyADeadOwnersRun(t *testing.T) {
 	if exists(filepath.Join(dir, "dead0001.json")) {
 		t.Fatal("the swept run's record was kept")
 	}
+	if exists(dead) {
+		t.Fatal("the swept run's scratch directory was kept")
+	}
 	for _, keep := range []string{"a11e0002.json", "5e1f0004.json", "bad.json", "abcdef01.json"} {
 		if !exists(filepath.Join(dir, keep)) {
 			t.Fatalf("%s was removed", keep)
 		}
+	}
+	for _, keep := range kept {
+		if !exists(filepath.Join(keep, "cfg", "gateway", "secrets.env")) {
+			t.Fatalf("the sweep reached the scratch directory of a run that is not a dead owner's: %s", keep)
+		}
+	}
+}
+
+// At quit, after the app has torn down what it had live, its own records
+// are swept with the dead owners'; another live process's run is still not
+// the app's to touch.
+func TestSweepAtQuitSweepsThisProcessesRecordsToo(t *testing.T) {
+	home := isolateRunEnv(t)
+	fake := &dockerx.Fake{}
+	withFakeDocker(t, fake)
+
+	dir := filepath.Join(home, InFlightDirName)
+	pid, start := deadPID(t)
+	writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start})
+	parent := os.Getppid()
+	pstart, _ := owner.StartTime(parent)
+	writeRecord(t, dir, inFlight{RunID: "a11e0002", PID: parent, Start: pstart})
+	if err := RecordInFlight(dir, "5e1f0004"); err != nil {
+		t.Fatal(err)
+	}
+	dead, own, alive := scratchOf(t, home, "dead0001"), scratchOf(t, home, "5e1f0004"), scratchOf(t, home, "a11e0002")
+
+	swept, err := SweepAtQuit(context.Background(), dir, Sweep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(swept, ",") != "5e1f0004,dead0001" {
+		t.Fatalf("swept %v, want this process's run and the dead owner's", swept)
+	}
+	if exists(dead) || exists(own) || exists(filepath.Join(dir, "dead0001.json")) || exists(filepath.Join(dir, "5e1f0004.json")) {
+		t.Fatal("a swept run left its scratch directory or its record")
+	}
+	if !exists(alive) || !exists(filepath.Join(dir, "a11e0002.json")) {
+		t.Fatal("quitting swept a run another live process owns")
+	}
+	for _, c := range fake.Calls {
+		if strings.Contains(c.Arg, "a11e0002") {
+			t.Fatalf("touched a live owner's run: %s %s", c.Op, c.Arg)
+		}
+	}
+}
+
+// A record an earlier build wrote with a key this one does not know (the
+// review builds of agentry-desktop#463 wrote "host" and "machine") is still
+// a record: a dead owner's run is swept by it.
+func TestARecordWithAKeyThisBuildDoesNotKnowIsStillSwept(t *testing.T) {
+	home := isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{})
+	dir := filepath.Join(home, InFlightDirName)
+	pid, start := deadPID(t)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	rec := fmt.Sprintf(`{"run_id":"dead0001","pid":%d,"start":%d,"host":"elsewhere","machine":"0123abcd"}`, pid, start)
+	if err := os.WriteFile(filepath.Join(dir, "dead0001.json"), []byte(rec), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scratch := scratchOf(t, home, "dead0001")
+	swept, err := SweepOrphaned(context.Background(), dir, Sweep)
+	if err != nil || strings.Join(swept, ",") != "dead0001" {
+		t.Fatalf("swept %v, err %v", swept, err)
+	}
+	if exists(scratch) || exists(filepath.Join(dir, "dead0001.json")) {
+		t.Fatal("the dead run's scratch directory or record was left")
 	}
 }
 
