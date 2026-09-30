@@ -65,6 +65,21 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 	if err != nil {
 		return nil, err
 	}
+	return requirementsOf(ctx, regURL, sig), nil
+}
+
+// RunRequirements is Requirements for the release a run of ref would run:
+// a local install of it first (agentry-desktop#425), else the registry's.
+// The run panel reads this; the published agent's page reads Requirements.
+func RunRequirements(ctx context.Context, regURL, ref string) (*MCPInfo, error) {
+	sig, err := resolveForRun(ctx, regURL, ref, false)
+	if err != nil {
+		return nil, err
+	}
+	return requirementsOf(ctx, regURL, sig), nil
+}
+
+func requirementsOf(ctx context.Context, regURL string, sig *Signature) *MCPInfo {
 	c := sig.Manifest.Capabilities
 	info := &MCPInfo{
 		Ref:      sig.Ref,
@@ -86,7 +101,7 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 	info.Servers = append(info.Servers, declaredServerLines(info.Declared)...)
 	vr := mcpvuln.Check(ctx, regURL, c.MCPServers)
 	info.Vulnerabilities, info.VulnerabilityLine, info.Refusal = vr.Statuses, vr.Line, vr.Refusal
-	return info, nil
+	return info
 }
 
 // declaredServerLines is one line per declared server, in order: the page

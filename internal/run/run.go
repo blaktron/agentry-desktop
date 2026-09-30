@@ -37,6 +37,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
+	"github.com/blaktron/agentry-cli/pkg/runner/localinstall"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
@@ -76,7 +77,16 @@ type Signature struct {
 	Yanked    bool
 	Manifest  *manifest.Manifest
 	resolve   *apiclient.ResolveResult
+	// local is the release directory of a QuickAgent installed from a
+	// folder on this computer (the CLI's DR-52; agentry-desktop#425), and
+	// localMeta what its integrity record vouched for: a run reads it there
+	// and asks no registry.
+	local     string
+	localMeta *installdir.Meta
 }
+
+// Local says the signature is a local install's, never a registry's.
+func (s *Signature) Local() bool { return s.local != "" }
 
 // DigestSuffix is the 12-char digest form used in directory names.
 func (s *Signature) DigestSuffix() string { return installdir.DigestSuffix(s.Digest) }
@@ -119,6 +129,54 @@ func ResolveSignature(ctx context.Context, regURL, ref string, installIntent boo
 		Manifest:  m,
 		resolve:   res,
 	}, nil
+}
+
+// localRepair is how a changed local install is laid down again from the
+// desktop: its folder, through the Build tab, never a registry, which does
+// not hold it.
+const localRepair = "Build → Open folder… → Install"
+
+// resolveForRun is what a run on this computer resolves a ref through: a
+// local install of ns/name first (localinstall.Materialize, which holds it
+// to its integrity record), then the registry. A version range or another
+// channel is the registry's, as in the CLI's run (DR-52). A hosted run and
+// the published agent's page keep ResolveSignature: neither has anything
+// to do with this machine's installs.
+func resolveForRun(ctx context.Context, regURL, ref string, installIntent bool) (*Signature, error) {
+	parsed, err := manifest.ParseRef(ref)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Channel == "" || parsed.Channel == "stable" {
+		if home, herr := Home(); herr == nil {
+			meta, dir, ok, lerr := localinstall.Materialize(home, parsed.Namespace, parsed.Name, parsed.Range)
+			if ok {
+				if lerr != nil {
+					var changed *installdir.ChangedError
+					if errors.As(lerr, &changed) {
+						changed.Repair = localRepair
+					}
+					return nil, lerr
+				}
+				m, err := manifestFromWorkspace(filepath.Join(dir, "workspace"))
+				if err != nil {
+					return nil, err
+				}
+				return &Signature{
+					Registry:  settings.Normalize(regURL),
+					Ref:       fmt.Sprintf("%s/%s@%s", meta.Namespace, meta.Name, meta.Version),
+					Namespace: meta.Namespace, Name: meta.Name, Version: meta.Version,
+					Digest:   meta.Digest,
+					Manifest: m,
+					local:    dir, localMeta: meta,
+				}, nil
+			}
+			// An install record that cannot be read is not a reason to
+			// refuse a registry release: the registry answers, as the
+			// CLI's run does.
+		}
+	}
+	return ResolveSignature(ctx, regURL, ref, installIntent)
 }
 
 // ProfileInfo is a QuickAgent signature's MCP-profile state (§P2/§P3).
@@ -170,7 +228,7 @@ func Declared(ctx context.Context, regURL, ref string) (modes, secrets []string,
 // non-existent profile is the policy default, so the form's toggle starts
 // where guided setup would.
 func ProfileStatus(ctx context.Context, regURL, ref string) (*ProfileInfo, error) {
-	sig, err := ResolveSignature(ctx, regURL, ref, false)
+	sig, err := resolveForRun(ctx, regURL, ref, false)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +277,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 // environment at run time" and are recorded as absent, not empty; an
 // existing profile's CreatedAt survives reconfiguration.
 func SaveProfile(ctx context.Context, regURL, ref string, secrets map[string]string, keep bool) (*ProfileInfo, error) {
-	sig, err := ResolveSignature(ctx, regURL, ref, false)
+	sig, err := resolveForRun(ctx, regURL, ref, false)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +448,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		return nil, fmt.Errorf("operator policy: %w", err)
 	}
 
-	sig, err := ResolveSignature(ctx, req.Registry, req.Ref, true)
+	sig, err := resolveForRun(ctx, req.Registry, req.Ref, true)
 	if err != nil {
 		return nil, err
 	}
@@ -662,6 +720,17 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 // digest check → DSSE verify → hardened extract) when not: the gate
 // `agentry install` and `agentry run` apply (§R1, DR-21, DR-27).
 func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigned, acceptUnscanned bool, logw io.Writer) (*installdir.Meta, string, error) {
+	if sig.Local() {
+		// Installed from a folder: no registry holds it, and nothing on
+		// disk gives it another state than local, which needs the
+		// unsigned consent on every run (DR-52).
+		meta := *sig.localMeta
+		if err := cachedAttestationGate(&meta, acceptUnsigned, acceptUnscanned, logw); err != nil {
+			return nil, "", err
+		}
+		_, _ = fmt.Fprintf(logw, "installed from a folder on this computer: %s is local and unsigned (%s)\n", sig.Ref, sig.DigestSuffix())
+		return &meta, sig.local, nil
+	}
 	installDir := installdir.ReleaseDir(home, sig.Namespace, sig.Name, sig.Version, sig.Digest)
 	if meta, ok := installdir.Load(installDir, sig.Digest); ok {
 		// The registry's word today outranks the cache's memory: an
@@ -733,10 +802,16 @@ func cachedAttestationGate(meta *installdir.Meta, acceptUnsigned, acceptUnscanne
 		}
 		meta.Attestation.Consent = receipt.ConsentAllowUnscanned
 		_, _ = fmt.Fprintf(logw, "warning: unscanned — running %s (cached install), which the registry admitted without a scan, because it was explicitly accepted; the run is marked unscanned in its receipts\n", meta.Ref)
-	case trust.StateUnsigned, "local":
-		// "local" is the CLI's record of an unpublished directory it ran;
-		// the two share this cache, and the CLI spells the state without
-		// a constant.
+	case trust.StateLocal:
+		// A QuickAgent installed from a folder (DR-52), or the CLI's cache
+		// of an unpublished directory it ran: no registry scanned or
+		// signed it.
+		if !acceptUnsigned {
+			return fmt.Errorf("local and unsigned — %s was installed from a folder on this computer, and no registry scanned or signed it; tick \"Run an unsigned release\" to run it anyway", meta.Ref)
+		}
+		meta.Attestation.Consent = receipt.ConsentAllowUnsigned
+		_, _ = fmt.Fprintf(logw, "warning: local and unsigned — running %s because it was explicitly accepted; the run is marked local in its receipts\n", meta.Ref)
+	case trust.StateUnsigned:
 		if !acceptUnsigned {
 			return fmt.Errorf("unsigned — the registry offers no attestation for %s (cached install); tick \"Run an unsigned release\" to run it anyway", meta.Ref)
 		}
@@ -905,12 +980,13 @@ func recordCapabilities(m *manifest.Manifest, meta *installdir.Meta, home string
 	}
 	// An install owns the agent's directory (managed); a run that
 	// re-consents keeps that and records nothing managed of its own — its
-	// cache is not an install (the CLI's rule, DR-28).
-	managed := false
-	if prev := state.Find(key); prev != nil {
-		managed = prev.Managed
+	// cache is not an install (the CLI's rule, DR-28). Reconsent also keeps
+	// a local install's mark, and records nothing over a local install when
+	// this run is of another release (DR-52).
+	if !state.Reconsent(key, meta.Version, installed.Snapshot(m.Contract()), meta.Digest) {
+		_, _ = fmt.Fprintf(logw, "the record for %s/%s is its local install; this run's consent is not kept\n", meta.Namespace, meta.Name)
+		return
 	}
-	state.Upsert(key, meta.Version, installed.Snapshot(m.Contract()), managed)
 	if err := installed.Save(state); err != nil {
 		_, _ = fmt.Fprintf(logw, "warning: %v — the accepted capability contract could not be recorded\n", err)
 	}
