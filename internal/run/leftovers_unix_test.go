@@ -78,8 +78,9 @@ func TestTheSweepRemovesADirectoryTheRunLeftReadOnly(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(locked, "data"), []byte("x"), 0o400); err != nil {
 		t.Fatal(err)
 	}
-	// A link in the workspace to a directory outside it, which the second
-	// try's walk must neither follow nor change.
+	// A link to a directory outside the runner home, which the second try's
+	// walk must neither follow nor change. It sits in the read-only
+	// directory, so the first delete cannot take it and the walk meets it.
 	mine := filepath.Join(t.TempDir(), "documents")
 	if err := os.Mkdir(mine, 0o700); err != nil {
 		t.Fatal(err)
@@ -87,7 +88,7 @@ func TestTheSweepRemovesADirectoryTheRunLeftReadOnly(t *testing.T) {
 	if err := os.Chmod(mine, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(mine, filepath.Join(scratch, "workspace", "out")); err != nil {
+	if err := os.Symlink(mine, filepath.Join(filepath.Dir(locked), "out")); err != nil {
 		t.Fatal(err)
 	}
 	for _, dir := range []string{locked, filepath.Dir(locked)} {
