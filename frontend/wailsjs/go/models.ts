@@ -3268,6 +3268,85 @@ export namespace main {
 	        this.quarantine = source["quarantine"];
 	    }
 	}
+	export class SearchKeyTestView {
+	    ok: boolean;
+	    message: string;
+	    from?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchKeyTestView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.message = source["message"];
+	        this.from = source["from"];
+	    }
+	}
+	export class SearchProviderView {
+	    name: string;
+	    label: string;
+	    envName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchProviderView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.label = source["label"];
+	        this.envName = source["envName"];
+	    }
+	}
+	export class SearchKeyView {
+	    provider?: string;
+	    providerLabel?: string;
+	    stored: boolean;
+	    source?: string;
+	    envName?: string;
+	    envSet: boolean;
+	    ready: boolean;
+	    keyStoreErr?: string;
+	    providers: SearchProviderView[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchKeyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.providerLabel = source["providerLabel"];
+	        this.stored = source["stored"];
+	        this.source = source["source"];
+	        this.envName = source["envName"];
+	        this.envSet = source["envSet"];
+	        this.ready = source["ready"];
+	        this.keyStoreErr = source["keyStoreErr"];
+	        this.providers = this.convertValues(source["providers"], SearchProviderView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class SearchQuery {
 	    q: string;
 	    mode?: string;

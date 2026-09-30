@@ -13,8 +13,9 @@ import Knowledge from "./pages/Knowledge";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import RunFlow from "./pages/RunFlow";
+import HostedRunFlow from "./pages/HostedRunFlow";
 import RunPanel from "./pages/RunPanel";
-import type { RunSetup } from "./runs";
+import { type RunSetup, attachHostedRun } from "./runs";
 import { CornerHost } from "./progress";
 import { attachHosted } from "./drafts";
 import Validate from "./pages/Validate";
@@ -106,6 +107,10 @@ export default function App() {
   // the start, in its corner card (agentry-desktop#410).
   useEffect(() => {
     if (registry) attachHosted(registry);
+  }, [registry]);
+  // So is a run In Agentry, in its own card (agentry-desktop#466).
+  useEffect(() => {
+    if (registry) void attachHostedRun(registry);
   }, [registry]);
 
   useEffect(() => {
@@ -277,6 +282,7 @@ export default function App() {
           }}
         />
         <RunFlow onBackToSetup={setReopened} />
+        <HostedRunFlow onBackToSetup={setReopened} />
         {reopened && (
           <RunPanel
             {...reopened.panel}

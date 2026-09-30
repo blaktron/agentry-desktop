@@ -80,20 +80,12 @@ func modelName(pol *policy.Policy) string {
 func SearchSentence(s drafter.SearchState, pol *policy.Policy) string {
 	switch s {
 	case drafter.SearchOn:
-		return fmt.Sprintf("Its searches go to %s with your key.", providerName(pol.WebSearch.Provider))
+		return fmt.Sprintf("Its searches go to %s with your key.", pol.WebSearch.ProviderName())
 	case drafter.SearchNoKey:
 		return fmt.Sprintf("It has no web search: no key for %s was found ($%s, or the keychain when the policy says so).",
-			providerName(pol.WebSearch.Provider), pol.WebSearch.KeyEnv())
+			pol.WebSearch.ProviderName(), pol.WebSearch.KeyEnv())
 	}
 	return "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows."
-}
-
-// providerName is a search provider's name as a person knows it.
-func providerName(p string) string {
-	if p == "youcom" {
-		return "You.com"
-	}
-	return p
 }
 
 // Prepare checks a draft before anything leaves this computer: the

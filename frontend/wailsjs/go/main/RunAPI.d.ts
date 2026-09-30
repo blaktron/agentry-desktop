@@ -15,6 +15,8 @@ export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:
 
 export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStartView>;
 
+export function AttachHostedRunAtStart(arg1:string):Promise<main.HostedStartView>;
+
 export function CancelHostedRun():Promise<main.HostedRunView>;
 
 export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;
@@ -36,6 +38,8 @@ export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
 export function ForgetJevKey():Promise<main.JevKeyView>;
 
 export function ForgetRun(arg1:string):Promise<void>;
+
+export function ForgetSearchKey():Promise<main.SearchKeyView>;
 
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
 
@@ -71,6 +75,8 @@ export function RunRequirements(arg1:string,arg2:string):Promise<main.MCPView>;
 
 export function SaveProfile(arg1:string,arg2:string,arg3:Record<string, string>,arg4:boolean):Promise<main.ProfileStatusView>;
 
+export function SearchKeyStatus():Promise<main.SearchKeyView>;
+
 export function SecretsPageURL(arg1:string):Promise<string>;
 
 export function SendHostedTurn(arg1:string):Promise<void>;
@@ -97,7 +103,11 @@ export function StoreJevKey(arg1:string):Promise<main.JevKeyView>;
 
 export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusView>;
 
+export function StoreSearchKey(arg1:string,arg2:string):Promise<main.SearchKeyView>;
+
 export function TestJevKey():Promise<main.JevKeyTestView>;
+
+export function TestSearchKey():Promise<main.SearchKeyTestView>;
 
 export function UnsafeLive():Promise<boolean>;
 

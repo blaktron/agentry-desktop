@@ -34,16 +34,17 @@ steps themselves. `#runpanel-step-review-long` is Review and start with
 an intake prompt as long as binary-reverse-engineer's. `shots.mjs` fails
 it, and the Build and Create knowledge reviews, if a recap value is
 narrower than 320px (`expectMinWidth`): the layout that once put each
-value one letter a line (agentry-desktop#420). A state with a run attached (`-queued`, `-running`,
-`-finished`, `-failed`) opens on the run, not the setup.
+value one letter a line (agentry-desktop#420).
 
-The result comes first since agentry-desktop#227: `#runpanel-finished` and
-`#runpanel-failed` show how the run ended, the rendered result and the files
-in the run folder with their previews over a collapsed Run details, and
-`#runpanel-hostile` is a finished run whose result and files carry hostile
-markdown (raw HTML, a script, an image, a `javascript:` link) and a file name
-with a right-to-left override; `shots.mjs` fails it if any `img`, `script`,
-`iframe`, `onclick` or `javascript:` link appears in the result view.
+The result comes first since agentry-desktop#227: how the run ended, the
+rendered result and the files in the run folder with their previews over a
+collapsed Run details. A result is drawn by the run's flow since
+agentry-desktop#465 and #466, so its states are in `runs.html` (below):
+`#run-hostile` and `#hosted-hostile` are finished runs whose result and files
+carry hostile markdown (raw HTML, a script, an image, a `javascript:` link)
+and a file name with a right-to-left override; `shots.mjs` fails them if any
+`img`, `script`, `iframe`, `onclick` or `javascript:` link appears in the
+result view.
 
 Talk to it In Agentry, a hosted session (agentry-desktop#403), has four
 states on an interactive-only copy of the release: `#runpanel-session-offer`
@@ -97,6 +98,10 @@ notes, match, source and withheld address carry raw HTML, a script, an image,
 becomes markup or a link. Settings → Provider settings → AI Review key is `settings-aireview-key`
 (saved), `#aireview-none` (none), `#aireview-env` (the key from the variable
 the app was started with) and `#aireview-refused` (Test key answered 401).
+Settings → Provider settings → Web search (agentry-desktop#301) is
+`settings-web-search` (Brave saved), `#search-none` (no provider),
+`#search-env` (the key from the variable) and `#search-refused` (Test key
+answered 401).
 Since agentry-desktop#461 the card leads with the operator's recommendation
 to get a TypeSafe key and the link *Get a key from TypeSafe*, which Describe
 it's missing-key notice carries too. `shots.mjs` holds the sentence word for
@@ -154,6 +159,16 @@ its own entry, `runs.html`, driven through the run store (`runs.ts`) with
 and `#run-card-stacked`. The `modals.html` states that click Run on the review
 (`#runpanel-local-finished` and the like) now close the setup once the run has
 begun and show the result in the run's flow, as the app does.
+
+A run In Agentry is followed the same way since agentry-desktop#466, by its
+own store (`hostedRun.ts`) and `HostedRunFlow`, in the same entry with
+`runner:hosted-run` scripted: `#hosted-queued`, `#hosted-running` (time
+against the cap and no Turns row, since the registry reports turns only once a
+run is over), `#hosted-cancel`, `#hosted-finished` (with the receipt's
+knowledge line), `#hosted-failed`, `#hosted-hostile`, `#hosted-lost` (the app
+lost touch: Follow it again), `#hosted-card` (a run attached at start, as its
+card), `#hosted-card-finished` (a run that ended with its dialog closed lands in
+its card) and `#hosted-card-stacked` (beside a run on this computer's card).
 
 Settings opens on five cards since agentry-desktop#346. `pages.html` shows the
 cards (`page-settings`, which asserts each card and its status line), and
@@ -227,14 +242,13 @@ behind a click names it in `shots.mjs` (`click`).
 The run panel's **In Agentry** states (hosted runs M6, agentry-desktop#77)
 are hashes of the same entry: `#runpanel-hosted` (the mode chosen, with the
 hold, the balance and the tier's caps), `#runpanel-unavailable` (offered,
-unavailable, with the reason and the remedy), `#runpanel-queued` (queued
-with its position), `#runpanel-running` (its state and nothing else: a run
-In Agentry keeps no log, agentry-desktop#182), `#runpanel-finished` (done —
-pass: the outcome, the receipt listed verbatim, the credits and the
-downloaded outputs) and `#runpanel-failed` (done — fail, a run pushed before
-agentry-enterprise#121, for which the registry kept no receipt: the card
-says so rather than read one from the outputs). The bindings are
-mocked in `modals.tsx`, so no registry is involved.
+unavailable, with the reason and the remedy) and `#runpanel-hosted-secrets`
+(a start refused secret-missing, the ask in the setup). Once the registry has
+created a run, the setup closes and the run's flow follows it: those states
+are `runs.html#hosted-*` (above), where `#hosted-failed` is a run pushed
+before agentry-enterprise#121, for which the registry kept no receipt, and
+the card says so rather than read one from the outputs. The bindings are
+mocked in `modals.tsx` and `runs.tsx`, so no registry is involved.
 
 The run form asks only for what the release declares (agentry-desktop#167):
 `#runpanel-keys` in `modals.html` is `agentry/pr-review-brief`'s shape — one
