@@ -18,7 +18,7 @@ import { RevealText, plainName } from "../reveal";
 import { Button, ErrorBox, fmtBytes } from "../ui";
 
 export function RunResultView({
-  runId, headline, tone, error, resultJson, knowledge, children,
+  runId, headline, tone, error, resultJson, knowledge, unsafeExec, children,
 }: {
   runId: string;
   headline: string;
@@ -29,6 +29,9 @@ export function RunResultView({
   /** The receipt's knowledge line: the packs this run could search, and how
    *  they were mounted (plan knowledge.md §4.5); unset when none was. */
   knowledge?: string;
+  /** The receipt's exec line of an Unsafe Mode run (agentry-desktop#418):
+   *  what was installed from where, and what was not; unset otherwise. */
+  unsafeExec?: string;
   /** Run details: what the view used to show first. */
   children?: React.ReactNode;
 }) {
@@ -62,6 +65,24 @@ export function RunResultView({
         <section aria-labelledby="run-result-knowledge">
           <h4 id="run-result-knowledge">Knowledge this run could search</h4>
           <p className="mono small selectable">{knowledge}</p>
+        </section>
+      )}
+
+      {/* The line names every package the build added, hundreds for a tool
+          like Ghidra, so it is said in a sentence and read in a box of its
+          own height. */}
+      {unsafeExec && (
+        <section aria-labelledby="run-result-unsafe">
+          <h4 id="run-result-unsafe"><span className="badge bad">Unsafe Mode</span> This run&apos;s commands</h4>
+          <p className="small">
+            This run was compiled in Unsafe Mode: its commands were installed from Kali Linux&apos;s repository or PyPI, and
+            this computer&apos;s approved list was not asked.{" "}
+            {unsafeExec.includes("NOT installed at image build")
+              ? <strong>At least one did not install, and the run went on without it.</strong>
+              : "Every package it asked for installed."}{" "}
+            The receipt&apos;s line, below, names each command&apos;s source and every package the build added.
+          </p>
+          <pre className="run-log selectable" data-unsafe-exec>{unsafeExec}</pre>
         </section>
       )}
 

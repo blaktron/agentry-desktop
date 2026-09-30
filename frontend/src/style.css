@@ -59,6 +59,12 @@
      nor a warning about a signature: nothing was looked at, which is not
      "something was found" and not "nobody signed". */
   --color-unscanned: #6b4fbb;
+  /* Unsafe Mode's edge (plan unsafe-mode.md D13; agentry-desktop#418): the
+     glow round the window while Run defaults' switch is on. The desktop's
+     own: the site has no such state, so the token gate (which follows the
+     names both tables share) has nothing to compare it with. It is
+     sev-high at part strength, and only ever a shadow, never text. */
+  --color-unsafe-glow: rgb(185 28 28 / 0.45);
 
   /* Syntax highlighting parity with the site (both modes keep >= 4.5:1 on
      --color-surface). */
@@ -125,6 +131,7 @@
     --color-sev-info: #94a3b8;
     --color-ok: #4ade80;
     --color-unscanned: #c4b5fd;
+    --color-unsafe-glow: rgb(248 113 113 / 0.5);
     --hl-keyword: #d8b4fe;
     --hl-string: #86efac;
     --hl-comment: #9ca3af;
@@ -222,6 +229,27 @@ code, pre, .mono {
 .nav-item.active.parent:not(:hover) { background: none; }
 
 .sidebar .foot { margin-top: auto; padding: 8px 10px; font-size: 11px; color: var(--color-muted); }
+
+/* Unsafe Mode (plan unsafe-mode.md D13; agentry-desktop#418). The glow is
+   one fixed layer above everything the page draws (the wizard's backdrop
+   is 60, a dialog 50, the corner cards 40), so it frames dialogs too; it
+   takes no clicks, and it is still, so reduced motion needs nothing. The
+   badge says the same in words at the foot of the sidebar. */
+.unsafe-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--color-unsafe-glow), inset 0 0 18px 2px var(--color-unsafe-glow);
+}
+.sidebar .foot .unsafe-badge {
+  display: inline-block;
+  margin-bottom: 6px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sidebar .foot .unsafe-badge:disabled { cursor: default; }
 
 /* "0.2.0 is available" beside the version, when a check found a newer
    Agentry Desktop (#87). A button, not a link: it opens Settings, where the
@@ -630,6 +658,7 @@ button.ghost:hover, .btn.ghost:hover {
 .notice-info { border-color: var(--color-border); background: var(--color-surface); }
 .notice-ok { border-color: color-mix(in srgb, var(--color-ok) 45%, transparent); background: color-mix(in srgb, var(--color-ok) var(--badge-tint), var(--color-bg)); }
 .notice-warn { border-color: color-mix(in srgb, var(--color-sev-medium) 50%, transparent); background: color-mix(in srgb, var(--color-sev-medium) var(--badge-tint), var(--color-bg)); }
+.notice-unsafe { border-color: color-mix(in srgb, var(--color-sev-high) 50%, transparent); background: color-mix(in srgb, var(--color-sev-high) var(--badge-tint), var(--color-bg)); }
 .notice-unscanned { border-color: color-mix(in srgb, var(--color-unscanned) 50%, transparent); background: color-mix(in srgb, var(--color-unscanned) var(--badge-tint), var(--color-bg)); }
 
 /* Result / list card (the website's AgentRow). A calm surface panel that

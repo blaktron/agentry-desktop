@@ -239,7 +239,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	surviving := func() bool { _, err := os.Stat(canary); return err == nil }
 
 	var log strings.Builder
-	plan, gotDir, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan, gotDir, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Reuse: same digest + policy + adapter, files untouched.
 	plant()
-	if _, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	if _, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-1", adapter.DefaultName, nil, manifest.ModeAutonomous, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !surviving() {
@@ -258,7 +258,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// Policy change: the fingerprint participates in the reuse key (§R9).
 	plant()
-	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	}
 	seal(t, home, planDir)
 	log.Reset()
-	planB, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	planB, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	}
 	seal(t, home, planDir)
 	log.Reset()
-	planD, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	planD, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +326,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	}
 	seal(t, home, planDir)
 	log.Reset()
-	planC, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	planC, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 	plant()
 	changed := *meta
 	changed.Digest = "sha256:0ther"
-	plan3, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan3, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatal(err)
 	}
 	log.Reset()
-	if _, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	if _, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil); err != nil {
 		t.Fatal(err)
 	}
 	if surviving() {
@@ -373,7 +373,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatal(err)
 	}
 	seal(t, home, planDir)
-	if _, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	if _, _, err := ensurePlan(&log, home, m, &changed, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -426,7 +426,7 @@ func TestEnsurePlanIntegrityRecord(t *testing.T) {
 	planPath := filepath.Join(planDir, "plan.json")
 
 	var log strings.Builder
-	plan, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestEnsurePlanIntegrityRecord(t *testing.T) {
 
 	// Widen the contract in place; every field ensurePlan compares holds.
 	edited := widenEgress(t, planPath)
-	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	var tampered *compile.TamperedPlanError
 	var classified *engine.ClassifiedError
 	if !errors.As(err, &tampered) || !errors.As(err, &classified) || classified.Code != engine.ExitVerify {
@@ -457,7 +457,7 @@ func TestEnsurePlanIntegrityRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	log.Reset()
-	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	var log strings.Builder
-	_, _, err = ensurePlan(&log, home, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	_, _, err = ensurePlan(&log, home, wild, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") {
 		t.Fatalf("err = %v, want a policy refusal", err)
 	}
@@ -501,7 +501,7 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 	// refusal too (agentry-cli#100): the fixture declares exec: [echo] and
 	// the default policy maps no package to it.
 	m, _, installDir, workspaceDir := planFixture(t)
-	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous)
+	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") || !strings.Contains(err.Error(), "does not catalogue") {
 		t.Fatalf("err = %v, want the exec catalogue refusal", err)
 	}
@@ -1021,7 +1021,7 @@ func TestEnsurePlanConcurrentRecompiles(t *testing.T) {
 			defer wg.Done()
 			for r := range rounds {
 				polSHA := fmt.Sprintf("pol-sha-%d", (c+r)%2)
-				plan, _, err := ensurePlan(io.Discard, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, nil, manifest.ModeAutonomous)
+				plan, _, err := ensurePlan(io.Discard, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 				switch {
 				case err != nil:
 					errs <- fmt.Errorf("client %d round %d: %w", c, r, err)
@@ -1038,7 +1038,7 @@ func TestEnsurePlanConcurrentRecompiles(t *testing.T) {
 	}
 	// What is left is one whole, verifiable plan.
 	var log strings.Builder
-	if _, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-0", adapter.DefaultName, nil, manifest.ModeAutonomous); err != nil {
+	if _, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-0", adapter.DefaultName, nil, manifest.ModeAutonomous, nil); err != nil {
 		t.Fatalf("after the race: %v (log %q)", err, log.String())
 	}
 }

@@ -24,9 +24,15 @@ type RunDefaultsView struct {
 	Where string `json:"where"`
 	// OutputDir is the saved output folder, "" for none.
 	OutputDir string `json:"outputDir,omitempty"`
+	// UnsafeMode is the switch (desktop.yaml's unsafeMode, D-050), written
+	// only by RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands
+	// are installed on, the runner policy's images.unsafe or the pinned
+	// default.
+	UnsafeMode  bool   `json:"unsafeMode"`
+	UnsafeImage string `json:"unsafeImage,omitempty"`
 }
 
-// RunDefaults reads the four defaults. With no policy yet the budgets are
+// RunDefaults reads the defaults. With no policy yet the budgets are
 // the ones a first run would write.
 func (s *SettingsAPI) RunDefaults() (*RunDefaultsView, error) { return runDefaultsView() }
 
@@ -103,14 +109,15 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	if err != nil {
 		return nil, err
 	}
-	budgets := policy.Default().Budgets
 	pol, _, err := policy.Load(path)
 	switch {
 	case err == nil:
-		budgets = pol.Budgets
-	case !errors.Is(err, os.ErrNotExist):
+	case errors.Is(err, os.ErrNotExist):
+		pol = policy.Default()
+	default:
 		return nil, fmt.Errorf("operator policy: %w", err)
 	}
+	budgets := pol.Budgets
 	where := st.RunWhere
 	if where != settings.RunWhereAgentry {
 		where = settings.RunWhereHere
@@ -118,5 +125,6 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	return &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
 		Where: where, OutputDir: st.DefaultOutputDir,
+		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(),
 	}, nil
 }

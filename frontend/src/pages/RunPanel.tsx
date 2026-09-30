@@ -93,6 +93,21 @@ export default function RunPanel({
   // fills the field and where to run pre-selects the Where step, until the
   // person chooses otherwise for this run.
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
+  // Unsafe Mode (agentry-desktop#418): while Run defaults' switch is on, the
+  // line a run of this release on this computer carries, as Go composes it
+  // for the native consent dialog too. Shown on Review and start; it gates
+  // nothing here, and a run In Agentry never carries it.
+  const [unsafeNotice, setUnsafeNotice] = useState<main.UnsafeNoticeView | null>(null);
+  useEffect(() => {
+    let live = true;
+    setUnsafeNotice(null);
+    RunAPI.UnsafeNotice(registry, agentRef)
+      .then((v) => live && setUnsafeNotice(v))
+      // Go words the line, and words one for a release it cannot read too;
+      // a call that fails outright says only that the state is not known.
+      .catch(() => live && setUnsafeNotice({ on: true, line: "Whether Unsafe Mode is on could not be read. Run defaults shows the switch.", unplaced: [] }));
+    return () => { live = false; };
+  }, [registry, agentRef]);
   const modeChosen = useRef(false);
   // Whether In Agentry was chosen by the default rather than by the person:
   // if the offer or the release's verdict then rules it out, the step goes
@@ -1138,6 +1153,12 @@ export default function RunPanel({
                     </details>
               </>
             )}
+                {unsafeNotice?.on && !inAgentry && (
+                  <div className="notice notice-unsafe selectable" role="note" data-unsafe-notice>
+                    <span className="badge bad">Unsafe Mode</span>{" "}
+                    {unsafeNotice.line}
+                  </div>
+                )}
                 {unscanned && (
                   <div className="notice notice-unscanned mark-unscanned">
                     <p style={{ margin: 0 }}>
@@ -1359,6 +1380,7 @@ export default function RunPanel({
             error={result.error || undefined}
             resultJson={result.resultJson}
             knowledge={result.knowledge}
+            unsafeExec={result.unsafeExec}
           >
             <Card className="selectable">
               <div className="row">

@@ -59,6 +59,9 @@ type SettingsView struct {
 	// the frontend opens the guided setup while it is false and nothing is
 	// signed in (agentry-desktop#41).
 	Onboarded bool `json:"onboarded"`
+	// UnsafeMode is Run defaults' switch (D-050): the shell draws the red
+	// edge and the sidebar's badge from it.
+	UnsafeMode bool `json:"unsafeMode"`
 }
 
 func settingsView() (*SettingsView, error) {
@@ -67,7 +70,7 @@ func settingsView() (*SettingsView, error) {
 		return nil, err
 	}
 	path, _ := settings.Path()
-	v := &SettingsView{DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded}
+	v := &SettingsView{DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded, UnsafeMode: s.UnsafeMode}
 	for _, r := range s.Registries {
 		src := settings.TokenSource(r.URL)
 		v.Registries = append(v.Registries, RegistryView{

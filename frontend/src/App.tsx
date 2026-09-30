@@ -18,6 +18,7 @@ import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/S
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
+import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
 
 export type Route =
@@ -106,11 +107,14 @@ export default function App() {
     const read = () => {
       SelfUpdateStatus().then(setNewer).catch(() => {});
       UpdatesStatus().then((v) => setBriefUpdates(v.available)).catch(() => {});
+      // The settings file too: the red edge and the badge follow the Unsafe
+      // Mode switch Go reads, which another window of this app can change.
+      refreshSettings().catch(() => {});
     };
     read();
     const t = setInterval(read, 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [refreshSettings]);
 
   // Closing the wizard (finished or skipped) marks onboarding done so it
   // does not reopen on the next start; Settings can reopen it on demand.
@@ -136,6 +140,8 @@ export default function App() {
           </div>
           <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} />
           <div className="foot">
+            {/* Unsafe Mode in words, beside the red edge below (D-050). */}
+            {settings?.unsafeMode && <UnsafeBadge onOpen={() => setRoute({ page: "settings", ...SETTINGS_FOR.unsafeMode })} />}
             {version && <div>v{version}</div>}
             {newer?.available && !newer.dismissed && (
               <div className="update-line">
@@ -285,6 +291,7 @@ export default function App() {
           />
         )}
         <div className="corner-cards" ref={setCorner} />
+        {settings?.unsafeMode && <UnsafeGlow />}
       </div>
     </CornerHost.Provider>
   );

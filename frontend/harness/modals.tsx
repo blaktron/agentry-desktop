@@ -165,8 +165,9 @@ const fileIntakeShape = view === "runpanel-file-intake";
 // An intake prompt as long as blaktron/binary-reverse-engineer@0.1.0's,
 // which once took the recap's whole width (agentry-desktop#420).
 const longPromptShape = view === "runpanel-step-review-long";
+const unsafeShape = view.startsWith("runpanel-unsafe");
 // A finished local run: no intake question, so Run on the review is enabled.
-const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
+const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished" || view === "runpanel-unsafe-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
 const hostedSecrets = view === "runpanel-hosted-secrets";
 const sessionShape = view.startsWith("runpanel-session");
@@ -200,6 +201,9 @@ const localResult = {
   },
   knowledge: view === "runpanel-knowledge-finished"
     ? "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only"
+    : undefined,
+  unsafeExec: view === "runpanel-unsafe-finished"
+    ? "UNSAFE MODE: run_command restricted to the argv0 allowlist {7z, analyzeHeadless, binwalk, decompyle3, file, objdump, pyinstxtractor, r2, strings}; the tools container is the Unsafe Mode image ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da with the declared commands installed one at a time, from Kali Linux's repository or, for a pip extra, PyPI (7z ← apt, analyzeHeadless ← link ghidra:/usr/share/ghidra/support/analyzeHeadless, binwalk ← apt, decompyle3 ← pip decompyle3==3.9.3, file ← apt, objdump ← apt, r2 ← apt, strings ← apt — apt packages: 7zip, binutils, binwalk, file, ghidra, radare2); this machine's exec catalogue was not consulted; the image is not minimized, and a declared command runs with the image's own PATH after its shims, so it can reach every program the image holds; not available in Unsafe Mode's image: pyinstxtractor; packages resolved at image build: binutils=2.45-3, file=1:5.46-5, ghidra=11.4.2-0kali1, radare2=6.0.2+dfsg-1; NOT installed at image build (the commands named are absent from this run unless the base image already carries them): binwalk (E: Unable to locate package binwalk) for binwalk"
     : undefined,
 };
 const profile = keysShape
@@ -241,7 +245,21 @@ const mcp = {
 // #runpanel-default-agentry-unscanned the same for a release admitted without
 // a scan, which starts on this computer and says why; #runpanel-default-folder
 // a saved output folder, filled in on Review and start.
+// Unsafe Mode (agentry-desktop#418): #runpanel-unsafe-review is Review and
+// start with Run defaults' switch on, for a release shaped like
+// blaktron/binary-reverse-engineer: the line names the declared commands
+// and the one the image cannot provide, the red edge frames the dialog, and
+// the sidebar behind it carries the badge. #runpanel-unsafe-finished is
+// that run finished, its result naming what was installed and what was not.
+const unsafeNotice = {
+  on: unsafeShape,
+  line: unsafeShape
+    ? "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. As resolved, it declares: 7z, analyzeHeadless, binwalk, decompyle3, file, objdump, pyinstxtractor, r2, strings. Not available in Unsafe Mode's image: pyinstxtractor. The run goes on without it."
+    : "",
+  unplaced: unsafeShape ? ["pyinstxtractor"] : [],
+};
 const runDefaults = {
+  unsafeMode: unsafeShape,
   timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml",
   where: view.startsWith("runpanel-default-agentry") ? "agentry" : "here",
   outputDir: view === "runpanel-default-folder" ? "/home/me/agentry-runs" : "",
@@ -409,6 +427,8 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-hosted-secrets": "review",
   "runpanel-local-finished-env": "review",
   "runpanel-default-folder": "review",
+  "runpanel-unsafe-review": "review",
+  "runpanel-unsafe-finished": "review",
 };
 
 const g = window as any;
@@ -438,6 +458,7 @@ g.go = { main: {
     DiscardHostedSecrets: async () => {},
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
     RunAgent: async () => localResult,
+    UnsafeNotice: async () => unsafeNotice,
     RunOutputs: async () => runOutputs,
     ShowRunFolder: async () => {},
   },
@@ -489,6 +510,7 @@ import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
+import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 
 // #runpanel-local-install (agentry-desktop#425): a QuickAgent installed
 // from a folder on this computer, run from Installed.
@@ -503,8 +525,10 @@ function Backdrop() {
     <div className="shell" style={{ height: "100vh" }}>
       <div className="sidebar"><div className="brand"><Wordmark sub="Desktop" /></div>
         <SidebarNav page="browse" />
+        {unsafeShape && <div className="foot"><UnsafeBadge /><div>v0.6.28</div></div>}
       </div>
       <div className="content" />
+      {unsafeShape && <UnsafeGlow />}
     </div>
   );
 }
