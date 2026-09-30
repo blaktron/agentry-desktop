@@ -400,8 +400,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     });
 
   // Submit is public (agentry-desktop#425): the Go side first asks, in a
-  // native dialog, whether to spend the submission's credits and make it
-  // public, and a No returns nothing and sends nothing.
+  // native dialog, whether to spend the submission's credits, and says
+  // whether it becomes public or, existing private, stays so; a No returns
+  // nothing and sends nothing.
   const publish = () =>
     wrap("submit", async () => {
       const d = await ensureDir();
@@ -920,6 +921,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             s={summary}
             check={drafted?.check?.line ?? null}
             problem={first ? { label, text: first.problem, fix: () => { switchTo("steps"); setAt(stepOf(first.section as StepKey)); } } : null}
+            publicProblem={check?.public ? { label: STEPS[stepOf("publish")].label, text: check.public, fix: () => { switchTo("steps"); setAt(stepOf("publish")); } } : null}
             onForm={toForm}
             onSave={save}
             onInstall={installHere}

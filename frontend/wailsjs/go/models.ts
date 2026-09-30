@@ -34,6 +34,7 @@ export namespace build {
 	    problems: {[key: string]: string};
 	    first?: SectionProblem;
 	    warnings: string[];
+	    public?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CheckResult(source);
@@ -46,6 +47,7 @@ export namespace build {
 	        this.problems = source["problems"];
 	        this.first = this.convertValues(source["first"], SectionProblem);
 	        this.warnings = source["warnings"];
+	        this.public = source["public"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

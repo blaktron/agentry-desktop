@@ -157,7 +157,7 @@ func TestSubmitWarningNamesTheCost(t *testing.T) {
 	}{
 		{"no billing", false, nil, nil, []string{"charges no credits"}},
 		{"one credit", false, &SubscriptionView{SubmissionCost: 1, Balance: 40}, nil, []string{"It spends 1 credit from this account's balance of 40."}},
-		{"organization, private", true, &SubscriptionView{SubmissionCost: 3, Balance: 9, MemberOf: "acme"}, nil, []string{"3 credits from the acme organization's balance of 9", "this version stays private with it", "Its settings page on the site does it."}},
+		{"organization, private", true, &SubscriptionView{SubmissionCost: 3, Balance: 9, MemberOf: "acme"}, nil, []string{"3 credits from the acme organization's balance of 9", "this version stays private with it", "a desktop sign-in does not carry"}},
 		{"unmetered", false, &SubscriptionView{Unmetered: true}, nil, []string{"spends no credits"}},
 		{"unreadable", false, nil, errors.New("HTTP 500"), []string{"could not be read (HTTP 500)"}},
 	} {
@@ -180,5 +180,20 @@ func storeTestToken(t *testing.T, reg string) {
 	keyring.MockInit()
 	if _, err := settings.StoreToken(reg, "agy_test"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The site's settings page for an agent that stays private is on the
+// registry's own origin, whatever path the registry URL carries, and the
+// agent's name stays a path segment.
+func TestSiteSettingsURL(t *testing.T) {
+	for _, c := range []struct{ reg, ns, name, want string }{
+		{"https://secureagentry.net", "acme", "demo", "https://secureagentry.net/acme/demo/settings"},
+		{"https://dev.secureagentry.net/api/v1", "acme", "demo", "https://dev.secureagentry.net/acme/demo/settings"},
+		{"https://secureagentry.net", "a/../b", "x?y", "https://secureagentry.net/a%2F..%2Fb/x%3Fy/settings"},
+	} {
+		if got := siteSettingsURL(c.reg, c.ns, c.name); got != c.want {
+			t.Errorf("siteSettingsURL(%q, %q, %q) = %q, want %q", c.reg, c.ns, c.name, got, c.want)
+		}
 	}
 }

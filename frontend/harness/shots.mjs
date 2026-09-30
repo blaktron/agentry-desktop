@@ -245,6 +245,7 @@ const states = [
   { name: "page-build-summary-drafted", url: "/pages.html#build-summary-drafted", note: "a draft landed on the summary: AI Review's check in one line, the host the description did not name marked, no Drafter's notes or counts", locator: '[data-preview="build"]', expectText: ["flagged something the release check looks for", "It reaches hosts your description did not name", "your description did not name it", "csv-quality-check"], expectNone: '[data-preview="build"] .build-drafted-notes, [data-preview="build"] .build-summary ul[aria-label="Keys"], [data-preview="build"] .build-summary ul[aria-label="MCP servers"]' },
   { name: "page-build-summary-hostile", url: "/pages.html#build-summary-hostile", note: "a hostile overview, key help and host on the summary: no markup of its own, no image, no javascript: link, the override shown", locator: '[data-preview="build"]', expectText: ["U+202E", "<img src=x onerror=alert(1)>"], expectNone: '[data-preview="build"] .build-summary img, [data-preview="build"] .build-summary script, [data-preview="build"] .build-summary b[onclick], [data-preview="build"] .build-summary a[href^="javascript"]' },
   { name: "page-build-summary-problem", url: "/pages.html#build-summary-problem", note: "the summary of a QuickAgent a rule still refuses: the rule named with Fix it in its step, Submit greyed", locator: '[data-preview="build"]', expectText: ["It cannot be submitted yet. Before a run:", "Fix it in Before a run"], expectDisabledSummarySubmit: true },
+  { name: "page-build-summary-public", url: "/pages.html#build-summary-public", note: "a folder whose publish.include leaves out README.md: Submit waits with Fix it in Publishing, Save and Install do not, since only a submission is public (agentry-desktop#425)", locator: '[data-preview="build"]', expectText: ["It can be saved and installed, but not submitted yet: a submission is public.", "Fix it in Publishing"], expectDisabledSubmitOnly: true },
   { name: "page-build-comments", url: "/pages.html#build-comments", note: "a loaded agent.yaml with comments: the notice that a save drops them", locator: '[data-preview="build"]', expectText: "the comments are not kept" },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it (agentry-desktop#422)", locator: '[data-preview="validate"]', expectOrder: [
     ['[data-preview="validate"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"]],
@@ -436,6 +437,11 @@ try {
       if (state.expectNoBlocker) {
         if (await page.locator(".run-blockers").count() !== 0) throw new Error(`${state.name}: a blocker line is showing`);
         if (state.expectRunEnabled && !(await page.getByRole("button", { name: /^Run$/ }).first().isEnabled())) throw new Error(`${state.name}: Run is disabled with nothing missing`);
+      }
+      if (state.expectDisabledSubmitOnly) {
+        const box = page.locator('[data-preview="build"] .build-summary');
+        if (await box.getByRole("button", { name: "Submit", exact: true }).isEnabled()) throw new Error(`${state.name}: Submit is enabled with a public rule failing`);
+        if (!(await box.getByRole("button", { name: "Install", exact: true }).isEnabled())) throw new Error(`${state.name}: Install waits for a rule only a submission needs`);
       }
       if (state.expectDisabledSummarySubmit) {
         for (const name of ["Submit", "Install"]) {

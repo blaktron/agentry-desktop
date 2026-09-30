@@ -298,7 +298,11 @@ g.go = { main: {
       return buildModel;
     },
     Exists: async () => false,
-    Check: async () => (buildHash === "summary-problem"
+    Check: async () => (buildHash === "summary-public"
+      // A folder whose publish.include leaves out README.md (V7): Submit
+      // waits for it, and Save and Install do not (agentry-desktop#425).
+      ? { ...buildCheck, public: "public publish requires README.md at the repo root; publish.include must carry it" }
+      : buildHash === "summary-problem"
       ? { ...buildCheck, problems: { guide: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" },
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
       : buildCheck),
