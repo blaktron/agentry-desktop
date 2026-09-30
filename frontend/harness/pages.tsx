@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
+import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -241,10 +242,12 @@ function summaryFor(m: typeof buildModel, unmentioned: string[]) {
     anyUnnamed: [...websites, ...servers.flatMap((sv) => sv.hosts)].some((h) => h.unnamed) };
 }
 // Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
-// #aireview-refused answers Test key with TypeSafe's 401.
+// #aireview-env takes it from the variable; #aireview-refused answers Test key with TypeSafe's 401.
 const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
   ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }
-  : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
+  : window.location.hash === "#aireview-env"
+    ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true }
+    : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 const validateResult = {
   passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
   bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
@@ -254,7 +257,17 @@ const validateResult = {
 
 // Settings → Run defaults (agentry-desktop#347): the policy's budgets,
 // runs on this computer, no folder saved.
-let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "" };
+// Unsafe Mode (agentry-desktop#418): #unsafe-on is the switch on, with the
+// red edge round the window and the sidebar's badge on every page;
+// #unsafe-pulling answers the switch's click as the Go host does after the
+// native Yes, with the image's pull under way.
+const unsafeOn = window.location.hash === "#unsafe-on";
+const unsafePulling = window.location.hash === "#unsafe-pulling";
+const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE };
+// The harness's event bus: only the Unsafe Mode pull emits on this entry.
+const pageListeners: Record<string, ((v: any) => void)[]> = {};
+const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[name] ?? []) cb(v); };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
@@ -291,7 +304,12 @@ g.go = { main: {
   },
   // The native folder picker, as Build's first save asks it (D-030).
   // Save's picker opens in Documents (agentry-desktop#425).
-  App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer" },
+  App: {
+    ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer",
+    // What the app asked the system browser to open, for shots.mjs to read
+    // (expectOpened): the TypeSafe link's one address (agentry-desktop#461).
+    OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); },
+  },
   BuildAPI: {
     NewModel: async () => {
       if (landedDraft) await new Promise((r) => setTimeout(r, 300));
@@ -380,6 +398,19 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    // Run defaults → Unsafe Mode (agentry-desktop#418). Off answers at once.
+    // On is the Go host's: here the native Yes is taken as given, the pull's
+    // lines arrive as runner:unsafe-progress, and #unsafe-pulling never
+    // finishes, so the shot shows the pull under way with the switch off.
+    SetUnsafeMode: async (on: boolean) => {
+      if (on) {
+        for (const line of [`downloading the Unsafe Mode image ${UNSAFE_IMAGE}`, "2026.09.30.2: Pulling from blaktron/agentry-unsafe-kali",
+          "7c3b88808835: Pull complete", "4f4fb700ef54: Download complete", "a3ed95caeb02: Downloading"]) emitPage("runner:unsafe-progress", line);
+        if (unsafePulling) await new Promise(() => {});
+      }
+      return (runDefaultsView = { ...runDefaultsView, unsafeMode: on });
+    },
+    UnsafeNotice: async () => ({ on: unsafeOn, line: unsafeOn ? "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. As resolved, it declares none." : "", unplaced: [] }),
     // Run defaults → Docker images (agentry-desktop#424). #images-none has
     // none, #images-nodocker a daemon that does not answer; otherwise
     // three of Agentry's. Remove answers as the Go host would after Yes.
@@ -467,8 +498,13 @@ if (window.location.hash === "#status-refused") {
   g.go.main.RunAPI.JevKeyStatus = refuse;
   g.go.main.SettingsAPI.RunDefaults = refuse;
 }
+// The generated runtime's EventsOn goes through EventsOnMultiple.
+const subscribePage = (name: string, cb: (v: any) => void) => {
+  (pageListeners[name] ??= []).push(cb);
+  return () => { pageListeners[name] = (pageListeners[name] ?? []).filter((c) => c !== cb); };
+};
 g.runtime = {
-  EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, EventsOnce: () => () => {},
+  EventsOn: subscribePage, EventsOnMultiple: subscribePage, EventsOnce: () => () => {},
   EventsOff: () => {}, EventsEmit: () => {}, LogPrint: () => {},
 };
 
@@ -481,7 +517,7 @@ import Validate from "../src/pages/Validate";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 
 const settingsView = {
-  defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml",
+  defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml", unsafeMode: unsafeOn,
   registries: [
     { url: "https://secureagentry.net", isDefault: true, hasToken: true, tokenSource: "keyring" },
     { url: "http://agentry:8080", isDefault: false, hasToken: false, tokenSource: "" },
@@ -548,9 +584,10 @@ function Shell({ active, children }: { active: NavPage; children: React.ReactNod
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
         <SidebarNav page={active} installedUpdates={installedUpdates} />
-        <div className="foot"><div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
+        <div className="foot">{unsafeOn && <UnsafeBadge />}<div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>
+      {unsafeOn && <UnsafeGlow />}
     </div>
   );
 }

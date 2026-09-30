@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // The images a machine holds, as `docker image ls` lists them: Agentry's
@@ -192,5 +193,46 @@ func TestReadPolicyReadsTheRunnerPolicy(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("refs %v do not name the policy's gateway", got)
+	}
+}
+
+// Unsafe Mode's images are Agentry's (plan unsafe-mode.md D12;
+// agentry-desktop#418): the base, pulled by digest and so listed with no
+// tag; every exec image built on it, which the runner names in the same
+// "-exec" repository as the catalogue's (spec.UnsafeExecImageTag); and a
+// base the operator repointed with images.unsafe, taken by its exact ref.
+// Kali's own image, which a person may hold for themselves, is not.
+func TestSelectTakesTheUnsafeModeImages(t *testing.T) {
+	const digest = "sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da"
+	pol := policy.Default()
+	runner := pol.RunnerImageTag("c88aea7d28f96")
+	_, runnerTag, _ := splitRef(runner)
+	u := spec.UnsafeExecSpec{Base: pol.Images.UnsafeImage()}
+	execRepo, execTag, _ := splitRef(spec.UnsafeExecImageTag(runner, u, []string{"r2"}, []string{"radare2"}))
+	if execRepo != "agentry-runner-exec" {
+		t.Fatalf("the runner names an Unsafe Mode exec image %s, which Select does not take by repository", execRepo)
+	}
+	imgs := []Image{
+		{Repository: "ghcr.io/blaktron/agentry-unsafe-kali", Tag: "<none>", Digest: digest, ID: "sha256:e1"},
+		{Repository: "agentry-runner", Tag: runnerTag, ID: "sha256:e2"},
+		{Repository: execRepo, Tag: execTag, ID: "sha256:e3"},
+		{Repository: "mirror.example.test/kali", Tag: "<none>", Digest: digest, ID: "sha256:e4"},
+		{Repository: "kalilinux/kali-rolling", Tag: "latest", ID: "sha256:f1"},
+		{Repository: "mirror.example.test/kali", Tag: "other", ID: "sha256:f2"},
+	}
+	home := t.TempDir()
+	pol.Images.Unsafe = "mirror.example.test/kali:2026.09@" + digest
+	if err := policy.Save(policy.PathIn(home), pol); err != nil {
+		t.Fatal(err)
+	}
+	got := refs(Select(imgs, ReadPolicy(home)))
+	want := []string{
+		"ghcr.io/blaktron/agentry-unsafe-kali@" + digest,
+		"agentry-runner:" + runnerTag,
+		execRepo + ":" + execTag,
+		"mirror.example.test/kali@" + digest,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("selected\n %v\nwant\n %v", got, want)
 	}
 }

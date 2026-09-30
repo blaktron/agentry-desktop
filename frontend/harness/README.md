@@ -95,8 +95,16 @@ questions, the notes and the sources. `#build-drafted-hostile` is a draft whose
 notes, match, source and withheld address carry raw HTML, a script, an image,
 `javascript:` links and a right-to-left override; `shots.mjs` fails it if any
 becomes markup or a link. Settings → Provider settings → AI Review key is `settings-aireview-key`
-(saved), `#aireview-none` (none) and `#aireview-refused` (Test key answered
-401).
+(saved), `#aireview-none` (none), `#aireview-env` (the key from the variable
+the app was started with) and `#aireview-refused` (Test key answered 401).
+Since agentry-desktop#461 the card leads with the operator's recommendation
+to get a TypeSafe key and the link *Get a key from TypeSafe*, which Describe
+it's missing-key notice carries too. `shots.mjs` holds the sentence word for
+word in each state (spelled out there, not imported), and
+`settings-aireview-key-none` and `page-build-describe-nokey` click the link
+and fail unless the app asked the system browser for exactly
+`https://typesafe.ai`: the harness's `App.OpenExternal` records each address
+in `window.__opened`, and `expectOpened` reads it.
 
 The Knowledge panel (agentry-desktop#273) has its own entry, `knowledge.html`
 (`knowledge.tsx`): `#knowledge` is the list signed in (a pack kept here only,
@@ -245,3 +253,22 @@ cd frontend
 PLAYWRIGHT_MODULE=../../agentry-web/node_modules/playwright/index.mjs \
   node harness/shots.mjs
 ```
+
+Unsafe Mode (agentry-desktop#418, plan unsafe-mode.md M3) has its states on
+both entries. On `pages.html`, `?settings=run-defaults` shows the switch off
+(`settings-unsafe-off`), `#unsafe-on` the switch on with the red edge round
+the window and the sidebar's badge (`settings-unsafe-on`, and
+`unsafe-glow-browse` for a page, `settings-landing-unsafe` for the landing's
+status line), and `#unsafe-pulling` answers the switch's click as the Go host
+does after the native Yes, with the image's pull under way and the switch
+still off (`settings-unsafe-pulling`; the pull's lines arrive on the entry's
+own event bus as `runner:unsafe-progress`). On `modals.html`,
+`#runpanel-unsafe-review` is Review and start with the line a run carries,
+naming the declared commands and the one the image cannot provide, under the
+edge, and `#runpanel-unsafe-finished` that run finished, its result naming
+what was installed from where and what did not install. These shots are of
+the window (`window: true` in `shots.mjs`, 1180×760), because the edge is the
+window's, and `expectGlow` fails a state whose edge does not cover the
+window, sits under a dialog's backdrop, takes clicks, or has no badge saying
+"Unsafe Mode" beside it. The native confirmation is the Go host's and is not
+in the harness: `TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog` holds it.

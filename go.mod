@@ -6,7 +6,7 @@ require (
 	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/blaktron/agentry v0.6.15-dev.14
-	github.com/blaktron/agentry-cli v0.6.27
+	github.com/blaktron/agentry-cli v0.6.28
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0
 	github.com/zalando/go-keyring v0.2.8

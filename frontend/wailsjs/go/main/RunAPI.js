@@ -146,6 +146,10 @@ export function SetHostedSecret(arg1, arg2, arg3, arg4) {
   return window['go']['main']['RunAPI']['SetHostedSecret'](arg1, arg2, arg3, arg4);
 }
 
+export function SetUnsafeMode(arg1) {
+  return window['go']['main']['RunAPI']['SetUnsafeMode'](arg1);
+}
+
 export function SetupStatus() {
   return window['go']['main']['RunAPI']['SetupStatus']();
 }
@@ -176,4 +180,8 @@ export function StoreModelKey(arg1, arg2) {
 
 export function TestJevKey() {
   return window['go']['main']['RunAPI']['TestJevKey']();
+}
+
+export function UnsafeNotice(arg1, arg2) {
+  return window['go']['main']['RunAPI']['UnsafeNotice'](arg1, arg2);
 }

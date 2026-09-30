@@ -30,6 +30,7 @@ import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDr
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
 import { Button, Card, ErrorBox, Notice, Select, Textarea } from "../ui";
+import { GetAKeyLink } from "./AIReviewKey";
 
 // The hints as the site asks them (agentry-web app/build/describe), and the
 // lines the Drafter reads for them (app/build/draft hintsOf): each labelled
@@ -192,7 +193,8 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
             <Notice tone="warn">
               Drafting on this computer needs your own TypeSafe Jev key, because AI Review reads your description and
               everything the draft reads with it before the model does.{" "}
-              {onOpenSettings && <Button variant="link" onClick={onOpenSettings}>Add one in Settings</Button>}
+              {onOpenSettings && <Button variant="link" onClick={onOpenSettings}>Add one in Settings</Button>}{" "}
+              <GetAKeyLink />
             </Notice>
           ))}
         {status && <p className="muted small" style={{ marginBottom: 0 }}>{status.searchSentence}</p>}
