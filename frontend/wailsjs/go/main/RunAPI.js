@@ -70,6 +70,10 @@ export function ForgetRun(arg1) {
   return window['go']['main']['RunAPI']['ForgetRun'](arg1);
 }
 
+export function ForgetSearchKey() {
+  return window['go']['main']['RunAPI']['ForgetSearchKey']();
+}
+
 export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
 }
@@ -138,6 +142,10 @@ export function SaveProfile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['RunAPI']['SaveProfile'](arg1, arg2, arg3, arg4);
 }
 
+export function SearchKeyStatus() {
+  return window['go']['main']['RunAPI']['SearchKeyStatus']();
+}
+
 export function SecretsPageURL(arg1) {
   return window['go']['main']['RunAPI']['SecretsPageURL'](arg1);
 }
@@ -190,8 +198,16 @@ export function StoreModelKey(arg1, arg2) {
   return window['go']['main']['RunAPI']['StoreModelKey'](arg1, arg2);
 }
 
+export function StoreSearchKey(arg1, arg2) {
+  return window['go']['main']['RunAPI']['StoreSearchKey'](arg1, arg2);
+}
+
 export function TestJevKey() {
   return window['go']['main']['RunAPI']['TestJevKey']();
+}
+
+export function TestSearchKey() {
+  return window['go']['main']['RunAPI']['TestSearchKey']();
 }
 
 export function UnsafeLive() {
