@@ -586,7 +586,9 @@ export default function RunPanel({
                 {guide?.overview ? (
                   <AgentMarkdown text={guide.overview} />
                 ) : (
-                  <p className="selectable">{summary || "Its author wrote no summary. Its README is on its page."}</p>
+                  <p className="selectable">{summary || (local
+                    ? "It was installed from a folder on this computer: its summary and README are in that folder."
+                    : "Its author wrote no summary. Its README is on its page.")}</p>
                 )}
                 <h4>What to have ready</h4>
                 <ul className="run-need">

@@ -40,13 +40,16 @@ function Hosts({ hosts, label }: { hosts: build.SummaryHost[]; label: string }) 
 }
 
 export function SummaryView({
-  s, check, problem, onForm, onSave, onInstall, onSubmit, busy, ready, dir, registry, headingRef, outcome,
+  s, check, problem, publicProblem, onForm, onSave, onInstall, onSubmit, busy, ready, dir, registry, headingRef, outcome,
 }: {
   s: build.Summary;
   /** AI Review's check of a draft as one line, or null (a form-written QuickAgent has none). */
   check: main.DraftCheckView["line"] | null;
   /** The first rule the form still fails, and the step that fixes it; null when it passes. */
   problem: { label: string; text: string; fix: () => void } | null;
+  /** The rule a public submission still fails (V7), and the step that fixes
+   * it; it holds Submit alone, not Save or a local Install. */
+  publicProblem: { label: string; text: string; fix: () => void } | null;
   onForm: (v: "steps" | "advanced") => void;
   onSave: () => void;
   onInstall: () => void;
@@ -136,10 +139,17 @@ export function SummaryView({
         </div>
       )}
 
+      {!problem && publicProblem && (
+        <div className="small step-problem" role="alert">
+          <p>It can be saved and installed, but not submitted yet: a submission is public. {publicProblem.label}: <RevealText text={publicProblem.text} />.</p>
+          <Button onClick={publicProblem.fix}>Fix it in {publicProblem.label}</Button>
+        </div>
+      )}
+
       <div className="row" style={{ marginTop: 12 }}>
         <Button disabled={!ready} onClick={onSave}>{busy === "save" ? "Saving…" : "Save"}</Button>
         <Button disabled={!ready || !!problem} onClick={onInstall}>{busy === "install" ? "Installing…" : "Install"}</Button>
-        <Button variant="primary" disabled={!ready || !!problem} onClick={onSubmit}>{busy === "submit" ? "Submitting…" : "Submit"}</Button>
+        <Button variant="primary" disabled={!ready || !!problem || !!publicProblem} onClick={onSubmit}>{busy === "submit" ? "Submitting…" : "Submit"}</Button>
       </div>
       <ul className="muted small build-summary-actions">
         <li>
@@ -151,7 +161,8 @@ export function SummaryView({
         </li>
         <li>
           <strong>Submit</strong> sends it to <RevealText text={registry.replace(/^https?:\/\//, "")} /> for the security pipeline and
-          makes it <strong>public</strong>. It first says what the submission costs, and sends nothing until you agree.
+          makes it <strong>public</strong> (one that already exists private stays private). It first says what the submission
+          costs, and sends nothing until you agree.
         </li>
       </ul>
       {outcome}

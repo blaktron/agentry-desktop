@@ -28,7 +28,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { ChooseDirectory, ChooseSaveFolder } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, ChooseSaveFolder, OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
@@ -400,8 +400,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     });
 
   // Submit is public (agentry-desktop#425): the Go side first asks, in a
-  // native dialog, whether to spend the submission's credits and make it
-  // public, and a No returns nothing and sends nothing.
+  // native dialog, whether to spend the submission's credits, and says
+  // whether it becomes public or, existing private, stays so; a No returns
+  // nothing and sends nothing.
   const publish = () =>
     wrap("submit", async () => {
       const d = await ensureDir();
@@ -920,6 +921,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             s={summary}
             check={drafted?.check?.line ?? null}
             problem={first ? { label, text: first.problem, fix: () => { switchTo("steps"); setAt(stepOf(first.section as StepKey)); } } : null}
+            publicProblem={check?.public ? { label: STEPS[stepOf("publish")].label, text: check.public, fix: () => { switchTo("steps"); setAt(stepOf("publish")); } } : null}
             onForm={toForm}
             onSave={save}
             onInstall={installHere}
@@ -1145,6 +1147,12 @@ function PublishOutcome({ pub, m, registry, onError }: { pub: build.PublishResul
       {pub.detail && <p className="muted small">{pub.detail}</p>}
       {pub.status !== "refused" && pub.visibility === "public" && <p className="muted small">It is public.</p>}
       {pub.visibilityNote && <Notice tone="warn">{pub.visibilityNote}</Notice>}
+      {pub.settingsUrl && (
+        // A private QuickAgent is made public on its settings page on the
+        // site, where the person is signed in with the authority a desktop
+        // sign-in does not carry (agentry-desktop#425).
+        <p className="small"><Button onClick={() => OpenExternal(pub.settingsUrl!).catch((e) => onError(String(e)))}>Its settings on the site</Button></p>
+      )}
       {pub.status === "refused" && pub.account && (
         // Whose subscription the refusal is about (plan
         // organization-subscriptions.md D22): a member publishes to their own

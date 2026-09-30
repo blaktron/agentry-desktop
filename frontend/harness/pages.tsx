@@ -298,7 +298,11 @@ g.go = { main: {
       return buildModel;
     },
     Exists: async () => false,
-    Check: async () => (buildHash === "summary-problem"
+    Check: async () => (buildHash === "summary-public"
+      // A folder whose publish.include leaves out README.md (V7): Submit
+      // waits for it, and Save and Install do not (agentry-desktop#425).
+      ? { ...buildCheck, public: "public publish requires README.md at the repo root; publish.include must carry it" }
+      : buildHash === "summary-problem"
       ? { ...buildCheck, problems: { guide: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" },
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
       : buildCheck),
@@ -306,11 +310,12 @@ g.go = { main: {
     Save: async () => undefined,
     // The summary's Install and Submit (agentry-desktop#425), each after the
     // Go side's native dialog, answered Yes here. #build-summary-private is
-    // a Submit whose agent existed private and could not be made public.
+    // a Submit to an agent that exists private, which stays private.
     Install: async () => ({ ref: "demo1/incident-summarizer@0.1.0", digest: "sha256:5565240b85d9c2f41e0a7d3b1c9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e", repaired: false, warnings: [] }),
     Submit: async () => (buildHash === "summary-private"
       ? { version: "0.1.0", status: "published", digest: "sha256:5565240b85d9", detail: "published demo1/incident-summarizer@0.1.0", visibility: "private",
-          visibilityNote: "it stays private: Unscanned versions cannot be made public: This QuickAgent is off the pipeline: clear pipeline: skip before making it public." }
+          visibilityNote: "it stays private: making a QuickAgent public is its namespace administrators' act, which a desktop sign-in does not carry; its settings page on the site does it",
+          settingsUrl: "https://secureagentry.net/demo1/incident-summarizer/settings" }
       : { version: "0.1.0", status: "published", digest: "sha256:5565240b85d9", detail: "published demo1/incident-summarizer@0.1.0", visibility: "public" }),
     // pages.html#build-validate: a validate run that failed, so the card
     // shows a V-rule problem and a content finding with their place.

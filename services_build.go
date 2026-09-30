@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	neturl "net/url"
 	"os"
 	"strings"
 	"sync"
@@ -138,9 +139,9 @@ func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {
 // reversing builder-simplify D3's private default) and follows the pipeline
 // to a verdict. Nothing is sent until the person has said Yes to a native
 // dialog the page cannot answer: what the submission spends in credits,
-// read from the account, and that the QuickAgent becomes public, with its
-// earlier versions when it exists private. A No sends nothing and returns
-// nil.
+// read from the account, and that the QuickAgent becomes public, or that
+// it stays private when it already exists private. A No sends nothing and
+// returns nil.
 func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if !b.mu.TryLock() {
 		return nil, errBuildBusy
@@ -165,7 +166,11 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 		return nil, err
 	}
 	sub, subErr := fetchSubscriptionStrictly(b.app.ctx, url, token)
-	if cerr := b.app.askConsent("Submit "+m.Namespace+"/"+m.Name+" publicly?", submitConsentText(m.Namespace+"/"+m.Name+"@"+m.Version, originOf(url), private, sub, subErr)); cerr != nil {
+	title := "Submit " + m.Namespace + "/" + m.Name + " publicly?"
+	if private {
+		title = "Submit " + m.Namespace + "/" + m.Name + "? It stays private"
+	}
+	if cerr := b.app.askConsent(title, submitConsentText(m.Namespace+"/"+m.Name+"@"+m.Version, originOf(url), private, sub, subErr)); cerr != nil {
 		if errors.Is(cerr, errNotConfirmed) {
 			return nil, nil //nolint:nilnil // a No is the answer: nothing was sent
 		}
@@ -173,21 +178,30 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	}
 	logw := (&RunAPI{app: b.app}).eventWriter(eventBuildLog)
 	defer logw.Flush()
-	// What the person was told decides what may be made public: an agent
-	// that turned private after the dialog is not (build.Publish).
-	return build.Publish(b.app.ctx, url, token, dir, private, logw)
+	res, err := build.Publish(b.app.ctx, url, token, dir, private, logw)
+	// The site changes a private agent's visibility; a registry that is
+	// the hosted site mounts billing, and a bare one has no such page.
+	if res != nil && res.Visibility == "private" && sub != nil {
+		res.SettingsURL = siteSettingsURL(url, m.Namespace, m.Name)
+	}
+	return res, err
 }
 
 // errBuildBusy refuses a second Submit or Install while one is under way.
 var errBuildBusy = errors.New("a submit or an install is already in progress")
 
-// submitConsentText is Submit's warning: public, and what it spends.
+// submitConsentText is Submit's warning: what it spends, and whether it
+// is public. A new or public QuickAgent is published public; one that
+// exists private stays private, since a desktop sign-in cannot change a
+// QuickAgent's visibility (the operator's decision of 2026-09-30).
 func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error) string {
-	lines := []string{
-		"This sends " + ref + " to " + origin + ", where the security pipeline scans it, and makes it public: anyone can find and install it once the pipeline publishes it.",
-	}
+	sends := "This sends " + ref + " to " + origin + ", where the security pipeline scans it"
+	lines := []string{sends + ", and makes it public: anyone can find and install it once the pipeline publishes it."}
 	if private {
-		lines = append(lines, "It exists there as a private QuickAgent: once the pipeline has scanned this version and not rejected it, the QuickAgent becomes public with its earlier versions.")
+		lines = []string{
+			sends + ".",
+			"It exists there as a private QuickAgent, and this version stays private with it: making it public is its namespace administrators' act, which a desktop sign-in does not carry.",
+		}
 	}
 	switch {
 	case subErr != nil:
@@ -204,6 +218,12 @@ func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, 
 		lines = append(lines, fmt.Sprintf("It spends %s from %s balance of %d.", creditsText(sub.SubmissionCost), whose, sub.Balance))
 	}
 	return strings.Join(append(lines, "", "Submit?"), "\n")
+}
+
+// siteSettingsURL is the site's settings page for ns/name, on the
+// registry's own origin, where a private QuickAgent is made public.
+func siteSettingsURL(reg, ns, name string) string {
+	return originOf(reg) + "/" + neturl.PathEscape(ns) + "/" + neturl.PathEscape(name) + "/settings"
 }
 
 // creditsText is "1 credit" or "N credits".
