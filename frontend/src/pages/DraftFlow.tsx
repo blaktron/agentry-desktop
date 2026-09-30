@@ -16,12 +16,12 @@
 // so a run or a build started meanwhile is refused with the reason. Every
 // string here that an agent or the registry wrote (the log, the refusal,
 // the error) is drawn as text.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { DraftProgress, DraftState, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
-import { fmtClock } from "../knowledge";
-import { CornerCard, TimeBar, useNow } from "../progress";
+import type { Tone } from "../jobProgress";
+import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { RevealText } from "../reveal";
 import { Button, ErrorBox, Modal, Notice, Spinner } from "../ui";
 
@@ -69,7 +69,7 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
 
   if (minimized) {
     let line = "";
-    let tone: "" | "ok" | "warn" | "bad" = "";
+    let tone: Tone = "";
     if (err) {
       line = err;
       tone = "bad";
@@ -93,7 +93,7 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
         line={line}
         tone={tone}
         actions={<>
-          {canStop && <Button onClick={() => void stopDraft()} disabled={d.stopping}>{d.stopping ? "Stopping…" : "Stop"}</Button>}
+          {canStop && <StopButton stopping={d.stopping} onStop={() => void stopDraft()} />}
           {canCancel && <Button onClick={cancel}>Cancel the draft</Button>}
           {!d.inFlight && <Button onClick={dismissDraft}>Dismiss</Button>}
           {!d.inFlight && d.drafted
@@ -110,26 +110,26 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
   return (
     <Modal title={title} onClose={d.inFlight ? minimize : dismissDraft} wide>
       {d.local && (
-        <>
-          <Spinner label={`${stageLine(d.progress)}…`} />
-          <p className="muted small">
+        <RunningView
+          spinner={`${stageLine(d.progress)}…`}
+          about={<>
             AI Review reads your description first, then every search result and page before the Drafter&apos;s model does,
             and checks the finished draft. A draft takes a few minutes.
-          </p>
-          <DraftProgressView progress={d.progress} />
-          <details className="knowledge-log">
-            <summary>Draft log</summary>
-            <DraftLog lines={d.log} />
-          </details>
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            {canStop && <Button onClick={() => void stopDraft()} disabled={d.stopping}>{d.stopping ? "Stopping…" : "Stop the draft"}</Button>}
+          </>}
+          actions={<>
+            {canStop && <StopButton stopping={d.stopping} onStop={() => void stopDraft()} label="Stop the draft" />}
             <Button variant="primary" onClick={minimize}>Run in the background</Button>
-          </div>
-          <p className="muted small">
+          </>}
+          background={<>
             In the background, the draft goes on in a card in the corner and the rest of the app stays usable. Stop ends it,
             and no draft is made.
-          </p>
-        </>
+          </>}
+        >
+          <DraftProgressView progress={d.progress} />
+          {/* The log carries what pages and the registry said, so an invisible
+              character in it is shown, as in the error. */}
+          <FoldedLog label="Draft log" lines={d.log} reveal />
+        </RunningView>
       )}
 
       {!d.local && d.inFlight && (
@@ -190,7 +190,7 @@ function DraftFailed({ d }: { d: DraftState }) {
       <h3 className={`run-outcome run-outcome-${d.stopped ? "warn" : "bad"}`}>No draft was made</h3>
       {d.error && <div className="error-box selectable"><RevealText text={d.error} /></div>}
       {d.hosted?.final && <p className="small">{d.hosted.creditsLine}</p>}
-      {d.log.length > 0 && <DraftLog lines={d.log} />}
+      {d.log.length > 0 && <LogPane label="Draft log" lines={d.log} reveal />}
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <Button variant="primary" onClick={dismissDraft}>Close</Button>
       </div>
@@ -198,56 +198,10 @@ function DraftFailed({ d }: { d: DraftState }) {
   );
 }
 
-function DraftLog({ lines }: { lines: string[] }) {
-  const ref = useRef<HTMLPreElement | null>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
-  }, [lines.length]);
-  // The log carries what pages and the registry said, so an invisible
-  // character in it is shown, as in the error above it.
-  return <pre ref={ref} className="run-log selectable" aria-label="Draft log"><RevealText text={lines.join("\n")} /></pre>;
-}
-
-// DraftProgressView is how far a draft on this computer has got: the time it
-// has run against its limit, as a bar and a clock, the turns against the
-// turn budget and the tokens it has used. Before the first report it says
-// the draft is starting.
+// DraftProgressView is how far a draft on this computer has got: the shared
+// view, whose compact form names the turns after the clock.
 function DraftProgressView({ progress, compact }: { progress: DraftProgress | null; compact?: boolean }) {
-  const now = useNow();
-  if (!progress) return <p className="muted small">Starting the draft…</p>;
-  const elapsed = Math.max(0, (now - progress.startedAt) / 1000);
-  const bar = <TimeBar elapsed={elapsed} timeoutSeconds={progress.timeoutSeconds} label="Time used of the draft's limit" />;
-  const time = <>{fmtClock(elapsed)}{progress.timeoutSeconds > 0 && <> of up to {fmtClock(progress.timeoutSeconds)}</>}</>;
-  if (compact) {
-    return (
-      <div className="knowledge-progress">
-        {bar}
-        <p className="small muted">{time} · {progress.turns === 1 ? "1 turn" : `${progress.turns} turns`}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="knowledge-progress">
-      {bar}
-      <dl className="knowledge-facts">
-        <dt>Time</dt>
-        <dd>{time}</dd>
-        <dt>Turns</dt>
-        <dd>
-          {progress.turns}
-          {progress.maxTurns > 0 && <> of up to {progress.maxTurns}</>}
-        </dd>
-        {(progress.inputTokens > 0 || progress.outputTokens > 0) && (
-          <>
-            <dt>Tokens</dt>
-            <dd>
-              {progress.inputTokens.toLocaleString()} input, {progress.outputTokens.toLocaleString()} output
-            </dd>
-          </>
-        )}
-      </dl>
-    </div>
-  );
+  return <ProgressView progress={progress} job="draft" compact={compact} fact={(p) => (p.turns === 1 ? "1 turn" : `${p.turns} turns`)} />;
 }
 
 function DraftRefusal({ v, registry, onError }: { v: main.HostedDraftStartView; registry: string; onError: (e: string) => void }) {
