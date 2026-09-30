@@ -510,6 +510,121 @@ export namespace drafter {
 
 }
 
+export namespace hostedrun {
+	
+	export class CallerSession {
+	    allowed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CallerSession(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.allowed = source["allowed"];
+	    }
+	}
+	export class TierPrice {
+	    caps: Caps;
+	    holdCredits: number;
+	    allowed?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TierPrice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.caps = this.convertValues(source["caps"], Caps);
+	        this.holdCredits = source["holdCredits"];
+	        this.allowed = source["allowed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Caps {
+	    timeoutSeconds: number;
+	    maxTurns: number;
+	    maxTokens: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Caps(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.maxTurns = source["maxTurns"];
+	        this.maxTokens = source["maxTokens"];
+	    }
+	}
+	export class Caller {
+	    tier: string;
+	    account?: string;
+	    caps: Caps;
+	    holdCredits: number;
+	    inputTokensPerCredit: number;
+	    outputTokensPerCredit: number;
+	    build?: TierPrice;
+	    draft?: TierPrice;
+	    session?: CallerSession;
+	
+	    static createFrom(source: any = {}) {
+	        return new Caller(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tier = source["tier"];
+	        this.account = source["account"];
+	        this.caps = this.convertValues(source["caps"], Caps);
+	        this.holdCredits = source["holdCredits"];
+	        this.inputTokensPerCredit = source["inputTokensPerCredit"];
+	        this.outputTokensPerCredit = source["outputTokensPerCredit"];
+	        this.build = this.convertValues(source["build"], TierPrice);
+	        this.draft = this.convertValues(source["draft"], TierPrice);
+	        this.session = this.convertValues(source["session"], CallerSession);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+
+}
+
 export namespace install {
 	
 	export class CodingAgentExport {
@@ -1106,193 +1221,6 @@ export namespace knowledge {
 
 export namespace main {
 	
-	export class UpgradeRef {
-	    available: boolean;
-	    manage: boolean;
-	    url?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new UpgradeRef(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.available = source["available"];
-	        this.manage = source["manage"];
-	        this.url = source["url"];
-	    }
-	}
-	export class Seats {
-	    used: number;
-	    max: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new Seats(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.used = source["used"];
-	        this.max = source["max"];
-	    }
-	}
-	export class SubscriptionView {
-	    tier: string;
-	    standing?: string;
-	    unmetered?: boolean;
-	    seats?: Seats;
-	    memberOf?: string;
-	    balance: number;
-	    allowance: number;
-	    submissionCost: number;
-	    periodEnd: string;
-	    pendingTier?: string;
-	    // Go type: struct { Max int64 "json:\"max\""; Used int64 "json:\"used\"" }
-	    privateAgents: any;
-	    upgrade: UpgradeRef;
-	
-	    static createFrom(source: any = {}) {
-	        return new SubscriptionView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.tier = source["tier"];
-	        this.standing = source["standing"];
-	        this.unmetered = source["unmetered"];
-	        this.seats = this.convertValues(source["seats"], Seats);
-	        this.memberOf = source["memberOf"];
-	        this.balance = source["balance"];
-	        this.allowance = source["allowance"];
-	        this.submissionCost = source["submissionCost"];
-	        this.periodEnd = source["periodEnd"];
-	        this.pendingTier = source["pendingTier"];
-	        this.privateAgents = this.convertValues(source["privateAgents"], Object);
-	        this.upgrade = this.convertValues(source["upgrade"], UpgradeRef);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class PendingOrgView {
-	    handle: string;
-	    displayName: string;
-	    via: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PendingOrgView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.handle = source["handle"];
-	        this.displayName = source["displayName"];
-	        this.via = source["via"];
-	    }
-	}
-	export class OrgMembership {
-	    handle: string;
-	    role: string;
-	    state?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new OrgMembership(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.handle = source["handle"];
-	        this.role = source["role"];
-	        this.state = source["state"];
-	    }
-	}
-	export class UserView {
-	    handle: string;
-	    displayName: string;
-	    email: string;
-	    orgs?: OrgMembership[];
-	    pendingOrg?: PendingOrgView;
-	
-	    static createFrom(source: any = {}) {
-	        return new UserView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.handle = source["handle"];
-	        this.displayName = source["displayName"];
-	        this.email = source["email"];
-	        this.orgs = this.convertValues(source["orgs"], OrgMembership);
-	        this.pendingOrg = this.convertValues(source["pendingOrg"], PendingOrgView);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class AccountView {
-	    user: UserView;
-	    subscription?: SubscriptionView;
-	    subscriptionError?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AccountView(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.user = this.convertValues(source["user"], UserView);
-	        this.subscription = this.convertValues(source["subscription"], SubscriptionView);
-	        this.subscriptionError = source["subscriptionError"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class DependencyAlertView {
 	    id: string;
 	    version: string;
@@ -2669,7 +2597,22 @@ export namespace main {
 	    }
 	}
 	
+	export class OrgMembership {
+	    handle: string;
+	    role: string;
+	    state?: string;
 	
+	    static createFrom(source: any = {}) {
+	        return new OrgMembership(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.role = source["role"];
+	        this.state = source["state"];
+	    }
+	}
 	export class OutputFileView {
 	    path: string;
 	    bytes: number;
@@ -2690,7 +2633,22 @@ export namespace main {
 	        this.noPreview = source["noPreview"];
 	    }
 	}
+	export class PendingOrgView {
+	    handle: string;
+	    displayName: string;
+	    via: string;
 	
+	    static createFrom(source: any = {}) {
+	        return new PendingOrgView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.displayName = source["displayName"];
+	        this.via = source["via"];
+	    }
+	}
 	export class PrereqView {
 	    dockerOk: boolean;
 	    dockerErr?: string;
@@ -2759,6 +2717,214 @@ export namespace main {
 	        this.guide = this.convertValues(source["guide"], GuideView);
 	        this.shipsKnowledge = source["shipsKnowledge"];
 	        this.acceptsKnowledge = this.convertValues(source["acceptsKnowledge"], KnowledgeAcceptsView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UpgradeRef {
+	    available: boolean;
+	    manage: boolean;
+	    url?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpgradeRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.manage = source["manage"];
+	        this.url = source["url"];
+	    }
+	}
+	export class PromoView {
+	    state: string;
+	    code?: string;
+	    credits?: number;
+	    creditsUsed?: number;
+	    endsAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromoView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.state = source["state"];
+	        this.code = source["code"];
+	        this.credits = source["credits"];
+	        this.creditsUsed = source["creditsUsed"];
+	        this.endsAt = source["endsAt"];
+	    }
+	}
+	export class KnowledgeAllocation {
+	    enabled: boolean;
+	    bytes: number;
+	    max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new KnowledgeAllocation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.bytes = source["bytes"];
+	        this.max = source["max"];
+	    }
+	}
+	export class Seats {
+	    used: number;
+	    max: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Seats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.used = source["used"];
+	        this.max = source["max"];
+	    }
+	}
+	export class SubscriptionView {
+	    tier: string;
+	    standing?: string;
+	    unmetered?: boolean;
+	    // Go type: Seats
+	    seats?: any;
+	    memberOf?: string;
+	    balance: number;
+	    allowance: number;
+	    submissionCost: number;
+	    periodEnd: string;
+	    pendingTier?: string;
+	    tierSince?: string;
+	    // Go type: struct { Max int64 "json:\"max\""; Used int64 "json:\"used\""; Enabled *bool "json:\"enabled,omitempty\"" }
+	    privateAgents: any;
+	    // Go type: KnowledgeAllocation
+	    knowledge?: any;
+	    // Go type: PromoView
+	    promo?: any;
+	    // Go type: UpgradeRef
+	    upgrade: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tier = source["tier"];
+	        this.standing = source["standing"];
+	        this.unmetered = source["unmetered"];
+	        this.seats = this.convertValues(source["seats"], null);
+	        this.memberOf = source["memberOf"];
+	        this.balance = source["balance"];
+	        this.allowance = source["allowance"];
+	        this.submissionCost = source["submissionCost"];
+	        this.periodEnd = source["periodEnd"];
+	        this.pendingTier = source["pendingTier"];
+	        this.tierSince = source["tierSince"];
+	        this.privateAgents = this.convertValues(source["privateAgents"], Object);
+	        this.knowledge = this.convertValues(source["knowledge"], null);
+	        this.promo = this.convertValues(source["promo"], null);
+	        this.upgrade = this.convertValues(source["upgrade"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UserView {
+	    handle: string;
+	    displayName: string;
+	    email: string;
+	    emailVerified: boolean;
+	    orgs?: OrgMembership[];
+	    pendingOrg?: PendingOrgView;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.displayName = source["displayName"];
+	        this.email = source["email"];
+	        this.emailVerified = source["emailVerified"];
+	        this.orgs = this.convertValues(source["orgs"], OrgMembership);
+	        this.pendingOrg = this.convertValues(source["pendingOrg"], PendingOrgView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProfileView {
+	    user: UserView;
+	    // Go type: SubscriptionView
+	    subscription?: any;
+	    subscriptionError?: string;
+	    signedUpWith?: string;
+	    hostedRuns?: hostedrun.Caller;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user = this.convertValues(source["user"], UserView);
+	        this.subscription = this.convertValues(source["subscription"], null);
+	        this.subscriptionError = source["subscriptionError"];
+	        this.signedUpWith = source["signedUpWith"];
+	        this.hostedRuns = this.convertValues(source["hostedRuns"], hostedrun.Caller);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3039,7 +3205,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	
 	export class SelfUpdateView {
 	    channel: string;
 	    current: string;
@@ -3224,8 +3389,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	
-	
 	
 
 }

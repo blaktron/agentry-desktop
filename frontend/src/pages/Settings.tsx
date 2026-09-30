@@ -10,17 +10,21 @@ import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
 import type { RunWhere } from "../runSetup";
+import { ProfileSettings } from "./SettingsProfile";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
 // whole of a link to its section page, with one sentence, a status line
 // and its parts as links; each section page holds the cards Settings held
 // before, moved unchanged, under a "← Settings" link back.
-export type SettingsSection = "registry" | "updates" | "coding-agents" | "run-defaults" | "provider";
+// Profile (agentry-desktop#423) is a sixth, offered only while the active
+// registry holds a token.
+export type SettingsSection = "profile" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
+  | "profile" | "subscription"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "where" | "output" | "docker" | "provider" | "ai-review-key";
 type Part = { id: SettingsPart; label: string };
@@ -28,6 +32,11 @@ type Part = { id: SettingsPart; label: string };
 // SECTIONS is the landing's order and each section's parts. A part's id is
 // the anchor its section page scrolls to when the landing's link names it.
 export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[] }[] = [
+  {
+    id: "profile", title: "Profile",
+    sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
+    parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }],
+  },
   {
     id: "registry", title: "Registry settings",
     sentence: "The registries this app talks to, your sign-in to each, and the secrets runs In Agentry use where a registry keeps them.",
@@ -109,8 +118,11 @@ export default function Settings({
     <div data-settings-section={section}>
       <p className="small settings-back"><Button variant="link" onClick={() => onOpen()}>← Settings</Button></p>
       <PageHeader title={meta?.title ?? "Settings"} sub={meta?.sentence} />
+      {section === "profile" && (
+        <ProfileSettings registry={activeRegistry} signedIn={signedInTo(settings, activeRegistry)} onOpenRegistry={() => onOpen("registry")} />
+      )}
       {section === "registry" && (
-        <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} />
+        <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} onOpenProfile={() => onOpen("profile")} />
       )}
       {section === "updates" && (
         <>
@@ -184,6 +196,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
   }, []);
 
   const status: Record<SettingsSection, React.ReactNode> = {
+    profile: null,
     registry: registryStatus(settings, activeRegistry),
     updates: st.update ? updateStatus(st.update) : null,
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
@@ -199,7 +212,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
         actions={onRunSetup && <Button onClick={onRunSetup}>Run setup again</Button>}
       />
       <div className="settings-cards">
-        {SECTIONS.map((s) => (
+        {SECTIONS.filter((s) => s.id !== "profile" || signedInTo(settings, activeRegistry)).map((s) => (
           <div key={s.id} className="card settings-card">
             {/* The title's button is stretched over the whole card, so the
                 card is one link; the part links sit above it. */}
@@ -230,6 +243,11 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
 }
 
 const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
+
+// signedInTo: whether the registry holds a token here, which is when the
+// Profile card is offered (agentry-desktop#423). Nothing when not signed in.
+export const signedInTo = (settings: main.SettingsView, url: string) =>
+  settings.registries.some((r) => r.url === url && r.hasToken);
 
 export function registryStatus(settings: main.SettingsView, activeRegistry: string): string {
   const r = settings.registries.find((x) => x.url === activeRegistry);
@@ -404,11 +422,12 @@ function RunDefaultsSettings() {
 // RegistrySettings is Settings → Registry settings: the registries with
 // their sign-in, account and organizations lines, the account's secrets,
 // and Add a registry — the cards that opened the one Settings page before.
-function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistry }: {
+function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistry, onOpenProfile }: {
   settings: main.SettingsView;
   activeRegistry: string;
   onChanged: () => Promise<main.SettingsView>;
   onSelectRegistry: (url: string) => void;
+  onOpenProfile: () => void;
 }) {
   const [newURL, setNewURL] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -417,18 +436,19 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   const [busy, setBusy] = useState(false);
   // The registry a browser sign-in is waiting on; shows the Cancel control.
   const [browserWait, setBrowserWait] = useState<string | null>(null);
-  // The account behind each stored credential and, where the registry has
-  // subscription tiers, its tier and credits (plan subscription-tiers.md
-  // §8). Read after the registries render, so a slow registry never holds
-  // the page; a read that fails leaves the card as it was.
-  const [accounts, setAccounts] = useState<Record<string, main.AccountView>>({});
+  // The account behind each stored credential, for its "signed in as" line;
+  // the tier, the credits and the organizations are the Profile card's
+  // since agentry-desktop#423. Read after the registries render, so a slow
+  // registry never holds the page; a read that fails leaves the card as it
+  // was.
+  const [accounts, setAccounts] = useState<Record<string, main.UserView>>({});
   useEffect(() => {
     let cancelled = false;
     const signedIn = settings.registries.filter((r) => r.hasToken);
-    Promise.all(signedIn.map(async (r) => [r.url, await SettingsAPI.Account(r.url).catch(() => null)] as const)).then((pairs) => {
+    Promise.all(signedIn.map(async (r) => [r.url, await SettingsAPI.Whoami(r.url).catch(() => null)] as const)).then((pairs) => {
       if (cancelled) return;
-      const next: Record<string, main.AccountView> = {};
-      for (const [url, acct] of pairs) if (acct) next[url] = acct;
+      const next: Record<string, main.UserView> = {};
+      for (const [url, user] of pairs) if (user) next[url] = user;
       setAccounts(next);
     });
     return () => { cancelled = true; };
@@ -496,11 +516,15 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                   ? <span className="badge">signed in ({r.tokenSource})</span>
                   : <span className="badge warn">anonymous</span>}
               </div>
+              {/* Who the credential is; the account and the subscription
+                  are the Profile card's since agentry-desktop#423. */}
               {accounts[r.url] && (
-                <>
-                  <AccountLine account={accounts[r.url]} onUpgrade={() => wrap(() => SettingsAPI.OpenUpgrade(r.url))} />
-                  <OrgLine user={accounts[r.url].user} />
-                </>
+                <div className="muted small" style={{ marginTop: 4 }}>
+                  signed in as <span className="selectable">{accounts[r.url].handle}</span>
+                  {r.url === activeRegistry
+                    ? <> · <Button variant="link" onClick={onOpenProfile}>Profile and subscription</Button></>
+                    : " · Use it to see its profile and subscription"}
+                </div>
               )}
             </div>
             <div className="row nowrap">
@@ -604,130 +628,6 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
     </>
   );
 }
-
-// TIER_LABEL is the product's name for each tier — the two a person may
-// hold and the two an organization may (plan
-// organization-subscriptions.md §4).
-const TIER_LABEL: Record<string, string> = {
-  standard: "Standard",
-  pro: "Pro",
-  business: "Business",
-  enterprise: "Enterprise",
-};
-
-const tierLabel = (t: string) => TIER_LABEL[t] ?? t;
-
-// STANDING_NOTE glosses an organization's standing with the consequence
-// the registry's own refusal gives it, so "restricted" reaches a person as
-// what it means rather than as a column value.
-const STANDING_NOTE: Record<string, string> = {
-  active: "active",
-  pending: "awaiting payment — nothing is admitted until the subscription starts",
-  restricted: "the subscription has lapsed — nothing is admitted until it is paid again",
-  decommissioning: "the organization is closing and admits nothing",
-};
-
-// creditsPhrase says what this account has to spend. A member spends from
-// the organization's shared pool rather than their own credits, so the
-// word changes with the thing.
-//
-// The order of the tests matters: a standing that is not active is
-// answered first, because the extension grants an allowance only while
-// the organization is paid for, and an unmetered organization that has
-// lapsed still admits nothing — saying "not metered" there would promise
-// work the registry will refuse.
-function creditsPhrase(sub: main.SubscriptionView): string {
-  const reset = `(a submission costs ${sub.submissionCost}; resets on ${dayOf(sub.periodEnd)})`;
-  if (!sub.memberOf) return `${sub.balance} of ${sub.allowance} credits ${reset}`;
-  if (sub.standing && sub.standing !== "active") {
-    return `pool ${sub.balance} credits, and no allowance while the subscription is not active`;
-  }
-  if (sub.unmetered) return "pool not metered";
-  return `pool ${sub.balance} of ${sub.allowance} credits ${reset}`;
-}
-
-// OrgLine: the memberships the registry reports. They are the core's own
-// facts, so a registry that sells nothing still says which organization a
-// person belongs to and in what role; a membership an admin has yet to
-// approve says so and names the door, because until then they hold no
-// seat and spend from their own account.
-function OrgLine({ user }: { user: main.UserView }) {
-  if (!user.orgs?.length) return null;
-  return (
-    <>
-      {user.orgs.map((o) => {
-        const pending = o.state === "pending";
-        const via = user.pendingOrg?.handle === o.handle ? user.pendingOrg.via : "";
-        return (
-          <div key={o.handle} className="muted small">
-            organization <span className="selectable">{o.handle}</span> · {o.role}
-            {pending && (
-              <>
-                {" "}· <span className="badge warn">pending</span>{" "}
-                {via === "domain"
-                  ? "your address is at the organization's domain; an admin has yet to approve you"
-                  : via === "scim"
-                    ? "the organization's directory provisioned you; an admin has yet to approve you"
-                    : "an admin has yet to approve you"}
-              </>
-            )}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
-// AccountLine: the handle and email of the credential and, where the
-// registry has tiers, the subscription. For a member of an organization
-// that is the organization's: the tier names it, the balance is the
-// shared pool's, and the seats and the standing come with them. Manage
-// opens the page the registry named — its console for a member, the
-// subscription page for a person — and the app takes no payment.
-function AccountLine({ account, onUpgrade }: { account: main.AccountView; onUpgrade: () => void }) {
-  const sub = account.subscription;
-  return (
-    <div className="muted small" style={{ marginTop: 4 }}>
-      <span className="selectable">{account.user.handle}</span>
-      {account.user.email && <> · <span className="selectable">{account.user.email}</span></>}
-      {sub && (
-        <>
-          {" "}· {tierLabel(sub.tier)}
-          {sub.memberOf && <>, through <span className="selectable">{sub.memberOf}</span></>}
-          {" "}· {creditsPhrase(sub)}
-          {sub.seats && <> · {sub.seats.max > 0 ? `${sub.seats.used} of ${sub.seats.max} seats` : `${sub.seats.used} seats (no cap)`}</>}
-          {sub.standing && <> · {STANDING_NOTE[sub.standing] ?? sub.standing}</>}
-          {sub.pendingTier && <> · {tierLabel(sub.pendingTier)} from {dayOf(sub.periodEnd)}</>}
-          {sub.upgrade?.url && (
-            <>
-              {" "}
-              <Button
-                onClick={onUpgrade}
-                title={
-                  sub.memberOf
-                    ? "Opens the organization's console on the registry's site in your browser"
-                    : "Opens the subscription page of the registry's site in your browser"
-                }
-              >
-                {sub.upgrade.available ? "Upgrade" : sub.upgrade.manage ? "Manage billing" : "The subscription"}
-              </Button>
-            </>
-          )}
-        </>
-      )}
-      {!sub && account.subscriptionError && <> · subscription not read: {account.subscriptionError}</>}
-    </div>
-  );
-}
-
-// dayOf renders an RFC 3339 instant as its UTC day, the way the site does.
-export function dayOf(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
-
-
 
 // SelfUpdateCard shows whether a newer Agentry Desktop exists and lets the
 // person stop the app looking (agentry-desktop#87).

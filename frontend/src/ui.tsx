@@ -131,6 +131,19 @@ export function fmtBinaryBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+/** A storage size in the units the site's knowledge lines use ("20 MB of
+ * 100 MB", "5 GB"), for an allocation rather than a single file. */
+export function fmtStorage(n: number): string {
+  const units = ["bytes", "KB", "MB", "GB", "TB"];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return i === 0 ? `${n} bytes` : `${v.toFixed(v >= 10 || Number.isInteger(v) ? 0 : 1)} ${units[i]}`;
+}
+
 /** A number of seconds the way a person says it: "15 minutes", "2 hours". */
 export function fmtDuration(sec: number): string {
   if (sec % 3600 === 0) return `${sec / 3600} hour${sec === 3600 ? "" : "s"}`;

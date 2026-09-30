@@ -316,56 +316,21 @@ g.go = { main: {
     DescribeAgainText: async () => "What the person wants changed now:\n…",
   },
   ValidateAPI: { Run: async () => validateResult },
-  // The account line on a signed-in registry's card (agentry-desktop#74,
-  // and the organization of agentry-desktop#79). The hash picks which
-  // state Settings previews: #account-org is a member of an organization,
-  // whose tier, pool, seats and standing are the organization's;
-  // #account-pending is a fold-in an admin has yet to approve, who still
-  // spends from their own account; anything else is a person on Standard.
-  // The page the Upgrade button opens is the registry's answer, never a
-  // path built here, so the fixture answers one as a registry would.
+  // Registry settings' "signed in as" line reads the user alone since
+  // agentry-desktop#423; the account and the subscription are the Profile
+  // card's (Profile below).
   SettingsAPI: {
-    Account: async () => {
-      const page = "https://secureagentry.net/settings/subscription";
-      if (location.hash === "#account-org") {
-        return {
-          user: {
-            handle: "chris", displayName: "Chris", email: "chris@acme.example",
-            orgs: [{ handle: "acme", role: "admin", state: "active" }],
-          },
-          subscription: {
-            tier: "business", standing: "active", memberOf: "acme",
-            seats: { used: 3, max: 10 },
-            balance: 3960, allowance: 5000, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z",
-            privateAgents: { max: 0, used: 4 },
-            upgrade: { available: false, manage: true, url: "https://secureagentry.net/orgs/acme/admin" },
-          },
-        };
-      }
-      if (location.hash === "#account-pending") {
-        return {
-          user: {
-            handle: "chris", displayName: "Chris", email: "chris@acme.example",
-            orgs: [{ handle: "acme", role: "member", state: "pending" }],
-            pendingOrg: { handle: "acme", displayName: "Acme", via: "domain" },
-          },
-          subscription: {
-            tier: "standard", balance: 40, allowance: 50, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z",
-            privateAgents: { max: 10, used: 4 },
-            upgrade: { available: true, manage: false, url: page },
-          },
-        };
-      }
-      return {
-        user: { handle: "chris", displayName: "Chris", email: "chris@example.test" },
-        subscription: {
-          tier: "standard", balance: 40, allowance: 50, submissionCost: 10, periodEnd: "2026-10-11T00:00:00Z",
-          privateAgents: { max: 10, used: 4 },
-          upgrade: { available: true, manage: false, url: page },
-        },
-      };
-    },
+    Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
+    // Settings → Profile (agentry-desktop#423). The hash picks the account:
+    // #profile-promo a Promo Pro trial, #profile-org a member of an
+    // organization, #profile-core a registry that sells nothing; anything
+    // else a person on Standard who signed up with Google.
+    Profile: async () => profileView(),
+    SetDisplayName: async (_url: string, name: string) => {
+      profileName = name.trim();
+      return profileView().user;
+    },
     CodingAgents: async () => codingView(),
     // Settings → Run defaults (agentry-desktop#347): the saves answer as Go
     // would, and the picker "returns" a folder.
@@ -494,6 +459,47 @@ const settingsView = {
   ],
 };
 const REG = "https://secureagentry.net";
+let profileName = "Chris";
+const profileView = () => {
+  const user = { handle: "chris", displayName: profileName, email: "chris@example.test", emailVerified: true };
+  const caps = { tier: "standard", caps: { timeoutSeconds: 900, maxTurns: 60, maxTokens: 400000 }, holdCredits: 20, inputTokensPerCredit: 20000, outputTokensPerCredit: 4000 };
+  const page = "https://secureagentry.net/settings/subscription";
+  if (location.hash === "#profile-core") return { user, signedUpWith: "" };
+  if (location.hash === "#profile-org") {
+    return {
+      user: { ...user, email: "chris@acme.example", orgs: [{ handle: "acme", role: "admin", state: "active" }] },
+      subscription: {
+        tier: "business", standing: "active", memberOf: "acme", seats: { used: 3, max: 10 },
+        balance: 3960, allowance: 5000, submissionCost: 1, periodEnd: "2026-10-11T00:00:00Z",
+        privateAgents: { max: 0, used: 4, enabled: true }, knowledge: { enabled: true, bytes: 734003200, max: 53687091200 },
+        upgrade: { available: false, manage: true, url: "https://secureagentry.net/orgs/acme/admin" },
+      },
+      hostedRuns: { ...caps, tier: "business" },
+    };
+  }
+  if (location.hash === "#profile-promo") {
+    return {
+      user: { ...user, emailVerified: false }, signedUpWith: "GitHub",
+      subscription: {
+        tier: "promo_pro", pendingTier: "standard", balance: 88, allowance: 0, submissionCost: 1,
+        periodEnd: "2026-10-29T00:00:00Z", tierSince: "2026-09-29T00:00:00Z",
+        privateAgents: { max: 0, used: 2, enabled: true }, knowledge: { enabled: true, bytes: 1048576, max: 5368709120 },
+        promo: { state: "running", code: "LAUNCH", credits: 100, creditsUsed: 12, endsAt: "2026-10-29T00:00:00Z" },
+        upgrade: { available: true, manage: false, url: page },
+      },
+      hostedRuns: { ...caps, tier: "promo_pro" },
+    };
+  }
+  return {
+    user, signedUpWith: "Google",
+    subscription: {
+      tier: "standard", balance: 40, allowance: 50, submissionCost: 1, periodEnd: "2026-10-11T00:00:00Z", tierSince: "2026-09-11T00:00:00Z",
+      privateAgents: { max: 10, used: 4, enabled: true }, knowledge: { enabled: true, bytes: 20971520, max: 104857600 },
+      upgrade: { available: true, manage: false, url: page },
+    },
+    hostedRuns: caps,
+  };
+};
 function Shell({ active, children }: { active: NavPage; children: React.ReactNode }) {
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
@@ -517,7 +523,9 @@ function SettingsPreview() {
   const [at, setAt] = useState<{ section?: SettingsSection; part?: SettingsPart }>({ section: (q.get("settings") || undefined) as SettingsSection | undefined });
   return (
     <>
-      <Settings settings={settingsView as any} activeRegistry={REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
+      {/* ?active=anon makes the anonymous registry the active one: the
+          landing then has no Profile card (agentry-desktop#423). */}
+      <Settings settings={settingsView as any} activeRegistry={q.get("active") === "anon" ? "http://agentry:8080" : REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
         onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })} />
       <div className="harness-deeplinks muted small" style={{ marginTop: 24 }}>
         Deep links (harness only):{" "}
