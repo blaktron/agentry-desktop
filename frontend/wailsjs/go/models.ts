@@ -308,6 +308,7 @@ export namespace build {
 	    findingCounts?: {[key: string]: number};
 	    visibility?: string;
 	    visibilityNote?: string;
+	    settingsUrl?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PublishResult(source);
@@ -324,6 +325,7 @@ export namespace build {
 	        this.findingCounts = source["findingCounts"];
 	        this.visibility = source["visibility"];
 	        this.visibilityNote = source["visibilityNote"];
+	        this.settingsUrl = source["settingsUrl"];
 	    }
 	}
 	

@@ -251,7 +251,7 @@ func TestPublishHappyPath(t *testing.T) {
 	defer srv.Close()
 
 	var log strings.Builder
-	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, false, &log)
+	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, &log)
 	if err != nil {
 		t.Fatalf("Publish: %v\nlog:\n%s", err, log.String())
 	}
@@ -268,7 +268,7 @@ func TestPublishRefusesAnonymous(t *testing.T) {
 	if err := Save(dir, model()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Publish(t.Context(), "http://reg.invalid", "", dir, false, io.Discard); err == nil {
+	if _, err := Publish(t.Context(), "http://reg.invalid", "", dir, io.Discard); err == nil {
 		t.Fatal("anonymous publish should be refused before any network call")
 	}
 }
@@ -298,7 +298,7 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 
 	refusal = `{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"A submission costs 10 credits; this account has 0, and its allowance resets on 11 October 2026.","balance":0,"resetsAt":"2026-10-11T00:00:00Z"}`
 	var log strings.Builder
-	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, true, &log)
+	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, &log)
 	if err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	// publisher's, so the page can say whose it is — the sentence names an
 	// organization this person never typed.
 	refusal = `{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"a submission costs 10 credits; the acme organization's pool has 0, and its allowance resets on 11 October 2026.","account":"acme","balance":0,"tier":"business"}`
-	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, true, &log)
+	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, &log)
 	if err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	// An organization whose subscription never started is its own
 	// refusal, not an empty balance, and the page offers the same way on.
 	refusal = `{"type":"https://agentry.dev/problems/subscription-inactive","title":"The organization's subscription is not active","status":402,"detail":"the acme organization is awaiting payment: nothing is admitted until its subscription starts","account":"acme","standing":"pending","tier":"business"}`
-	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, true, &log)
+	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, &log)
 	if err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
@@ -605,10 +605,10 @@ func TestLoadStaysInsideTheFolder(t *testing.T) {
 	}
 }
 
-// publicFixture is a registry holding acme/hello-build as private: it
-// accepts the upload, publishes on the first poll, and answers the
+// privateAgentFixture is a registry holding acme/hello-build as private: it
+// accepts the upload, publishes on the first poll, and answers a
 // visibility change with patch; it records the order of what it was asked.
-func publicFixture(t *testing.T, submit func(w http.ResponseWriter), patch func(w http.ResponseWriter)) (string, *[]string) {
+func privateAgentFixture(t *testing.T, submit func(w http.ResponseWriter), patch func(w http.ResponseWriter)) (string, *[]string) {
 	t.Helper()
 	var calls []string
 	mux := http.NewServeMux()
@@ -644,28 +644,27 @@ func accepted(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(`{"version":"0.1.0","status":"scanning","channel":"stable","createdAt":"2026-08-31T00:00:00Z"}`))
 }
 
-// TestPublishMakesAPrivateAgentPublicAfterTheUpload (agentry-desktop#425):
-// Submit is public, so an agent that exists private is made public, and
-// only once the registry has stored the version.
-func TestPublishMakesAPrivateAgentPublicAfterTheUpload(t *testing.T) {
+// TestPublishLeavesAPrivateAgentPrivate (agentry-desktop#425, the
+// operator's decision of 2026-09-30): a desktop sign-in cannot change a
+// QuickAgent's visibility, so an agent that exists private takes the
+// version and stays private; nothing is patched, and the result says why
+// and names its settings page on the site.
+func TestPublishLeavesAPrivateAgentPrivate(t *testing.T) {
 	dir := t.TempDir()
 	if err := Save(dir, model()); err != nil {
 		t.Fatal(err)
 	}
-	reg, calls := publicFixture(t, accepted, func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"namespace":"acme","name":"hello-build","visibility":"public","modes":["autonomous"]}`))
-	})
+	reg, calls := privateAgentFixture(t, accepted, func(w http.ResponseWriter) { t.Error("patched a private agent's visibility") })
 	var log strings.Builder
-	res, err := Publish(t.Context(), reg, "agy_test", dir, true, &log)
+	res, err := Publish(t.Context(), reg, "agy_test", dir, &log)
 	if err != nil {
 		t.Fatalf("Publish: %v\n%s", err, log.String())
 	}
-	if res.Visibility != "public" || res.VisibilityNote != "" || strings.Join(*calls, ",") != "submit,patch" {
+	if res.Status != "published" || res.Visibility != "private" || res.VisibilityNote != PrivateStaysNote || strings.Join(*calls, ",") != "submit" {
 		t.Fatalf("result = %+v, calls = %v", res, *calls)
 	}
-	if !strings.Contains(log.String(), "made acme/hello-build public") {
-		t.Errorf("log:\n%s", log.String())
+	if res.SettingsURL != reg+"/acme/hello-build/settings" {
+		t.Errorf("settings URL = %q", res.SettingsURL)
 	}
 }
 
@@ -675,35 +674,14 @@ func TestPublishLeavesAPrivateAgentAloneWhenTheSubmissionIsRefused(t *testing.T)
 	if err := Save(dir, model()); err != nil {
 		t.Fatal(err)
 	}
-	reg, calls := publicFixture(t, func(w http.ResponseWriter) {
+	reg, calls := privateAgentFixture(t, func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(http.StatusPaymentRequired)
 		_, _ = w.Write([]byte(`{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402}`))
 	}, func(w http.ResponseWriter) { t.Error("patched after a refused submission") })
-	res, err := Publish(t.Context(), reg, "agy_test", dir, true, io.Discard)
+	res, err := Publish(t.Context(), reg, "agy_test", dir, io.Discard)
 	if err != nil || res.Status != StatusRefused || strings.Join(*calls, ",") != "submit" {
 		t.Fatalf("result = %+v, %v, calls = %v", res, err, *calls)
-	}
-}
-
-// A visibility change the registry refuses (agent-unscanned) is said in
-// words on a result whose version went through.
-func TestPublishSaysWhyAnAgentStaysPrivate(t *testing.T) {
-	dir := t.TempDir()
-	if err := Save(dir, model()); err != nil {
-		t.Fatal(err)
-	}
-	reg, _ := publicFixture(t, accepted, func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/problem+json")
-		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"type":"https://agentry.dev/problems/agent-unscanned","title":"Unscanned versions cannot be made public","status":409,"detail":"This QuickAgent is off the pipeline: clear pipeline: skip before making it public."}`))
-	})
-	res, err := Publish(t.Context(), reg, "agy_test", dir, true, io.Discard)
-	if err != nil || res.Status != "published" {
-		t.Fatalf("result = %+v, %v", res, err)
-	}
-	if res.Visibility != "private" || !strings.Contains(res.VisibilityNote, "it stays private: Unscanned versions cannot be made public: This QuickAgent is off the pipeline") {
-		t.Fatalf("visibility = %q, note = %q", res.Visibility, res.VisibilityNote)
 	}
 }
 
@@ -732,43 +710,11 @@ func TestPublishSaysWhyTheAgentCannotBeCreated(t *testing.T) {
 		})
 		mux.HandleFunc("POST /api/v1/agents/acme/hello-build/versions", func(w http.ResponseWriter, _ *http.Request) { t.Error("uploaded after a refused create") })
 		srv := httptest.NewServer(mux)
-		res, err := Publish(t.Context(), srv.URL, "agy_test", dir, false, io.Discard)
+		res, err := Publish(t.Context(), srv.URL, "agy_test", dir, io.Discard)
 		srv.Close()
 		if err != nil || res.Status != StatusRefused || res.Refusal != c.slug || !strings.HasPrefix(res.Detail, c.words) {
 			t.Errorf("%d: result = %+v, %v", c.status, res, err)
 		}
-	}
-}
-
-// A version the pipeline rejects leaves a private agent private.
-func TestPublishLeavesAPrivateAgentPrivateWhenTheVersionIsRejected(t *testing.T) {
-	dir := t.TempDir()
-	if err := Save(dir, model()); err != nil {
-		t.Fatal(err)
-	}
-	reg, calls := publicFixture(t, func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(`{"version":"0.1.0","status":"rejected","channel":"stable","createdAt":"2026-08-31T00:00:00Z"}`))
-	}, func(w http.ResponseWriter) { t.Error("patched after a rejected version") })
-	res, err := Publish(t.Context(), reg, "agy_test", dir, true, io.Discard)
-	if err != nil || res.Status != "rejected" || res.Visibility != "private" || !strings.Contains(res.VisibilityNote, "the pipeline rejected this version") {
-		t.Fatalf("result = %+v, %v, calls = %v", res, err, *calls)
-	}
-}
-
-// An agent the person was not told is private (it turned private after the
-// warning) is refused before anything is sent: making it public would
-// publish earlier versions nobody agreed to.
-func TestPublishRefusesAPrivateAgentThePersonWasNotToldAbout(t *testing.T) {
-	dir := t.TempDir()
-	if err := Save(dir, model()); err != nil {
-		t.Fatal(err)
-	}
-	reg, calls := publicFixture(t, accepted, func(w http.ResponseWriter) { t.Error("patched an agent nobody agreed to make public") })
-	res, err := Publish(t.Context(), reg, "agy_test", dir, false, io.Discard)
-	if err != nil || res.Status != StatusRefused || res.Refusal != "private-not-confirmed" || len(*calls) != 0 {
-		t.Fatalf("result = %+v, %v, calls = %v", res, err, *calls)
 	}
 }
 
@@ -791,8 +737,32 @@ func TestPublishSaysWhyTheUploadWasRefused(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, false, io.Discard)
+	res, err := Publish(t.Context(), srv.URL, "agy_test", dir, io.Discard)
 	if err != nil || res.Status != StatusRefused || res.Refusal != "forbidden" || !strings.Contains(res.Detail, "Publishing to acme needs") {
 		t.Fatalf("result = %+v, %v", res, err)
+	}
+}
+
+// Submit is public (agentry-desktop#425): an include list that leaves out
+// README.md or LICENSE is the form's problem, named in Publishing, not the
+// registry's refusal after the agent was created.
+func TestCheckHoldsAPublicSubmitToV7(t *testing.T) {
+	m := model()
+	if c := m.Check(); c.Problems[string(SectionPublish)] != "" {
+		t.Fatalf("the default include: %s", c.Problems[string(SectionPublish)])
+	}
+	m.PublishInclude = []string{"agent.yaml", m.instructionFile()}
+	c := m.Check()
+	p := c.Problems[string(SectionPublish)]
+	if !strings.Contains(p, "LICENSE") || !strings.Contains(p, "a submission is public") {
+		t.Fatalf("publish problem = %q", p)
+	}
+	m.PublishInclude = []string{"agent.yaml", m.instructionFile(), "LICENSE"}
+	if p := m.Check().Problems[string(SectionPublish)]; !strings.Contains(p, "README.md") {
+		t.Fatalf("publish problem without README.md = %q", p)
+	}
+	m.PublishInclude = []string{"*"}
+	if p := m.Check().Problems[string(SectionPublish)]; p != "" {
+		t.Fatalf("a glob that carries both: %q", p)
 	}
 }

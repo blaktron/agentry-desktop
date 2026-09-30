@@ -138,9 +138,9 @@ func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {
 // reversing builder-simplify D3's private default) and follows the pipeline
 // to a verdict. Nothing is sent until the person has said Yes to a native
 // dialog the page cannot answer: what the submission spends in credits,
-// read from the account, and that the QuickAgent becomes public, with its
-// earlier versions when it exists private. A No sends nothing and returns
-// nil.
+// read from the account, and that the QuickAgent becomes public, or that
+// it stays private when it already exists private. A No sends nothing and
+// returns nil.
 func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if !b.mu.TryLock() {
 		return nil, errBuildBusy
@@ -173,21 +173,25 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	}
 	logw := (&RunAPI{app: b.app}).eventWriter(eventBuildLog)
 	defer logw.Flush()
-	// What the person was told decides what may be made public: an agent
-	// that turned private after the dialog is not (build.Publish).
-	return build.Publish(b.app.ctx, url, token, dir, private, logw)
+	return build.Publish(b.app.ctx, url, token, dir, logw)
 }
 
 // errBuildBusy refuses a second Submit or Install while one is under way.
 var errBuildBusy = errors.New("a submit or an install is already in progress")
 
-// submitConsentText is Submit's warning: public, and what it spends.
+// submitConsentText is Submit's warning: what it spends, and whether it
+// is public. A new or public QuickAgent is published public; one that
+// exists private stays private, since a desktop sign-in cannot change a
+// QuickAgent's visibility (the operator's decision of 2026-09-30).
 func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error) string {
 	lines := []string{
 		"This sends " + ref + " to " + origin + ", where the security pipeline scans it, and makes it public: anyone can find and install it once the pipeline publishes it.",
 	}
 	if private {
-		lines = append(lines, "It exists there as a private QuickAgent: once the pipeline has scanned this version and not rejected it, the QuickAgent becomes public with its earlier versions.")
+		lines = []string{
+			"This sends " + ref + " to " + origin + ", where the security pipeline scans it.",
+			"It exists there as a private QuickAgent, and this version stays private with it: making it public is its namespace administrators' act, which a desktop sign-in does not carry. Its settings page on the site does it.",
+		}
 	}
 	switch {
 	case subErr != nil:

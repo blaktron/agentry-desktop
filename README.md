@@ -205,8 +205,11 @@ The product never claims an agent is "safe". The language is always:
     consent.
   - **Submit** sends it to the registry and makes it **public**. A native
     dialog first names what the submission costs, read from the account,
-    and sends nothing on No. An agent that exists private is made public,
-    with its earlier versions, once the registry has accepted the version.
+    and sends nothing on No. An agent that already exists private stays
+    private: making it public is its namespace administrators' act, which a
+    desktop sign-in does not carry, so the result links to its settings on
+    the site. The form's check holds Submit to the public rules (V7): the
+    publish list must carry README.md and LICENSE.
 
   A rule the form still fails is named with **Fix it**, and Install and
   Submit wait for it. **See it in the form** opens Step by step on Review,

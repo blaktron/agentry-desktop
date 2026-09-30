@@ -157,7 +157,7 @@ func TestSubmitWarningNamesTheCost(t *testing.T) {
 	}{
 		{"no billing", false, nil, nil, []string{"charges no credits"}},
 		{"one credit", false, &SubscriptionView{SubmissionCost: 1, Balance: 40}, nil, []string{"It spends 1 credit from this account's balance of 40."}},
-		{"organization", true, &SubscriptionView{SubmissionCost: 3, Balance: 9, MemberOf: "acme"}, nil, []string{"3 credits from the acme organization's balance of 9", "becomes public with its earlier versions"}},
+		{"organization, private", true, &SubscriptionView{SubmissionCost: 3, Balance: 9, MemberOf: "acme"}, nil, []string{"3 credits from the acme organization's balance of 9", "this version stays private with it", "Its settings page on the site does it."}},
 		{"unmetered", false, &SubscriptionView{Unmetered: true}, nil, []string{"spends no credits"}},
 		{"unreadable", false, nil, errors.New("HTTP 500"), []string{"could not be read (HTTP 500)"}},
 	} {
@@ -167,8 +167,8 @@ func TestSubmitWarningNamesTheCost(t *testing.T) {
 				t.Errorf("%s: %q missing from\n%s", c.name, w, got)
 			}
 		}
-		if !strings.Contains(got, "makes it public") {
-			t.Errorf("%s: the warning does not say public:\n%s", c.name, got)
+		if strings.Contains(got, "makes it public") == c.private {
+			t.Errorf("%s: the warning says public for an agent that is private, or not for one that is not:\n%s", c.name, got)
 		}
 	}
 }
