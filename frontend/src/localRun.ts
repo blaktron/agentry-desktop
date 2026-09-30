@@ -107,6 +107,10 @@ export function createRunStore<S>(deps: RunStoreDeps) {
   // and markStopping is how Stop reaches that start's own record.
   let owner: object | null = null;
   let markStopping: (() => void) | null = null;
+  // starting: a start is waiting for its run to begin. Go runs one local
+  // job at a time and a report does not say which start it answers, so a
+  // second start waits for the first to begin or be refused.
+  let starting_ = false;
   let shown = false;
   let raised = 0;
   const listeners = new Set<() => void>();
@@ -125,6 +129,8 @@ export function createRunStore<S>(deps: RunStoreDeps) {
      *  has begun, which is when the setup closes, and rejects with Go's
      *  words if it never began. */
     start(s: S, ref: string, call: () => Promise<main.RunResultView>): Promise<void> {
+      if (starting_) return Promise.reject("A run is being started on this computer; wait for it to begin, then start another.");
+      starting_ = true;
       const token = {};
       // The run followed when this start began is not this start's,
       // whatever its reports say.
@@ -140,6 +146,7 @@ export function createRunStore<S>(deps: RunStoreDeps) {
         const begin = () => {
           if (begun) return;
           begun = true;
+          starting_ = false;
           // An earlier run whose card was still up is forgotten now.
           if (run?.runId && run.runId !== mine.runId) deps.forget(run.runId);
           owner = token;
@@ -174,6 +181,7 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           })
           .catch((e) => {
             if (!begun) {
+              starting_ = false;
               reject(e);
               return;
             }

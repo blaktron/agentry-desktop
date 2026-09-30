@@ -143,16 +143,43 @@ test("Stop reaches the run followed, and a result after it says it was stopped",
   assert.equal(h.store.state().run?.stopped, true);
 });
 
-test("Dismiss forgets the run, and its late events change nothing", async () => {
+test("Dismiss forgets the run, and the run's later reports and result change nothing", async () => {
   const h = harness();
   const a = pending();
   const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
   h.report("r1", "acme/a@1.0.0");
   await aBegun;
-  a.resolve(result("r1"));
-  await tick();
   h.store.dismiss();
   assert.deepEqual(h.forgotten, ["r1"]);
   assert.equal(h.store.state().run, null);
   assert.equal(h.store.state().shown, false);
+  h.report("r1", "acme/a@1.0.0", 9);
+  h.line("r1", "late");
+  a.resolve(result("r1"));
+  await tick();
+  assert.equal(h.store.state().run, null, "a dismissed run came back");
+});
+
+test("a second start while the first waits for its run to begin is refused, and the first is followed", async () => {
+  const h = harness();
+  const a = pending();
+  const aBegun = h.store.start("setup A", "acme/a@1.0.0", a.call);
+  const b = pending();
+  await assert.rejects(h.store.start("setup B", "acme/a@1.0.0", b.call), /A run is being started on this computer/);
+  h.report("r1", "acme/a@1.0.0");
+  await aBegun;
+  assert.equal(h.store.state().setup, "setup A");
+  a.resolve(result("r1"));
+  await tick();
+  assert.equal(h.store.state().run?.result?.runId, "r1");
+  // A start refused by Go frees the way for the next one.
+  const c = pending();
+  const cBegun = h.store.start("setup C", "acme/c@1.0.0", c.call).catch(() => "refused");
+  c.reject("the consent was declined");
+  assert.equal(await cBegun, "refused");
+  const d = pending();
+  const dBegun = h.store.start("setup D", "acme/d@1.0.0", d.call);
+  h.report("r4", "acme/d@1.0.0");
+  await dBegun;
+  assert.equal(h.store.state().run?.runId, "r4");
 });

@@ -117,7 +117,7 @@ export default function RunFlow({ onBackToSetup, initialMinimized }: {
         </RunResultView>
       ) : (
         <>
-          <h3 className="run-outcome run-outcome-bad">{line}</h3>
+          <h3 className={`run-outcome run-outcome-${tone || "bad"}`}>{line}</h3>
           <ErrorBox error={r.error} />
           {r.log.length > 0 && <LogPane label="Run log" lines={r.log} />}
         </>
