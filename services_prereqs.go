@@ -47,7 +47,7 @@ func (r *RunAPI) AddToDockerGroup() (*PrereqView, error) {
 	if err := r.app.askConsent("Add your account to the docker group?", "This grants your account control of the Docker daemon, which is root-equivalent on this machine. An elevation prompt follows. Continue?"); err != nil {
 		return nil, err
 	}
-	if err := r.acquire(jobSetup, "adding your account to the docker group"); err != nil {
+	if err := r.acquire(jobSetup, "the change to your docker group membership"); err != nil {
 		return nil, err
 	}
 	defer r.release()

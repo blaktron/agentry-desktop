@@ -24,6 +24,7 @@ import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
 import { startLocalRun } from "../runs";
+import { headlineOf } from "../localRun";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
@@ -1368,9 +1369,9 @@ export default function RunPanel({
           />
         )}
 
-        {/* Live log: a run on this machine only (a run In Agentry has none),
-            in view while it runs and when it ended with no result to show,
-            and under Run details once a result is there. */}
+        {/* A chat's setup log, when it ended with no result to show (a run
+            on this computer is followed by the run's flow, and a run In
+            Agentry has no log); under Run details once a result is there. */}
         {!inAgentry && log.length > 0 && !result && (
           <>
             <h3>Run log</h3>
@@ -1393,13 +1394,13 @@ export default function RunPanel({
           </RunResultView>
         )}
 
-        {/* A run or a session on this machine: the result first; the
+        {/* A chat on this machine that has ended: the result first; the
             envelope's badges, usage, paths and the log are its Run details. */}
         {result && (
           <RunResultView
             runId={result.runId}
-            headline={result.status === "ok" ? "Finished." : `It ended in an error (exit ${result.exitCode}).`}
-            tone={result.status === "ok" ? "ok" : "bad"}
+            headline={headlineOf(result).line}
+            tone={headlineOf(result).tone}
             error={result.error || undefined}
             resultJson={result.resultJson}
             knowledge={result.knowledge}

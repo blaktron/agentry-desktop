@@ -2,7 +2,8 @@
 // one-click setup (§P1), MCP-profile status and guided configuration as a
 // form (§P3), the tool-surface section (req 3/4), and run-with-task over
 // agentry-cli/pkg/runner. Long operations stream progress as Wails events
-// (`runner:setup-progress`, `runner:unsafe-progress`, `runner:run-log`); secret VALUES cross this
+// (`runner:setup-progress`, `runner:unsafe-progress`, a chat's `runner:run-log`,
+// a run's `runner:run-progress` and `runner:run-line`); secret VALUES cross this
 // boundary only inward (SaveProfile) and are never returned or logged.
 package main
 
@@ -39,13 +40,16 @@ const (
 	eventUnsafeLive = "runner:unsafe-live"
 	eventRunLog     = "runner:run-log"
 	// eventSessionEvent carries an interactive session's events (JSON
-	// SessionEventView) to the chat view; runner:run-log stays autonomous.
+	// SessionEventView) to the chat view; runner:run-log carries a chat's
+	// setup log, and a run's log goes by its id (runner:run-line).
 	eventSessionEvent = "runner:session-event"
 )
 
 // errBusy refuses a second docker-touching operation instead of silently
-// queueing it behind one that can run for many minutes.
-var errBusy = errors.New("another run, image setup or knowledge build is already in progress — wait for it to finish")
+// queueing it behind one that can run for many minutes. The refusal a
+// person sees names the job holding the lock (busyError,
+// services_runflow.go); errBusy is what it is for errors.Is.
+var errBusy = errors.New("another job is under way on this computer, and one job runs here at a time")
 
 // RunAPI drives QuickAgent runs from the app.
 type RunAPI struct {
@@ -426,8 +430,8 @@ func (r *RunAPI) ChosenHarnesses() ([]HarnessView, error) {
 // ChooseHarness records harness.<name> in the operator policy (the path the
 // probe resolved), so `agentry run --adapter <name>` finds the harness the
 // person picked. It refuses a harness that is not on this machine. The
-// policy write takes the run lock so it cannot interleave with ApplySetup's;
-// errBusy's wording covers the run case, which is the one a person can hit.
+// policy write takes the run lock so it cannot interleave with ApplySetup's,
+// and is refused with what holds it.
 func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
 	if err := r.acquire(jobSetup, "a change to the coding agents"); err != nil {
 		return nil, err
@@ -509,7 +513,7 @@ func (r *RunAPI) EndpointWarning(baseURL string) string {
 // returns lists the provider just stored under, so the form knows the key
 // is on this machine even when that next call is refused (desktop#141).
 func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
-	if err := r.acquire(jobSetup, "saving a model key"); err != nil {
+	if err := r.acquire(jobSetup, "a change to a model key"); err != nil {
 		return nil, err
 	}
 	defer r.release()
@@ -555,7 +559,7 @@ func jevKeyView(st *run.JevKeyStatus) *JevKeyView {
 // nowhere else. A keychain that cannot be reached is a named refusal, and
 // the policy is left as it was.
 func (r *RunAPI) StoreJevKey(key string) (*JevKeyView, error) {
-	if err := r.acquire(jobSetup, "saving the AI Review key"); err != nil {
+	if err := r.acquire(jobSetup, "a change to the AI Review key"); err != nil {
 		return nil, err
 	}
 	defer r.release()
@@ -570,7 +574,7 @@ func (r *RunAPI) StoreJevKey(key string) (*JevKeyView, error) {
 // ForgetJevKey removes the AI Review key from the keychain and the keychain
 // from the policy's sources.
 func (r *RunAPI) ForgetJevKey() (*JevKeyView, error) {
-	if err := r.acquire(jobSetup, "forgetting the AI Review key"); err != nil {
+	if err := r.acquire(jobSetup, "a change to the AI Review key"); err != nil {
 		return nil, err
 	}
 	defer r.release()
@@ -752,8 +756,9 @@ type RunResultView struct {
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
 // materialize into the shared ~/.agentry/runner cache → compile/reuse the
 // run plan → ensure images → run in the isolated container topology →
-// apply the profile keep choice. Log lines stream as `runner:run-log`
-// events. timeoutSec > 0 overrides the policy timeout; maxTurns >= 0
+// apply the profile keep choice. The run is followed by its id: its
+// progress as `runner:run-progress`, its log lines as `runner:run-line`
+// (services_runflow.go). timeoutSec > 0 overrides the policy timeout; maxTurns >= 0
 // overrides the tool-call budget (0 = unlimited, -1 = policy default).
 // acceptUnsigned is the explicit consent for a release without an
 // attestation; without it such a run is refused in Go (desktop#3).
@@ -778,7 +783,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	// The run's own context: quitting and Stop cancel it, the engine
 	// returns and tears down, and shutdown waits for that
 	// (services_quit.go).
-	ctx, cancel := r.runCtx()
+	ctx, cancel := context.WithCancel(r.app.ctx)
 	defer cancel()
 	live, err := r.beginRun(jobRun, ref, cancel)
 	if err != nil {
@@ -799,9 +804,11 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	}
 	logw := r.runLineWriter(live.id)
 	defer logw.Flush()
+	usage, stopUsage := usageOf(meter)
+	defer stopUsage()
 	res, err := r.runEngine(ctx, run.Request{
 		OnBudgets:          budgetsOf(meter),
-		OnUsage:            usageOf(meter),
+		OnUsage:            usage,
 		RunID:              live.id,
 		Registry:           reg,
 		Ref:                ref,
@@ -1060,7 +1067,7 @@ func knowledgeEnv(e *knowledge.Env) knowledge.Env {
 // runs (a knowledge build is one): refused while another holds the lock;
 // its context cancelled, its run id's containers swept and waited for when
 // the app quits (services_quit.go); f's log streamed as event.
-func (r *RunAPI) asRun(kind, what, ref, event string, f func(ctx context.Context, runID string, logw io.Writer) error) error {
+func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context.Context, runID string, logw io.Writer) error) error {
 	if err := r.acquire(kind, what); err != nil {
 		return err
 	}

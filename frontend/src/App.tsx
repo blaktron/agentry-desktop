@@ -14,7 +14,7 @@ import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import RunFlow from "./pages/RunFlow";
 import RunPanel from "./pages/RunPanel";
-import { type RunSetup, takeReopen, useLocalRun } from "./runs";
+import type { RunSetup } from "./runs";
 import { CornerHost } from "./progress";
 import { attachHosted } from "./drafts";
 import Validate from "./pages/Validate";
@@ -59,11 +59,7 @@ export default function App() {
   const [corner, setCorner] = useState<HTMLElement | null>(null);
   // A run on this computer's setup, opened again by Back to the setup from
   // the run's flow (agentry-desktop#465), with the answers as they were.
-  const localRun = useLocalRun();
   const [reopened, setReopened] = useState<RunSetup | null>(null);
-  useEffect(() => {
-    if (localRun.reopen) setReopened(takeReopen());
-  }, [localRun.reopen]);
   const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
@@ -280,7 +276,7 @@ export default function App() {
             setOpenDraftRev((n) => n + 1);
           }}
         />
-        <RunFlow />
+        <RunFlow onBackToSetup={setReopened} />
         {reopened && (
           <RunPanel
             {...reopened.panel}

@@ -63,7 +63,7 @@ func (r *RunAPI) AgentryImages() (*ImagesView, error) {
 // refuses while a run, an image setup or a knowledge build holds the
 // docker lock, and removes nothing a running container still uses.
 func (r *RunAPI) RemoveAgentryImages() (*dockerimages.Report, error) {
-	if err := r.acquire(jobSetup, "removing Agentry's Docker images"); err != nil {
+	if err := r.acquire(jobSetup, "the removal of Agentry's Docker images"); err != nil {
 		return nil, err
 	}
 	defer r.release()

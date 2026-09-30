@@ -461,7 +461,7 @@ g.go = { main: {
     // (agentry-desktop#465): Go's first report says it has begun, then its
     // result comes back, and the flow shows the result the panel used to.
     RunAgent: async () => {
-      const begun = { runId: localResult.runId, ref: localResult.ref, startedAt: Date.now() - 41_200, timeoutSeconds: 900, maxTurns: 60, turns: 4, inputTokens: 5120, outputTokens: 1430 };
+      const begun = { runId: localResult.runId, ref: localResult.ref, startedAt: Date.now() - 41_200, timeoutSeconds: 900, maxTurns: 60, turns: 4, inputTokens: 5120, outputTokens: 1430, prepared: true };
       for (const cb of listeners["runner:run-progress"] ?? []) cb(begun);
       return localResult;
     },
@@ -578,7 +578,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
   };
   createRoot(el).render(
     <><Backdrop />
-      <RunFlow />
+      <RunFlow onBackToSetup={() => {}} />
       <Panel
         registry="https://secureagentry.net"
         ns={keysShape ? "agentry" : "demo1"} name={keysShape ? "pr-review-brief" : "incident-summarizer"} version={keysShape ? "1.2.1" : "1.2.0"}

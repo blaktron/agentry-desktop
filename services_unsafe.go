@@ -58,7 +58,7 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	if unsafeModeOn() {
 		return runDefaultsView()
 	}
-	if err := r.acquire(jobSetup, "turning Unsafe Mode on"); err != nil {
+	if err := r.acquire(jobSetup, "the pull of Unsafe Mode's image"); err != nil {
 		return nil, err
 	}
 	defer r.release()

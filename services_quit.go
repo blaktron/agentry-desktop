@@ -44,7 +44,7 @@ type liveRun struct {
 	id string
 	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild): Stop stops
 	// only its own kind.
-	kind string
+	kind jobKind
 	ref  string
 	// turns are the run ids of the run's later turns: a draft's one repair
 	// turn runs under its own id (drafter.PostStep, #395), so the crash
@@ -74,7 +74,7 @@ type liveRun struct {
 
 // beginRun records a run about to enter the engine and returns its id and
 // the record; endRun clears it.
-func (r *RunAPI) beginRun(kind, ref string, cancel context.CancelFunc) (*liveRun, error) {
+func (r *RunAPI) beginRun(kind jobKind, ref string, cancel context.CancelFunc) (*liveRun, error) {
 	id, err := r.mintRunID()
 	if err != nil {
 		return nil, err

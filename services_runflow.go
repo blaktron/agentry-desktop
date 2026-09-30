@@ -8,10 +8,10 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 
@@ -26,18 +26,22 @@ const (
 	eventRunLine     = "runner:run-line"
 )
 
-// The kinds of local job the run lock is held for.
+// jobKind is the kind of local job the run lock is held for.
+type jobKind string
+
 const (
-	jobRun   = "run"
-	jobChat  = "chat"
-	jobDraft = "draft"
-	jobBuild = "build"
-	jobSetup = "setup"
+	jobRun   jobKind = "run"
+	jobChat  jobKind = "chat"
+	jobDraft jobKind = "draft"
+	jobBuild jobKind = "build"
+	jobSetup jobKind = "setup"
 )
 
-// jobHolder is what holds the run lock: its kind and a phrase naming it.
+// jobHolder is what holds the run lock: its kind and a noun phrase naming
+// it, which the busy refusal makes the subject of its sentence.
 type jobHolder struct {
-	kind, what string
+	kind jobKind
+	what string
 }
 
 // busyError refuses a second local job, naming the one that holds the run
@@ -49,7 +53,7 @@ func (e busyError) Is(target error) bool { return target == errBusy }
 
 // acquire takes the run lock for a job of kind, named by what, or refuses
 // with the job that holds it.
-func (r *RunAPI) acquire(kind, what string) error {
+func (r *RunAPI) acquire(kind jobKind, what string) error {
 	if !r.mu.TryLock() {
 		return r.busy()
 	}
@@ -108,7 +112,7 @@ func (r *RunAPI) InFlight() *InFlightView {
 	if r.holder == nil {
 		return nil
 	}
-	return &InFlightView{Kind: r.holder.kind, Line: capitalize(r.holder.what)}
+	return &InFlightView{Kind: string(r.holder.kind), Line: capitalize(r.holder.what)}
 }
 
 // RunProgress is how far a run on this computer has got, for the progress
@@ -119,6 +123,10 @@ type RunProgress struct {
 	progress.Report
 	RunID string `json:"runId"`
 	Ref   string `json:"ref"`
+	// Prepared says the run's install, plan and images are ready and the
+	// engine is starting: its budgets are known from here, and StartedAt is
+	// this moment, so the clock measures the run against its own timeout.
+	Prepared bool `json:"prepared"`
 }
 
 // RunLine is one line of a run's log, with the run's id.
@@ -128,25 +136,57 @@ type RunLine struct {
 }
 
 // runMeter is a run's progress meter: its first report says the run has
-// begun, before anything is prepared; then its budgets, then the harness's
-// usage. It only emits events, so the engine's usage hook never waits on
-// the page.
+// begun, before anything is prepared; then its budgets, when the engine
+// starts; then the harness's usage.
 func (r *RunAPI) runMeter(runID, ref string) *progress.Meter[RunProgress, *RunProgress] {
 	emit := func(p RunProgress) { emitEvent(r.app, eventRunProgress, p) }
 	return progress.NewMeter(emit, RunProgress{Report: progress.Start(0, 0), RunID: runID, Ref: ref})
 }
 
+// budgetsOf is internal/run's OnBudgets for a run's meter: the run is
+// prepared, and its clock starts now.
 func budgetsOf(m *progress.Meter[RunProgress, *RunProgress]) func(int, int) {
 	return func(timeoutSeconds, maxTurns int) {
 		m.Set(func(p *RunProgress) bool {
-			p.TimeoutSeconds, p.MaxTurns = timeoutSeconds, maxTurns
+			p.Report = progress.Start(timeoutSeconds, maxTurns)
+			p.Prepared = true
 			return true
 		})
 	}
 }
 
-// usageOf is the engine's usage hook for a run's meter.
-func usageOf(m *progress.Meter[RunProgress, *RunProgress]) func(receipt.Usage) { return m.Usage }
+// usageOf is the engine's usage hook for a run's meter. The engine calls it
+// on the run's own path, so it only hands the usage over: a goroutine
+// reports it, and a report the page is slow to take is replaced by the next
+// one rather than waited for. stop, when the run has returned, reports the
+// last usage handed over and ends the goroutine.
+func usageOf(m *progress.Meter[RunProgress, *RunProgress]) (hook func(receipt.Usage), stop func()) {
+	next := make(chan receipt.Usage, 1)
+	var mu sync.Mutex
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for u := range next {
+			m.Usage(u)
+		}
+	}()
+	hook = func(u receipt.Usage) {
+		mu.Lock()
+		defer mu.Unlock()
+		select {
+		case <-next: // the page has not taken the last one: this one replaces it
+		default:
+		}
+		next <- u
+	}
+	stop = func() {
+		mu.Lock()
+		close(next)
+		mu.Unlock()
+		<-done
+	}
+	return hook, stop
+}
 
 // runLineWriter emits each line of a run's log with its id.
 func (r *RunAPI) runLineWriter(runID string) *lineEventWriter {
@@ -177,10 +217,4 @@ func (r *RunAPI) ForgetRun(runID string) {
 	r.foldersMu.Lock()
 	defer r.foldersMu.Unlock()
 	delete(r.folders, runID)
-}
-
-// runCtx is the run's context, the parent of everything the engine starts
-// for it.
-func (r *RunAPI) runCtx() (context.Context, context.CancelFunc) {
-	return context.WithCancel(r.app.ctx)
 }

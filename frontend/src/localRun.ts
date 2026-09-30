@@ -8,9 +8,10 @@ import type { JobProgress, Tone } from "./jobProgress";
 
 /** How far a run on this computer has got, as Go reports it
  *  (runner:run-progress, RunAPI's RunProgress): the report every job carries,
- *  the run's id and the release. Its budgets are zero until the run is
- *  prepared. */
-export type RunProgress = JobProgress & { runId: string; ref: string };
+ *  the run's id and the release. Until it is prepared its budgets are zero
+ *  and its clock counts the preparation; once prepared, the clock starts
+ *  again and measures the run against its own timeout. */
+export type RunProgress = JobProgress & { runId: string; ref: string; prepared: boolean };
 
 /** One line of a run's log, with its id (runner:run-line). */
 export type RunLine = { runId: string; line: string };
@@ -65,11 +66,154 @@ export function stopAsked(r: LocalRun): LocalRun {
   return r.over ? r : { ...r, stopping: true };
 }
 
-/** How the run ended, in the card's line and tone; "" while it runs. */
+/** How a run that produced a result ended, as its result view's headline
+ *  says it: stopped, finished, or in an error. A chat's result says it the
+ *  same way. */
+export function headlineOf(result: main.RunResultView, stopped = false): { line: string; tone: Exclude<Tone, ""> } {
+  if (stopped) return { line: "You stopped the run. Its receipts are written as far as it got.", tone: "warn" };
+  if (result.status === "ok") return { line: "Finished.", tone: "ok" };
+  return { line: `It ended in an error (exit ${result.exitCode}).`, tone: "bad" };
+}
+
+/** How the run ended, in the card's line and tone; "" while it runs. A run
+ *  stopped before the engine started has no receipts to speak of. */
 export function outcome(r: LocalRun): { line: string; tone: Tone } {
   if (!r.over) return { line: "", tone: "" };
-  if (r.stopped) return { line: "You stopped the run. Its receipts are written as far as it got.", tone: "warn" };
-  if (r.result?.status === "ok") return { line: "Finished.", tone: "ok" };
-  if (r.result) return { line: `It ended in an error (exit ${r.result.exitCode}).`, tone: "bad" };
+  if (r.result) return headlineOf(r.result, r.stopped);
+  if (r.stopped) return { line: "You stopped the run before the QuickAgent started.", tone: "warn" };
   return { line: "The run did not finish.", tone: "bad" };
+}
+
+/** What the store needs from the app: Go's events, and the calls that stop
+ *  and forget a run. Injected, so the store's rules are tested without a
+ *  webview. */
+export type RunStoreDeps = {
+  on: (event: string, cb: (v: never) => void) => () => void;
+  stop: () => Promise<void>;
+  forget: (runId: string) => void;
+};
+
+export type RunStoreState<S> = { run: LocalRun | null; setup: S | null; shown: boolean; raised: number };
+
+/** The one run on this computer the app follows (agentry-desktop#465). A
+ *  start owns nothing shared until its own run has begun: the run being
+ *  followed (in the background, or a card that is over) is left as it is
+ *  while a second Run waits for its consent and for Go's answer, and a start
+ *  Go refuses changes nothing. setup is whatever reopens the run's setup. */
+export function createRunStore<S>(deps: RunStoreDeps) {
+  let run: LocalRun | null = null;
+  let setup: S | null = null;
+  // owner is the start whose run is the one followed: only it writes run,
+  // and markStopping is how Stop reaches that start's own record.
+  let owner: object | null = null;
+  let markStopping: (() => void) | null = null;
+  let shown = false;
+  let raised = 0;
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((f) => f());
+
+  return {
+    state: (): RunStoreState<S> => ({ run, setup, shown, raised }),
+    subscribe(f: () => void): () => void {
+      listeners.add(f);
+      return () => {
+        listeners.delete(f);
+      };
+    },
+
+    /** Starts a run of ref by call: resolves once Go reports that the run
+     *  has begun, which is when the setup closes, and rejects with Go's
+     *  words if it never began. */
+    start(s: S, ref: string, call: () => Promise<main.RunResultView>): Promise<void> {
+      const token = {};
+      // The run followed when this start began is not this start's,
+      // whatever its reports say.
+      const followed = run && !run.over ? run.runId : null;
+      let mine = starting(ref);
+      let begun = false;
+      const publish = () => {
+        if (owner !== token) return;
+        run = mine;
+        notify();
+      };
+      return new Promise((resolve, reject) => {
+        const begin = () => {
+          if (begun) return;
+          begun = true;
+          // An earlier run whose card was still up is forgotten now.
+          if (run?.runId && run.runId !== mine.runId) deps.forget(run.runId);
+          owner = token;
+          markStopping = () => {
+            mine = stopAsked(mine);
+            publish();
+          };
+          setup = s;
+          shown = true;
+          raised++;
+          resolve();
+        };
+        const offProgress = deps.on("runner:run-progress", (p: RunProgress) => {
+          if (p.runId === followed) return;
+          const next = withProgress(mine, p);
+          if (next === mine) return;
+          mine = next;
+          begin();
+          publish();
+        });
+        const offLine = deps.on("runner:run-line", (l: RunLine) => {
+          const next = withLine(mine, l);
+          if (next === mine) return;
+          mine = next;
+          publish();
+        });
+        call()
+          .then((r) => {
+            mine = finished(mine, r);
+            begin();
+            publish();
+          })
+          .catch((e) => {
+            if (!begun) {
+              reject(e);
+              return;
+            }
+            mine = failed(mine, String(e));
+            publish();
+          })
+          .finally(() => {
+            offProgress();
+            offLine();
+          });
+      });
+    },
+
+    /** Stop: the run ends and its receipts are written as far as it got. */
+    async stop(): Promise<void> {
+      if (!run || run.over) return;
+      markStopping?.();
+      try {
+        await deps.stop();
+      } catch {
+        // The run ended as Stop was pressed: its own result is what shows.
+      }
+    },
+
+    /** Opens the flow as the dialog. */
+    show(): void {
+      shown = true;
+      raised++;
+      notify();
+    },
+
+    /** Dismiss: the flow goes, and the app forgets the run. */
+    dismiss(): void {
+      if (run?.runId) deps.forget(run.runId);
+      run = null;
+      setup = null;
+      owner = null;
+      markStopping = null;
+      shown = false;
+      notify();
+    },
+  };
 }

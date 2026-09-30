@@ -29,9 +29,9 @@ const RUN_ID = "7c1e4a90";
 const hostile = hash === "run-hostile";
 const started = Date.now() - 134_000;
 const reports = [
-  { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 0, maxTurns: 0, turns: 0, inputTokens: 0, outputTokens: 0 },
-  { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0 },
-  { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 7, inputTokens: 48_210, outputTokens: 3_904 },
+  { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 0, maxTurns: 0, turns: 0, inputTokens: 0, outputTokens: 0, prepared: false },
+  { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, prepared: true },
+  { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 7, inputTokens: 48_210, outputTokens: 3_904, prepared: true },
 ];
 const lines = [
   "using verified install demo1/incident-summarizer@1.2.0",
@@ -136,7 +136,7 @@ function Preview() {
     <CornerHost.Provider value={corner}>
       <div data-preview="runs">
         <Shell>The page stays usable while the run goes on in its card.</Shell>
-        <RunFlow initialMinimized={card} />
+        <RunFlow onBackToSetup={() => {}} initialMinimized={card} />
         {hash === "run-card-stacked" && <DraftFlow registry={REG} onOpenDraft={() => {}} initialMinimized />}
         <div className="corner-cards" ref={setCorner} />
       </div>

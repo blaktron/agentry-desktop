@@ -6,11 +6,14 @@
 // its id (localRun.ts), so a setup open on another QuickAgent never shows its
 // lines or its result. Dismiss makes the app forget it (RunAPI.ForgetRun);
 // quitting forgets it too, since nothing of it is kept.
+//
+// The store's rules are localRun.ts's createRunStore, which a node test holds;
+// this module wires it to Go's events and calls.
 import { useEffect, useState } from "react";
 import * as RunAPI from "../wailsjs/go/main/RunAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main, trust } from "../wailsjs/go/models";
-import { type LocalRun, type RunLine, type RunProgress, failed, finished, starting, stopAsked, withLine, withProgress } from "./localRun";
+import { type RunStoreState, createRunStore } from "./localRun";
 import type { RunForm } from "./runSetup";
 
 /** What reopens the run setup as the person left it. */
@@ -27,142 +30,42 @@ export type RunSetup = {
   form: RunForm;
 };
 
-let run: LocalRun | null = null;
-let setup: RunSetup | null = null;
-// shown: the flow is up, as the dialog or the card, until it is dismissed;
-// raised counts the asks to open it as the dialog.
-let shown = false;
-let raised = 0;
-// reopen: the setup Back to the setup asked App to open again.
-let reopen: RunSetup | null = null;
-const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((f) => f());
+const store = createRunStore<RunSetup>({
+  on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
+  stop: () => RunAPI.StopRun(),
+  forget: (runId) => void RunAPI.ForgetRun(runId),
+});
 
-export type RunState = {
-  run: LocalRun | null;
-  setup: RunSetup | null;
-  shown: boolean;
-  raised: number;
-  reopen: RunSetup | null;
-};
+export type RunState = RunStoreState<RunSetup>;
 
 /** The run the app follows, re-read whenever it changes. */
 export function useLocalRun(): RunState {
   const [, bump] = useState(0);
-  useEffect(() => {
-    const f = () => bump((n) => n + 1);
-    listeners.add(f);
-    return () => {
-      listeners.delete(f);
-    };
-  }, []);
-  return { run, setup, shown, raised, reopen };
-}
-
-/** Whether a run on this computer is under way. */
-export function localRunInFlight(): boolean {
-  return run !== null && !run.over;
+  useEffect(() => store.subscribe(() => bump((n) => n + 1)), []);
+  return store.state();
 }
 
 /** Starts a run of ref by call (RunAPI.RunAgent): the promise resolves once
  *  Go reports that the run has begun, which is when the setup closes, and
- *  rejects with Go's words if it never began (the consent declined, the lock
- *  held, a gate refused), leaving any earlier run's card as it was. */
+ *  rejects with Go's words if it never began (the consent declined, another
+ *  job holding the lock, a gate refused). */
 export function startLocalRun(s: RunSetup, ref: string, call: () => Promise<main.RunResultView>): Promise<void> {
-  const before = run;
-  const beforeSetup = setup;
-  return new Promise((resolve, reject) => {
-    let begun = false;
-    const begin = () => {
-      if (begun) return;
-      begun = true;
-      // An earlier run whose card was still up is forgotten now.
-      if (before?.runId && before.runId !== run?.runId) void RunAPI.ForgetRun(before.runId);
-      setup = s;
-      shown = true;
-      raised++;
-      resolve();
-    };
-    run = starting(ref);
-    const offProgress = EventsOn("runner:run-progress", (p: RunProgress) => {
-      if (!run) return;
-      const next = withProgress(run, p);
-      if (next === run) return;
-      run = next;
-      begin();
-      notify();
-    });
-    const offLine = EventsOn("runner:run-line", (l: RunLine) => {
-      if (!run) return;
-      const next = withLine(run, l);
-      if (next === run) return;
-      run = next;
-      notify();
-    });
-    call()
-      .then((r) => {
-        if (!run) return;
-        run = finished(run, r);
-        begin();
-      })
-      .catch((e) => {
-        if (!begun) {
-          run = before;
-          setup = beforeSetup;
-          reject(e);
-          return;
-        }
-        if (run) run = failed(run, String(e));
-      })
-      .finally(() => {
-        offProgress();
-        offLine();
-        notify();
-      });
-  });
+  return store.start(s, ref, call);
 }
 
 /** Stop: the run ends and its receipts are written as far as it got. */
-export async function stopLocalRun(): Promise<void> {
-  if (!run || run.over) return;
-  run = stopAsked(run);
-  notify();
-  try {
-    await RunAPI.StopRun();
-  } catch {
-    // The run ended as Stop was pressed: its own result is what shows.
-  }
-}
+export const stopLocalRun = (): Promise<void> => store.stop();
 
 /** Opens the flow as the dialog. */
-export function showLocalRun(): void {
-  shown = true;
-  raised++;
-  notify();
-}
+export const showLocalRun = (): void => store.show();
 
 /** Dismiss: the flow goes, and the app forgets the run. */
-export function dismissLocalRun(): void {
-  if (run?.runId) void RunAPI.ForgetRun(run.runId);
-  run = null;
-  setup = null;
-  shown = false;
-  notify();
-}
+export const dismissLocalRun = (): void => store.dismiss();
 
-/** Back to the setup: the run is dismissed, and App opens its setup again
- *  with the answers as they were. */
-export function backToSetup(): void {
-  const s = setup;
-  dismissLocalRun();
-  reopen = s;
-  notify();
-}
-
-/** The setup to open again, taken. */
-export function takeReopen(): RunSetup | null {
-  const s = reopen;
-  reopen = null;
-  if (s) notify();
+/** Back to the setup: the run is dismissed, and its setup is returned for
+ *  the caller to open again with the answers as they were. */
+export function backToSetup(): RunSetup | null {
+  const s = store.state().setup;
+  store.dismiss();
   return s;
 }

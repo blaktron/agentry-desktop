@@ -15,13 +15,15 @@
 // started meanwhile is refused with what is running (D16). Every string the
 // run wrote (the log, the error, the result) is drawn as text.
 import { useEffect, useRef, useState } from "react";
-import { outcome } from "../localRun";
+import { type LocalRun, headlineOf, outcome } from "../localRun";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
-import { backToSetup, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
+import { type RunSetup, backToSetup, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
 import { LocalRunDetails, RunResultView } from "./RunResult";
 
-export default function RunFlow({ initialMinimized }: {
+export default function RunFlow({ onBackToSetup, initialMinimized }: {
+  /** Opens the run's setup again, with the answers as they were. */
+  onBackToSetup: (s: RunSetup) => void;
   /** Harness-only: open as the corner card. */
   initialMinimized?: boolean;
 }) {
@@ -71,7 +73,7 @@ export default function RunFlow({ initialMinimized }: {
     return (
       <Modal title={title} onClose={minimize} wide>
         <RunningView
-          spinner={r.stopping ? "Stopping the run…" : r.progress?.timeoutSeconds ? "The QuickAgent is running…" : "Preparing the run…"}
+          spinner={r.stopping ? "Stopping the run…" : r.progress?.prepared ? "The QuickAgent is running…" : "Preparing the run…"}
           about={<>
             The QuickAgent runs on this computer in its containers, under the contract you accepted. Preparing takes longer the
             first time: the release is installed and the images it needs are pulled or built.
@@ -93,13 +95,19 @@ export default function RunFlow({ initialMinimized }: {
   }
 
   const res = r.result;
+  const back = () => {
+    const s = backToSetup();
+    if (s) onBackToSetup(s);
+  };
+  // Closing the dialog of a run that is over keeps its card: only Dismiss
+  // makes the app forget the run.
   return (
-    <Modal title={`Run ${r.ref}`} onClose={dismissLocalRun} wide>
+    <Modal title={`Run ${r.ref}`} onClose={minimize} wide>
       {res ? (
         <RunResultView
           runId={res.runId}
-          headline={r.stopped ? "You stopped the run." : res.status === "ok" ? "Finished." : `It ended in an error (exit ${res.exitCode}).`}
-          tone={r.stopped ? "warn" : res.status === "ok" ? "ok" : "bad"}
+          headline={headlineOf(res, r.stopped).line}
+          tone={headlineOf(res, r.stopped).tone}
           error={res.error || undefined}
           resultJson={res.resultJson}
           knowledge={res.knowledge}
@@ -115,7 +123,7 @@ export default function RunFlow({ initialMinimized }: {
         </>
       )}
       <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-        <Button onClick={backToSetup}>Back to the setup</Button>
+        <Button onClick={back}>Back to the setup</Button>
         <Button variant="primary" onClick={dismissLocalRun}>Dismiss</Button>
       </div>
     </Modal>
@@ -125,6 +133,6 @@ export default function RunFlow({ initialMinimized }: {
 // RunProgressView is how far the run has got: the shared view, whose compact
 // form names the turns after the clock. Its budgets arrive once the run is
 // prepared; until then the clock runs with no limit shown.
-function RunProgressView({ r, compact }: { r: NonNullable<ReturnType<typeof useLocalRun>["run"]>; compact?: boolean }) {
+function RunProgressView({ r, compact }: { r: LocalRun; compact?: boolean }) {
   return <ProgressView progress={r.progress} job="run" compact={compact} fact={(p) => (p.turns === 1 ? "1 turn" : `${p.turns} turns`)} />;
 }

@@ -6,7 +6,7 @@ import type { main } from "../wailsjs/go/models";
 import { failed, finished, outcome, starting, stopAsked, withLine, withProgress, type RunProgress } from "../src/localRun.ts";
 
 const report = (runId: string, ref: string, turns = 0): RunProgress => ({
-  runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0,
+  runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0, prepared: true,
 });
 const result = (runId: string, status = "ok", exitCode = 0) => ({ runId, status, exitCode }) as unknown as main.RunResultView;
 
@@ -52,4 +52,8 @@ test("how it ended, for the card", () => {
   const stopped = finished(stopAsked(begun), result("r1", "error", 130));
   assert.equal(stopped.stopped, true);
   assert.deepEqual(outcome(stopped), { line: "You stopped the run. Its receipts are written as far as it got.", tone: "warn" });
+  // Stopped while it was still being prepared: Go returns no result, and
+  // nothing claims receipts.
+  const early = failed(stopAsked(begun), "context canceled");
+  assert.deepEqual(outcome(early), { line: "You stopped the run before the QuickAgent started.", tone: "warn" });
 });

@@ -86,9 +86,10 @@ func runAgent(r *RunAPI) (*RunResultView, error) {
 
 // A run on this computer reports its progress as it goes
 // (agentry-desktop#465): a first report the moment it has begun, with its id
-// and release and no budgets yet; its effective budgets once it is prepared;
-// the harness's usage as it arrives; and each line of its log with its id,
-// so the page follows this run and no other.
+// and release and no budgets yet; its effective budgets once it is prepared,
+// when its clock starts again so that it measures the run against its own
+// timeout; the harness's usage as it arrives; and each line of its log with
+// its id, so the page follows this run and no other.
 func TestARunReportsItsProgressAndItsLinesByItsID(t *testing.T) {
 	ev := captureEvents(t)
 	r := flowAPI(t, func(_ context.Context, req run.Request, logw io.Writer) (*run.Result, error) {
@@ -106,13 +107,13 @@ func TestARunReportsItsProgressAndItsLinesByItsID(t *testing.T) {
 		t.Fatalf("progress reports %+v, want three", got)
 	}
 	first, second, last := got[0], got[1], got[2]
-	if first.RunID != "ab12cd34" || first.Ref != "acme/agent@1.0.0" || first.StartedAt == 0 || first.TimeoutSeconds != 0 || first.Turns != 0 {
+	if first.RunID != "ab12cd34" || first.Ref != "acme/agent@1.0.0" || first.StartedAt == 0 || first.TimeoutSeconds != 0 || first.Turns != 0 || first.Prepared {
 		t.Fatalf("first report %+v", first)
 	}
-	if second.TimeoutSeconds != 1800 || second.MaxTurns != 40 || second.Turns != 0 {
-		t.Fatalf("second report %+v, want the budgets", second)
+	if second.TimeoutSeconds != 1800 || second.MaxTurns != 40 || second.Turns != 0 || !second.Prepared || second.StartedAt < first.StartedAt {
+		t.Fatalf("second report %+v, want the budgets and the run prepared", second)
 	}
-	if last.Turns != 3 || last.InputTokens != 3000 || last.OutputTokens != 300 || last.TimeoutSeconds != 1800 || last.StartedAt != first.StartedAt || last.RunID != "ab12cd34" {
+	if last.Turns != 3 || last.InputTokens != 3000 || last.OutputTokens != 300 || last.TimeoutSeconds != 1800 || last.StartedAt != second.StartedAt || last.RunID != "ab12cd34" {
 		t.Fatalf("last report %+v", last)
 	}
 	lines := ev.lines()
@@ -144,7 +145,10 @@ func TestStopRunStopsOnlyARun(t *testing.T) {
 	if err := r.StopRun(); !errors.Is(err, errNoRun) {
 		t.Fatalf("StopRun with nothing running: %v", err)
 	}
-	for _, j := range []struct{ kind, ref string }{{jobDraft, draftRunRef}, {jobBuild, knowledgeRunRef}, {jobChat, "acme/agent@1.0.0"}} {
+	for _, j := range []struct {
+		kind jobKind
+		ref  string
+	}{{jobDraft, draftRunRef}, {jobBuild, knowledgeRunRef}, {jobChat, "acme/agent@1.0.0"}} {
 		cancelled := false
 		l, err := r.beginRun(j.kind, j.ref, func() { cancelled = true })
 		if err != nil {
@@ -204,7 +208,7 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 		_, _ = runAgent(r)
 	}()
 	<-started
-	if v := r.InFlight(); v == nil || v.Kind != jobRun || v.Line != "A run of acme/agent@1.0.0" {
+	if v := r.InFlight(); v == nil || v.Kind != string(jobRun) || v.Line != "A run of acme/agent@1.0.0" {
 		t.Fatalf("InFlight during a run: %+v", v)
 	}
 	for name, call := range map[string]func() error{
@@ -226,7 +230,10 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 		t.Fatalf("InFlight after the run: %+v", v)
 	}
 
-	for _, j := range []struct{ kind, what, want string }{
+	for _, j := range []struct {
+		kind       jobKind
+		what, want string
+	}{
 		{jobDraft, "a draft by the Drafter", "A draft by the Drafter is under way on this computer, and one job runs here at a time: wait for it to finish, or stop it."},
 		{jobBuild, "a knowledge build by the Knowledge Creator", "A knowledge build by the Knowledge Creator is under way on this computer, and one job runs here at a time: wait for it to finish, or stop it."},
 		{jobChat, "a chat with acme/agent@1.0.0", "A chat with acme/agent@1.0.0 is under way on this computer, and one job runs here at a time: wait for it to finish, or end it."},
@@ -239,7 +246,7 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 		if err == nil || err.Error() != j.want {
 			t.Fatalf("a run while %s holds the lock: %v, want %q", j.what, err, j.want)
 		}
-		if v := r.InFlight(); v == nil || v.Kind != j.kind {
+		if v := r.InFlight(); v == nil || v.Kind != string(j.kind) {
 			t.Fatalf("InFlight while %s: %+v", j.what, v)
 		}
 		r.release()
@@ -279,5 +286,43 @@ func TestAForgottenRunsFolderIsRefusedAndLeftAlone(t *testing.T) {
 	}
 	if b, err := os.ReadFile(receiptFile); err != nil || strings.TrimSpace(string(b)) != "{}" {
 		t.Fatalf("the run's receipt after Dismiss: %q, %v", b, err)
+	}
+}
+
+// The engine's usage hook never waits for the page: with the page taking no
+// usage report at all, the engine's calls return at once, and the run goes
+// on (agentry-desktop#465).
+func TestTheEnginesUsageHookNeverWaitsForThePage(t *testing.T) {
+	release := make(chan struct{})
+	prev := emitEvent
+	emitEvent = func(_ *App, name string, data ...any) {
+		if p, ok := data[0].(RunProgress); ok && name == eventRunProgress && p.Turns > 0 {
+			<-release
+		}
+	}
+	t.Cleanup(func() { emitEvent = prev })
+	var took time.Duration
+	r := flowAPI(t, func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+		start := time.Now()
+		for i := 1; i <= 50; i++ {
+			req.OnUsage(receipt.Usage{Turns: i})
+		}
+		took = time.Since(start)
+		return &run.Result{Status: "ok", RunID: req.RunID}, nil
+	})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = runAgent(r)
+	}()
+	time.Sleep(200 * time.Millisecond)
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run did not return once the page took its reports")
+	}
+	if took > 100*time.Millisecond {
+		t.Fatalf("50 usage reports took the engine %v with the page taking none", took)
 	}
 }
