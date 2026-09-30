@@ -47,10 +47,10 @@ func (r *RunAPI) AddToDockerGroup() (*PrereqView, error) {
 	if err := r.app.askConsent("Add your account to the docker group?", "This grants your account control of the Docker daemon, which is root-equivalent on this machine. An elevation prompt follows. Continue?"); err != nil {
 		return nil, err
 	}
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "adding your account to the docker group"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.AddToDockerGroup(r.app.ctx, logw); err != nil {
@@ -80,10 +80,10 @@ func (r *RunAPI) InstallDocker() (*PrereqView, error) {
 	if err := r.app.askConsent("Install Docker Engine?", "The engine is installed through the OS package manager; an elevation prompt follows. Continue?"); err != nil {
 		return nil, err
 	}
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "the Docker Engine install"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.InstallDocker(r.app.ctx, logw); err != nil {

@@ -258,7 +258,7 @@ func TestStopBuildStopsOnlyAKnowledgeBuild(t *testing.T) {
 		t.Fatal("StopBuild with nothing running passed")
 	}
 	cancelled := false
-	l, err := f.k.run.beginRun("acme/triage@1.0.0", func() { cancelled = true })
+	l, err := f.k.run.beginRun(jobRun, "acme/triage@1.0.0", func() { cancelled = true })
 	if err != nil {
 		t.Fatal(err)
 	}

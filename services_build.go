@@ -406,7 +406,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 		}
 	}
 	var res *draft.Result
-	err = b.run.asRun(draftRunRef, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
+	err = b.run.asRun(jobDraft, "a draft by the Drafter", draftRunRef, eventDraftLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
 		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
 			OnRepairTurn: b.run.addTurn, Progress: func(p draft.Progress) { emitEvent(b.app, eventDraftProgress, p) }})

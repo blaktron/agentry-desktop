@@ -58,10 +58,10 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	if unsafeModeOn() {
 		return runDefaultsView()
 	}
-	if !r.mu.TryLock() {
-		return nil, errBusy
+	if err := r.acquire(jobSetup, "turning Unsafe Mode on"); err != nil {
+		return nil, err
 	}
-	defer r.mu.Unlock()
+	defer r.release()
 	if err := r.app.askConsent(unsafeConfirmTitle, unsafeConfirmMessage); err != nil {
 		return nil, err
 	}

@@ -147,6 +147,14 @@ The run setup's Knowledge step is `modals.html#runpanel-step-knowledge`, and
 `#runpanel-knowledge-finished` a local run with a pack attached, whose result
 shows the receipt's knowledge line.
 
+A run on this computer followed above the pages (agentry-desktop#465) has
+its own entry, `runs.html`, driven through the run store (`runs.ts`) with
+`runner:run-progress` and `runner:run-line` scripted: `#run-running`,
+`#run-card`, `#run-stopped`, `#run-finished`, `#run-failed`, `#run-hostile`
+and `#run-card-stacked`. The `modals.html` states that click Run on the review
+(`#runpanel-local-finished` and the like) now close the setup once the run has
+begun and show the result in the run's flow, as the app does.
+
 Settings opens on five cards since agentry-desktop#346. `pages.html` shows the
 cards (`page-settings`, which asserts each card and its status line), and
 `pages.html?settings=<section>` opens a section page (`registry`, `updates`,

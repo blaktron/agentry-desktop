@@ -380,6 +380,13 @@ type Request struct {
 	// — before it is staged: the desktop passes the native picker's
 	// record, since a page can type a path as easily as pick one (D-030).
 	PathPicked func(what, path string) error
+	// OnBudgets, when set, is told the run's effective budgets once it is
+	// prepared (the policy's, with TimeoutSeconds and MaxTurns applied), and
+	// OnUsage the harness's usage as it arrives (the engine's own hook): what
+	// the desktop's progress dialog shows (agentry-desktop#465). Both are
+	// called on the run's own path and must not block it.
+	OnBudgets func(timeoutSeconds, maxTurns int)
+	OnUsage   func(receipt.Usage)
 	// Unsafe is Unsafe Mode for this run (plan unsafe-mode.md D5, D7;
 	// agentry-desktop#418): the caller read the switch from desktop.yaml,
 	// which only Go writes after a native confirmation, and no bound method
@@ -705,6 +712,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			Attestation:     meta.Attestation,
 			RunID:           runID,
 			Stderr:          logw,
+			OnUsage:         req.OnUsage,
 		},
 	}, nil
 }
@@ -713,6 +721,9 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	p, err := prepare(ctx, req, logw, manifest.ModeAutonomous)
 	if err != nil {
 		return nil, err
+	}
+	if req.OnBudgets != nil {
+		req.OnBudgets(p.params.Budgets.TimeoutSeconds, p.params.Budgets.MaxTurns)
 	}
 	env, runErr := engine.Run(ctx, p.docker, p.params)
 	// The run completed its lifecycle (success or failure): apply the

@@ -41,8 +41,11 @@ const sweepWait = 30 * time.Second
 
 // liveRun is the run or interactive session in flight.
 type liveRun struct {
-	id  string
-	ref string
+	id string
+	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild): Stop stops
+	// only its own kind.
+	kind string
+	ref  string
 	// turns are the run ids of the run's later turns: a draft's one repair
 	// turn runs under its own id (drafter.PostStep, #395), so the crash
 	// path records it and quitting sweeps it with the run's own.
@@ -71,12 +74,12 @@ type liveRun struct {
 
 // beginRun records a run about to enter the engine and returns its id and
 // the record; endRun clears it.
-func (r *RunAPI) beginRun(ref string, cancel context.CancelFunc) (*liveRun, error) {
+func (r *RunAPI) beginRun(kind, ref string, cancel context.CancelFunc) (*liveRun, error) {
 	id, err := r.mintRunID()
 	if err != nil {
 		return nil, err
 	}
-	l := &liveRun{id: id, ref: ref, cancel: cancel, done: make(chan struct{})}
+	l := &liveRun{id: id, kind: kind, ref: ref, cancel: cancel, done: make(chan struct{})}
 	r.liveMu.Lock()
 	r.live = l
 	r.liveMu.Unlock()
