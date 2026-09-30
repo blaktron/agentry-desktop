@@ -157,3 +157,40 @@ test("a chat's answer that comes back after it was dismissed and another began c
   assert.equal(h.store.state().chat?.kind, "hosted");
   assert.equal(h.store.state().chat?.error, null);
 });
+
+test("an end Go refuses on this computer leaves the chat over, so it can be dismissed and another started", async () => {
+  const h = harness();
+  h.answerEnd(async () => { throw "no session is open"; });
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  await h.store.end(true);
+  const s = h.store.state();
+  assert.equal(s.chat?.over, true);
+  assert.match(s.chat?.error ?? "", /no session/);
+  h.store.dismiss();
+  assert.equal(h.store.state().chat, null);
+});
+
+test("the QuickAgent is working on the first turn the engine sends for a task, not only on the person's messages", async () => {
+  const h = harness();
+  h.store.startLocal("setup", "acme/helper@1.0.0", "summarise the thread", "", async () => {});
+  await tick();
+  h.fire("runner:session-event", { kind: "user_turn", text: "summarise the thread", time: new Date().toISOString() });
+  assert.equal(working(h.store.state().chat!), true);
+  h.fire("runner:session-event", { kind: "assistant_turn", text: "Done.", time: new Date().toISOString() });
+  assert.equal(working(h.store.state().chat!), false);
+});
+
+test("a chat In Agentry found while another chat is live waits, and is followed once that one is dismissed", async () => {
+  const h = harness();
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  assert.equal(h.store.followHosted({ registry: "https://dev.example.test", run: hostedRun("h9"), terms: null, opening: "", task: "" }, null, true), false);
+  assert.equal(h.store.state().chat?.kind, "local");
+  await h.store.end(true);
+  h.store.dismiss();
+  const s = h.store.state();
+  assert.equal(s.chat?.kind, "hosted");
+  assert.equal(s.chat?.run?.id, "h9");
+  assert.equal(s.asCard, true);
+});

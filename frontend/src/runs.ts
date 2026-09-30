@@ -106,8 +106,7 @@ export const startHostedRun = (s: RunSetup, call: () => Promise<main.HostedStart
  *  run by the run's (agentry-desktop#467). */
 async function followFound(registry: string, found: main.HostedStartView, card: boolean): Promise<boolean> {
   if (found.run?.mode === "interactive") {
-    chatStore.followHosted({ registry, run: found.run, terms: null, opening: "", task: found.run.task ?? "" }, null, card);
-    return true;
+    return chatStore.followHosted({ registry, run: found.run, terms: null, opening: "", task: found.run.task ?? "" }, null, card);
   }
   return hostedStore.attach(registry, async () => found, card);
 }
@@ -128,10 +127,7 @@ export const followHostedRunFound = (registry: string, found: main.HostedStartVi
 /** Follows again, in its dialog, a run or chat the app lost touch with, on
  *  the registry it was followed on. */
 export async function followHostedRunAgain(registry = hostedStore.state().registry): Promise<boolean> {
-  const call = () => RunAPI.AttachHostedRunAtStart(registry);
-  const found = await call().catch((e) => { throw e; });
-  if (found.run?.mode === "interactive") return followFound(registry, found, false);
-  return hostedStore.attach(registry, async () => found, false);
+  return followFound(registry, await RunAPI.AttachHostedRunAtStart(registry), false);
 }
 
 /** Asks Agentry to cancel the run. */

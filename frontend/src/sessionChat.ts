@@ -242,7 +242,9 @@ export type ChatRecord = {
  *  person. */
 export function working(c: ChatRecord): boolean {
   if (c.over) return false;
-  return c.starting || c.sending || (c.kind === "hosted" && c.chat.busy);
+  // The engine sends a task's first turn by itself, so the events, not only
+  // the person's messages, say when the agent is on a turn.
+  return c.starting || c.sending || c.chat.busy;
 }
 
 function overNow(c: ChatRecord): boolean {
@@ -287,6 +289,10 @@ export function createChatStore<S>(deps: ChatDeps) {
   // gen names the chat followed: a call's answer that comes back after the
   // chat was dismissed, or another began, changes nothing.
   let gen = 0;
+  // A chat In Agentry found while another chat is live: followed, as its
+  // card, once that one is dismissed, rather than followed by Go with
+  // nothing showing it.
+  let pending: HostedChatStart | null = null;
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((f) => f());
   const update = (g: number, f: (r: ChatRecord) => ChatRecord) => {
@@ -391,18 +397,23 @@ export function createChatStore<S>(deps: ChatDeps) {
     /** Follows a chat In Agentry the registry has created, or one this
      *  account already had (at start, or as a run setup opened). The host
      *  is asked for every frame it still holds. */
-    followHosted(v: HostedChatStart, s: S | null, card: boolean): void {
+    followHosted(v: HostedChatStart, s: S | null, card: boolean): boolean {
       listen();
       if (c && c.kind === "hosted" && c.run?.id === v.run.id && !c.over) {
         if (!card) store.show();
-        return;
+        return true;
       }
-      if (c && !c.over) return;
+      if (c && !c.over) {
+        pending = v;
+        return false;
+      }
+      if (pending?.run.id === v.run.id) pending = null;
       const g = begin({
         ...blank("hosted", v.run.ref, v.task || v.run.task || "", v.opening),
         registry: v.registry, run: v.run, terms: v.terms, hosted: { status: v.run.status, startedAt: v.run.startedAt, session: v.run.session },
       }, s, card);
       deps.replay().catch((e) => update(g, (r) => ({ ...r, error: String(e) })));
+      return true;
     },
 
     /** Sends the agent one message. */
@@ -454,7 +465,9 @@ export function createChatStore<S>(deps: ChatDeps) {
         const res = await deps.endLocal(finish);
         update(g, (r) => ({ ...r, ending: false, result: res }));
       } catch (e) {
-        update(g, (r) => ({ ...r, ending: false, error: String(e) }));
+        // Go has let the session go whether or not its End succeeded: the
+        // chat is over, with Go's words, and can be dismissed.
+        update(g, (r) => ({ ...r, ending: false, failed: true, error: String(e) }));
       }
     },
 
@@ -478,6 +491,11 @@ export function createChatStore<S>(deps: ChatDeps) {
       shown = false;
       asCard = false;
       notify();
+      if (pending) {
+        const next = pending;
+        pending = null;
+        store.followHosted(next, null, true);
+      }
     },
   };
   return store;

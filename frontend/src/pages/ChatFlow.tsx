@@ -62,7 +62,7 @@ export default function ChatFlow({ onBackToSetup, initialMinimized }: {
         tone={tone}
         actions={<>
           {!c.over && !c.starting && (
-            <Button onClick={() => void endChat(true)} disabled={c.ending || working(c)} title="Ask the agent for its final result, then end">
+            <Button onClick={() => void endChat(true)} disabled={c.ending || working(c) || queued(c) || !!c.chat.ended} title="Ask the agent for its final result, then end">
               {c.ending ? "Ending…" : "Finish"}
             </Button>
           )}
@@ -117,8 +117,14 @@ function stateLine(c: ChatRecord): string {
   const turns = c.chat.turns === 1 ? "1 turn" : `${c.chat.turns} turns`;
   if (c.starting) return "Starting the sandbox and the agent…";
   if (c.ending) return `Ending the chat… · ${turns}`;
-  if (c.kind === "hosted" && c.hosted?.status !== "running") return "Waiting for a sandbox host…";
+  if (c.chat.ended) return `The chat has ended; its output is on its way · ${turns}`;
+  if (queued(c)) return "Waiting for a sandbox host…";
   return `${working(c) ? "The QuickAgent is working" : "Waiting for you"} · ${turns}`;
+}
+
+// queued: a chat In Agentry no sandbox host has taken yet.
+function queued(c: ChatRecord): boolean {
+  return c.kind === "hosted" && !c.chat.ended && c.hosted?.status !== "running";
 }
 
 // outcome is how the chat ended, in the card's line and tone.

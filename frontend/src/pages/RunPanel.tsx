@@ -277,7 +277,7 @@ export default function RunPanel({
   const busy = running || (inAgentry && starting);
   const blockers: string[] = [];
   if ((mode === "interactive" || sessionInAgentry) && chatLive) {
-    blockers.push("A chat is open, in its card in the corner. This app keeps one chat at a time: finish it there, then start another.");
+    blockers.push("A chat is open, in its card in the corner. This app keeps one chat at a time: end it there, then start another.");
   } else if (inAgentry && followedMoving) {
     blockers.push("A run or a chat In Agentry is under way, in its card in the corner. Agentry runs one at a time for an account: wait for it to end, or end it there.");
   } else if (inAgentry) {
