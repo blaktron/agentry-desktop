@@ -1061,3 +1061,102 @@ func assertPolicyBlock(t *testing.T, res *Result) {
 		t.Errorf("policy block = %+v, want %+v", res.Policy, want)
 	}
 }
+
+// A run tells its caller its effective budgets once it is prepared (the
+// policy's, with the request's overrides) and the harness's usage as it
+// arrives, for the progress dialog (agentry-desktop#465): the engine's own
+// usage hook, passed through.
+func TestARunReportsItsBudgetsAndUsage(t *testing.T) {
+	_, regURL, _, _ := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	req.TimeoutSeconds, req.MaxTurns = 600, 7
+	var mu sync.Mutex
+	var budgets [][2]int
+	var usage []receipt.Usage
+	req.OnBudgets = func(timeoutSeconds, maxTurns int) {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(usage) > 0 {
+			t.Error("the budgets were reported after the usage")
+		}
+		budgets = append(budgets, [2]int{timeoutSeconds, maxTurns})
+	}
+	req.OnUsage = func(u receipt.Usage) {
+		mu.Lock()
+		defer mu.Unlock()
+		usage = append(usage, u)
+	}
+	res, err := Run(context.Background(), req, &strings.Builder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(budgets) != 1 || budgets[0] != [2]int{600, 7} {
+		t.Fatalf("budgets reported %v, want one report of [600 7]", budgets)
+	}
+	if len(usage) == 0 {
+		t.Fatal("no usage was reported")
+	}
+	if last := usage[len(usage)-1]; last.Turns != res.Turns || last.InputTokens != 100 || last.OutputTokens != 40 {
+		t.Fatalf("the last usage %+v is not the run's (%d turns, 100 in, 40 out)", last, res.Turns)
+	}
+}
+
+// With no override the budgets reported are the policy's.
+func TestARunReportsThePolicysBudgetsWithNoOverride(t *testing.T) {
+	_, regURL, _, _ := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	var got [2]int
+	req.OnBudgets = func(timeoutSeconds, maxTurns int) { got = [2]int{timeoutSeconds, maxTurns} }
+	if _, err := Run(context.Background(), req, &strings.Builder{}); err != nil {
+		t.Fatal(err)
+	}
+	pol := cataloguedPolicy()
+	if got != [2]int{pol.Budgets.TimeoutSeconds, pol.Budgets.MaxTurns} || got[0] == 0 {
+		t.Fatalf("budgets %v, want the policy's %d and %d", got, pol.Budgets.TimeoutSeconds, pol.Budgets.MaxTurns)
+	}
+}
+
+// A run stopped mid-flight (its context cancelled, as RunAPI.StopRun does)
+// still ends with its envelope and receipts written as far as it got, and
+// Run returns them (agentry-desktop#465).
+func TestAStoppedRunWritesItsReceiptsAsFarAsItGot(t *testing.T) {
+	_, regURL, fd, _ := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	agentUp := make(chan struct{})
+	fd.Foreground["-agent"] = &dockerx.FakeForeground{Block: true}
+	fd.OnForeground = func(r dockerx.RunSpec) {
+		if strings.HasSuffix(r.Name, "-agent") {
+			close(agentUp)
+		}
+	}
+	outDir := filepath.Join(t.TempDir(), "out")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type ret struct {
+		res *Result
+		err error
+	}
+	done := make(chan ret, 1)
+	go func() {
+		res, err := Run(ctx, request(regURL, outDir), &strings.Builder{})
+		done <- ret{res, err}
+	}()
+	<-agentUp
+	cancel()
+	got := <-done
+	if got.err != nil {
+		t.Fatalf("a stopped run returned no result: %v", got.err)
+	}
+	if got.res.Status == "ok" {
+		t.Fatalf("a stopped run said ok: %+v", got.res)
+	}
+	for _, rel := range []string{"result.json", filepath.Join("receipts", "run-plan.json")} {
+		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
+			t.Errorf("the stopped run left no %s: %v", rel, err)
+		}
+	}
+}

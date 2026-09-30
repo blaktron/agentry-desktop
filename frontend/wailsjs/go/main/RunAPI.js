@@ -66,6 +66,10 @@ export function ForgetJevKey() {
   return window['go']['main']['RunAPI']['ForgetJevKey']();
 }
 
+export function ForgetRun(arg1) {
+  return window['go']['main']['RunAPI']['ForgetRun'](arg1);
+}
+
 export function ForgetSearchKey() {
   return window['go']['main']['RunAPI']['ForgetSearchKey']();
 }
@@ -80,6 +84,10 @@ export function HarnessStatus() {
 
 export function HostedAvailability(arg1, arg2) {
   return window['go']['main']['RunAPI']['HostedAvailability'](arg1, arg2);
+}
+
+export function InFlight() {
+  return window['go']['main']['RunAPI']['InFlight']();
 }
 
 export function InstallDocker() {
@@ -176,6 +184,10 @@ export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13) {
   return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
+}
+
+export function StopRun() {
+  return window['go']['main']['RunAPI']['StopRun']();
 }
 
 export function StoreJevKey(arg1) {

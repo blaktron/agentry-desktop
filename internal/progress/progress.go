@@ -17,8 +17,9 @@ import (
 // own facts (a draft its stage, a build its pages), so the JSON the page
 // reads is one flat object.
 type Report struct {
-	// StartedAt is when the job began, in Unix milliseconds: the page counts
-	// the elapsed time itself.
+	// StartedAt is when the job's clock started, in Unix milliseconds: the
+	// page counts the elapsed time itself. For most jobs that is when they
+	// began; a run on this computer starts it again once it is prepared.
 	StartedAt int64 `json:"startedAt"`
 	// TimeoutSeconds and MaxTurns are the job's budgets. Zero is no limit.
 	TimeoutSeconds int `json:"timeoutSeconds"`
