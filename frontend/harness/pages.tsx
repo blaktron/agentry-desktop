@@ -462,7 +462,14 @@ const REG = "https://secureagentry.net";
 let profileName = "Chris";
 const profileView = () => {
   const user = { handle: "chris", displayName: profileName, email: "chris@example.test", emailVerified: true };
-  const caps = { tier: "standard", caps: { timeoutSeconds: 900, maxTurns: 60, maxTokens: 400000 }, holdCredits: 20, inputTokensPerCredit: 20000, outputTokensPerCredit: 4000 };
+  // The caller as dev's runs status answers it, with the build, draft and
+  // session blocks a real registry sends (agentry-desktop#423's save).
+  const caps = {
+    tier: "standard", caps: { timeoutSeconds: 900, maxTurns: 60, maxTokens: 400000 }, holdCredits: 20, inputTokensPerCredit: 20000, outputTokensPerCredit: 4000,
+    build: { caps: { timeoutSeconds: 1800, maxTurns: 60, maxTokens: 800000 }, holdCredits: 100, allowed: false },
+    draft: { caps: { timeoutSeconds: 900, maxTurns: 40, maxTokens: 400000 }, holdCredits: 41 },
+    session: { allowed: false },
+  };
   const page = "https://secureagentry.net/settings/subscription";
   if (location.hash === "#profile-core") return { user, signedUpWith: "" };
   if (location.hash === "#profile-org") {

@@ -157,7 +157,11 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
     setSaved(null);
     try {
       const u = await SettingsAPI.SetDisplayName(registry, name);
-      setProfile(main.ProfileView.createFrom({ ...profile, user: u }));
+      // A plain object, as every binding answers one: rebuilding the
+      // generated class with createFrom threw "null is not a constructor" in
+      // the production bundle after a save the registry had taken
+      // (agentry-desktop#423's live check).
+      setProfile((cur) => (cur ? ({ ...cur, user: u } as main.ProfileView) : cur));
       setName(u.displayName ?? "");
       setSaved("Display name saved.");
     } catch (e) {
