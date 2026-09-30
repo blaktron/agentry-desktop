@@ -7,13 +7,18 @@
 // lines or its result. Dismiss makes the app forget it (RunAPI.ForgetRun);
 // quitting forgets it too, since nothing of it is kept.
 //
-// The store's rules are localRun.ts's createRunStore, which a node test holds;
-// this module wires it to Go's events and calls.
+// A run In Agentry is followed the same way, by its own store beside this
+// one (agentry-desktop#466), which HostedRunFlow draws.
+//
+// The stores' rules are localRun.ts's createRunStore and hostedRun.ts's
+// createHostedRunStore, which node tests hold; this module wires them to
+// Go's events and calls.
 import { useEffect, useState } from "react";
 import * as RunAPI from "../wailsjs/go/main/RunAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main, trust } from "../wailsjs/go/models";
 import { type RunStoreState, createRunStore } from "./localRun";
+import { type HostedRunState, createHostedRunStore } from "./hostedRun";
 import type { RunForm } from "./runSetup";
 
 /** What reopens the run setup as the person left it. */
@@ -67,5 +72,63 @@ export const dismissLocalRun = (): void => store.dismiss();
 export function backToSetup(): RunSetup | null {
   const s = store.state().setup;
   store.dismiss();
+  return s;
+}
+
+// The run In Agentry the app follows (agentry-desktop#466), beside the run
+// on this computer: Go reports it as runner:hosted-run, which this store
+// listens to for the app's life, so a run that ends with its dialog closed
+// lands in its card with its result. At most one of each: Go runs one local
+// job at a time, and the registry one run per account.
+const hostedStore = createHostedRunStore<RunSetup>({
+  on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
+  cancel: () => RunAPI.CancelHostedRun(),
+  forget: (runId) => void RunAPI.ForgetRun(runId),
+});
+
+export type HostedState = HostedRunState<RunSetup>;
+
+/** The run In Agentry the app follows, re-read whenever it changes. */
+export function useHostedRun(): HostedState {
+  const [, bump] = useState(0);
+  useEffect(() => hostedStore.subscribe(() => bump((n) => n + 1)), []);
+  return hostedStore.state();
+}
+
+/** Starts a run In Agentry by call (RunAPI.StartHostedRun) and follows it
+ *  once the registry has created it; a refusal is handed back for the setup
+ *  to show, and nothing is followed. */
+export const startHostedRun = (s: RunSetup, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> =>
+  hostedStore.start(s, call);
+
+/** Follows this account's run In Agentry already in flight, as its card:
+ *  App asks as it starts. */
+export const attachHostedRun = (registry: string): Promise<boolean> =>
+  hostedStore.attach(() => RunAPI.AttachHostedRunAtStart(registry));
+
+/** Follows, as its card, a run In Agentry a run setup found in flight as it
+ *  opened (RunAPI.AttachHostedRun): one started elsewhere since the app
+ *  started. A run already followed stays as it is. */
+export const followHostedRunFound = (found: main.HostedStartView): Promise<boolean> =>
+  hostedStore.attach(async () => found);
+
+/** Follows again a run the app lost touch with, in its dialog. */
+export const followHostedRunAgain = (registry: string): Promise<boolean> =>
+  hostedStore.attach(() => RunAPI.AttachHostedRunAtStart(registry), false);
+
+/** Asks Agentry to cancel the run. */
+export const cancelHostedRun = (): Promise<void> => hostedStore.cancel();
+
+/** Opens the run In Agentry's flow as the dialog. */
+export const showHostedRun = (): void => hostedStore.show();
+
+/** Dismiss, once the run is over: the app forgets it. */
+export const dismissHostedRun = (): void => hostedStore.dismiss();
+
+/** Back to the setup from a run In Agentry that is over: it is dismissed,
+ *  and its setup, if it had one, is returned to open again as it was. */
+export function backToHostedSetup(): RunSetup | null {
+  const s = hostedStore.state().setup;
+  hostedStore.dismiss();
   return s;
 }

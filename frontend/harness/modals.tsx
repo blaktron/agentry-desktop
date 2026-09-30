@@ -6,11 +6,9 @@
 //   #runpanel              the mode choice, In Agentry offered
 //   #runpanel-hosted       In Agentry chosen: the hold, the balance, the caps
 //   #runpanel-unavailable  In Agentry offered, unavailable with the reason
-//   #runpanel-queued       a hosted run queued, with its position
-//   #runpanel-running      a hosted run running: its state, no log
-//   #runpanel-finished     a hosted run done — pass: the receipt the
-//                          registry kept, and the outputs
-//   #runpanel-failed       a pushed run done — fail: no receipt kept
+//   (a run In Agentry, once started, is the run's flow's since
+//   agentry-desktop#466: runs.html#hosted-* shows it queued, running, over,
+//   failed and with hostile output)
 //   #runpanel-keys         pr-review-brief's shape: keys unsaved, no intake —
 //                          the line above Run names the keys, Input files
 //                          collapsed (agentry-desktop#167)
@@ -33,14 +31,6 @@
 //   #runpanel-step-review-long  the same with an intake prompt as long as
 //                           binary-reverse-engineer's: the label wraps and
 //                           every value keeps its width (agentry-desktop#420)
-//
-// The result first (agentry-desktop#227): -finished and -failed show the
-// result view over their Run details, and
-//   #runpanel-hostile       a finished run whose result and files carry
-//                           hostile markdown (raw HTML, a script, an image,
-//                           a javascript: link) and a file name with a
-//                           right-to-left override: none of it becomes
-//                           markup, and the hidden characters show
 //
 // The author's guide (manifest v2's guide block, agentry-desktop#228), on
 // pr-review-brief's shape with a guide:
@@ -77,9 +67,8 @@
 //                                       ticked; one kept only here offers
 //                                       Upload to Agentry; one being scanned
 //                                       there says so
-//   #runpanel-hosted-knowledge-finished a run In Agentry with a pack
-//                                       attached, done — pass: the receipt's
-//                                       knowledge line under the result
+//   (a run In Agentry that is over is the run's flow's since
+//   agentry-desktop#466: runs.html#hosted-finished shows its knowledge line)
 //
 // A run In Agentry of a release that declares a secret (agentry-desktop#300):
 //   #runpanel-hosted-secrets      Review and start In Agentry: the note on
@@ -331,32 +320,6 @@ const hostedRuns: Record<string, any> = {
     ],
   },
 };
-hostedRuns.failed = {
-  ...hostedRuns.finished, state: "done — fail", statusLine: "the agent ran and failed — the receipt and the outputs say where",
-  outcome: "failed", outcomeTone: "bad", outcomeLine: "the agent ran and failed — the receipt and the outputs say where",
-  exitClass: "agent-error", settledCredits: 3, turns: 2, inputTokens: 2210, outputTokens: 380, totalTokens: 2590, wallMs: 18400,
-  // A run the registry kept no receipt for (pushed before agentry-enterprise#121).
-  receiptKept: false, capabilitiesEnforced: {}, attestationState: "", adapter: "",
-  resultJson: "",
-  outputs: [hostedRuns.finished.outputs[2]],
-};
-hostedRuns.hostile = {
-  ...hostedRuns.finished,
-  resultJson: JSON.stringify(
-    "# Summary\n\nThe report is **ready**. <script>alert('x')</script><b onclick=\"steal()\">raw html</b>\n\n" +
-      "![tracking pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [docs](https://example.com/docs)\n\n" +
-      "pay\u200Bpal invoice attached.",
-  ),
-};
-hostedRuns["hosted-knowledge-finished"] = {
-  ...hostedRuns.finished,
-  knowledge: [{ name: "incident-runbooks", digest: "sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }],
-  capabilitiesEnforced: {
-    ...hostedRuns.finished.capabilitiesEnforced,
-    knowledge: "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only",
-  },
-  knowledgeLine: "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only",
-};
 // A session In Agentry: running twelve minutes in, two paid minutes pulled,
 // and over with its tokens settled.
 const sessionStarted = new Date(Date.now() - (12 * 60 + 40) * 1000).toISOString();
@@ -386,21 +349,13 @@ const sessionEvents = [
 const listeners: Record<string, ((v: any) => void)[]> = {};
 
 // What the result view lists from the run folder (RunAPI.RunOutputs).
-const runOutputs = view === "runpanel-hostile"
-  ? {
-    files: [
-      { path: "outputs/invoice\u202Efdp.exe", bytes: 1024, previewKind: "none", noPreview: "binary" },
-      { path: "outputs/notes.md", bytes: 120, previewKind: "markdown", preview: "## Notes\n\n<iframe src=\"https://evil.example\"></iframe>Plain notes." },
-    ],
-    skipped: 1,
-  }
-  : {
-    files: [
-      { path: "outputs/summary.csv", bytes: 64, previewKind: "text", preview: "incident,started,severity\nINC-4821,02:14,high\n" },
-      { path: "reports/report.md", bytes: 3482, previewKind: "markdown", preview: "## INC-4821\n\nElevated 5xx on **checkout** from 02:14 UTC.\n\n| step | when |\n|---|---|\n| detected | 02:14 |\n| mitigated | 02:41 |\n" },
-    ],
-    skipped: 0,
-  };
+const runOutputs = {
+  files: [
+    { path: "outputs/summary.csv", bytes: 64, previewKind: "text", preview: "incident,started,severity\nINC-4821,02:14,high\n" },
+    { path: "reports/report.md", bytes: 3482, previewKind: "markdown", preview: "## INC-4821\n\nElevated 5xx on **checkout** from 02:14 UTC.\n\n| step | when |\n|---|---|\n| detected | 02:14 |\n| mitigated | 02:41 |\n" },
+  ],
+  skipped: 0,
+};
 
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.

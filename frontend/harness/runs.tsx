@@ -15,6 +15,24 @@
 //                     all drawn as text
 //   #run-card-stacked the run's card and a draft In Agentry's card stacked
 //                     in App's corner, neither covering the other
+//
+// A run In Agentry, followed the same way (agentry-desktop#466):
+//   #hosted-queued      the dialog while it waits: its place in the queue,
+//                       the credits held, Cancel run
+//   #hosted-running     the dialog while it runs: time against its cap
+//   #hosted-cancel      Cancel asked for: Agentry is stopping it
+//   #hosted-finished    the dialog once it is over: the result first, the
+//                       files, Run details with the receipt's knowledge line
+//   #hosted-failed      over, failed, with no receipt kept
+//   #hosted-hostile     over, its result and files carrying hostile
+//                       markdown and a right-to-left override: all text
+//   #hosted-lost        the app lost touch while it was still going:
+//                       Follow it again
+//   #hosted-card        a run already in flight when the app started,
+//                       attached as its card
+//   #hosted-card-finished a run that ended while its dialog was closed,
+//                       landed in its card
+//   #hosted-card-stacked its card and a run on this computer's card
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
@@ -26,7 +44,57 @@ const HOST = "secureagentry.net";
 const REG = "https://secureagentry.net";
 const REF = "demo1/incident-summarizer@1.2.0";
 const RUN_ID = "7c1e4a90";
-const hostile = hash === "run-hostile";
+const hostile = hash === "run-hostile" || hash === "hosted-hostile";
+const hostedOnly = hash.startsWith("hosted-") && hash !== "hosted-card-stacked";
+const H_ID = "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42";
+const H_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4";
+const hostedBase = {
+  id: H_ID, ref: REF, digest: "sha256:9c356fd0d20fef07", holdCredits: 20,
+  caps: { timeoutSeconds: 900, maxTurns: 60, maxTokens: 1000000 },
+  outputs: [], turns: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, wallMs: 0,
+  settledCredits: 0, settled: false, cancelRequested: false, final: false, outDir: H_DIR,
+  createdAt: new Date(Date.now() - 300_000).toISOString(),
+};
+const hStarted = new Date(Date.now() - 222_000).toISOString();
+const knowledgeLine = "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const hosted: Record<string, any> = {
+  queued: { ...hostedBase, status: "queued", state: "queued", statusLine: "queued: waiting for a sandbox host", queuePosition: 3 },
+  running: { ...hostedBase, status: "running", state: "running", statusLine: "running on a sandbox host", startedAt: hStarted },
+  finished: {
+    ...hostedBase, status: "finished", state: "done — pass", statusLine: "ran to the end and wrote its result", startedAt: hStarted,
+    outcome: "succeeded", outcomeTone: "ok", outcomeLine: "ran to the end and wrote its result",
+    exitClass: "ok", attestationState: "verified", adapter: "docker-agent",
+    turns: 4, inputTokens: 5120, outputTokens: 1430, totalTokens: 6550, costUsd: 0.0182, wallMs: 41200,
+    settledCredits: 7, settled: true, final: true, receiptKept: true,
+    capabilitiesEnforced: { "network.egress": "llm-proxy allowlist: api.pagerduty.com", knowledge: knowledgeLine },
+    knowledge: [{ name: "incident-runbooks", digest: "sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }],
+    knowledgeLine,
+    resultJson: JSON.stringify("INC-4821 began at 02:14 UTC with elevated 5xx on the checkout service. Draft report written to reports/report.md."),
+    outputs: [
+      { name: "result.json", bytes: 214, path: `${H_DIR}/result.json` },
+      { name: "reports/report.md", bytes: 3482, path: `${H_DIR}/reports/report.md` },
+    ],
+  },
+};
+hosted.failed = {
+  ...hosted.finished, state: "done — fail", statusLine: "the agent ran and failed — the receipt and the outputs say where",
+  outcome: "failed", outcomeTone: "bad", outcomeLine: "the agent ran and failed — the receipt and the outputs say where",
+  exitClass: "agent-error", settledCredits: 3, receiptKept: false, capabilitiesEnforced: {}, knowledge: [], knowledgeLine: "",
+  attestationState: "", resultJson: "", outputs: [],
+};
+hosted.hostile = {
+  ...hosted.finished,
+  resultJson: JSON.stringify(
+    "# Summary\n\nThe report is **ready**. <script>alert('x')</script><b onclick=\"steal()\">raw html</b>\n\n" +
+      "![tracking pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [docs](https://example.com/docs)\n\n" +
+      "pay\u200Bpal invoice attached.",
+  ),
+};
+hosted.lost = {
+  ...hosted.running, final: true,
+  downloadError: "lost touch with the registry while the run was running (read the run: the registry answered 503 (HTTP 503)); follow it again to see how it ends",
+};
 const started = Date.now() - 134_000;
 const reports = [
   { runId: RUN_ID, ref: REF, startedAt: started, timeoutSeconds: 0, maxTurns: 0, turns: 0, inputTokens: 0, outputTokens: 0, prepared: false },
@@ -84,6 +152,18 @@ g.go = { main: {
       else if (hash === "run-stopped") stop = () => setTimeout(() => resolve(result), 40);
     }),
     StopRun: async () => stop?.(),
+    StartHostedRun: async () => {
+      const first = hash === "hosted-queued" ? hosted.queued : hosted.running;
+      if (hash === "hosted-finished" || hash === "hosted-failed" || hash === "hosted-lost" || hash === "hosted-hostile") {
+        setTimeout(() => fire("runner:hosted-run", hosted[hash.slice("hosted-".length)]), 120);
+      }
+      return { run: first };
+    },
+    AttachHostedRunAtStart: async () => {
+      if (hash === "hosted-card-finished") setTimeout(() => fire("runner:hosted-run", hosted.finished), 120);
+      return { run: hosted.running };
+    },
+    CancelHostedRun: async () => ({ ...hosted.running, cancelRequested: true, statusLine: "cancelling" }),
     ForgetRun: async () => undefined,
     RunOutputs: async () => outputs,
     ShowRunFolder: async () => undefined,
@@ -108,8 +188,9 @@ g.runtime = {
 };
 
 import RunFlow from "../src/pages/RunFlow";
+import HostedRunFlow from "../src/pages/HostedRunFlow";
 import DraftFlow from "../src/pages/DraftFlow";
-import { startLocalRun, stopLocalRun } from "../src/runs";
+import { attachHostedRun, cancelHostedRun, startHostedRun, startLocalRun, stopLocalRun } from "../src/runs";
 import { startDraft } from "../src/drafts";
 import { CornerHost } from "../src/progress";
 
@@ -131,12 +212,13 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Preview() {
   const [corner, setCorner] = useState<HTMLElement | null>(null);
-  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked";
+  const card = hash === "run-card" || hash === "run-stopped" || hash === "run-card-stacked" || hash === "hosted-card-stacked";
   return (
     <CornerHost.Provider value={corner}>
       <div data-preview="runs">
         <Shell>The page stays usable while the run goes on in its card.</Shell>
         <RunFlow onBackToSetup={() => {}} initialMinimized={card} />
+        <HostedRunFlow registry={REG} onBackToSetup={() => {}} initialMinimized={hash === "hosted-card-stacked"} />
         {hash === "run-card-stacked" && <DraftFlow registry={REG} onOpenDraft={() => {}} initialMinimized />}
         <div className="corner-cards" ref={setCorner} />
       </div>
@@ -148,7 +230,15 @@ const form = {
   mode: "autonomous", task: "", inputs: [], pickedFiles: [], intakeValues: {}, attach: [], outDir: "", timeoutSec: "", maxTurns: "",
   keep: true, keepTouched: false, acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
 };
-void startLocalRun(
+const setup = { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form: { ...form, mode: "hosted" } };
+if (hash === "hosted-card" || hash === "hosted-card-finished") void attachHostedRun(REG);
+else if (hash.startsWith("hosted-")) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  void startHostedRun(setup, () => g.go.main.RunAPI.StartHostedRun() as Promise<any>).then(() => {
+    if (hash === "hosted-cancel") void cancelHostedRun();
+  });
+}
+if (!hostedOnly) void startLocalRun(
   { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form },
   REF,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
