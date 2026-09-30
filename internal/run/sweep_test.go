@@ -21,9 +21,7 @@ func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 		ByLabel:         map[string][]string{"agentry.run=ab12cd34": {"agentry-ab12cd34-agent", "agentry-ab12cd34-gateway"}},
 		LeftoverVolumes: []string{"agentry-ab12cd34-session"},
 	}
-	prev := newDockerClient
-	newDockerClient = func() dockerx.Client { return fake }
-	t.Cleanup(func() { newDockerClient = prev })
+	withFakeDocker(t, fake)
 
 	if err := Sweep(context.Background(), "ab12cd34"); err != nil {
 		t.Fatal(err)
@@ -59,12 +57,13 @@ func TestSweepRefusesARunIDThatIsNotTheEngines(t *testing.T) {
 		t.Fatal(err)
 	}
 	fake := &dockerx.Fake{}
-	prev := newDockerClient
-	newDockerClient = func() dockerx.Client { return fake }
-	t.Cleanup(func() { newDockerClient = prev })
+	withFakeDocker(t, fake)
 	for _, id := range []string{"", "../workspace", "AB12CD34", "ab12", "ab12cd34/..", "*"} {
 		if err := Sweep(context.Background(), id); err == nil {
 			t.Fatalf("swept the run id %q", id)
+		}
+		if err := SweepFiles(home, id); err == nil {
+			t.Fatalf("swept the files of the run id %q", id)
 		}
 	}
 	if len(fake.Calls) != 0 {
@@ -122,13 +121,5 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// relays' loop, one for the web tools.
 	if creates != 4 {
 		t.Fatalf("the engine makes a network in %d places, and the sweep knows 4: revisit runNetworks before taking this agentry-cli", creates)
-	}
-	var swept []string
-	for _, n := range runNetworks("ab12cd34") {
-		swept = append(swept, strings.TrimPrefix(n, "agentry-ab12cd34"))
-	}
-	sort.Strings(swept)
-	if strings.Join(swept, " ") != "-egress -net -relays -relays-out -web" {
-		t.Fatalf("runNetworks names %v", swept)
 	}
 }

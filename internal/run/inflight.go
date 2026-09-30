@@ -56,6 +56,24 @@ type inFlight struct {
 	// Start is the owner's start time where owner.StartTime has one
 	// (Linux); zero elsewhere.
 	Start uint64 `json:"start,omitempty"`
+	// Host is the machine the owner runs on. A pid says nothing about a
+	// process on another machine, and a runner home can be shared between
+	// machines (a home directory on a network share): a record another
+	// machine wrote is left alone, since sweeping it would delete a live
+	// run's scratch directory from under it (agentry-desktop#463). Empty in
+	// a record written before the field existed, which is judged by its
+	// pid as it always was.
+	Host string `json:"host,omitempty"`
+}
+
+// thisHost is the machine's name as a record carries it; "" when the
+// system has none to give.
+func thisHost() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return h
 }
 
 // runIDPattern is the engine's run id (engine.NewRunID: 8 hex digits),
@@ -68,7 +86,7 @@ func RecordInFlight(dir, runID string) error {
 	if !runIDPattern.MatchString(runID) {
 		return fmt.Errorf("record run: bad run id %q", runID)
 	}
-	rec := inFlight{RunID: runID, PID: os.Getpid()}
+	rec := inFlight{RunID: runID, PID: os.Getpid(), Host: thisHost()}
 	if start, ok := owner.StartTime(rec.PID); ok {
 		rec.Start = start
 	}
@@ -114,16 +132,18 @@ func recordPath(dir, runID string) string { return filepath.Join(dir, runID+".js
 // SweepOrphaned sweeps, by run id, every recorded run whose owner is gone,
 // and removes its record once the sweep succeeded (a failed sweep — Docker
 // not running yet — keeps the record for the next start). A live owner's
-// record, this process's own, and anything unreadable or malformed are left
-// alone. It returns the run ids it swept, sorted. The app runs it at start.
+// record, this process's own, another machine's, and anything unreadable or
+// malformed are left alone. It returns the run ids it swept, sorted. The
+// app runs it at start.
 func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
 	return sweepRecorded(ctx, dir, false, sweep)
 }
 
 // SweepAtQuit is SweepOrphaned for an app that is closing, after it has torn
-// down what it had live: every record this process wrote is swept as well,
-// since nothing of this process's is running any more, so a run whose own
-// teardown left something behind does not wait for the next start
+// down what it had live: every record this process still holds is swept as
+// well, since nothing of this process's is running any more. Those are the
+// run the quit's bounded wait gave up on, and a run that ended leaving
+// files its engine could not delete, whose record the app kept for this
 // (agentry-desktop#463). Another live process's record is still left alone.
 func SweepAtQuit(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
 	return sweepRecorded(ctx, dir, true, sweep)
@@ -150,6 +170,9 @@ func sweepRecorded(ctx context.Context, dir string, own bool, sweep func(context
 		}
 		var rec inFlight
 		if json.Unmarshal(b, &rec) != nil || !runIDPattern.MatchString(rec.RunID) || name != rec.RunID+".json" {
+			continue
+		}
+		if rec.Host != "" && rec.Host != thisHost() {
 			continue
 		}
 		if !ownerGone(rec.PID, rec.Start) && (!own || rec.PID != os.Getpid()) {

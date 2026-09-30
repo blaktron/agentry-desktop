@@ -231,21 +231,8 @@ func TestARunIsRecordedWhileInFlight(t *testing.T) {
 func TestStartupSweepsTheRunOfAnAppThatDied(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
-	if err := os.MkdirAll(r.inFlightDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	cmd := exec.Command(os.Args[0], "-test.run=^$") //nolint:gosec // this test binary
-	if err := cmd.Run(); err != nil {
-		t.Fatal(err)
-	}
-	write := func(id string, pid int) {
-		b, _ := json.Marshal(map[string]any{"run_id": id, "pid": pid})
-		if err := os.WriteFile(filepath.Join(r.inFlightDir, id+".json"), b, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("dead0001", cmd.Process.Pid)
-	write("a11e0002", os.Getppid())
+	writeOwner(t, r, "dead0001", goneOwner(t))
+	writeOwner(t, r, "a11e0002", os.Getppid())
 
 	swept := r.sweepOrphans(context.Background())
 	if strings.Join(swept, ",") != "dead0001" {
@@ -376,7 +363,7 @@ func (c *fakeChat) End(_ context.Context, finish bool) (*run.Result, error) {
 func TestQuittingWithAChatStartedEndsItThenSweeps(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
-	r.engineSession = func(_ context.Context, req run.Request, _ io.Writer) (chat, error) {
+	r.engineSession = func(_ context.Context, req run.Request, _ io.Writer) (localSession, error) {
 		events := make(chan session.Event)
 		close(events)
 		return &fakeChat{f: f, id: req.RunID, events: events}, nil
@@ -395,5 +382,69 @@ func TestQuittingWithAChatStartedEndsItThenSweeps(t *testing.T) {
 	}
 	if r.current() != nil || recorded(r, "ab12cd34") {
 		t.Fatal("the chat is still recorded after the quit")
+	}
+}
+
+// leaveScratch makes the scratch directory a run leaves under the runner
+// home the API's records belong to, with a secrets file in it.
+func leaveScratch(t *testing.T, r *RunAPI, id string) string {
+	t.Helper()
+	dir := filepath.Join(filepath.Dir(r.inFlightDir), "agents", "acme", "agent", "1.0.0-0123456789ab", "runs", id)
+	if err := os.MkdirAll(filepath.Join(dir, "cfg", "gateway"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cfg", "gateway", "secrets.env"), []byte("K=v\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// A run whose engine returned without deleting its files (Docker Desktop
+// still held one, agentry-cli#422) is not forgotten with them on disk: they
+// are tried again when the run ends, and the record goes with them.
+func TestARunsFilesAreRemovedWhenItEnds(t *testing.T) {
+	f := &fakeEngine{started: make(chan run.Request, 1)}
+	r := newQuitAPI(t, f, nil)
+	_, errc := startRun(t, r, f)
+	scratch := leaveScratch(t, r, "ab12cd34")
+
+	r.current().cancel()
+	<-errc
+
+	if _, err := os.Stat(scratch); err == nil {
+		t.Fatal("the ended run's scratch directory is still there")
+	}
+	if recorded(r, "ab12cd34") {
+		t.Fatal("the record outlived a run that left nothing")
+	}
+}
+
+// And while they cannot be deleted the record stays, so the quit sweep (and
+// the next start) has the run's id to try again with: without it nothing
+// would ever look for that directory.
+func TestARunThatLeavesFilesKeepsItsRecordForTheQuitSweep(t *testing.T) {
+	f := &fakeEngine{started: make(chan run.Request, 1)}
+	r := newQuitAPI(t, f, nil)
+	_, errc := startRun(t, r, f)
+	scratch := leaveScratch(t, r, "ab12cd34")
+	run.SetRemoveTreeForTest(t, func(string) error { return errors.New("the file is in use") })
+
+	r.current().cancel()
+	<-errc
+
+	if _, err := os.Stat(scratch); err != nil {
+		t.Fatal("the test's delete was not the one that ran")
+	}
+	if !recorded(r, "ab12cd34") || r.current() != nil {
+		t.Fatal("a run that left its scratch directory behind was forgotten")
+	}
+
+	r.shutdown()
+
+	if got := strings.Join(f.steps(), ","); got != "teardown ab12cd34,sweep ab12cd34" {
+		t.Fatalf("steps %q, want the ended run swept at quit by its record", got)
+	}
+	if recorded(r, "ab12cd34") {
+		t.Fatal("the swept run's record was kept")
 	}
 }

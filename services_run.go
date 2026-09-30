@@ -55,7 +55,7 @@ type RunAPI struct {
 	// agentry-desktop#424); nil is the docker CLI. A test passes its own.
 	images dockerimages.Docker
 	// session is the live interactive session, nil otherwise.
-	session chat
+	session localSession
 	// knowledgeEnv is the local knowledge store's wiring; nil is this
 	// app's (internal/knowledge.Default). A test passes its own.
 	knowledgeEnv *knowledge.Env
@@ -78,7 +78,7 @@ type RunAPI struct {
 	// Engine seams for tests; nil means internal/run.
 	newRunID      func() (string, error)
 	engineRun     func(context.Context, run.Request, io.Writer) (*run.Result, error)
-	engineSession func(context.Context, run.Request, io.Writer) (chat, error)
+	engineSession func(context.Context, run.Request, io.Writer) (localSession, error)
 	sweep         func(context.Context, string) error
 	// inFlightDir holds the crash-path records (services_quit.go,
 	// agentry-desktop#198); "" is the runner home's desktop-runs.
@@ -96,9 +96,10 @@ type RunAPI struct {
 	openFolder func(dir string) error
 }
 
-// chat is the engine's interactive session as the app drives it
-// (*run.Session); a test substitutes its own, as it does the engine's run.
-type chat interface {
+// localSession is the engine's interactive session on this computer as the
+// app drives it (*run.Session); a test substitutes its own, as it does the
+// engine's run.
+type localSession interface {
 	Ref() string
 	Events() <-chan session.Event
 	Send(ctx context.Context, text string) error

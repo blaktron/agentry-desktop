@@ -68,6 +68,9 @@ func TestRecordInFlightThenForget(t *testing.T) {
 	if start, ok := owner.StartTime(os.Getpid()); ok && rec.Start != start {
 		t.Fatalf("start = %d, want %d", rec.Start, start)
 	}
+	if host, err := os.Hostname(); err == nil && rec.Host != host {
+		t.Fatalf("host = %q, want %q", rec.Host, host)
+	}
 	if err := ForgetInFlight(dir, "ab12cd34"); err != nil {
 		t.Fatal(err)
 	}
@@ -111,9 +114,7 @@ func TestSweepOrphanedSweepsOnlyADeadOwnersRun(t *testing.T) {
 			"agentry.run=c11c0003": {"agentry-c11c0003-agent"}, // a CLI run: no record
 		},
 	}
-	prev := newDockerClient
-	newDockerClient = func() dockerx.Client { return fake }
-	t.Cleanup(func() { newDockerClient = prev })
+	withFakeDocker(t, fake)
 
 	dir := filepath.Join(home, InFlightDirName)
 	pid, start := deadPID(t)
@@ -181,9 +182,7 @@ func TestSweepOrphanedSweepsOnlyADeadOwnersRun(t *testing.T) {
 func TestSweepAtQuitSweepsThisProcessesRecordsToo(t *testing.T) {
 	home := isolateRunEnv(t)
 	fake := &dockerx.Fake{}
-	prev := newDockerClient
-	newDockerClient = func() dockerx.Client { return fake }
-	t.Cleanup(func() { newDockerClient = prev })
+	withFakeDocker(t, fake)
 
 	dir := filepath.Join(home, InFlightDirName)
 	pid, start := deadPID(t)
@@ -213,6 +212,42 @@ func TestSweepAtQuitSweepsThisProcessesRecordsToo(t *testing.T) {
 		if strings.Contains(c.Arg, "a11e0002") {
 			t.Fatalf("touched a live owner's run: %s %s", c.Op, c.Arg)
 		}
+	}
+}
+
+// A runner home can be shared between machines (a home directory on a
+// network share), and a pid says nothing about a process on another one: a
+// record another machine wrote is never swept, at start or at quit, however
+// dead its pid looks here, since its run may be live there with its scratch
+// directory in this very home.
+func TestARecordAnotherMachineWroteIsLeftAlone(t *testing.T) {
+	home := isolateRunEnv(t)
+	fake := &dockerx.Fake{}
+	withFakeDocker(t, fake)
+	dir := filepath.Join(home, InFlightDirName)
+	pid, start := deadPID(t)
+	writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start, Host: "another-machine.example"})
+	writeRecord(t, dir, inFlight{RunID: "5e1f0004", PID: os.Getpid(), Host: "another-machine.example"})
+	kept := []string{scratchOf(t, home, "dead0001"), scratchOf(t, home, "5e1f0004")}
+
+	for name, sweep := range map[string]func(context.Context, string, func(context.Context, string) error) ([]string, error){
+		"start": SweepOrphaned, "quit": SweepAtQuit,
+	} {
+		swept, err := sweep(context.Background(), dir, Sweep)
+		if err != nil || len(swept) != 0 {
+			t.Fatalf("at %s: swept %v, err %v", name, swept, err)
+		}
+	}
+	if len(fake.Calls) != 0 {
+		t.Fatalf("asked docker about another machine's run: %v", fake.Calls)
+	}
+	for _, k := range kept {
+		if !exists(filepath.Join(k, "cfg", "gateway", "secrets.env")) {
+			t.Fatalf("removed the scratch directory of another machine's run: %s", k)
+		}
+	}
+	if !exists(filepath.Join(dir, "dead0001.json")) || !exists(filepath.Join(dir, "5e1f0004.json")) {
+		t.Fatal("removed another machine's record")
 	}
 }
 

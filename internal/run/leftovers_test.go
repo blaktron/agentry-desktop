@@ -23,6 +23,7 @@ import (
 
 // abandoned is a run stopped mid-flight, as a killed app leaves one.
 type abandoned struct {
+	runID                             string
 	home, outDir, installDir, scratch string
 	fake                              *dockerx.Fake
 	// calls is how many docker calls the run had made when it was
@@ -76,7 +77,7 @@ func abandonedAt(t *testing.T, home string, fake *dockerx.Fake, name, runID, out
 	if err != nil || len(releases) != 1 {
 		t.Fatalf("the release directory of acme/%s: %v %v", name, releases, err)
 	}
-	a := abandoned{home: home, fake: fake, outDir: outDir, installDir: releases[0], scratch: filepath.Join(releases[0], "runs", runID)}
+	a := abandoned{runID: runID, home: home, fake: fake, outDir: outDir, installDir: releases[0], scratch: filepath.Join(releases[0], "runs", runID)}
 	var containers, volumes []string
 	for _, c := range fake.Calls {
 		switch {
@@ -104,7 +105,8 @@ func (a abandoned) made(op string) []string {
 	return out
 }
 
-// removed lists what the sweep asked the daemon to remove through op.
+// removed lists what the daemon was asked to remove through op since the
+// run was abandoned (or since the mark was moved, see sweepsFromHere).
 func (a abandoned) removed(op string) []string {
 	var out []string
 	for _, c := range a.fake.Calls[a.calls:] {
@@ -114,6 +116,11 @@ func (a abandoned) removed(op string) []string {
 	}
 	return out
 }
+
+// sweepsFromHere moves the mark, so that removed counts only what follows:
+// for a run the engine has torn down itself, whose own removals must not
+// be read as the sweep's.
+func (a *abandoned) sweepsFromHere() { a.calls = len(a.fake.Calls) }
 
 // secretsLeft walks the runner home for anything holding the run's secret.
 func secretsLeft(t *testing.T, home string) []string {
@@ -138,8 +145,9 @@ func secretsLeft(t *testing.T, home string) []string {
 // it on this computer but its output folder, and everything that is the
 // QuickAgent's rather than the run's (its install record and cached
 // release, its kept profile) untouched.
-func (a abandoned) assertNothingLeft(t *testing.T, runID string) {
+func (a abandoned) assertNothingLeft(t *testing.T) {
 	t.Helper()
+	runID := a.runID
 	if exists(a.scratch) {
 		t.Errorf("the run's scratch directory is still there: %s", a.scratch)
 	}
@@ -212,7 +220,7 @@ func TestTheStartupSweepLeavesNothingOfAKilledAppsRun(t *testing.T) {
 	if strings.Join(swept, ",") != runID {
 		t.Fatalf("swept %v, want [%s]", swept, runID)
 	}
-	a.assertNothingLeft(t, runID)
+	a.assertNothingLeft(t)
 	if exists(filepath.Join(dir, runID+".json")) {
 		t.Error("the swept run's record was kept")
 	}
@@ -245,7 +253,7 @@ func TestTheQuitSweepLeavesNothingOfThisAppsRun(t *testing.T) {
 	if strings.Join(swept, ",") != runID {
 		t.Fatalf("swept %v, want [%s]", swept, runID)
 	}
-	a.assertNothingLeft(t, runID)
+	a.assertNothingLeft(t)
 	if exists(filepath.Join(dir, runID+".json")) {
 		t.Error("the swept run's record was kept")
 	}
@@ -276,7 +284,7 @@ func TestTheSweepRemovesTheRunsFilesWithDockerDown(t *testing.T) {
 	pid, start := deadPID(t)
 	writeRecord(t, dir, inFlight{RunID: runID, PID: pid, Start: start})
 
-	withDocker(t, downDocker{a.fake})
+	withFakeDocker(t, downDocker{a.fake})
 	swept, err := SweepOrphaned(context.Background(), dir, Sweep)
 	if !errors.Is(err, errDockerDown) || len(swept) != 0 {
 		t.Fatalf("swept %v, err %v; want the daemon's failure reported", swept, err)
@@ -289,23 +297,23 @@ func TestTheSweepRemovesTheRunsFilesWithDockerDown(t *testing.T) {
 	}
 
 	// The daemon is back at the next start: the rest goes, and the record.
-	withDocker(t, a.fake)
+	withFakeDocker(t, a.fake)
 	swept, err = SweepOrphaned(context.Background(), dir, Sweep)
 	if err != nil || strings.Join(swept, ",") != runID {
 		t.Fatalf("second sweep: %v %v", swept, err)
 	}
-	a.assertNothingLeft(t, runID)
+	a.assertNothingLeft(t)
 	if exists(filepath.Join(dir, runID+".json")) {
 		t.Error("the swept run's record was kept")
 	}
 }
 
-// A chat the app was killed in the middle of: the same sweep, and its
-// session store's volume with it.
-func TestTheStartupSweepLeavesNothingOfAKilledAppsChat(t *testing.T) {
-	const runID = "dead0002"
+// startChat starts a chat of the session fixture under runID and sends it
+// one turn; the caller ends it. It returns the session, the fake docker,
+// the runner home and the output folder.
+func startChat(t *testing.T, runID string) (*Session, *dockerx.Fake, string, string) {
+	t.Helper()
 	regURL, fake := sessionFixture(t)
-	home := os.Getenv("AGENTRY_RUNNER_HOME")
 	outDir := filepath.Join(t.TempDir(), "out")
 	s, err := StartSession(context.Background(), Request{
 		RunID: runID, AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: outDir, MaxTurns: -1,
@@ -314,7 +322,6 @@ func TestTheStartupSweepLeavesNothingOfAKilledAppsChat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _, _ = s.End(context.Background(), false) })
 	go func() {
 		for range s.Events() {
 		}
@@ -322,6 +329,15 @@ func TestTheStartupSweepLeavesNothingOfAKilledAppsChat(t *testing.T) {
 	if err := s.Send(context.Background(), "hello"); err != nil {
 		t.Fatal(err)
 	}
+	return s, fake, os.Getenv("AGENTRY_RUNNER_HOME"), outDir
+}
+
+// A chat the app was killed in the middle of: the same sweep, and its
+// session store's volume with it.
+func TestTheStartupSweepLeavesNothingOfAKilledAppsChat(t *testing.T) {
+	const runID = "dead0002"
+	s, fake, home, outDir := startChat(t, runID)
+	t.Cleanup(func() { _, _ = s.End(context.Background(), false) })
 	a := abandonedAt(t, home, fake, "chatty", runID, outDir)
 	if !exists(a.scratch) || !slices.Contains(fake.LeftoverVolumes, "agentry-"+runID+"-session") {
 		t.Fatalf("the abandoned chat has no scratch directory or no session volume: %v", fake.Ops())
@@ -334,33 +350,19 @@ func TestTheStartupSweepLeavesNothingOfAKilledAppsChat(t *testing.T) {
 	if err != nil || strings.Join(swept, ",") != runID {
 		t.Fatalf("swept %v, err %v", swept, err)
 	}
-	a.assertNothingLeft(t, runID)
+	a.assertNothingLeft(t)
 }
 
 // Quitting with a chat started ends it without asking for a final result
-// (RunAPI.shutdown's End), which writes its receipts as far as it got; the
-// quit sweep that follows then finds nothing of it but the output folder.
+// (RunAPI.shutdown calls this End, and TestQuittingWithAChatStartedEndsItThenSweeps
+// holds it to that), which writes its receipts as far as it got; the quit
+// sweep that follows then asks for everything a run can leave, finds
+// nothing of this one but the output folder, and leaves that whole.
 func TestAChatEndedByQuittingHasItsReceiptsAndLeavesNothing(t *testing.T) {
 	const runID = "5e1f0005"
-	regURL, fake := sessionFixture(t)
-	home := os.Getenv("AGENTRY_RUNNER_HOME")
-	outDir := filepath.Join(t.TempDir(), "out")
+	s, fake, home, outDir := startChat(t, runID)
 	dir := filepath.Join(home, InFlightDirName)
 	if err := RecordInFlight(dir, runID); err != nil {
-		t.Fatal(err)
-	}
-	s, err := StartSession(context.Background(), Request{
-		RunID: runID, AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: outDir, MaxTurns: -1,
-		Intake: map[string]string{"region": "apac"},
-	}, &strings.Builder{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		for range s.Events() {
-		}
-	}()
-	if err := s.Send(context.Background(), "hello"); err != nil {
 		t.Fatal(err)
 	}
 	a := abandonedAt(t, home, fake, "chatty", runID, outDir)
@@ -376,12 +378,17 @@ func TestAChatEndedByQuittingHasItsReceiptsAndLeavesNothing(t *testing.T) {
 	if !exists(filepath.Join(outDir, "result.json")) {
 		t.Error("the ended chat has no envelope")
 	}
+	if exists(a.scratch) {
+		t.Error("the engine's End left the chat's scratch directory")
+	}
 
+	// From here on the removals are the sweep's, not the engine's teardown.
+	a.sweepsFromHere()
 	swept, err := SweepAtQuit(context.Background(), dir, Sweep)
 	if err != nil || strings.Join(swept, ",") != runID {
 		t.Fatalf("swept %v, err %v", swept, err)
 	}
-	a.assertNothingLeft(t, runID)
+	a.assertNothingLeft(t)
 	if exists(filepath.Join(dir, runID+".json")) {
 		t.Error("the ended chat's record was kept")
 	}

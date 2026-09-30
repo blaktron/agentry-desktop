@@ -59,9 +59,13 @@ The product never claims an agent is "safe". The language is always:
   usage, receipts, and the output folder. What a run needs while it is live
   (its containers, volumes and networks, and a scratch directory under the
   runner home that holds its secrets file, staged inputs and copies of the
-  attached knowledge) goes when it ends. If the app is killed mid-run, the
-  next start removes it, and so does quitting; the output folder, the
-  QuickAgent's install and its kept profile are left alone.
+  attached knowledge) goes when it ends. The app records each run it starts,
+  and if it is killed mid-run the next start removes what that record names,
+  as quitting does for anything still recorded; the output folder, the
+  QuickAgent's install and its profile are left alone. Not reached: a
+  profile that run was to remove (agentry-desktop#478), a knowledge build's
+  work directory (agentry-cli#358), and on macOS and Windows the containers
+  the gateway itself started.
 - **Sessions** — a release that declares the `interactive` mode can run as a
   chat instead: **Start session** in the run panel opens it under the same
   controls as an autonomous run. Every message, and every file you add

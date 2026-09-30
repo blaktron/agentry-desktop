@@ -10,15 +10,18 @@
 //
 // The same sweep runs for what is not live (agentry-desktop#463, plan
 // desktop-review-key-and-run-cards.md §5.4): at start for every recorded run
-// whose owner is gone, and at quit for those and for whatever this app's own
-// runs left, so that nothing about a run stays on this computer but its
-// output folder. run.Sweep says what that reaches.
+// whose owner is gone, and at quit for those and for the records this app
+// still holds, which are the run the quit's wait gave up on and a run that
+// ended with files its engine could not delete (settle). The rule it serves
+// is that nothing about a run stays on this computer but its output folder;
+// run.Sweep says what the sweep reaches and what it does not.
 package main
 
 import (
 	"context"
 	"io"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -109,13 +112,34 @@ func (r *RunAPI) endRun(l *liveRun) {
 		if l.release != nil {
 			l.release()
 		}
+		// Before done is closed, so a quit that waited for this run finds
+		// its records settled.
+		r.settle(l.id)
+		for _, id := range l.turns {
+			r.settle(id)
+		}
 		r.live = nil
 		close(l.done)
-		r.forgetInFlight(l.id)
-		for _, id := range l.turns {
-			r.forgetInFlight(id)
-		}
 	}
+}
+
+// settle is what becomes of a run's crash-path record once its engine has
+// returned. The engine's teardown has run, so all that can be left is files
+// it could not delete: one Docker Desktop still held (agentry-cli#422), a
+// directory the release shipped read-only. They are tried once more here,
+// and the record goes only when nothing of the run is left under the runner
+// home; otherwise it stays, and quitting and the next start try again
+// (agentry-desktop#463).
+func (r *RunAPI) settle(id string) {
+	home, err := r.runnerHome()
+	if err == nil {
+		err = run.SweepFiles(home, id)
+	}
+	if err != nil {
+		log.Printf("agentry-desktop: run %s left files behind, to be removed when the app quits or next starts: %v", id, err)
+		return
+	}
+	r.forgetInFlight(id)
 }
 
 // attach opens the named knowledge packs for the run l, whose endRun
@@ -132,7 +156,8 @@ func (r *RunAPI) attach(ctx context.Context, l *liveRun, reg string, names []str
 }
 
 // forgetInFlight removes a run's crash-path record once nothing of it can
-// be left: the engine returned (its teardown ran) or the run was swept.
+// be left: the engine returned and its files are gone (settle), or the run
+// was swept.
 func (r *RunAPI) forgetInFlight(id string) {
 	if dir, err := r.inFlight(); err == nil {
 		if err := run.ForgetInFlight(dir, id); err != nil {
@@ -143,9 +168,9 @@ func (r *RunAPI) forgetInFlight(id string) {
 
 // sweepOrphans is the start half of the crash path (agentry-desktop#198):
 // a run recorded by an app that died without tearing it down — killed,
-// crashed, the machine lost power — is swept by its run id (its containers,
-// volumes and networks, and its scratch directory with the secrets file;
-// agentry-desktop#463), and its record removed. Only records whose owning process is provably gone are touched
+// crashed, the machine lost power — is swept by its run id, and its record
+// removed: its containers, volumes and networks, and its scratch directory
+// with the secrets file (agentry-desktop#463). Only records whose owning process is provably gone are touched
 // (run.SweepOrphaned); a second desktop's live run and every CLI run carry
 // other run ids. Called once, in its own goroutine, from OnStartup.
 func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
@@ -280,13 +305,14 @@ func (r *RunAPI) runEngine(ctx context.Context, req run.Request, logw io.Writer)
 	return run.Run(ctx, req, logw)
 }
 
-func (r *RunAPI) startEngineSession(ctx context.Context, req run.Request, logw io.Writer) (chat, error) {
+func (r *RunAPI) startEngineSession(ctx context.Context, req run.Request, logw io.Writer) (localSession, error) {
 	if r.engineSession != nil {
 		return r.engineSession(ctx, req, logw)
 	}
 	s, err := run.StartSession(ctx, req, logw)
 	if err != nil {
-		// Not the nil *run.Session in a chat: that would read as a session.
+		// Not the nil *run.Session in the interface: that would read as a
+		// session.
 		return nil, err
 	}
 	return s, nil
@@ -299,6 +325,15 @@ func (r *RunAPI) inFlight() (string, error) {
 		return r.inFlightDir, nil
 	}
 	return run.InFlightDir()
+}
+
+// runnerHome is the runner home the records belong to: the one a test's
+// records directory sits in, or this machine's.
+func (r *RunAPI) runnerHome() (string, error) {
+	if r.inFlightDir != "" {
+		return filepath.Dir(r.inFlightDir), nil
+	}
+	return run.Home()
 }
 
 func (r *RunAPI) sweepRun(ctx context.Context, id string) error {

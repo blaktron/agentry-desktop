@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -12,13 +13,13 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
 )
 
-// Sweep removes whatever a run left behind on this computer outside its
-// output folder: its containers (agent, gateway, proxy, tool containers the
+// Sweep removes what a run left behind on this computer outside its output
+// folder: its containers (agent, gateway, proxy, tool containers the
 // gateway started), then its volumes, then its networks, then its scratch
-// directory under the runner home and the socket of its docker filter. The
-// engine's own teardown does exactly this when its Run or session End
-// returns (§R11 invariant 6, "teardown on every path"); Sweep is the
-// desktop's second pass for the paths the engine cannot see: the app
+// directory under the runner home and the socket of its docker filter
+// (SweepFiles). The engine's own teardown does exactly this when its Run or
+// session End returns (§R11 invariant 6, "teardown on every path"); Sweep
+// is the desktop's second pass for the paths the engine cannot see: the app
 // quitting while a run is still in flight (agentry-desktop#125), when the
 // bounded wait for the engine's teardown ran out, and the app killed
 // mid-run (agentry-desktop#198), which runs no teardown at all and leaves
@@ -29,14 +30,22 @@ import (
 // The files go whatever the docker steps answered: a daemon that is not
 // running must not keep a secrets file on disk. Nothing else is touched:
 // the run's output folder with its receipts, the QuickAgent's install
-// record and cached release, its kept profile and every docker image are
-// the person's or the QuickAgent's, not the run's (plan
+// record and cached release, its profile and every docker image are the
+// person's or the QuickAgent's, not the run's (plan
 // desktop-review-key-and-run-cards.md §5.4).
+//
+// Not reached, because nothing names them by the run's id: a container the
+// gateway started where there is no docker filter to label it (macOS and
+// Windows), the gateway's anonymous volume (agentry-cli#458), a profile the
+// run was to remove when it completed (agentry-desktop#478), the opened
+// copy of an attached knowledge pack (the store's own sweep, an hour on;
+// DR-42), a Knowledge Creator build's work directory (agentry-cli#358), and
+// the filter's fallback socket directory under the system's temp directory.
 func Sweep(ctx context.Context, runID string) error {
 	// The id becomes a docker label, object names and a path element. An
 	// empty one would match every run on the machine, the CLI's included.
 	if !runIDPattern.MatchString(runID) {
-		return fmt.Errorf("sweep: bad run id %q", runID)
+		return fmt.Errorf("sweep: %q is not a run id", runID)
 	}
 	d := newDockerClient()
 	label := "agentry.run=" + runID
@@ -67,7 +76,12 @@ func Sweep(ctx context.Context, runID string) error {
 			errs = append(errs, fmt.Errorf("remove network %s: %w", n, err))
 		}
 	}
-	errs = append(errs, sweepFiles(runID)...)
+	home, err := Home()
+	if err != nil {
+		errs = append(errs, fmt.Errorf("runner home: %w", err))
+	} else if err := SweepFiles(home, runID); err != nil {
+		errs = append(errs, err)
+	}
 	return errors.Join(errs...)
 }
 
@@ -84,11 +98,14 @@ func runNetworks(runID string) []string {
 	return []string{p + "-net", p + "-egress", p + "-web", p + "-relays", p + "-relays-out"}
 }
 
-// sweepFiles removes what a run keeps under the runner home while it is
-// live: its scratch directory, <release directory>/runs/<run id>, which
-// holds the workspace copy, the staged inputs, the copies of the attached
-// knowledge packs and the rendered configuration with secrets.env; and the
-// socket of its docker filter, <runner home>/s/<run id>.sock.
+// SweepFiles is Sweep's file half, which needs no docker: it removes what a
+// run keeps under the runner home while it is live. That is its scratch
+// directory, <release directory>/runs/<run id>, which holds the workspace
+// copy, the staged inputs, the copies of the attached knowledge packs and
+// the rendered configuration with secrets.env; and the socket of its
+// docker filter, <runner home>/s/<run id>.sock. The app also calls it when
+// a run's engine has returned, for what the engine's own teardown could
+// not delete.
 //
 // The scratch directory is found by the run id under every release
 // directory, not from a path the record carries: the record is written
@@ -96,29 +113,59 @@ func runNetworks(runID string) []string {
 // leave the next start enough to find it. A run id belongs only to the
 // process that minted it (D-034), so a directory of that name is that
 // run's under whichever release it ran.
-func sweepFiles(runID string) []error {
-	home, err := Home()
-	if err != nil {
-		return []error{fmt.Errorf("runner home: %w", err)}
+func SweepFiles(home, runID string) error {
+	if !runIDPattern.MatchString(runID) {
+		return fmt.Errorf("sweep: %q is not a run id", runID)
 	}
 	var errs []error
 	for _, dir := range scratchDirs(home, runID) {
-		if err := removal.Remove(dir, true); err != nil {
-			errs = append(errs, fmt.Errorf("remove the run's directory: %w", err))
+		if err := removeTree(dir); err != nil {
+			errs = append(errs, fmt.Errorf("remove the run's scratch directory: %w", err))
 		}
 	}
 	if err := removal.Remove(filepath.Join(home, "s", runID+".sock"), false); err != nil {
 		errs = append(errs, fmt.Errorf("remove the run's docker filter socket: %w", err))
 	}
-	return errs
+	return errors.Join(errs...)
+}
+
+// removeTree deletes a run's scratch directory. The workspace in it is a
+// copy of the release with the release's own mode bits, so it can hold a
+// directory its owner may not write; when the delete is refused, every
+// directory under it is made writable and the delete tried once more,
+// rather than the record of the run standing for ever. Links are never
+// followed: a link is removed, not what it points at. A variable so a test
+// can make the delete fail on any platform.
+var removeTree = func(dir string) error {
+	err := removal.Remove(dir, true)
+	if err == nil {
+		return nil
+	}
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, werr error) error {
+		if werr == nil && d.IsDir() {
+			_ = os.Chmod(p, 0o700) //nolint:gosec // a directory of a run that is over, about to be deleted
+		}
+		return nil
+	})
+	return removal.Remove(dir, true)
+}
+
+// SetRemoveTreeForTest replaces the delete of a run's scratch directory for
+// the test's life.
+func SetRemoveTreeForTest(t interface{ Cleanup(func()) }, f func(dir string) error) {
+	prev := removeTree
+	removeTree = f
+	t.Cleanup(func() { removeTree = prev })
 }
 
 // scratchDirs lists runs/<run id> under every release directory of the
 // runner home: <home>/agents/<namespace>/<name>/<release>, the one layout
 // the engine's RunRoot has for a release from a registry, a local install
-// and a built-in alike (installdir.ReleaseDir).
+// and a built-in alike (installdir.ReleaseDir). Only real directories are
+// descended: a link standing for a namespace, a QuickAgent, a release or
+// its runs directory is left alone, so nothing outside the runner home is
+// reached through one.
 func scratchDirs(home, runID string) []string {
-	var out []string
 	sub := func(dir string) []string {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -126,14 +173,21 @@ func scratchDirs(home, runID string) []string {
 		}
 		var dirs []string
 		for _, e := range entries {
-			dirs = append(dirs, filepath.Join(dir, e.Name()))
+			if e.IsDir() {
+				dirs = append(dirs, filepath.Join(dir, e.Name()))
+			}
 		}
 		return dirs
 	}
+	var out []string
 	for _, ns := range sub(installdir.AgentsRoot(home)) {
 		for _, agent := range sub(ns) {
 			for _, release := range sub(agent) {
-				scratch := filepath.Join(release, "runs", runID)
+				runs := filepath.Join(release, "runs")
+				if fi, err := os.Lstat(runs); err != nil || !fi.IsDir() {
+					continue
+				}
+				scratch := filepath.Join(runs, runID)
 				if _, err := os.Lstat(scratch); err == nil {
 					out = append(out, scratch)
 				}
