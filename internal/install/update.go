@@ -87,6 +87,11 @@ func checkUpdate(ctx context.Context, rec installed.Record) UpdateInfo {
 		},
 		Current: rec.Version,
 	}
+	if rec.Local() {
+		// Installed from a folder: no registry holds it, so there is no
+		// newer version to ask about, and nothing is sent anywhere.
+		return info
+	}
 	origin := originFor(rec)
 	token := settings.TokenFor(origin)
 	client, cerr := registry.New(origin, token)

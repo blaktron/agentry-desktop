@@ -174,12 +174,33 @@ func sameOrigin(registryURL, page string) bool {
 
 // fetchSubscription returns nil, nil for a registry without the billing
 // extension; an error only when the registry has it and the read failed.
+// A registry whose extensions cannot be read is taken as one without.
 func fetchSubscription(ctx context.Context, url, token string) (*SubscriptionView, error) {
+	return readSubscription(ctx, url, token, false)
+}
+
+// fetchSubscriptionStrictly is fetchSubscription for a question that must
+// not guess: Submit's warning (agentry-desktop#425), where "charges no
+// credits" is a claim the person consents on. A registry whose extensions
+// cannot be read is an error, not a registry without billing.
+func fetchSubscriptionStrictly(ctx context.Context, url, token string) (*SubscriptionView, error) {
+	return readSubscription(ctx, url, token, true)
+}
+
+func readSubscription(ctx context.Context, url, token string, strict bool) (*SubscriptionView, error) {
 	client, err := registry.New(url, "")
 	if err != nil {
 		return nil, err
 	}
 	meta, err := client.GetMetaWithResponse(ctx)
+	if strict {
+		switch {
+		case err != nil:
+			return nil, fmt.Errorf("reach %s: %w", url, err)
+		case meta.JSON200 == nil:
+			return nil, registry.Problem("read the registry's extensions", meta.StatusCode(), nil, meta.Body)
+		}
+	}
 	if err != nil || meta.JSON200 == nil || meta.JSON200.Extensions == nil {
 		return nil, nil
 	}

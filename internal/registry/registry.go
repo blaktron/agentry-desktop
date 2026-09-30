@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
+	pkgarchive "github.com/blaktron/agentry/pkg/archive"
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
@@ -29,6 +30,18 @@ const (
 	ExtractMaxFileBytes  int64 = 25 << 20
 	ExtractMaxTotalBytes int64 = 200 << 20
 )
+
+// ExtractLimits bounds what the app unpacks: an install, a run and a
+// local install of a folder alike (identical to the CLI's). The client's
+// job is only to refuse a bomb.
+func ExtractLimits() pkgarchive.ExtractLimits {
+	return pkgarchive.ExtractLimits{
+		MaxFileBytes:  ExtractMaxFileBytes,
+		MaxTotalBytes: ExtractMaxTotalBytes,
+		MaxFiles:      20000,
+		MaxRatio:      500,
+	}
+}
 
 // httpTimeout bounds every request. Archive downloads are the long pole.
 const httpTimeout = 5 * time.Minute

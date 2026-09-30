@@ -47,6 +47,9 @@ const installedRecs = [
   { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] }, present: true, manageable: true },
   { registry: "runner", origin: "https://secureagentry.net", namespace: "agentry", name: "changelog-from-git", version: "1.2.1", target: "runner", dir: "/home/me/.agentry/runner/agents/agentry/changelog-from-git", managed: true, installedAt: "2026-09-11T16:20:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["git"] }, present: true, manageable: true },
   { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "acme", name: "release-notes", version: "0.2.0", target: "claude-skill", dir: "/home/me/old-project", managed: true, installedAt: "2026-07-14T10:00:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: [] }, present: false, manageable: true },
+  // Installed from a folder with the Build tab's Install (agentry-desktop#425):
+  // local and unsigned, no origin, run from here.
+  { registry: "runner", origin: "", namespace: "me", name: "csv-quality-check", version: "0.1.0", target: "runner", dir: "/home/me/.agentry/runner/agents/me/csv-quality-check", managed: true, source: "local", digest: "sha256:5565240b85d9c2f41e0a7d3b1c9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e", local: true, installedAt: "2026-09-30T08:10:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "workspace", secrets: [], execCommands: [] }, present: true, manageable: true },
 ];
 // pages.html#fresh previews a first run: nothing installed, and a registry
 // that sent no total (a core before agentry#290) gets a list with no count.
@@ -287,19 +290,33 @@ g.go = { main: {
     },
   },
   // The native folder picker, as Build's first save asks it (D-030).
-  App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer" },
+  // Save's picker opens in Documents (agentry-desktop#425).
+  App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer" },
   BuildAPI: {
     NewModel: async () => {
       if (landedDraft) await new Promise((r) => setTimeout(r, 300));
       return buildModel;
     },
     Exists: async () => false,
-    Check: async () => (buildHash === "summary-problem"
+    Check: async () => (buildHash === "summary-public"
+      // A folder whose publish.include leaves out README.md (V7): Submit
+      // waits for it, and Save and Install do not (agentry-desktop#425).
+      ? { ...buildCheck, public: "public publish requires README.md at the repo root; publish.include must carry it" }
+      : buildHash === "summary-problem"
       ? { ...buildCheck, problems: { guide: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" },
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
       : buildCheck),
     Summary: async (m: typeof buildModel, unmentioned: string[]) => summaryFor(m, unmentioned ?? []),
     Save: async () => undefined,
+    // The summary's Install and Submit (agentry-desktop#425), each after the
+    // Go side's native dialog, answered Yes here. #build-summary-private is
+    // a Submit to an agent that exists private, which stays private.
+    Install: async () => ({ ref: "demo1/incident-summarizer@0.1.0", digest: "sha256:5565240b85d9c2f41e0a7d3b1c9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e", repaired: false, warnings: [] }),
+    Submit: async () => (buildHash === "summary-private"
+      ? { version: "0.1.0", status: "published", digest: "sha256:5565240b85d9", detail: "published demo1/incident-summarizer@0.1.0", visibility: "private",
+          visibilityNote: "it stays private: making a QuickAgent public is its namespace administrators' act, which a desktop sign-in does not carry; its settings page on the site does it",
+          settingsUrl: "https://secureagentry.net/demo1/incident-summarizer/settings" }
+      : { version: "0.1.0", status: "published", digest: "sha256:5565240b85d9", detail: "published demo1/incident-summarizer@0.1.0", visibility: "public" }),
     // pages.html#build-validate: a validate run that failed, so the card
     // shows a V-rule problem and a content finding with their place.
     Validate: async () => ({ ...validateResult, passed: false, errorCount: 1,
@@ -566,8 +583,8 @@ const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     <div data-preview="browse"><Shell active="browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
-    <div data-preview="installed"><Shell active="installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
+    <div data-preview="installed"><Shell active="installed"><Installed registry={REG} onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenInstalled={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="validate"><Validate /></Shell></div>
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>

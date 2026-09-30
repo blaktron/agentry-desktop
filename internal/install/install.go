@@ -227,17 +227,8 @@ type Engine struct {
 // NewEngine returns an empty engine.
 func NewEngine() *Engine { return &Engine{pending: map[string]*pending{}} }
 
-// extractLimits bounds what the app unpacks, mirroring the CLI: looser than
-// the server's §19 publish quotas (which the archive already passed) because
-// the client's job is only to refuse a bomb.
-func extractLimits() pkgarchive.ExtractLimits {
-	return pkgarchive.ExtractLimits{
-		MaxFileBytes:  registry.ExtractMaxFileBytes,
-		MaxTotalBytes: registry.ExtractMaxTotalBytes,
-		MaxFiles:      20000,
-		MaxRatio:      500,
-	}
-}
+// extractLimits is the app's one bound on what it unpacks.
+func extractLimits() pkgarchive.ExtractLimits { return registry.ExtractLimits() }
 
 // Prepare runs everything up to the consent gates and parks the verified
 // archive under the returned plan ID.
@@ -943,6 +934,10 @@ type Item struct {
 	Origin string `json:"origin"`
 	// Present is true when Dir exists and is a directory.
 	Present bool `json:"present"`
+	// Local is true for a QuickAgent installed from a folder on this
+	// computer (the CLI's DR-52; agentry-desktop#425): unsigned, held by no
+	// registry, so it has no Origin and no update to look for.
+	Local bool `json:"local"`
 	// Manageable is true for a target this app installs and uninstalls:
 	// the runner home and the two exports. (A run's consent record shares
 	// the runner target's key since D-031, so it is the install's record.)
@@ -971,12 +966,16 @@ func List() ([]Item, error) {
 	items := make([]Item, 0, len(st.Records))
 	for _, rec := range st.Records {
 		info, statErr := os.Stat(rec.Dir)
-		items = append(items, Item{
+		it := Item{
 			Record:     rec,
-			Origin:     originFor(rec),
 			Present:    statErr == nil && info.IsDir(),
 			Manageable: manageable(rec.Target),
-		})
+			Local:      rec.Local(),
+		}
+		if !it.Local {
+			it.Origin = originFor(rec)
+		}
+		items = append(items, it)
 	}
 	return items, nil
 }
