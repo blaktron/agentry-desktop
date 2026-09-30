@@ -15,6 +15,8 @@ export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:
 
 export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStartView>;
 
+export function AttachHostedRunAtStart(arg1:string):Promise<main.HostedStartView>;
+
 export function CancelHostedRun():Promise<main.HostedRunView>;
 
 export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;

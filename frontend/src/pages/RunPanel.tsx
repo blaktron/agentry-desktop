@@ -23,10 +23,11 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
-import { startLocalRun } from "../runs";
+import { followHostedRunFound, startHostedRun, startLocalRun, useHostedRun } from "../runs";
 import { headlineOf } from "../localRun";
+import { hostedActive as hostedMoving, hostedHeadline, hostedTone } from "../hostedRun";
 import SessionChat from "./SessionChat";
-import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
+import { HostedCredits, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
@@ -154,7 +155,6 @@ export default function RunPanel({
   const [hostedRun, setHostedRun] = useState<main.HostedRunView | null>(null);
   const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
   const [starting, setStarting] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
 
   // The guided setup: which step shows, a step's own sentence when Next is
   // refused, and the heading focus moves to when the step changes.
@@ -229,7 +229,13 @@ export default function RunPanel({
           .then((saved) => RunAPI.AttachHostedRun(registry, outDir.trim() || saved))
           .then((a) => {
           if (!live || !a.run) return;
-          setMode(a.run.mode === "interactive" ? "hosted-session" : "hosted");
+          // A run In Agentry is followed above the pages, in its card
+          // (agentry-desktop#466); a chat stays in this panel.
+          if (a.run.mode !== "interactive") {
+            void followHostedRunFound(registry, a);
+            return;
+          }
+          setMode("hosted-session");
           setHostedRun(a.run);
         });
       })
@@ -241,7 +247,10 @@ export default function RunPanel({
   }, [registry, agentRef]);
 
   useEffect(() => {
-    const off = EventsOn("runner:hosted-run", (v: main.HostedRunView) => setHostedRun(v));
+    // A chat In Agentry's state; a run's is the run's flow's (runs.ts).
+    const off = EventsOn("runner:hosted-run", (v: main.HostedRunView) => {
+      if (v.mode === "interactive") setHostedRun(v);
+    });
     return off;
   }, []);
 
@@ -289,13 +298,20 @@ export default function RunPanel({
     }
   }, [defaults, hosted, unscanned, profile, hostedRun, initialMode, mode]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
-  const hostedActive = !!hostedRun && (hostedRun.status === "queued" || hostedRun.status === "claimed" || hostedRun.status === "running");
+  const hostedActive = !!hostedRun && hostedMoving(hostedRun);
+  // The run In Agentry the app follows above the pages: the registry runs
+  // one per account, so while it moves, or a start waits for the
+  // registry's answer, no setup starts another (agentry-desktop#466).
+  const followed = useHostedRun();
+  const followedMoving = followed.starting || (!!followed.run && !followed.run.final);
   // What still stands between this form and a run, each in a sentence the
   // line above the button shows (agentry-desktop#167): the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
   const busy = running || sessionActive || (inAgentry && (starting || hostedActive));
   const blockers: string[] = [];
-  if (inAgentry) {
+  if (inAgentry && followedMoving) {
+    blockers.push("A run In Agentry is under way, in its card in the corner. Agentry runs one at a time for an account: wait for it to end, or cancel it there.");
+  } else if (inAgentry) {
     if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
     else if (!offer?.available) blockers.push(offer?.reason || "A run In Agentry is not available for this release.");
   } else if (!setup) {
@@ -474,6 +490,15 @@ export default function RunPanel({
     }
   }
 
+  // The answers as they stand, kept with a run so that Back to the setup
+  // reopens this setup as it was (agentry-desktop#465).
+  function currentForm(): RunForm {
+    return {
+      mode, task, inputs, pickedFiles, intakeValues, attach, outDir, timeoutSec, maxTurns, keep, keepTouched,
+      acceptUnsigned, acceptUnscanned, allowVulnerableMCP,
+    };
+  }
+
   function intakeAnswers(): Record<string, string> {
     const answers: Record<string, string> = {};
     for (const [k, v] of Object.entries(intakeValues)) if (v.trim() !== "") answers[k] = v;
@@ -491,7 +516,6 @@ export default function RunPanel({
   // where it stands until the outputs come back. A refused create is a
   // sentence, not an error.
   async function runInAgentry() {
-    const start = sessionInAgentry ? RunAPI.StartHostedSession : RunAPI.StartHostedRun;
     setStarting(true);
     setRunErr(null);
     setResult(null);
@@ -499,12 +523,21 @@ export default function RunPanel({
     setHostedRun(null);
     setLog([]);
     try {
-      const started = await start(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
-      if (started.refusal) {
-        setHostedRefusal(started);
+      if (sessionInAgentry) {
+        const started = await RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
+        if (started.refusal) setHostedRefusal(started);
+        else setHostedRun(started.run ?? null);
         return;
       }
-      setHostedRun(started.run ?? null);
+      // A run is followed above the pages once the registry has created
+      // it, and this setup closes (agentry-desktop#466); a refusal stays
+      // here, with the missing-secret ask before any run exists.
+      const started = await startHostedRun(
+        { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
+        () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached),
+      );
+      if (started.refusal) setHostedRefusal(started);
+      else if (started.run) onClose();
     } catch (e) {
       setRunErr(String(e));
     } finally {
@@ -535,17 +568,6 @@ export default function RunPanel({
     }
   }
 
-  async function cancelInAgentry() {
-    setCancelling(true);
-    try {
-      setHostedRun(await RunAPI.CancelHostedRun());
-    } catch (e) {
-      setRunErr(String(e));
-    } finally {
-      setCancelling(false);
-    }
-  }
-
   async function runAgent() {
     if (inAgentry) {
       await runInAgentry();
@@ -561,10 +583,7 @@ export default function RunPanel({
     setLog([]);
     const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
     const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
-    const form: RunForm = {
-      mode, task, inputs, pickedFiles, intakeValues, attach, outDir, timeoutSec, maxTurns, keep, keepTouched,
-      acceptUnsigned, acceptUnscanned, allowVulnerableMCP,
-    };
+    const form = currentForm();
     try {
       // The run's flow follows it from here: this setup closes once Go
       // reports the run has begun, and stays, with Go's words, if it never
@@ -1332,18 +1351,6 @@ export default function RunPanel({
           />
         )}
 
-        {mode === "hosted" && hostedRun && !hostedRun.final && (
-          <>
-            <h3>Run In Agentry</h3>
-            <HostedProgress run={hostedRun} onCancel={cancelInAgentry} cancelling={cancelling} />
-            {hostedActive && (
-              <Spinner label={hostedRun.status === "queued"
-                ? "Queued In Agentry — this moves to running when a runner takes it."
-                : "Running In Agentry — the outputs and the receipt come back when it is done."} />
-            )}
-          </>
-        )}
-
         {/* Interactive session: the chat replaces the log pane. */}
         {sessionActive && (
           <SessionChat
@@ -1385,7 +1392,7 @@ export default function RunPanel({
           <RunResultView
             runId={hostedRun.id}
             headline={hostedHeadline(hostedRun)}
-            tone={hostedRun.outcomeTone === "ok" ? "ok" : hostedRun.outcomeTone === "bad" ? "bad" : "warn"}
+            tone={hostedTone(hostedRun)}
             error={hostedRun.downloadError || undefined}
             resultJson={hostedRun.resultJson ?? ""}
             knowledge={hostedRun.knowledgeLine || undefined}
@@ -1421,11 +1428,3 @@ export default function RunPanel({
   );
 }
 
-// hostedHeadline is how a run In Agentry ended, in a sentence: a pass says
-// so, and anything else says what the registry's verdict line says.
-function hostedHeadline(run: main.HostedRunView): string {
-  if (run.outcome === "succeeded") return "Finished.";
-  if (run.status === "cancelled") return "Cancelled before it started.";
-  const line = (run.outcomeLine || run.statusLine || "it did not finish").trim();
-  return line.charAt(0).toUpperCase() + line.slice(1).replace(/\.?$/, ".");
-}

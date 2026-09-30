@@ -80,10 +80,13 @@ export function CornerCard({ label, title, running, line, tone, children, action
  *  clock beside the one fact the job names. Before the first report it says
  *  the job is starting. `job` is its name in the sentences ("draft",
  *  "build"). */
-export function ProgressView<P extends JobProgress>({ progress, job, compact, fact, facts }: {
+export function ProgressView<P extends JobProgress>({ progress, job, compact, fact, facts, turns = true }: {
   progress: P | null;
   job: string;
   compact?: boolean;
+  /** Whether the full view has a Turns row: a job whose turns are not
+   *  reported while it runs (a run In Agentry) has none. */
+  turns?: boolean;
   /** The compact view's fact, after the clock. */
   fact: (p: P) => React.ReactNode;
   /** The full view's own rows, after the turns. */
@@ -108,11 +111,15 @@ export function ProgressView<P extends JobProgress>({ progress, job, compact, fa
       <dl className="knowledge-facts">
         <dt>Time</dt>
         <dd>{time}</dd>
-        <dt>Turns</dt>
-        <dd>
-          {progress.turns}
-          {progress.maxTurns > 0 && <> of up to {progress.maxTurns}</>}
-        </dd>
+        {turns && (
+          <>
+            <dt>Turns</dt>
+            <dd>
+              {progress.turns}
+              {progress.maxTurns > 0 && <> of up to {progress.maxTurns}</>}
+            </dd>
+          </>
+        )}
         {facts?.(progress)}
         {(progress.inputTokens > 0 || progress.outputTokens > 0) && (
           <>

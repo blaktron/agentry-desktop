@@ -120,13 +120,38 @@ func (r *RunAPI) StartHostedSession(reg, ref, task string, inputPaths []string, 
 }
 
 // follow follows a run the registry has created or this account already
-// had: a session's conversation and state, or a run's state alone.
-func (r *RunAPI) follow(reg, token, outDir string, run *hostedrun.Run) {
+// had: a session's conversation and state, or a run's state alone. It
+// returns the folder the run downloads into: when another call (App's
+// attach at start, a run setup's, a start) got there first, the run is
+// already followed and its folder is that follow's, so no second loop
+// downloads it again (agentry-desktop#466). When what got there first is
+// another run, this app follows one at a time and does not follow this
+// one: it says so, naming both.
+func (r *RunAPI) follow(reg, token, outDir string, run *hostedrun.Run) (string, error) {
+	var cur *hostedFollow
 	if run.IsSession() {
-		r.followSession(reg, token, outDir, run)
-		return
+		outDir, cur = r.followSession(reg, token, outDir, run)
+	} else {
+		outDir, cur = r.followHosted(reg, token, outDir, run)
 	}
-	r.followHosted(reg, token, outDir, run)
+	if cur != nil && (cur.id != run.ID || cur.registry != reg) {
+		return "", fmt.Errorf("this app is already following run %s and follows one run In Agentry at a time, so it is not following run %s, which Agentry has under way; Agentry's Runs page shows it", cur.id, run.ID)
+	}
+	return outDir, nil
+}
+
+// claimFollow makes f the follow, unless one is already under way, which
+// it returns instead. A run this app lost touch with is followed again
+// once, so its remembered folder goes with the claim.
+func (r *RunAPI) claimFollow(f *hostedFollow) *hostedFollow {
+	r.hostedMu.Lock()
+	defer r.hostedMu.Unlock()
+	if r.hosted != nil {
+		return r.hosted
+	}
+	r.hosted = f
+	delete(r.lostDirs, lostKey{f.registry, f.id})
+	return nil
 }
 
 // followSession streams a session until it ends, then delivers its output
@@ -134,7 +159,7 @@ func (r *RunAPI) follow(reg, token, outDir string, run *hostedrun.Run) {
 // not open, a frame out of order) or cannot keep up says so in the chat
 // and the run is followed by its state alone: the session goes on, and its
 // transcript comes back in its output.
-func (r *RunAPI) followSession(reg, token, outDir string, started *hostedrun.Run) {
+func (r *RunAPI) followSession(reg, token, outDir string, started *hostedrun.Run) (string, *hostedFollow) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{
 		registry: reg, id: started.ID, ref: started.Ref, outDir: outDir, cancel: cancel, done: make(chan struct{}),
@@ -143,9 +168,10 @@ func (r *RunAPI) followSession(reg, token, outDir string, started *hostedrun.Run
 	if started.Session != nil {
 		f.idle = started.Session.IdleSeconds
 	}
-	r.hostedMu.Lock()
-	r.hosted = f
-	r.hostedMu.Unlock()
+	if cur := r.claimFollow(f); cur != nil {
+		cancel()
+		return cur.outDir, cur
+	}
 
 	client := hostedrun.New(reg, token)
 	// Read here, not in the goroutine: a test shortens them for its life.
@@ -171,8 +197,9 @@ func (r *RunAPI) followSession(reg, token, outDir string, started *hostedrun.Run
 		}
 		// The stream said done, or could not go on: the run's own state
 		// says when it is over.
-		r.watchAndDeliver(ctx, client, started, outDir, poll)
+		r.watchAndDeliver(ctx, client, reg, started, outDir, poll)
 	}()
+	return outDir, nil
 }
 
 // streamSession runs the session's stream, starting it again from the
