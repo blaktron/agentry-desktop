@@ -30,6 +30,9 @@
 //                           declared MCP server and the unsaved key
 //   #runpanel-step-details  Details: the intake question, then the task
 //   #runpanel-step-review   Review and start: the recap, output, consents
+//   #runpanel-step-review-long  the same with an intake prompt as long as
+//                           binary-reverse-engineer's: the label wraps and
+//                           every value keeps its width (agentry-desktop#420)
 //
 // The result first (agentry-desktop#227): -finished and -failed show the
 // result view over their Run details, and
@@ -144,6 +147,9 @@ const guide = hostileGuide
     },
   };
 const fileIntakeShape = view === "runpanel-file-intake";
+// An intake prompt as long as blaktron/binary-reverse-engineer@0.1.0's,
+// which once took the recap's whole width (agentry-desktop#420).
+const longPromptShape = view === "runpanel-step-review-long";
 // A finished local run: no intake question, so Run on the review is enabled.
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
@@ -196,6 +202,8 @@ const profile = keysShape
     intake: fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
       : localFinished || view === "runpanel-hosted-secrets" ? []
+      : longPromptShape
+      ? [{ id: "focus", prompt: "Focus area (optional): a function, embedded payload, or part of the binary to prioritize; leave blank for a full pass.", type: "text", required: false, choices: [] }]
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
     opening: "What incident should I look at?",
     ...(shipsShape
@@ -330,6 +338,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-step-tools": "tools",
   "runpanel-step-details": "details",
   "runpanel-step-review": "review",
+  "runpanel-step-review-long": "review",
   "runpanel-guided-files": "files",
   "runpanel-guided-tools": "tools",
   "runpanel-guided-details": "details",
