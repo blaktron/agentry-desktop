@@ -120,10 +120,6 @@ func (r *RunAPI) endRun(l *liveRun) {
 	}
 	ids := append([]string{l.id}, l.turns...)
 	r.liveMu.Unlock()
-	// Outside the lock, which the close dialog and the Stop buttons read:
-	// deleting a file Docker Desktop still holds can take seconds on
-	// Windows. The run stays the one in flight until its records are
-	// settled, so a quit in that time waits for it as for any run.
 	// Deferred, so that a run whose settling panics is not left in flight
 	// with nobody ever told it is done.
 	defer func() {
@@ -134,6 +130,10 @@ func (r *RunAPI) endRun(l *liveRun) {
 		close(l.done)
 		r.liveMu.Unlock()
 	}()
+	// Settled outside the lock, which the close dialog and the Stop buttons
+	// read: deleting a file Docker Desktop still holds can take seconds on
+	// Windows. The run stays the one in flight until its records are
+	// settled, so a quit in that time waits for it as for any run.
 	for _, id := range ids {
 		r.settle(id)
 	}
@@ -190,8 +190,9 @@ func (r *RunAPI) forgetInFlight(id string) {
 // crashed, the machine lost power — is swept by its run id, and its record
 // removed: its containers, volumes and networks, and its scratch directory
 // with the secrets file (agentry-desktop#463). Only records whose owning
-// process is gone from this machine are touched (run.SweepOrphaned, which
-// says what that judgement cannot see); a second desktop's live run and
+// process is gone from this machine are touched (run.SweepOrphaned; the
+// head of internal/run/inflight.go says what that judgement cannot see); a
+// second desktop's live run and
 // every CLI run carry other run ids. Called once, in its own goroutine,
 // from OnStartup.
 func (r *RunAPI) sweepOrphans(ctx context.Context) []string {

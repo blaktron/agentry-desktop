@@ -137,11 +137,13 @@ func SweepFiles(home, runID string) error {
 // container killed before it handed its files back) is beyond that, and
 // stays with the record.
 //
-// Nothing outside the scratch directory is changed. The delete removes a
-// link rather than what it points at. The second try is made only for a
-// real directory, and walks through an os.Root opened on the runs directory
-// above it, which a link swapped in afterwards cannot lead out of; no test
-// holds it to that last part, since the swap is a race. A variable so a
+// Nothing outside the runs directory is changed. The delete removes a link
+// rather than what it points at. The second try is made only for a real
+// directory, and walks through an os.Root opened on the runs directory
+// above it, which a link swapped in afterwards cannot lead out of (it could
+// lead into another run's directory beside this one, whose directories
+// would be made writable to their owner); no test holds it to that last
+// part, since the swap is a race. A variable so a
 // test can make the delete fail on any platform.
 var removeTree = func(dir string) error {
 	err := removal.Remove(dir, true)

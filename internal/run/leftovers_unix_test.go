@@ -81,7 +81,10 @@ func TestTheSweepRemovesADirectoryTheRunLeftReadOnly(t *testing.T) {
 	// A link in the workspace to a directory outside it, which the second
 	// try's walk must neither follow nor change.
 	mine := filepath.Join(t.TempDir(), "documents")
-	if err := os.Mkdir(mine, 0o500); err != nil {
+	if err := os.Mkdir(mine, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(mine, 0o500); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Symlink(mine, filepath.Join(scratch, "workspace", "out")); err != nil {
@@ -119,7 +122,12 @@ func TestTheSecondTryDoesNotWalkALinkInTheScratchDirectorysPlace(t *testing.T) {
 	home := isolateRunEnv(t)
 	other := scratchOf(t, home, "a11e0002")
 	kept := filepath.Join(other, "workspace")
-	if err := os.Mkdir(kept, 0o555); err != nil {
+	if err := os.Mkdir(kept, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Set, not asked of Mkdir: the mode compared below must not depend on
+	// the umask the tests run under.
+	if err := os.Chmod(kept, 0o555); err != nil {
 		t.Fatal(err)
 	}
 	runs := filepath.Dir(other)
