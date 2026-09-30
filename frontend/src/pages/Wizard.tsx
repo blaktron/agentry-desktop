@@ -12,9 +12,11 @@ import { main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
+import { AIReviewKeyCard } from "./AIReviewKey";
 import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
+import { keyRow, missingForNotice, type RecapRow } from "../wizardRecap";
 
-const STEPS = ["Welcome", "Sign in", "Runtime", "Coding agent", "Done"];
+const STEPS = ["Welcome", "Sign in", "Runtime", "AI Review key", "Coding agent", "Done"];
 
 const norm = (u: string) => u.trim().replace(/\/+$/, "");
 
@@ -66,12 +68,13 @@ export default function Wizard({
           />
         )}
         {step === 2 && <RuntimeStep onBack={() => setStep(1)} onNext={() => setStep(3)} />}
-        {step === 3 && <CodingAgentStep onBack={() => setStep(2)} onNext={() => setStep(4)} probeOnEntry={probeOnEntry} />}
-        {step === 4 && (
+        {step === 3 && <ReviewKeyStep onBack={() => setStep(2)} onNext={() => setStep(4)} />}
+        {step === 4 && <CodingAgentStep onBack={() => setStep(3)} onNext={() => setStep(5)} probeOnEntry={probeOnEntry} />}
+        {step === 5 && (
           <DoneStep
             settings={settings}
             activeRegistry={activeRegistry}
-            onBack={() => setStep(3)}
+            onBack={() => setStep(4)}
             onStartOver={() => setStep(1)}
             onFinish={onFinish}
           />
@@ -263,9 +266,34 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
   );
 }
 
+// ReviewKeyStep (agentry-desktop#462; plan desktop-review-key-and-run-cards.md
+// D3): the person's own AI Review key, asked for where setup is. It is the
+// card Settings → Provider settings shows, recommendation and link included,
+// so the two cannot drift, and it keeps no state here: the key goes to the
+// keychain through the card's one call. A step of its own, not a card under
+// the provider form, because saving the key takes the lock an image pull
+// holds, and the Runtime step is where images are pulled.
+function ReviewKeyStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>Your AI Review key</h1>
+        <AIReviewKeyCard onStatus={(k) => setReady(k.ready)} />
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <div className="grow" />
+        {!ready && <Button onClick={onNext}>Skip</Button>}
+        <Button variant="primary" onClick={onNext}>Continue</Button>
+      </div>
+    </>
+  );
+}
+
 // Recap is the wizard's list of where things stand: a check for what is
 // true, a bullet for what is not.
-function Recap({ rows }: { rows: { ok: boolean; text: string }[] }) {
+function Recap({ rows }: { rows: RecapRow[] }) {
   return (
     <ul className="wizard-recap">
       {rows.map((r, i) => (
@@ -364,9 +392,11 @@ function DoneStep({
   const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
   // Read from the policy, never probed: the recap runs no harness.
   const [chosenNames, setChosenNames] = useState<main.HarnessView[]>([]);
+  const [jevKey, setJevKey] = useState<main.JevKeyView | null>(null);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     Promise.allSettled([
+      RunAPI.JevKeyStatus().then(setJevKey).catch(() => setJevKey(null)),
       RunAPI.SetupStatus().then(setStatus).catch(() => setStatus(null)),
       RunAPI.PrereqStatus().then(setPrereq).catch(() => setPrereq(null)),
       RunAPI.ChosenHarnesses().then(setChosenNames).catch(() => setChosenNames([])),
@@ -375,7 +405,7 @@ function DoneStep({
 
   const signedReg = settings.registries.find((r) => r.hasToken);
   const chosen = chosenNames.length > 0 ? chosenNames.map(harnessLabel).join(" and ") : null;
-  const rows: { ok: boolean; text: string }[] = [
+  const rows: RecapRow[] = [
     signedReg
       ? { ok: true, text: `Signed in to ${signedReg.url}` }
       : { ok: false, text: "Browsing anonymously — sign in any time from Settings" },
@@ -398,13 +428,17 @@ function DoneStep({
       ? { ok: true, text: `Coding agent: ${chosen} recorded in the runner policy` }
       : { ok: false, text: "No coding agent chosen — runs use the container harness; choose one any time by running setup again" },
   ];
+  // The key's row comes last and is an aside (D13): a recommendation, so it
+  // neither counts toward "nothing" below nor reaches Browse's notice.
+  const key = keyRow(jevKey);
+  if (key) rows.push(key);
 
   // Nothing set up (D10): the person did none of the three things this
   // wizard is for — a sign-in, a provider written, a coding agent chosen.
   // Docker being present is the machine's doing, not theirs, so it does
   // not count. Until the reads settle the recap is the ordinary one.
   const nothing = loaded && !signedReg && !status?.policyExists && !chosen;
-  const missing = rows.filter((r) => !r.ok).map((r) => r.text);
+  const missing = missingForNotice(rows);
 
   if (nothing) {
     return (

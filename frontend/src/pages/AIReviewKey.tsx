@@ -29,7 +29,11 @@ export function jevKeySentence(k: main.JevKeyView): string {
   return "No key saved. Drafting on this computer is off until you add one.";
 }
 
-export function AIReviewKeyCard() {
+export function AIReviewKeyCard({ onStatus }: {
+  /** Told where the key stands as it is read and as it changes, so the
+   *  first-run wizard's step can offer Skip only while there is none. */
+  onStatus?: (k: main.JevKeyView) => void;
+} = {}) {
   const [status, setStatus] = useState<main.JevKeyView | null>(null);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,6 +43,11 @@ export function AIReviewKeyCard() {
   useEffect(() => {
     RunAPI.JevKeyStatus().then(setStatus).catch((e) => setError(String(e)));
   }, []);
+  useEffect(() => {
+    if (status) onStatus?.(status);
+    // onStatus is the caller's setter; only a new status is worth telling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   async function act(label: string, fn: () => Promise<void>) {
     setBusy(label);

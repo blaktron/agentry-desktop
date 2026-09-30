@@ -158,7 +158,8 @@ const states = [
   // The welcome's runtime step (agentry-desktop#131): the three questions;
   // the model list Get models filled; the failed listing with the model
   // still typeable; a stored subscription token and its sentence.
-  { name: "wizard-runtime", url: "/wizard.html#2", note: "the runtime step: provider, key, model", locator: ".wizard" },
+  // Reached by Back from the AI Review key step (#462), as a person would.
+  { name: "wizard-runtime", url: "/wizard.html#3", note: "the runtime step: provider, key, model", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Set up the runtime" },
   { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — the key field is there", locator: ".wizard" },
   { name: "wizard-runtime-models", url: "/wizard.html#2-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-nomodels", url: "/wizard.html#2-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
@@ -194,8 +195,15 @@ const states = [
   { name: "agent-install-coding-agent", url: "/pages.html", note: "the agent page's one-off link opens the wizard preset to the Claude skill", locator: ".modal", click: '[data-preview="agent"] button:has-text("Install into Claude Code")' },
   // The Welcome's Coding agent step, on the same list Settings uses
   // (agentry-desktop#148 moved it): unchanged for the person.
-  { name: "wizard-coding-agent", url: "/wizard.html#3", note: "the welcome's coding agent step after Look: Claude Code found and chosen, Codex missing", locator: ".wizard" },
-  { name: "wizard-coding-agent-unprobed", url: "/wizard.html#3-unprobed", note: "the step as it opens: what the policy records, nothing run", locator: ".wizard" },
+  { name: "wizard-coding-agent", url: "/wizard.html#4", note: "the welcome's coding agent step after Look: Claude Code found and chosen, Codex missing", locator: ".wizard" },
+  // Reached by Skip on the AI Review key step (#462), as a person would.
+  { name: "wizard-coding-agent-unprobed", url: "/wizard.html#3-unprobed", note: "the step as it opens, reached by Skip on the AI Review key step: what the policy records, nothing run", locator: ".wizard", click: '.wizard-foot button:has-text("Skip")', expectText: "Your coding agent" },
+  // The AI Review key step (#462): Provider settings' card in the wizard,
+  // with Skip only while there is no key. Reached by Continue from Runtime
+  // and by Back from Coding agent; and a save the keychain refuses.
+  { name: "wizard-review-key", url: "/wizard.html#2", note: "the AI Review key step with no key, reached by Continue from Runtime: the recommendation, the TypeSafe link, the field, Skip and Continue", locator: ".wizard", click: '.wizard-foot button:has-text("Continue")', expectText: ["Your AI Review key", KEY_RECOMMENDATION, "Get a key from TypeSafe", "No key saved. Drafting on this computer is off until you add one."], expectOrder: [".wizard-foot button", ["Back", "Skip", "Continue"]] },
+  { name: "wizard-review-key-saved", url: "/wizard.html#4-saved", note: "the step with a key saved, reached by Back from Coding agent: saved, never shown, and no Skip", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: ["Your AI Review key", "Saved in this computer's keychain."], expectOrder: [".wizard-foot button", ["Back", "Continue"]] },
+  { name: "wizard-review-key-refused", url: "/wizard.html#3-refused", note: "a save the keychain refuses: the reason shown, no key saved, Skip still offered", locator: ".wizard", fill: [['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"]], click: '.wizard button:has-text("Save")', expectText: ["store the key in the OS keychain", "No key saved."], expectOrder: [".wizard-foot button", ["Back", "Skip", "Continue"]], expectValue: ['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"] },
   // Every page under the shell and every step of the first-run wizard, so a
   // change to the token table (agentry-desktop#49) is seen everywhere it
   // lands, not only in the states above.
@@ -353,8 +361,8 @@ const states = [
   { name: "chat", url: "/modals.html#chat", note: "a session's chat pane", locator: ".chat-pane" },
   { name: "wizard-welcome", url: "/wizard.html#0", note: "the first-run wizard: welcome", locator: ".wizard" },
   { name: "wizard-signin", url: "/wizard.html#1", note: "the first-run wizard: sign-in", locator: ".wizard" },
-  { name: "wizard-done", url: "/wizard.html#4", note: "the first-run wizard: done", locator: ".wizard" },
-  { name: "wizard-done-nothing", url: "/wizard.html#4-nothing", note: "the first-run wizard: every step skipped, the Nothing set up ending", locator: ".wizard" },
+  { name: "wizard-done", url: "/wizard.html#5", note: "the first-run wizard: done, with the AI Review key's row", locator: ".wizard", expectText: ["You're set up", "AI Review key saved"] },
+  { name: "wizard-done-nothing", url: "/wizard.html#5-nothing", note: "the first-run wizard: every step skipped, the Nothing set up ending, the key's row pending", locator: ".wizard", expectText: ["Nothing is set up yet", "No AI Review key — drafting on this computer is off until you add one in Settings"] },
 ];
 
 const wanted = process.env.STATES ? process.env.STATES.split(",").map((s) => s.trim()) : null;
