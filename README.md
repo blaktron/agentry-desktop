@@ -254,6 +254,13 @@ The product never claims an agent is "safe". The language is always:
 - **Settings → Provider settings → AI Review key** — your own TypeSafe Jev key, which every
   local action that requires a scan uses (today, Describe it on this
   computer; plan builder-rework.md D25).
+  - What it leads with: the operator's recommendation to get a key of your
+    own, and *Get a key from TypeSafe*, which opens TypeSafe's site in the
+    system browser. The words and the address are one module's
+    (`frontend/src/keyRecommendation.ts`), so every place that offers the key
+    says the same; Describe it's missing-key notice carries the same link
+    (agentry-desktop#461). The paragraph beneath says what the key is used
+    for, and that submitting needs no key of yours.
   - Where it is kept: in the OS keychain next to your model key, as the entry
     `provider:typesafe` under the CLI's `agentry` service. The runner policy
     records only `judge: {apiKeySource: keyring}`, so `agentry draft` reads

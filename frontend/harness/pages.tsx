@@ -241,10 +241,12 @@ function summaryFor(m: typeof buildModel, unmentioned: string[]) {
     anyUnnamed: [...websites, ...servers.flatMap((sv) => sv.hosts)].some((h) => h.unnamed) };
 }
 // Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
-// #aireview-refused answers Test key with TypeSafe's 401.
+// #aireview-env takes it from the variable; #aireview-refused answers Test key with TypeSafe's 401.
 const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "describe-nokey"
   ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }
-  : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
+  : window.location.hash === "#aireview-env"
+    ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true }
+    : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 const validateResult = {
   passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
   bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
@@ -291,7 +293,12 @@ g.go = { main: {
   },
   // The native folder picker, as Build's first save asks it (D-030).
   // Save's picker opens in Documents (agentry-desktop#425).
-  App: { ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer" },
+  App: {
+    ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer",
+    // What the app asked the system browser to open, for shots.mjs to read
+    // (expectOpened): the TypeSafe link's one address (agentry-desktop#461).
+    OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); },
+  },
   BuildAPI: {
     NewModel: async () => {
       if (landedDraft) await new Promise((r) => setTimeout(r, 300));
