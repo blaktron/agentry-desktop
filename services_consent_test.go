@@ -95,8 +95,12 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 			return err
 		},
 		"BuildAPI.Save": func() error { return b.Save(typed, build.Model{}) },
-		"BuildAPI.Publish": func() error {
-			_, err := b.Publish("https://r.example", typed, "private")
+		"BuildAPI.Submit": func() error {
+			_, err := b.Submit("https://r.example", typed)
+			return err
+		},
+		"BuildAPI.Install": func() error {
+			_, err := b.Install(typed)
 			return err
 		},
 		"BuildAPI.Validate": func() error {

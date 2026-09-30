@@ -122,6 +122,10 @@ export function RunOutputs(arg1) {
   return window['go']['main']['RunAPI']['RunOutputs'](arg1);
 }
 
+export function RunRequirements(arg1, arg2) {
+  return window['go']['main']['RunAPI']['RunRequirements'](arg1, arg2);
+}
+
 export function SaveProfile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['RunAPI']['SaveProfile'](arg1, arg2, arg3, arg4);
 }

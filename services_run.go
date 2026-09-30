@@ -816,6 +816,22 @@ func (r *RunAPI) GatewayRequirements(reg, ns, name string) (*MCPView, error) {
 	if err != nil {
 		return nil, err
 	}
+	return mcpViewOf(info), nil
+}
+
+// RunRequirements is the tool surface of the release a run of ref would
+// run: a QuickAgent installed from a folder on this computer when there
+// is one (agentry-desktop#425), else the registry's. The run panel reads
+// this; the published agent's page reads GatewayRequirements.
+func (r *RunAPI) RunRequirements(reg, ref string) (*MCPView, error) {
+	info, err := run.RunRequirements(r.app.ctx, reg, ref)
+	if err != nil {
+		return nil, err
+	}
+	return mcpViewOf(info), nil
+}
+
+func mcpViewOf(info *run.MCPInfo) *MCPView {
 	v := &MCPView{
 		Ref:               info.Ref,
 		Version:           info.Version,
@@ -836,7 +852,7 @@ func (r *RunAPI) GatewayRequirements(reg, ns, name string) (*MCPView, error) {
 	for _, row := range info.ToolRows {
 		v.ToolRows = append(v.ToolRows, MCPToolRow{Tool: row.Tool, GrantedBy: row.GrantedBy})
 	}
-	return v, nil
+	return v
 }
 
 // emptyNotNil keeps JSON arrays arrays — the frontend maps over them.

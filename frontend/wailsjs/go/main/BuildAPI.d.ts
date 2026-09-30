@@ -23,17 +23,19 @@ export function DescribeStatus():Promise<main.DescribeStatusView>;
 
 export function Exists(arg1:string):Promise<boolean>;
 
+export function Install(arg1:string):Promise<main.LocalInstallView>;
+
 export function Load(arg1:string):Promise<build.Model>;
 
 export function NewModel(arg1:string):Promise<build.Model>;
-
-export function Publish(arg1:string,arg2:string,arg3:string):Promise<build.PublishResult>;
 
 export function Save(arg1:string,arg2:build.Model):Promise<void>;
 
 export function ServerChecks(arg1:string,arg2:build.Model):Promise<Array<mcpvuln.Status>>;
 
 export function StopDraft():Promise<void>;
+
+export function Submit(arg1:string,arg2:string):Promise<build.PublishResult>;
 
 export function Summary(arg1:build.Model,arg2:Array<string>):Promise<build.Summary>;
 

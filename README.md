@@ -195,10 +195,22 @@ The product never claims an agent is "safe". The language is always:
   with its tools, keys, configuration and hosts, and each file, command or
   data grant, and nothing it does not declare. A host a draft's description
   did not name is marked, and AI Review's check of a draft gets one line.
-  **Submit** publishes privately unless **Make it public** is switched on;
-  its first save asks for a folder through the native picker. A rule the
-  form still fails is named with **Fix it**, and Submit waits for it. **See
-  it in the form** opens Step by step on Review, or Advanced.
+  It ends on three actions (agentry-desktop#425):
+  - **Save** writes the QuickAgent to a folder. The first save asks for one
+    through the native picker, which opens in Documents.
+  - **Install** puts it on this computer only, in Installed. It is private
+    and local: no registry, no pipeline and no credit, through the CLI's
+    local install. A native dialog shows the contract and says the install
+    is unsigned. Installed runs it, and every run asks for the unsigned
+    consent.
+  - **Submit** sends it to the registry and makes it **public**. A native
+    dialog first names what the submission costs, read from the account,
+    and sends nothing on No. An agent that exists private is made public,
+    with its earlier versions, once the registry has accepted the version.
+
+  A rule the form still fails is named with **Fix it**, and Install and
+  Submit wait for it. **See it in the form** opens Step by step on Review,
+  or Advanced.
 
   The form covers the whole of manifest schema v2, the run guide and each
   server's plain configuration included. Opening an existing workspace and

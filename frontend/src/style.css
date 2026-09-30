@@ -958,6 +958,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-summary h4 { margin: 14px 0 4px; }
 .build-summary-list { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
 .build-summary-list li { overflow-wrap: anywhere; min-width: 0; }
+.build-summary-actions { margin: 8px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.build-summary-actions li { overflow-wrap: anywhere; min-width: 0; }
 .build-summary-list .key-help { margin-top: 4px; }
 .build-summary-unnamed { box-shadow: inset 3px 0 0 0 var(--color-sev-medium); padding-left: 10px; }
 .build-drafted > summary { cursor: pointer; }

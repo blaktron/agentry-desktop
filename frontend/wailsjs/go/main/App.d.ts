@@ -7,4 +7,6 @@ export function ChooseDirectory(arg1:string):Promise<string>;
 
 export function ChooseFiles(arg1:string):Promise<Array<string>>;
 
+export function ChooseSaveFolder(arg1:string):Promise<string>;
+
 export function OpenExternal(arg1:string):Promise<void>;

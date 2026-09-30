@@ -45,6 +45,10 @@ export function SignedBadge({ att }: { att: trust.AttestationResult | null }) {
       // admitted the version without a scan — not a missing signature, and
       // not a scan with a known gap.
       return <span className="badge unscanned" title={att.detail}>unscanned</span>;
+    case "local":
+      // Installed from a folder on this computer (agentry-desktop#425):
+      // no pipeline scanned it and no one signed it.
+      return <span className="badge warn" title="Installed from a folder on this computer">local, unsigned</span>;
     default:
       return <span className="badge bad" title={att.detail}>{att.state}</span>;
   }
