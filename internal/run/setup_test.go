@@ -686,3 +686,74 @@ func TestGetStatusReadsTheMarkerNotTheKey(t *testing.T) {
 		t.Fatalf("a keyring source on a marker alone must refuse naming the missing entry, got %v", err)
 	}
 }
+
+// A policy can exist without anyone having set a provider up: saving the AI
+// Review key, choosing a coding agent and the first run each write it from
+// defaults. ProviderSetUp says which it is, so the first-run wizard does not
+// read a saved AI Review key as a provider written (agentry-desktop#462;
+// plan desktop-review-key-and-run-cards.md D13). Nothing but the policy's
+// model block decides it: not a key in the keychain the policy does not
+// read, and not the variable the default names.
+func TestAPolicyWrittenFromDefaultsIsNotAProviderSetUp(t *testing.T) {
+	jevKeychain(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	ctx := context.Background()
+	status := func() *Status {
+		t.Helper()
+		st, err := GetStatus(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	var log strings.Builder
+	// The default's variable set where the app was started, and a key for
+	// the default provider in the keychain that no policy reads: neither is
+	// a provider set up, before the AI Review key is saved or after.
+	t.Setenv(policy.Default().Model.APIKeyEnv, "sk-ant-api-from-the-shell")
+	if err := StoreModelKey("anthropic", "sk-ant-api-example", &log); err != nil {
+		t.Fatal(err)
+	}
+	if st := status(); st.PolicyExists || st.ProviderSetUp {
+		t.Fatalf("before any policy: %+v", st)
+	}
+	if err := StoreJevKey(testJevKey, &log); err != nil {
+		t.Fatal(err)
+	}
+	st := status()
+	if !st.PolicyExists || st.ProviderSetUp {
+		t.Fatalf("after the AI Review key alone: policyExists %v providerSetUp %v; want the policy written and no provider set up", st.PolicyExists, st.ProviderSetUp)
+	}
+	if !slices.Contains(st.KeysStored, "anthropic") {
+		t.Fatalf("the fixture's keychain entry is not listed: %v", st.KeysStored)
+	}
+	// The provider form's save records the keychain as the key's source:
+	// the model block is no longer the default's.
+	if err := ApplySetup(ctx, SetupOpts{Provider: "anthropic", APIKeySource: "keyring"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st := status(); !st.ProviderSetUp {
+		t.Fatalf("after the provider was saved with its key in the keychain: %+v", st)
+	}
+	// The key forgotten, the block is the default's again.
+	if err := ApplySetup(ctx, SetupOpts{Provider: "anthropic", ForgetKey: true}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st := status(); st.ProviderSetUp {
+		t.Fatalf("after the key was forgotten: %+v", st)
+	}
+}
+
+// A provider other than the default's is a choice, whatever holds its key.
+func TestAnotherProviderInThePolicyIsAProviderSetUp(t *testing.T) {
+	jevKeychain(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	var log strings.Builder
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "openai", Model: "gpt-5"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	st, err := GetStatus(context.Background())
+	if err != nil || !st.ProviderSetUp {
+		t.Fatalf("status %+v err %v", st, err)
+	}
+}

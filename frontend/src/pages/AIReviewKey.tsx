@@ -7,12 +7,12 @@
 // (keyRecommendation.ts, #461), which every surface that offers the key
 // shares. The recommendation speaks of submitting, which needs no key, so
 // the paragraph beneath it says so.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
-import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL } from "../keyRecommendation";
+import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../keyRecommendation";
 
 /** The link to TypeSafe, where a person gets a key: the system browser
  *  opens it (App.OpenExternal), at the one address keyRecommendation.ts
@@ -23,13 +23,24 @@ export function GetAKeyLink() {
 
 /** Where the key stands, in one sentence. */
 export function jevKeySentence(k: main.JevKeyView): string {
-  if (k.envSet) return `$${k.envName} is set where this app was started, and a draft uses it before the keychain.`;
-  if (k.stored && k.source === "keyring") return "Saved in this computer's keychain.";
-  if (k.stored) return "A key is in the keychain, but the runner policy does not read it from there. Save it again to fix that.";
-  return "No key saved. Drafting on this computer is off until you add one.";
+  switch (keyStanding(k)) {
+    case "env":
+      return `$${k.envName} is set where this app was started, and a draft uses it before the keychain.`;
+    case "saved":
+      return "Saved in this computer's keychain.";
+    case "unread":
+      return "A key is in the keychain, but the runner policy does not read it from there. Save it again to fix that.";
+    default:
+      return "No key saved. Drafting on this computer is off until you add one.";
+  }
 }
 
-export function AIReviewKeyCard() {
+/** What the card knows, for a caller that decides on it (the first-run
+ *  wizard's Skip, and its footer held while a save is in flight). It never
+ *  carries the key: status is the view Go returns, which has none. */
+export type ReviewKeyState = { status: main.JevKeyView | null; busy: boolean };
+
+export function AIReviewKeyCard({ onState }: { onState?: (s: ReviewKeyState) => void } = {}) {
   const [status, setStatus] = useState<main.JevKeyView | null>(null);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,6 +50,12 @@ export function AIReviewKeyCard() {
   useEffect(() => {
     RunAPI.JevKeyStatus().then(setStatus).catch((e) => setError(String(e)));
   }, []);
+  // The caller's callback, read through a ref, as HarnessChooser reads
+  // its own: a fresh function on each of the caller's renders must not
+  // re-report an unchanged state.
+  const report = useRef(onState);
+  useEffect(() => { report.current = onState; }, [onState]);
+  useEffect(() => { report.current?.({ status, busy: busy !== null }); }, [status, busy]);
 
   async function act(label: string, fn: () => Promise<void>) {
     setBusy(label);

@@ -177,10 +177,30 @@ Installed, Build, Validate and Settings under the shell. Overlays live in
 their own entries so each gets a clean screenshot over the shell backdrop:
 the run surfaces in `modals.html` (`#runpanel | #toolspanel | #chat`) and
 the first-run wizard in `wizard.html` (`#0` welcome, `#1` sign-in, `#2`
-runtime, `#3` coding agent, `#4` done; `#3-missing` shows neither coding
-agent on the machine, `#3-unprobed` the step before "Look for coding
-agents" is clicked, `#4-nothing` the Nothing set up ending when every step
-was skipped — agentry-desktop#89). `#2-refused` is a save the backend
+runtime, `#3` AI Review key, `#4` coding agent, `#5` done; `#4-missing`
+shows neither coding agent on the machine, `#4-unprobed` the step before
+"Look for coding agents" is clicked, `#5-nothing` the Nothing set up ending
+when every step was skipped — agentry-desktop#89). The AI Review key step
+(agentry-desktop#462) is Provider settings' card in the wizard: no key is
+saved unless the hash ends `-saved` (or the step is Done with something set
+up), and `#3-refused` has the keychain refuse the save. `shots.mjs` reaches
+the step the ways a person does, so its neighbours' buttons are held too:
+`wizard-review-key` by Continue from Runtime, `wizard-review-key-saved` by
+Back from Coding agent, `wizard-runtime` by Back from the key step and
+`wizard-coding-agent-unprobed` by Skip on it; it holds the footer to Back,
+Skip, Continue with no key and Back, Continue with one (`expectOrder`), the
+recommendation word for word, and on `wizard-review-key-refused` types a
+key, clicks Save and fails unless the refusal shows and the field still
+holds what was typed. `#3-slow` is a save that never answers:
+`wizard-review-key-saving` clicks Save and fails unless every footer button
+is held (`expectFootDisabled`). `wizard-done` is reached by Continue from
+the key step and then from Coding agent, and asserts the provider's row and
+the key's; `wizard-done-nothing` asserts the key's row pending under
+"Nothing is set up yet"; and `#5-keyonly` (`wizard-done-key-only`) is Done
+after the key alone was saved, where the policy exists only because that
+save wrote it from defaults: the ending is still Nothing set up, the
+provider's row says the policy has only the default and where its key is
+read from, and the key's row is checked. `#2-refused` is a save the backend
 refuses after the key was stored: `shots.mjs` types the custom endpoint's
 form, clicks Save, and fails unless the refusal shows and the key field is
 empty and says the key is stored (agentry-desktop#141, #378). The wizard's
