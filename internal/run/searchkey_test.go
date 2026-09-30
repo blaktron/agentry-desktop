@@ -162,6 +162,10 @@ func TestChangingProviderNeverLetsOneKeyServeAnother(t *testing.T) {
 	if !strings.Contains(log.String(), "Brave key it replaces was removed") {
 		t.Fatalf("log: %s", log.String())
 	}
+	path, _ = policy.DefaultPath()
+	if raw, _ := os.ReadFile(path); strings.Contains(string(raw), testSearchKey) || strings.Contains(string(raw), "brave-key") {
+		t.Fatal("a key reached the policy file on a switch")
+	}
 	t.Setenv("BRAVE_API_KEY", "brave-from-the-variable")
 	var asked []string
 	SetAskSearchForTest(t, func(_ context.Context, provider, key string) error {
@@ -191,12 +195,37 @@ func TestForgetSearchKeyRemovesTheEntryAndTheProvider(t *testing.T) {
 	if ok, _ := modelkey.Present("exa"); ok {
 		t.Fatal("the key is still in the keychain")
 	}
-	if w := searchPolicy(t).WebSearch; w.On() {
-		t.Fatalf("policy still names a provider: %+v", w)
+	if w := searchPolicy(t).WebSearch; w != (policy.WebSearchKey{Provider: "exa"}) {
+		t.Fatalf("policy webSearch %+v; want the provider kept and the keychain source gone", w)
 	}
 	st, err := GetSearchKeyStatus()
-	if err != nil || st.Provider != "" || st.Stored || st.Ready() {
+	if err != nil || st.Provider != "exa" || st.Stored || st.Ready() {
 		t.Fatalf("status %+v %v", st, err)
+	}
+	// The provider stays chosen, so its variable still serves a draft.
+	t.Setenv("EXA_API_KEY", "exa-from-the-variable")
+	if st, _ := GetSearchKeyStatus(); !st.Ready() {
+		t.Fatalf("the variable no longer serves: %+v", st)
+	}
+}
+
+// A keychain that refuses the delete leaves the policy as it was, so the
+// policy never stops reading a key the keychain still holds.
+func TestForgetSearchKeyRefusedByTheKeychainLeavesThePolicy(t *testing.T) {
+	searchKeychain(t)
+	var log strings.Builder
+	if err := StoreSearchKey("tavily", testSearchKey, &log); err != nil {
+		t.Fatal(err)
+	}
+	before := searchPolicy(t).WebSearch
+	old := keychainDelete
+	keychainDelete = func(string) error { return errors.New("the keychain is locked") }
+	t.Cleanup(func() { keychainDelete = old })
+	if err := ForgetSearchKey(&log); err == nil || !strings.Contains(err.Error(), "locked") {
+		t.Fatalf("err = %v", err)
+	}
+	if after := searchPolicy(t).WebSearch; after != before {
+		t.Fatalf("policy moved on a refused delete: %+v → %+v", before, after)
 	}
 }
 
@@ -235,6 +264,7 @@ func TestTestSearchKeySaysTheProvidersAnswer(t *testing.T) {
 	}{
 		{"works", nil, true, "The key works: Tavily answered a search"},
 		{"401", &corewebsearch.StatusError{Provider: "tavily", Status: 401, Snippet: "bad " + testSearchKey}, false, "Tavily refused the key (401)"},
+		{"401 with a body of its own", &corewebsearch.StatusError{Provider: "tavily", Status: 401, Snippet: `{"detail":"PROVIDER-BODY-ECHO"}`}, false, "Tavily refused the key (401)"},
 		{"403", &corewebsearch.StatusError{Status: 403}, false, "Tavily refused the key (403)"},
 		{"432", &corewebsearch.StatusError{Status: 432}, false, "plan or credit has run out"},
 		{"402", &corewebsearch.StatusError{Status: 402}, false, "plan or credit has run out"},
@@ -259,7 +289,8 @@ func TestTestSearchKeySaysTheProvidersAnswer(t *testing.T) {
 			if len(asked) != 1 || asked[0] != "tavily:"+testSearchKey {
 				t.Fatalf("asked %v", asked)
 			}
-			if res.OK != c.ok || !strings.Contains(res.Message, c.want) || res.From != "the keychain" || strings.Contains(res.Message, "api.tavily.com/search") {
+			if res.OK != c.ok || !strings.Contains(res.Message, c.want) || res.From != "the keychain" || strings.Contains(res.Message, "api.tavily.com/search") ||
+				strings.Contains(res.Message, "PROVIDER-BODY-ECHO") {
 				t.Fatalf("result %+v", res)
 			}
 			noSearchValue(t, "the result", res)

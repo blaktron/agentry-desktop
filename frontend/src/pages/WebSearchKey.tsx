@@ -62,6 +62,9 @@ export function WebSearchKeyCard() {
   const chosen = status?.providers.find((p) => p.name === provider);
   const note = status ? replaceNote(status, provider) : "";
   const current = !!status && status.provider === provider;
+  // The variable a draft reads first: the policy's own for the saved
+  // provider (it may name another), else the chosen provider's default.
+  const envName = current && status?.envName ? status.envName : chosen?.envName;
 
   return (
     <Card>
@@ -91,7 +94,7 @@ export function WebSearchKeyCard() {
           />
           <Button variant="primary" disabled={!!busy || !key.trim() || !provider} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
         </div>
-        {chosen && <span className="muted small">A draft reads ${chosen.envName} first, when it is set where this app was started.</span>}
+        {envName && <span className="muted small">A draft reads {"$" + envName} first, when it is set where this app was started.</span>}
       </label>
       {note && <Notice tone="warn">{note}</Notice>}
       <div className="row">

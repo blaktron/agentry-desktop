@@ -507,7 +507,7 @@ g.go = { main: {
       const p = searchProviders.find((x) => x.name === provider) ?? searchProviders[0];
       return { ...noSearch, provider: p.name, providerLabel: p.label, envName: p.envName, stored: true, source: "keyring", ready: true };
     },
-    ForgetSearchKey: async () => noSearch,
+    ForgetSearchKey: async () => ({ ...noSearch, provider: "brave", providerLabel: "Brave", envName: "BRAVE_API_KEY" }),
     TestSearchKey: async () => (window.location.hash === "#search-refused"
       ? { ok: false, message: "Brave refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
       : { ok: true, message: "The key works: Brave answered a search with it.", from: "the keychain" }),

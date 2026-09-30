@@ -151,8 +151,9 @@ func StoreSearchKey(provider, key string, logw io.Writer) error {
 }
 
 // ForgetSearchKey removes the chosen provider's key from the keychain, and
-// the provider from the policy, so a draft on this computer reads the
-// registry and the pages it knows rather than look for a key that is gone.
+// the keychain from the policy's sources, as ForgetJevKey does: the
+// provider stays chosen, so a key in its variable still serves, and
+// nothing goes looking in the keychain for a key that is not there.
 func ForgetSearchKey(logw io.Writer) error {
 	pol, err := loadPolicyIfPresent()
 	if err != nil || pol == nil || !pol.WebSearch.On() {
@@ -167,7 +168,10 @@ func ForgetSearchKey(logw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	pol.WebSearch = policy.WebSearchKey{}
+	if pol.WebSearch.APIKeySource == "" {
+		return nil
+	}
+	pol.WebSearch.APIKeySource = ""
 	return policy.Save(path, pol)
 }
 

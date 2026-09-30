@@ -32,7 +32,9 @@ export function searchKeySentence(k: main.SearchKeyView): string {
 /** What Save will do to a key saved for another provider, or "" when it
  *  replaces nothing. */
 export function replaceNote(k: main.SearchKeyView, chosen: string): string {
-  if (!k.provider || k.provider === chosen || !k.stored) return "";
+  // Go removes the replaced key only when the policy reads it from the
+  // keychain; a key the policy does not read stays, and is not mentioned.
+  if (!k.provider || k.provider === chosen || !k.stored || k.source !== "keyring") return "";
   const label = k.providers.find((p) => p.name === chosen)?.label ?? chosen;
   return `Saving makes ${label} your search provider and removes the ${k.providerLabel || k.provider} key from this computer's keychain.`;
 }

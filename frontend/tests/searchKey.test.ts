@@ -30,8 +30,11 @@ test("where the key stands: none, the variable first, saved, unread, missing", (
 
 test("a save for another provider says it replaces the saved key; the same provider, or nothing saved, says nothing", () => {
   const saved = view({ provider: "brave", providerLabel: "Brave", stored: true, source: "keyring" });
+  assert.match(searchKeySentence(view({ provider: "brave", providerLabel: "Brave" })), /Brave is chosen, but no key for it is saved/);
   assert.equal(replaceNote(saved, "exa"), "Saving makes Exa your search provider and removes the Brave key from this computer's keychain.");
   assert.equal(replaceNote(saved, "brave"), "");
   assert.equal(replaceNote(view({ provider: "brave", providerLabel: "Brave" }), "exa"), "");
   assert.equal(replaceNote(view({}), "exa"), "");
+  // A key the policy does not read from the keychain is not removed, so not promised.
+  assert.equal(replaceNote(view({ provider: "brave", providerLabel: "Brave", stored: true, source: "" }), "exa"), "");
 });

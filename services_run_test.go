@@ -176,7 +176,7 @@ func TestTheSearchKeyIsNeverShownBackOrLogged(t *testing.T) {
 	}
 	views = append(views, tv)
 	f, err := r.ForgetSearchKey()
-	if err != nil || f.Stored || f.Ready || f.Provider != "" {
+	if err != nil || f.Stored || f.Ready || f.Provider != "exa" {
 		t.Fatalf("forget: %+v %v", f, err)
 	}
 	views = append(views, f)
