@@ -8,6 +8,7 @@
 // text replaced by the finished turn, the same notes, and "Session ended:
 // out of credits" where a minute the balance could not cover stopped it.
 // Every text here is data the agent or the person wrote, drawn as text.
+import type { main } from "../wailsjs/go/models";
 
 /** One session event (main.SessionEventView on the Go side; it travels
  * only over the event bus, so it is not in the bindings). */
@@ -178,4 +179,306 @@ export function hostedStatusLine(a: {
   if (a.busy && !a.ended) parts.push("thinking…");
   if (a.ended) parts.push(`ended (${a.outOfCredits ? "out of credits" : a.ended})`);
   return parts.join(" · ");
+}
+
+// A chat with a QuickAgent, on this computer or In Agentry, as the app follows
+// it above the pages (agentry-desktop#467; plan
+// desktop-review-key-and-run-cards.md §5.3; D4): the store starts the session
+// and owns its events, so the chat's dialog and its corner card only draw it,
+// and a switch between them never starts a second session. When the engine
+// ends a chat on this computer the store collects its result itself, whether
+// or not the dialog is open, so the run lock and the containers are released.
+// A chat In Agentry is followed as a hosted session is: its frames, its state
+// and, once its output is down, its last word as a run (D-046). One chat per
+// app (D-017). Pure, so the store (runs.ts) and its tests share one set of
+// rules.
+
+/** A hosted session's state (main.HostedSessionStateView). */
+export type HostedChatState = {
+  status: string;
+  startedAt?: string;
+  finishedAt?: string;
+  session?: main.HostedSessionView;
+};
+
+export type ChatKind = "local" | "hosted";
+
+export type ChatRecord = {
+  kind: ChatKind;
+  /** In Agentry: the registry the chat is followed on. */
+  registry: string;
+  /** The release, ns/name@version. */
+  ref: string;
+  task: string;
+  opening: string;
+  chat: Chat;
+  /** On this computer: the session is starting (the native consent, the
+   *  sandbox and the harness). */
+  starting: boolean;
+  /** A message is on its way (SendTurn returns with the agent's turn on
+   *  this computer, once the host has it In Agentry). */
+  sending: boolean;
+  adding: boolean;
+  /** Finish or Stop was asked for, or the engine ended it and its result is
+   *  being collected. */
+  ending: boolean;
+  /** On this computer: the session's log (runner:run-log). */
+  log: string[];
+  /** In Agentry: the run as the registry reports it, its state and the
+   *  terms the strip reads. */
+  run: main.HostedRunView | null;
+  hosted: HostedChatState | null;
+  terms: main.HostedSessionOfferView | null;
+  /** On this computer, once it has ended: its envelope. */
+  result: main.RunResultView | null;
+  /** The last thing that went wrong, in Go's words. */
+  error: string | null;
+  /** On this computer: it never started, or it ended with no envelope. */
+  failed: boolean;
+  over: boolean;
+};
+
+/** Whether the QuickAgent is working on a turn, rather than waiting for the
+ *  person. */
+export function working(c: ChatRecord): boolean {
+  if (c.over) return false;
+  return c.starting || c.sending || (c.kind === "hosted" && c.chat.busy);
+}
+
+function overNow(c: ChatRecord): boolean {
+  if (c.kind === "local") return !!c.result || c.failed;
+  return !!c.run?.final;
+}
+
+/** What the store needs from the app: Go's events and the chat's calls.
+ *  Injected, so the store's rules are tested without a webview. */
+export type ChatDeps = {
+  on: (event: string, cb: (v: never) => void) => () => void;
+  sendLocal: (text: string) => Promise<void>;
+  addLocal: (path: string) => Promise<void>;
+  endLocal: (finish: boolean) => Promise<main.RunResultView>;
+  sendHosted: (text: string) => Promise<void>;
+  addHosted: (path: string) => Promise<void>;
+  endHosted: (finish: boolean) => Promise<void>;
+  /** Asks the host for every frame it still holds, for a chat the app has
+   *  just begun to follow; each is taken once (applyEvent's seq). */
+  replay: () => Promise<void>;
+  forget: (runId: string) => void;
+};
+
+export type ChatStoreState<S> = { chat: ChatRecord | null; setup: S | null; shown: boolean; raised: number; asCard: boolean };
+
+/** What the store follows a chat In Agentry from. */
+export type HostedChatStart = {
+  registry: string;
+  run: main.HostedRunView;
+  terms: main.HostedSessionOfferView | null;
+  opening: string;
+  task: string;
+};
+
+/** The one chat the app follows (agentry-desktop#467, D-017). */
+export function createChatStore<S>(deps: ChatDeps) {
+  let c: ChatRecord | null = null;
+  let setup: S | null = null;
+  let shown = false;
+  let raised = 0;
+  let asCard = false;
+  // gen names the chat followed: a call's answer that comes back after the
+  // chat was dismissed, or another began, changes nothing.
+  let gen = 0;
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((f) => f());
+  const update = (g: number, f: (r: ChatRecord) => ChatRecord) => {
+    if (g !== gen || !c) return;
+    const next = f(c);
+    c = { ...next, over: overNow(next) };
+    notify();
+  };
+
+  // The engine ended a chat on this computer: its envelope is collected
+  // whether or not anything shows the chat, so the lock and the containers
+  // are released.
+  const collect = (g: number) => {
+    if (!c || c.kind !== "local" || c.ending || c.result || c.failed) return;
+    update(g, (r) => ({ ...r, ending: true }));
+    deps.endLocal(false)
+      .then((res) => update(g, (r) => ({ ...r, ending: false, result: res })))
+      .catch((e) => update(g, (r) => ({ ...r, ending: false, failed: true, error: String(e) })));
+  };
+
+  let listening = false;
+  const listen = () => {
+    if (listening) return;
+    listening = true;
+    deps.on("runner:session-event", (ev: SessionEvent) => {
+      if (!c || c.kind !== "local" || c.over) return;
+      const g = gen;
+      update(g, (r) => ({ ...r, chat: applyEvent(r.chat, ev, Date.now()) }));
+      if (c?.chat.ended) collect(g);
+    });
+    deps.on("runner:run-log", (line: string) => {
+      if (!c || c.kind !== "local" || c.over) return;
+      update(gen, (r) => ({ ...r, log: [...r.log, line] }));
+    });
+    deps.on("runner:hosted-session-event", (ev: SessionEvent) => {
+      if (!c || c.kind !== "hosted" || c.over) return;
+      update(gen, (r) => ({ ...r, chat: applyEvent(r.chat, ev, Date.now()) }));
+    });
+    deps.on("runner:hosted-session-state", (s: HostedChatState) => {
+      if (!c || c.kind !== "hosted" || c.over) return;
+      update(gen, (r) => ({ ...r, hosted: s }));
+    });
+    deps.on("runner:hosted-run", (v: main.HostedRunView) => {
+      if (!c || c.kind !== "hosted" || c.over || v.id !== c.run?.id) return;
+      update(gen, (r) => ({ ...r, run: v, ending: v.final ? false : r.ending }));
+    });
+  };
+
+  const begin = (next: ChatRecord, s: S | null, card: boolean): number => {
+    // A chat that is over gives way to the next, and is forgotten.
+    if (c?.run) deps.forget(c.run.id);
+    if (c?.result) deps.forget(c.result.runId);
+    gen++;
+    c = { ...next, over: overNow(next) };
+    setup = s;
+    shown = true;
+    asCard = card;
+    raised++;
+    notify();
+    return gen;
+  };
+
+  const blank = (kind: ChatKind, ref: string, task: string, opening: string): ChatRecord => ({
+    kind, ref, task, opening, registry: "",
+    chat: newChat(kind === "hosted" ? opening : "", task),
+    starting: false, sending: false, adding: false, ending: false, log: [],
+    run: null, hosted: null, terms: null, result: null, error: null, failed: false, over: false,
+  });
+
+  const store = {
+    state: (): ChatStoreState<S> => ({ chat: c, setup, shown, raised, asCard }),
+    subscribe(f: () => void): () => void {
+      listen();
+      listeners.add(f);
+      return () => {
+        listeners.delete(f);
+      };
+    },
+
+    /** A chat is live: starting, going, or ending. */
+    live: (): boolean => !!c && !c.over,
+
+    /** Starts a chat on this computer by call (RunAPI.StartSession) and
+     *  opens its dialog at once, the start under way inside it: the native
+     *  consent, the sandbox and the harness. Go's refusal is the chat's
+     *  error, with its setup to go back to. One chat at a time. */
+    startLocal(s: S, ref: string, task: string, opening: string, call: () => Promise<unknown>): void {
+      if (c && !c.over) throw "A chat is already open in this app; finish it, then start another.";
+      listen();
+      const g = begin({ ...blank("local", ref, task, opening), starting: true }, s, false);
+      Promise.resolve()
+        .then(call)
+        .then(() => update(g, (r) => ({
+          ...r, starting: false,
+          // The release's opening is its first bubble once the session is
+          // up and the person gave no first message.
+          chat: !task.trim() && opening.trim() ? { ...r.chat, lines: [...r.chat.lines, { kind: "assistant", text: opening.trim() }] } : r.chat,
+        })))
+        .catch((e) => update(g, (r) => ({ ...r, starting: false, failed: true, error: String(e) })));
+    },
+
+    /** Follows a chat In Agentry the registry has created, or one this
+     *  account already had (at start, or as a run setup opened). The host
+     *  is asked for every frame it still holds. */
+    followHosted(v: HostedChatStart, s: S | null, card: boolean): void {
+      listen();
+      if (c && c.kind === "hosted" && c.run?.id === v.run.id && !c.over) {
+        if (!card) store.show();
+        return;
+      }
+      if (c && !c.over) return;
+      const g = begin({
+        ...blank("hosted", v.run.ref, v.task || v.run.task || "", v.opening),
+        registry: v.registry, run: v.run, terms: v.terms, hosted: { status: v.run.status, startedAt: v.run.startedAt, session: v.run.session },
+      }, s, card);
+      deps.replay().catch((e) => update(g, (r) => ({ ...r, error: String(e) })));
+    },
+
+    /** Sends the agent one message. */
+    async send(text: string): Promise<void> {
+      if (!c || c.over || c.starting || working(c) || !text.trim()) return;
+      const g = gen;
+      const hosted = c.kind === "hosted";
+      update(g, (r) => ({ ...r, sending: true, error: null }));
+      try {
+        await (hosted ? deps.sendHosted(text) : deps.sendLocal(text));
+        update(g, (r) => ({ ...r, sending: false }));
+      } catch (e) {
+        update(g, (r) => ({ ...r, sending: false, error: String(e) }));
+        throw e;
+      }
+    },
+
+    /** Gives the agent files a native picker returned (D-030). */
+    async addFiles(paths: string[]): Promise<void> {
+      if (!c || c.over || paths.length === 0) return;
+      const g = gen;
+      const hosted = c.kind === "hosted";
+      update(g, (r) => ({ ...r, adding: true }));
+      try {
+        for (const p of paths) await (hosted ? deps.addHosted(p) : deps.addLocal(p));
+        update(g, (r) => ({ ...r, adding: false }));
+      } catch (e) {
+        update(g, (r) => ({ ...r, adding: false, error: String(e) }));
+      }
+    },
+
+    /** Finish asks the agent for its final result, then ends; Stop ends
+     *  now without one. On this computer the envelope comes back; In
+     *  Agentry the output comes down and the run's last word follows. */
+    async end(finish: boolean): Promise<void> {
+      if (!c || c.over || c.ending || c.starting) return;
+      const g = gen;
+      const hosted = c.kind === "hosted";
+      update(g, (r) => ({ ...r, ending: true, error: null }));
+      if (hosted) {
+        try {
+          await deps.endHosted(finish);
+        } catch (e) {
+          update(g, (r) => ({ ...r, ending: false, error: String(e) }));
+        }
+        return;
+      }
+      try {
+        const res = await deps.endLocal(finish);
+        update(g, (r) => ({ ...r, ending: false, result: res }));
+      } catch (e) {
+        update(g, (r) => ({ ...r, ending: false, error: String(e) }));
+      }
+    },
+
+    /** Opens the flow as the dialog. */
+    show(): void {
+      shown = true;
+      asCard = false;
+      raised++;
+      notify();
+    },
+
+    /** Dismiss, once the chat is over: the flow goes, and the app forgets
+     *  it. */
+    dismiss(): void {
+      if (c && !c.over) return;
+      if (c?.run) deps.forget(c.run.id);
+      if (c?.result) deps.forget(c.result.runId);
+      gen++;
+      c = null;
+      setup = null;
+      shown = false;
+      asCard = false;
+      notify();
+    },
+  };
+  return store;
 }

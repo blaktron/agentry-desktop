@@ -19,6 +19,7 @@ import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main, trust } from "../wailsjs/go/models";
 import { type RunStoreState, createRunStore } from "./localRun";
 import { type HostedRunState, createHostedRunStore } from "./hostedRun";
+import { type ChatStoreState, createChatStore } from "./sessionChat";
 import type { RunForm } from "./runSetup";
 
 /** What reopens the run setup as the person left it. */
@@ -101,22 +102,36 @@ export function useHostedRun(): HostedState {
 export const startHostedRun = (s: RunSetup, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> =>
   hostedStore.start(s, s.panel.registry, call);
 
-/** Follows this account's run In Agentry already in flight, as its card:
- *  App asks as it starts. */
-export const attachHostedRun = (registry: string): Promise<boolean> =>
-  hostedStore.attach(registry, () => RunAPI.AttachHostedRunAtStart(registry));
+/** Follows what an attach found In Agentry: a chat by the chat's store, a
+ *  run by the run's (agentry-desktop#467). */
+async function followFound(registry: string, found: main.HostedStartView, card: boolean): Promise<boolean> {
+  if (found.run?.mode === "interactive") {
+    chatStore.followHosted({ registry, run: found.run, terms: null, opening: "", task: found.run.task ?? "" }, null, card);
+    return true;
+  }
+  return hostedStore.attach(registry, async () => found, card);
+}
 
-/** Follows, as its card, a run In Agentry a run setup found in flight as it
- *  opened (RunAPI.AttachHostedRun): one started elsewhere since the app
- *  started. A run already followed stays as it is. */
+/** Follows this account's run or chat In Agentry already in flight, as its
+ *  card: App asks as it starts. */
+export async function attachHostedRun(registry: string): Promise<boolean> {
+  const found = await RunAPI.AttachHostedRunAtStart(registry).catch(() => null);
+  return found ? followFound(registry, found, true) : false;
+}
+
+/** Follows, as its card, a run or chat In Agentry a run setup found in
+ *  flight as it opened (RunAPI.AttachHostedRun): one started elsewhere since
+ *  the app started. One already followed stays as it is. */
 export const followHostedRunFound = (registry: string, found: main.HostedStartView): Promise<boolean> =>
-  hostedStore.attach(registry, async () => found);
+  followFound(registry, found, true);
 
-/** Follows again, in its dialog, a run the app lost touch with, on the
- *  registry it was followed on. */
-export function followHostedRunAgain(): Promise<boolean> {
-  const registry = hostedStore.state().registry;
-  return hostedStore.attach(registry, () => RunAPI.AttachHostedRunAtStart(registry), false);
+/** Follows again, in its dialog, a run or chat the app lost touch with, on
+ *  the registry it was followed on. */
+export async function followHostedRunAgain(registry = hostedStore.state().registry): Promise<boolean> {
+  const call = () => RunAPI.AttachHostedRunAtStart(registry);
+  const found = await call().catch((e) => { throw e; });
+  if (found.run?.mode === "interactive") return followFound(registry, found, false);
+  return hostedStore.attach(registry, async () => found, false);
 }
 
 /** Asks Agentry to cancel the run. */
@@ -133,5 +148,58 @@ export const dismissHostedRun = (): void => hostedStore.dismiss();
 export function backToHostedSetup(): RunSetup | null {
   const s = hostedStore.state().setup;
   hostedStore.dismiss();
+  return s;
+}
+
+// The chat the app follows (agentry-desktop#467), on this computer or In
+// Agentry: its store starts the session and owns its events, so the chat's
+// dialog and card only draw it, and collects a chat the engine ended whether
+// or not anything shows it. One chat per app (D-017).
+const chatStore = createChatStore<RunSetup>({
+  on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
+  sendLocal: (text) => RunAPI.SendTurn(text),
+  addLocal: (path) => RunAPI.AddSessionInput(path),
+  endLocal: (finish) => RunAPI.EndSession(finish),
+  sendHosted: (text) => RunAPI.SendHostedTurn(text),
+  addHosted: (path) => RunAPI.AddHostedSessionFile(path),
+  endHosted: (finish) => RunAPI.EndHostedSession(finish),
+  replay: () => RunAPI.ReplayHostedSession(),
+  forget: (runId) => void RunAPI.ForgetRun(runId),
+});
+
+export type ChatState = ChatStoreState<RunSetup>;
+
+/** The chat the app follows, re-read whenever it changes. */
+export function useChat(): ChatState {
+  const [, bump] = useState(0);
+  useEffect(() => chatStore.subscribe(() => bump((n) => n + 1)), []);
+  return chatStore.state();
+}
+
+/** Starts a chat on this computer by call (RunAPI.StartSession): its dialog
+ *  opens at once with the start under way inside it. */
+export function startLocalChat(s: RunSetup, ref: string, task: string, opening: string, call: () => Promise<unknown>): void {
+  chatStore.startLocal(s, ref, task, opening, call);
+}
+
+/** Follows, in its dialog, a chat In Agentry the registry has just created. */
+export function followHostedChat(s: RunSetup, run: main.HostedRunView, terms: main.HostedSessionOfferView | null, opening: string, task: string): void {
+  chatStore.followHosted({ registry: s.panel.registry, run, terms, opening, task }, s, false);
+}
+
+/** Whether a chat is starting, going or ending. */
+export const chatLive = (): boolean => chatStore.live();
+
+export const sendChat = (text: string): Promise<void> => chatStore.send(text);
+export const addChatFiles = (paths: string[]): Promise<void> => chatStore.addFiles(paths);
+export const endChat = (finish: boolean): Promise<void> => chatStore.end(finish);
+export const showChat = (): void => chatStore.show();
+export const dismissChat = (): void => chatStore.dismiss();
+
+/** Back to the setup from a chat that is over: it is dismissed, and its
+ *  setup, if it had one, is returned to open again as it was. */
+export function backToChatSetup(): RunSetup | null {
+  const s = chatStore.state().setup;
+  chatStore.dismiss();
   return s;
 }

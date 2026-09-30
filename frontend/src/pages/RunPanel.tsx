@@ -11,24 +11,20 @@
 // recap, the output folder, Advanced, the consents and Run). A step the
 // release does not need is left out. Every gate is where it was: the
 // blockers the Run button reads, the native consent dialog on Run
-// (runGates), and paths from native pickers only (D-030). Once a run
-// starts, the steps give way to the run itself: the log, the chat or the
-// hosted run's progress, and the result.
+// (runGates), and paths from native pickers only (D-030). Once a run or a
+// chat starts, this setup hands it to its flow above the pages (RunFlow,
+// HostedRunFlow, ChatFlow; agentry-desktop#465–#467) and closes: it shows
+// only the setup, a refusal, and the missing-secret ask.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
-import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
+import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
-import { followHostedRunFound, startHostedRun, startLocalRun, useHostedRun } from "../runs";
-import { headlineOf } from "../localRun";
-import { hostedActive as hostedMoving, hostedHeadline, hostedTone } from "../hostedRun";
-import SessionChat from "./SessionChat";
-import { HostedCredits, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
-import { LocalRunDetails, RunResultView } from "./RunResult";
+import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
+import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";
@@ -77,7 +73,6 @@ export default function RunPanel({
   const [task, setTask] = useState(f0?.task ?? "");
   const [intakeValues, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
   const [mode, setMode] = useState(f0?.mode ?? "");
-  const [sessionActive, setSessionActive] = useState(false);
   const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
   // file intake question may pick one of these (plan §4, Details), and a
@@ -141,10 +136,7 @@ export default function RunPanel({
   // run's flow, from Run until Go reports that it has begun (the native
   // consent comes first), when this setup closes (agentry-desktop#465).
   const [running, setRunning] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
-  const [result, setResult] = useState<main.RunResultView | null>(null);
   const [runErr, setRunErr] = useState<string | null>(null);
-  const logRef = useRef<HTMLPreElement | null>(null);
 
   // In Agentry (hosted runs M6): whether the mode is offered here, the run
   // the registry is executing, and a refused create rendered as a sentence.
@@ -152,7 +144,6 @@ export default function RunPanel({
   // Whether the offer has been read (or failed to be): until then Run
   // defaults' fallback sentence has nothing to say.
   const [hostedKnown, setHostedKnown] = useState(false);
-  const [hostedRun, setHostedRun] = useState<main.HostedRunView | null>(null);
   const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -191,17 +182,6 @@ export default function RunPanel({
       .catch((e) => setProfileErr(String(e)));
   }, [registry, agentRef]);
 
-  // A chat's log, while this setup's own chat is under way. A run on this
-  // computer is followed by the run's flow, by its id (runner:run-line), so
-  // this setup never shows another run's lines (agentry-desktop#465).
-  useEffect(() => {
-    if (!sessionActive) return;
-    const off = EventsOn("runner:run-log", (line: string) => {
-      setLog((prev) => [...prev, line]);
-    });
-    return off;
-  }, [sessionActive]);
-
   // In Agentry: is the mode offered for this release, and does this
   // account already have a run the panel should reattach to (D11)?
   useEffect(() => {
@@ -229,14 +209,9 @@ export default function RunPanel({
           .then((saved) => RunAPI.AttachHostedRun(registry, outDir.trim() || saved))
           .then((a) => {
           if (!live || !a.run) return;
-          // A run In Agentry is followed above the pages, in its card
-          // (agentry-desktop#466); a chat stays in this panel.
-          if (a.run.mode !== "interactive") {
-            void followHostedRunFound(registry, a);
-            return;
-          }
-          setMode("hosted-session");
-          setHostedRun(a.run);
+          // A run or a chat In Agentry is followed above the pages, in its
+          // card (agentry-desktop#466, #467).
+          void followHostedRunFound(registry, a);
         });
       })
       .catch(() => { setHosted(null); setHostedKnown(true); });
@@ -246,17 +221,6 @@ export default function RunPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, agentRef]);
 
-  useEffect(() => {
-    // A chat In Agentry's state; a run's is the run's flow's (runs.ts).
-    const off = EventsOn("runner:hosted-run", (v: main.HostedRunView) => {
-      if (v.mode === "interactive") setHostedRun(v);
-    });
-    return off;
-  }, []);
-
-  useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log]);
 
   // Fail closed on provenance: until the page's verification resolves,
   // the Run button stays off. Unsigned needs the explicit checkbox (the
@@ -287,7 +251,7 @@ export default function RunPanel({
   // Where to run's default, applied once the offer is known and before the
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
-    if (modeChosen.current || initialMode || hostedRun || !profile) return;
+    if (modeChosen.current || initialMode || !profile) return;
     const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned);
     if (allowed && !inAgentry) {
       byDefault.current = true;
@@ -296,21 +260,26 @@ export default function RunPanel({
       byDefault.current = false;
       setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
     }
-  }, [defaults, hosted, unscanned, profile, hostedRun, initialMode, mode]);
+  }, [defaults, hosted, unscanned, profile, initialMode, mode]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
-  const hostedActive = !!hostedRun && hostedMoving(hostedRun);
-  // The run In Agentry the app follows above the pages: the registry runs
-  // one per account, so while it moves, or a start waits for the
-  // registry's answer, no setup starts another (agentry-desktop#466).
+  // The run and the chat the app follows above the pages: the registry runs
+  // one per account and this app follows one at a time, so while one In
+  // Agentry moves, or a start waits for the registry's answer, no setup
+  // starts another there; and the app keeps one chat (D-017;
+  // agentry-desktop#466, #467).
   const followed = useHostedRun();
-  const followedMoving = followed.starting || (!!followed.run && !followed.run.final);
+  const followedChat = useChat().chat;
+  const chatLive = !!followedChat && !followedChat.over;
+  const followedMoving = followed.starting || (!!followed.run && !followed.run.final) || (chatLive && followedChat.kind === "hosted");
   // What still stands between this form and a run, each in a sentence the
   // line above the button shows (agentry-desktop#167): the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
-  const busy = running || sessionActive || (inAgentry && (starting || hostedActive));
+  const busy = running || (inAgentry && starting);
   const blockers: string[] = [];
-  if (inAgentry && followedMoving) {
-    blockers.push("A run In Agentry is under way, in its card in the corner. Agentry runs one at a time for an account: wait for it to end, or cancel it there.");
+  if ((mode === "interactive" || sessionInAgentry) && chatLive) {
+    blockers.push("A chat is open, in its card in the corner. This app keeps one chat at a time: finish it there, then start another.");
+  } else if (inAgentry && followedMoving) {
+    blockers.push("A run or a chat In Agentry is under way, in its card in the corner. Agentry runs one at a time for an account: wait for it to end, or end it there.");
   } else if (inAgentry) {
     if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
     else if (!offer?.available) blockers.push(offer?.reason || "A run In Agentry is not available for this release.");
@@ -377,15 +346,10 @@ export default function RunPanel({
   // known) falls back to the first one rather than to nothing.
   const at = Math.max(0, steps.indexOf(stepKey));
   const step = steps[at];
-  // Once a run is under way, or has left something to show, the panel is
-  // the run, not the setup.
-  const started = sessionActive || !!result || log.length > 0 || (inAgentry && !!hostedRun);
-
-  // Focus follows the step, and returns to it when the run view gives way
-  // to the setup again.
+  // Focus follows the step.
   useEffect(() => {
-    if (moved.current && !started) stepHeading.current?.focus();
-  }, [step, started]);
+    if (moved.current) stepHeading.current?.focus();
+  }, [step]);
 
   function goTo(i: number) {
     moved.current = true;
@@ -426,17 +390,6 @@ export default function RunPanel({
     goTo(at + 1);
   }
 
-  // Back to the setup from a finished run, to change something and run it
-  // again. A hosted run in flight keeps the panel on the run.
-  function setUpAgain() {
-    setResult(null);
-    setLog([]);
-    setRunErr(null);
-    if (!hostedActive) setHostedRun(null);
-    setHostedRefusal(null);
-    moved.current = true;
-    setStepKey("review");
-  }
 
   const defaultOutHint = useMemo(
     () => `~/Downloads/agentry-out/${ns}-${name}-<runid>`,
@@ -505,11 +458,30 @@ export default function RunPanel({
     return answers;
   }
 
-  function startSession() {
-    setRunErr(null);
-    setResult(null);
-    setLog([]);
-    setSessionActive(true);
+  // The answers as the run's own calls take them.
+  function limits(): { timeout: number; turns: number } {
+    return {
+      timeout: timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0),
+      turns: maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0),
+    };
+  }
+
+  // A chat on this computer: the chat's store starts it and its dialog opens
+  // at once, with the start (the native consent, the sandbox) under way
+  // inside it, and this setup closes (agentry-desktop#467). Go's refusal
+  // shows in that dialog, with Back to the setup.
+  function startLocalSession() {
+    const { timeout, turns } = limits();
+    try {
+      startLocalChat(
+        { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
+        agentRef, task, profile?.opening ?? "",
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, timeout, turns, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached),
+      );
+      onClose();
+    } catch (e) {
+      setRunErr(String(e));
+    }
   }
 
   // In Agentry: the inputs go up, the run is created, and the panel follows
@@ -518,22 +490,25 @@ export default function RunPanel({
   async function runInAgentry() {
     setStarting(true);
     setRunErr(null);
-    setResult(null);
     setHostedRefusal(null);
-    setHostedRun(null);
-    setLog([]);
     try {
+      const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
       if (sessionInAgentry) {
+        // A chat In Agentry is followed above the pages once the registry
+        // has created it, and this setup closes (agentry-desktop#467).
         const started = await RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
         if (started.refusal) setHostedRefusal(started);
-        else setHostedRun(started.run ?? null);
+        else if (started.run) {
+          followHostedChat(setup, started.run, hosted?.session ?? null, profile?.opening ?? "", task);
+          onClose();
+        }
         return;
       }
       // A run is followed above the pages once the registry has created
       // it, and this setup closes (agentry-desktop#466); a refusal stays
       // here, with the missing-secret ask before any run exists.
       const started = await startHostedRun(
-        { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
+        setup,
         () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached),
       );
       if (started.refusal) setHostedRefusal(started);
@@ -574,15 +549,12 @@ export default function RunPanel({
       return;
     }
     if (mode === "interactive") {
-      startSession();
+      startLocalSession();
       return;
     }
     setRunning(true);
     setRunErr(null);
-    setResult(null);
-    setLog([]);
-    const t = timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0);
-    const mt = maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0);
+    const { timeout: t, turns: mt } = limits();
     const form = currentForm();
     try {
       // The run's flow follows it from here: this setup closes once Go
@@ -602,827 +574,735 @@ export default function RunPanel({
   }
 
   const runLabel = sessionInAgentry
-    ? starting ? "Starting…" : hostedActive ? "In a session In Agentry…" : "Start session In Agentry"
+    ? starting ? "Starting…" : "Start session In Agentry"
     : inAgentry
-    ? starting ? "Starting…" : hostedActive ? "Running In Agentry…" : "Run In Agentry"
+    ? starting ? "Starting…" : "Run In Agentry"
     : running ? "Starting…" : mode === "interactive" ? "Start session" : "Run";
   const modeWord = sessionInAgentry ? "an interactive session In Agentry" : inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
   const answered = (profile?.intake ?? []).filter((q) => q.type !== "secret");
 
   return (
-    <div className="modal-backdrop" onClick={() => !running && !sessionActive && onClose()}>
+    <div className="modal-backdrop" onClick={() => !running && onClose()}>
       <div className="modal modal-wide run-panel" role="dialog" aria-modal="true" aria-label={`Run ${agentRef}`} onClick={(e) => e.stopPropagation()}>
         <div className="spread">
           <h2 style={{ margin: 0 }}>Run {agentRef}</h2>
-          <Button onClick={onClose} disabled={running || sessionActive} title={running || sessionActive ? "A run is in progress" : ""} aria-label="Close">✕</Button>
+          <Button onClick={onClose} disabled={running} title={running ? "A run is starting" : ""} aria-label="Close">✕</Button>
         </div>
 
-        {!started && (
-          <ol className="run-steps" aria-label="Steps">
-            {steps.map((k, i) => (
-              <li key={k} aria-current={i === at ? "step" : undefined} className={i === at ? "active" : i < at ? "done" : ""}>
-                <span className={`wizard-dot${i === at ? " active" : ""}${i < at ? " done" : ""}`} aria-hidden />
-                <span>{STEP_LABEL[k]}</span>
-              </li>
-            ))}
-          </ol>
-        )}
+        <ol className="run-steps" aria-label="Steps">
+          {steps.map((k, i) => (
+            <li key={k} aria-current={i === at ? "step" : undefined} className={i === at ? "active" : i < at ? "done" : ""}>
+              <span className={`wizard-dot${i === at ? " active" : ""}${i < at ? " done" : ""}`} aria-hidden />
+              <span>{STEP_LABEL[k]}</span>
+            </li>
+          ))}
+        </ol>
 
-        {!started && (
-          <section className="run-step" aria-labelledby="run-step-heading">
-            <h3 id="run-step-heading" ref={stepHeading} tabIndex={-1} className="run-step-heading">
-              Step {at + 1} of {steps.length}: {STEP_LABEL[step]}
-            </h3>
+        <section className="run-step" aria-labelledby="run-step-heading">
+          <h3 id="run-step-heading" ref={stepHeading} tabIndex={-1} className="run-step-heading">
+            Step {at + 1} of {steps.length}: {STEP_LABEL[step]}
+          </h3>
 
-            {step === "start" && (
-              <>
-                <h4>What it does</h4>
-                {/* The author's guide (manifest v2, DEV-141; agentry-desktop#228)
-                    speaks first when the release has one: the overview is
-                    markdown under the same rules as a run's output, and the
-                    prepare list is shown as text. Without one, the summary and
-                    the derived list stand in. */}
-                {guide?.overview ? (
-                  <AgentMarkdown text={guide.overview} />
-                ) : (
-                  <p className="selectable">{summary || (local
-                    ? "It was installed from a folder on this computer: its summary and README are in that folder."
-                    : "Its author wrote no summary. Its README is on its page.")}</p>
-                )}
-                <h4>What to have ready</h4>
-                <ul className="run-need">
-                  {(guide && guide.prepare.length > 0
-                    ? guide.prepare
-                    : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0, files: guide?.files })
-                  ).map((line, i) => <li key={i}><GuideText text={line} /></li>)}
-                </ul>
-                <h4>Where to run it</h4>
-                {/* Run mode (plan §7): the modes the release declares, plus In
-                    Agentry where the registry runs it (hosted-runs.md §4.7). */}
-                {profile && (profile.modes ?? []).length > 0 && (
-                  <>
-                    <div className="row" style={{ gap: 14 }}>
-                      {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
-                        <label key={m} className="check-row" style={{ margin: 0 }}>
-                          <input type="radio" name="run-mode" checked={mode === m} onChange={() => chooseMode(m)} disabled={running || sessionActive || hostedActive} />
-                          <span>
-                            <strong>{m}</strong>{" "}
-                            <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
-                          </span>
-                        </label>
-                      ))}
-                      {hosted?.offered && (
-                        <label className="check-row" style={{ margin: 0 }}>
-                          <input
-                            type="radio" name="run-mode" checked={mode === "hosted"} onChange={() => chooseMode("hosted")}
-                            disabled={running || sessionActive || !hosted.available || unscanned}
-                          />
-                          <span>
-                            <strong>In Agentry</strong>{" "}
-                            <span className="muted">— runs on the platform, autonomously; nothing runs on this machine</span>
-                          </span>
-                        </label>
-                      )}
-                      {/* Talk to it In Agentry (agentry-desktop#403): offered only
-                          where the registry runs sessions and says this account's
-                          payer may start one; a Standard payer sees why. */}
-                      {hosted?.session?.offered && (
-                        <label className="check-row" style={{ margin: 0 }}>
-                          <input
-                            type="radio" name="run-mode" checked={sessionInAgentry} onChange={() => chooseMode("hosted-session")}
-                            disabled={running || sessionActive || !hosted.session.available || unscanned}
-                          />
-                          <span>
-                            <strong>Talk to it In Agentry</strong>{" "}
-                            <span className="muted">— a chat with it running on the platform; nothing runs on this machine</span>
-                          </span>
-                        </label>
-                      )}
-                    </div>
-                    {(mode === "interactive" || sessionInAgentry) && (
-                      <p className="muted small">
-                        Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
-                      </p>
+          {step === "start" && (
+            <>
+              <h4>What it does</h4>
+              {/* The author's guide (manifest v2, DEV-141; agentry-desktop#228)
+                  speaks first when the release has one: the overview is
+                  markdown under the same rules as a run's output, and the
+                  prepare list is shown as text. Without one, the summary and
+                  the derived list stand in. */}
+              {guide?.overview ? (
+                <AgentMarkdown text={guide.overview} />
+              ) : (
+                <p className="selectable">{summary || (local
+                  ? "It was installed from a folder on this computer: its summary and README are in that folder."
+                  : "Its author wrote no summary. Its README is on its page.")}</p>
+              )}
+              <h4>What to have ready</h4>
+              <ul className="run-need">
+                {(guide && guide.prepare.length > 0
+                  ? guide.prepare
+                  : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0, files: guide?.files })
+                ).map((line, i) => <li key={i}><GuideText text={line} /></li>)}
+              </ul>
+              <h4>Where to run it</h4>
+              {/* Run mode (plan §7): the modes the release declares, plus In
+                  Agentry where the registry runs it (hosted-runs.md §4.7). */}
+              {profile && (profile.modes ?? []).length > 0 && (
+                <>
+                  <div className="row" style={{ gap: 14 }}>
+                    {(["autonomous", "interactive"] as const).filter((m) => profile.modes.includes(m)).map((m) => (
+                      <label key={m} className="check-row" style={{ margin: 0 }}>
+                        <input type="radio" name="run-mode" checked={mode === m} onChange={() => chooseMode(m)} disabled={running} />
+                        <span>
+                          <strong>{m}</strong>{" "}
+                          <span className="muted">{m === "autonomous" ? "— runs from its files and ends" : "— a chat in this window under exactly the same controls"}</span>
+                        </span>
+                      </label>
+                    ))}
+                    {hosted?.offered && (
+                      <label className="check-row" style={{ margin: 0 }}>
+                        <input
+                          type="radio" name="run-mode" checked={mode === "hosted"} onChange={() => chooseMode("hosted")}
+                          disabled={running || !hosted.available || unscanned}
+                        />
+                        <span>
+                          <strong>In Agentry</strong>{" "}
+                          <span className="muted">— runs on the platform, autonomously; nothing runs on this machine</span>
+                        </span>
+                      </label>
                     )}
-                    {fallback && !inAgentry && <p className="muted small" style={{ margin: "4px 0" }}>{fallback}</p>}
-                    {hosted && <HostedUnavailable hosted={hosted} />}
-                    {hosted && <SessionUnavailable registry={registry} hosted={hosted} />}
-                    {sessionInAgentry && hosted && (
-                      <>
-                        <p className="muted small" style={{ marginBottom: 2 }}>
-                          The task, your answers, the input files and each message go to {registry}, which runs this release
-                          under the same contract, relays the conversation to this window and sends back the outputs and the
-                          receipt, with the transcript, when the session ends. This machine needs no docker engine and no
-                          operator policy for it.
-                        </p>
-                        <SessionCredits hosted={hosted} />
-                        <HostedSecretsNote hosted={hosted} />
-                      </>
+                    {/* Talk to it In Agentry (agentry-desktop#403): offered only
+                        where the registry runs sessions and says this account's
+                        payer may start one; a Standard payer sees why. */}
+                    {hosted?.session?.offered && (
+                      <label className="check-row" style={{ margin: 0 }}>
+                        <input
+                          type="radio" name="run-mode" checked={sessionInAgentry} onChange={() => chooseMode("hosted-session")}
+                          disabled={running || !hosted.session.available || unscanned}
+                        />
+                        <span>
+                          <strong>Talk to it In Agentry</strong>{" "}
+                          <span className="muted">— a chat with it running on the platform; nothing runs on this machine</span>
+                        </span>
+                      </label>
                     )}
-                    {mode === "hosted" && hosted && (
-                      <>
-                        <p className="muted small" style={{ marginBottom: 2 }}>
-                          The task, your answers and the input files go to {registry}, which runs this release under the same
-                          contract and sends back the outputs and the receipt; it keeps no log of the run. This machine needs no
-                          docker engine and no operator policy for it.
-                        </p>
-                        <HostedCredits hosted={hosted} />
-                        <HostedSecretsNote hosted={hosted} />
-                        {unsigned && (
-                          <Notice tone="warn">
-                            This registry published no attestation for this version. A run In Agentry verifies the release
-                            itself before executing it, so this one is refused there and the credits it held are refunded.
-                          </Notice>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-                {/* Machine readiness (§P1) — the local modes only; a run In
-                    Agentry needs nothing from this machine. */}
-                {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
-                {setup && !setup.dockerOk && !inAgentry && (
-                  <div className="error-box selectable">
-                    Docker is not available — a QuickAgent run on this machine needs a docker engine.
-                    {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
-                    {hosted?.offered ? ", or run this release In Agentry" : ""}.
                   </div>
-                )}
-                {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
-                  <Notice tone="warn">
-                    The gateway/harness/runner images are not all present yet — this run will install
-                    them first (it can take a few minutes), or prepare them once in Settings → Provider settings.
-                  </Notice>
-                )}
-                {profile && profile.capabilityLines.length > 0 && (
-                  <>
-                    <h4>What it may reach</h4>
-                    <ul className="run-need selectable">
-                      {profile.capabilityLines.map((l) => <li key={l}>{l}</li>)}
-                    </ul>
-                  </>
-                )}
-                {unscanned && hosted?.offered && (
-                  <p className="muted small">A run In Agentry is not offered for this release: the registry admitted it without a scan.</p>
-                )}
-                <details className="advanced">
-                  <summary className="muted small">The declared contract, with its digest</summary>
-                  {/* Declared contract: what a Run click accepts. */}
-                  {profile && (
+                  {(mode === "interactive" || sessionInAgentry) && (
+                    <p className="muted small">
+                      Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
+                    </p>
+                  )}
+                  {fallback && !inAgentry && <p className="muted small" style={{ margin: "4px 0" }}>{fallback}</p>}
+                  {hosted && <HostedUnavailable hosted={hosted} />}
+                  {hosted && <SessionUnavailable registry={registry} hosted={hosted} />}
+                  {sessionInAgentry && hosted && (
                     <>
-                      <Card className="selectable">
-                        <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
-                        <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
-                        {profile.capabilityLines.map((l) => (
-                          <div key={l} className="mono small">{l}</div>
-                        ))}
-                      </Card>
+                      <p className="muted small" style={{ marginBottom: 2 }}>
+                        The task, your answers, the input files and each message go to {registry}, which runs this release
+                        under the same contract, relays the conversation to this window and sends back the outputs and the
+                        receipt, with the transcript, when the session ends. This machine needs no docker engine and no
+                        operator policy for it.
+                      </p>
+                      <SessionCredits hosted={hosted} />
+                      <HostedSecretsNote hosted={hosted} />
                     </>
                   )}
-                </details>
-              </>
-            )}
-
-            {step === "files" && (
-              <>
-                {guide?.files && (
-                  <p>
-                    <GuideText text={guide.files} />
-                  </p>
-                )}
-                <p className="muted small">
-                  Add the files the task is about. They are provided read-only under{" "}
-                  <span className="mono">/inputs</span>, and the QuickAgent reads them with{" "}
-                  <span className="mono">list_inputs</span> and <span className="mono">read_input</span>. If it needs none, go on
-                  without any.
-                  {inAgentry && hosted && (
-                    <> In Agentry they are uploaded when the run starts: at most {hosted.maxInputFiles} files,{" "}
-                    {Math.round(hosted.maxInputBytes / (1024 * 1024))} MB together.</>
-                  )}
-                </p>
-                {inputs.length > 0 ? (
-                  <div>
-                    {inputs.map((p) => (
-                      <div key={p} className="row" style={{ marginBottom: 4 }}>
-                        <span className="mono small grow selectable">{p}</span>
-                        <Button
-                          onClick={() => {
-                            setInputs(inputs.filter((x) => x !== p));
-                            setPickedFiles(pickedFiles.filter((x) => x !== p));
-                          }}
-                          aria-label={`Remove ${p}`}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted small">No files chosen.</p>
-                )}
-                <div className="row">
-                  <Button onClick={addFiles}>Add files…</Button>
-                  <Button onClick={addFolder}>Add folder…</Button>
-                </div>
-              </>
-            )}
-
-            {step === "knowledge" && (
-              <>
-                {accepts && (
-                  <p className="selectable">
-                    <strong>This release asks:</strong> {accepts.prompt}
-                    {accepts.required ? " (required)" : ""}
-                  </p>
-                )}
-                {!inAgentry && ships.length > 0 && (
-                  <p className="muted small">
-                    The release ships {ships.length === 1 ? "a knowledge pack" : "knowledge packs"} of its own:{" "}
-                    {ships.map((n, i) => (
-                      <Fragment key={n}>
-                        {i > 0 ? ", " : ""}
-                        <span className="mono">{n}</span>
-                      </Fragment>
-                    ))}
-                    . {ships.length === 1 ? "It is" : "Each is"} mounted read-only at <span className="mono">/knowledge/&lt;name&gt;</span> from the release&apos;s own
-                    files, held to the digest of the archive this computer verified, in every run; the packs below are yours to add
-                    beside them.
-                  </p>
-                )}
-                {!inAgentry && (packs?.length ?? 0) === 0 && (
-                  <p className="muted small">No knowledge pack is kept on this computer. Make one on the Knowledge page.</p>
-                )}
-                {inAgentry ? (
-                  <p className="muted small">
-                    Attach knowledge packs Agentry keeps for your account. Each is mounted read-only at{" "}
-                    <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, on
-                    Agentry&apos;s sandbox host, from the copy Agentry keeps and has scanned, and the QuickAgent reads it
-                    with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
-                    <span className="mono">knowledge_read</span>; commands the release declares run in that container too,
-                    so they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack
-                    and its digest.
-                    {hosted?.maxPacks ? ` A run In Agentry attaches at most ${hosted.maxPacks}.` : ""}
-                    {accepts?.required ? "" : " A run needs none."}
-                  </p>
-                ) : (
-                  <p className="muted small">
-                    Attach knowledge packs kept on this computer. Each is mounted read-only at{" "}
-                    <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the QuickAgent
-                    reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
-                    <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
-                    they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
-                    its digest.{accepts?.required ? "" : " A run needs none."}
-                  </p>
-                )}
-                <div className="knowledge-attach-list">
-                {(packs ?? []).map((p) => (
-                  <label key={`${p.name} ${p.local ? "here" : "agentry"}`} className="knowledge-attach">
-                    <input
-                      type="checkbox"
-                      disabled={!canAttach(p)}
-                      checked={canAttach(p) && attach.includes(p.name)}
-                      onChange={(e) => setAttach(e.target.checked ? [...attach, p.name] : attach.filter((n) => n !== p.name))}
-                    />
-                    <span className="grow">
-                      <span className="row nowrap knowledge-attach-head">
-                        <span className="mono">{p.name}</span>
-                        <span className={`badge ${scanTone(p)}`.trim()}>{p.scan}</span>
-                      </span>
-                      <span className="muted small" style={{ display: "block" }}>
-                        {pagesOf(p.pages)} · {fmtBytes(p.bytes)} ·{" "}
-                        {inAgentry
-                          ? inAgentryLine(p)
-                          : !attachable(p)
-                            ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
-                            : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
-                      </span>
-                      {inAgentry && p.local && !p.shared && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
-                        <Button
-                          variant="link"
-                          disabled={uploading !== null}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            void uploadForAgentry(p.name);
-                          }}
-                        >
-                          {uploading === p.name ? "Uploading…" : "Upload to Agentry"}
-                        </Button>
-                      )}
-                    </span>
-                  </label>
-                ))}
-                </div>
-                {uploadNote && <p className="muted small" role="status">{uploadNote}</p>}
-              </>
-            )}
-
-            {step === "tools" && (
-              <>
-                {(mcp?.declaredServers?.length ?? 0) > 0 && (
-                  <>
-                    <p className="muted small">
-                      The MCP servers this release declares. They start with the run, serve only the tools listed, and stop
-                      with it.
-                    </p>
-                    <DeclaredServersTable servers={mcp?.declaredServers} />
-                  </>
-                )}
-                {/* In Agentry the keys are the account's secrets there, asked
-                    for at the start (agentry-desktop#300); the profile below
-                    is this machine's. */}
-                {inAgentry && hosted && profile && profile.declaredSecrets.length > 0 && (
-                  <>
-                    <h4>Keys</h4>
-                    <HostedSecretsNote hosted={hosted} />
-                  </>
-                )}
-                {/* Guided MCP-profile setup (§P3). */}
-                {!inAgentry && profile && profile.declaredSecrets.length > 0 && (
-                  <>
-                    <h4>Keys</h4>
-                    {!formOpen && profile.exists && (
-                      <div className="row">
-                        <span className="muted small">
-                          Stored for this exact release{profile.storedSecretNames.length > 0
-                            ? `: ${profile.storedSecretNames.join(", ")}`
-                            : " (all resolve from the environment at run time)"}
-                          {" · "}{profile.keep ? "kept after runs" : "removed when a run completes"}
-                        </span>
-                        <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</Button>
-                      </div>
-                    )}
-                    {formOpen && (
-                      <Card>
-                        <p className="muted small" style={{ marginTop: 0 }}>
-                          This release declares the keys below. They are stored once per exact release
-                          (0600, this machine only), injected only into the run&apos;s tool container, and
-                          never shown or logged. Leave a field empty to resolve it from the environment
-                          at run time.
-                        </p>
-                        {profile.declaredSecrets.map((s) => (
-                          <div key={s} className="run-key">
-                            <span className="mono">{s}</span>
-                            <input
-                              type="password"
-                              autoComplete="off"
-                              aria-label={s}
-                              placeholder="empty = resolve from the environment at run time"
-                              value={formValues[s] ?? ""}
-                              onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
-                            />
-                            {/* The author's help for this key: where to create
-                                it, which access it needs, as markdown under
-                                the output reader's rules (DEV-167). */}
-                            {connectHelp(guide?.connect, s) && (
-                              <div className="run-key-help">
-                                <AuthorHelp name={s} help={connectHelp(guide?.connect, s)} />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        <label className="check-row">
-                          <input type="checkbox" checked={formKeep} onChange={(e) => setFormKeep(e.target.checked)} />
-                          <span>
-                            <strong>Keep this profile for future runs of this exact version.</strong>{" "}
-                            <span className="muted">Unchecked, it is removed when the run completes.</span>
-                          </span>
-                        </label>
-                        <div className="row" style={{ justifyContent: "flex-end" }}>
-                          {profile.exists && <Button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</Button>}
-                          <Button variant="primary" onClick={saveProfile} disabled={savingProfile}>
-                            {savingProfile ? "Saving…" : "Save keys"}
-                          </Button>
-                        </div>
-                      </Card>
-                    )}
-                  </>
-                )}
-                {profile && profile.declaredSecrets.length === 0 && (
-                  <p className="muted small">This release declares no key, so there is nothing to sign in to.</p>
-                )}
-              </>
-            )}
-
-            {step === "details" && (
-              <>
-                {/* Up-front questions (manifest v2 intake, plan §3.5): the same form
-                    shape as the profile; answers are staged read-only for the agent. */}
-                {profile && profile.intake.length > 0 && (
-                  <>
-                    <Card>
-                      <p className="muted small" style={{ marginTop: 0 }}>
-                        Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
-                        a secret answer is injected like a declared key and never shown to the agent.
+                  {mode === "hosted" && hosted && (
+                    <>
+                      <p className="muted small" style={{ marginBottom: 2 }}>
+                        The task, your answers and the input files go to {registry}, which runs this release under the same
+                        contract and sends back the outputs and the receipt; it keeps no log of the run. This machine needs no
+                        docker engine and no operator policy for it.
                       </p>
-                      {profile.intake.map((q) => (
-                        <div className="row" key={q.id} style={{ marginBottom: 8 }}>
-                          <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
-                          {q.type === "choice" ? (
-                            <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running}>
-                              <option value="">—</option>
-                              {q.choices.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          ) : q.type === "file" ? (
-                        <>
-                          {pickedFiles.length > 0 ? (
-                            <select
-                              className="grow mono"
-                              value={pickedFiles.includes(intakeValues[q.id] ?? "") ? intakeValues[q.id] : ""}
-                              onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
-                              aria-label={q.prompt}
-                            >
-                              <option value="">{(intakeValues[q.id] ?? "") && !pickedFiles.includes(intakeValues[q.id]) ? intakeValues[q.id] : "Choose one of the files you added"}</option>
-                              {pickedFiles.map((f) => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                          ) : (
-                            <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} readOnly placeholder="a file on this machine — choose it" aria-label={q.prompt} />
-                          )}
-                          <Button
-                            onClick={async () => {
-                              try {
-                                const files = await ChooseFiles(q.prompt);
-                                if (files.length) setIntakeValues({ ...intakeValues, [q.id]: files[0] });
-                              } catch (e) {
-                                setRunErr(String(e));
-                              }
-                            }}
-                          >
-                            {pickedFiles.length > 0 ? "Another file…" : "Choose…"}
-                          </Button>
-                        </>
-                      ) : (
-                            <input
-                              type={q.type === "secret" ? "password" : "text"}
-                              className="grow"
-                              autoComplete="off"
-                              value={intakeValues[q.id] ?? ""}
-                              onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
-                              disabled={running}
-                            />
-                          )}
-                        </div>
+                      <HostedCredits hosted={hosted} />
+                      <HostedSecretsNote hosted={hosted} />
+                      {unsigned && (
+                        <Notice tone="warn">
+                          This registry published no attestation for this version. A run In Agentry verifies the release
+                          itself before executing it, so this one is refused there and the credits it held are refunded.
+                        </Notice>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              {/* Machine readiness (§P1) — the local modes only; a run In
+                  Agentry needs nothing from this machine. */}
+              {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
+              {setup && !setup.dockerOk && !inAgentry && (
+                <div className="error-box selectable">
+                  Docker is not available — a QuickAgent run on this machine needs a docker engine.
+                  {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
+                  {hosted?.offered ? ", or run this release In Agentry" : ""}.
+                </div>
+              )}
+              {setup && setup.dockerOk && !setup.imagesReady && !inAgentry && (
+                <Notice tone="warn">
+                  The gateway/harness/runner images are not all present yet — this run will install
+                  them first (it can take a few minutes), or prepare them once in Settings → Provider settings.
+                </Notice>
+              )}
+              {profile && profile.capabilityLines.length > 0 && (
+                <>
+                  <h4>What it may reach</h4>
+                  <ul className="run-need selectable">
+                    {profile.capabilityLines.map((l) => <li key={l}>{l}</li>)}
+                  </ul>
+                </>
+              )}
+              {unscanned && hosted?.offered && (
+                <p className="muted small">A run In Agentry is not offered for this release: the registry admitted it without a scan.</p>
+              )}
+              <details className="advanced">
+                <summary className="muted small">The declared contract, with its digest</summary>
+                {/* Declared contract: what a Run click accepts. */}
+                {profile && (
+                  <>
+                    <Card className="selectable">
+                      <div className="kv"><span className="k">release</span><span className="mono">{profile.ref}</span></div>
+                      <div className="kv"><span className="k">digest</span><span className="mono" title={profile.digest}>{shortDigest(profile.digest)}</span></div>
+                      {profile.capabilityLines.map((l) => (
+                        <div key={l} className="mono small">{l}</div>
                       ))}
-                      {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
                     </Card>
                   </>
                 )}
-                <h4>What should the run do?</h4>
-                <Textarea
-                  className="mono"
-                  rows={4}
-                  placeholder={guide?.task || "Say it the way you would to a colleague. Left empty, its own instruction runs with no extra task."}
-                  value={task}
-                  onChange={(e) => setTask(e.target.value)}
-                />
-              </>
-            )}
+              </details>
+            </>
+          )}
 
-            {step === "review" && (
-              <>
-                <dl className="run-recap">
-                  <dt>Where</dt>
-                  <dd><span>{modeWord}</span><Button variant="link" onClick={() => goTo(0)} aria-label="Edit where to run">Edit</Button></dd>
-                  <dt>Files</dt>
-                  <dd>
-                    <span className="mono small selectable">{inputs.length === 0 ? "none" : inputs.join(", ")}</span>
-                    <Button variant="link" onClick={() => goTo(steps.indexOf("files"))} aria-label="Edit files">Edit</Button>
-                  </dd>
-                  {steps.includes("knowledge") && (
-                    <>
-                      <dt>Knowledge</dt>
-                      <dd>
-                        <span className="mono small selectable">
-                          {[...(inAgentry ? [] : ships.map((n) => `${n} (shipped with the release)`)), ...attached].join(", ") || "none"}
-                        </span>
-                        <Button variant="link" onClick={() => goTo(steps.indexOf("knowledge"))} aria-label="Edit knowledge">Edit</Button>
-                      </dd>
-                    </>
-                  )}
-                  {inAgentry && !steps.includes("knowledge") && (packs?.length ?? 0) > 0 && hosted?.knowledgeNote && (
-                    <>
-                      <dt>Knowledge</dt>
-                      <dd><span className="muted small">{hosted.knowledgeNote}</span></dd>
-                    </>
-                  )}
-                  {profile && profile.declaredSecrets.length > 0 && (
-                    <>
-                      <dt>Keys</dt>
-                      <dd>
-                        <span>
-                          {inAgentry
-                            ? "your account's secrets in Agentry; one it does not keep is asked for when you start"
-                            : profile.exists ? "saved for this release" : "not saved yet"}
-                        </span>
-                        {!inAgentry && (
-                          <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit keys">Edit</Button>
-                        )}
-                      </dd>
-                    </>
-                  )}
-                  {answered.map((q) => (
-                    <Fragment key={q.id}>
-                      <dt>{q.prompt}</dt>
-                      <dd>
-                        <span className="selectable">{(intakeValues[q.id] ?? "").trim() || "no answer"}</span>
-                        <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label={`Edit ${q.prompt}`}>Edit</Button>
-                      </dd>
+          {step === "files" && (
+            <>
+              {guide?.files && (
+                <p>
+                  <GuideText text={guide.files} />
+                </p>
+              )}
+              <p className="muted small">
+                Add the files the task is about. They are provided read-only under{" "}
+                <span className="mono">/inputs</span>, and the QuickAgent reads them with{" "}
+                <span className="mono">list_inputs</span> and <span className="mono">read_input</span>. If it needs none, go on
+                without any.
+                {inAgentry && hosted && (
+                  <> In Agentry they are uploaded when the run starts: at most {hosted.maxInputFiles} files,{" "}
+                  {Math.round(hosted.maxInputBytes / (1024 * 1024))} MB together.</>
+                )}
+              </p>
+              {inputs.length > 0 ? (
+                <div>
+                  {inputs.map((p) => (
+                    <div key={p} className="row" style={{ marginBottom: 4 }}>
+                      <span className="mono small grow selectable">{p}</span>
+                      <Button
+                        onClick={() => {
+                          setInputs(inputs.filter((x) => x !== p));
+                          setPickedFiles(pickedFiles.filter((x) => x !== p));
+                        }}
+                        aria-label={`Remove ${p}`}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted small">No files chosen.</p>
+              )}
+              <div className="row">
+                <Button onClick={addFiles}>Add files…</Button>
+                <Button onClick={addFolder}>Add folder…</Button>
+              </div>
+            </>
+          )}
+
+          {step === "knowledge" && (
+            <>
+              {accepts && (
+                <p className="selectable">
+                  <strong>This release asks:</strong> {accepts.prompt}
+                  {accepts.required ? " (required)" : ""}
+                </p>
+              )}
+              {!inAgentry && ships.length > 0 && (
+                <p className="muted small">
+                  The release ships {ships.length === 1 ? "a knowledge pack" : "knowledge packs"} of its own:{" "}
+                  {ships.map((n, i) => (
+                    <Fragment key={n}>
+                      {i > 0 ? ", " : ""}
+                      <span className="mono">{n}</span>
                     </Fragment>
                   ))}
-                  <dt>The task</dt>
-                  <dd>
-                    <span className="selectable run-recap-task">{task.trim() || "none: its own instruction runs"}</span>
-                    <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label="Edit the task">Edit</Button>
-                  </dd>
-                </dl>
-                {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
-                {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
-                <h4>Output</h4>
-                {mode === "hosted" && (
-                  <p className="muted small" style={{ margin: "2px 0 6px" }}>
-                    The run&apos;s result, reports, receipts and outputs download into this folder when it finishes. The time and
-                    turn ceilings are the tier&apos;s, so Advanced is not offered for a run In Agentry.
-                  </p>
-                )}
-                {sessionInAgentry && (
-                  <p className="muted small" style={{ margin: "2px 0 6px" }}>
-                    The session&apos;s result, receipts (with transcript.md) and outputs download into this folder when it
-                    ends. A session In Agentry has no ceilings but its idle close, so Advanced is not offered for it.
-                  </p>
-                )}
-                <div className="row">
-                  {/* Filled by the picker only: Go accepts a path a native dialog
-                      returned in this process and refuses one the page typed (D-030). */}
+                  . {ships.length === 1 ? "It is" : "Each is"} mounted read-only at <span className="mono">/knowledge/&lt;name&gt;</span> from the release&apos;s own
+                  files, held to the digest of the archive this computer verified, in every run; the packs below are yours to add
+                  beside them.
+                </p>
+              )}
+              {!inAgentry && (packs?.length ?? 0) === 0 && (
+                <p className="muted small">No knowledge pack is kept on this computer. Make one on the Knowledge page.</p>
+              )}
+              {inAgentry ? (
+                <p className="muted small">
+                  Attach knowledge packs Agentry keeps for your account. Each is mounted read-only at{" "}
+                  <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, on
+                  Agentry&apos;s sandbox host, from the copy Agentry keeps and has scanned, and the QuickAgent reads it
+                  with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
+                  <span className="mono">knowledge_read</span>; commands the release declares run in that container too,
+                  so they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack
+                  and its digest.
+                  {hosted?.maxPacks ? ` A run In Agentry attaches at most ${hosted.maxPacks}.` : ""}
+                  {accepts?.required ? "" : " A run needs none."}
+                </p>
+              ) : (
+                <p className="muted small">
+                  Attach knowledge packs kept on this computer. Each is mounted read-only at{" "}
+                  <span className="mono">/knowledge/&lt;name&gt;</span> on the run&apos;s tools container only, and the QuickAgent
+                  reads it with <span className="mono">knowledge_list</span>, <span className="mono">knowledge_search</span> and{" "}
+                  <span className="mono">knowledge_read</span>; commands the release declares run in that container too, so
+                  they can read it. Attaching one changes nothing the release may reach, and the receipt names each pack and
+                  its digest.{accepts?.required ? "" : " A run needs none."}
+                </p>
+              )}
+              <div className="knowledge-attach-list">
+              {(packs ?? []).map((p) => (
+                <label key={`${p.name} ${p.local ? "here" : "agentry"}`} className="knowledge-attach">
                   <input
-                    type="text"
-                    className="grow mono"
-                    placeholder={`output folder — default ${defaultOutHint}`}
-                    value={outDir}
-                    readOnly
-                    disabled={running}
+                    type="checkbox"
+                    disabled={!canAttach(p)}
+                    checked={canAttach(p) && attach.includes(p.name)}
+                    onChange={(e) => setAttach(e.target.checked ? [...attach, p.name] : attach.filter((n) => n !== p.name))}
                   />
-                  <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
-                  {outDir !== (defaults?.outputDir ?? "") && (
-                    <Button onClick={() => setOutDir(defaults?.outputDir ?? "")} disabled={running}>Default</Button>
-                  )}
-                </div>
-                {!inAgentry && (
-              <>
-                {/* The ceilings have the policy's defaults and the keep toggle its
-                        recorded choice: none is needed for a run, so they sit under
-                        Advanced (agentry-desktop#167). */}
-                    <details className="advanced">
-                      <summary className="muted small">Advanced</summary>
+                  <span className="grow">
+                    <span className="row nowrap knowledge-attach-head">
+                      <span className="mono">{p.name}</span>
+                      <span className={`badge ${scanTone(p)}`.trim()}>{p.scan}</span>
+                    </span>
+                    <span className="muted small" style={{ display: "block" }}>
+                      {pagesOf(p.pages)} · {fmtBytes(p.bytes)} ·{" "}
+                      {inAgentry
+                        ? inAgentryLine(p)
+                        : !attachable(p)
+                          ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
+                          : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
+                    </span>
+                    {inAgentry && p.local && !p.shared && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
+                      <Button
+                        variant="link"
+                        disabled={uploading !== null}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          void uploadForAgentry(p.name);
+                        }}
+                      >
+                        {uploading === p.name ? "Uploading…" : "Upload to Agentry"}
+                      </Button>
+                    )}
+                  </span>
+                </label>
+              ))}
+              </div>
+              {uploadNote && <p className="muted small" role="status">{uploadNote}</p>}
+            </>
+          )}
+
+          {step === "tools" && (
+            <>
+              {(mcp?.declaredServers?.length ?? 0) > 0 && (
+                <>
+                  <p className="muted small">
+                    The MCP servers this release declares. They start with the run, serve only the tools listed, and stop
+                    with it.
+                  </p>
+                  <DeclaredServersTable servers={mcp?.declaredServers} />
+                </>
+              )}
+              {/* In Agentry the keys are the account's secrets there, asked
+                  for at the start (agentry-desktop#300); the profile below
+                  is this machine's. */}
+              {inAgentry && hosted && profile && profile.declaredSecrets.length > 0 && (
+                <>
+                  <h4>Keys</h4>
+                  <HostedSecretsNote hosted={hosted} />
+                </>
+              )}
+              {/* Guided MCP-profile setup (§P3). */}
+              {!inAgentry && profile && profile.declaredSecrets.length > 0 && (
+                <>
+                  <h4>Keys</h4>
+                  {!formOpen && profile.exists && (
                     <div className="row">
-                      <label className="row" style={{ gap: 6 }}>
-                        <span className="muted small">timeout (s)</span>
-                        <input
-                          type="number" min={1} style={{ width: 110 }}
-                          placeholder={setup ? String(setup.timeoutSeconds) : ""}
-                          value={timeoutSec} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running}
-                        />
-                      </label>
-                      <label className="row" style={{ gap: 6 }}>
-                        <span className="muted small">max turns (0 = unlimited)</span>
-                        <input
-                          type="number" min={0} style={{ width: 110 }}
-                          placeholder={setup ? String(setup.maxTurns) : ""}
-                          value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} disabled={running}
-                        />
-                      </label>
-                      <label className="check-row" style={{ margin: 0 }}>
-                        <input type="checkbox" checked={keep} onChange={(e) => { setKeep(e.target.checked); setKeepTouched(true); }} disabled={running} />
-                        <span>keep the MCP profile after this run{profile && profile.declaredSecrets.length === 0 ? " (no keys declared; ticking records the choice)" : ""}</span>
-                      </label>
+                      <span className="muted small">
+                        Stored for this exact release{profile.storedSecretNames.length > 0
+                          ? `: ${profile.storedSecretNames.join(", ")}`
+                          : " (all resolve from the environment at run time)"}
+                        {" · "}{profile.keep ? "kept after runs" : "removed when a run completes"}
+                      </span>
+                      <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</Button>
                     </div>
-                    </details>
-              </>
-            )}
-                {unsafeNotice?.on && !inAgentry && (
-                  <div className="notice notice-unsafe selectable" role="note" data-unsafe-notice>
-                    <span className="badge bad">Unsafe Mode</span>{" "}
-                    {unsafeNotice.line}
-                  </div>
-                )}
-                {unscanned && (
-                  <div className="notice notice-unscanned mark-unscanned">
-                    <p style={{ margin: 0 }}>
-                      <SignedBadge att={attestation} />{" "}
-                      <strong>The registry admitted this version without a scan.</strong>{" "}
-                      <span className="muted">
-                        No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
-                        QuickAgent off the pipeline, and no scanner looked at its contents.
-                        {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
-                      </span>
-                    </p>
-                    <label className="check-row">
-                      <input type="checkbox" checked={acceptUnscanned} onChange={(e) => setAcceptUnscanned(e.target.checked)} />
-                      <span>
-                        <strong>Run an unscanned release.</strong>{" "}
-                        <span className="muted">
-                          Its own decision — accepting an unsigned release does not cover it. The run&apos;s receipts are
-                          marked unscanned and name this consent.
+                  )}
+                  {formOpen && (
+                    <Card>
+                      <p className="muted small" style={{ marginTop: 0 }}>
+                        This release declares the keys below. They are stored once per exact release
+                        (0600, this machine only), injected only into the run&apos;s tool container, and
+                        never shown or logged. Leave a field empty to resolve it from the environment
+                        at run time.
+                      </p>
+                      {profile.declaredSecrets.map((s) => (
+                        <div key={s} className="run-key">
+                          <span className="mono">{s}</span>
+                          <input
+                            type="password"
+                            autoComplete="off"
+                            aria-label={s}
+                            placeholder="empty = resolve from the environment at run time"
+                            value={formValues[s] ?? ""}
+                            onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
+                          />
+                          {/* The author's help for this key: where to create
+                              it, which access it needs, as markdown under
+                              the output reader's rules (DEV-167). */}
+                          {connectHelp(guide?.connect, s) && (
+                            <div className="run-key-help">
+                              <AuthorHelp name={s} help={connectHelp(guide?.connect, s)} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <label className="check-row">
+                        <input type="checkbox" checked={formKeep} onChange={(e) => setFormKeep(e.target.checked)} />
+                        <span>
+                          <strong>Keep this profile for future runs of this exact version.</strong>{" "}
+                          <span className="muted">Unchecked, it is removed when the run completes.</span>
                         </span>
+                      </label>
+                      <div className="row" style={{ justifyContent: "flex-end" }}>
+                        {profile.exists && <Button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</Button>}
+                        <Button variant="primary" onClick={saveProfile} disabled={savingProfile}>
+                          {savingProfile ? "Saving…" : "Save keys"}
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
+              {profile && profile.declaredSecrets.length === 0 && (
+                <p className="muted small">This release declares no key, so there is nothing to sign in to.</p>
+              )}
+            </>
+          )}
+
+          {step === "details" && (
+            <>
+              {/* Up-front questions (manifest v2 intake, plan §3.5): the same form
+                  shape as the profile; answers are staged read-only for the agent. */}
+              {profile && profile.intake.length > 0 && (
+                <>
+                  <Card>
+                    <p className="muted small" style={{ marginTop: 0 }}>
+                      Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
+                      a secret answer is injected like a declared key and never shown to the agent.
+                    </p>
+                    {profile.intake.map((q) => (
+                      <div className="row" key={q.id} style={{ marginBottom: 8 }}>
+                        <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
+                        {q.type === "choice" ? (
+                          <select value={intakeValues[q.id] ?? ""} onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })} disabled={running}>
+                            <option value="">—</option>
+                            {q.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        ) : q.type === "file" ? (
+                      <>
+                        {pickedFiles.length > 0 ? (
+                          <select
+                            className="grow mono"
+                            value={pickedFiles.includes(intakeValues[q.id] ?? "") ? intakeValues[q.id] : ""}
+                            onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
+                            aria-label={q.prompt}
+                          >
+                            <option value="">{(intakeValues[q.id] ?? "") && !pickedFiles.includes(intakeValues[q.id]) ? intakeValues[q.id] : "Choose one of the files you added"}</option>
+                            {pickedFiles.map((f) => <option key={f} value={f}>{f}</option>)}
+                          </select>
+                        ) : (
+                          <input type="text" className="grow mono" value={intakeValues[q.id] ?? ""} readOnly placeholder="a file on this machine — choose it" aria-label={q.prompt} />
+                        )}
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const files = await ChooseFiles(q.prompt);
+                              if (files.length) setIntakeValues({ ...intakeValues, [q.id]: files[0] });
+                            } catch (e) {
+                              setRunErr(String(e));
+                            }
+                          }}
+                        >
+                          {pickedFiles.length > 0 ? "Another file…" : "Choose…"}
+                        </Button>
+                      </>
+                    ) : (
+                          <input
+                            type={q.type === "secret" ? "password" : "text"}
+                            className="grow"
+                            autoComplete="off"
+                            value={intakeValues[q.id] ?? ""}
+                            onChange={(e) => setIntakeValues({ ...intakeValues, [q.id]: e.target.value })}
+                            disabled={running}
+                          />
+                        )}
+                      </div>
+                    ))}
+                    {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
+                  </Card>
+                </>
+              )}
+              <h4>What should the run do?</h4>
+              <Textarea
+                className="mono"
+                rows={4}
+                placeholder={guide?.task || "Say it the way you would to a colleague. Left empty, its own instruction runs with no extra task."}
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+              />
+            </>
+          )}
+
+          {step === "review" && (
+            <>
+              <dl className="run-recap">
+                <dt>Where</dt>
+                <dd><span>{modeWord}</span><Button variant="link" onClick={() => goTo(0)} aria-label="Edit where to run">Edit</Button></dd>
+                <dt>Files</dt>
+                <dd>
+                  <span className="mono small selectable">{inputs.length === 0 ? "none" : inputs.join(", ")}</span>
+                  <Button variant="link" onClick={() => goTo(steps.indexOf("files"))} aria-label="Edit files">Edit</Button>
+                </dd>
+                {steps.includes("knowledge") && (
+                  <>
+                    <dt>Knowledge</dt>
+                    <dd>
+                      <span className="mono small selectable">
+                        {[...(inAgentry ? [] : ships.map((n) => `${n} (shipped with the release)`)), ...attached].join(", ") || "none"}
                       </span>
+                      <Button variant="link" onClick={() => goTo(steps.indexOf("knowledge"))} aria-label="Edit knowledge">Edit</Button>
+                    </dd>
+                  </>
+                )}
+                {inAgentry && !steps.includes("knowledge") && (packs?.length ?? 0) > 0 && hosted?.knowledgeNote && (
+                  <>
+                    <dt>Knowledge</dt>
+                    <dd><span className="muted small">{hosted.knowledgeNote}</span></dd>
+                  </>
+                )}
+                {profile && profile.declaredSecrets.length > 0 && (
+                  <>
+                    <dt>Keys</dt>
+                    <dd>
+                      <span>
+                        {inAgentry
+                          ? "your account's secrets in Agentry; one it does not keep is asked for when you start"
+                          : profile.exists ? "saved for this release" : "not saved yet"}
+                      </span>
+                      {!inAgentry && (
+                        <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit keys">Edit</Button>
+                      )}
+                    </dd>
+                  </>
+                )}
+                {answered.map((q) => (
+                  <Fragment key={q.id}>
+                    <dt>{q.prompt}</dt>
+                    <dd>
+                      <span className="selectable">{(intakeValues[q.id] ?? "").trim() || "no answer"}</span>
+                      <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label={`Edit ${q.prompt}`}>Edit</Button>
+                    </dd>
+                  </Fragment>
+                ))}
+                <dt>The task</dt>
+                <dd>
+                  <span className="selectable run-recap-task">{task.trim() || "none: its own instruction runs"}</span>
+                  <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label="Edit the task">Edit</Button>
+                </dd>
+              </dl>
+              {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
+              {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
+              <h4>Output</h4>
+              {mode === "hosted" && (
+                <p className="muted small" style={{ margin: "2px 0 6px" }}>
+                  The run&apos;s result, reports, receipts and outputs download into this folder when it finishes. The time and
+                  turn ceilings are the tier&apos;s, so Advanced is not offered for a run In Agentry.
+                </p>
+              )}
+              {sessionInAgentry && (
+                <p className="muted small" style={{ margin: "2px 0 6px" }}>
+                  The session&apos;s result, receipts (with transcript.md) and outputs download into this folder when it
+                  ends. A session In Agentry has no ceilings but its idle close, so Advanced is not offered for it.
+                </p>
+              )}
+              <div className="row">
+                {/* Filled by the picker only: Go accepts a path a native dialog
+                    returned in this process and refuses one the page typed (D-030). */}
+                <input
+                  type="text"
+                  className="grow mono"
+                  placeholder={`output folder — default ${defaultOutHint}`}
+                  value={outDir}
+                  readOnly
+                  disabled={running}
+                />
+                <Button onClick={pickOutDir} disabled={running}>Choose…</Button>
+                {outDir !== (defaults?.outputDir ?? "") && (
+                  <Button onClick={() => setOutDir(defaults?.outputDir ?? "")} disabled={running}>Default</Button>
+                )}
+              </div>
+              {!inAgentry && (
+            <>
+              {/* The ceilings have the policy's defaults and the keep toggle its
+                      recorded choice: none is needed for a run, so they sit under
+                      Advanced (agentry-desktop#167). */}
+                  <details className="advanced">
+                    <summary className="muted small">Advanced</summary>
+                  <div className="row">
+                    <label className="row" style={{ gap: 6 }}>
+                      <span className="muted small">timeout (s)</span>
+                      <input
+                        type="number" min={1} style={{ width: 110 }}
+                        placeholder={setup ? String(setup.timeoutSeconds) : ""}
+                        value={timeoutSec} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running}
+                      />
+                    </label>
+                    <label className="row" style={{ gap: 6 }}>
+                      <span className="muted small">max turns (0 = unlimited)</span>
+                      <input
+                        type="number" min={0} style={{ width: 110 }}
+                        placeholder={setup ? String(setup.maxTurns) : ""}
+                        value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} disabled={running}
+                      />
+                    </label>
+                    <label className="check-row" style={{ margin: 0 }}>
+                      <input type="checkbox" checked={keep} onChange={(e) => { setKeep(e.target.checked); setKeepTouched(true); }} disabled={running} />
+                      <span>keep the MCP profile after this run{profile && profile.declaredSecrets.length === 0 ? " (no keys declared; ticking records the choice)" : ""}</span>
                     </label>
                   </div>
-                )}
-                {unsigned && !inAgentry && (
-                  <label className="check-row">
-                    <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />
-                    <span>
-                      <strong>Run an unsigned release.</strong>{" "}
-                      <span className="muted">
-                        {local ? (
-                          <>It was installed from a folder on this computer: no pipeline scanned it and no one signed it.
-                            The run&apos;s receipts are marked local.</>
-                        ) : (
-                          <>This registry published no attestation for this version — nothing cryptographically
-                            vouches for these bytes. The run&apos;s receipts are marked unsigned.</>
-                        )}
-                      </span>
-                    </span>
-                  </label>
-                )}
-                {refused && (
-                  <label className="check-row">
-                    <input type="checkbox" checked={allowVulnerableMCP} onChange={(e) => setAllowVulnerableMCP(e.target.checked)} />
-                    <span>
-                      <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
-                      <span className="muted selectable">
-                        {mcp?.refusal}. The override is recorded in the run&apos;s receipt.
-                      </span>
-                    </span>
-                  </label>
-                )}
-                {!refused && mcp?.vulnerabilityLine && (
-                  <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>
-                )}
-                {unverifiable && (
-                  <div className="error-box selectable">
-                    Attestation {attestation?.state}: {attestation?.detail} — the runner re-verifies before
-                    executing and refuses a release whose signature cannot be verified.
-                  </div>
-                )}
-                {!busy && blockers.length > 0 && (
-                  <div className="muted small run-blockers">
-                    <strong>Before you can run:</strong>
-                    <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
-                      {blockers.map((b) => <li key={b}>{b}</li>)}
-                    </ul>
-                  </div>
-                )}
-                {/* A refused create, as a sentence — and, for credits, the way
-                    onward the Build page already offers (desktop#74). */}
-                {/* The declared secrets the account does not keep: asked for
-                    here, each with Keep it for later runs unticked, then the
-                    start is made again (plan D12, agentry-desktop#300). */}
-                {hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0 && (
-                  <HostedSecretsAsk
-                    registry={registry}
-                    names={hostedRefusal.missing ?? []}
-                    onSaved={() => { setHostedRefusal(null); void runInAgentry(); }}
-                    onCancel={() => setHostedRefusal(null)}
-                  />
-                )}
-                {hostedRefusal?.refusal && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && (
-                  <Notice tone="warn">
-                    <strong>
-                      {hostedRefusal.refusal === "credits-exhausted"
-                        ? `Not enough credits for this ${sessionInAgentry ? "session" : "run"}.`
-                        : hostedRefusal.refusal === "run-active"
-                          ? "This account already has a run In Agentry."
-                          : hostedRefusal.refusal === "session-tier"
-                            ? "Talking to an agent In Agentry is not part of this subscription."
-                            : hostedRefusal.refusal === "sessions-unavailable"
-                              ? "A session In Agentry cannot start right now."
-                            : `The registry refused this ${sessionInAgentry ? "session" : "run"}.`}
-                    </strong>{" "}
-                    <span className="selectable">{hostedRefusal.detail}</span>
-                    {(hostedRefusal.refusal === "credits-exhausted" || hostedRefusal.refusal === "session-tier") && (
-                      <p className="small" style={{ marginBottom: 0 }}>
-                        {/* The destination is the registry's to name and the app's
-                            to check, so this asks for the registry and never hands
-                            a URL to be opened (agentry-enterprise#41). */}
-                        <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e)))}>
-                          Credits and upgrade
-                        </Button>
-                      </p>
-                    )}
-                  </Notice>
-                )}
-              </>
-            )}
-
-            {(step === "tools" || step === "start") && <ErrorBox error={profileErr} />}
-            <ErrorBox error={runErr} />
-            {stepProblem && (
-              <p className="run-step-problem" role="alert">{stepProblem}</p>
-            )}
-            <div className="row run-step-foot">
-              {at > 0 && <Button onClick={() => goTo(at - 1)}>Back</Button>}
-              <span className="grow" />
-              {step === "review" ? (
-                <>
-                  <Button onClick={onClose} disabled={running}>Close</Button>
-                  <Button variant="primary" disabled={!canRun} onClick={runAgent}>{runLabel}</Button>
-                </>
-              ) : (
-                <Button variant="primary" onClick={next}>Next: {STEP_LABEL[steps[at + 1]]}</Button>
+                  </details>
+            </>
+          )}
+              {unsafeNotice?.on && !inAgentry && (
+                <div className="notice notice-unsafe selectable" role="note" data-unsafe-notice>
+                  <span className="badge bad">Unsafe Mode</span>{" "}
+                  {unsafeNotice.line}
+                </div>
               )}
-            </div>
-          </section>
-        )}
+              {unscanned && (
+                <div className="notice notice-unscanned mark-unscanned">
+                  <p style={{ margin: 0 }}>
+                    <SignedBadge att={attestation} />{" "}
+                    <strong>The registry admitted this version without a scan.</strong>{" "}
+                    <span className="muted">
+                      No findings, no report and no attestation stand behind it. Its organization&apos;s administrator took the
+                      QuickAgent off the pipeline, and no scanner looked at its contents.
+                      {hosted?.offered ? " A run In Agentry is not offered for it." : ""}
+                    </span>
+                  </p>
+                  <label className="check-row">
+                    <input type="checkbox" checked={acceptUnscanned} onChange={(e) => setAcceptUnscanned(e.target.checked)} />
+                    <span>
+                      <strong>Run an unscanned release.</strong>{" "}
+                      <span className="muted">
+                        Its own decision — accepting an unsigned release does not cover it. The run&apos;s receipts are
+                        marked unscanned and name this consent.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
+              {unsigned && !inAgentry && (
+                <label className="check-row">
+                  <input type="checkbox" checked={acceptUnsigned} onChange={(e) => setAcceptUnsigned(e.target.checked)} />
+                  <span>
+                    <strong>Run an unsigned release.</strong>{" "}
+                    <span className="muted">
+                      {local ? (
+                        <>It was installed from a folder on this computer: no pipeline scanned it and no one signed it.
+                          The run&apos;s receipts are marked local.</>
+                      ) : (
+                        <>This registry published no attestation for this version — nothing cryptographically
+                          vouches for these bytes. The run&apos;s receipts are marked unsigned.</>
+                      )}
+                    </span>
+                  </span>
+                </label>
+              )}
+              {refused && (
+                <label className="check-row">
+                  <input type="checkbox" checked={allowVulnerableMCP} onChange={(e) => setAllowVulnerableMCP(e.target.checked)} />
+                  <span>
+                    <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
+                    <span className="muted selectable">
+                      {mcp?.refusal}. The override is recorded in the run&apos;s receipt.
+                    </span>
+                  </span>
+                </label>
+              )}
+              {!refused && mcp?.vulnerabilityLine && (
+                <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>
+              )}
+              {unverifiable && (
+                <div className="error-box selectable">
+                  Attestation {attestation?.state}: {attestation?.detail} — the runner re-verifies before
+                  executing and refuses a release whose signature cannot be verified.
+                </div>
+              )}
+              {!busy && blockers.length > 0 && (
+                <div className="muted small run-blockers">
+                  <strong>Before you can run:</strong>
+                  <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
+                    {blockers.map((b) => <li key={b}>{b}</li>)}
+                  </ul>
+                </div>
+              )}
+              {/* A refused create, as a sentence — and, for credits, the way
+                  onward the Build page already offers (desktop#74). */}
+              {/* The declared secrets the account does not keep: asked for
+                  here, each with Keep it for later runs unticked, then the
+                  start is made again (plan D12, agentry-desktop#300). */}
+              {hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0 && (
+                <HostedSecretsAsk
+                  registry={registry}
+                  names={hostedRefusal.missing ?? []}
+                  onSaved={() => { setHostedRefusal(null); void runInAgentry(); }}
+                  onCancel={() => setHostedRefusal(null)}
+                />
+              )}
+              {hostedRefusal?.refusal && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && (
+                <Notice tone="warn">
+                  <strong>
+                    {hostedRefusal.refusal === "credits-exhausted"
+                      ? `Not enough credits for this ${sessionInAgentry ? "session" : "run"}.`
+                      : hostedRefusal.refusal === "run-active"
+                        ? "This account already has a run In Agentry."
+                        : hostedRefusal.refusal === "session-tier"
+                          ? "Talking to an agent In Agentry is not part of this subscription."
+                          : hostedRefusal.refusal === "sessions-unavailable"
+                            ? "A session In Agentry cannot start right now."
+                          : `The registry refused this ${sessionInAgentry ? "session" : "run"}.`}
+                  </strong>{" "}
+                  <span className="selectable">{hostedRefusal.detail}</span>
+                  {(hostedRefusal.refusal === "credits-exhausted" || hostedRefusal.refusal === "session-tier") && (
+                    <p className="small" style={{ marginBottom: 0 }}>
+                      {/* The destination is the registry's to name and the app's
+                          to check, so this asks for the registry and never hands
+                          a URL to be opened (agentry-enterprise#41). */}
+                      <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e)))}>
+                        Credits and upgrade
+                      </Button>
+                    </p>
+                  )}
+                </Notice>
+              )}
+            </>
+          )}
 
-        {started && <ErrorBox error={runErr} />}
-
-        {/* The hosted run: where it stands, and what it produced. It keeps
-            no log (agentry-desktop#182): the card moves as the run does. */}
-        {/* While it is in flight; once it has ended, the result view below
-            says how, and this card's facts are under its Run details. */}
-        {/* A session In Agentry: the chat, over the registry's stream, until
-            its output has come back (agentry-desktop#403). */}
-        {sessionInAgentry && hostedRun && !hostedRun.final && (
-          <SessionChat
-            key={hostedRun.id}
-            agentRef={agentRef}
-            task={hostedRun.task ?? task}
-            opening={profile?.opening ?? ""}
-            hosted={{ run: hostedRun, terms: hosted?.session ?? null }}
-          />
-        )}
-
-        {/* Interactive session: the chat replaces the log pane. */}
-        {sessionActive && (
-          <SessionChat
-            registry={registry}
-            agentRef={agentRef}
-            task={task}
-            inputs={inputs}
-            outDir={outDir.trim()}
-            keepProfile={keepTouched ? keep : null}
-            timeoutSec={timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0)}
-            maxTurns={maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0)}
-            acceptUnsigned={unsigned && acceptUnsigned}
-            acceptUnscanned={unscanned && acceptUnscanned}
-            allowVulnerableMCP={refused && allowVulnerableMCP}
-            intakeAnswers={intakeAnswers()}
-            knowledge={attached}
-            opening={profile?.opening ?? ""}
-            onResult={(r, err) => {
-              setSessionActive(false);
-              if (r) setResult(r);
-              if (err) setRunErr(err);
-            }}
-          />
-        )}
-
-        {/* A chat's setup log, when it ended with no result to show (a run
-            on this computer is followed by the run's flow, and a run In
-            Agentry has no log); under Run details once a result is there. */}
-        {!inAgentry && log.length > 0 && !result && (
-          <>
-            <h3>Run log</h3>
-            <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
-          </>
-        )}
-
-        {/* The finished hosted run: the result first, from the outputs
-            unpacked into its folder; the card is its Run details. */}
-        {inAgentry && hostedRun?.final && (
-          <RunResultView
-            runId={hostedRun.id}
-            headline={hostedHeadline(hostedRun)}
-            tone={hostedTone(hostedRun)}
-            error={hostedRun.downloadError || undefined}
-            resultJson={hostedRun.resultJson ?? ""}
-            knowledge={hostedRun.knowledgeLine || undefined}
-          >
-            <HostedResult run={hostedRun} />
-          </RunResultView>
-        )}
-
-        {/* A chat on this machine that has ended: the result first; the
-            envelope's badges, usage, paths and the log are its Run details. */}
-        {result && (
-          <RunResultView
-            runId={result.runId}
-            headline={headlineOf(result).line}
-            tone={headlineOf(result).tone}
-            error={result.error || undefined}
-            resultJson={result.resultJson}
-            knowledge={result.knowledge}
-            unsafeExec={result.unsafeExec}
-          >
-            <LocalRunDetails result={result} log={log} />
-          </RunResultView>
-        )}
-
-        {started && !busy && (
-          <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-            <Button onClick={setUpAgain}>Back to the setup</Button>
-            <Button onClick={onClose}>Close</Button>
+          {(step === "tools" || step === "start") && <ErrorBox error={profileErr} />}
+          <ErrorBox error={runErr} />
+          {stepProblem && (
+            <p className="run-step-problem" role="alert">{stepProblem}</p>
+          )}
+          <div className="row run-step-foot">
+            {at > 0 && <Button onClick={() => goTo(at - 1)}>Back</Button>}
+            <span className="grow" />
+            {step === "review" ? (
+              <>
+                <Button onClick={onClose} disabled={running}>Close</Button>
+                <Button variant="primary" disabled={!canRun} onClick={runAgent}>{runLabel}</Button>
+              </>
+            ) : (
+              <Button variant="primary" onClick={next}>Next: {STEP_LABEL[steps[at + 1]]}</Button>
+            )}
           </div>
-        )}
+        </section>
+        
+
+
       </div>
     </div>
   );

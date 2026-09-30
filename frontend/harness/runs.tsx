@@ -33,6 +33,19 @@
 //   #hosted-card-finished a run that ended while its dialog was closed,
 //                       landed in its card
 //   #hosted-card-stacked its card and a run on this computer's card
+//
+// A chat, here and In Agentry, followed the same way (agentry-desktop#467):
+//   #chat-local           the dialog is the chat: the conversation, the strip
+//   #chat-local-working   its card while a message is out: working, turns
+//   #chat-local-waiting   its card between turns: waiting for you
+//   #chat-local-ended     the engine ended it with the dialog closed: its
+//                         result, collected by the store
+//   #chat-hosted          a chat In Agentry: replayed from the host, a hostile
+//                         reply as plain text, the time-and-credits strip
+//   #chat-hosted-working  its card while the agent answers
+//   #chat-hosted-waiting  its card between turns
+//   #chat-hosted-ended    over: the result, the session's credits and
+//                         transcript.md among the files
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
@@ -45,7 +58,7 @@ const REG = "https://secureagentry.net";
 const REF = "demo1/incident-summarizer@1.2.0";
 const RUN_ID = "7c1e4a90";
 const hostile = hash === "run-hostile" || hash === "hosted-hostile";
-const hostedOnly = hash.startsWith("hosted-") && hash !== "hosted-card-stacked";
+const hostedOnly = (hash.startsWith("hosted-") && hash !== "hosted-card-stacked") || hash.startsWith("chat-");
 const H_ID = "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42";
 const H_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4";
 const hostedBase = {
@@ -91,6 +104,35 @@ hosted.hostile = {
       "pay\u200Bpal invoice attached.",
   ),
 };
+// A chat In Agentry twelve minutes in, and over with its tokens settled.
+const sStarted = new Date(Date.now() - (12 * 60 + 40) * 1000).toISOString();
+const sAt = (sec: number) => new Date(Date.parse(sStarted) + sec * 1000).toISOString();
+const sessionRecord = { freeMinutes: 10, creditsPerMinute: 50, paidThrough: 12, timeCredits: 100, tokenCredits: 0, tokensUnpaid: 0, outOfCredits: false, filesAdded: 1, idleSeconds: 300 };
+hosted.session = { ...hosted.running, mode: "interactive", holdCredits: 0, task: "", startedAt: sStarted, session: sessionRecord };
+hosted.sessionEnded = {
+  ...hosted.finished, mode: "interactive", holdCredits: 0, settledCredits: 104, startedAt: sStarted,
+  session: { ...sessionRecord, tokenCredits: 4 },
+  outputs: [...hosted.finished.outputs, { name: "receipts/transcript.md", bytes: 2210, path: `${H_DIR}/receipts/transcript.md` }],
+};
+const terms = { offered: true, available: true, freeMinutes: 10, creditsPerMinute: 50, minCredits: 50, idleSeconds: 300,
+  transport: "Transport encrypted by the user key, messages not stored; the transcript comes back only in your sealed output." };
+const waitingChat = hash.endsWith("-waiting");
+const sessionEvents = [
+  { seq: 1, kind: "user_turn", time: sAt(20), text: "Summarise INC-4821 from the last 24 hours." },
+  { seq: 2, kind: "tool_call", time: sAt(30), text: "read_input" },
+  { seq: 3, kind: "assistant_turn", time: sAt(80), text: "INC-4821 began at 02:14 UTC. <script>alert('x')</script><b onclick=\"steal()\">raw html</b> [open me](javascript:alert(1)) pay\u200Bpal" },
+  ...(waitingChat ? [] : [
+    { seq: 4, kind: "input_added", time: sAt(400), path: "/inputs/pager-export.csv" },
+    { seq: 5, kind: "user_turn", time: sAt(410), text: "I added the pager export; does it change the timeline?" },
+    { seq: 6, kind: "assistant_text", time: sAt(700), text: "Yes: the first page went out at 02:09, five minutes before" },
+  ]),
+];
+const localEvents = [
+  { kind: "user_turn", time: new Date().toISOString(), text: "Summarise INC-4821 from the last 24 hours." },
+  { kind: "tool_call", time: new Date().toISOString(), text: "read_input" },
+  { kind: "assistant_turn", time: new Date().toISOString(), text: "INC-4821 began at 02:14 UTC with elevated 5xx on the checkout service." },
+  { kind: "usage", time: new Date().toISOString(), costUsd: 0.0182 },
+];
 hosted.lost = {
   ...hosted.running, final: true,
   downloadError: "lost touch with the registry while the run was running (read the run: the registry answered 503 (HTTP 503)); follow it again to see how it ends",
@@ -163,6 +205,21 @@ g.go = { main: {
       if (hash === "hosted-card-finished") setTimeout(() => fire("runner:hosted-run", hosted.finished), 120);
       return { run: hosted.running };
     },
+    StartSession: async () => {
+      setTimeout(() => localEvents.forEach((ev) => fire("runner:session-event", ev)), 40);
+      setTimeout(() => fire("runner:run-log", "session 5b18c7d1: demo1/incident-summarizer@1.2.0 against openai qwen3.8-flash-next"), 30);
+      if (hash === "chat-local-ended") setTimeout(() => fire("runner:session-event", { kind: "session_end", reason: "idle", time: new Date().toISOString() }), 120);
+      return {};
+    },
+    SendTurn: () => new Promise(() => {}),
+    EndSession: async () => ({ ...result, runId: "5b18c7d1" }),
+    ReplayHostedSession: async () => {
+      fire("runner:hosted-session-state", { status: "running", startedAt: sStarted, session: sessionRecord });
+      sessionEvents.forEach((ev) => fire("runner:hosted-session-event", ev));
+      if (hash === "chat-hosted-ended") setTimeout(() => fire("runner:hosted-run", hosted.sessionEnded), 60);
+    },
+    SendHostedTurn: async () => undefined,
+    EndHostedSession: async () => undefined,
     CancelHostedRun: async () => ({ ...hosted.running, cancelRequested: true, statusLine: "cancelling" }),
     ForgetRun: async () => undefined,
     RunOutputs: async () => outputs,
@@ -189,8 +246,9 @@ g.runtime = {
 
 import RunFlow from "../src/pages/RunFlow";
 import HostedRunFlow from "../src/pages/HostedRunFlow";
+import ChatFlow from "../src/pages/ChatFlow";
 import DraftFlow from "../src/pages/DraftFlow";
-import { attachHostedRun, cancelHostedRun, startHostedRun, startLocalRun, stopLocalRun } from "../src/runs";
+import { attachHostedRun, cancelHostedRun, followHostedChat, sendChat, startHostedRun, startLocalChat, startLocalRun, stopLocalRun } from "../src/runs";
 import { startDraft } from "../src/drafts";
 import { CornerHost } from "../src/progress";
 
@@ -219,6 +277,7 @@ function Preview() {
         <Shell>The page stays usable while the run goes on in its card.</Shell>
         <RunFlow onBackToSetup={() => {}} initialMinimized={card} />
         <HostedRunFlow onBackToSetup={() => {}} initialMinimized={hash === "hosted-card-stacked"} />
+        <ChatFlow onBackToSetup={() => {}} initialMinimized={hash.endsWith("-working") || hash.endsWith("-waiting") || hash === "chat-local-ended"} />
         {hash === "run-card-stacked" && <DraftFlow registry={REG} onOpenDraft={() => {}} initialMinimized />}
         <div className="corner-cards" ref={setCorner} />
       </div>
@@ -231,8 +290,15 @@ const form = {
   keep: true, keepTouched: false, acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
 };
 const setup = { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form: { ...form, mode: "hosted" } };
+const chatSetup = { ...setup, form: { ...form, mode: hash.startsWith("chat-hosted") ? "hosted-session" : "interactive" } };
+if (hash.startsWith("chat-local")) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  startLocalChat(chatSetup, REF, "", "", () => g.go.main.RunAPI.StartSession() as Promise<any>);
+  if (hash === "chat-local-working") setTimeout(() => void sendChat("Does the pager export change the timeline?").catch(() => {}), 200);
+}
+if (hash.startsWith("chat-hosted")) followHostedChat(chatSetup, hosted.session, terms as never, "", "");
 if (hash === "hosted-card" || hash === "hosted-card-finished") void attachHostedRun(REG);
-else if (hash.startsWith("hosted-")) {
+else if (hash.startsWith("hosted-") && !hash.startsWith("chat-")) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   void startHostedRun(setup, () => g.go.main.RunAPI.StartHostedRun() as Promise<any>).then(() => {
     if (hash === "hosted-cancel") void cancelHostedRun();
