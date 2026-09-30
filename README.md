@@ -244,13 +244,42 @@ The product never claims an agent is "safe". The language is always:
       `desktop.yaml`. The run setup fills it in and you can pick another for
       one run. Each run writes into a folder of its own inside it, and a run
       admits it as an output folder only, never as an input.
+    - **Unsafe Mode** (agentry-desktop#418, D-050; plan unsafe-mode.md): a
+      switch, off by default, kept as `unsafeMode` in `desktop.yaml` and
+      never in the runner policy.
+      - What it lifts: while it is on, a run on this computer no longer
+        needs this computer's exec catalogue (the runner policy's
+        `exec.packages`) to name each command the QuickAgent declares. The
+        commands are installed from Kali Linux's repository or PyPI on an
+        image built for that QuickAgent from the Unsafe Mode image
+        (`agentry-unsafe-kali`, the policy's `images.unsafe`), and each runs
+        with that image's own PATH (the CLI's DR-53). A command that cannot
+        be installed is left out and the run goes on without it.
+      - What stays: only the commands a QuickAgent declares can be called;
+        the container, its network limits and every consent are unchanged.
+        A run In Agentry never uses it, and `agentry run` has no such flag.
+      - Turning it on: the app asks in a native dialog, downloads the image
+        with its progress in the card, and only then does the switch read
+        on. The page cannot turn it on by itself (D-030). Turning it off is
+        immediate and keeps the images; Docker images removes them.
+      - While it is on: a still red edge runs round the window, over the
+        app's own dialogs, and the sidebar's foot carries an "Unsafe Mode"
+        badge that opens this part. Review and start shows the line a run
+        carries (the declared commands, and the ones the image cannot
+        provide), the consent dialog of a run that accepts something
+        carries the same line, and a finished run shows the receipt's exec
+        line: what was installed from where and what did not install.
     - The Docker engine's state and, on Linux, its setup.
+    - **Docker images**: Agentry's images on this computer and a button
+      that removes them (agentry-desktop#424, D-048), the Unsafe Mode image
+      and the exec images built on it among them.
   - **Provider settings**: the LLM provider form and the AI Review key.
 
   The update line in the sidebar opens Update settings, the "Setup isn't
   finished" notice opens Provider settings, Knowledge's "Not signed in"
   opens Registry settings, and Describe it's missing AI Review key opens
-  Provider settings at the key.
+  Provider settings at the key, and the sidebar's Unsafe Mode badge opens
+  Run defaults at the switch.
 - **Settings → Provider settings → AI Review key** — your own TypeSafe Jev key, which every
   local action that requires a scan uses (today, Describe it on this
   computer; plan builder-rework.md D25).
