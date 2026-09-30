@@ -101,7 +101,7 @@ Since agentry-desktop#461 the card leads with the operator's recommendation
 to get a TypeSafe key and the link *Get a key from TypeSafe*, which Describe
 it's missing-key notice carries too. `shots.mjs` holds the sentence word for
 word in each state (spelled out there, not imported), and
-`settings-aireview-key-link` and `page-build-describe-nokey` click the link
+`settings-aireview-key-none` and `page-build-describe-nokey` click the link
 and fail unless the app asked the system browser for exactly
 `https://typesafe.ai`: the harness's `App.OpenExternal` records each address
 in `window.__opened`, and `expectOpened` reads it.

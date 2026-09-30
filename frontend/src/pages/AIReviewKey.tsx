@@ -4,18 +4,21 @@
 // call that carries it), shown as saved and never as its value, and Test
 // key makes one small call and says TypeSafe's answer in plain words. The
 // card leads with the recommendation to get a key and the link to TypeSafe
-// (reviewKey.ts, #461), which every surface that offers the key shares.
+// (keyRecommendation.ts, #461), which every surface that offers the key
+// shares. The recommendation speaks of submitting, which needs no key, so
+// the paragraph beneath it says so.
 import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
-import { GET_A_KEY, KEY_RECOMMENDATION, TYPESAFE_URL } from "../reviewKey";
+import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL } from "../keyRecommendation";
 
 /** The link to TypeSafe, where a person gets a key: the system browser
- *  opens it (App.OpenExternal), at the one address reviewKey.ts holds. */
+ *  opens it (App.OpenExternal), at the one address keyRecommendation.ts
+ *  holds. */
 export function GetAKeyLink() {
-  return <Button variant="link" onClick={() => void OpenExternal(TYPESAFE_URL)}>{GET_A_KEY}</Button>;
+  return <Button variant="link" onClick={() => void OpenExternal(TYPESAFE_URL)}>{GET_A_KEY_LABEL}</Button>;
 }
 
 /** Where the key stands, in one sentence. */
@@ -76,8 +79,8 @@ export function AIReviewKeyCard() {
       <p className="muted small">
         Your own TypeSafe Jev key. When you describe a QuickAgent and draft it on this computer, AI Review reads your
         description, and every page and search result the draft reads, with this key before the model sees any of it.
-        What it flags is held back. It is kept in this computer&apos;s keychain next to your model key: not in a file,
-        and never shown here.
+        What it flags is held back. Submitting needs no key of yours: Agentry scans every submission itself. The key is
+        kept in this computer&apos;s keychain next to your model key: not in a file, and never shown here.
       </p>
       {status && <p className="small" role="status">{jevKeySentence(status)}</p>}
       {status?.keyStoreErr && <Notice tone="warn">The keychain could not be asked: {status.keyStoreErr}.</Notice>}

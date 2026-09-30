@@ -297,7 +297,7 @@ g.go = { main: {
     ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer",
     // What the app asked the system browser to open, for shots.mjs to read
     // (expectOpened): the TypeSafe link's one address (agentry-desktop#461).
-    OpenExternal: async (url: string) => { ((window as any).__opened ??= []).push(url); },
+    OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); },
   },
   BuildAPI: {
     NewModel: async () => {
