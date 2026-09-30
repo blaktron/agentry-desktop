@@ -440,6 +440,25 @@ export namespace build {
 
 }
 
+export namespace dockerimages {
+	
+	export class Report {
+	    removed: string[];
+	    failed: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Report(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.removed = source["removed"];
+	        this.failed = source["failed"];
+	    }
+	}
+
+}
+
 export namespace draft {
 	
 	export class Line {
@@ -2237,6 +2256,52 @@ export namespace main {
 	        this.hold = source["hold"];
 	        this.resetsAt = source["resetsAt"];
 	        this.missing = source["missing"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ImageView {
+	    ref: string;
+	    size?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.size = source["size"];
+	    }
+	}
+	export class ImagesView {
+	    images: ImageView[];
+	    unavailable?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImagesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.images = this.convertValues(source["images"], ImageView);
+	        this.unavailable = source["unavailable"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

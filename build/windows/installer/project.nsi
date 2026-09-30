@@ -80,14 +80,16 @@ FunctionEnd
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
 
 # The uninstaller's one optional page (plan §8): the application is always
-# removed; the settings and sign-in only when the box is ticked. The
+# removed; Agentry's Docker images too unless "Keep my Docker images" is
+# ticked (agentry-desktop#424); the settings and sign-in only when their box
+# is ticked. The
 # description box names the paths before anything is hovered, spelled with
 # %USERPROFILE% so the text does not depend on variable expansion inside a
 # language string.
-!define MUI_COMPONENTSPAGE_TEXT_TOP "${INFO_PRODUCTNAME} will be removed. Your settings and sign-in stay unless you tick the second box."
+!define MUI_COMPONENTSPAGE_TEXT_TOP "${INFO_PRODUCTNAME} will be removed, with the Docker images Agentry put on this computer unless you tick Keep my Docker images. Your settings and sign-in stay unless you tick the last box."
 !define MUI_COMPONENTSPAGE_TEXT_COMPLIST "Remove:"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "What stays"
-!define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "By default your settings (%USERPROFILE%\.config\agentry), runner configuration (%USERPROFILE%\.agentry\runner) and sign-in (the agentry entries in Windows Credential Manager) are kept, so a reinstall finds them. The agentry CLI uses the same files."
+!define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "By default your settings (%USERPROFILE%\.config\agentry), runner configuration (%USERPROFILE%\.agentry\runner) and sign-in (the agentry entries in Windows Credential Manager) are kept, so a reinstall finds them. The agentry CLI uses the same files, and the same Docker images."
 !insertmacro MUI_UNPAGE_COMPONENTS
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
@@ -144,11 +146,46 @@ Section
 SectionEnd
 
 # The uninstaller. Sections run in the order they are declared. The first
-# visible section is the page's mandatory row and does nothing itself; the
-# optional second runs the app's own removal while the binary is still
-# there; the hidden third, always run, removes the application afterwards.
+# visible section is the page's mandatory row and does nothing itself. The
+# second, "Keep my Docker images", is a box that does nothing itself either:
+# the hidden section after it removes Agentry's images unless it is ticked.
+# That runs before the settings section, because removing the settings
+# deletes the runner policy that may name the images (agentry-desktop#424).
+# The optional settings section runs the app's own removal while the binary
+# is still there; the hidden last one, always run, removes the application.
 Section "un.${INFO_PRODUCTNAME}" SEC_UN_APP
     SectionIn RO
+SectionEnd
+
+# Off by default (/o), so the images go by default and under /S: an
+# uninstall that leaves several GB of images behind was the report.
+Section /o "un.Keep my Docker images" SEC_UN_KEEP_IMAGES
+SectionEnd
+
+Section "-un.RemoveDockerImages"
+    ${IfNot} ${SectionIsSelected} ${SEC_UN_KEEP_IMAGES}
+        Push $0
+        DetailPrint "Removing the Docker images Agentry put on this computer"
+        ClearErrors
+        ExecWait '"$INSTDIR\${PRODUCT_EXECUTABLE}" --remove-docker-images' $0
+        ${If} ${Errors}
+            DetailPrint "The images step could not start ${PRODUCT_EXECUTABLE}"
+            ${IfNot} ${Silent}
+                MessageBox MB_OK|MB_ICONEXCLAMATION "The Docker images Agentry put on this computer could not be removed, because ${PRODUCT_EXECUTABLE} did not start. The uninstall goes on; Docker Desktop lists what is left."
+            ${EndIf}
+        ${ElseIf} $0 = 2
+            DetailPrint "Docker did not answer; its images were not removed"
+            ${IfNot} ${Silent}
+                MessageBox MB_OK|MB_ICONINFORMATION "Docker was not running, so the Docker images Agentry put on this computer were not removed. The uninstall goes on. To remove them later, start Docker Desktop and remove the images named ghcr.io/blaktron/agentry-*, agentry-runner and agentry-runner-exec."
+            ${EndIf}
+        ${ElseIf} $0 <> 0
+            DetailPrint "Some Docker images were not removed (exit code $0)"
+            ${IfNot} ${Silent}
+                MessageBox MB_OK|MB_ICONEXCLAMATION "Some of Agentry's Docker images were not removed, most likely because a container still uses them. The uninstall goes on; Docker Desktop lists what is left."
+            ${EndIf}
+        ${EndIf}
+        Pop $0
+    ${EndIf}
 SectionEnd
 
 # Off by default (/o), and so off under /S: a silent uninstall never touches
@@ -185,5 +222,6 @@ SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_APP} "Removes the application from $INSTDIR, its Start Menu shortcut, its Apps & features entry and its WebView2 cache. Your settings and sign-in stay."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_KEEP_IMAGES} "Leaves the Docker images Agentry downloaded and built in Docker: every ghcr.io/blaktron/agentry-* image, the agentry-runner and agentry-runner-exec builds, and the exact images the runner policy pins. Unticked, those are removed, one by one; no other image is selected. The agentry CLI uses the same images."
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_SETTINGS} "Also deletes %USERPROFILE%\.config\agentry (settings, installed agents, pinned keys), %USERPROFILE%\.agentry\runner (runner policy and profiles) — or where AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME point — and every agentry entry in Windows Credential Manager (registry sign-ins and the model key). The agentry CLI shares all of these."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END

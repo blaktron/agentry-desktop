@@ -14,6 +14,10 @@ export function AddToDockerGroup() {
   return window['go']['main']['RunAPI']['AddToDockerGroup']();
 }
 
+export function AgentryImages() {
+  return window['go']['main']['RunAPI']['AgentryImages']();
+}
+
 export function ApplySetup(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['RunAPI']['ApplySetup'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
@@ -96,6 +100,10 @@ export function PrereqStatus() {
 
 export function ProfileStatus(arg1, arg2) {
   return window['go']['main']['RunAPI']['ProfileStatus'](arg1, arg2);
+}
+
+export function RemoveAgentryImages() {
+  return window['go']['main']['RunAPI']['RemoveAgentryImages']();
 }
 
 export function ReplayHostedSession() {
