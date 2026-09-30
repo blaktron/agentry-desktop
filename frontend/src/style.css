@@ -211,6 +211,16 @@ code, pre, .mono {
   font-weight: 600;
 }
 
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+
+/* Validate under Build (agentry-desktop#422): a section's sub-items sit
+   indented on a rule, as the site's sub-menu does. */
+.nav-sub { margin: 0 0 2px 12px; padding-left: 6px; border-left: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 2px; }
+.nav-item.nav-sub-item { padding: 6px 10px; font-size: 13px; }
+/* The parent of the open sub-item stays lit in its colour, without the fill
+   the open page carries. */
+.nav-item.active.parent:not(:hover) { background: none; }
+
 .sidebar .foot { margin-top: auto; padding: 8px 10px; font-size: 11px; color: var(--color-muted); }
 
 /* "0.2.0 is available" beside the version, when a check found a newer

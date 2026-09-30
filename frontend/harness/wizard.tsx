@@ -138,12 +138,13 @@ g.runtime = { EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, Events
 
 import Wizard from "../src/pages/Wizard";
 import { Wordmark } from "../src/ui";
+import { SidebarNav } from "../src/nav";
 
 function Backdrop() {
   return (
     <div className="shell" style={{ height: "100vh" }}>
       <div className="sidebar"><div className="brand"><Wordmark sub="Desktop" /></div>
-        {["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"].map((n) => <button key={n} className={`nav-item ${n === "Browse" ? "active" : ""}`}>{n}</button>)}
+        <SidebarNav page="browse" />
       </div>
       <div className="content" />
     </div>

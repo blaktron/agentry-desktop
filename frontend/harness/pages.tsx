@@ -7,6 +7,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
+import { SidebarNav, type NavPage } from "../src/nav";
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -493,18 +494,12 @@ const settingsView = {
   ],
 };
 const REG = "https://secureagentry.net";
-function Shell({ active, children }: { active: string; children: React.ReactNode }) {
-  const nav = ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"];
+function Shell({ active, children }: { active: NavPage; children: React.ReactNode }) {
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        {nav.map((n) => (
-          <button key={n} className={`nav-item ${n === active ? "active" : ""}`}>
-            {n}
-            {n === "Installed" && installedUpdates > 0 && <span className="badge warn nav-count">{installedUpdates}</span>}
-          </button>
-        ))}
+        <SidebarNav page={active} installedUpdates={installedUpdates} />
         <div className="foot"><div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>
@@ -536,13 +531,13 @@ function SettingsPreview() {
 
 const render = () => createRoot(document.getElementById("root")!).render(
   <div>
-    <div data-preview="browse"><Shell active="Browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="agent"><Shell active="Browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
-    <div data-preview="installed"><Shell active="Installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="Build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
+    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="agent"><Shell active="browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
+    <div data-preview="installed"><Shell active="installed"><Installed onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="build"><Shell active="build"><Build registry={REG} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
-    <div data-preview="validate"><Shell active="Validate"><Validate /></Shell></div>
-    <div data-preview="settings"><Shell active="Settings"><SettingsPreview /></Shell></div>
+    <div data-preview="validate"><Shell active="validate"><Validate /></Shell></div>
+    <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
   </div>,
 );
 if (landedDraft) {

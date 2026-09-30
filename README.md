@@ -101,7 +101,8 @@ The product never claims an agent is "safe". The language is always:
   in a native dialog, then writes the pack into a folder you pick and shows
   that folder. A run's setup has a Knowledge step: an attached pack is mounted
   read-only for the run's tools, and the receipt names it.
-- **Validate** — an author drop-zone. Point it at a local QuickAgent folder and
+- **Validate** — under Build in the sidebar, shown while Build is open
+  (#422): an author drop-zone. Point it at a local QuickAgent folder and
   it runs the manifest rules, the S1 inventory (content-sniffed binaries,
   nested archives, encoding), and the S3/S4 hidden-content and
   injection-signature scanners. Those are the same Go packages the
