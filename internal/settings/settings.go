@@ -96,6 +96,15 @@ type Settings struct {
 	// A run's gate admits it as an output folder because it is read from
 	// this file, never as an input root (D-044).
 	DefaultOutputDir string `yaml:"defaultOutputDir,omitempty" json:"defaultOutputDir,omitempty"`
+	// UnsafeMode is Settings → Run defaults → Unsafe Mode (plan
+	// unsafe-mode.md D5, D6; agentry-desktop#418): while it is on, a run on
+	// this computer is compiled without this machine's exec catalogue, its
+	// declared commands installed from the Unsafe Mode image instead. A
+	// plain bool because it defaults OFF. It lives in this file and never in
+	// the runner policy, so the CLI and a run In Agentry cannot read it, and
+	// only RunAPI.SetUnsafeMode writes true, after a native confirmation and
+	// the image's pull (D-030: the page cannot turn it on).
+	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
 }
 
 // Where a run goes when Run defaults says nothing else.

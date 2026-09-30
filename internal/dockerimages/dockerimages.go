@@ -90,7 +90,9 @@ func ReadPolicy(home string) Policy {
 	}
 	i := pol.Images
 	p := Policy{Runner: i.Runner}
-	for _, r := range []string{i.Gateway, i.HarnessDockerAgent, i.GoBuilder, i.NodeRuntime, i.PythonRuntime} {
+	// images.unsafe is Unsafe Mode's base where an operator repointed it
+	// (plan unsafe-mode.md D12); the default is under RegistryPrefix.
+	for _, r := range []string{i.Gateway, i.HarnessDockerAgent, i.GoBuilder, i.NodeRuntime, i.PythonRuntime, i.Unsafe} {
 		if r != "" {
 			p.Refs = append(p.Refs, r)
 		}
@@ -102,7 +104,9 @@ func ReadPolicy(home string) Policy {
 //   - every image under Agentry's registry prefix;
 //   - the runner image this app builds and the per-QuickAgent exec images
 //     built on it, by repository (agentry-runner, agentry-runner-exec, or
-//     the policy's renamed runner and its "-exec");
+//     the policy's renamed runner and its "-exec"); an Unsafe Mode exec
+//     image is built on the Unsafe Mode base but named in the same "-exec"
+//     repository (spec.UnsafeExecImageTag), so it is taken here too;
 //   - each image the policy pins, matched by its exact tag or digest, so
 //     an operator's `node:22-alpine` takes that image and never the rest of
 //     `node`.

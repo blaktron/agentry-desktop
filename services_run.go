@@ -79,6 +79,10 @@ type RunAPI struct {
 	// agentry-desktop#198); "" is the runner home's desktop-runs.
 	inFlightDir string
 
+	// Unsafe Mode's seams (services_unsafe.go); nil means internal/run.
+	pullUnsafe   func(context.Context, io.Writer) (string, error)
+	unsafeNotice func(context.Context, string, string) (*run.UnsafeNotice, error)
+
 	// folders are the run folders of the results Go produced, by run id,
 	// for the result view's two bindings (services_outputs.go); openFolder
 	// is the file-manager seam a test substitutes.
@@ -116,7 +120,7 @@ type SessionEventView struct {
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
 func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
-	if err := r.runGates(ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
+	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
 		return nil, err
 	}
 	if !r.mu.TryLock() {
@@ -159,6 +163,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
+		Unsafe:             unsafeModeOn(),
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -693,6 +698,11 @@ type RunResultView struct {
 	// the packs mounted, how, and the tools that read them; omitted when
 	// none was attached.
 	Knowledge string `json:"knowledge,omitempty"`
+	// UnsafeMode is the receipt's exec line when the run was compiled in
+	// Unsafe Mode (agentry-desktop#418): what was installed from where,
+	// what the image could not provide and what did not install; omitted
+	// for every other run.
+	UnsafeMode string `json:"unsafeMode,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -710,7 +720,7 @@ type RunResultView struct {
 // (plan knowledge.md §4.5): each is opened from the local store once the
 // gates have passed, and its opened copy is removed when the run returns.
 func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*RunResultView, error) {
-	if err := r.runGates(ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
+	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
 		return nil, err
 	}
 	if !r.mu.TryLock() {
@@ -749,6 +759,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
+		Unsafe:             unsafeModeOn(),
 	}, logw)
 	if err != nil {
 		return nil, err
@@ -777,6 +788,7 @@ func runResultView(res *run.Result) *RunResultView {
 		AttestationState: res.AttestationState,
 		Policy:           res.Policy,
 		Knowledge:        res.Knowledge,
+		UnsafeMode:       unsafeLineOf(res.Exec),
 	}
 }
 
@@ -920,6 +932,16 @@ var _ io.Writer = (*lineEventWriter)(nil)
 // page's checkboxes remain what they were — the record of what is being
 // accepted — and the dialog is the gate.
 func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned bool) error {
+	return r.localRunGates("", ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned)
+}
+
+// localRunGates is runGates for a run on this computer, which knows its
+// registry: while Unsafe Mode is on, the consent dialog carries one more
+// line naming it and the declared commands its image cannot provide (plan
+// unsafe-mode.md D6, D8). The line adds no dialog of its own: turning
+// Unsafe Mode on was the native confirmation, and a run with nothing to
+// accept still raises none.
+func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned bool) error {
 	for _, p := range inputPaths {
 		if err := r.app.requirePicked("input", p); err != nil {
 			return err
@@ -941,8 +963,13 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 	if len(accepting) == 0 {
 		return nil
 	}
-	return r.app.askConsent("Run "+ref+" anyway?",
-		"This run accepts "+strings.Join(accepting, ", and ")+". The receipt will record the consent. Continue?")
+	message := "This run accepts " + strings.Join(accepting, ", and ") + ". The receipt will record the consent."
+	if line := r.unsafeConsentLine(reg, ref); line != "" {
+		message += "\n\n" + line + "\n\n"
+	} else {
+		message += " "
+	}
+	return r.app.askConsent("Run "+ref+" anyway?", message+"Continue?")
 }
 
 // knowledge is the local knowledge store's wiring (internal/knowledge).

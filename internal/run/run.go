@@ -38,6 +38,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
+	"github.com/blaktron/agentry-cli/pkg/runner/unsafeexec"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
@@ -379,6 +380,14 @@ type Request struct {
 	// — before it is staged: the desktop passes the native picker's
 	// record, since a page can type a path as easily as pick one (D-030).
 	PathPicked func(what, path string) error
+	// Unsafe is Unsafe Mode for this run (plan unsafe-mode.md D5, D7;
+	// agentry-desktop#418): the caller read the switch from desktop.yaml,
+	// which only Go writes after a native confirmation, and no bound method
+	// takes it from the page. The run is compiled without this machine's
+	// exec catalogue, its declared commands installed from the Unsafe Mode
+	// image. False is the default posture, under which a command the
+	// catalogue does not carry refuses the run as it always has.
+	Unsafe bool
 }
 
 // Result is the envelope-derived outcome. It is populated on failure too:
@@ -409,6 +418,9 @@ type Result struct {
 	// Knowledge is the receipt's knowledge line: what was mounted and
 	// how, "" when no pack was attached.
 	Knowledge string
+	// Exec is the receipt's exec line: the allowlist run_command enforced
+	// and the image it ran in, "" when the release declares no commands.
+	Exec string
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -509,9 +521,22 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		serverSpecs = mcpinstall.Specs(resolvedServers, m.Capabilities.MCPServers, pol.Images)
 	}
 
-	plan, planDir, err := ensurePlan(logw, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode)
+	docker := newDockerClient()
+	// Unsafe Mode (plan unsafe-mode.md §4.3): the base's command index and
+	// extras list, read from the image the switch pulled (pulled again here
+	// if it was removed since). Nil compiles the default posture.
+	unsafe, err := unsafeData(ctx, docker, pol, m, req.Unsafe, logw)
 	if err != nil {
 		return nil, err
+	}
+	plan, planDir, err := ensurePlan(logw, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode, unsafe)
+	if err != nil {
+		return nil, err
+	}
+	if planIsUnsafe(plan) {
+		// The plan's own exec line, which the receipt carries: what Unsafe
+		// Mode placed, what it could not, and what is not enforced.
+		_, _ = fmt.Fprintln(logw, plan.Enforcement["exec"])
 	}
 	if vulnLine != "" {
 		if plan.Enforcement == nil {
@@ -520,7 +545,6 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		plan.Enforcement["mcpServers.vulnerabilities"] = vulnLine
 	}
 
-	docker := newDockerClient()
 	// The last argument asks for the pinned harness image. A host-run
 	// harness runs no container, so pulling it would be a download nobody
 	// asked for; the desktop only compiles the default container adapter
@@ -711,6 +735,7 @@ func resultFromEnvelope(env *receipt.Envelope) *Result {
 		AttestationState: env.Attestation.State,
 		Policy:           env.Policy,
 		Knowledge:        env.CapabilitiesEnforced["knowledge"],
+		Exec:             env.CapabilitiesEnforced["exec"],
 	}
 }
 
@@ -886,6 +911,7 @@ func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest str
 // verify class, leaving the edited plan in place for a person to look at.
 func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *installdir.Meta, installDir, workspaceDir string,
 	pol *policy.Policy, polSHA, adapterName string, serverSpecs []spec.MCPServerSpec, mode manifest.Mode,
+	unsafe *unsafeexec.Data,
 ) (*spec.Plan, string, error) {
 	key, err := compile.IntegrityKey(home)
 	if err != nil {
@@ -897,6 +923,9 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 		_ = os.RemoveAll(filepath.Join(installDir, "plan"))
 	}
 	planDir := filepath.Join(installDir, "plan", string(mode))
+	// Unsafe Mode changes a plan only where the release declares commands:
+	// with none the compile builds no exec image either way.
+	wantUnsafe := unsafe != nil && len(execCommands(m)) > 0
 	b, rerr := compile.ReadInstalledPlan(key, planDir)
 	var tampered *compile.TamperedPlanError
 	switch {
@@ -926,6 +955,19 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 				_, _ = fmt.Fprintf(logw, "installed plan was compiled by another build (%s, this is %s) — recompiling\n", cmp.Or(plan.CompiledBy, "unknown"), version.Build())
 			case plan.Proxy.Image != runnerImageTag(pol):
 				_, _ = fmt.Fprintf(logw, "installed plan names runner image %s, this build uses %s — recompiling\n", plan.Proxy.Image, runnerImageTag(pol))
+			case planIsUnsafe(plan) != wantUnsafe:
+				// The switch changed since this plan was compiled (plan
+				// unsafe-mode.md invariant 4): a run with Unsafe Mode off
+				// never reuses a plan compiled with it on, and a run with it
+				// on never reuses the catalogue's. The CLI's own reuse
+				// refuses an Unsafe Mode plan the same way (DR-53).
+				if wantUnsafe {
+					_, _ = fmt.Fprintln(logw, "installed plan was compiled without Unsafe Mode, which is on — recompiling")
+				} else {
+					_, _ = fmt.Fprintln(logw, "installed plan was compiled in Unsafe Mode, which is off — recompiling without it")
+				}
+			case wantUnsafe && plan.ExecImage.Unsafe.Base != unsafe.Base:
+				_, _ = fmt.Fprintf(logw, "installed plan names the Unsafe Mode image %s, this run uses %s — recompiling\n", plan.ExecImage.Unsafe.Base, unsafe.Base)
 			default:
 				if verr := compile.VerifyFiles(plan, planDir); verr == nil {
 					return plan, planDir, nil
@@ -956,6 +998,7 @@ func ensurePlan(logw io.Writer, home string, m *manifest.Manifest, meta *install
 		MCPServers:   serverSpecs,
 		CompiledBy:   version.Build(),
 		IntegrityKey: key,
+		Unsafe:       unsafe,
 	}, planDir)
 	if err != nil {
 		var refusal *compile.PolicyRefusal

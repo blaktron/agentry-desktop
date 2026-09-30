@@ -75,6 +75,8 @@ export function SendTurn(arg1:string):Promise<void>;
 
 export function SetHostedSecret(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 
+export function SetUnsafeMode(arg1:boolean):Promise<main.RunDefaultsView>;
+
 export function SetupStatus():Promise<main.SetupStatusView>;
 
 export function ShowRunFolder(arg1:string):Promise<void>;
@@ -90,3 +92,5 @@ export function StoreJevKey(arg1:string):Promise<main.JevKeyView>;
 export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusView>;
 
 export function TestJevKey():Promise<main.JevKeyTestView>;
+
+export function UnsafeNotice(arg1:string,arg2:string):Promise<main.UnsafeNoticeView>;

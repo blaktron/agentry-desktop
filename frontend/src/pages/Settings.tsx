@@ -3,7 +3,8 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
-import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Toolbar, fmtDuration } from "../ui";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar, fmtDuration } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
@@ -27,7 +28,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 export type SettingsPart =
   | "profile" | "subscription"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "where" | "output" | "docker" | "images" | "provider" | "ai-review-key";
+  | "budgets" | "where" | "output" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -58,8 +59,8 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     sentence: "How long a run may take, where runs go and where their files land, and the Docker engine runs on this computer use, with Agentry's images on it.",
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "where", label: "Where to run" },
-      { id: "output", label: "Output folder" }, { id: "docker", label: "Docker engine" },
-      { id: "images", label: "Docker images" },
+      { id: "output", label: "Output folder" }, { id: "unsafe", label: "Unsafe Mode" },
+      { id: "docker", label: "Docker engine" }, { id: "images", label: "Docker images" },
     ],
   },
   {
@@ -80,6 +81,8 @@ export const SETTINGS_FOR = {
   knowledgeSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
   describeKey: { section: "provider", part: "ai-review-key" },
+  // the sidebar's Unsafe Mode badge
+  unsafeMode: { section: "run-defaults", part: "unsafe" },
 } satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
 
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
@@ -144,7 +147,7 @@ export default function Settings({
         </>
       )}
       {section === "coding-agents" && <CodingAgentsCard />}
-      {section === "run-defaults" && <RunDefaultsSettings />}
+      {section === "run-defaults" && <RunDefaultsSettings onChanged={onChanged} />}
       {section === "provider" && (
         <>
           <div id="settings-part-provider" className="settings-part">
@@ -278,7 +281,7 @@ export function codingStatus(v: main.CodingAgentsView): string {
 // when it is what stands in the way.
 export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusView | null): string {
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
-  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.`;
+  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
 }
 
@@ -301,8 +304,10 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // D2, D13; agentry-desktop#347): the timeout and max turns the runner policy
 // holds, which the CLI runs with too; where the run setup starts; the output
 // folder it fills in; and the Docker engine's prerequisites. None of them is
-// a consent: every run still asks what it asks.
-function RunDefaultsSettings() {
+// a consent: every run still asks what it asks. Unsafe Mode's switch is here
+// too (agentry-desktop#418): the page asks Go to turn it on, and Go asks the
+// person in a native dialog and pulls the image before it reads on.
+function RunDefaultsSettings({ onChanged }: { onChanged?: () => Promise<unknown> }) {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
   const [timeoutText, setTimeoutText] = useState("");
@@ -335,6 +340,27 @@ function RunDefaultsSettings() {
       setErr(String(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Unsafe Mode: the pull's lines while Go turns it on (runner:unsafe-progress),
+  // and the shell's settings read again after, so the edge and the badge follow.
+  const [unsafeBusy, setUnsafeBusy] = useState(false);
+  const [unsafeLog, setUnsafeLog] = useState<string[]>([]);
+  const [unsafeErr, setUnsafeErr] = useState<string | null>(null);
+  useEffect(() => EventsOn("runner:unsafe-progress", (line: string) => setUnsafeLog((p) => [...p.slice(-199), line])), []);
+  async function setUnsafeMode(on: boolean) {
+    setUnsafeBusy(true);
+    setUnsafeErr(null);
+    setUnsafeLog([]);
+    try {
+      show(await RunAPI.SetUnsafeMode(on), false);
+      await onChanged?.();
+    } catch (e) {
+      // A No in the dialog is an answer, not a fault to show.
+      if (!String(e).includes("not confirmed")) setUnsafeErr(String(e));
+    } finally {
+      setUnsafeBusy(false);
     }
   }
 
@@ -408,6 +434,43 @@ function RunDefaultsSettings() {
                 Chosen here, through the file dialog. The run setup fills it in and you can pick another for one run.
                 Each run writes into a folder of its own inside it. A run never reads from it unless you add it as an input.
               </p>
+            </Card>
+          </PartSection>
+          <PartSection id="unsafe" title="Unsafe Mode">
+            <Card>
+              <label className="check-row" style={{ margin: 0 }}>
+                <input type="checkbox" role="switch" checked={defaults.unsafeMode} disabled={busy || unsafeBusy}
+                  onChange={(e) => void setUnsafeMode(e.target.checked)} />
+                <span>
+                  <strong>Unsafe Mode</strong>{" "}
+                  <span className={`badge ${defaults.unsafeMode ? "bad" : ""}`} data-unsafe-state>{defaults.unsafeMode ? "On" : "Off"}</span>
+                </span>
+              </label>
+              <p className="small">
+                While this is on, a QuickAgent run on this computer can use commands this computer has not approved. Each
+                command the QuickAgent declares is installed from Kali Linux&apos;s repository when it first runs, and runs
+                with that image&apos;s own PATH, so it can reach every program the image holds. A command that cannot be
+                installed is left out, and the run goes on without it.
+              </p>
+              <p className="muted small">
+                Only the commands a QuickAgent declares can be called. The container, its network limits and every consent
+                stay as they are, and a run In Agentry never uses Unsafe Mode. Turning it on asks you to confirm, then
+                downloads the Unsafe Mode image, a few hundred megabytes. While it is on, a red edge runs round the window
+                and the sidebar says so. Turning it off takes effect at once and keeps the images: Docker images, below,
+                removes them.
+              </p>
+              {defaults.unsafeImage && (
+                <p className="muted small" style={{ marginBottom: 0 }}>
+                  The image: <span className="mono selectable">{defaults.unsafeImage}</span>
+                </p>
+              )}
+              {unsafeBusy && !defaults.unsafeMode && (
+                <div role="status" className="small" style={{ marginTop: 8 }}>
+                  <Spinner label={unsafeLog.length ? "Downloading the Unsafe Mode image…" : "Waiting for your answer in the dialog…"} />
+                  {unsafeLog.length > 0 && <pre className="run-log selectable" data-unsafe-log>{unsafeLog.join("\n")}</pre>}
+                </div>
+              )}
+              <ErrorBox error={unsafeErr} />
             </Card>
           </PartSection>
         </>

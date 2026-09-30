@@ -3114,6 +3114,8 @@ export namespace main {
 	    policyPath: string;
 	    where: string;
 	    outputDir?: string;
+	    unsafeMode: boolean;
+	    unsafeImage?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunDefaultsView(source);
@@ -3126,6 +3128,8 @@ export namespace main {
 	        this.policyPath = source["policyPath"];
 	        this.where = source["where"];
 	        this.outputDir = source["outputDir"];
+	        this.unsafeMode = source["unsafeMode"];
+	        this.unsafeImage = source["unsafeImage"];
 	    }
 	}
 	export class RunOutputsView {
@@ -3181,6 +3185,7 @@ export namespace main {
 	    attestationState: string;
 	    policy?: receipt.Policy;
 	    knowledge?: string;
+	    unsafeMode?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -3206,6 +3211,7 @@ export namespace main {
 	        this.attestationState = source["attestationState"];
 	        this.policy = this.convertValues(source["policy"], receipt.Policy);
 	        this.knowledge = source["knowledge"];
+	        this.unsafeMode = source["unsafeMode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3377,6 +3383,7 @@ export namespace main {
 	    registries: RegistryView[];
 	    configPath: string;
 	    onboarded: boolean;
+	    unsafeMode: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsView(source);
@@ -3388,6 +3395,7 @@ export namespace main {
 	        this.registries = this.convertValues(source["registries"], RegistryView);
 	        this.configPath = source["configPath"];
 	        this.onboarded = source["onboarded"];
+	        this.unsafeMode = source["unsafeMode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3489,6 +3497,22 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class UnsafeNoticeView {
+	    on: boolean;
+	    line?: string;
+	    unplaced: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UnsafeNoticeView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.on = source["on"];
+	        this.line = source["line"];
+	        this.unplaced = source["unplaced"];
+	    }
 	}
 	
 

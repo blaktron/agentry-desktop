@@ -93,6 +93,19 @@ export default function RunPanel({
   // fills the field and where to run pre-selects the Where step, until the
   // person chooses otherwise for this run.
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
+  // Unsafe Mode (agentry-desktop#418): while Run defaults' switch is on, the
+  // line a run of this release on this computer carries, as Go composes it
+  // for the native consent dialog too. Shown on Review and start; it gates
+  // nothing here, and a run In Agentry never carries it.
+  const [unsafeNotice, setUnsafeNotice] = useState<main.UnsafeNoticeView | null>(null);
+  useEffect(() => {
+    let live = true;
+    setUnsafeNotice(null);
+    RunAPI.UnsafeNotice(registry, agentRef)
+      .then((v) => live && setUnsafeNotice(v))
+      .catch((e) => live && setUnsafeNotice({ on: true, line: `Unsafe Mode is on. What it means for this QuickAgent could not be read: ${String(e)}`, unplaced: [] }));
+    return () => { live = false; };
+  }, [registry, agentRef]);
   const modeChosen = useRef(false);
   // Whether In Agentry was chosen by the default rather than by the person:
   // if the offer or the release's verdict then rules it out, the step goes
@@ -1138,6 +1151,12 @@ export default function RunPanel({
                     </details>
               </>
             )}
+                {unsafeNotice?.on && !inAgentry && (
+                  <div className="notice notice-unsafe selectable" role="note" data-unsafe-notice>
+                    <span className="badge bad">Unsafe Mode</span>{" "}
+                    {unsafeNotice.line}
+                  </div>
+                )}
                 {unscanned && (
                   <div className="notice notice-unscanned mark-unscanned">
                     <p style={{ margin: 0 }}>
@@ -1359,6 +1378,7 @@ export default function RunPanel({
             error={result.error || undefined}
             resultJson={result.resultJson}
             knowledge={result.knowledge}
+            unsafeMode={result.unsafeMode}
           >
             <Card className="selectable">
               <div className="row">

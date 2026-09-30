@@ -18,7 +18,7 @@ import { RevealText, plainName } from "../reveal";
 import { Button, ErrorBox, fmtBytes } from "../ui";
 
 export function RunResultView({
-  runId, headline, tone, error, resultJson, knowledge, children,
+  runId, headline, tone, error, resultJson, knowledge, unsafeMode, children,
 }: {
   runId: string;
   headline: string;
@@ -29,6 +29,9 @@ export function RunResultView({
   /** The receipt's knowledge line: the packs this run could search, and how
    *  they were mounted (plan knowledge.md §4.5); unset when none was. */
   knowledge?: string;
+  /** The receipt's exec line of an Unsafe Mode run (agentry-desktop#418):
+   *  what was installed from where, and what was not; unset otherwise. */
+  unsafeMode?: string;
   /** Run details: what the view used to show first. */
   children?: React.ReactNode;
 }) {
@@ -62,6 +65,13 @@ export function RunResultView({
         <section aria-labelledby="run-result-knowledge">
           <h4 id="run-result-knowledge">Knowledge this run could search</h4>
           <p className="mono small selectable">{knowledge}</p>
+        </section>
+      )}
+
+      {unsafeMode && (
+        <section aria-labelledby="run-result-unsafe">
+          <h4 id="run-result-unsafe"><span className="badge bad">Unsafe Mode</span> This run&apos;s commands</h4>
+          <p className="mono small selectable">{unsafeMode}</p>
         </section>
       )}
 

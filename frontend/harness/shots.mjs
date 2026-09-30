@@ -310,6 +310,23 @@ const states = [
   { name: "settings-run-defaults", url: "/pages.html?settings=run-defaults", note: "Run defaults: timeout and turns (the policy's, which the CLI shares), where to run, the output folder, Docker", locator: '[data-preview="settings"]',
     expectSection: "run-defaults", expectText: ["Timeout (seconds)", "the agentry CLI runs with them too", "Where to run", "every consent is asked on every run", "None chosen", "Docker engine"],
     expectValue: ['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "900"] },
+  // Unsafe Mode (agentry-desktop#418): the switch off and on in Run defaults,
+  // the pull under way, and the red edge over a page and over a dialog.
+  // `viewport` shoots the window, not the locator: the edge is the window's.
+  { name: "settings-unsafe-off", url: "/pages.html?settings=run-defaults", note: "Run defaults → Unsafe Mode, off: what it lifts, what stays, and what turning it on does", locator: '[data-preview="settings"] #settings-part-unsafe',
+    expectSection: "run-defaults", expectText: ["Unsafe Mode", "Off", "commands this computer has not approved", "a run In Agentry never uses Unsafe Mode", "ghcr.io/blaktron/agentry-unsafe-kali"],
+    expectNone: ".unsafe-glow, .unsafe-badge", expectUnsafeSwitch: false },
+  { name: "settings-unsafe-on", url: "/pages.html?settings=run-defaults#unsafe-on", note: "Unsafe Mode on: the switch reads on, the red edge runs round the window and the sidebar's badge says Unsafe Mode", locator: '[data-preview="settings"]', window: true,
+    expectSection: "run-defaults", expectText: ["Unsafe Mode", "On"], expectUnsafeSwitch: true, expectGlow: true, only: "settings", scrollTo: "#settings-part-unsafe" },
+  { name: "settings-unsafe-pulling", url: "/pages.html?settings=run-defaults#unsafe-pulling", note: "the switch clicked and the native Yes given: the image's pull under way, the switch still off until it ends", locator: '[data-preview="settings"] #settings-part-unsafe',
+    click: '[data-preview="settings"] #settings-part-unsafe input[role="switch"]', expectSection: "run-defaults", expectText: ["Downloading the Unsafe Mode image", "Pulling from blaktron/agentry-unsafe-kali"], expectUnsafeSwitch: false },
+  { name: "settings-landing-unsafe", url: "/pages.html#unsafe-on", note: "the Settings landing in Unsafe Mode: the Run defaults card's status line says it is on, under the red edge", locator: '[data-preview="settings"]', window: true,
+    expectText: "Unsafe Mode is on.", expectGlow: true, only: "settings" },
+  { name: "unsafe-glow-browse", url: "/pages.html#unsafe-on", note: "a page in Unsafe Mode: the red edge round the window, the badge at the foot of the sidebar", locator: '[data-preview="browse"]', window: true, expectGlow: true, only: "browse" },
+  { name: "runpanel-unsafe-review", url: "/modals.html#runpanel-unsafe-review", note: "Review and start in Unsafe Mode: the line names the declared commands and the one the image cannot provide; the red edge frames the dialog too", window: true,
+    expectText: ["Unsafe Mode is on", "Not available in Unsafe Mode's image: pyinstxtractor"], expectGlow: true, scrollTo: "[data-unsafe-notice]" },
+  { name: "runpanel-unsafe-finished", url: "/modals.html#runpanel-unsafe-finished", note: "an Unsafe Mode run finished: the result names what was installed from where and what did not install", window: true,
+    click: ['button:text-is("Run")'], expectText: ["This run's commands", "NOT installed at image build", "binwalk (E: Unable to locate package binwalk) for binwalk"], expectGlow: true, scrollTo: "#run-result-unsafe" },
   { name: "settings-run-defaults-saved", url: "/pages.html?settings=run-defaults", note: "a timeout of 1800 s saved, In Agentry chosen, a folder picked", locator: '[data-preview="settings"]',
     fill: [['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "1800"]],
     click: ['[data-preview="settings"] input[name="run-where"] >> nth=1', '[data-preview="settings"] #settings-part-output button:has-text("Choose")', '[data-preview="settings"] #settings-part-budgets button:has-text("Save")'],
@@ -318,6 +335,7 @@ const states = [
   { name: "settings-deeplink-setup", url: "/pages.html", note: "Browse's setup notice opens Provider settings", locator: '[data-preview="settings"]', click: '[data-deeplink="setupNotice"]', expectSection: "provider" },
   { name: "settings-deeplink-knowledge", url: "/pages.html", note: "Knowledge's Not signed in opens Registry settings at the registries", locator: '[data-preview="settings"]', click: '[data-deeplink="knowledgeSignIn"]', expectSection: "registry", expectPart: "registries" },
   { name: "settings-deeplink-describe", url: "/pages.html", note: "Build's Describe it without an AI Review key opens Provider settings at the key", locator: '[data-preview="settings"]', click: '[data-deeplink="describeKey"]', expectSection: "provider", expectPart: "ai-review-key" },
+  { name: "settings-deeplink-unsafe", url: "/pages.html#unsafe-on", note: "the sidebar's Unsafe Mode badge opens Run defaults at the switch", locator: '[data-preview="settings"]', click: '[data-deeplink="unsafeMode"]', expectSection: "run-defaults", expectPart: "unsafe", expectUnsafeSwitch: true },
   { name: "settings-status-failed", url: "/pages.html#status-refused", note: "the landing when every status read fails: the five cards stay, their lines drop", locator: '[data-preview="settings"]',
     expectSection: "landing", expectCards: 5, expectStatusLines: 1 },
   { name: "toolspanel", url: "/modals.html#toolspanel", note: "the tools panel over the shell" },
@@ -381,6 +399,9 @@ try {
       // A fresh page per state: the states differ only by the hash the
       // harness reads at load, and a hash change alone does not reload.
       const page = await ctx.newPage();
+      // A window shot is taken at a window's size: the Unsafe Mode edge is
+      // the window's, and the default viewport is as tall as a long panel.
+      if (state.window) await page.setViewportSize({ width: 1180, height: 760 });
       await page.goto(base + state.url, { waitUntil: "networkidle" });
       // The panel fills itself from the mocked bindings and the scripted
       // log; a beat is enough for both.
@@ -502,6 +523,36 @@ try {
         const n = await page.locator('[data-preview="settings"] .settings-card-status').count();
         if (n !== state.expectStatusLines) throw new Error(`${state.name}: ${n} status lines, not ${state.expectStatusLines}`);
       }
+      if (state.expectUnsafeSwitch !== undefined) {
+        // The switch reads what Go says, not what was clicked.
+        const on = await page.locator('#settings-part-unsafe input[role="switch"]').isChecked();
+        if (on !== state.expectUnsafeSwitch) throw new Error(`${state.name}: the Unsafe Mode switch reads ${on ? "on" : "off"}`);
+      }
+      if (state.only) {
+        // pages.html stacks every page in one document; a window shot shows
+        // the one page named, as the app's window would.
+        await page.evaluate((keep) => {
+          for (const el of document.querySelectorAll("[data-preview]")) if (el.getAttribute("data-preview") !== keep) el.remove();
+        }, state.only);
+        await page.waitForTimeout(100);
+      }
+      if (state.expectGlow) {
+        // The edge covers the window, above every dialog, and takes no
+        // click; the badge says the same in words (plan unsafe-mode.md D13).
+        const glow = await page.locator(".unsafe-glow").first().evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          const above = [...document.querySelectorAll(".modal-backdrop, .wizard-backdrop, .corner-cards")].every((o) => Number(getComputedStyle(o).zIndex || 0) < Number(cs.zIndex));
+          return { covers: r.left === 0 && r.top === 0 && r.width === window.innerWidth && r.height === window.innerHeight, clicks: cs.pointerEvents, shadow: cs.boxShadow, above };
+        });
+        if (!glow.covers || glow.clicks !== "none" || !glow.shadow.includes("inset") || !glow.above) throw new Error(`${state.name}: the Unsafe Mode edge is ${JSON.stringify(glow)}`);
+        const badge = (await page.locator(".sidebar .unsafe-badge").first().innerText()).trim();
+        if (badge !== "Unsafe Mode") throw new Error(`${state.name}: the sidebar's badge reads "${badge}"`);
+      }
+      if (state.scrollTo) {
+        await page.locator(state.scrollTo).first().scrollIntoViewIfNeeded();
+        await page.waitForTimeout(100);
+      }
       if (state.expectSwitchLabel) {
         const label = await page.locator(state.locator).locator('label:has(input[type="checkbox"])').last().innerText();
         if (label.trim() !== state.expectSwitchLabel) throw new Error(`${state.name}: the switch reads "${label.trim()}"`);
@@ -555,7 +606,7 @@ try {
       }
       const file = path.join(outDir, `${state.name}-${scheme}.png`);
       const modal = page.locator(state.locator ?? ".modal").first();
-      await ((await modal.count()) ? modal : page).screenshot({ path: file });
+      await (state.window ? page : (await modal.count()) ? modal : page).screenshot({ path: file });
       console.log(`${file}  — ${state.note}`);
       await page.close();
     }

@@ -1,0 +1,406 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/settings"
+)
+
+// Unsafe Mode (plan unsafe-mode.md M3; agentry-desktop#418, D-050), the
+// plan's invariants 5–7 as tests: a run In Agentry carries nothing of it,
+// the page cannot turn it on, and every consent that existed still asks.
+
+// unsafeApp is a RunAPI under a settings file and a runner home of the
+// test's own, whose dialog answers as the test says and records what it
+// was asked, and whose image pull is the test's.
+type unsafeApp struct {
+	r      *RunAPI
+	asked  []string // each dialog's title and message
+	answer bool
+	pulls  int
+	pull   error
+}
+
+func newUnsafeApp(t *testing.T) *unsafeApp {
+	t.Helper()
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	t.Setenv(policy.HomeEnv, t.TempDir())
+	u := &unsafeApp{}
+	// No webview: the pull's progress lines go nowhere.
+	old := emitEvent
+	emitEvent = func(*App, string, ...any) {}
+	t.Cleanup(func() { emitEvent = old })
+	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, message string) (bool, error) {
+		u.asked = append(u.asked, title+"\n"+message)
+		return u.answer, nil
+	}}
+	u.r = &RunAPI{app: app, inFlightDir: t.TempDir(),
+		pullUnsafe: func(_ context.Context, logw io.Writer) (string, error) {
+			u.pulls++
+			_, _ = io.WriteString(logw, "downloading\n")
+			return "ghcr.io/blaktron/agentry-unsafe-kali:test", u.pull
+		}}
+	return u
+}
+
+// switchOn writes the setting the way only SetUnsafeMode does, for a test
+// that starts with Unsafe Mode already on.
+func switchOn(t *testing.T) {
+	t.Helper()
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.UnsafeMode = true
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func savedUnsafeMode(t *testing.T) bool {
+	t.Helper()
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.UnsafeMode
+}
+
+// Invariant 6: the renderer cannot turn Unsafe Mode on by itself. The
+// binding the page calls is a native dialog the page cannot answer, then
+// the image's pull; the setting is written only after both, and never into
+// the runner policy. In the pattern of
+// TestConsentIsANativeDialogNotAPageFlag.
+func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
+	u := newUnsafeApp(t)
+	if v, err := (&SettingsAPI{app: u.r.app}).RunDefaults(); err != nil || v.UnsafeMode {
+		t.Fatalf("with nothing saved Unsafe Mode reads %+v, %v; want off", v, err)
+	}
+
+	// The person says No: refused, nothing pulled, nothing written.
+	_, err := u.r.SetUnsafeMode(true)
+	if err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("with the dialog answered No: err = %v, want a refusal", err)
+	}
+	if len(u.asked) != 1 || u.pulls != 0 || savedUnsafeMode(t) {
+		t.Fatalf("after a No: dialogs %d, pulls %d, saved %v", len(u.asked), u.pulls, savedUnsafeMode(t))
+	}
+	// The dialog says what changes, in the plan's words, and DR-53's PATH.
+	for _, want := range []string{"Turn on Unsafe Mode?",
+		"QuickAgents can run commands this computer has not approved.",
+		"Each command is installed from Kali Linux's repository when the QuickAgent first runs.",
+		"own PATH", "never to a run In Agentry"} {
+		if !strings.Contains(u.asked[0], want) {
+			t.Errorf("the confirmation lacks %q:\n%s", want, u.asked[0])
+		}
+	}
+
+	// No dialog available at all (no window): refuse, never assume yes.
+	none := &RunAPI{app: &App{ctx: context.Background()}, pullUnsafe: u.r.pullUnsafe}
+	if _, err := none.SetUnsafeMode(true); err == nil || !strings.Contains(err.Error(), "refusing") {
+		t.Fatalf("no dialog seam: %v", err)
+	}
+	if u.pulls != 0 || savedUnsafeMode(t) {
+		t.Fatal("with no dialog the image was pulled or the switch written")
+	}
+
+	// Yes, but the image does not arrive: the switch stays off.
+	u.answer, u.pull = true, errors.New("no route to ghcr.io")
+	if _, err := u.r.SetUnsafeMode(true); err == nil || !strings.Contains(err.Error(), "no route") {
+		t.Fatalf("a failed pull: err = %v", err)
+	}
+	if u.pulls != 1 || savedUnsafeMode(t) {
+		t.Fatalf("after a failed pull: pulls %d, saved %v; want off", u.pulls, savedUnsafeMode(t))
+	}
+
+	// Another docker operation holds the lock: refused before any dialog.
+	u.pull = nil
+	u.r.mu.Lock()
+	before := len(u.asked)
+	_, err = u.r.SetUnsafeMode(true)
+	u.r.mu.Unlock()
+	if !errors.Is(err, errBusy) || len(u.asked) != before || savedUnsafeMode(t) {
+		t.Fatalf("while busy: err = %v, dialogs %d→%d, saved %v", err, before, len(u.asked), savedUnsafeMode(t))
+	}
+
+	// Yes, and the image arrives: on, in desktop.yaml only.
+	v, err := u.r.SetUnsafeMode(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.UnsafeMode || !savedUnsafeMode(t) || u.pulls != 2 {
+		t.Fatalf("after Yes and the pull: view %+v, saved %v, pulls %d", v, savedUnsafeMode(t), u.pulls)
+	}
+	path, err := settings.Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(path); !strings.Contains(string(raw), "unsafeMode: true") {
+		t.Fatalf("desktop.yaml does not hold the switch:\n%s", raw)
+	}
+	polPath, err := policy.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw, err := os.ReadFile(polPath); err == nil && strings.Contains(strings.ToLower(string(raw)), "unsafemode") {
+		t.Fatalf("the runner policy was written with the switch (D5):\n%s", raw)
+	}
+	if sv, err := settingsView(); err != nil || !sv.UnsafeMode {
+		t.Fatalf("the shell's settings view: %+v, %v; want Unsafe Mode on for the glow", sv, err)
+	}
+	// On already: asking again neither asks nor pulls.
+	asked, pulls := len(u.asked), u.pulls
+	if _, err := u.r.SetUnsafeMode(true); err != nil || len(u.asked) != asked || u.pulls != pulls {
+		t.Fatalf("turning on what is on: err %v, dialogs %d→%d, pulls %d→%d", err, asked, len(u.asked), pulls, u.pulls)
+	}
+
+	// Off is immediate: no dialog, no docker, nothing removed (D12).
+	v, err = u.r.SetUnsafeMode(false)
+	if err != nil || v.UnsafeMode || savedUnsafeMode(t) || len(u.asked) != asked || u.pulls != pulls {
+		t.Fatalf("turning it off: view %+v, err %v, dialogs %d→%d, pulls %d→%d", v, err, asked, len(u.asked), pulls, u.pulls)
+	}
+}
+
+// Invariant 4's desktop half, and the other half of 6: a run is an Unsafe
+// Mode run only because desktop.yaml says so. No argument of RunAgent or
+// StartSession carries it, so whatever the page sends, a run with the
+// setting absent is compiled in the default posture.
+func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
+	u := newUnsafeApp(t)
+	var got []run.Request
+	u.r.engineRun = func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+		got = append(got, req)
+		return &run.Result{}, nil
+	}
+	runIt := func() {
+		t.Helper()
+		// Every consent flag the page can send, accepted in the dialog.
+		u.answer = true
+		if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, map[string]string{"unsafeMode": "true"}, true, true, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runIt()
+	if len(got) != 1 || got[0].Unsafe {
+		t.Fatalf("with the setting absent the run was compiled with Unsafe %v", got[0].Unsafe)
+	}
+	switchOn(t)
+	runIt()
+	if len(got) != 2 || !got[1].Unsafe {
+		t.Fatal("with the switch on the run was not an Unsafe Mode run")
+	}
+	if _, err := u.r.SetUnsafeMode(false); err != nil {
+		t.Fatal(err)
+	}
+	runIt()
+	if len(got) != 3 || got[2].Unsafe {
+		t.Fatal("with the switch turned off again the run was still an Unsafe Mode run")
+	}
+	// A result names Unsafe Mode only when the receipt's exec line does.
+	if v := runResultView(&run.Result{Exec: "UNSAFE MODE: run_command restricted to the argv0 allowlist {r2}"}); v.UnsafeMode == "" {
+		t.Fatal("an Unsafe Mode run's result does not carry its exec line")
+	}
+	if v := runResultView(&run.Result{Exec: "run_command restricted to the argv0 allowlist {echo}"}); v.UnsafeMode != "" {
+		t.Fatalf("a default-posture run's result names Unsafe Mode: %q", v.UnsafeMode)
+	}
+}
+
+// Invariant 7: with Unsafe Mode on, every consent that exists still asks,
+// in its own dialog, and a No still refuses. The dialog carries one more
+// line naming Unsafe Mode and the commands its image cannot provide (D6,
+// D8), and Unsafe Mode adds no dialog to a run that had none.
+func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
+	u := newUnsafeApp(t)
+	switchOn(t)
+	var noticed []string
+	u.r.unsafeNotice = func(_ context.Context, reg, ref string) (*run.UnsafeNotice, error) {
+		noticed = append(noticed, reg+" "+ref)
+		return &run.UnsafeNotice{Commands: []string{"analyzeHeadless", "r2", "zzz"}, Unplaced: []string{"zzz"}}, nil
+	}
+	ran := 0
+	u.r.engineRun = func(context.Context, run.Request, io.Writer) (*run.Result, error) { ran++; return &run.Result{}, nil }
+
+	for name, flags := range map[string][3]bool{
+		"a release with no attestation":                    {true, false, false},
+		"a declared MCP server with a known vulnerability": {false, true, false},
+		"a release the registry admitted without a scan":   {false, false, true},
+	} {
+		before := len(u.asked)
+		_, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, flags[0], nil, flags[1], flags[2], nil)
+		if err == nil || !strings.Contains(err.Error(), "not confirmed") {
+			t.Errorf("%s, in Unsafe Mode, with the dialog answered No: err = %v, want the refusal", name, err)
+		}
+		if len(u.asked) != before+1 {
+			t.Fatalf("%s, in Unsafe Mode: dialogs raised = %d, want one", name, len(u.asked)-before)
+		}
+		msg := u.asked[len(u.asked)-1]
+		for _, want := range []string{"This run accepts " + name, "The receipt will record the consent.",
+			"Unsafe Mode is on", "analyzeHeadless, r2, zzz", "Not available in Unsafe Mode's image: zzz", "Continue?"} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("%s: the dialog lacks %q:\n%s", name, want, msg)
+			}
+		}
+	}
+	if ran != 0 {
+		t.Fatalf("a refused consent reached the engine %d time(s)", ran)
+	}
+	if len(noticed) != 3 || noticed[0] != "https://r.example acme/x@1.0.0" {
+		t.Fatalf("the notice was read for %q", noticed)
+	}
+
+	// A session asks the same way.
+	before := len(u.asked)
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("StartSession unsigned, in Unsafe Mode: err = %v", err)
+	}
+	if len(u.asked) != before+1 || !strings.Contains(u.asked[before], "Unsafe Mode is on") {
+		t.Fatalf("StartSession's dialog: %q", u.asked[before:])
+	}
+
+	// A run with nothing to accept raises no dialog, Unsafe Mode or not:
+	// turning it on was the confirmation (D6, "no extra dialog per run").
+	before = len(u.asked)
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(u.asked) != before || ran != 1 {
+		t.Fatalf("a consent-free run in Unsafe Mode: dialogs %d, runs %d", len(u.asked)-before, ran)
+	}
+
+	// A release that cannot be read here still gets a dialog that names
+	// Unsafe Mode; and with the switch off the dialog is the one it was.
+	u.r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) {
+		return nil, errors.New("registry unreachable")
+	}
+	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil)
+	if msg := u.asked[len(u.asked)-1]; !strings.Contains(msg, "Unsafe Mode is on") {
+		t.Fatalf("with the release unreadable the dialog does not name Unsafe Mode:\n%s", msg)
+	}
+	if _, err := u.r.SetUnsafeMode(false); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil)
+	if msg := u.asked[len(u.asked)-1]; msg != "Run acme/x@1.0.0 anyway?\nThis run accepts a release with no attestation. The receipt will record the consent. Continue?" {
+		t.Fatalf("with Unsafe Mode off the dialog changed:\n%s", msg)
+	}
+}
+
+// The Review step's line: nothing while the switch is off, and the run's
+// own line while it is on.
+func TestUnsafeNoticeBinding(t *testing.T) {
+	u := newUnsafeApp(t)
+	asked := 0
+	u.r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) {
+		asked++
+		return &run.UnsafeNotice{Commands: []string{"r2", "zzz"}, Unplaced: []string{"zzz"}}, nil
+	}
+	v, err := u.r.UnsafeNotice("https://r.example", "acme/x@1.0.0")
+	if err != nil || v.On || v.Line != "" || asked != 0 {
+		t.Fatalf("with the switch off: %+v, %v, release read %d time(s)", v, err, asked)
+	}
+	switchOn(t)
+	v, err = u.r.UnsafeNotice("https://r.example", "acme/x@1.0.0")
+	if err != nil || !v.On || !strings.Contains(v.Line, "Unsafe Mode is on") || len(v.Unplaced) != 1 || v.Unplaced[0] != "zzz" {
+		t.Fatalf("with the switch on: %+v, %v", v, err)
+	}
+}
+
+// Invariant 5: Unsafe Mode never reaches a run In Agentry (D7). With the
+// switch on, a hosted run's requests carry nothing of it, no local engine
+// or docker is touched, and nothing about Unsafe Mode is asked or read.
+func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
+	f := &hostedFake{enabled: true, outputs: map[string]string{"result.json": hostedEnvelope}}
+	upstream, err := url.Parse(f.start(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Everything the app sends to the registry, whole.
+	var mu sync.Mutex
+	var sent []string
+	proxy := httputil.NewSingleHostReverseProxy(upstream)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		var hdr strings.Builder
+		_ = r.Header.Write(&hdr)
+		mu.Lock()
+		sent = append(sent, r.Method+" "+r.URL.String()+"\n"+hdr.String()+"\n"+string(body))
+		mu.Unlock()
+		proxy.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	reg := srv.URL
+
+	signIn(t, reg)
+	switchOn(t)
+	r, events := newRunAPI(t)
+	fastPoll(t)
+	dialogs, notices, engines := 0, 0, 0
+	r.app.confirm = func(context.Context, string, string) (bool, error) { dialogs++; return true, nil }
+	r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) {
+		notices++
+		return &run.UnsafeNotice{}, nil
+	}
+	r.engineRun = func(context.Context, run.Request, io.Writer) (*run.Result, error) {
+		engines++
+		return &run.Result{}, nil
+	}
+	r.pullUnsafe = func(context.Context, io.Writer) (string, error) { engines++; return "", nil }
+
+	outDir := t.TempDir()
+	r.app.markPicked(outDir)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", nil, outDir, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if start.Refusal != "" || start.Run == nil {
+		t.Fatalf("start = %+v", start)
+	}
+	waitForStatus(t, events, hostedrun.StatusQueued)
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 2)
+	final := waitForFinal(t, events)
+	if final.Outcome != hostedrun.OutcomeSucceeded {
+		t.Fatalf("final = %+v", final)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(sent) == 0 {
+		t.Fatal("the hosted run sent nothing through the recording registry")
+	}
+	created := false
+	for _, req := range sent {
+		if strings.Contains(strings.ToLower(req), "unsafe") {
+			t.Errorf("a request of a run In Agentry names Unsafe Mode:\n%s", req)
+		}
+		created = created || strings.HasPrefix(req, "POST ") && strings.Contains(req, "summarise INC-4821")
+	}
+	if !created {
+		t.Fatalf("the run's create request was not among the %d recorded", len(sent))
+	}
+	if dialogs != 0 || notices != 0 || engines != 0 {
+		t.Fatalf("a run In Agentry with Unsafe Mode on: dialogs %d, notices read %d, local engine or pull %d; want none", dialogs, notices, engines)
+	}
+	if final.CapabilitiesEnforced["exec"] != "" && strings.Contains(final.CapabilitiesEnforced["exec"], "UNSAFE MODE") {
+		t.Fatalf("the hosted receipt names Unsafe Mode: %q", final.CapabilitiesEnforced["exec"])
+	}
+	if !savedUnsafeMode(t) {
+		t.Fatal("the fixture lost the switch: the test proved nothing")
+	}
+}

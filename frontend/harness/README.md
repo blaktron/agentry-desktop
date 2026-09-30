@@ -245,3 +245,22 @@ cd frontend
 PLAYWRIGHT_MODULE=../../agentry-web/node_modules/playwright/index.mjs \
   node harness/shots.mjs
 ```
+
+Unsafe Mode (agentry-desktop#418, plan unsafe-mode.md M3) has its states on
+both entries. On `pages.html`, `?settings=run-defaults` shows the switch off
+(`settings-unsafe-off`), `#unsafe-on` the switch on with the red edge round
+the window and the sidebar's badge (`settings-unsafe-on`, and
+`unsafe-glow-browse` for a page, `settings-landing-unsafe` for the landing's
+status line), and `#unsafe-pulling` answers the switch's click as the Go host
+does after the native Yes, with the image's pull under way and the switch
+still off (`settings-unsafe-pulling`; the pull's lines arrive on the entry's
+own event bus as `runner:unsafe-progress`). On `modals.html`,
+`#runpanel-unsafe-review` is Review and start with the line a run carries,
+naming the declared commands and the one the image cannot provide, under the
+edge, and `#runpanel-unsafe-finished` that run finished, its result naming
+what was installed from where and what did not install. These shots are of
+the window (`window: true` in `shots.mjs`, 1180×760), because the edge is the
+window's, and `expectGlow` fails a state whose edge does not cover the
+window, sits under a dialog's backdrop, takes clicks, or has no badge saying
+"Unsafe Mode" beside it. The native confirmation is the Go host's and is not
+in the harness: `TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog` holds it.
