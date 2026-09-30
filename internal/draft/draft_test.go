@@ -485,6 +485,21 @@ func TestStatusReadsNoKey(t *testing.T) {
 	}
 }
 
+// The search line names each provider the policy admits as a person knows
+// it, from the CLI's ProviderName (#301), in both states that name one.
+func TestTheSearchSentenceNamesEveryProvider(t *testing.T) {
+	for name, label := range map[string]string{"brave": "Brave", "tavily": "Tavily", "exa": "Exa", "perplexity": "Perplexity", "youcom": "You.com"} {
+		pol := policy.Default()
+		pol.WebSearch = policy.WebSearchKey{Provider: name}
+		if s := SearchSentence(drafter.SearchOn, pol); s != "Its searches go to "+label+" with your key." {
+			t.Fatalf("%s on: %q", name, s)
+		}
+		if s := SearchSentence(drafter.SearchNoKey, pol); !strings.Contains(s, "no key for "+label+" was found ($"+pol.WebSearch.KeyEnv()) {
+			t.Fatalf("%s no key: %q", name, s)
+		}
+	}
+}
+
 // A draft reports its progress (agentry-desktop#410), as a knowledge build
 // does: the draft's budgets and start at once, then each stage as it
 // begins — AI Review of the description, the Drafter's turn, AI Review's

@@ -98,6 +98,10 @@ notes, match, source and withheld address carry raw HTML, a script, an image,
 becomes markup or a link. Settings → Provider settings → AI Review key is `settings-aireview-key`
 (saved), `#aireview-none` (none), `#aireview-env` (the key from the variable
 the app was started with) and `#aireview-refused` (Test key answered 401).
+Settings → Provider settings → Web search (agentry-desktop#301) is
+`settings-web-search` (Brave saved), `#search-none` (no provider),
+`#search-env` (the key from the variable) and `#search-refused` (Test key
+answered 401).
 Since agentry-desktop#461 the card leads with the operator's recommendation
 to get a TypeSafe key and the link *Get a key from TypeSafe*, which Describe
 it's missing-key notice carries too. `shots.mjs` holds the sentence word for
