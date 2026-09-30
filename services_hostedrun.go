@@ -419,7 +419,7 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	if err != nil {
 		return nil, err
 	}
-	r.follow(reg, token, dir, created)
+	dir = r.follow(reg, token, dir, created)
 	return &HostedStartView{Run: hostedRunView(created, dir, nil, "", "", false)}, nil
 }
 
@@ -494,14 +494,10 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	if token == "" {
 		return &HostedStartView{}, nil
 	}
-	if cur := r.hostedCurrent(); cur != nil {
-		fresh, err := hostedrun.New(reg, token).Get(ctx, cur.id)
-		if err != nil {
-			return &HostedStartView{}, nil //nolint:nilerr // already following it; the watch reports its state
-		}
-		return &HostedStartView{Run: hostedRunView(fresh, cur.outDir, nil, "", "", false)}, nil
-	}
 	client := hostedrun.New(reg, token)
+	if cur := r.hostedCurrent(); cur != nil {
+		return r.followedView(ctx, client, cur), nil
+	}
 	runs, err := client.List(ctx)
 	if err != nil {
 		// A registry that refuses the list — an old token, or no runs
@@ -511,23 +507,62 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 		}
 		return nil, err
 	}
+	active := activeRun(runs, true)
+	if active == nil {
+		return &HostedStartView{}, nil
+	}
+	dir, err := r.attachDir(reg, outDir, active)
+	if err != nil {
+		return nil, err
+	}
+	dir = r.follow(reg, token, dir, active)
+	return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
+}
+
+// activeRun is the account's run in flight that a run setup or the card
+// follows, if it has one: a knowledge build in flight is the Knowledge
+// panel's (its result is a pack, not outputs in a run folder), and a draft
+// in flight the Build tab's (its result is a draft in the form). A chat is
+// taken only where sessions says so: a run setup follows one, the card
+// does not yet.
+func activeRun(runs []hostedrun.Run, sessions bool) *hostedrun.Run {
 	for i := range runs {
-		active := &runs[i]
-		// A knowledge build in flight is the Knowledge panel's to follow:
-		// its result is a pack, not outputs in this folder; a draft in
-		// flight is the Build tab's, whose result is a draft in the form.
-		if !hostedrun.Active(active.Status) || active.IsBuild() || active.IsDraft() {
+		r := &runs[i]
+		if !hostedrun.Active(r.Status) || r.IsBuild() || r.IsDraft() || (r.IsSession() && !sessions) {
 			continue
 		}
-		dir, err := hostedOutDir(outDir, active)
-		if err != nil {
-			return nil, err
-		}
-		r.follow(reg, token, dir, active)
-		return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
+		return r
 	}
-	return &HostedStartView{}, nil
+	return nil
 }
+
+// followedView is the run this app already follows, read again.
+func (r *RunAPI) followedView(ctx context.Context, client *hostedrun.Client, cur *hostedFollow) *HostedStartView {
+	fresh, err := client.Get(ctx, cur.id)
+	if err != nil {
+		return &HostedStartView{} // already following it; the watch reports its state
+	}
+	return &HostedStartView{Run: hostedRunView(fresh, cur.outDir, nil, "", "", false)}
+}
+
+// attachDir is the folder a run attached to downloads into: the one it
+// was started to when this app lost touch with it (taken, so it is used
+// once), else dir as hostedOutDir makes it one of the run's own.
+func (r *RunAPI) attachDir(reg, dir string, run *hostedrun.Run) (string, error) {
+	r.hostedMu.Lock()
+	k := lostKey{reg, run.ID}
+	lost, ok := r.lostDirs[k]
+	delete(r.lostDirs, k)
+	r.hostedMu.Unlock()
+	if ok {
+		return lost, nil
+	}
+	return hostedOutDir(dir, run)
+}
+
+// lostKey names a run this app lost touch with: the registry that listed
+// it and its id.
+type lostKey struct{ registry, id string }
 
 // AttachHostedRunAtStart follows this account's run In Agentry already in
 // flight when the app starts, so that it is followed in its card whether or
@@ -547,21 +582,13 @@ func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
 	if settings.ValidateURL(reg) != nil || token == "" {
 		return &HostedStartView{}, nil
 	}
+	client := hostedrun.New(reg, token)
 	if cur := r.hostedCurrent(); cur != nil {
 		if cur.session || cur.registry != reg {
 			return &HostedStartView{}, nil
 		}
-		fresh, err := hostedrun.New(reg, token).Get(ctx, cur.id)
-		if err != nil {
-			return &HostedStartView{}, nil //nolint:nilerr // already following it; the watch reports its state
-		}
-		return &HostedStartView{Run: hostedRunView(fresh, cur.outDir, nil, "", "", false)}, nil
+		return r.followedView(ctx, client, cur), nil
 	}
-	saved := ""
-	if st, err := settings.Load(); err == nil {
-		saved = st.DefaultOutputDir
-	}
-	client := hostedrun.New(reg, token)
 	runs, err := client.List(ctx)
 	if err != nil {
 		// A registry that refuses the list, or cannot be reached as the
@@ -569,25 +596,20 @@ func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
 		// asks again.
 		return &HostedStartView{}, nil //nolint:nilerr // nothing to attach to
 	}
-	for i := range runs {
-		active := &runs[i]
-		if !hostedrun.Active(active.Status) || active.IsBuild() || active.IsDraft() || active.IsSession() {
-			continue
-		}
-		// A run this app lost touch with comes down where it was started
-		// to; any other goes where Go chooses.
-		r.hostedMu.Lock()
-		dir, lost := r.lostDirs[active.ID]
-		r.hostedMu.Unlock()
-		if !lost {
-			if dir, err = hostedOutDir(saved, active); err != nil {
-				return nil, err
-			}
-		}
-		r.follow(reg, token, dir, active)
-		return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
+	active := activeRun(runs, false)
+	if active == nil {
+		return &HostedStartView{}, nil
 	}
-	return &HostedStartView{}, nil
+	saved := ""
+	if st, err := settings.Load(); err == nil {
+		saved = st.DefaultOutputDir
+	}
+	dir, err := r.attachDir(reg, saved, active)
+	if err != nil {
+		return nil, err
+	}
+	dir = r.follow(reg, token, dir, active)
+	return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
 }
 
 // CancelHostedRun asks the registry to stop the run this app is following.
@@ -614,12 +636,13 @@ func (r *RunAPI) CancelHostedRun() (*HostedRunView, error) {
 // forward: a pushed run keeps none (hosted runs in production, D12, D16),
 // so the panel shows where the run stands and, at the end, what it
 // produced.
-func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) {
+func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) string {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{registry: reg, id: started.ID, ref: started.Ref, outDir: outDir, cancel: cancel, done: make(chan struct{})}
-	r.hostedMu.Lock()
-	r.hosted = f
-	r.hostedMu.Unlock()
+	if cur := r.claimFollow(f); cur != nil {
+		cancel()
+		return cur.outDir
+	}
 
 	client := hostedrun.New(reg, token)
 	// Read here, not in the goroutine: a test shortens it for its life.
@@ -634,8 +657,9 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 			}
 			r.hostedMu.Unlock()
 		}()
-		r.watchAndDeliver(ctx, client, started, outDir, poll)
+		r.watchAndDeliver(ctx, client, reg, started, outDir, poll)
 	}()
+	return outDir
 }
 
 // watchAndDeliver re-reads a run until it is over, reporting each move,
@@ -643,7 +667,7 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 // was still moving is said to be so, and nothing is downloaded, rather
 // than a run that is not over shown as finished; reopening the panel
 // reattaches to it.
-func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, started *hostedrun.Run, outDir string, poll time.Duration) {
+func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, reg string, started *hostedrun.Run, outDir string, poll time.Duration) {
 	final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
 		Poll: poll,
 		OnStatus: func(run *hostedrun.Run) {
@@ -660,14 +684,21 @@ func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, 
 			return
 		}
 		if !last.Terminal() {
-			r.hostedMu.Lock()
-			if r.lostDirs == nil {
-				r.lostDirs = map[string]string{}
+			// A chat is followed again from its run setup, whose folder is
+			// its own; a run from its card, into the folder it was started
+			// to, which this app keeps for it by registry and id.
+			again := "reopen this panel to follow it again"
+			if !last.IsSession() {
+				again = "follow it again to see how it ends"
+				r.hostedMu.Lock()
+				if r.lostDirs == nil {
+					r.lostDirs = map[lostKey]string{}
+				}
+				r.lostDirs[lostKey{reg, started.ID}] = outDir
+				r.hostedMu.Unlock()
 			}
-			r.lostDirs[started.ID] = outDir
-			r.hostedMu.Unlock()
 			emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
-				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); follow it again to see how it ends", true))
+				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); "+again, true))
 			return
 		}
 		final = last

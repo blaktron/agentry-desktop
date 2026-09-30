@@ -99,22 +99,25 @@ export function useHostedRun(): HostedState {
  *  once the registry has created it; a refusal is handed back for the setup
  *  to show, and nothing is followed. */
 export const startHostedRun = (s: RunSetup, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> =>
-  hostedStore.start(s, call);
+  hostedStore.start(s, s.panel.registry, call);
 
 /** Follows this account's run In Agentry already in flight, as its card:
  *  App asks as it starts. */
 export const attachHostedRun = (registry: string): Promise<boolean> =>
-  hostedStore.attach(() => RunAPI.AttachHostedRunAtStart(registry));
+  hostedStore.attach(registry, () => RunAPI.AttachHostedRunAtStart(registry));
 
 /** Follows, as its card, a run In Agentry a run setup found in flight as it
  *  opened (RunAPI.AttachHostedRun): one started elsewhere since the app
  *  started. A run already followed stays as it is. */
-export const followHostedRunFound = (found: main.HostedStartView): Promise<boolean> =>
-  hostedStore.attach(async () => found);
+export const followHostedRunFound = (registry: string, found: main.HostedStartView): Promise<boolean> =>
+  hostedStore.attach(registry, async () => found);
 
-/** Follows again a run the app lost touch with, in its dialog. */
-export const followHostedRunAgain = (registry: string): Promise<boolean> =>
-  hostedStore.attach(() => RunAPI.AttachHostedRunAtStart(registry), false);
+/** Follows again, in its dialog, a run the app lost touch with, on the
+ *  registry it was followed on. */
+export function followHostedRunAgain(): Promise<boolean> {
+  const registry = hostedStore.state().registry;
+  return hostedStore.attach(registry, () => RunAPI.AttachHostedRunAtStart(registry), false);
+}
 
 /** Asks Agentry to cancel the run. */
 export const cancelHostedRun = (): Promise<void> => hostedStore.cancel();

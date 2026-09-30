@@ -215,6 +215,15 @@ func (r *RunAPI) StopRun() error {
 // not touched. Quitting forgets every run, since nothing of one is kept.
 func (r *RunAPI) ForgetRun(runID string) {
 	r.foldersMu.Lock()
-	defer r.foldersMu.Unlock()
 	delete(r.folders, runID)
+	r.foldersMu.Unlock()
+	// A run In Agentry the app lost touch with is not followed again once
+	// its card is dismissed.
+	r.hostedMu.Lock()
+	for k := range r.lostDirs {
+		if k.id == runID {
+			delete(r.lostDirs, k)
+		}
+	}
+	r.hostedMu.Unlock()
 }

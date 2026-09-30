@@ -23,9 +23,9 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
-import { followHostedRunFound, startHostedRun, startLocalRun } from "../runs";
+import { followHostedRunFound, startHostedRun, startLocalRun, useHostedRun } from "../runs";
 import { headlineOf } from "../localRun";
-import { hostedHeadline, hostedTone } from "../hostedRun";
+import { hostedActive as moving, hostedHeadline, hostedTone } from "../hostedRun";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
@@ -232,7 +232,7 @@ export default function RunPanel({
           // A run In Agentry is followed above the pages, in its card
           // (agentry-desktop#466); a chat stays in this panel.
           if (a.run.mode !== "interactive") {
-            void followHostedRunFound(a);
+            void followHostedRunFound(registry, a);
             return;
           }
           setMode("hosted-session");
@@ -298,13 +298,20 @@ export default function RunPanel({
     }
   }, [defaults, hosted, unscanned, profile, hostedRun, initialMode, mode]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
-  const hostedActive = !!hostedRun && (hostedRun.status === "queued" || hostedRun.status === "claimed" || hostedRun.status === "running");
+  const hostedActive = !!hostedRun && moving(hostedRun);
+  // The run In Agentry the app follows above the pages: the registry runs
+  // one per account, so while it moves, or a start waits for the
+  // registry's answer, no setup starts another (agentry-desktop#466).
+  const followed = useHostedRun();
+  const followedMoving = followed.starting || (!!followed.run && !followed.run.final);
   // What still stands between this form and a run, each in a sentence the
   // line above the button shows (agentry-desktop#167): the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
   const busy = running || sessionActive || (inAgentry && (starting || hostedActive));
   const blockers: string[] = [];
-  if (inAgentry) {
+  if (inAgentry && followedMoving) {
+    blockers.push("A run In Agentry is under way, in its card in the corner. Agentry runs one at a time for an account: wait for it to end, or cancel it there.");
+  } else if (inAgentry) {
     if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
     else if (!offer?.available) blockers.push(offer?.reason || "A run In Agentry is not available for this release.");
   } else if (!setup) {
@@ -509,7 +516,6 @@ export default function RunPanel({
   // where it stands until the outputs come back. A refused create is a
   // sentence, not an error.
   async function runInAgentry() {
-    const start = sessionInAgentry ? RunAPI.StartHostedSession : RunAPI.StartHostedRun;
     setStarting(true);
     setRunErr(null);
     setResult(null);
@@ -517,22 +523,21 @@ export default function RunPanel({
     setHostedRun(null);
     setLog([]);
     try {
-      const call = () => start(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
+      if (sessionInAgentry) {
+        const started = await RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
+        if (started.refusal) setHostedRefusal(started);
+        else setHostedRun(started.run ?? null);
+        return;
+      }
       // A run is followed above the pages once the registry has created
-      // it, and this setup closes (agentry-desktop#466); a chat stays here.
-      const started = sessionInAgentry ? await call() : await startHostedRun(
+      // it, and this setup closes (agentry-desktop#466); a refusal stays
+      // here, with the missing-secret ask before any run exists.
+      const started = await startHostedRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
-        call,
+        () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached),
       );
-      if (started.refusal) {
-        setHostedRefusal(started);
-        return;
-      }
-      if (!sessionInAgentry) {
-        if (started.run) onClose();
-        return;
-      }
-      setHostedRun(started.run ?? null);
+      if (started.refusal) setHostedRefusal(started);
+      else if (started.run) onClose();
     } catch (e) {
       setRunErr(String(e));
     } finally {

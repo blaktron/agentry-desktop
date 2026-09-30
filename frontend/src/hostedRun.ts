@@ -56,10 +56,16 @@ export function hostedProgress(v: View): JobProgress | null {
   };
 }
 
+/** The run is over and its last word is how it ended: not a run the app
+ *  lost touch with, which may still be going. */
+export function ended(v: View): boolean {
+  return v.final && !lostTouch(v);
+}
+
 /** A report of the run followed: another run's, or one after the run's last
  *  word, changes nothing. */
 export function withReport(cur: View | null, v: View): View | null {
-  if (!cur || v.id !== cur.id || (cur.final && !lostTouch(cur))) return cur;
+  if (!cur || v.id !== cur.id || ended(cur)) return cur;
   return v;
 }
 
@@ -73,6 +79,10 @@ export type HostedRunDeps = {
 
 export type HostedRunState<S> = {
   run: View | null;
+  /** The registry the run is followed on, which Follow it again asks. */
+  registry: string;
+  /** A start is waiting for the registry's answer. */
+  starting: boolean;
   /** What reopens the run's setup; none for a run attached at start. */
   setup: S | null;
   shown: boolean;
@@ -89,6 +99,7 @@ export type HostedRunState<S> = {
  *  open. */
 export function createHostedRunStore<S>(deps: HostedRunDeps) {
   let run: View | null = null;
+  let registry = "";
   let setup: S | null = null;
   let shown = false;
   let raised = 0;
@@ -119,10 +130,11 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
 
   // follow takes v as the run followed: a card that is over for another
   // run is forgotten, and the dialog (or, for an attach, the card) opens.
-  const follow = (v: View, s: S | null, card: boolean) => {
-    if (run && run.id !== v.id && run.final && !lostTouch(run)) deps.forget(run.id);
+  const follow = (v: View, reg: string, s: S | null, card: boolean) => {
+    if (run && run.id !== v.id && ended(run)) deps.forget(run.id);
     if (run && run.id === v.id) s = s ?? setup;
     run = early.get(v.id) ?? v;
+    registry = reg;
     early = new Map();
     setup = s;
     note = null;
@@ -132,7 +144,7 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
   };
 
   return {
-    state: (): HostedRunState<S> => ({ run, setup, shown, raised, asCard, note }),
+    state: (): HostedRunState<S> => ({ run, registry, starting, setup, shown, raised, asCard, note }),
     subscribe(f: () => void): () => void {
       listen();
       listeners.add(f);
@@ -144,28 +156,27 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
     /** Starts a run In Agentry by call (RunAPI.StartHostedRun) and follows
      *  it once the registry has created it. A refusal, or an answer with no
      *  run, is handed back for the setup to show, and nothing is followed. */
-    async start(s: S, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> {
+    async start(s: S, reg: string, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> {
       if (starting) throw "A run In Agentry is being started; wait for the registry's answer.";
       listen();
       starting = true;
       early = new Map();
+      notify();
       try {
         const v = await Promise.resolve().then(call);
-        if (!v.refusal && v.run) {
-          follow(v.run, s, false);
-          notify();
-        }
+        if (!v.refusal && v.run) follow(v.run, reg, s, false);
         return v;
       } finally {
         starting = false;
         early = new Map();
+        notify();
       }
     },
 
     /** Follows the run an attach found (RunAPI.AttachHostedRunAtStart), as
      *  its card: at start, and when the person asks to follow a run the app
      *  lost touch with. It says whether there was one. */
-    async attach(call: () => Promise<main.HostedStartView>, card = true): Promise<boolean> {
+    async attach(reg: string, call: () => Promise<main.HostedStartView>, card = true): Promise<boolean> {
       if (starting || (run && !run.final)) return false;
       listen();
       let v: main.HostedStartView;
@@ -184,7 +195,7 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
         }
         return false;
       }
-      follow(v.run, null, card);
+      follow(v.run, reg, null, card);
       notify();
       return true;
     },
@@ -219,6 +230,7 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
       if (run && !run.final) return;
       if (run) deps.forget(run.id);
       run = null;
+      registry = "";
       setup = null;
       shown = false;
       asCard = false;

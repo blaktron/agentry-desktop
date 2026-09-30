@@ -282,7 +282,7 @@ export default function App() {
           }}
         />
         <RunFlow onBackToSetup={setReopened} />
-        <HostedRunFlow registry={registry} onBackToSetup={setReopened} />
+        <HostedRunFlow onBackToSetup={setReopened} />
         {reopened && (
           <RunPanel
             {...reopened.panel}

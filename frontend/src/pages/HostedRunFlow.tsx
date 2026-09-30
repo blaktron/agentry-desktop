@@ -23,9 +23,7 @@ import { Button, ErrorBox, Modal } from "../ui";
 import { HostedResult } from "./HostedRun";
 import { RunResultView } from "./RunResult";
 
-export default function HostedRunFlow({ registry, onBackToSetup, initialMinimized }: {
-  /** The registry the app is signed in to, which Follow it again asks. */
-  registry: string;
+export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
   /** Opens the run's setup again, with the answers as they were. */
   onBackToSetup: (s: RunSetup) => void;
   /** Harness-only: open as the corner card. */
@@ -39,6 +37,8 @@ export default function HostedRunFlow({ registry, onBackToSetup, initialMinimize
   const [cardFor, setCardFor] = useState<number | null>(null);
   const minimized = s.asCard || cardFor === s.raised;
   const minimize = () => setCardFor(s.raised);
+  // Harness-only: the first ask to open, when the run is followed, is
+  // shown as the card.
   const firstAsCard = useRef(!!initialMinimized);
   useEffect(() => {
     if (firstAsCard.current && s.raised > 0) {
@@ -56,7 +56,7 @@ export default function HostedRunFlow({ registry, onBackToSetup, initialMinimize
   const cancel = () => void cancelHostedRun();
   const again = () => {
     setFollowing(true);
-    void followHostedRunAgain(registry).finally(() => setFollowing(false));
+    void followHostedRunAgain().finally(() => setFollowing(false));
   };
   const followAgain = <Button onClick={again} disabled={following}>{following ? "Following…" : "Follow it again"}</Button>;
 

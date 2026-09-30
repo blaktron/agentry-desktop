@@ -309,33 +309,6 @@ export function SecretsCard({ registry }: { registry: string }) {
   );
 }
 
-/** Where a run In Agentry stands: its identity, its state, its place in
- *  the queue, and the way to stop it. There is no log to follow: the
- *  panel re-reads the run and this card moves with it. */
-export function HostedProgress({ run, onCancel, cancelling }: {
-  run: main.HostedRunView; onCancel: () => void; cancelling: boolean;
-}) {
-  const active = run.status === "queued" || run.status === "claimed" || run.status === "running";
-  return (
-    <Card className="selectable">
-      <div className="row">
-        <span className={`badge ${active ? "kind" : toneClass(run.outcomeTone)}`}>{run.state}</span>
-        {(run.queuePosition ?? 0) > 0 && run.status === "queued" && (
-          <span className="badge kind">queue position {run.queuePosition}</span>
-        )}
-        <span className="muted small grow">{run.statusLine}</span>
-        {active && (
-          <Button variant="danger" onClick={onCancel} disabled={cancelling || run.cancelRequested}>
-            {run.cancelRequested ? "Cancelling…" : "Cancel run"}
-          </Button>
-        )}
-      </div>
-      <div className="kv"><span className="k">run</span><span className="mono">{run.id}</span></div>
-      <div className="kv"><span className="k">release</span><span className="mono">{run.ref}</span></div>
-      <div className="kv"><span className="k">credits held</span><span className="mono">{run.holdCredits}</span></div>
-    </Card>
-  );
-}
 
 /** The badge class for a verdict's tone; a cancelled run, which has no
  *  outcome, reads as a warning. */

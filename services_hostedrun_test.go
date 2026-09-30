@@ -105,6 +105,9 @@ type hostedFake struct {
 	// failGets makes that many reads of the run answer 503, as a registry
 	// the app has lost touch with does.
 	failGets int
+	// listDelay holds each answer to the runs list, so two attaches are in
+	// flight at once.
+	listDelay time.Duration
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -255,6 +258,10 @@ func (f *hostedFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusCreated, f.run)
 	})
 	mux.HandleFunc("GET /api/v1/x/runs/", func(w http.ResponseWriter, _ *http.Request) {
+		f.mu.Lock()
+		delay := f.listDelay
+		f.mu.Unlock()
+		time.Sleep(delay)
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		items := append([]*hostedrun.Run{}, f.others...)

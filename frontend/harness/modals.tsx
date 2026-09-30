@@ -6,6 +6,9 @@
 //   #runpanel              the mode choice, In Agentry offered
 //   #runpanel-hosted       In Agentry chosen: the hold, the balance, the caps
 //   #runpanel-unavailable  In Agentry offered, unavailable with the reason
+//   #runpanel-hosted-followed  Review and start In Agentry while a run In
+//                          Agentry is followed in its card: Run held, and
+//                          the line above it says why (agentry-desktop#466)
 //   (a run In Agentry, once started, is the run's flow's since
 //   agentry-desktop#466: runs.html#hosted-* shows it queued, running, over,
 //   failed and with hostile output)
@@ -380,6 +383,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-knowledge-finished": "review",
   "runpanel-hosted-knowledge": "knowledge",
   "runpanel-hosted-secrets": "review",
+  "runpanel-hosted-followed": "review",
   "runpanel-local-finished-env": "review",
   "runpanel-default-folder": "review",
   "runpanel-unsafe-review": "review",
@@ -397,6 +401,7 @@ g.go = { main: {
     SaveProfile: async () => ({ ...profile, exists: true, storedSecretNames: profile.declaredSecrets }),
     HostedAvailability: async () => availability,
     AttachHostedRun: async () => ({ run: hostedRun }),
+    AttachHostedRunAtStart: async () => ({ run: view === "runpanel-hosted-followed" ? hostedRuns.running : undefined }),
     ReplayHostedSession: async () => {
       if (view !== "runpanel-session") return;
       for (const cb of listeners["runner:hosted-session-state"] ?? []) {
@@ -470,6 +475,8 @@ g.runtime = {
 import { useState } from "react";
 import RunPanel from "../src/pages/RunPanel";
 import RunFlow from "../src/pages/RunFlow";
+import HostedRunFlow from "../src/pages/HostedRunFlow";
+import { attachHostedRun } from "../src/runs";
 import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
@@ -527,6 +534,8 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
 } else {
   // The setup closes once a run on this computer has begun, as the pages'
   // own do; the run's flow, mounted as App mounts it, shows the rest.
+  // App attaches a run In Agentry already in flight as it starts.
+  if (view === "runpanel-hosted-followed") void attachHostedRun("https://secureagentry.net");
   const Panel = (props: React.ComponentProps<typeof RunPanel>) => {
     const [open, setOpen] = useState(true);
     return open ? <RunPanel {...props} onClose={() => setOpen(false)} /> : null;
@@ -534,6 +543,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
   createRoot(el).render(
     <><Backdrop />
       <RunFlow onBackToSetup={() => {}} />
+      <HostedRunFlow onBackToSetup={() => {}} />
       <Panel
         registry="https://secureagentry.net"
         ns={keysShape ? "agentry" : "demo1"} name={keysShape ? "pr-review-brief" : "incident-summarizer"} version={keysShape ? "1.2.1" : "1.2.0"}
@@ -541,7 +551,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted"
+        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : undefined}
         initialStep={STEP_OF[view]}
       />

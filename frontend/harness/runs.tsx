@@ -218,7 +218,7 @@ function Preview() {
       <div data-preview="runs">
         <Shell>The page stays usable while the run goes on in its card.</Shell>
         <RunFlow onBackToSetup={() => {}} initialMinimized={card} />
-        <HostedRunFlow registry={REG} onBackToSetup={() => {}} initialMinimized={hash === "hosted-card-stacked"} />
+        <HostedRunFlow onBackToSetup={() => {}} initialMinimized={hash === "hosted-card-stacked"} />
         {hash === "run-card-stacked" && <DraftFlow registry={REG} onOpenDraft={() => {}} initialMinimized />}
         <div className="corner-cards" ref={setCorner} />
       </div>

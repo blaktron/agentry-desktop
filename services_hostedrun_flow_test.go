@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -154,6 +155,84 @@ func TestFollowingALostRunAgainKeepsItsFolder(t *testing.T) {
 	}
 	if again.Run.OutDir != picked {
 		t.Fatalf("followed again into %q, want the folder it was started to, %q", again.Run.OutDir, picked)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
+	waitForIdle(t, r)
+}
+
+// App's attach at start and a run setup's attach can be in flight at once;
+// the run is followed once, and both answer with the one folder it
+// downloads into (agentry-desktop#466).
+func TestTwoAttachesAtOnceFollowTheRunOnce(t *testing.T) {
+	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	f := &hostedFake{enabled: true, run: run, listDelay: 50 * time.Millisecond}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	fastPoll(t)
+	picked := t.TempDir()
+	r.app.markPicked(picked)
+	var wg sync.WaitGroup
+	var atStart, setup *HostedStartView
+	var err1, err2 error
+	wg.Add(2)
+	go func() { defer wg.Done(); atStart, err1 = r.AttachHostedRunAtStart(reg) }()
+	go func() { defer wg.Done(); setup, err2 = r.AttachHostedRun(reg, picked) }()
+	wg.Wait()
+	if err1 != nil || err2 != nil || atStart.Run == nil || setup.Run == nil {
+		t.Fatalf("attaches = %+v %v, %+v %v", atStart, err1, setup, err2)
+	}
+	if atStart.Run.OutDir != setup.Run.OutDir {
+		t.Fatalf("one run, two folders: %q and %q", atStart.Run.OutDir, setup.Run.OutDir)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
+	waitForIdle(t, r)
+}
+
+// A run setup that finds a run this app lost touch with follows it into
+// the folder it was started to as well; once its card is dismissed, the
+// app no longer keeps that folder for it.
+func TestALostRunsFolderIsUsedOnceAndForgottenOnDismiss(t *testing.T) {
+	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	f := &hostedFake{enabled: true, run: run}
+	reg := f.start(t)
+	home, _ := signIn(t, reg)
+	r, events := newRunAPI(t)
+	fastPoll(t)
+	first, other := t.TempDir(), t.TempDir()
+	r.app.markPicked(first)
+	r.app.markPicked(other)
+	lose := func(dir string) {
+		t.Helper()
+		if a, err := r.AttachHostedRun(reg, dir); err != nil || a.Run == nil {
+			t.Fatalf("attach = %+v, %v", a, err)
+		}
+		f.mu.Lock()
+		f.failGets = 11
+		f.mu.Unlock()
+		waitForFinal(t, events)
+		waitForIdle(t, r)
+		events.mu.Lock()
+		events.runs = nil
+		events.mu.Unlock()
+	}
+	lose(first)
+	again, err := r.AttachHostedRun(reg, other)
+	if err != nil || again.Run == nil || again.Run.OutDir != first {
+		t.Fatalf("the setup followed a lost run into %+v, %v; want %q", again, err, first)
+	}
+	f.mu.Lock()
+	f.failGets = 11
+	f.mu.Unlock()
+	waitForFinal(t, events)
+	waitForIdle(t, r)
+	r.ForgetRun(run.ID)
+	got, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || got.Run == nil {
+		t.Fatalf("attach = %+v, %v", got, err)
+	}
+	if want := filepath.Join(home, "Downloads", "agentry-out", "acme-reporter-"+run.ID); got.Run.OutDir != want {
+		t.Fatalf("after Dismiss the run downloads into %q, want Go's own %q", got.Run.OutDir, want)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
 	waitForIdle(t, r)
