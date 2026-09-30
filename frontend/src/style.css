@@ -873,11 +873,15 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .key-help-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .run-recap, .step-recap {
   display: grid;
-  grid-template-columns: minmax(8rem, max-content) 1fr;
+  /* The label column fits its labels up to 14rem and wraps past that; the
+     value column always keeps the rest. A max-content label column let one
+     long intake prompt take the whole width and squeeze every value to a
+     letter a line (agentry-desktop#420). */
+  grid-template-columns: fit-content(14rem) minmax(0, 1fr);
   gap: 8px 16px;
   margin: 4px 0 12px;
 }
-.run-recap dt, .step-recap dt { color: var(--color-muted); }
+.run-recap dt, .step-recap dt { color: var(--color-muted); min-width: 8rem; overflow-wrap: anywhere; }
 .run-recap dd, .step-recap dd {
   margin: 0;
   display: flex;
@@ -949,7 +953,6 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-drafted > summary { cursor: pointer; }
 .build-drafted-notes { margin-top: 10px; }
 .build-check-notes { margin: 10px 0; }
-.step-recap { grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); }
 
 /* The Knowledge panel (plan knowledge.md §4.8, agentry-desktop#273): a
    pack's preview is its pages beside the page shown, each side scrolling

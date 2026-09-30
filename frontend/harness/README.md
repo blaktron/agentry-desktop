@@ -25,7 +25,11 @@ Since the guided run setup (agentry-desktop#226) RunPanel shows one step at
 a time, so each `#runpanel-*` state opens on the step that shows it (a
 blocker on Review and start, the key form on Connect tools), and
 `#runpanel-step-files | -step-tools | -step-details | -step-review` show the
-steps themselves. A state with a run attached (`-queued`, `-running`,
+steps themselves. `#runpanel-step-review-long` is Review and start with
+an intake prompt as long as binary-reverse-engineer's. `shots.mjs` fails
+it, and the Build and Create knowledge reviews, if a recap value is
+narrower than 320px (`expectMinWidth`): the layout that once put each
+value one letter a line (agentry-desktop#420). A state with a run attached (`-queued`, `-running`,
 `-finished`, `-failed`) opens on the run, not the setup.
 
 The result comes first since agentry-desktop#227: `#runpanel-finished` and
