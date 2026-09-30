@@ -248,7 +248,10 @@ The product never claims an agent is "safe". The language is always:
   - **Run defaults** (agentry-desktop#347, D-044):
     - **Timeout and max turns**: the runner policy's budgets, so `agentry
       run` from the CLI runs with them too. A run's own fields under
-      Advanced can only ask for less.
+      Advanced can only ask for less. A draft made on this computer has at
+      least 30 minutes and a knowledge build at least 60, however short the
+      timeout (agentry-desktop#458): the floors are the CLI's, so `agentry
+      draft` and `agentry knowledge create` give the same.
     - **Where to run**: This computer or In Agentry. It only pre-selects the
       run setup's Where step. In Agentry is chosen only where it is offered
       and available and the release was scanned; otherwise the run starts

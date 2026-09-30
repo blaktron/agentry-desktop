@@ -137,7 +137,7 @@ g.go = { main: {
   KnowledgeAPI: {
     List: async () => list,
     CreatorModel: async () => "anthropic claude-sonnet-4-5",
-    CreatorBudget: async () => ({ timeoutSeconds: 1800, maxTurns: 60 }),
+    CreatorBudget: async () => ({ timeoutSeconds: 3600, maxTurns: 60 }),
     DocumentsSize: async () => ({
       bytes: hash === "create-documents-huge" ? 1_610_612_736 : hash.endsWith("-large") ? 50_331_648 : 2_411_724,
       localMaxBytes: 1 << 30, agentryMaxBytes: 10 << 20,
@@ -168,9 +168,9 @@ g.go = { main: {
 // and pages (agentry-desktop#352).
 const started = Date.now() - 754_000;
 const progressReports = [
-  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, pages: 0 },
-  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 9, inputTokens: 101_400, outputTokens: 6_120, pages: 3 },
-  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 },
+  { startedAt: started, timeoutSeconds: 3600, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, pages: 0 },
+  { startedAt: started, timeoutSeconds: 3600, maxTurns: 60, turns: 9, inputTokens: 101_400, outputTokens: 6_120, pages: 3 },
+  { startedAt: started, timeoutSeconds: 3600, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 },
 ];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const subscribe = (name: string, cb: (v: any) => void) => {

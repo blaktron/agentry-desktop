@@ -52,9 +52,9 @@ const draftLog = [
 
 const started = Date.now() - 134_000;
 const progressReports = [
-  { startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, stage: "description" },
-  { startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, stage: "drafting" },
-  { startedAt: started, timeoutSeconds: 900, maxTurns: 60, turns: 7, inputTokens: 48_210, outputTokens: 3_904, stage: "drafting" },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, stage: "description" },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, stage: "drafting" },
+  { startedAt: started, timeoutSeconds: 1800, maxTurns: 60, turns: 7, inputTokens: 48_210, outputTokens: 3_904, stage: "drafting" },
 ];
 const local = hash === "draft-local" || hash === "card-local";
 
@@ -84,7 +84,7 @@ g.go = { main: {
   },
   KnowledgeAPI: {
     CreatorModel: async () => "openai qwen3.8-flash-next",
-    CreatorBudget: async () => ({ timeoutSeconds: 1800, maxTurns: 60 }),
+    CreatorBudget: async () => ({ timeoutSeconds: 3600, maxTurns: 60 }),
     HostedAvailability: async () => ({ offered: false, available: false }),
     AttachHostedBuild: async () => ({}),
     DocumentsSize: async () => ({ bytes: 2_411_724, localMaxBytes: 1 << 30, agentryMaxBytes: 10 << 20 }),
@@ -99,7 +99,7 @@ const subscribe = (name: string, cb: (v: any) => void) => {
   if (name === "build:draft-log" && (local || hash === "draft-failed" || hostile)) setTimeout(() => draftLog.forEach((l) => cb(l)), 30);
   if (name === "build:draft-progress" && local) progressReports.forEach((p, i) => setTimeout(() => cb(p), 40 + 40 * i));
   if (name === "knowledge:build-progress" && hash === "card-stacked") {
-    setTimeout(() => cb({ startedAt: Date.now() - 754_000, timeoutSeconds: 1800, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 }), 40);
+    setTimeout(() => cb({ startedAt: Date.now() - 754_000, timeoutSeconds: 3600, maxTurns: 60, turns: 14, inputTokens: 184_210, outputTokens: 12_044, pages: 5 }), 40);
   }
   return () => {};
 };

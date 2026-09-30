@@ -17,6 +17,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // fakeCreator stands in for the Creator run (pkg/knowledge/build is the
@@ -146,28 +147,34 @@ func TestAddResealsUnderTheSameKey(t *testing.T) {
 	noPlaintextLeft(t, e)
 }
 
-// A build on this computer is given at least 30 minutes, whatever the
+// A build on this computer is given at least 60 minutes, whatever the
 // runner policy's run budget (15 minutes by default); a policy that allows
-// more keeps its own, and the turns and cost stay the policy's
-// (agentry-desktop#352).
-func TestCreatorBudgetsGiveABuildAtLeastThirtyMinutes(t *testing.T) {
+// more keeps its own, and the turns and cost stay the policy's. The floor
+// is the CLI's, the one `agentry knowledge create` builds under
+// (agentry-desktop#458, the CLI's DR-54); it was this app's own 30 minutes
+// before (agentry-desktop#352). No budget of a build counts tokens.
+func TestCreatorBudgetsGiveABuildAtLeastSixtyMinutes(t *testing.T) {
 	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}
-	if b := CreatorBudgets(pol); b.TimeoutSeconds != 1800 || b.MaxTurns != 60 || b.MaxCostUSD != 2 {
-		t.Fatalf("default policy: %+v", b)
+	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 3600, MaxTurns: 60, MaxCostUSD: 2}); b != want {
+		t.Fatalf("default policy: %+v, want %+v", b, want)
 	}
-	pol.Budgets.TimeoutSeconds = 3600
+	pol.Budgets.TimeoutSeconds = 1800
 	if b := CreatorBudgets(pol); b.TimeoutSeconds != 3600 {
-		t.Fatalf("a policy of an hour: %+v", b)
+		t.Fatalf("a policy at the old 30 minutes: %+v", b)
 	}
-	if b := CreatorBudgets(nil); b.TimeoutSeconds != 1800 {
+	pol.Budgets.TimeoutSeconds, pol.Budgets.MaxTurns = 7200, 0
+	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 7200, MaxTurns: 0, MaxCostUSD: 2}); b != want {
+		t.Fatalf("a policy of two hours: %+v, want %+v", b, want)
+	}
+	if b := CreatorBudgets(nil); b.TimeoutSeconds != 3600 {
 		t.Fatalf("no policy: %+v", b)
 	}
 }
 
 // A build reports its progress: the budgets at its start, the harness's
 // usage as it arrives, and the pages the Creator has written, counted in the
-// run's reports as they appear; and it runs with the 30-minute floor
-// (agentry-desktop#352).
+// run's reports as they appear; and it runs with the 60-minute floor
+// (agentry-desktop#352, agentry-desktop#458).
 func TestABuildReportsItsProgress(t *testing.T) {
 	defer func(d time.Duration) { progressEvery = d }(progressEvery)
 	progressEvery = 10 * time.Millisecond
@@ -218,7 +225,7 @@ func TestABuildReportsItsProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < CreatorTimeoutSeconds {
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 3600 {
 		t.Fatalf("the Creator ran with budgets %+v", seen.Budgets)
 	}
 	// A build on this computer takes up to 1 GB (agentry-desktop#354).

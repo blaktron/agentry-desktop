@@ -89,7 +89,7 @@ type CreatorBudgetView struct {
 }
 
 // CreatorBudget answers the budgets a build on this computer runs under:
-// the runner policy's, with at least 30 minutes.
+// the runner policy's, with at least 60 minutes.
 func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
 	b := knowledge.PolicyBudgets()
 	return CreatorBudgetView{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns}

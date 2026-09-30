@@ -15,6 +15,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
@@ -50,13 +51,6 @@ type BuildRequest struct {
 	Progress func(Progress)
 }
 
-// CreatorTimeoutSeconds is the least a build on this computer is given
-// (agentry-desktop#352): a local model, or a frontier model at high
-// reasoning, can take more than 20 minutes to draft a pack, where the
-// runner policy's run budget defaults to 15. A policy that allows more
-// keeps its own.
-const CreatorTimeoutSeconds = 1800
-
 // Progress is how far one build has got, for the panel's building view.
 type Progress struct {
 	// StartedAt is when the build began, in Unix milliseconds: the panel
@@ -75,15 +69,21 @@ type Progress struct {
 }
 
 // CreatorBudgets are the budgets a build on this computer runs under: the
-// runner policy's, with a timeout of at least CreatorTimeoutSeconds.
+// runner policy's, with the Knowledge Creator's own timeout floor, 60
+// minutes (agentry-desktop#458). A local model, or a frontier model at
+// high reasoning, takes far longer to draft a pack than the policy's run
+// budget, 15 minutes by default, allows; a policy that allows more keeps
+// its own. The floor is the CLI's (localrun.Builtin.LocalBudgets, the
+// CLI's DR-54), not a figure kept here, so a build gets the same time from
+// this app as from `agentry knowledge create`. It is a timeout alone: the
+// turn and cost caps are the policy's, and no budget of a build counts
+// tokens.
 func CreatorBudgets(pol *policy.Policy) spec.Budgets {
-	b := spec.Budgets{TimeoutSeconds: CreatorTimeoutSeconds}
-	if pol == nil {
-		return b
+	var b policy.Budgets
+	if pol != nil {
+		b = pol.Budgets
 	}
-	b.MaxTurns, b.MaxCostUSD = pol.Budgets.MaxTurns, pol.Budgets.MaxCostUSD
-	b.TimeoutSeconds = max(pol.Budgets.TimeoutSeconds, CreatorTimeoutSeconds)
-	return b
+	return localrun.KnowledgeCreator().LocalBudgets(b)
 }
 
 // PolicyBudgets is CreatorBudgets for the policy this app's runs obey,
