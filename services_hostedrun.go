@@ -529,6 +529,67 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	return &HostedStartView{}, nil
 }
 
+// AttachHostedRunAtStart follows this account's run In Agentry already in
+// flight when the app starts, so that it is followed in its card whether or
+// not a run setup is ever opened (agentry-desktop#466; plan
+// desktop-review-key-and-run-cards.md D15). It takes a run and nothing
+// else: a knowledge build is the Knowledge panel's, a draft the Build
+// tab's, and a chat stays the run setup's until chats move to the cards.
+// No folder was picked at start, so Go chooses the one the run downloads
+// into: the folder it was started to when this app lost touch with it,
+// else Run defaults' saved folder, a folder of the run's own inside it
+// (D-044), else the default under Downloads (D-030: never a path the page
+// names). The card's Follow it again asks the same.
+func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
+	reg = settings.Normalize(reg)
+	ctx := r.ctx()
+	token := settings.TokenFor(reg)
+	if settings.ValidateURL(reg) != nil || token == "" {
+		return &HostedStartView{}, nil
+	}
+	if cur := r.hostedCurrent(); cur != nil {
+		if cur.session || cur.registry != reg {
+			return &HostedStartView{}, nil
+		}
+		fresh, err := hostedrun.New(reg, token).Get(ctx, cur.id)
+		if err != nil {
+			return &HostedStartView{}, nil //nolint:nilerr // already following it; the watch reports its state
+		}
+		return &HostedStartView{Run: hostedRunView(fresh, cur.outDir, nil, "", "", false)}, nil
+	}
+	saved := ""
+	if st, err := settings.Load(); err == nil {
+		saved = st.DefaultOutputDir
+	}
+	client := hostedrun.New(reg, token)
+	runs, err := client.List(ctx)
+	if err != nil {
+		// A registry that refuses the list, or cannot be reached as the
+		// app starts, has no run to attach to now; opening a run setup
+		// asks again.
+		return &HostedStartView{}, nil //nolint:nilerr // nothing to attach to
+	}
+	for i := range runs {
+		active := &runs[i]
+		if !hostedrun.Active(active.Status) || active.IsBuild() || active.IsDraft() || active.IsSession() {
+			continue
+		}
+		// A run this app lost touch with comes down where it was started
+		// to; any other goes where Go chooses.
+		r.hostedMu.Lock()
+		dir, lost := r.lostDirs[active.ID]
+		r.hostedMu.Unlock()
+		if !lost {
+			if dir, err = hostedOutDir(saved, active); err != nil {
+				return nil, err
+			}
+		}
+		r.follow(reg, token, dir, active)
+		return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
+	}
+	return &HostedStartView{}, nil
+}
+
 // CancelHostedRun asks the registry to stop the run this app is following.
 // Queued, it is cancelled and the hold released; running, the worker
 // interrupts the agent and the finish settles what it used.
@@ -599,8 +660,14 @@ func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, 
 			return
 		}
 		if !last.Terminal() {
+			r.hostedMu.Lock()
+			if r.lostDirs == nil {
+				r.lostDirs = map[string]string{}
+			}
+			r.lostDirs[started.ID] = outDir
+			r.hostedMu.Unlock()
 			emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
-				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); reopen this panel to follow it again", true))
+				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); follow it again to see how it ends", true))
 			return
 		}
 		final = last

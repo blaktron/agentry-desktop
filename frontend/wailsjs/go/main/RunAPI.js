@@ -26,6 +26,10 @@ export function AttachHostedRun(arg1, arg2) {
   return window['go']['main']['RunAPI']['AttachHostedRun'](arg1, arg2);
 }
 
+export function AttachHostedRunAtStart(arg1) {
+  return window['go']['main']['RunAPI']['AttachHostedRunAtStart'](arg1);
+}
+
 export function CancelHostedRun() {
   return window['go']['main']['RunAPI']['CancelHostedRun']();
 }

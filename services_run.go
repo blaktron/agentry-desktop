@@ -72,6 +72,10 @@ type RunAPI struct {
 	// so it must not wait on — or be waited on by — the run lock above.
 	hostedMu sync.Mutex
 	hosted   *hostedFollow
+	// lostDirs are the folders of runs In Agentry this app lost touch with
+	// while they were still moving, by run id: following one again brings
+	// its outputs down where it was started to (agentry-desktop#466).
+	lostDirs map[string]string
 	// held are the secrets this app set for a start In Agentry and did not
 	// keep, by registry: deleted again if the start does not start, left
 	// for the vault to remove when the run ends if it does

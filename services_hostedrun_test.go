@@ -54,6 +54,9 @@ type hostedFake struct {
 	enabled      bool
 
 	run *hostedrun.Run
+	// others are more of the account's runs, listed before run: a knowledge
+	// build, a draft or a chat the app must not take for a run.
+	others []*hostedrun.Run
 	// outputs are the run's files; the registry serves them the way a
 	// pushed run's are, as one output.tar holding them all.
 	outputs map[string]string
@@ -99,6 +102,9 @@ type hostedFake struct {
 	streamError string
 	// noHosts makes the status route report no sandbox host answering.
 	noHosts bool
+	// failGets makes that many reads of the run answer 503, as a registry
+	// the app has lost touch with does.
+	failGets int
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -251,7 +257,7 @@ func (f *hostedFake) start(t *testing.T) string {
 	mux.HandleFunc("GET /api/v1/x/runs/", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		items := []*hostedrun.Run{}
+		items := append([]*hostedrun.Run{}, f.others...)
 		if f.run != nil {
 			items = append(items, f.run)
 		}
@@ -260,6 +266,11 @@ func (f *hostedFake) start(t *testing.T) string {
 	mux.HandleFunc("GET /api/v1/x/runs/{id}", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.failGets > 0 {
+			f.failGets--
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		hostedJSON(w, http.StatusOK, f.run)
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/{id}/cancel", func(w http.ResponseWriter, _ *http.Request) {

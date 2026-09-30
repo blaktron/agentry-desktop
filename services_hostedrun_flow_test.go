@@ -1,0 +1,160 @@
+package main
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/settings"
+)
+
+// The run In Agentry App follows from the start (agentry-desktop#466): the
+// attach takes only a run, never a knowledge build, a draft or a chat in
+// flight for the same account, and downloads into a folder Go chose itself,
+// since the page has picked none at start (D-030).
+func TestTheAttachAtStartTakesOnlyARun(t *testing.T) {
+	build := &hostedrun.Run{ID: "11111111-1111-1111-1111-111111111111", Kind: hostedrun.KindKnowledgeBuild, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	draft := &hostedrun.Run{ID: "22222222-2222-2222-2222-222222222222", Kind: hostedrun.KindDraft, Status: hostedrun.StatusQueued, CreatedAt: time.Now().UTC()}
+	chat := &hostedrun.Run{ID: "44444444-4444-4444-4444-444444444444", Ref: "acme/helper@1.0.0", Mode: hostedrun.ModeInteractive, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, HoldCredits: 20, CreatedAt: time.Now().UTC()}
+
+	f := &hostedFake{enabled: true, others: []*hostedrun.Run{build, draft, chat}}
+	reg := f.start(t)
+	home, _ := signIn(t, reg)
+	r, _ := newRunAPI(t)
+	fastPoll(t)
+
+	got, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || got.Run != nil {
+		t.Fatalf("with a build, a draft and a chat in flight and no run, the attach = %+v, %v", got, err)
+	}
+	if r.hostedCurrent() != nil {
+		t.Fatal("the attach followed something that is not a run")
+	}
+
+	f.mu.Lock()
+	f.run = run
+	f.mu.Unlock()
+	got, err = r.AttachHostedRunAtStart(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Run == nil || got.Run.ID != run.ID || got.Run.Mode == hostedrun.ModeInteractive {
+		t.Fatalf("attach = %+v", got)
+	}
+	// No folder was picked: the run's folder is the default one, named
+	// for it, under the person's Downloads.
+	want := filepath.Join(home, "Downloads", "agentry-out", "acme-reporter-"+run.ID)
+	if got.Run.OutDir != want {
+		t.Fatalf("the run's folder = %q, want %q", got.Run.OutDir, want)
+	}
+	// Asked again, it answers with the run it already follows.
+	again, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || again.Run == nil || again.Run.ID != run.ID {
+		t.Fatalf("a second attach = %+v, %v", again, err)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
+	waitForIdle(t, r)
+}
+
+// Run defaults' saved folder is the one a run attached at start downloads
+// into, a folder of its own inside it (D-044).
+func TestTheAttachAtStartUsesRunDefaultsFolder(t *testing.T) {
+	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusQueued, CreatedAt: time.Now().UTC()}
+	f := &hostedFake{enabled: true, run: run}
+	reg := f.start(t)
+	signIn(t, reg)
+	saved := t.TempDir()
+	s, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.DefaultOutputDir = saved
+	if err := settings.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := newRunAPI(t)
+	fastPoll(t)
+	got, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || got.Run == nil {
+		t.Fatalf("attach = %+v, %v", got, err)
+	}
+	if !strings.HasPrefix(got.Run.OutDir, saved+string(filepath.Separator)) || !strings.Contains(got.Run.OutDir, run.ID) {
+		t.Fatalf("the run's folder = %q, want one of its own inside %q", got.Run.OutDir, saved)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
+	waitForIdle(t, r)
+}
+
+// A chat In Agentry the app already follows is the run setup's (a chat
+// moves to the cards in B4), so the attach at start does not hand it over
+// as a run.
+func TestTheAttachAtStartLeavesAFollowedChatAlone(t *testing.T) {
+	chat := &hostedrun.Run{ID: "44444444-4444-4444-4444-444444444444", Ref: "acme/helper@1.0.0", Mode: hostedrun.ModeInteractive, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	f := &hostedFake{enabled: true, run: chat}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	fastPoll(t)
+	dir := t.TempDir()
+	r.app.markPicked(dir)
+	if a, err := r.AttachHostedRun(reg, dir); err != nil || a.Run == nil {
+		t.Fatalf("the setup's attach = %+v, %v", a, err)
+	}
+	got, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || got.Run != nil {
+		t.Fatalf("attach at start over a followed chat = %+v, %v", got, err)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
+	waitForIdle(t, r)
+}
+
+// waitForIdle waits for the follow loop to end once the run is over.
+func waitForIdle(t *testing.T, r *RunAPI) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for r.hostedCurrent() != nil && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if r.hostedCurrent() != nil {
+		t.Fatal("the follow loop outlived the run")
+	}
+}
+
+// A run the app lost touch with while it was still moving is said to be
+// so, and following it again brings its outputs down into the folder it was
+// started to, which a picker returned and the page cannot name again.
+func TestFollowingALostRunAgainKeepsItsFolder(t *testing.T) {
+	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	f := &hostedFake{enabled: true, run: run}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, events := newRunAPI(t)
+	fastPoll(t)
+	picked := t.TempDir()
+	r.app.markPicked(picked)
+	if a, err := r.AttachHostedRun(reg, picked); err != nil || a.Run == nil {
+		t.Fatalf("attach = %+v, %v", a, err)
+	}
+	// Watch gives up after ten retries; the eleventh failure loses it,
+	// and the next read, which answers, says the run is still going.
+	f.mu.Lock()
+	f.failGets = 11
+	f.mu.Unlock()
+	lost := waitForFinal(t, events)
+	if !strings.Contains(lost.DownloadError, "lost touch with the registry") || lost.Status != hostedrun.StatusRunning {
+		t.Fatalf("lost = %+v", lost)
+	}
+	waitForIdle(t, r)
+	again, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || again.Run == nil || again.Run.ID != run.ID {
+		t.Fatalf("follow again = %+v, %v", again, err)
+	}
+	if again.Run.OutDir != picked {
+		t.Fatalf("followed again into %q, want the folder it was started to, %q", again.Run.OutDir, picked)
+	}
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
+	waitForIdle(t, r)
+}
