@@ -5,7 +5,9 @@
 // design harness, so the harness shows the chrome the app has.
 //
 // Neither decides anything: the switch lives in desktop.yaml, which only Go
-// writes after a native confirmation (D-030), and a run reads it there.
+// writes after a native confirmation (D-030), and a run reads it there. Both
+// also stay while a run or chat compiled in Unsafe Mode is live after the
+// switch went off (agentry-desktop#479): Go says when it ends.
 
 /** The red edge. One fixed layer over everything the page draws, its own
  *  dialogs included, that takes no clicks (style.css .unsafe-glow). */
@@ -13,16 +15,22 @@ export function UnsafeGlow() {
   return <div className="unsafe-glow" aria-hidden="true" />;
 }
 
-/** The sidebar's badge. A button when it can open Run defaults. */
-export function UnsafeBadge({ onOpen }: { onOpen?: () => void }) {
+/** The sidebar's badge. A button when it can open Run defaults. running:
+ *  the switch is off, and a run or chat started while it was on is still
+ *  live in Unsafe Mode. */
+export function UnsafeBadge({ onOpen, running }: { onOpen?: () => void; running?: boolean }) {
   return (
     <button
       type="button"
       className="badge bad unsafe-badge"
-      title="Unsafe Mode is on: a run on this computer can use commands this computer has not approved. Run defaults has the switch."
+      title={
+        running
+          ? "Unsafe Mode is off for the next run, but the run or chat that started while it was on keeps it until it ends. Run defaults has the switch."
+          : "Unsafe Mode is on: a run on this computer can use commands this computer has not approved. Run defaults has the switch."
+      }
       onClick={onOpen}
     >
-      Unsafe Mode
+      {running ? "Unsafe Mode: running" : "Unsafe Mode"}
     </button>
   );
 }

@@ -33,7 +33,11 @@ const (
 	// eventUnsafeProgress carries the Unsafe Mode image's pull to the Run
 	// defaults card (services_unsafe.go).
 	eventUnsafeProgress = "runner:unsafe-progress"
-	eventRunLog         = "runner:run-log"
+	// eventUnsafeLive says a run or chat compiled in Unsafe Mode has become
+	// live (true) or has ended (false): the shell keeps the red edge and the
+	// badge up while one is, switch or no switch (services_unsafe.go).
+	eventUnsafeLive = "runner:unsafe-live"
+	eventRunLog     = "runner:run-log"
 	// eventSessionEvent carries an interactive session's events (JSON
 	// SessionEventView) to the chat view; runner:run-log stays autonomous.
 	eventSessionEvent = "runner:session-event"
@@ -75,6 +79,10 @@ type RunAPI struct {
 	// sweep what it built (services_quit.go, agentry-desktop#125).
 	liveMu sync.Mutex
 	live   *liveRun
+	// unsafeMu serializes a live run's Unsafe Mode flag with the event that
+	// tells the shell, so the shell never hears them out of order
+	// (setUnsafeLive, endRun; agentry-desktop#479). Taken before liveMu.
+	unsafeMu sync.Mutex
 	// Engine seams for tests; nil means internal/run.
 	newRunID      func() (string, error)
 	engineRun     func(context.Context, run.Request, io.Writer) (*run.Result, error)
@@ -158,6 +166,9 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		r.mu.Unlock()
 		return nil, err
 	}
+	// A chat that read the switch on is an Unsafe Mode chat from here until
+	// its compile says otherwise (agentry-desktop#479).
+	r.setUnsafeLive(live, unsafe)
 	// The attached packs' opened copies live as long as the session: its
 	// endRun, from EndSession or quitting, removes them.
 	packs, err := r.attach(ctx, live, reg, knowledge)
@@ -186,6 +197,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
 		Unsafe:             unsafe,
+		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -767,6 +779,9 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		return nil, err
 	}
 	defer r.endRun(live)
+	// A run that read the switch on is an Unsafe Mode run from here until
+	// its compile says otherwise (agentry-desktop#479).
+	r.setUnsafeLive(live, unsafe)
 	packs, err := r.attach(ctx, live, reg, knowledge)
 	if err != nil {
 		return nil, err
@@ -791,6 +806,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
 		Unsafe:             unsafe,
+		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
 	}, logw)
 	if err != nil {
 		return nil, err

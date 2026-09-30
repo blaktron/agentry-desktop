@@ -17,6 +17,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -503,5 +504,133 @@ func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
 		if f := rt.Field(i); strings.Contains(strings.ToLower(f.Name+f.Tag.Get("json")), "unsafe") {
 			t.Errorf("hostedrun.CreateRequest carries %s", f.Name)
 		}
+	}
+}
+
+// unsafeChat is a chat whose End is all a test needs: it ends at once.
+type unsafeChat struct{ events chan session.Event }
+
+func (c *unsafeChat) Ref() string                                    { return "acme/x@1.0.0" }
+func (c *unsafeChat) Events() <-chan session.Event                   { return c.events }
+func (c *unsafeChat) Send(context.Context, string) error             { return nil }
+func (c *unsafeChat) AddInput(context.Context, string) error         { return nil }
+func (c *unsafeChat) End(context.Context, bool) (*run.Result, error) { return &run.Result{}, nil }
+
+// liveEvents records every runner:unsafe-live the app emits.
+func liveEvents(t *testing.T) *[]bool {
+	t.Helper()
+	// Emitted synchronously, under the API's unsafeMu, so the test's
+	// reads need no lock of their own.
+	var got []bool
+	old := emitEvent
+	emitEvent = func(_ *App, name string, data ...any) {
+		if name == eventUnsafeLive {
+			got = append(got, data[0].(bool))
+		}
+	}
+	t.Cleanup(func() { emitEvent = old })
+	return &got
+}
+
+// agentry-desktop#479 (the operator's choice, 2026-09-30; D-050's
+// addendum): turning the switch off does not take the red edge and the
+// badge from a run or a chat compiled in Unsafe Mode while it is live.
+// They go when it ends. A run the switch was on for, whose plan Unsafe
+// Mode did not change (no declared commands), is not one.
+func TestTheEdgeStaysWhileARunCompiledInUnsafeModeIsLive(t *testing.T) {
+	u := newUnsafeApp(t)
+	u.answer = true
+	events := liveEvents(t)
+	switchOn(t)
+	var during []bool
+	compiledUnsafe := true
+	u.r.engineRun = func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+		req.PlanCompiled(compiledUnsafe)
+		during = append(during, u.r.UnsafeLive())
+		// Mid-run, the person turns the switch off.
+		if _, err := u.r.SetUnsafeMode(false); err != nil {
+			t.Fatal(err)
+		}
+		during = append(during, u.r.UnsafeLive())
+		return &run.Result{Unsafe: compiledUnsafe}, nil
+	}
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(during, []bool{true, true}) {
+		t.Fatalf("while the Unsafe Mode run was live, UnsafeLive read %v, want true before and after the switch went off", during)
+	}
+	if u.r.UnsafeLive() {
+		t.Fatal("UnsafeLive still true after the run ended")
+	}
+	if !reflect.DeepEqual(*events, []bool{true, false}) {
+		t.Fatalf("runner:unsafe-live events %v, want [true false]", *events)
+	}
+
+	// The switch on, but the plan not compiled in Unsafe Mode.
+	switchOn(t)
+	*events, during, compiledUnsafe = nil, nil, false
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Marked from its start, the switch having been on, and cleared at its
+	// compile, which Unsafe Mode did not change.
+	if !reflect.DeepEqual(during, []bool{false, false}) || !reflect.DeepEqual(*events, []bool{true, false}) {
+		t.Fatalf("a run Unsafe Mode did not change: UnsafeLive %v, events %v", during, *events)
+	}
+
+	// A run with the switch off never raises it.
+	*events, during, compiledUnsafe = nil, nil, false
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(*events) != 0 {
+		t.Fatalf("a run with the switch off: events %v", *events)
+	}
+
+	// A run that fails after its compile still takes the edge down.
+	switchOn(t)
+	*events = nil
+	u.r.engineRun = func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+		req.PlanCompiled(true)
+		return nil, errors.New("the gateway did not start")
+	}
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err == nil {
+		t.Fatal("the failing run did not fail")
+	}
+	if u.r.UnsafeLive() || !reflect.DeepEqual(*events, []bool{true, false}) {
+		t.Fatalf("a failed Unsafe Mode run: UnsafeLive %v, events %v", u.r.UnsafeLive(), *events)
+	}
+}
+
+// The same for a chat, which can be live for hours: the edge stays from
+// its compile until EndSession.
+func TestTheEdgeStaysWhileAChatCompiledInUnsafeModeIsLive(t *testing.T) {
+	u := newUnsafeApp(t)
+	u.answer = true
+	events := liveEvents(t)
+	switchOn(t)
+	u.r.engineSession = func(_ context.Context, req run.Request, _ io.Writer) (localSession, error) {
+		req.PlanCompiled(true)
+		return &unsafeChat{events: make(chan session.Event)}, nil
+	}
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "", nil, "", nil, 0, -1, true, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := u.r.SetUnsafeMode(false); err != nil {
+		t.Fatal(err)
+	}
+	if !u.r.UnsafeLive() {
+		t.Fatal("the chat compiled in Unsafe Mode lost the edge when the switch went off")
+	}
+	close(u.r.session.(*unsafeChat).events)
+	if _, err := u.r.EndSession(false); err != nil {
+		t.Fatal(err)
+	}
+	if u.r.UnsafeLive() {
+		t.Fatal("UnsafeLive still true after the chat ended")
+	}
+	if !reflect.DeepEqual(*events, []bool{true, false}) {
+		t.Fatalf("runner:unsafe-live events %v, want [true false]", *events)
 	}
 }
