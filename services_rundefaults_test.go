@@ -59,7 +59,7 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := &RunAPI{app: app, inFlightDir: t.TempDir()}
+	r := &RunAPI{app: app, runnerHomeDir: t.TempDir()}
 	refusedAsTyped := func(what string, err error) {
 		t.Helper()
 		if err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
@@ -154,7 +154,7 @@ func TestNoDefaultIsAConsent(t *testing.T) {
 	}
 	asked := 0
 	app.confirm = func(context.Context, string, string) (bool, error) { asked++; return false, nil }
-	r := &RunAPI{app: app, inFlightDir: t.TempDir()}
+	r := &RunAPI{app: app, runnerHomeDir: t.TempDir()}
 	for name, flags := range map[string][3]bool{
 		"unsigned": {true, false, false}, "vulnerable MCP": {false, true, false}, "unscanned": {false, false, true},
 	} {
@@ -222,7 +222,7 @@ func TestEachRunGetsItsOwnFolderInsideTheSavedOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got []run.Request
-	r := &RunAPI{app: app, inFlightDir: t.TempDir(),
+	r := &RunAPI{app: app, runnerHomeDir: t.TempDir(),
 		engineRun: func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
 			got = append(got, req)
 			return &run.Result{}, nil

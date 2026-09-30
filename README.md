@@ -56,7 +56,22 @@ The product never claims an agent is "safe". The language is always:
   `ready`, or `manual` (a hand-off to the official installer, or an installed
   engine that refuses for its own reason). The app never runs as root. Runs
   stream their log live and finish with the §R8 result envelope — status,
-  usage, receipts, and the output folder.
+  usage, receipts, and the output folder. What a run needs while it is live
+  (its containers, volumes and networks, and a scratch directory under the
+  runner home that holds its secrets file, staged inputs and copies of the
+  attached knowledge) is removed when it ends. The app records each run it
+  starts, and if it is killed mid-run the next start removes what that
+  record names, as quitting does for anything still recorded; the output
+  folder, the QuickAgent's install and its profile are left alone. Not
+  reached by that sweep: a profile the killed run was to remove
+  (agentry-desktop#478); the opened copy of an attached knowledge pack,
+  which the local store removes about an hour on; a knowledge build's work
+  directory (agentry-cli#358); the gateway's anonymous volume, which a
+  finished run leaves too (agentry-cli#458); on macOS and Windows, the
+  containers the gateway itself started; the docker filter's socket
+  directory under the system's temp directory, used when the runner home's
+  path is too long for a socket; and files another user owns. The sweep
+  takes the runner home to be this machine's alone (agentry-desktop#480).
 - **Sessions** — a release that declares the `interactive` mode can run as a
   chat instead: **Start session** in the run panel opens it under the same
   controls as an autonomous run. Every message, and every file you add

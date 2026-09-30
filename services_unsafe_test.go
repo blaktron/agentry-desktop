@@ -51,7 +51,7 @@ func newUnsafeApp(t *testing.T) *unsafeApp {
 		u.asked = append(u.asked, title+"\n"+message)
 		return u.answer, nil
 	}}
-	u.r = &RunAPI{app: app, inFlightDir: t.TempDir(),
+	u.r = &RunAPI{app: app, runnerHomeDir: t.TempDir(),
 		pullUnsafe: func(_ context.Context, logw io.Writer) error {
 			u.pulls++
 			_, _ = io.WriteString(logw, "downloading\n")

@@ -7,12 +7,21 @@
 // cut it short, and on shutdown ends it and waits — bounded — for the
 // engine's teardown, then sweeps the run's label itself in case the wait
 // ran out (§9 "teardown on every path").
+//
+// The same sweep runs for what is not live (agentry-desktop#463, plan
+// desktop-review-key-and-run-cards.md §5.4): at start for every recorded run
+// whose owner is gone, and at quit for those and for the records this app
+// still holds, which are the run the quit's wait gave up on and a run that
+// ended with files its engine could not delete (settle). The rule it serves
+// is that nothing about a run stays on this computer but its output folder;
+// run.Sweep says what the sweep reaches and what it does not.
 package main
 
 import (
 	"context"
 	"io"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -46,6 +55,9 @@ type liveRun struct {
 	// done is closed when the binding that owns the run has returned from
 	// the engine (RunAgent), or the session has ended (EndSession).
 	done chan struct{}
+	// ending is set by the endRun call that ends the run, under liveMu: a
+	// second call returns at once.
+	ending bool
 	// release removes the opened copies of the knowledge packs attached to
 	// the run (nil when none was). endRun calls it before closing done,
 	// which quitting waits for, up to quitWait: a run that ends in that
@@ -94,22 +106,59 @@ func (r *RunAPI) addTurn(id string) {
 }
 
 // endRun may be called from both ends of a session (EndSession and
-// shutdown): only the call that clears the record releases the attached
-// knowledge and closes done.
+// shutdown): only the first call releases the attached knowledge, settles
+// the run's crash-path records and closes done.
 func (r *RunAPI) endRun(l *liveRun) {
 	r.liveMu.Lock()
-	defer r.liveMu.Unlock()
-	if r.live == l {
-		if l.release != nil {
-			l.release()
-		}
-		r.live = nil
-		close(l.done)
-		r.forgetInFlight(l.id)
-		for _, id := range l.turns {
-			r.forgetInFlight(id)
-		}
+	if r.live != l || l.ending {
+		r.liveMu.Unlock()
+		return
 	}
+	l.ending = true
+	if l.release != nil {
+		l.release()
+	}
+	ids := append([]string{l.id}, l.turns...)
+	r.liveMu.Unlock()
+	// Deferred, so that a run whose settling panics is not left in flight
+	// with nobody ever told it is done.
+	defer func() {
+		r.liveMu.Lock()
+		if r.live == l {
+			r.live = nil
+		}
+		close(l.done)
+		r.liveMu.Unlock()
+	}()
+	// Settled outside the lock, which the close dialog and the Stop buttons
+	// read: deleting a file Docker Desktop still holds can take seconds on
+	// Windows. The run stays the one in flight until its records are
+	// settled, so a quit in that time waits for it as for any run.
+	for _, id := range ids {
+		r.settle(id)
+	}
+}
+
+// settle is what becomes of a run's crash-path record once its engine has
+// returned, which it does only after its own teardown. What that teardown
+// could not delete under the runner home (a file Docker Desktop still
+// held, agentry-cli#422; a directory the run's tools left unwritable) is
+// tried once more here, and the record goes only when none of the run's
+// files are left; otherwise it stays, and quitting and the next start
+// sweep the run by it (agentry-desktop#463). Docker is not asked: a
+// container the engine's teardown could not remove is not seen here, as it
+// was not before.
+func (r *RunAPI) settle(id string) {
+	home, err := r.runnerHome()
+	if err != nil {
+		log.Printf("agentry-desktop: run %s: %v", id, err)
+		return
+	}
+	if err := run.SweepFiles(home, id); err != nil {
+		log.Printf("agentry-desktop: run %s left files behind, to be removed when the app quits or next starts: %v", id, err)
+		return
+	}
+	r.forgetInFlight(id)
 }
 
 // attach opens the named knowledge packs for the run l, whose endRun
@@ -126,7 +175,8 @@ func (r *RunAPI) attach(ctx context.Context, l *liveRun, reg string, names []str
 }
 
 // forgetInFlight removes a run's crash-path record once nothing of it can
-// be left: the engine returned (its teardown ran) or the run was swept.
+// be left: the engine returned and its files are gone (settle), or the run
+// was swept.
 func (r *RunAPI) forgetInFlight(id string) {
 	if dir, err := r.inFlight(); err == nil {
 		if err := run.ForgetInFlight(dir, id); err != nil {
@@ -138,9 +188,13 @@ func (r *RunAPI) forgetInFlight(id string) {
 // sweepOrphans is the start half of the crash path (agentry-desktop#198):
 // a run recorded by an app that died without tearing it down — killed,
 // crashed, the machine lost power — is swept by its run id, and its record
-// removed. Only records whose owning process is provably gone are touched
-// (run.SweepOrphaned); a second desktop's live run and every CLI run carry
-// other run ids. Called once, in its own goroutine, from OnStartup.
+// removed: its containers, volumes and networks, and its scratch directory
+// with the secrets file (agentry-desktop#463). Only records whose owning
+// process is gone from this machine are touched (run.SweepOrphaned; the
+// head of internal/run/inflight.go says what that judgement cannot see); a
+// second desktop's live run and
+// every CLI run carry other run ids. Called once, in its own goroutine,
+// from OnStartup.
 func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
 	dir, err := r.inFlight()
 	if err != nil {
@@ -197,38 +251,63 @@ func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 }
 
 // shutdown is the run half of OnShutdown: end the run in flight, wait for
-// the engine's teardown (bounded by quitWait), then sweep its label.
+// the engine's teardown (bounded by quitWait), then sweep what it left; and,
+// with or without a run in flight, sweep what any earlier run of this app
+// and any run of an app that died left (run.SweepAtQuit). Another app's
+// run that is live on this machine is never touched.
 func (r *RunAPI) shutdown() {
-	l := r.current()
-	if l == nil {
-		return
-	}
-	if s := r.session; s != nil {
-		// The session's End asks the harness to quit, waits for it, and
-		// runs the engine's teardown; bounded like the autonomous wait.
-		endCtx, cancel := context.WithTimeout(context.Background(), quitWait)
-		go func() {
-			defer cancel()
-			_, _ = s.End(endCtx, false)
+	var ids []string
+	if l := r.current(); l != nil {
+		if s := r.session; s != nil {
+			// The session's End asks the harness to quit, waits for it,
+			// writes the receipts as far as the chat got and runs the
+			// engine's teardown; bounded like the autonomous wait.
+			endCtx, cancel := context.WithTimeout(context.Background(), quitWait)
+			go func() {
+				defer cancel()
+				_, _ = s.End(endCtx, false)
+				l.cancel()
+				r.endRun(l)
+			}()
+		} else {
 			l.cancel()
-			r.endRun(l)
-		}()
-	} else {
-		l.cancel()
-	}
-	select {
-	case <-l.done:
-	case <-time.After(quitWait):
+		}
+		select {
+		case <-l.done:
+		case <-time.After(quitWait):
+		}
+		r.liveMu.Lock()
+		ids = append([]string{l.id}, l.turns...)
+		r.liveMu.Unlock()
 	}
 	sweepCtx, cancel := context.WithTimeout(context.Background(), sweepWait)
 	defer cancel()
-	r.liveMu.Lock()
-	ids := append([]string{l.id}, l.turns...)
-	r.liveMu.Unlock()
+	// Each run id is swept once: the live run's by its id, whether or not
+	// its record could be written, and then not again by that record.
+	tried := map[string]error{}
+	sweep := func(ctx context.Context, id string) error {
+		if err, ok := tried[id]; ok {
+			return err
+		}
+		err := r.sweepRun(ctx, id)
+		tried[id] = err
+		return err
+	}
 	for _, id := range ids {
-		if r.sweepRun(sweepCtx, id) == nil {
+		if sweep(sweepCtx, id) == nil {
 			r.forgetInFlight(id)
 		}
+	}
+	dir, err := r.inFlight()
+	if err != nil {
+		return
+	}
+	swept, err := run.SweepAtQuit(sweepCtx, dir, sweep)
+	if len(swept) > 0 {
+		log.Printf("agentry-desktop: removed what %d run(s) left behind: %s", len(swept), strings.Join(swept, ", "))
+	}
+	if err != nil {
+		log.Printf("agentry-desktop: %v", err)
 	}
 }
 
@@ -248,13 +327,35 @@ func (r *RunAPI) runEngine(ctx context.Context, req run.Request, logw io.Writer)
 	return run.Run(ctx, req, logw)
 }
 
-// inFlight is the crash-path records' directory: the test's, or the runner
-// home's desktop-runs.
-func (r *RunAPI) inFlight() (string, error) {
-	if r.inFlightDir != "" {
-		return r.inFlightDir, nil
+func (r *RunAPI) startEngineSession(ctx context.Context, req run.Request, logw io.Writer) (localSession, error) {
+	if r.engineSession != nil {
+		return r.engineSession(ctx, req, logw)
 	}
-	return run.InFlightDir()
+	s, err := run.StartSession(ctx, req, logw)
+	if err != nil {
+		// Not the nil *run.Session in the interface: that would read as a
+		// session.
+		return nil, err
+	}
+	return s, nil
+}
+
+// runnerHome is the runner home: a test's, or this machine's.
+func (r *RunAPI) runnerHome() (string, error) {
+	if r.runnerHomeDir != "" {
+		return r.runnerHomeDir, nil
+	}
+	return run.Home()
+}
+
+// inFlight is the crash-path records' directory, the runner home's
+// desktop-runs.
+func (r *RunAPI) inFlight() (string, error) {
+	home, err := r.runnerHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, run.InFlightDirName), nil
 }
 
 func (r *RunAPI) sweepRun(ctx context.Context, id string) error {

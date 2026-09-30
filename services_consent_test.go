@@ -25,7 +25,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	}}
 	// The consent-free run below reaches beginRun: its crash-path record
 	// (agentry-desktop#198) goes to a temp dir, not the real runner home.
-	r := &RunAPI{app: app, inFlightDir: t.TempDir()}
+	r := &RunAPI{app: app, runnerHomeDir: t.TempDir()}
 	// A draft reaches its dialog only with a Jev key of the person's, here
 	// the variable's, under a runner home of the test's own.
 	t.Setenv(policy.HomeEnv, t.TempDir())

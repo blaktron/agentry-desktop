@@ -13,21 +13,33 @@ import (
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/owner"
-	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 )
 
 // The crash path (agentry-desktop#198). A killed or crashed app runs no
 // hook, so a run it had in flight keeps its agent, gateway and proxy
 // containers up. The app therefore records each run it starts — its run id
 // and the process that owns it — in a small file under the runner home,
-// removes the file when the run ends, and at the next start sweeps the run
-// of any record whose owner is provably gone (D-034).
+// removes the file when the run ends, and at the next start, and when it
+// quits, sweeps the run of any record whose owner is provably gone (D-034;
+// the quit half and the sweep's reach beyond docker, agentry-desktop#463).
 //
 // A record names one run id, minted by the process that wrote it and used
 // by nobody else, so sweeping by that id can never reach the CLI's runs or
-// a second desktop's live run: they carry other ids. Liveness errs toward
-// "alive" — an unreadable process record, a pid the kernel reused — which
-// leaves litter for a later start, never a live run swept mid-turn.
+// another desktop's under a different id. Whether the run is over is judged
+// by its owner: liveness errs toward "alive" — an unreadable process
+// record, a pid the kernel reused — which leaves litter for a later start,
+// never a run swept mid-turn that is live where this process can see it.
+//
+// That judgement is this machine's and this pid namespace's, and the
+// runner home is taken to be one machine's. A home shared with another
+// machine, or with a container of its own pid namespace, has desktops that
+// cannot see each other's pids: the owner of a run live over there reads
+// as gone here, and its record, and since agentry-desktop#463 its scratch
+// directory, would be swept from under it. A record does not name its
+// machine because no identity tried for it was stable enough: a host name
+// follows the network on macOS, and a record that stopped matching would
+// leave a killed run's secrets file for good, which is the worse fault
+// (agentry-desktop#480).
 //
 // Where the CLI's owner package can identify a process across pid reuse
 // (Linux: pid plus start time), the record carries the start time and is
@@ -38,15 +50,6 @@ import (
 
 // InFlightDirName is the runner-home subdirectory holding the records.
 const InFlightDirName = "desktop-runs"
-
-// InFlightDir is the records' directory: <runner home>/desktop-runs.
-func InFlightDir() (string, error) {
-	home, err := policy.Home()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, InFlightDirName), nil
-}
 
 // inFlight is one record.
 type inFlight struct {
@@ -114,8 +117,22 @@ func recordPath(dir, runID string) string { return filepath.Join(dir, runID+".js
 // and removes its record once the sweep succeeded (a failed sweep — Docker
 // not running yet — keeps the record for the next start). A live owner's
 // record, this process's own, and anything unreadable or malformed are left
-// alone. It returns the run ids it swept, sorted.
+// alone. It returns the run ids it swept, sorted. The app runs it at start.
 func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
+	return sweepRecorded(ctx, dir, false, sweep)
+}
+
+// SweepAtQuit is SweepOrphaned for an app that is closing, after it has torn
+// down what it had live: every record this process still holds is swept as
+// well, since nothing of this process's is running any more. Those are the
+// run the quit's bounded wait gave up on, and a run that ended leaving
+// files its engine could not delete, whose record the app kept for this
+// (agentry-desktop#463). Another live process's record is still left alone.
+func SweepAtQuit(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
+	return sweepRecorded(ctx, dir, true, sweep)
+}
+
+func sweepRecorded(ctx context.Context, dir string, own bool, sweep func(context.Context, string) error) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -138,7 +155,7 @@ func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, 
 		if json.Unmarshal(b, &rec) != nil || !runIDPattern.MatchString(rec.RunID) || name != rec.RunID+".json" {
 			continue
 		}
-		if !ownerGone(rec.PID, rec.Start) {
+		if !ownerGone(rec.PID, rec.Start) && (!own || rec.PID != os.Getpid()) {
 			continue
 		}
 		if err := sweep(ctx, rec.RunID); err != nil {
