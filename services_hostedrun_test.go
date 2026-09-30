@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -77,6 +78,25 @@ type hostedFake struct {
 	vaultSets    []vaultSet
 	vaultDeletes []string
 	vaultAnswer  func(w http.ResponseWriter, body []byte)
+
+	// sessions is the status route's sessions line and sessionAllowed the
+	// caller's (agentry-enterprise#276, #286); nil leaves them out, as a
+	// registry from before sessions does.
+	sessions       *hostedrun.SessionTerms
+	sessionAllowed *bool
+	// frames are a session's display events in order (sequence numbers
+	// from 1), which the stream writes after the `after` it is asked for;
+	// streamAfters records each stream's `after`, and sessionPosts every
+	// post to a session route by route, whole.
+	frames       []string
+	streamAfters []string
+	sessionPosts map[string][]string
+	// sessionRefuse, when set, answers a session post instead of 202.
+	sessionRefuse func(w http.ResponseWriter, route string) bool
+	cancelled     int
+	// streamError, when set, is the class of the `error` event every
+	// stream answers with: the registry cannot show this session.
+	streamError string
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -155,6 +175,12 @@ func (f *hostedFake) start(t *testing.T) string {
 		if f.attach {
 			st["knowledgeAttach"] = map[string]any{"enabled": true, "maxPacks": 5}
 		}
+		if f.sessions != nil {
+			st["sessions"] = f.sessions
+		}
+		if f.sessionAllowed != nil {
+			st["caller"].(map[string]any)["session"] = map[string]any{"allowed": *f.sessionAllowed}
+		}
 		hostedJSON(w, http.StatusOK, st)
 	})
 	mux.HandleFunc("GET /api/v1/knowledge/packs", func(w http.ResponseWriter, _ *http.Request) {
@@ -206,6 +232,11 @@ func (f *hostedFake) start(t *testing.T) string {
 			Status: hostedrun.StatusQueued, QueuePosition: 3, HoldCredits: 20,
 			Caps: hostedrun.Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, CreatedAt: time.Now().UTC(),
 		}
+		if req.Mode == hostedrun.ModeInteractive {
+			// A session holds nothing and carries its record (DEV-178).
+			f.run.Mode, f.run.HoldCredits = hostedrun.ModeInteractive, 0
+			f.run.Session = &hostedrun.Session{FreeMinutes: 10, CreditsPerMinute: 50, PaidThrough: 10, IdleSeconds: 300}
+		}
 		for _, id := range req.Knowledge {
 			for _, p := range f.packs {
 				if p["id"] == id {
@@ -232,6 +263,7 @@ func (f *hostedFake) start(t *testing.T) string {
 	mux.HandleFunc("POST /api/v1/x/runs/{id}/cancel", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		f.cancelled++
 		f.run.CancelRequested = true
 		hostedJSON(w, http.StatusOK, f.run)
 	})
@@ -257,9 +289,85 @@ func (f *hostedFake) start(t *testing.T) string {
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	})
+	// The session's stream, as agentry-enterprise's sessionStream writes
+	// it: the state whenever it changes, each frame after `after` once and
+	// in order, and `done` once the run is over.
+	mux.HandleFunc("GET /api/v1/x/runs/{id}/session", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+hostedTestToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		f.mu.Lock()
+		f.streamAfters = append(f.streamAfters, r.URL.Query().Get("after"))
+		f.mu.Unlock()
+		after, _ := strconv.Atoi(r.URL.Query().Get("after"))
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		f.mu.Lock()
+		class := f.streamError
+		f.mu.Unlock()
+		if class != "" {
+			_, _ = io.WriteString(w, "event: error\ndata: {\"class\":\""+class+"\"}\n\n")
+			return
+		}
+		fl, _ := w.(http.Flusher)
+		lastState := ""
+		for {
+			f.mu.Lock()
+			st, _ := json.Marshal(map[string]any{"status": f.run.Status, "startedAt": f.run.StartedAt, "session": f.run.Session})
+			frames := slices.Clone(f.frames)
+			over := f.run.Terminal()
+			f.mu.Unlock()
+			if string(st) != lastState {
+				_, _ = io.WriteString(w, "event: state\ndata: "+string(st)+"\n\n")
+				lastState = string(st)
+			}
+			for after < len(frames) {
+				after++
+				_, _ = io.WriteString(w, "id: "+strconv.Itoa(after)+"\nevent: frame\ndata: "+frames[after-1]+"\n\n")
+			}
+			if over {
+				_, _ = io.WriteString(w, "event: done\ndata: {}\n\n")
+				fl.Flush()
+				return
+			}
+			fl.Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
+	})
+	for _, route := range []string{"turns", "files", "end"} {
+		mux.HandleFunc("POST /api/v1/x/runs/{id}/session/"+route, func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if r.Header.Get("Authorization") != "Bearer "+hostedTestToken {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if f.sessionPosts == nil {
+				f.sessionPosts = map[string][]string{}
+			}
+			f.sessionPosts[route] = append(f.sessionPosts[route], string(body))
+			if f.sessionRefuse != nil && f.sessionRefuse(w, route) {
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+		})
+	}
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv.URL
+}
+
+// frame adds one display event to the session's stream.
+func (f *hostedFake) frame(ev string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.frames = append(f.frames, ev)
 }
 
 // finish moves the fake's run to finished with a receipt and its outputs.
@@ -370,6 +478,14 @@ func newRunAPI(t *testing.T) (*RunAPI, *emitted) {
 			if line, ok := data[0].(string); ok {
 				e.log = append(e.log, line)
 			}
+		case eventHostedSessionEvent:
+			if v, ok := data[0].(SessionEventView); ok {
+				e.session = append(e.session, v)
+			}
+		case eventHostedSessionState:
+			if v, ok := data[0].(HostedSessionStateView); ok {
+				e.sessionStates = append(e.sessionStates, v)
+			}
 		}
 	}
 	t.Cleanup(func() { emitEvent = old })
@@ -400,6 +516,10 @@ type emitted struct {
 	mu   sync.Mutex
 	log  []string
 	runs []*HostedRunView
+	// session and sessionStates are a hosted session's events and states
+	// (agentry-desktop#403).
+	session       []SessionEventView
+	sessionStates []HostedSessionStateView
 }
 
 func (e *emitted) lines() []string {

@@ -58,6 +58,19 @@ type hostedFollow struct {
 	outDir   string
 	cancel   context.CancelFunc
 	done     chan struct{}
+	// session says the run is a hosted session: its conversation is
+	// streamed as well as its state (services_hostedrun_session.go), and
+	// replay asks the stream to start again from the host's first frame
+	// held, for a chat that has just opened.
+	session bool
+	replay  chan struct{}
+	ref     string
+	// idle is a session's idle close in seconds, as its record says.
+	idle int
+	// lost is why a session's stream stopped before its end, once it has:
+	// a chat that opens after that is told again (ReplayHostedSession).
+	// Guarded by RunAPI's hostedMu.
+	lost string
 }
 
 // HostedCapsView is a tier's ceilings for one run.
@@ -116,6 +129,11 @@ type HostedAvailabilityView struct {
 	// used as it is, one it does not keep is asked for at the start
 	// (agentry-desktop#300).
 	DeclaredSecrets []string `json:"declaredSecrets,omitempty"`
+
+	// Session is Talk to it In Agentry, a hosted session of the release's
+	// interactive mode (agentry-desktop#403): whether it is offered, and
+	// the registry's terms for one. Nil where it is not offered.
+	Session *HostedSessionOfferView `json:"session,omitempty"`
 }
 
 // HostedArtefactView is one artefact of a run and, once downloaded, where
@@ -192,9 +210,16 @@ type HostedRunView struct {
 	// DownloadError says why an artefact did not land, when one did not.
 	DownloadError string `json:"downloadError,omitempty"`
 
-	Caps       *HostedCapsView `json:"caps,omitempty"`
-	CreatedAt  string          `json:"createdAt,omitempty"`
-	FinishedAt string          `json:"finishedAt,omitempty"`
+	Caps *HostedCapsView `json:"caps,omitempty"`
+	// Mode is the run's mode: "interactive" for a hosted session, whose
+	// Session record says what its time and tokens have cost.
+	Mode string `json:"mode,omitempty"`
+	// Task is the run's task, for a chat that reopens on a session.
+	Task       string             `json:"task,omitempty"`
+	Session    *HostedSessionView `json:"session,omitempty"`
+	StartedAt  string             `json:"startedAt,omitempty"`
+	CreatedAt  string             `json:"createdAt,omitempty"`
+	FinishedAt string             `json:"finishedAt,omitempty"`
 	// Final says this is the last word on the run: it is over and its
 	// artefacts are downloaded.
 	Final bool `json:"final"`
@@ -270,8 +295,16 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
 
 	client := hostedrun.New(reg, token)
+	var terms *hostedrun.SessionTerms
 	if st, err := client.Status(ctx); err == nil {
 		facts.Enabled, facts.StatusKnown = st.Enabled, true
+		if st.Sessions != nil {
+			facts.SessionsEnabled, terms = st.Sessions.Enabled, st.Sessions
+		}
+		if st.Caller != nil && st.Caller.Session != nil {
+			allowed := st.Caller.Session.Allowed
+			facts.SessionAllowed = &allowed
+		}
 		v.Enabled, v.RunnersOnline, v.Queued = st.Enabled, st.RunnersOnline(), st.Queued
 		if st.Caller != nil {
 			v.Tier, v.HoldCredits = st.Caller.Tier, st.Caller.HoldCredits
@@ -292,6 +325,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 
 	o := hostedrun.Decide(facts)
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
+	v.Session = sessionOffer(hostedrun.DecideSession(facts), terms)
 	return v, nil
 }
 
@@ -311,7 +345,14 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // (SetHostedSecret with keep false) are deleted again when the run does
 // not start, whatever stopped it; when it starts, the vault removes them
 // as the run ends (plan hosted-credentials-vault.md D12).
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (view *HostedStartView, err error) {
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (*HostedStartView, error) {
+	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "")
+}
+
+// startHosted is StartHostedRun and StartHostedSession: the same gates, the
+// same uploads and the same create, which mode makes a run ("") or a hosted
+// session (hostedrun.ModeInteractive).
+func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	// createUnknown is a create whose answer never came back: the run may
@@ -365,7 +406,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 		}
 		return nil, err
 	}
-	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach})
+	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode})
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil
@@ -377,7 +418,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 	if err != nil {
 		return nil, err
 	}
-	r.followHosted(reg, token, dir, created)
+	r.follow(reg, token, dir, created)
 	return &HostedStartView{Run: hostedRunView(created, dir, nil, "", "", false)}, nil
 }
 
@@ -481,7 +522,7 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 		if err != nil {
 			return nil, err
 		}
-		r.followHosted(reg, token, dir, active)
+		r.follow(reg, token, dir, active)
 		return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
 	}
 	return &HostedStartView{}, nil
@@ -513,12 +554,14 @@ func (r *RunAPI) CancelHostedRun() (*HostedRunView, error) {
 // produced.
 func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) {
 	ctx, cancel := context.WithCancel(context.Background())
-	f := &hostedFollow{registry: reg, id: started.ID, outDir: outDir, cancel: cancel, done: make(chan struct{})}
+	f := &hostedFollow{registry: reg, id: started.ID, ref: started.Ref, outDir: outDir, cancel: cancel, done: make(chan struct{})}
 	r.hostedMu.Lock()
 	r.hosted = f
 	r.hostedMu.Unlock()
 
 	client := hostedrun.New(reg, token)
+	// Read here, not in the goroutine: a test shortens it for its life.
+	poll := hostedPoll
 	go func() {
 		defer close(f.done)
 		defer cancel()
@@ -529,43 +572,56 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 			}
 			r.hostedMu.Unlock()
 		}()
-		final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
-			Poll: hostedPoll,
-			OnStatus: func(run *hostedrun.Run) {
-				emitEvent(r.app, eventHostedRun, hostedRunView(run, outDir, nil, "", "", false))
-			},
-		})
-		if err != nil {
-			last, gerr := client.Get(context.Background(), started.ID)
-			if gerr != nil {
-				emitEvent(r.app, eventHostedRun, hostedRunView(started, outDir, nil, "", err.Error(), true))
-				return
-			}
-			if !last.Terminal() {
-				// The registry stopped answering while the run was still
-				// moving: say so, and download nothing, rather than show a
-				// run that is not over as finished. Reopening the panel
-				// reattaches to it.
-				emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
-					"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); reopen this panel to follow it again", true))
-				return
-			}
-			final = last
-		}
-		// The run is over: its artefacts come down into the folder the
-		// person picked, and the receipt and result render from there.
-		got, derr := client.DownloadOutputs(context.Background(), final, outDir)
-		// Whatever landed is this run's folder, for the result view. The id
-		// is the registry's, so it is remembered only when it is an id.
-		if validRunID(final.ID) {
-			r.rememberFolder(final.ID, outDir)
-		}
-		msg := ""
-		if derr != nil {
-			msg = derr.Error()
-		}
-		emitEvent(r.app, eventHostedRun, hostedRunView(final, outDir, got, resultText(got), msg, true))
+		r.watchAndDeliver(ctx, client, started, outDir, poll)
 	}()
+}
+
+// watchAndDeliver re-reads a run until it is over, reporting each move,
+// then delivers it. A run the registry stopped answering about while it
+// was still moving is said to be so, and nothing is downloaded, rather
+// than a run that is not over shown as finished; reopening the panel
+// reattaches to it.
+func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, started *hostedrun.Run, outDir string, poll time.Duration) {
+	final, err := client.Watch(ctx, started.ID, hostedrun.WatchOptions{
+		Poll: poll,
+		OnStatus: func(run *hostedrun.Run) {
+			emitEvent(r.app, eventHostedRun, hostedRunView(run, outDir, nil, "", "", false))
+		},
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		last, gerr := client.Get(context.Background(), started.ID)
+		if gerr != nil {
+			emitEvent(r.app, eventHostedRun, hostedRunView(started, outDir, nil, "", err.Error(), true))
+			return
+		}
+		if !last.Terminal() {
+			emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
+				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); reopen this panel to follow it again", true))
+			return
+		}
+		final = last
+	}
+	r.deliver(client, final, outDir)
+}
+
+// deliver brings a finished run's artefacts down into the folder the person
+// picked and reports the run's last word, from which the receipt and the
+// result render.
+func (r *RunAPI) deliver(client *hostedrun.Client, final *hostedrun.Run, outDir string) {
+	got, derr := client.DownloadOutputs(context.Background(), final, outDir)
+	// Whatever landed is this run's folder, for the result view. The id
+	// is the registry's, so it is remembered only when it is an id.
+	if validRunID(final.ID) {
+		r.rememberFolder(final.ID, outDir)
+	}
+	msg := ""
+	if derr != nil {
+		msg = derr.Error()
+	}
+	emitEvent(r.app, eventHostedRun, hostedRunView(final, outDir, got, resultText(got), msg, true))
 }
 
 // hostedIdle refuses a second hosted run from this app while one is being
@@ -661,6 +717,10 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 		OutDir:      outDir, Outputs: []HostedArtefactView{}, ResultJSON: result,
 		DownloadError: downloadErr, Final: final,
 		CreatedAt: rfc3339(r.CreatedAt),
+		Mode:      r.Mode, Task: r.Task, Session: sessionView(r.Session),
+	}
+	if r.StartedAt != nil {
+		v.StartedAt = rfc3339(*r.StartedAt)
 	}
 	if r.Status == hostedrun.StatusFinished || r.Status == hostedrun.StatusCancelled {
 		v.OutcomeLine, v.OutcomeTone = verdict.Line, verdict.Tone
