@@ -37,15 +37,44 @@ type SubscriptionView struct {
 	SubmissionCost int64  `json:"submissionCost"`
 	PeriodEnd      string `json:"periodEnd"`
 	PendingTier    string `json:"pendingTier,omitempty"`
-	PrivateAgents  struct {
+	// TierSince, Knowledge and Promo are what the Profile card reads beyond
+	// the account line (agentry-desktop#423); a registry from before each
+	// omits it.
+	TierSince     string `json:"tierSince,omitempty"`
+	PrivateAgents struct {
 		Max  int64 `json:"max"`
 		Used int64 `json:"used"`
+		// Enabled false means none may be added and Max says nothing;
+		// nil from a registry that predates it (agentry-enterprise#40).
+		Enabled *bool `json:"enabled,omitempty"`
 	} `json:"privateAgents"`
+	Knowledge *KnowledgeAllocation `json:"knowledge,omitempty"`
+	Promo     *PromoView           `json:"promo,omitempty"`
 	// Upgrade is the registry's own answer about buying and managing:
 	// whether either is possible here and, in URL, the page to open — the
 	// organization's console for a member, the subscription page for a
 	// person (agentry-enterprise#41, D28). The app never derives it.
 	Upgrade UpgradeRef `json:"upgrade"`
+}
+
+// KnowledgeAllocation is the bytes of knowledge packs kept in Agentry
+// against the cap (agentry-enterprise#170): Enabled false means no pack
+// may be added or grown and Max says nothing; Max 0 is no cap.
+type KnowledgeAllocation struct {
+	Enabled bool  `json:"enabled"`
+	Bytes   int64 `json:"bytes"`
+	Max     int64 `json:"max"`
+}
+
+// PromoView is the promo trial on a person's own account
+// (agentry-enterprise#280): "running" with its code, the credits it
+// granted and when it ends, or "eligible" while a code may be redeemed.
+type PromoView struct {
+	State       string `json:"state"`
+	Code        string `json:"code,omitempty"`
+	Credits     int64  `json:"credits,omitempty"`
+	CreditsUsed int64  `json:"creditsUsed,omitempty"`
+	EndsAt      string `json:"endsAt,omitempty"`
 }
 
 // Seats is the organization's seats: held against the allowance, where 0
@@ -73,27 +102,6 @@ type AccountView struct {
 	// SubscriptionError says why the subscription could not be read when
 	// the registry has one; the account line still renders.
 	SubscriptionError string `json:"subscriptionError,omitempty"`
-}
-
-// Account reports the stored credential's account and subscription.
-func (s *SettingsAPI) Account(url string) (*AccountView, error) {
-	url = settings.Normalize(url)
-	token := settings.TokenFor(url)
-	if token == "" {
-		return nil, fmt.Errorf("not signed in to %s", url)
-	}
-	user, err := whoami(s.app, url, token)
-	if err != nil {
-		return nil, err
-	}
-	out := &AccountView{User: *user}
-	sub, err := fetchSubscription(s.app.ctx, url, token)
-	if err != nil {
-		out.SubscriptionError = err.Error()
-		return out, nil
-	}
-	out.Subscription = sub
-	return out, nil
 }
 
 // OpenUpgrade opens the page where this account's subscription is

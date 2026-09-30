@@ -220,10 +220,13 @@ func (s *SettingsAPI) SetDefault(url string) (*SettingsView, error) {
 // even where there are no tiers to speak of (plan
 // organization-subscriptions.md §8, M12).
 type UserView struct {
-	Handle      string          `json:"handle"`
-	DisplayName string          `json:"displayName"`
-	Email       string          `json:"email"`
-	Orgs        []OrgMembership `json:"orgs,omitempty"`
+	Handle      string `json:"handle"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email"`
+	// EmailVerified is the directory's word on the address, which the
+	// Profile card shows beside it as the site does (agentry-desktop#423).
+	EmailVerified bool            `json:"emailVerified"`
+	Orgs          []OrgMembership `json:"orgs,omitempty"`
 	// PendingOrg is the organization waiting to approve this person: its
 	// domain folded them in, or its directory provisioned them. They hold
 	// no seat and spend from their own account until an admin approves
@@ -307,27 +310,49 @@ func (s *SettingsAPI) SignOut(url string) (*SettingsView, error) {
 
 // Whoami reports the identity the stored credential resolves to.
 func (s *SettingsAPI) Whoami(url string) (*UserView, error) {
-	token := settings.TokenFor(url)
-	if token == "" {
-		return nil, fmt.Errorf("not signed in to %s", url)
+	url, token, err := storedCredential(url)
+	if err != nil {
+		return nil, err
 	}
 	return whoami(s.app, url, token)
 }
 
+// storedCredential is a page-supplied registry URL held to Settings' rule
+// before its token is looked up: the keychain keys a token by host, so an
+// http:// spelling of an added https registry would otherwise send it in
+// clear (D-030; agentry-desktop#307, #423).
+func storedCredential(url string) (string, string, error) {
+	url = settings.Normalize(url)
+	if err := settings.ValidateURL(url); err != nil {
+		return "", "", err
+	}
+	token := settings.TokenFor(url)
+	if token == "" {
+		return "", "", fmt.Errorf("not signed in to %s", originOf(url))
+	}
+	return url, token, nil
+}
+
+// whoami's errors name the registry by origin, never by a URL someone may
+// have typed a credential into, since Settings renders them.
 func whoami(app *App, url, token string) (*UserView, error) {
 	client, err := registry.New(url, token)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
 	resp, err := client.GetCurrentUserWithResponse(app.ctx)
 	if err != nil {
-		return nil, fmt.Errorf("reach %s: %w", url, err)
+		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
 	if resp.JSON200 == nil {
 		return nil, registry.Problem("sign in", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
 	}
-	u := resp.JSON200
-	v := &UserView{Handle: u.Handle, DisplayName: u.DisplayName, Email: u.Email}
+	return userViewOf(resp.JSON200), nil
+}
+
+// userViewOf is the registry's user as Settings shows it.
+func userViewOf(u *apiclient.User) *UserView {
+	v := &UserView{Handle: u.Handle, DisplayName: u.DisplayName, Email: u.Email, EmailVerified: u.EmailVerified}
 	if u.Orgs != nil {
 		for _, o := range *u.Orgs {
 			m := OrgMembership{Handle: o.Handle, Role: o.Role}
@@ -340,7 +365,7 @@ func whoami(app *App, url, token string) (*UserView, error) {
 	if u.PendingOrg != nil {
 		v.PendingOrg = &PendingOrgView{Handle: u.PendingOrg.Handle, DisplayName: u.PendingOrg.DisplayName, Via: string(u.PendingOrg.Via)}
 	}
-	return v, nil
+	return v
 }
 
 // MetaView is a registry's self-description.
