@@ -998,3 +998,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .settings-card-parts { position: relative; z-index: 1; }
 .settings-back { margin: 0 0 8px; }
 .settings-part { scroll-margin-top: 12px; }
+
+/* Settings → Profile's subscription facts (agentry-desktop#423): the
+   label column fits its labels and wraps past 12rem, as the recaps do. */
+.profile-facts { display: grid; grid-template-columns: fit-content(12rem) minmax(0, 1fr); gap: 4px 16px; margin: 8px 0 12px; }
+.profile-facts dt { color: var(--color-muted); }
+.profile-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
