@@ -55,6 +55,7 @@ const states = [
   { name: "runpanel-step-tools", url: "/modals.html#runpanel-step-tools", note: "Connect tools: the declared MCP server's pin and tools, then its key", expectText: "Step 3 of 5: Connect tools" },
   { name: "runpanel-step-details", url: "/modals.html#runpanel-step-details", note: "Details: the intake question, then the task", expectText: ": Details" },
   { name: "runpanel-step-review", url: "/modals.html#runpanel-step-review", note: "Review and start: the recap with Edit links, the output folder, Advanced, Run", expectText: "Review and start" },
+  { name: "runpanel-step-review-long", url: "/modals.html#runpanel-step-review-long", note: "Review and start with an intake prompt as long as binary-reverse-engineer's: the label wraps in its column and every value keeps a readable width (agentry-desktop#420)", expectText: ["leave blank for a full pass", "none: its own instruction runs"], expectMinWidth: [".run-recap dd", 320] },
   // The author's guide (agentry-desktop#228): each step that reads it, and a
   // hostile guide that must render as text on the two steps it reaches.
   { name: "runpanel-guided", url: "/modals.html#runpanel-guided", note: "Before you start with a guide: the author's overview, then the author's What to have ready", expectText: "review brief" },
@@ -83,7 +84,7 @@ const states = [
   { name: "knowledge-empty", url: "/knowledge.html#knowledge-empty", note: "no pack yet: Create knowledge", locator: '[data-preview="knowledge"]', expectText: "No knowledge packs yet" },
   { name: "knowledge-create-documents", url: "/knowledge.html#create-documents", note: "Create knowledge: the documents, from the native pickers only", expectText: "Step 1 of 3: Documents" },
   { name: "knowledge-create-name", url: "/knowledge.html#create-name", note: "Create knowledge: the name, and where a run finds it", expectText: "Step 2 of 3: Name" },
-  { name: "knowledge-create-review", url: "/knowledge.html#create-review", note: "the review: before anything runs, that the Creator runs here against the policy's model and nothing it reads or writes is scanned, and that a build is a big job that may run for up to 30 minutes (agentry-desktop#352)", expectText: ["Nothing it reads or writes is scanned", "may run for up to 30 minutes and 60 turns"] },
+  { name: "knowledge-create-review", url: "/knowledge.html#create-review", note: "the review: before anything runs, that the Creator runs here against the policy's model and nothing it reads or writes is scanned, and that a build is a big job that may run for up to 30 minutes (agentry-desktop#352)", expectText: ["Nothing it reads or writes is scanned", "may run for up to 30 minutes and 60 turns"], expectMinWidth: ['.step-recap dd', 320] },
   { name: "knowledge-create-blocked", url: "/knowledge.html#create-blocked", note: "docker not ready: the sentence, Create knowledge greyed", expectText: "Docker is not ready", expectDisabledButton: "Create knowledge" },
   { name: "knowledge-create-building", url: "/knowledge.html#create-building", note: "the build under way, driven by knowledge:build-progress events: time against its limit, turns, the pages written so far, the tokens; its log folded beneath (agentry-desktop#352)", expectText: ["Pages written", "14 of up to 60"] },
   { name: "knowledge-create-building-log", url: "/knowledge.html#create-building", note: "the build under way with its log opened, streaming", click: 'summary:has-text("Build log")', expectText: "decode: storage-guide.pdf" },
@@ -199,7 +200,7 @@ const states = [
   { name: "page-build-guide", url: "/pages.html#build-guide", note: "Step by step: Before a run, with its preview", locator: '[data-preview="build"]', expectText: "What a person sees before a run" },
   { name: "page-build-guide-hostile", url: "/pages.html#build-guide-hostile", note: "Before a run's preview with a hostile key help (agentry-desktop#343): markdown, framed as the author's; no markup of its own, no image, no javascript: link; each link's host shown, a look-alike as punycode; a link cut at the hidden override", locator: '[data-preview="build"]', linksIn: '[data-preview="build"] .key-help', expectText: ["The author's help for", "U+202E", "(evil.example)", "(xn--pgerduty-16g.com)", "(pagerduty.com.evil.example)"], expectLinks: ["https://evil.example/pd", "https://support.pagerduty.com/keys", "https://xn--pgerduty-16g.com/new", "https://pagerduty.com.evil.example/"], expectNone: '[data-preview="build"] .key-help img, [data-preview="build"] .key-help script, [data-preview="build"] .key-help b[onclick], [data-preview="build"] .key-help a[href^="javascript"]' },
   { name: "page-build-review-hostile", url: "/pages.html#build-review-hostile", note: "Review with the same hostile key help beneath Before a run", locator: '[data-preview="build"]', linksIn: '[data-preview="build"] .key-help', expectText: ["The author's help for", "U+202E", "(evil.example)", "(pagerduty.com.evil.example)"], expectLinks: ["https://evil.example/pd", "https://support.pagerduty.com/keys", "https://xn--pgerduty-16g.com/new", "https://pagerduty.com.evil.example/"], expectNone: '[data-preview="build"] .key-help img, [data-preview="build"] .key-help script, [data-preview="build"] .key-help b[onclick], [data-preview="build"] .key-help a[href^="javascript"]' },
-  { name: "page-build-review", url: "/pages.html#build-review", note: "Step by step: Review, the recap with Edit and the actions", locator: '[data-preview="build"]', expectText: "Step 8 of 8: Review" },
+  { name: "page-build-review", url: "/pages.html#build-review", note: "Step by step: Review, the recap with Edit and the actions", locator: '[data-preview="build"]', expectText: "Step 8 of 8: Review", expectMinWidth: ['[data-preview="build"] .step-recap dd', 320] },
   { name: "page-build-advanced", url: "/pages.html#build-advanced", note: "Advanced: every section at once", locator: '[data-preview="build"]', expectText: "Before a run" },
   // Describe it, on this computer (#282): the description with the person's
   // AI Review key saved, and without one (the Settings pointer, Draft it
@@ -400,6 +401,16 @@ try {
       }
       if (state.expectChecked) {
         if (!(await page.locator(state.expectChecked).first().isChecked())) throw new Error(`${state.name}: ${state.expectChecked} is not checked`);
+      }
+      if (state.expectMinWidth) {
+        // A layout check, not only a picture: every matching element keeps
+        // at least this width (agentry-desktop#420, a recap value squeezed
+        // to one letter a line).
+        const [sel, min] = state.expectMinWidth;
+        const widths = await page.locator(sel).evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+        if (widths.length === 0) throw new Error(`${state.name}: nothing matches ${sel}`);
+        const narrow = widths.filter((w) => w < min);
+        if (narrow.length) throw new Error(`${state.name}: ${narrow.length} of ${widths.length} ${sel} narrower than ${min}px (${narrow.map((w) => Math.round(w)).join(", ")})`);
       }
       if (state.expectValue) {
         const [sel, want] = state.expectValue;
