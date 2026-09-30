@@ -597,6 +597,99 @@ func (r *RunAPI) TestJevKey() (*JevKeyTestView, error) {
 	return &JevKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
 }
 
+// SearchProviderView is one web search provider a person may choose: its
+// name as the policy says it, as a person knows it, and the variable a draft
+// reads its key from first.
+type SearchProviderView struct {
+	Name    string `json:"name"`
+	Label   string `json:"label"`
+	EnvName string `json:"envName"`
+}
+
+// SearchKeyView is where the person's own web search key stands (#301): the
+// provider the policy names, whether its key is saved in this machine's
+// keychain and read from there, whether the variable a draft reads first is
+// set, and the providers the runner policy admits. Never the key.
+type SearchKeyView struct {
+	Provider      string               `json:"provider,omitempty"`
+	ProviderLabel string               `json:"providerLabel,omitempty"`
+	Stored        bool                 `json:"stored"`
+	Source        string               `json:"source,omitempty"`
+	EnvName       string               `json:"envName,omitempty"`
+	EnvSet        bool                 `json:"envSet"`
+	Ready         bool                 `json:"ready"`
+	KeyStoreErr   string               `json:"keyStoreErr,omitempty"`
+	Providers     []SearchProviderView `json:"providers"`
+}
+
+// SearchKeyStatus reports the web search key's standing. Read-only: it
+// reads the keychain's presence marker, never the key, and creates no
+// policy.
+func (r *RunAPI) SearchKeyStatus() (*SearchKeyView, error) {
+	st, err := run.GetSearchKeyStatus()
+	if err != nil {
+		return nil, err
+	}
+	v := &SearchKeyView{Provider: st.Provider, ProviderLabel: st.ProviderLabel, Stored: st.Stored, Source: st.Source,
+		EnvName: st.EnvName, EnvSet: st.EnvSet, Ready: st.Ready(), KeyStoreErr: st.KeyStoreErr}
+	for _, p := range run.SearchProviders() {
+		v.Providers = append(v.Providers, SearchProviderView{Name: p.Name, Label: p.Label, EnvName: p.EnvName})
+	}
+	return v, nil
+}
+
+// StoreSearchKey puts the person's key for provider into the OS keychain
+// and records the provider, and the keychain as its source, in the runner
+// policy. It is the one call that carries the key; the key is written
+// nowhere else. A keychain that cannot be reached is a named refusal, and
+// the policy is left as it was.
+func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.StoreSearchKey(provider, key, logw); err != nil {
+		return nil, err
+	}
+	return r.SearchKeyStatus()
+}
+
+// ForgetSearchKey removes the web search key from the keychain and the
+// provider from the policy.
+func (r *RunAPI) ForgetSearchKey() (*SearchKeyView, error) {
+	if !r.mu.TryLock() {
+		return nil, errBusy
+	}
+	defer r.mu.Unlock()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.ForgetSearchKey(logw); err != nil {
+		return nil, err
+	}
+	return r.SearchKeyStatus()
+}
+
+// SearchKeyTestView is Test key's answer in plain words, and which key it
+// tried: "the keychain" or the variable's name.
+type SearchKeyTestView struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+	From    string `json:"from,omitempty"`
+}
+
+// TestSearchKey makes one search with the key a draft on this computer
+// would use, and says the provider's answer. The key goes to the provider's
+// endpoint and nowhere else; the answer carries no key.
+func (r *RunAPI) TestSearchKey() (*SearchKeyTestView, error) {
+	res, err := run.TestSearchKey(r.app.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &SearchKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
+}
+
 // ProfileStatusView is a QuickAgent signature's MCP-profile state (§P2).
 // Secret NAMES only — no surface ever returns a value.
 type ProfileStatusView struct {

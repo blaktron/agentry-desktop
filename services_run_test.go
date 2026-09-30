@@ -13,6 +13,7 @@ import (
 
 	corejudge "github.com/blaktron/agentry/pkg/judge"
 	"github.com/blaktron/agentry/pkg/manifest"
+	corewebsearch "github.com/blaktron/agentry/pkg/websearch"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
@@ -127,6 +128,70 @@ func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
 	}
 	if noConnect := profileStatusView(&run.ProfileInfo{Guide: &manifest.Guide{Overview: "x"}}); noConnect.Guide.Connect == nil {
 		t.Fatal("an absent connect map must be an empty object")
+	}
+}
+
+// The person's own web search key (#301), as the AI Review key is held:
+// StoreSearchKey is the one call that carries it inward; no view
+// StoreSearchKey, SearchKeyStatus, TestSearchKey or ForgetSearchKey returns
+// carries it back, and no progress line the page is sent does either, even
+// when the key replaces another provider's.
+func TestTheSearchKeyIsNeverShownBackOrLogged(t *testing.T) {
+	const secret = "search-never-shown-back-8e41"
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(policy.HomeEnv, t.TempDir())
+	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	keyring.MockInit()
+	t.Setenv(modelkey.EnvNoKeyring, "")
+	for _, p := range run.SearchProviders() {
+		t.Setenv(p.EnvName, "")
+	}
+	var events []string
+	emit := emitEvent
+	emitEvent = func(_ *App, name string, data ...any) { events = append(events, fmt.Sprint(name, data)) }
+	t.Cleanup(func() { emitEvent = emit })
+
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	views := []any{}
+	if _, err := r.StoreSearchKey("brave", "brave-"+secret); err != nil {
+		t.Fatal(err)
+	}
+	v, err := r.StoreSearchKey("exa", secret)
+	if err != nil || !v.Stored || !v.Ready || v.Provider != "exa" || v.ProviderLabel != "Exa" || v.Source != "keyring" ||
+		v.EnvName != "EXA_API_KEY" || len(v.Providers) < 5 || v.Providers[0].Name != "brave" {
+		t.Fatalf("store: %+v %v", v, err)
+	}
+	views = append(views, v)
+	s, err := r.SearchKeyStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	views = append(views, s)
+	run.SetAskSearchForTest(t, func(_ context.Context, provider, key string) error {
+		return &corewebsearch.StatusError{Provider: provider, Status: 401, Snippet: "bad key " + key}
+	})
+	tv, err := r.TestSearchKey()
+	if err != nil || tv.OK || !strings.Contains(tv.Message, "Exa refused the key (401)") || tv.From != "the keychain" {
+		t.Fatalf("test: %+v %v", tv, err)
+	}
+	views = append(views, tv)
+	f, err := r.ForgetSearchKey()
+	if err != nil || f.Stored || f.Ready || f.Provider != "" {
+		t.Fatalf("forget: %+v %v", f, err)
+	}
+	views = append(views, f)
+	for _, v := range views {
+		if b, _ := json.Marshal(v); strings.Contains(string(b), secret) {
+			t.Fatalf("a view carries the key: %s", b)
+		}
+	}
+	if len(events) == 0 {
+		t.Fatal("no progress line was sent: the check below would prove nothing")
+	}
+	for _, e := range events {
+		if strings.Contains(e, secret) {
+			t.Fatalf("a progress line carries the key: %s", e)
+		}
 	}
 }
 

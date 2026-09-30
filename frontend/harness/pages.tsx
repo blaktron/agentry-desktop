@@ -248,6 +248,19 @@ const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "d
   : window.location.hash === "#aireview-env"
     ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true }
     : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
+// Settings → Provider settings → Web search (agentry-desktop#301): Brave
+// saved by default; #search-none has no provider; #search-env takes the
+// key from the variable; #search-refused answers Test key with a 401.
+const searchProviders = [
+  { name: "brave", label: "Brave", envName: "BRAVE_API_KEY" }, { name: "exa", label: "Exa", envName: "EXA_API_KEY" },
+  { name: "perplexity", label: "Perplexity", envName: "PERPLEXITY_API_KEY" }, { name: "tavily", label: "Tavily", envName: "TAVILY_API_KEY" },
+  { name: "youcom", label: "You.com", envName: "YDC_API_KEY" },
+];
+const noSearch = { providers: searchProviders, stored: false, envSet: false, ready: false };
+const searchKeyView = window.location.hash === "#search-none"
+  ? noSearch
+  : { ...noSearch, provider: "brave", providerLabel: "Brave", envName: "BRAVE_API_KEY",
+    ...(window.location.hash === "#search-env" ? { envSet: true, ready: true } : { stored: true, source: "keyring", ready: true }) };
 const validateResult = {
   passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 6,
   bundleVersion: "2026.09.1", bundleSource: "embedded", manifestName: "demo1/incident-summarizer",
@@ -489,6 +502,15 @@ g.go = { main: {
     TestJevKey: async () => (window.location.hash === "#aireview-refused"
       ? { ok: false, message: "TypeSafe refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
       : { ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
+    SearchKeyStatus: async () => searchKeyView,
+    StoreSearchKey: async (provider: string) => {
+      const p = searchProviders.find((x) => x.name === provider) ?? searchProviders[0];
+      return { ...noSearch, provider: p.name, providerLabel: p.label, envName: p.envName, stored: true, source: "keyring", ready: true };
+    },
+    ForgetSearchKey: async () => noSearch,
+    TestSearchKey: async () => (window.location.hash === "#search-refused"
+      ? { ok: false, message: "Brave refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
+      : { ok: true, message: "The key works: Brave answered a search with it.", from: "the keychain" }),
   },
 } };
 // pages.html#status-refused: every binding the Settings landing reads a

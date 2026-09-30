@@ -10,6 +10,7 @@ import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
+import { WebSearchKeyCard } from "./WebSearchKey";
 import { keyStanding } from "../keyRecommendation";
 import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
@@ -29,7 +30,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 export type SettingsPart =
   | "profile" | "subscription"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "where" | "output" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key";
+  | "budgets" | "where" | "output" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -66,8 +67,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "provider", title: "Provider settings",
-    sentence: "The AI provider and model runs use, and your own AI Review key.",
-    parts: [{ id: "provider", label: "Model provider" }, { id: "ai-review-key", label: "AI Review key" }],
+    sentence: "The AI provider and model runs use, your own AI Review key, and your own web search key.",
+    parts: [
+      { id: "provider", label: "Model provider" }, { id: "ai-review-key", label: "AI Review key" },
+      { id: "web-search", label: "Web search" },
+    ],
   },
 ];
 
@@ -155,6 +159,7 @@ export default function Settings({
             <RuntimeSetup advanced heading="Model provider" onOpenPrereqs={() => onOpen("run-defaults")} />
           </div>
           <PartSection id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></PartSection>
+          <PartSection id="web-search" title="Web search"><WebSearchKeyCard /></PartSection>
         </>
       )}
     </div>
