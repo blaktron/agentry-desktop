@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../wailsjs/go/main/SettingsAPI";
 import { AppVersion } from "../wailsjs/go/main/App";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/main/SelfUpdateAPI";
@@ -77,8 +77,14 @@ export default function App() {
   // A run or chat compiled in Unsafe Mode that is still live on this computer
   // (agentry-desktop#479): turning the switch off changes the next run, not
   // this one, so the edge and the badge stay until Go says it has ended.
+  // The event is the newer word: a poll's answer that set out before the
+  // latest event arrived is dropped, not allowed to undo it.
   const [unsafeLive, setUnsafeLive] = useState(false);
-  useEffect(() => EventsOn("runner:unsafe-live", (live: boolean) => setUnsafeLive(live)), []);
+  const unsafeEvents = useRef(0);
+  useEffect(() => EventsOn("runner:unsafe-live", (live: boolean) => {
+    unsafeEvents.current++;
+    setUnsafeLive(live);
+  }), []);
 
   const refreshSettings = useCallback(async () => {
     const s = await SettingsAPI.Get();
@@ -117,7 +123,8 @@ export default function App() {
       // The settings file too: the red edge and the badge follow the Unsafe
       // Mode switch Go reads, which another window of this app can change.
       refreshSettings().catch(() => {});
-      UnsafeLive().then(setUnsafeLive).catch(() => {});
+      const seen = unsafeEvents.current;
+      UnsafeLive().then((live) => seen === unsafeEvents.current && setUnsafeLive(live)).catch(() => {});
     };
     read();
     const t = setInterval(read, 60_000);

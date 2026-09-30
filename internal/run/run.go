@@ -388,12 +388,13 @@ type Request struct {
 	// image. False is the default posture, under which a command the
 	// catalogue does not carry refuses the run as it always has.
 	Unsafe bool
-	// UnsafeCompiled, when set, is called once the run's plan is known to
-	// be compiled in Unsafe Mode, before anything of it starts: the desktop
-	// keeps the red edge up from here until the run or chat ends, whatever
-	// the switch says meanwhile (agentry-desktop#479). A run the switch was
-	// on for whose plan Unsafe Mode did not change never calls it.
-	UnsafeCompiled func()
+	// PlanCompiled, when set, is called once the run holds its plan, just
+	// compiled or reused, before anything of it starts, with whether that
+	// plan is compiled in Unsafe Mode. The desktop keeps the red edge up
+	// while such a run or chat is live, whatever the switch says meanwhile
+	// (agentry-desktop#479); false clears the edge of a run the switch was
+	// on for whose plan Unsafe Mode did not change (no declared commands).
+	PlanCompiled func(unsafe bool)
 }
 
 // Result is the envelope-derived outcome. It is populated on failure too:
@@ -546,9 +547,9 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		// The plan's own exec line, which the receipt carries: what Unsafe
 		// Mode placed, what it could not, and what is not enforced.
 		_, _ = fmt.Fprintln(logw, plan.Enforcement["exec"])
-		if req.UnsafeCompiled != nil {
-			req.UnsafeCompiled()
-		}
+	}
+	if req.PlanCompiled != nil {
+		req.PlanCompiled(planIsUnsafe(plan))
 	}
 	if vulnLine != "" {
 		if plan.Enforcement == nil {

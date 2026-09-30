@@ -468,8 +468,8 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 container&apos;s isolation, its network limits and every consent stay as they are, and a run In Agentry never
                 uses Unsafe Mode. Turning it on asks you to confirm, then downloads the Unsafe Mode image, a few hundred
                 megabytes. While it is on, a red edge runs round the window and the sidebar says so. Turning it off applies
-                from the next run or chat. One already running keeps Unsafe Mode, with the red edge, until it ends. Turning
-                it off keeps the images: Docker images, below, removes them.
+                from the next run or chat and keeps the images (Docker images, below, removes them). One already running
+                keeps Unsafe Mode, with the red edge, until it ends.
               </p>
               {defaults.unsafeImage && (
                 <p className="muted small" style={{ marginBottom: 0 }}>

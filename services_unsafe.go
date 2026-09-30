@@ -81,28 +81,31 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	return runDefaultsView()
 }
 
-// markUnsafeLive records that the live run's plan was compiled in Unsafe
-// Mode and tells the shell, which keeps the red edge and the badge up until
-// endRun says the run is over (agentry-desktop#479, D-050's addendum).
-// Turning the switch off changes the next run, never this one, so the
-// window must not stop saying so while this one is live.
-func (r *RunAPI) markUnsafeLive(l *liveRun) {
-	r.liveMu.Lock()
-	was := l.unsafe
-	l.unsafe = true
-	r.liveMu.Unlock()
-	if !was {
-		emitEvent(r.app, eventUnsafeLive, true)
+// setUnsafeLive records whether the live run is in Unsafe Mode and tells the
+// shell when that changes: true from the start of a run that read the switch
+// on, then its compile's answer, and false when endRun ends it
+// (agentry-desktop#479, D-050's addendum). Turning the switch off changes
+// the next run, never this one, so the window keeps saying so while this
+// one is live. The change and its event are one step under unsafeMu, and
+// nothing is recorded for a run that has ended.
+func (r *RunAPI) setUnsafeLive(l *liveRun, on bool) {
+	r.unsafeMu.Lock()
+	defer r.unsafeMu.Unlock()
+	if l.unsafeDone || l.unsafe == on {
+		return
 	}
+	l.unsafe = on
+	emitEvent(r.app, eventUnsafeLive, on)
 }
 
-// UnsafeLive says whether a run or chat compiled in Unsafe Mode is live on
-// this computer now: the shell draws the red edge and the badge while it is
-// or the switch is on. A run In Agentry is never one (D7).
+// UnsafeLive says whether a run or chat in Unsafe Mode is live on this
+// computer now: the shell draws the red edge and the badge while it is or
+// the switch is on. A run In Agentry is never one (D7).
 func (r *RunAPI) UnsafeLive() bool {
-	r.liveMu.Lock()
-	defer r.liveMu.Unlock()
-	return r.live != nil && r.live.unsafe
+	r.unsafeMu.Lock()
+	defer r.unsafeMu.Unlock()
+	l := r.current()
+	return l != nil && l.unsafe
 }
 
 // UnsafeNoticeView is what Unsafe Mode means for one QuickAgent's run on
