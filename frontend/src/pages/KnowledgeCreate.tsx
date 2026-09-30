@@ -21,7 +21,7 @@
 // build In Agentry runs follows it again when Create knowledge opens.
 //
 // A build on this computer is long work (agentry-desktop#352): the review
-// step says so and how long it may run (at least 30 minutes, Go's
+// step says so and how long it may run (at least 60 minutes, Go's
 // CreatorBudgets), and the build shows its progress as it goes (elapsed
 // against the timeout, turns, the pages written so far) over its log.
 //

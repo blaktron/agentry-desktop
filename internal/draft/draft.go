@@ -56,6 +56,16 @@ type Plan struct {
 	Search      drafter.SearchState
 }
 
+// Budgets are the budgets the draft runs under: the runner policy's, with
+// the Drafter's own timeout floor, 30 minutes (agentry-desktop#458). The
+// policy's run budget, 15 minutes by default, is sized for an agent
+// answering a task, and a draft that researches outruns it; a policy that
+// allows more keeps its own. The floor is the CLI's
+// (localrun.Builtin.LocalBudgets, the CLI's DR-54), so a draft gets the
+// same time here as from `agentry draft`. It is a timeout alone: the turn and cost
+// caps are the policy's, and no budget of a draft counts tokens.
+func (p *Plan) Budgets() spec.Budgets { return localrun.Drafter().LocalBudgets(p.Policy.Budgets) }
+
 // ModelName names the model the runner policy gives the Drafter.
 func (p *Plan) ModelName() string { return modelName(p.Policy) }
 
@@ -166,9 +176,9 @@ type Progress struct {
 	// StartedAt is when the draft began, in Unix milliseconds: the page
 	// counts the elapsed time itself.
 	StartedAt int64 `json:"startedAt"`
-	// TimeoutSeconds and MaxTurns are the draft's budgets, the runner
-	// policy's; the repair turn runs inside what is left of them. Zero is
-	// no limit.
+	// TimeoutSeconds and MaxTurns are the draft's budgets (Plan.Budgets:
+	// the runner policy's, with at least 30 minutes); the repair turn runs
+	// inside what is left of them. Zero turns is no limit.
 	TimeoutSeconds int `json:"timeoutSeconds"`
 	MaxTurns       int `json:"maxTurns"`
 	// Turns, InputTokens and OutputTokens are the harness's usage as it
@@ -239,7 +249,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if logw == nil {
 		logw = io.Discard
 	}
-	b := p.Policy.Budgets
+	b := p.Budgets()
 	prog := newProgressMeter(req.Progress, b.TimeoutSeconds, b.MaxTurns)
 	prog.stage(StageDescription)
 	scanner := req.Scanner
@@ -275,7 +285,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	first := localrun.Run{
 		Builtin: localrun.Drafter(), Home: home, Policy: p.Policy, PolicySHA: p.PolicySHA, PolicyFile: &p.PolicyFile,
 		Build: version.Build(), Task: strings.NewReader(p.Task), OutDir: outDir,
-		Budgets: &spec.Budgets{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns, MaxCostUSD: b.MaxCostUSD},
+		Budgets: &b,
 		RunID:   req.RunID, Stderr: logw, Web: p.Web, OnUsage: prog.usage,
 	}
 	prog.stage(StageDrafting)

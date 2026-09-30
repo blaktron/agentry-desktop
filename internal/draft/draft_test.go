@@ -19,6 +19,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 	"github.com/blaktron/agentry/pkg/draftcheck"
@@ -525,7 +526,9 @@ func TestARunReportsItsProgress(t *testing.T) {
 	}
 	var stages []Stage
 	for i, g := range got {
-		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 900 || g.MaxTurns != 40 {
+		// The policy says 900 seconds; a draft on this computer has 30
+		// minutes (agentry-desktop#458).
+		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 1800 || g.MaxTurns != 40 {
 			t.Fatalf("report %d = %+v", i, g)
 		}
 		if len(stages) == 0 || stages[len(stages)-1] != g.Stage {
@@ -539,5 +542,66 @@ func TestARunReportsItsProgress(t *testing.T) {
 	last := got[len(got)-1]
 	if last.Turns != 4 || last.InputTokens != 3500 || last.OutputTokens != 350 {
 		t.Fatalf("the last report %+v does not count the repair turn on from the first", last)
+	}
+}
+
+// TestADraftOnThisComputerGetsAtLeastThirtyMinutes (plan scan-and-run-tweaks.md
+// §6.1, D14; agentry-desktop#458, the CLI's DR-54): the Drafter's run is given the
+// longer of the runner policy's timeout and 1,800 seconds, the CLI's own
+// floor, where it took the policy's 900 before. The turn and cost caps stay
+// the policy's, no budget counts tokens, and the repair turn keeps its own
+// bound inside what the draft has left.
+func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		policy policy.Budgets
+		want   spec.Budgets
+	}{
+		{"the default policy's 900 seconds", policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60}, spec.Budgets{TimeoutSeconds: 1800, MaxTurns: 60}},
+		{"a policy that allows more keeps its own", policy.Budgets{TimeoutSeconds: 2400, MaxTurns: 0, MaxCostUSD: 3}, spec.Budgets{TimeoutSeconds: 2400, MaxTurns: 0, MaxCostUSD: 3}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			isolate(t)
+			saveKey(t)
+			p, err := Prepare("https://registry.example", "Summarize my meeting notes.", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.Policy.Budgets = tc.policy
+			if got := p.Budgets(); got != tc.want {
+				t.Fatalf("the plan's budgets are %+v, want %+v", got, tc.want)
+			}
+			var runs []localrun.Run
+			first := fakeRun(t, &runs, refused, nil)
+			second := fakeRun(t, &runs, repaired, nil)
+			checks := &fakeChecker{answers: []*drafter.Check{passCheck()}}
+			_, err = Run(context.Background(), Request{Plan: p, RunID: "run-6", Namespace: "alice",
+				Scanner: func(string) (webscan.Scanner, error) {
+					return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
+				},
+				Runner: func(ctx context.Context, r localrun.Run) (*receipt.Envelope, error) {
+					if len(runs) == 0 {
+						// The first turn ran 1,000 seconds: past the policy's
+						// default, inside the draft's 30 minutes.
+						env, err := first(ctx, r)
+						env.Usage = receipt.Usage{Turns: 3, WallMS: 1_000_000}
+						return env, err
+					}
+					return second(ctx, r)
+				},
+				Checker: checks.build})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(runs) != 2 || runs[0].Budgets == nil || runs[1].Budgets == nil {
+				t.Fatalf("%d run(s), want the draft and its repair turn, each with budgets", len(runs))
+			}
+			if got := *runs[0].Budgets; got != tc.want {
+				t.Errorf("the Drafter ran under %+v, want %+v", got, tc.want)
+			}
+			if got := *runs[1].Budgets; got.TimeoutSeconds != drafter.RepairTimeoutSeconds || got.MaxTurns > drafter.RepairMaxTurns {
+				t.Errorf("the repair turn ran under %+v, want %d seconds at most %d tool calls", got, drafter.RepairTimeoutSeconds, drafter.RepairMaxTurns)
+			}
+		})
 	}
 }

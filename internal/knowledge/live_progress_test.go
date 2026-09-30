@@ -19,6 +19,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/knowledge/creator"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/knowledgetest"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 )
@@ -68,7 +69,7 @@ func TestLiveBuildProgress(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	t.Logf("result: %d pages, %d bytes, %d input and %d output tokens, stopped=%q", res.Pages, res.Bytes, res.InputTokens, res.OutputTokens, res.Stopped)
-	if len(got) < 2 || got[0].TimeoutSeconds < CreatorTimeoutSeconds {
+	if len(got) < 2 || got[0].TimeoutSeconds < creator.LocalTimeoutFloorSeconds {
 		t.Fatalf("progress = %+v", got)
 	}
 	var sawPages, sawTurns bool
