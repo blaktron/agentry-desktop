@@ -1,9 +1,6 @@
 package main
 
 import (
-	"context"
-	"strings"
-
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -22,15 +19,15 @@ import (
 // desktop.yaml. No other binding writes it, and no run binding takes it as
 // an argument: RunAgent and StartSession read it from that file.
 
-// eventUnsafeProgress carries the image pull's lines to the card.
-const eventUnsafeProgress = "runner:unsafe-progress"
-
 // The confirmation's words. The first two sentences are the plan's (§4.2);
-// the PATH sentence is the operator's decision of 2026-09-30 (DR-53).
+// the rest says what DR-53 added (PyPI for the tools Kali does not package,
+// the image's PATH in an image that keeps everything it installed) and what
+// stays, without saying more than is enforced: run_command's allowlist is
+// the declared names, and a declared interpreter can start anything.
 const (
 	unsafeConfirmTitle   = "Turn on Unsafe Mode?"
-	unsafeConfirmMessage = "QuickAgents can run commands this computer has not approved. Each command is installed from Kali Linux's repository when the QuickAgent first runs.\n\n" +
-		"A declared command also runs with that image's own PATH, so it can reach every program the image holds. Only the commands a QuickAgent declares can be called, and every other limit on a run stays: the container, its network, and each consent.\n\n" +
+	unsafeConfirmMessage = "QuickAgents can run commands this computer has not approved. Each command is installed from Kali Linux's repository when the QuickAgent first runs. Tools Kali does not package come from PyPI.\n\n" +
+		"A declared command also runs with that image's own PATH, in an image that keeps everything it installed, so it can start any program the image holds. run_command still takes only the commands a QuickAgent declares, and every other limit on a run stays: the container's isolation, its network limits, and each consent.\n\n" +
 		"This applies to runs on this computer only, never to a run In Agentry. Agentry downloads the Unsafe Mode image now, and a red edge round the window shows it is on.\n\nTurn it on?"
 )
 
@@ -53,15 +50,8 @@ func unsafeModeOn() bool {
 // reads. A No, a failed pull or a busy docker leaves the switch off.
 func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	if !on {
-		st, err := settings.Load()
-		if err != nil {
+		if err := settings.SetUnsafeMode(false); err != nil {
 			return nil, err
-		}
-		if st.UnsafeMode {
-			st.UnsafeMode = false
-			if err := settings.Save(st); err != nil {
-				return nil, err
-			}
 		}
 		return runDefaultsView()
 	}
@@ -80,17 +70,12 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	if pull == nil {
 		pull = run.PullUnsafeBase
 	}
-	_, err := pull(r.app.ctx, logw)
+	err := pull(r.app.ctx, logw)
 	logw.Flush()
 	if err != nil {
 		return nil, err
 	}
-	st, err := settings.Load()
-	if err != nil {
-		return nil, err
-	}
-	st.UnsafeMode = true
-	if err := settings.Save(st); err != nil {
+	if err := settings.SetUnsafeMode(true); err != nil {
 		return nil, err
 	}
 	return runDefaultsView()
@@ -115,41 +100,21 @@ func (r *RunAPI) UnsafeNotice(reg, ref string) (*UnsafeNoticeView, error) {
 	if !unsafeModeOn() {
 		return &UnsafeNoticeView{Unplaced: []string{}}, nil
 	}
-	n, err := r.unsafeNoticeFor(r.app.ctx, reg, ref)
-	if err != nil {
-		return nil, err
-	}
+	n := r.unsafeNoticeFor(reg, ref)
 	return &UnsafeNoticeView{On: true, Line: n.Line(), Unplaced: emptyNotNil(n.Unplaced)}, nil
 }
 
-func (r *RunAPI) unsafeNoticeFor(ctx context.Context, reg, ref string) (*run.UnsafeNotice, error) {
-	if r.unsafeNotice != nil {
-		return r.unsafeNotice(ctx, reg, ref)
+// unsafeNoticeFor is the notice for a run of ref. A release that cannot be
+// read here (the run would refuse on the same error a moment later) still
+// gets one that names Unsafe Mode, with nothing listed.
+func (r *RunAPI) unsafeNoticeFor(reg, ref string) *run.UnsafeNotice {
+	read := r.unsafeNotice
+	if read == nil {
+		read = run.UnsafeNoticeFor
 	}
-	return run.UnsafeNoticeFor(ctx, reg, ref)
-}
-
-// unsafeConsentLine is the line a local run's native consent dialog
-// carries while Unsafe Mode is on (D6), "" while it is off. Where the
-// release cannot be read here (the run would refuse on the same error a
-// moment later) the line still names Unsafe Mode, without the commands.
-func (r *RunAPI) unsafeConsentLine(reg, ref string) string {
-	if !unsafeModeOn() {
-		return ""
+	n, err := read(r.app.ctx, reg, ref)
+	if err != nil {
+		return run.UnsafeNoticeUnread()
 	}
-	if reg != "" {
-		if n, err := r.unsafeNoticeFor(r.app.ctx, reg, ref); err == nil {
-			return n.Line()
-		}
-	}
-	return "Unsafe Mode is on: the commands this QuickAgent declares are installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH."
-}
-
-// unsafeLineOf is the receipt's exec line when the run was an Unsafe Mode
-// run, "" otherwise: the result view shows it under Run details.
-func unsafeLineOf(execLine string) string {
-	if strings.HasPrefix(execLine, "UNSAFE MODE:") {
-		return execLine
-	}
-	return ""
+	return n
 }

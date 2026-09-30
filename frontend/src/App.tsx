@@ -107,11 +107,14 @@ export default function App() {
     const read = () => {
       SelfUpdateStatus().then(setNewer).catch(() => {});
       UpdatesStatus().then((v) => setBriefUpdates(v.available)).catch(() => {});
+      // The settings file too: the red edge and the badge follow the Unsafe
+      // Mode switch Go reads, which another window of this app can change.
+      refreshSettings().catch(() => {});
     };
     read();
     const t = setInterval(read, 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [refreshSettings]);
 
   // Closing the wizard (finished or skipped) marks onboarding done so it
   // does not reopen on the next start; Settings can reopen it on demand.

@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -51,24 +52,19 @@ func newUnsafeApp(t *testing.T) *unsafeApp {
 		return u.answer, nil
 	}}
 	u.r = &RunAPI{app: app, inFlightDir: t.TempDir(),
-		pullUnsafe: func(_ context.Context, logw io.Writer) (string, error) {
+		pullUnsafe: func(_ context.Context, logw io.Writer) error {
 			u.pulls++
 			_, _ = io.WriteString(logw, "downloading\n")
-			return "ghcr.io/blaktron/agentry-unsafe-kali:test", u.pull
+			return u.pull
 		}}
 	return u
 }
 
-// switchOn writes the setting the way only SetUnsafeMode does, for a test
-// that starts with Unsafe Mode already on.
+// switchOn writes the setting as its one writer does, for a test that
+// starts with Unsafe Mode already on.
 func switchOn(t *testing.T) {
 	t.Helper()
-	st, err := settings.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	st.UnsafeMode = true
-	if err := settings.Save(st); err != nil {
+	if err := settings.SetUnsafeMode(true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -105,7 +101,8 @@ func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
 	for _, want := range []string{"Turn on Unsafe Mode?",
 		"QuickAgents can run commands this computer has not approved.",
 		"Each command is installed from Kali Linux's repository when the QuickAgent first runs.",
-		"own PATH", "never to a run In Agentry"} {
+		"PyPI", "own PATH", "keeps everything it installed", "run_command still takes only the commands a QuickAgent declares",
+		"never to a run In Agentry"} {
 		if !strings.Contains(u.asked[0], want) {
 			t.Errorf("the confirmation lacks %q:\n%s", want, u.asked[0])
 		}
@@ -213,11 +210,11 @@ func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 		t.Fatal("with the switch turned off again the run was still an Unsafe Mode run")
 	}
 	// A result names Unsafe Mode only when the receipt's exec line does.
-	if v := runResultView(&run.Result{Exec: "UNSAFE MODE: run_command restricted to the argv0 allowlist {r2}"}); v.UnsafeMode == "" {
+	if v := runResultView(&run.Result{Unsafe: true, Exec: "UNSAFE MODE: run_command restricted to the argv0 allowlist {r2}"}); v.UnsafeExec == "" {
 		t.Fatal("an Unsafe Mode run's result does not carry its exec line")
 	}
-	if v := runResultView(&run.Result{Exec: "run_command restricted to the argv0 allowlist {echo}"}); v.UnsafeMode != "" {
-		t.Fatalf("a default-posture run's result names Unsafe Mode: %q", v.UnsafeMode)
+	if v := runResultView(&run.Result{Exec: "run_command restricted to the argv0 allowlist {echo}"}); v.UnsafeExec != "" {
+		t.Fatalf("a default-posture run's result names Unsafe Mode: %q", v.UnsafeExec)
 	}
 }
 
@@ -251,7 +248,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 		}
 		msg := u.asked[len(u.asked)-1]
 		for _, want := range []string{"This run accepts " + name, "The receipt will record the consent.",
-			"Unsafe Mode is on", "analyzeHeadless, r2, zzz", "Not available in Unsafe Mode's image: zzz", "Continue?"} {
+			"Unsafe Mode is on", "As resolved, it declares: analyzeHeadless, r2, zzz.", "Not available in Unsafe Mode's image: zzz. The run goes on without it.", "Continue?"} {
 			if !strings.Contains(msg, want) {
 				t.Errorf("%s: the dialog lacks %q:\n%s", name, want, msg)
 			}
@@ -303,7 +300,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 
 // The Review step's line: nothing while the switch is off, and the run's
 // own line while it is on.
-func TestUnsafeNoticeBinding(t *testing.T) {
+func TestTheReviewStepsNoticeIsEmptyWhileTheSwitchIsOff(t *testing.T) {
 	u := newUnsafeApp(t)
 	asked := 0
 	u.r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) {
@@ -318,6 +315,102 @@ func TestUnsafeNoticeBinding(t *testing.T) {
 	v, err = u.r.UnsafeNotice("https://r.example", "acme/x@1.0.0")
 	if err != nil || !v.On || !strings.Contains(v.Line, "Unsafe Mode is on") || len(v.Unplaced) != 1 || v.Unplaced[0] != "zzz" {
 		t.Fatalf("with the switch on: %+v, %v", v, err)
+	}
+	// A release that cannot be read here still says Unsafe Mode is on.
+	u.r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) {
+		return nil, errors.New("registry unreachable")
+	}
+	v, err = u.r.UnsafeNotice("https://r.example", "acme/x@1.0.0")
+	if err != nil || !v.On || !strings.HasPrefix(v.Line, "Unsafe Mode is on") || strings.Contains(v.Line, "registry unreachable") {
+		t.Fatalf("with the release unreadable: %+v, %v", v, err)
+	}
+}
+
+// No other setting's save can write the switch. Every other binding loads
+// the file, changes a field and saves, with no lock across the three, so a
+// save that loaded the switch on before it was turned off would otherwise
+// turn it back on with no dialog; and a Settings value built by hand with
+// the switch set writes nothing of it.
+func TestOnlySetUnsafeModeWritesTheSwitch(t *testing.T) {
+	u := newUnsafeApp(t)
+	s := &SettingsAPI{app: u.r.app}
+
+	// A save cannot turn it on.
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.UnsafeMode = true
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	if savedUnsafeMode(t) {
+		t.Fatal("settings.Save wrote unsafeMode: true")
+	}
+
+	// A save that loaded it on, landing after it was turned off, leaves it off.
+	switchOn(t)
+	stale, err := settings.Load()
+	if err != nil || !stale.UnsafeMode {
+		t.Fatalf("the fixture: %+v, %v", stale, err)
+	}
+	if _, err := u.r.SetUnsafeMode(false); err != nil {
+		t.Fatal(err)
+	}
+	stale.RunWhere = settings.RunWhereAgentry
+	if err := settings.Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	if savedUnsafeMode(t) {
+		t.Fatal("a stale save turned Unsafe Mode back on with no dialog")
+	}
+	if st, _ := settings.Load(); st.RunWhere != settings.RunWhereAgentry {
+		t.Fatalf("the stale save lost its own change: %+v", st)
+	}
+
+	// And a save keeps it on while it is on: the other bindings do not turn
+	// it off by accident either.
+	switchOn(t)
+	if _, err := s.SetRunWhere(settings.RunWhereHere); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MarkOnboarded(); err != nil {
+		t.Fatal(err)
+	}
+	if !savedUnsafeMode(t) {
+		t.Fatal("another setting's save turned Unsafe Mode off")
+	}
+	if len(u.asked) != 0 || u.pulls != 0 {
+		t.Fatalf("dialogs %d, pulls %d", len(u.asked), u.pulls)
+	}
+}
+
+// The consent dialog and the compile see one reading of the switch: turned
+// on while a run's consent dialog is up, it is not an Unsafe Mode run,
+// because its dialog carried no line saying so.
+func TestTheSwitchIsReadOncePerRun(t *testing.T) {
+	u := newUnsafeApp(t)
+	var got []run.Request
+	u.r.engineRun = func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+		got = append(got, req)
+		return &run.Result{}, nil
+	}
+	u.r.app.confirm = func(_ context.Context, title, message string) (bool, error) {
+		u.asked = append(u.asked, title+"\n"+message)
+		// While the person reads the dialog, the switch goes on.
+		if err := settings.SetUnsafeMode(true); err != nil {
+			t.Fatal(err)
+		}
+		return true, nil
+	}
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(u.asked) != 1 || strings.Contains(u.asked[0], "Unsafe Mode") {
+		t.Fatalf("the dialog: %q", u.asked)
+	}
+	if len(got) != 1 || got[0].Unsafe {
+		t.Fatal("a run whose dialog did not name Unsafe Mode was compiled in it")
 	}
 }
 
@@ -361,7 +454,7 @@ func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
 		engines++
 		return &run.Result{}, nil
 	}
-	r.pullUnsafe = func(context.Context, io.Writer) (string, error) { engines++; return "", nil }
+	r.pullUnsafe = func(context.Context, io.Writer) error { engines++; return nil }
 
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
@@ -402,5 +495,13 @@ func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
 	}
 	if !savedUnsafeMode(t) {
 		t.Fatal("the fixture lost the switch: the test proved nothing")
+	}
+	// Every start In Agentry (a run, a session, a draft, a knowledge build)
+	// is one CreateRequest, and it has nowhere to carry the switch.
+	rt := reflect.TypeOf(hostedrun.CreateRequest{})
+	for i := range rt.NumField() {
+		if f := rt.Field(i); strings.Contains(strings.ToLower(f.Name+f.Tag.Get("json")), "unsafe") {
+			t.Errorf("hostedrun.CreateRequest carries %s", f.Name)
+		}
 	}
 }

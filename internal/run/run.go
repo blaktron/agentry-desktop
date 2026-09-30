@@ -420,7 +420,10 @@ type Result struct {
 	Knowledge string
 	// Exec is the receipt's exec line: the allowlist run_command enforced
 	// and the image it ran in, "" when the release declares no commands.
-	Exec string
+	// Unsafe says the run's plan was compiled in Unsafe Mode, so that line
+	// is the one a result shows under it.
+	Exec   string
+	Unsafe bool
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -709,14 +712,15 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	if env == nil {
 		return nil, runErr
 	}
-	return resultFromEnvelope(env), nil
+	return resultFromEnvelope(env, p.plan), nil
 }
 
 // resultFromEnvelope flattens the §R8 envelope; the failure classes ride
 // in Status/ExitCode/Error so the frontend renders them instead of a
 // rejected promise losing the receipt paths.
-func resultFromEnvelope(env *receipt.Envelope) *Result {
+func resultFromEnvelope(env *receipt.Envelope, plan *spec.Plan) *Result {
 	return &Result{
+		Unsafe:           planIsUnsafe(plan),
 		Status:           env.Status,
 		ExitCode:         env.ExitCode,
 		Error:            env.Error,

@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/zalando/go-keyring"
 	"gopkg.in/yaml.v3"
@@ -101,9 +102,10 @@ type Settings struct {
 	// this computer is compiled without this machine's exec catalogue, its
 	// declared commands installed from the Unsafe Mode image instead. A
 	// plain bool because it defaults OFF. It lives in this file and never in
-	// the runner policy, so the CLI and a run In Agentry cannot read it, and
-	// only RunAPI.SetUnsafeMode writes true, after a native confirmation and
-	// the image's pull (D-030: the page cannot turn it on).
+	// the runner policy, so the CLI and a run In Agentry cannot read it.
+	// Save does not write it: only SetUnsafeMode does, which the app calls
+	// after a native confirmation and the image's pull (D-030: the page
+	// cannot turn it on, and no other setting's save can carry it).
 	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
 }
 
@@ -153,9 +155,42 @@ func Load() (Settings, error) {
 	return s, nil
 }
 
+// saveMu serializes this process's writes of the settings file, so the
+// Unsafe Mode switch a write keeps is the one on disk at that moment.
+var saveMu sync.Mutex
+
 // Save writes the settings file with 0600 permissions (it may carry a PAT
 // when the keychain is unavailable).
+//
+// It never changes the Unsafe Mode switch: whatever s.UnsafeMode says, the
+// file keeps the value it has. Every other setting is saved by a binding
+// that loads, changes one field and saves, with no lock across the three;
+// were the switch saved the same way, a save that loaded it on before it
+// was turned off would turn it back on with no confirmation (the review of
+// agentry-desktop#418). SetUnsafeMode is its one writer.
 func Save(s Settings) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	cur, err := Load()
+	s.UnsafeMode = err == nil && cur.UnsafeMode
+	return write(s)
+}
+
+// SetUnsafeMode writes the Unsafe Mode switch and nothing else. The caller
+// is the one binding that may: RunAPI.SetUnsafeMode, after the native
+// confirmation and the image's pull when it is turning it on.
+func SetUnsafeMode(on bool) error {
+	saveMu.Lock()
+	defer saveMu.Unlock()
+	s, err := Load()
+	if err != nil {
+		return err
+	}
+	s.UnsafeMode = on
+	return write(s)
+}
+
+func write(s Settings) error {
 	path, err := Path()
 	if err != nil {
 		return err

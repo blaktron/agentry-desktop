@@ -2,7 +2,7 @@
 // one-click setup (§P1), MCP-profile status and guided configuration as a
 // form (§P3), the tool-surface section (req 3/4), and run-with-task over
 // agentry-cli/pkg/runner. Long operations stream progress as Wails events
-// (`runner:setup-progress`, `runner:run-log`); secret VALUES cross this
+// (`runner:setup-progress`, `runner:unsafe-progress`, `runner:run-log`); secret VALUES cross this
 // boundary only inward (SaveProfile) and are never returned or logged.
 package main
 
@@ -29,7 +29,10 @@ import (
 // Event names the frontend subscribes to.
 const (
 	eventSetupProgress = "runner:setup-progress"
-	eventRunLog        = "runner:run-log"
+	// eventUnsafeProgress carries the Unsafe Mode image's pull to the Run
+	// defaults card (services_unsafe.go).
+	eventUnsafeProgress = "runner:unsafe-progress"
+	eventRunLog         = "runner:run-log"
 	// eventSessionEvent carries an interactive session's events (JSON
 	// SessionEventView) to the chat view; runner:run-log stays autonomous.
 	eventSessionEvent = "runner:session-event"
@@ -80,7 +83,7 @@ type RunAPI struct {
 	inFlightDir string
 
 	// Unsafe Mode's seams (services_unsafe.go); nil means internal/run.
-	pullUnsafe   func(context.Context, io.Writer) (string, error)
+	pullUnsafe   func(context.Context, io.Writer) error
 	unsafeNotice func(context.Context, string, string) (*run.UnsafeNotice, error)
 
 	// folders are the run folders of the results Go produced, by run id,
@@ -120,7 +123,11 @@ type SessionEventView struct {
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
 func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
-	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
+	// The switch is read once: the dialog that carries its line and the
+	// compile that obeys it see the same answer, whatever is turned on or
+	// off while the dialog is up.
+	unsafe := unsafeModeOn()
+	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
 		return nil, err
 	}
 	if !r.mu.TryLock() {
@@ -163,7 +170,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
-		Unsafe:             unsafeModeOn(),
+		Unsafe:             unsafe,
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -698,11 +705,11 @@ type RunResultView struct {
 	// the packs mounted, how, and the tools that read them; omitted when
 	// none was attached.
 	Knowledge string `json:"knowledge,omitempty"`
-	// UnsafeMode is the receipt's exec line when the run was compiled in
+	// UnsafeExec is the receipt's exec line when the run was compiled in
 	// Unsafe Mode (agentry-desktop#418): what was installed from where,
 	// what the image could not provide and what did not install; omitted
 	// for every other run.
-	UnsafeMode string `json:"unsafeMode,omitempty"`
+	UnsafeExec string `json:"unsafeExec,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -720,7 +727,11 @@ type RunResultView struct {
 // (plan knowledge.md §4.5): each is opened from the local store once the
 // gates have passed, and its opened copy is removed when the run returns.
 func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*RunResultView, error) {
-	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned); err != nil {
+	// The switch is read once: the dialog that carries its line and the
+	// compile that obeys it see the same answer, whatever is turned on or
+	// off while the dialog is up.
+	unsafe := unsafeModeOn()
+	if err := r.localRunGates(reg, ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe); err != nil {
 		return nil, err
 	}
 	if !r.mu.TryLock() {
@@ -759,7 +770,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
-		Unsafe:             unsafeModeOn(),
+		Unsafe:             unsafe,
 	}, logw)
 	if err != nil {
 		return nil, err
@@ -769,7 +780,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 
 // runResultView flattens the engine result for the frontend.
 func runResultView(res *run.Result) *RunResultView {
-	return &RunResultView{
+	v := &RunResultView{
 		Status:           res.Status,
 		ExitCode:         res.ExitCode,
 		Error:            res.Error,
@@ -788,8 +799,11 @@ func runResultView(res *run.Result) *RunResultView {
 		AttestationState: res.AttestationState,
 		Policy:           res.Policy,
 		Knowledge:        res.Knowledge,
-		UnsafeMode:       unsafeLineOf(res.Exec),
 	}
+	if res.Unsafe {
+		v.UnsafeExec = res.Exec
+	}
+	return v
 }
 
 // MCPToolRow is one granted gateway tool and the declaration granting it.
@@ -926,22 +940,26 @@ func (w *lineEventWriter) emit(line string) {
 // Compile-time check: the engine hands us an io.Writer contract.
 var _ io.Writer = (*lineEventWriter)(nil)
 
-// runGates is what RunAgent and StartSession check before the engine is
-// asked for anything (D-030): every path came from a native picker, and a
-// consent the page passed is put to the person in a native dialog. The
-// page's checkboxes remain what they were — the record of what is being
-// accepted — and the dialog is the gate.
+// runGates is the gates of a run whose registry the caller does not name.
+// RunAgent and StartSession call localRunGates; this form is what the
+// tests of the gates that predate Unsafe Mode call, and it is kept with its
+// signature because agentry-desktop#418 holds them to passing unchanged.
 func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned bool) error {
-	return r.localRunGates("", ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned)
+	return r.localRunGates("", ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafeModeOn())
 }
 
-// localRunGates is runGates for a run on this computer, which knows its
-// registry: while Unsafe Mode is on, the consent dialog carries one more
-// line naming it and the declared commands its image cannot provide (plan
-// unsafe-mode.md D6, D8). The line adds no dialog of its own: turning
-// Unsafe Mode on was the native confirmation, and a run with nothing to
-// accept still raises none.
-func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned bool) error {
+// localRunGates is what RunAgent and StartSession check before the engine
+// is asked for anything (D-030): every path came from a native picker, and
+// a consent the page passed is put to the person in a native dialog. The
+// page's checkboxes remain what they were — the record of what is being
+// accepted — and the dialog is the gate.
+//
+// While Unsafe Mode is on (unsafe, which the caller read once), the dialog
+// carries one more paragraph naming it and the declared commands its image
+// cannot provide (plan unsafe-mode.md D6, D8). That paragraph adds no
+// dialog of its own: turning Unsafe Mode on was the native confirmation,
+// and a run with nothing to accept still raises none.
+func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe bool) error {
 	for _, p := range inputPaths {
 		if err := r.app.requirePicked("input", p); err != nil {
 			return err
@@ -964,8 +982,8 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 		return nil
 	}
 	message := "This run accepts " + strings.Join(accepting, ", and ") + ". The receipt will record the consent."
-	if line := r.unsafeConsentLine(reg, ref); line != "" {
-		message += "\n\n" + line + "\n\n"
+	if unsafe {
+		message += "\n\n" + r.unsafeNoticeFor(reg, ref).Line() + "\n\n"
 	} else {
 		message += " "
 	}

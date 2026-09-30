@@ -307,7 +307,7 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // a consent: every run still asks what it asks. Unsafe Mode's switch is here
 // too (agentry-desktop#418): the page asks Go to turn it on, and Go asks the
 // person in a native dialog and pulls the image before it reads on.
-function RunDefaultsSettings({ onChanged }: { onChanged?: () => Promise<unknown> }) {
+function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
   const [timeoutText, setTimeoutText] = useState("");
@@ -348,17 +348,22 @@ function RunDefaultsSettings({ onChanged }: { onChanged?: () => Promise<unknown>
   const [unsafeBusy, setUnsafeBusy] = useState(false);
   const [unsafeLog, setUnsafeLog] = useState<string[]>([]);
   const [unsafeErr, setUnsafeErr] = useState<string | null>(null);
-  useEffect(() => EventsOn("runner:unsafe-progress", (line: string) => setUnsafeLog((p) => [...p.slice(-199), line])), []);
+  const [unsafeSaid, setUnsafeSaid] = useState<string | null>(null);
+  // docker prints a line per layer and step; the last lines are the state.
+  const UNSAFE_LOG_LINES = 200;
+  useEffect(() => EventsOn("runner:unsafe-progress", (line: string) => setUnsafeLog((p) => [...p.slice(1 - UNSAFE_LOG_LINES), line])), []);
   async function setUnsafeMode(on: boolean) {
     setUnsafeBusy(true);
     setUnsafeErr(null);
+    setUnsafeSaid(null);
     setUnsafeLog([]);
     try {
       show(await RunAPI.SetUnsafeMode(on), false);
-      await onChanged?.();
+      await onChanged();
     } catch (e) {
-      // A No in the dialog is an answer, not a fault to show.
-      if (!String(e).includes("not confirmed")) setUnsafeErr(String(e));
+      // A No in the native dialog is the person's choice, not a failure.
+      if (String(e).includes("not confirmed")) setUnsafeSaid("Nothing was changed.");
+      else setUnsafeErr(String(e));
     } finally {
       setUnsafeBusy(false);
     }
@@ -448,16 +453,17 @@ function RunDefaultsSettings({ onChanged }: { onChanged?: () => Promise<unknown>
               </label>
               <p className="small">
                 While this is on, a QuickAgent run on this computer can use commands this computer has not approved. Each
-                command the QuickAgent declares is installed from Kali Linux&apos;s repository when it first runs, and runs
-                with that image&apos;s own PATH, so it can reach every program the image holds. A command that cannot be
-                installed is left out, and the run goes on without it.
+                command the QuickAgent declares is installed from Kali Linux&apos;s repository when it first runs, or from
+                PyPI for a tool Kali does not package. It runs with that image&apos;s own PATH, in an image that keeps
+                everything it installed, so it can start any program the image holds. A command that cannot be installed is
+                left out, and the run goes on without it.
               </p>
               <p className="muted small">
-                Only the commands a QuickAgent declares can be called. The container, its network limits and every consent
-                stay as they are, and a run In Agentry never uses Unsafe Mode. Turning it on asks you to confirm, then
-                downloads the Unsafe Mode image, a few hundred megabytes. While it is on, a red edge runs round the window
-                and the sidebar says so. Turning it off takes effect at once and keeps the images: Docker images, below,
-                removes them.
+                <span className="mono">run_command</span> still takes only the commands a QuickAgent declares. The
+                container&apos;s isolation, its network limits and every consent stay as they are, and a run In Agentry never
+                uses Unsafe Mode. Turning it on asks you to confirm, then downloads the Unsafe Mode image, a few hundred
+                megabytes. While it is on, a red edge runs round the window and the sidebar says so. Turning it off takes
+                effect at once and keeps the images: Docker images, below, removes them.
               </p>
               {defaults.unsafeImage && (
                 <p className="muted small" style={{ marginBottom: 0 }}>
@@ -470,6 +476,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged?: () => Promise<unknown>
                   {unsafeLog.length > 0 && <pre className="run-log selectable" data-unsafe-log>{unsafeLog.join("\n")}</pre>}
                 </div>
               )}
+              {unsafeSaid && <p className="small" role="status" style={{ marginBottom: 0 }}>{unsafeSaid}</p>}
               <ErrorBox error={unsafeErr} />
             </Card>
           </PartSection>

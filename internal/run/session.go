@@ -84,7 +84,7 @@ func (s *Session) End(ctx context.Context, finish bool) (*Result, error) {
 	env, err := s.inner.End(ctx, finish)
 	finishProfile(s.logw, s.prof.prof, s.prof.profDir, s.prof.keep)
 	if env != nil {
-		s.result = resultFromEnvelope(env)
+		s.result = resultFromEnvelope(env, s.prof.plan)
 		s.endErr = nil
 		return s.result, nil
 	}

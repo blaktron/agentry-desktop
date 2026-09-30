@@ -312,21 +312,22 @@ const states = [
     expectValue: ['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "900"] },
   // Unsafe Mode (agentry-desktop#418): the switch off and on in Run defaults,
   // the pull under way, and the red edge over a page and over a dialog.
-  // `viewport` shoots the window, not the locator: the edge is the window's.
+  // `window` shoots the window, not the locator, since the edge is the window's;
+  // on pages.html, which stacks every page, it keeps the one the locator names.
   { name: "settings-unsafe-off", url: "/pages.html?settings=run-defaults", note: "Run defaults → Unsafe Mode, off: what it lifts, what stays, and what turning it on does", locator: '[data-preview="settings"] #settings-part-unsafe',
-    expectSection: "run-defaults", expectText: ["Unsafe Mode", "Off", "commands this computer has not approved", "a run In Agentry never uses Unsafe Mode", "ghcr.io/blaktron/agentry-unsafe-kali"],
+    expectSection: "run-defaults", expectText: ["Unsafe Mode", "Off", "commands this computer has not approved", "or from PyPI", "run_command still takes only the commands a QuickAgent declares", "never uses Unsafe Mode", "ghcr.io/blaktron/agentry-unsafe-kali"],
     expectNone: ".unsafe-glow, .unsafe-badge", expectUnsafeSwitch: false },
   { name: "settings-unsafe-on", url: "/pages.html?settings=run-defaults#unsafe-on", note: "Unsafe Mode on: the switch reads on, the red edge runs round the window and the sidebar's badge says Unsafe Mode", locator: '[data-preview="settings"]', window: true,
-    expectSection: "run-defaults", expectText: ["Unsafe Mode", "On"], expectUnsafeSwitch: true, expectGlow: true, only: "settings", scrollTo: "#settings-part-unsafe" },
+    expectSection: "run-defaults", expectText: ["Unsafe Mode", "On"], expectUnsafeSwitch: true, expectGlow: true, scrollTo: "#settings-part-unsafe" },
   { name: "settings-unsafe-pulling", url: "/pages.html?settings=run-defaults#unsafe-pulling", note: "the switch clicked and the native Yes given: the image's pull under way, the switch still off until it ends", locator: '[data-preview="settings"] #settings-part-unsafe',
     click: '[data-preview="settings"] #settings-part-unsafe input[role="switch"]', expectSection: "run-defaults", expectText: ["Downloading the Unsafe Mode image", "Pulling from blaktron/agentry-unsafe-kali"], expectUnsafeSwitch: false },
   { name: "settings-landing-unsafe", url: "/pages.html#unsafe-on", note: "the Settings landing in Unsafe Mode: the Run defaults card's status line says it is on, under the red edge", locator: '[data-preview="settings"]', window: true,
-    expectText: "Unsafe Mode is on.", expectGlow: true, only: "settings" },
-  { name: "unsafe-glow-browse", url: "/pages.html#unsafe-on", note: "a page in Unsafe Mode: the red edge round the window, the badge at the foot of the sidebar", locator: '[data-preview="browse"]', window: true, expectGlow: true, only: "browse" },
+    expectText: "Unsafe Mode is on.", expectGlow: true },
+  { name: "unsafe-glow-browse", url: "/pages.html#unsafe-on", note: "a page in Unsafe Mode: the red edge round the window, the badge at the foot of the sidebar", locator: '[data-preview="browse"]', window: true, expectGlow: true },
   { name: "runpanel-unsafe-review", url: "/modals.html#runpanel-unsafe-review", note: "Review and start in Unsafe Mode: the line names the declared commands and the one the image cannot provide; the red edge frames the dialog too", window: true,
-    expectText: ["Unsafe Mode is on", "Not available in Unsafe Mode's image: pyinstxtractor"], expectGlow: true, scrollTo: "[data-unsafe-notice]" },
+    expectText: ["Unsafe Mode is on", "As resolved, it declares: 7z, analyzeHeadless", "Not available in Unsafe Mode's image: pyinstxtractor"], expectGlow: true, scrollTo: "[data-unsafe-notice]" },
   { name: "runpanel-unsafe-finished", url: "/modals.html#runpanel-unsafe-finished", note: "an Unsafe Mode run finished: the result names what was installed from where and what did not install", window: true,
-    click: ['button:text-is("Run")'], expectText: ["This run's commands", "NOT installed at image build", "binwalk (E: Unable to locate package binwalk) for binwalk"], expectGlow: true, scrollTo: "#run-result-unsafe" },
+    click: ['button:text-is("Run")'], expectText: ["This run's commands", "At least one did not install, and the run went on without it.", "binwalk (E: Unable to locate package binwalk) for binwalk"], expectGlow: true, scrollTo: "#run-result-unsafe" },
   { name: "settings-run-defaults-saved", url: "/pages.html?settings=run-defaults", note: "a timeout of 1800 s saved, In Agentry chosen, a folder picked", locator: '[data-preview="settings"]',
     fill: [['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "1800"]],
     click: ['[data-preview="settings"] input[name="run-where"] >> nth=1', '[data-preview="settings"] #settings-part-output button:has-text("Choose")', '[data-preview="settings"] #settings-part-budgets button:has-text("Save")'],
@@ -528,12 +529,13 @@ try {
         const on = await page.locator('#settings-part-unsafe input[role="switch"]').isChecked();
         if (on !== state.expectUnsafeSwitch) throw new Error(`${state.name}: the Unsafe Mode switch reads ${on ? "on" : "off"}`);
       }
-      if (state.only) {
+      const onePage = state.window && /\[data-preview="(\w+)"\]/.exec(state.locator ?? "");
+      if (onePage) {
         // pages.html stacks every page in one document; a window shot shows
-        // the one page named, as the app's window would.
+        // the one page its locator names, as the app's window would.
         await page.evaluate((keep) => {
           for (const el of document.querySelectorAll("[data-preview]")) if (el.getAttribute("data-preview") !== keep) el.remove();
-        }, state.only);
+        }, onePage[1]);
         await page.waitForTimeout(100);
       }
       if (state.expectGlow) {

@@ -19,7 +19,7 @@ export function UnsafeBadge({ onOpen }: { onOpen?: () => void }) {
     <button
       type="button"
       className="badge bad unsafe-badge"
-      title="Unsafe Mode is on: a run on this computer can use commands this computer has not approved. Open Run defaults to turn it off."
+      title="Unsafe Mode is on: a run on this computer can use commands this computer has not approved. Run defaults has the switch."
       onClick={onOpen}
     >
       Unsafe Mode

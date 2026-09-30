@@ -3185,7 +3185,7 @@ export namespace main {
 	    attestationState: string;
 	    policy?: receipt.Policy;
 	    knowledge?: string;
-	    unsafeMode?: string;
+	    unsafeExec?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -3211,7 +3211,7 @@ export namespace main {
 	        this.attestationState = source["attestationState"];
 	        this.policy = this.convertValues(source["policy"], receipt.Policy);
 	        this.knowledge = source["knowledge"];
-	        this.unsafeMode = source["unsafeMode"];
+	        this.unsafeExec = source["unsafeExec"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

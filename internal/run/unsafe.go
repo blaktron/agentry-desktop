@@ -29,9 +29,10 @@ import (
 
 // pullImage pulls ref, streaming docker's own progress lines to logw when
 // the client is the docker CLI: the Unsafe Mode base is a few hundred
-// megabytes, and the card shows the pull as it goes. A package variable as
-// a test seam; any other client (a test's fake) pulls through the client.
-var pullImage = func(ctx context.Context, docker dockerx.Client, ref string, logw io.Writer) error {
+// megabytes, and the card shows the pull as it goes. dockerx.Client's Pull
+// returns only when it is over, so the CLI is driven here; any other client
+// (a test's fake) pulls through the client.
+func pullImage(ctx context.Context, docker dockerx.Client, ref string, logw io.Writer) error {
 	c, ok := docker.(*dockerx.CLI)
 	if !ok {
 		return docker.Pull(ctx, ref)
@@ -44,9 +45,9 @@ var pullImage = func(ctx context.Context, docker dockerx.Client, ref string, log
 	cmd.Stderr = io.MultiWriter(logw, &errb)
 	if err := cmd.Run(); err != nil {
 		if msg := strings.TrimSpace(errb.String()); msg != "" {
-			return fmt.Errorf("docker pull: %w: %s", err, msg)
+			return fmt.Errorf("%w: %s", err, msg)
 		}
-		return fmt.Errorf("docker pull: %w", err)
+		return err
 	}
 	return nil
 }
@@ -69,44 +70,39 @@ func unsafeBase() (string, error) {
 	return "", fmt.Errorf("operator policy: %w", err)
 }
 
-// UnsafeBase is the image Unsafe Mode builds exec images on, for the Run
-// defaults card to name.
-func UnsafeBase() (string, error) { return unsafeBase() }
-
 // PullUnsafeBase is what turning Unsafe Mode on does before the switch
 // reads on (plan D2, D6): pull the base the policy names, with docker's
 // progress on logw, then read its command index and extras list back, so a
-// base that is on this machine is also one a run can compile with. It
-// returns the base it pulled.
-func PullUnsafeBase(ctx context.Context, logw io.Writer) (string, error) {
+// base that is on this machine is also one a run can compile with.
+func PullUnsafeBase(ctx context.Context, logw io.Writer) error {
 	base, err := unsafeBase()
 	if err != nil {
-		return "", err
+		return err
 	}
 	if err := unsafeexec.ValidBase(base); err != nil {
-		return "", err
+		return err
 	}
 	docker := newDockerClient()
 	if err := docker.Available(ctx); err != nil {
-		return "", err
+		return err
 	}
 	ok, err := docker.ImageExists(ctx, base)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if ok {
 		_, _ = fmt.Fprintf(logw, "the Unsafe Mode image is already on this computer: %s\n", base)
 	} else {
 		_, _ = fmt.Fprintf(logw, "downloading the Unsafe Mode image %s\n", base)
 		if err := pullImage(ctx, docker, base, logw); err != nil {
-			return "", fmt.Errorf("download the Unsafe Mode image: %w", err)
+			return fmt.Errorf("download the Unsafe Mode image: %w", err)
 		}
 	}
 	if _, err := unsafeexec.Load(ctx, docker, base, logw); err != nil {
-		return "", err
+		return err
 	}
 	_, _ = fmt.Fprintln(logw, "the Unsafe Mode image is ready")
-	return base, nil
+	return nil
 }
 
 // unsafeData is what a run compiles with while Unsafe Mode is on: the
@@ -138,39 +134,98 @@ func planIsUnsafe(plan *spec.Plan) bool {
 }
 
 // UnsafeNotice is what Unsafe Mode means for one release's run on this
-// computer: the commands it declares and the ones the image cannot place
-// (D8), for the run's consent and its Review step.
+// computer, for the run's consent dialog and its Review step.
+//
+// It is built from what the release resolves to, before anything is
+// downloaded: a registry's answer, which this app has not verified, or a
+// local install's own manifest. So the sentence about what Unsafe Mode does
+// never depends on it, and what it lists is held to a grammar and a bound
+// before it reaches a native dialog: only names unsafeexec.ValidCommand
+// takes, at most noticeMax of them, with the rest counted. The run itself
+// compiles the verified archive's manifest, and its plan's exec line, which
+// the run log and the receipt carry, is the record of what was placed.
 type UnsafeNotice struct {
-	// Commands are the declared exec commands, sorted; none means Unsafe
-	// Mode changes nothing about this run.
+	// Commands are the declared exec commands that are command names,
+	// sorted.
 	Commands []string
-	// Unplaced are the declared commands the image cannot provide, each
-	// with the packages that ship it when there are several.
+	// Malformed counts the declared names that are not command names: the
+	// image cannot place them and run_command cannot call them.
+	Malformed int
+	// Unplaced are the declared commands the image cannot provide (D8),
+	// each with the packages that ship it when there are several.
 	Unplaced []string
 	// Unknown says why the placement could not be read (the image is not
 	// on this computer, docker is not running), "" when it was.
 	Unknown string
+	// Unread says the release itself could not be read here, so nothing
+	// is listed at all.
+	Unread bool
 }
 
-// Line is the one sentence a local run's consent carries while Unsafe Mode
-// is on (plan D6, D8, and DR-53's PATH): it names Unsafe Mode, says what is
-// not checked, and lists what the image cannot provide.
+// noticeMax bounds each list a notice shows, and noticeWhy the length of a
+// reason it quotes: the line goes into a native dialog, where a long one
+// would push the question it sits above off the screen.
+const (
+	noticeMax = 40
+	noticeWhy = 200
+)
+
+// UnsafeNoticeUnread is the notice for a release that could not be read
+// here (the run would refuse on the same error a moment later): it still
+// names Unsafe Mode, and lists nothing.
+func UnsafeNoticeUnread() *UnsafeNotice { return &UnsafeNotice{Unread: true} }
+
+// Line is the one paragraph a local run's consent carries while Unsafe Mode
+// is on (plan D6, D8, and DR-53's PATH): what Unsafe Mode does to any run,
+// then what this release declares and what the image cannot provide.
 func (n *UnsafeNotice) Line() string {
-	if len(n.Commands) == 0 {
-		return "Unsafe Mode is on. This QuickAgent declares no commands, so Unsafe Mode changes nothing about this run."
+	line := "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands."
+	switch {
+	case n.Unread:
+		return line
+	case len(n.Commands) == 0 && n.Malformed == 0:
+		return line + " As resolved, it declares none."
 	}
-	line := "Unsafe Mode is on: the commands this QuickAgent declares (" + strings.Join(n.Commands, ", ") +
-		") are installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can reach every program that image holds. Only the declared commands can be called."
+	if len(n.Commands) > 0 {
+		line += " As resolved, it declares: " + listed(n.Commands) + "."
+	}
+	if n.Malformed > 0 {
+		line += fmt.Sprintf(" %d declared name%s not command names and cannot be called.", n.Malformed, isOrAre(n.Malformed))
+	}
 	switch {
 	case n.Unknown != "":
-		line += " Which of them the image can provide could not be read (" + n.Unknown + ")."
+		line += " Which of them the image can provide could not be read (" + clip(n.Unknown, noticeWhy) + ")."
 	case len(n.Unplaced) > 0:
-		line += " Not available in Unsafe Mode's image: " + strings.Join(n.Unplaced, "; ") + ". The run goes on without " + thatOrThose(len(n.Unplaced)) + "."
+		line += " Not available in Unsafe Mode's image: " + listed(n.Unplaced) + ". The run goes on without " + itOrThem(len(n.Unplaced)) + "."
 	}
 	return line
 }
 
-func thatOrThose(n int) string {
+// listed joins at most noticeMax items and counts the rest.
+func listed(items []string) string {
+	if len(items) <= noticeMax {
+		return strings.Join(items, ", ")
+	}
+	return fmt.Sprintf("%s, and %d more", strings.Join(items[:noticeMax], ", "), len(items)-noticeMax)
+}
+
+// clip is s on one line, cut to max bytes.
+func clip(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
+}
+
+func isOrAre(n int) string {
+	if n == 1 {
+		return " is"
+	}
+	return "s are"
+}
+
+func itOrThem(n int) string {
 	if n == 1 {
 		return "it"
 	}
@@ -186,7 +241,15 @@ func UnsafeNoticeFor(ctx context.Context, regURL, ref string) (*UnsafeNotice, er
 	if err != nil {
 		return nil, err
 	}
-	n := &UnsafeNotice{Commands: append([]string(nil), execCommands(sig.Manifest)...)}
+	n := &UnsafeNotice{}
+	for _, c := range execCommands(sig.Manifest) {
+		if unsafeexec.ValidCommand(c) {
+			n.Commands = append(n.Commands, c)
+		} else {
+			n.Malformed++
+		}
+	}
+	sort.Strings(n.Commands)
 	if len(n.Commands) == 0 {
 		return n, nil
 	}
@@ -196,11 +259,13 @@ func UnsafeNoticeFor(ctx context.Context, regURL, ref string) (*UnsafeNotice, er
 		return n, nil
 	}
 	docker := newDockerClient()
-	if ok, err := docker.ImageExists(ctx, base); err != nil || !ok {
+	ok, err := docker.ImageExists(ctx, base)
+	switch {
+	case err != nil:
+		n.Unknown = err.Error()
+		return n, nil
+	case !ok:
 		n.Unknown = "the Unsafe Mode image is not on this computer; the run downloads it first"
-		if err != nil {
-			n.Unknown = err.Error()
-		}
 		return n, nil
 	}
 	data, err := unsafeexec.Load(ctx, docker, base, io.Discard)
@@ -208,22 +273,16 @@ func UnsafeNoticeFor(ctx context.Context, regURL, ref string) (*UnsafeNotice, er
 		n.Unknown = err.Error()
 		return n, nil
 	}
+	// Every name placed here passed the command grammar, and the base's
+	// own rows (the packages an ambiguous command names) passed the package
+	// grammar when the data was parsed.
 	_, u := data.Place(n.Commands)
-	n.Commands = nil
-	for _, a := range u.Apt {
-		n.Commands = append(n.Commands, a.Command)
-	}
-	for _, e := range u.Extras {
-		n.Commands = append(n.Commands, e.Command)
-	}
 	for _, c := range u.Unplaced {
-		n.Commands = append(n.Commands, c.Command)
 		s := c.Command
 		if len(c.Candidates) > 0 {
-			s += " (several packages ship it: " + strings.Join(c.Candidates, ", ") + ")"
+			s += " (several packages ship it: " + listed(c.Candidates) + ")"
 		}
 		n.Unplaced = append(n.Unplaced, s)
 	}
-	sort.Strings(n.Commands)
 	return n, nil
 }

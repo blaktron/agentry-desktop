@@ -32,7 +32,7 @@ type RunDefaultsView struct {
 	UnsafeImage string `json:"unsafeImage,omitempty"`
 }
 
-// RunDefaults reads the four defaults. With no policy yet the budgets are
+// RunDefaults reads the defaults. With no policy yet the budgets are
 // the ones a first run would write.
 func (s *SettingsAPI) RunDefaults() (*RunDefaultsView, error) { return runDefaultsView() }
 

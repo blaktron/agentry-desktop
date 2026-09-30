@@ -255,20 +255,28 @@ The product never claims an agent is "safe". The language is always:
         (`agentry-unsafe-kali`, the policy's `images.unsafe`), and each runs
         with that image's own PATH (the CLI's DR-53). A command that cannot
         be installed is left out and the run goes on without it.
-      - What stays: only the commands a QuickAgent declares can be called;
-        the container, its network limits and every consent are unchanged.
-        A run In Agentry never uses it, and `agentry run` has no such flag.
+      - What stays: `run_command` still takes only the commands a
+        QuickAgent declares (a declared interpreter, such as `python3`, can
+        start anything the image holds, and the image is not minimized);
+        the container's isolation, its network limits and every consent are
+        unchanged. A run In Agentry never uses it, and `agentry run` has no
+        such flag.
       - Turning it on: the app asks in a native dialog, downloads the image
         with its progress in the card, and only then does the switch read
-        on. The page cannot turn it on by itself (D-030). Turning it off is
-        immediate and keeps the images; Docker images removes them.
+        on. The page cannot turn it on by itself (D-030), and no other
+        setting's save writes it: `settings.SetUnsafeMode` is its one
+        writer. Turning it off is immediate and keeps the images; Docker
+        images removes them.
       - While it is on: a still red edge runs round the window, over the
         app's own dialogs, and the sidebar's foot carries an "Unsafe Mode"
         badge that opens this part. Review and start shows the line a run
-        carries (the declared commands, and the ones the image cannot
-        provide), the consent dialog of a run that accepts something
-        carries the same line, and a finished run shows the receipt's exec
-        line: what was installed from where and what did not install.
+        carries (what Unsafe Mode does, the commands the release resolves
+        with, and the ones the image cannot provide), the consent dialog of
+        a run that accepts something carries the same line, and a finished
+        run shows the receipt's exec line: what was installed from where
+        and what did not install. The line lists only names that are
+        command names, and a bounded number of them: it is built before the
+        release is downloaded and verified, from what it resolves to.
     - The Docker engine's state and, on Linux, its setup.
     - **Docker images**: Agentry's images on this computer and a button
       that removes them (agentry-desktop#424, D-048), the Unsafe Mode image

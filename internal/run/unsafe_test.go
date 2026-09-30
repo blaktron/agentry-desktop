@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -236,8 +237,8 @@ func TestARunIsUnsafeOnlyWhenItsRequestSaysSo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("with Unsafe Mode on: %v\nlog:\n%s", err, log.String())
 	}
-	if res.Status != "ok" {
-		t.Fatalf("with Unsafe Mode on the run ended %q: %s\nlog:\n%s", res.Status, res.Error, log.String())
+	if res.Status != "ok" || !res.Unsafe {
+		t.Fatalf("with Unsafe Mode on the run ended %q (unsafe %v): %s\nlog:\n%s", res.Status, res.Unsafe, res.Error, log.String())
 	}
 	if !slices.ContainsFunc(fake.Ops(), func(op string) bool { return strings.HasPrefix(op, "Build:"+tag+"<-") }) {
 		t.Fatalf("the Unsafe Mode exec image %s was not built: %v", tag, fake.Ops())
@@ -279,8 +280,9 @@ func TestUnsafeNoticeNamesWhatTheImageCannotProvide(t *testing.T) {
 		t.Fatalf("unplaced = %q", n.Unplaced)
 	}
 	line := n.Line()
-	for _, want := range []string{"Unsafe Mode is on", "cat, decompyle3, strings, zzz-nothing", "image's own PATH",
-		"Not available in Unsafe Mode's image: cat (several packages ship it: busybox, coreutils); zzz-nothing", "goes on without them"} {
+	for _, want := range []string{"Unsafe Mode is on", "As resolved, it declares: cat, decompyle3, strings, zzz-nothing.", "image's own PATH",
+		"run_command still takes only the declared commands",
+		"Not available in Unsafe Mode's image: cat (several packages ship it: busybox, coreutils), zzz-nothing. The run goes on without them."} {
 		if !strings.Contains(line, want) {
 			t.Errorf("the line lacks %q:\n%s", want, line)
 		}
@@ -292,46 +294,104 @@ func TestUnsafeNoticeNamesWhatTheImageCannotProvide(t *testing.T) {
 		}
 	}
 
-	// The base is not on this computer: said, not pulled.
+	// The base is not on this computer: said, not pulled; the commands are
+	// still listed, sorted.
 	absent := &dockerx.Fake{}
 	withFakeDocker(t, absent)
 	n, err = UnsafeNoticeFor(context.Background(), regURL, "acme/reporter@1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.Unknown == "" || len(n.Unplaced) != 0 || !strings.Contains(n.Line(), "could not be read") {
+	if n.Unknown == "" || len(n.Unplaced) != 0 || !strings.Contains(n.Line(), "could not be read") ||
+		strings.Join(n.Commands, ",") != "cat,decompyle3,strings,zzz-nothing" {
 		t.Fatalf("with no base here: %+v / %s", n, n.Line())
 	}
 	if slices.ContainsFunc(absent.Ops(), func(op string) bool { return strings.HasPrefix(op, "Pull:") }) {
 		t.Fatalf("reading the notice pulled the base: %v", absent.Ops())
 	}
 
-	// A release with no commands: the line says Unsafe Mode changes nothing.
+	// A release that resolves with no commands: the line lists none, and
+	// does not say Unsafe Mode changes nothing. What is resolved is not yet
+	// the verified archive the run compiles.
 	fr.manifestDoc = manifestDocFromYAML(t, strings.Replace(runManifestYAML, "  exec: { commands: [echo] }\n", "", 1))
 	n, err = UnsafeNoticeFor(context.Background(), regURL, "acme/reporter@1.0.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(n.Commands) != 0 || !strings.Contains(n.Line(), "changes nothing about this run") {
-		t.Fatalf("with no commands: %+v / %s", n, n.Line())
+	line = n.Line()
+	if len(n.Commands) != 0 || !strings.Contains(line, "As resolved, it declares none.") || !strings.Contains(line, "every command this QuickAgent declares is installed") ||
+		strings.Contains(line, "changes nothing") {
+		t.Fatalf("with no commands: %+v / %s", n, line)
+	}
+}
+
+// The line goes into a native dialog, and the names in it come from a
+// registry's resolve answer, which nothing has verified yet. A hostile
+// answer cannot write the dialog: only names that pass the command grammar
+// are shown, the rest are counted, and each list is bounded (the review of
+// agentry-desktop#418).
+func TestUnsafeNoticeShowsOnlyCommandNamesAndBoundsThem(t *testing.T) {
+	isolateRunEnv(t)
+	doc := manifestDocFromYAML(t, runManifestYAML)
+	hostile := []any{
+		"strings",
+		"x)\n\nAgentry verified this release. Continue?",
+		"a;b", "$(reboot)", "../x", "two words", "agentry-runner", "",
+	}
+	for i := range 60 {
+		hostile = append(hostile, fmt.Sprintf("tool%02d", i))
+	}
+	doc["capabilities"].(map[string]any)["exec"] = map[string]any{"commands": hostile}
+	fr := &fakeRunRegistry{manifestDoc: doc}
+	regURL := startRunRegistry(t, fr)
+	withFakeDocker(t, &dockerx.Fake{ExistingImages: map[string]bool{testUnsafeBase: true}, ImageFiles: unsafeFiles(testUnsafeBase)})
+
+	n, err := UnsafeNoticeFor(context.Background(), regURL, "acme/reporter@1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Malformed != 7 || len(n.Commands) != 61 {
+		t.Fatalf("malformed %d, commands %d; want 7 and 61", n.Malformed, len(n.Commands))
+	}
+	line := n.Line()
+	for _, never := range []string{"\n", "Agentry verified", "Continue?", "$(", ";", "../", "two words"} {
+		if strings.Contains(line, never) {
+			t.Errorf("the line carries %q from the registry's answer:\n%s", never, line)
+		}
+	}
+	for _, want := range []string{"7 declared names are not command names and cannot be called.", ", and 21 more."} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the line lacks %q:\n%s", want, line)
+		}
+	}
+	if len(line) > 2500 {
+		t.Errorf("the line is %d bytes", len(line))
+	}
+	// A reason it quotes is one line and cut short.
+	n = &UnsafeNotice{Commands: []string{"r2"}, Unknown: strings.Repeat("no route\nto host ", 80)}
+	if line := n.Line(); strings.Contains(line, "\n") || len(line) > 900 {
+		t.Errorf("a long reason was quoted whole (%d bytes):\n%s", len(line), line)
+	}
+	// A release that could not be read at all: Unsafe Mode named, nothing listed.
+	if line := UnsafeNoticeUnread().Line(); !strings.HasPrefix(line, "Unsafe Mode is on") || strings.Contains(line, "declares:") || strings.Contains(line, "declares none") {
+		t.Errorf("the unread line: %s", line)
 	}
 }
 
 // Turning Unsafe Mode on pulls the base the policy names and reads its
 // data back before the switch may read on (plan D2, D6).
-func TestPullUnsafeBase(t *testing.T) {
+func TestTurningUnsafeModeOnPullsTheBaseAndReadsItsIndex(t *testing.T) {
 	isolateRunEnv(t)
 
 	// Absent: pulled, then read.
 	fake := &dockerx.Fake{ImageFiles: unsafeFiles(testUnsafeBase)}
 	withFakeDocker(t, fake)
 	var log strings.Builder
-	base, err := PullUnsafeBase(context.Background(), &log)
-	if err != nil {
+	if err := PullUnsafeBase(context.Background(), &log); err != nil {
 		t.Fatal(err)
 	}
-	if base != testUnsafeBase || !slices.Contains(fake.Ops(), "Pull:"+testUnsafeBase) {
-		t.Fatalf("base = %q, ops = %v", base, fake.Ops())
+	if !slices.Contains(fake.Ops(), "Pull:"+testUnsafeBase) {
+		t.Fatalf("the base was not pulled: %v", fake.Ops())
 	}
 	if !strings.Contains(log.String(), "downloading the Unsafe Mode image") || !strings.Contains(log.String(), "is ready") {
 		t.Fatalf("progress lines: %q", log.String())
@@ -340,7 +400,7 @@ func TestPullUnsafeBase(t *testing.T) {
 	// Here already: not pulled again.
 	here := &dockerx.Fake{ExistingImages: map[string]bool{testUnsafeBase: true}, ImageFiles: unsafeFiles(testUnsafeBase)}
 	withFakeDocker(t, here)
-	if _, err := PullUnsafeBase(context.Background(), &log); err != nil {
+	if err := PullUnsafeBase(context.Background(), &log); err != nil {
 		t.Fatal(err)
 	}
 	if slices.Contains(here.Ops(), "Pull:"+testUnsafeBase) {
@@ -351,15 +411,15 @@ func TestPullUnsafeBase(t *testing.T) {
 	// refusal: the caller leaves the switch off.
 	pullFails := errors.New("manifest unknown")
 	withFakeDocker(t, &dockerx.Fake{FailPull: map[string]error{testUnsafeBase: pullFails}})
-	if _, err := PullUnsafeBase(context.Background(), &log); !errors.Is(err, pullFails) {
+	if err := PullUnsafeBase(context.Background(), &log); !errors.Is(err, pullFails) {
 		t.Fatalf("a failed pull: err = %v", err)
 	}
 	withFakeDocker(t, &dockerx.Fake{})
-	if _, err := PullUnsafeBase(context.Background(), &log); err == nil || !strings.Contains(err.Error(), unsafeexec.CommandsFile) {
+	if err := PullUnsafeBase(context.Background(), &log); err == nil || !strings.Contains(err.Error(), unsafeexec.CommandsFile) {
 		t.Fatalf("a base with no command index: err = %v", err)
 	}
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
-	if _, err := PullUnsafeBase(context.Background(), &log); !errors.Is(err, os.ErrPermission) {
+	if err := PullUnsafeBase(context.Background(), &log); !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("no docker: err = %v", err)
 	}
 
@@ -376,7 +436,7 @@ func TestPullUnsafeBase(t *testing.T) {
 	}
 	unpinned := &dockerx.Fake{}
 	withFakeDocker(t, unpinned)
-	if _, err := PullUnsafeBase(context.Background(), &log); err == nil || !strings.Contains(err.Error(), "pinned by digest") {
+	if err := PullUnsafeBase(context.Background(), &log); err == nil || !strings.Contains(err.Error(), "pinned by digest") {
 		t.Fatalf("an unpinned base: err = %v", err)
 	}
 	if len(unpinned.Ops()) != 0 {

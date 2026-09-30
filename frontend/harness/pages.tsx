@@ -403,7 +403,7 @@ g.go = { main: {
       }
       return (runDefaultsView = { ...runDefaultsView, unsafeMode: on });
     },
-    UnsafeNotice: async () => ({ on: unsafeOn, line: unsafeOn ? "Unsafe Mode is on. This QuickAgent declares no commands, so Unsafe Mode changes nothing about this run." : "", unplaced: [] }),
+    UnsafeNotice: async () => ({ on: unsafeOn, line: unsafeOn ? "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. As resolved, it declares none." : "", unplaced: [] }),
     // Run defaults → Docker images (agentry-desktop#424). #images-none has
     // none, #images-nodocker a daemon that does not answer; otherwise
     // three of Agentry's. Remove answers as the Go host would after Yes.

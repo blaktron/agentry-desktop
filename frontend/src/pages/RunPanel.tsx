@@ -103,7 +103,9 @@ export default function RunPanel({
     setUnsafeNotice(null);
     RunAPI.UnsafeNotice(registry, agentRef)
       .then((v) => live && setUnsafeNotice(v))
-      .catch((e) => live && setUnsafeNotice({ on: true, line: `Unsafe Mode is on. What it means for this QuickAgent could not be read: ${String(e)}`, unplaced: [] }));
+      // Go words the line, and words one for a release it cannot read too;
+      // a call that fails outright says only that the state is not known.
+      .catch(() => live && setUnsafeNotice({ on: true, line: "Whether Unsafe Mode is on could not be read. Run defaults shows the switch.", unplaced: [] }));
     return () => { live = false; };
   }, [registry, agentRef]);
   const modeChosen = useRef(false);
@@ -1378,7 +1380,7 @@ export default function RunPanel({
             error={result.error || undefined}
             resultJson={result.resultJson}
             knowledge={result.knowledge}
-            unsafeMode={result.unsafeMode}
+            unsafeExec={result.unsafeExec}
           >
             <Card className="selectable">
               <div className="row">

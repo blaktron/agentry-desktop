@@ -29,14 +29,23 @@ package main
 // Unsafe Mode and the image, and the run's transcript shows the agent
 // calling a declared command the catalogue never carried; turned off
 // again, the run is refused again though an Unsafe Mode plan is installed.
-// The forced install failure is the caller's to arrange (a policy whose
+// The forced install failure is the caller's to arrange, with a policy whose
 // images.unsafe names a base whose index maps a command to a package Kali
-// does not carry): EXPECT_FAILED then holds the receipt to naming it while
-// the run still completes.
+// does not carry. A base must be pinned by digest, so it goes through a
+// registry on this machine:
+//
+//	docker run -d --name unsafe-registry -p 127.0.0.1:5418:5000 registry:2
+//	printf 'FROM <the pinned agentry-unsafe-kali ref>\nRUN sed -i "s/^binwalk\\t.*/binwalk\\tagentry-no-such-package/" /etc/agentry/unsafe/commands.tsv\n' > Dockerfile
+//	docker build -t localhost:5418/agentry-unsafe-kali-forced:1 . && docker push localhost:5418/agentry-unsafe-kali-forced:1
+//	# policy.yaml: images.unsafe: localhost:5418/agentry-unsafe-kali-forced:1@sha256:<the pushed digest>
+//
+// EXPECT_FAILED=agentry-no-such-package then holds the receipt to naming it
+// and the command it leaves absent, while the run still completes.
 
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,7 +70,10 @@ func TestLiveUnsafeMode(t *testing.T) {
 	reg := cmp.Or(os.Getenv("AGENTRY_LIVE_UNSAFE_REGISTRY"), "https://secureagentry.net")
 	ref := cmp.Or(os.Getenv("AGENTRY_LIVE_UNSAFE_REF"), "blaktron/binary-reverse-engineer@0.1.0")
 	outRoot := cmp.Or(os.Getenv("AGENTRY_LIVE_UNSAFE_OUT"), t.TempDir())
-	const task = "Identify what this binary is and what it does. Use Ghidra's analyzeHeadless to decompile it and quote the decompiled main function in your report, and say which of your tools were not available."
+	// A bounded task: a model left to itself spends the whole turn budget on
+	// a small binary, and the check is that the run completes with Ghidra's
+	// output, not how far an agent will dig.
+	const task = "Identify what this binary is. Run Ghidra's analyzeHeadless once to decompile it, quote the decompiled main function in your report, say which of your tools were not available, and finish. Use at most 20 tool calls."
 
 	// No webview: what the panel would be shown goes to the test's log.
 	var mu sync.Mutex
@@ -144,7 +156,7 @@ func TestLiveUnsafeMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("with Unsafe Mode on: %v", err)
 	}
-	t.Logf("on: status %s, exit %d, %d turns, run %s, folder %s\nresult: %s\nexec: %s", res.Status, res.ExitCode, res.Turns, res.RunID, res.OutDir, res.ResultJSON, res.UnsafeMode)
+	t.Logf("on: status %s, exit %d, %d turns, run %s, folder %s\nresult: %s\nexec: %s", res.Status, res.ExitCode, res.Turns, res.RunID, res.OutDir, res.ResultJSON, res.UnsafeExec)
 	if res.Status != "ok" {
 		t.Fatalf("the Unsafe Mode run ended %q: %s", res.Status, res.Error)
 	}
@@ -152,22 +164,21 @@ func TestLiveUnsafeMode(t *testing.T) {
 		t.Fatalf("a run with nothing to accept raised a dialog: %q", dialogs[2:])
 	}
 	for _, want := range []string{"UNSAFE MODE:", v.UnsafeImage, "this machine's exec catalogue was not consulted", "analyzeHeadless ← link ghidra:"} {
-		if !strings.Contains(res.UnsafeMode, want) {
+		if !strings.Contains(res.UnsafeExec, want) {
 			t.Errorf("the receipt's exec line lacks %q", want)
 		}
 	}
 	if want := os.Getenv("AGENTRY_LIVE_UNSAFE_EXPECT_FAILED"); want != "" {
-		if !strings.Contains(res.UnsafeMode, "NOT installed at image build") || !strings.Contains(res.UnsafeMode, want+" (") {
-			t.Errorf("the receipt does not name %s as not installed:\n%s", want, res.UnsafeMode)
+		if !strings.Contains(res.UnsafeExec, "NOT installed at image build") || !strings.Contains(res.UnsafeExec, want+" (") {
+			t.Errorf("the receipt does not name %s as not installed:\n%s", want, res.UnsafeExec)
 		}
-	} else if strings.Contains(res.UnsafeMode, "NOT installed at image build") {
-		t.Errorf("an install failed that was not forced:\n%s", res.UnsafeMode)
+	} else if strings.Contains(res.UnsafeExec, "NOT installed at image build") {
+		t.Errorf("an install failed that was not forced:\n%s", res.UnsafeExec)
 	}
-	// Ghidra ran: the transcript carries a run_command of analyzeHeadless,
-	// and the run's receipts are where a person would read it.
-	transcript := readAll(t, res.ReceiptsDir)
-	if !strings.Contains(transcript, "analyzeHeadless") {
-		t.Errorf("no receipt under %s names analyzeHeadless: the agent did not call Ghidra", res.ReceiptsDir)
+	// Ghidra ran: the run's event receipt carries a run_command call of
+	// analyzeHeadless whose answer is Ghidra's own import report.
+	if !ghidraRan(t, res.ReceiptsDir) {
+		t.Errorf("no run_command of analyzeHeadless in %s/events.ndjson answered with Ghidra's import report: the agent did not get Ghidra's output", res.ReceiptsDir)
 	}
 
 	// 4. Off again: immediate, and refused again although an Unsafe Mode
@@ -185,19 +196,48 @@ func TestLiveUnsafeMode(t *testing.T) {
 	}
 }
 
-// readAll is every regular file under dir, concatenated: enough to ask
-// whether a run's receipts name something.
-func readAll(t *testing.T, dir string) string {
+// ghidraRan reads the run's event receipt for a run_command call of
+// analyzeHeadless that Ghidra answered with an import report. The receipt's
+// other files name analyzeHeadless whatever the agent did (the plan's
+// allowlist, the task), so only a call and its answer count.
+func ghidraRan(t *testing.T, receiptsDir string) bool {
 	t.Helper()
-	var all strings.Builder
-	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
+	raw, err := os.ReadFile(filepath.Join(receiptsDir, "events.ndjson")) //nolint:gosec // the run's own folder
+	if err != nil {
+		t.Logf("read the event receipt: %v", err)
+		return false
+	}
+	calls := map[string]bool{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		var ev struct {
+			Type     string `json:"type"`
+			ToolCall struct {
+				ID       string `json:"id"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_call"`
+			ToolCallID string `json:"tool_call_id"`
+			Response   string `json:"response"`
 		}
-		if b, err := os.ReadFile(p); err == nil { //nolint:gosec // the run's own folder
-			all.Write(b)
+		if json.Unmarshal([]byte(line), &ev) != nil {
+			continue
 		}
-		return nil
-	})
-	return all.String()
+		switch ev.Type {
+		case "tool_call":
+			var args struct {
+				Command string `json:"command"`
+			}
+			if ev.ToolCall.Function.Name == "run_command" && json.Unmarshal([]byte(ev.ToolCall.Function.Arguments), &args) == nil && args.Command == "analyzeHeadless" {
+				calls[ev.ToolCall.ID] = true
+			}
+		case "tool_call_response":
+			if calls[ev.ToolCallID] && strings.Contains(ev.Response, "REPORT: Import succeeded") {
+				t.Logf("Ghidra's answer to analyzeHeadless (%d bytes) reports the import succeeded", len(ev.Response))
+				return true
+			}
+		}
+	}
+	return false
 }
