@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
@@ -37,9 +38,20 @@ type Status struct {
 	DockerErr    string
 	PolicyPath   string
 	PolicyExists bool
-	Provider     string
-	Model        string
-	APIKeyEnv    string
+	// ProviderSetUp: somebody set the provider up, as opposed to the policy
+	// merely existing. Saving the AI Review key, choosing a coding agent and
+	// the first run each write the policy from defaults, and a page that
+	// read PolicyExists as "a provider was chosen" would say so of a person
+	// who chose none (agentry-desktop#462). It is true when the policy's
+	// model block is not the default's: a provider, a model, a key source
+	// or an endpoint was chosen. It reads no keychain and no variable, so
+	// nothing but a change to that block can change it; the default
+	// provider kept on purpose with its key in the variable is the one
+	// choice it cannot tell from no choice.
+	ProviderSetUp bool
+	Provider      string
+	Model         string
+	APIKeyEnv     string
 	// APIKeySource is "keyring" when the OS keychain is the fallback for
 	// an unset variable; "" when the environment is the only source
 	// (plan desktop-installers.md §9, D12; agentry-cli#148).
@@ -118,6 +130,7 @@ func GetStatus(ctx context.Context) (*Status, error) {
 			st.KeysStored = append(st.KeysStored, provider)
 		}
 	}
+	st.ProviderSetUp = st.PolicyExists && !reflect.DeepEqual(pol.Model, policy.Default().Model)
 	st.BaseURL = pol.Model.BaseURL
 	st.TimeoutSeconds = pol.Budgets.TimeoutSeconds
 	st.MaxTurns = pol.Budgets.MaxTurns

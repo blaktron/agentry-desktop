@@ -4,7 +4,8 @@
 // check's to hold (scripts/copy-check.sh reads this module with the rest).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL } from "../src/keyRecommendation.ts";
+import type { main } from "../wailsjs/go/models";
+import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../src/keyRecommendation.ts";
 
 test("the recommendation is the operator's, word for word", () => {
   assert.equal(
@@ -16,4 +17,14 @@ test("the recommendation is the operator's, word for word", () => {
 
 test("the link goes to TypeSafe over https, with nothing of the person's in it", () => {
   assert.equal(TYPESAFE_URL, "https://typesafe.ai");
+});
+
+test("where the key stands is decided once, for every surface that says it", () => {
+  const view = (v: Record<string, unknown>) => v as unknown as main.JevKeyView;
+  // The variable goes first, whatever the keychain holds.
+  assert.equal(keyStanding(view({ envSet: true, stored: true, source: "keyring" })), "env");
+  assert.equal(keyStanding(view({ envSet: false, stored: true, source: "keyring" })), "saved");
+  // In the keychain, but the policy does not read it from there.
+  assert.equal(keyStanding(view({ envSet: false, stored: true, source: "" })), "unread");
+  assert.equal(keyStanding(view({ envSet: false, stored: false, source: "keyring" })), "none");
 });

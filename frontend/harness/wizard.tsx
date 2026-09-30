@@ -1,18 +1,26 @@
 // First-run wizard preview (agentry-desktop#41). Selects the step by
-// location.hash (#0 welcome | #1 sign-in | #2 runtime | #3 coding agent |
-// #4 done) and renders it over the shell chrome, the same pattern the
-// run-surface modals use. Not shipped: it sits outside tsconfig include and
-// the app's Vite entry.
+// location.hash (#0 welcome | #1 sign-in | #2 runtime | #3 AI Review key |
+// #4 coding agent | #5 done) and renders it over the shell chrome, the same
+// pattern the run-surface modals use. Not shipped: it sits outside tsconfig
+// include and the app's Vite entry.
 //
-// Suffixes pick a state (agentry-desktop#89): #3 shows the step after
+// Suffixes pick a state (agentry-desktop#89): #4 shows the step after
 // "Look for coding agents" with Claude Code found and chosen and Codex
-// missing; #3-missing the same with neither on the machine; #3-unprobed
-// the step as it opens, before the look; #4-nothing every step skipped —
+// missing; #4-missing the same with neither on the machine; #4-unprobed
+// the step as it opens, before the look; #5-nothing every step skipped —
 // the Nothing set up ending instead of Done.
+//
+// The AI Review key (agentry-desktop#462): no key is saved unless the
+// suffix is -saved or -keyonly, or the step is Done and something was set
+// up; -refused has the keychain refuse the save, so the shot script types a
+// key and clicks Save; -slow has the save never answer, so the footer's
+// hold can be shot. #5-keyonly is Done after the key alone was saved: the
+// policy exists, written from defaults by that save, and no provider is set
+// up, so the ending is still Nothing set up.
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
-// wizard.html#2-pendingRestart (or #3-pendingRestart) previews the runtime
+// wizard.html#2-pendingRestart (or #5-pendingRestart) previews the runtime
 // step's docker card, and the done recap, in that docker state
 // (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.
 // #2-models previews the runtime step after Get models filled the list;
@@ -46,13 +54,15 @@ const refused = suffix === "refused";
 const preparing = suffix === "preparing";
 const prepared = suffix === "prepared";
 const prepareRefused = location.hash.endsWith("-prepare-refused");
-const harnessesMissing = suffix === "missing" || nothing;
+const keyOnly = suffix === "keyonly";
+const harnessesMissing = suffix === "missing" || nothing || keyOnly;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
 const setup = {
-  dockerOk: dockerState === "", imagesReady: !nothing, policyExists: !nothing,
+  dockerOk: dockerState === "", imagesReady: !nothing && !keyOnly, policyExists: !nothing,
+  providerSetUp: !nothing && !keyOnly,
   policyPath: "~/.agentry/runner/policy.yaml",
   provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
-  apiKeySource: nothing ? "" : "keyring", keysStored: nothing ? [] : ["anthropic"], keyStoreErr: "",
+  apiKeySource: nothing || keyOnly ? "" : "keyring", keysStored: nothing || keyOnly ? [] : ["anthropic"], keyStoreErr: "",
   apiKeyKind: subscription ? "subscription" : "", keyNotice: subscription ? catalog.notice : "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
 };
@@ -84,9 +94,23 @@ const harnesses = [
   },
 ];
 
+const step = Number(location.hash.replace("#", "").split("-")[0]) || 0;
+const keySaved = suffix === "saved" || keyOnly || (step === 5 && !nothing);
+const noKey = { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false };
+const savedKey = { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
+
 const g = window as any;
 g.go = { main: {
+  App: { OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); } },
   RunAPI: {
+    JevKeyStatus: async () => (keySaved ? savedKey : noKey),
+    StoreJevKey: async () => {
+      if (refused) throw new Error("store the key in the OS keychain: The name org.freedesktop.secrets was not provided by any .service files");
+      if (suffix === "slow") await new Promise(() => {});
+      return savedKey;
+    },
+    ForgetJevKey: async () => noKey,
+    TestJevKey: async () => ({ ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
     SetupStatus: async () => setup,
     ApplySetup: async () => {
       if (refused) throw new Error("the base URL must be an absolute http(s) URL: \"llm.example.net/v1\"");
@@ -151,7 +175,6 @@ function Backdrop() {
   );
 }
 
-const step = Number(location.hash.replace("#", "").split("-")[0]) || 0;
 createRoot(document.getElementById("root")!).render(
   <>
     <Backdrop />
@@ -162,7 +185,7 @@ createRoot(document.getElementById("root")!).render(
       onSelectRegistry={() => {}}
       onFinish={() => {}}
       initialStep={step}
-      probeOnEntry={step === 3 && suffix !== "unprobed"}
+      probeOnEntry={step === 4 && suffix !== "unprobed"}
     />
   </>,
 );
