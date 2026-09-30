@@ -331,7 +331,7 @@ away at the flip.
 |---|---|
 | dev shell (live reload) | `make dev` |
 | host-platform build | `make build` → `build/bin/` |
-| lint + tests + tsc | `make check` |
+| lint + tests + tsc, and the frontend's unit tests (`npm test` in `frontend/`, node's own runner) | `make check` |
 | regenerate TS bindings | `make bindings` (after changing bound Go APIs) |
 | macOS universal .app, zipped and as a .dmg | `make package-darwin` |
 | Windows amd64 exe, zip and per-user installer (cross-compiled; `SIGN_CMD=scripts/sign-windows.sh` signs, the release does) | `make package-windows` |

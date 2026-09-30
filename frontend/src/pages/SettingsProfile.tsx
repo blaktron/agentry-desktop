@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main, hostedrun } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtDuration, fmtStorage } from "../ui";
+import { changesPhrase, creditCount, creditsPhrase, dayOf, runningPromo, tierLabel } from "../subscription";
 
 // Settings → Profile (agentry-desktop#423): what the site's
 // /settings/profile shows in its Profile and Subscription cards, for the
@@ -11,39 +12,8 @@ import { Button, Card, ErrorBox, Input, Notice, fmtDuration, fmtStorage } from "
 // and deleting the account are the site's session's alone, so those open
 // the browser.
 
-// TIER_LABEL is the product's name for each tier: the two a person may
-// hold, the two an organization may (plan organization-subscriptions.md §4),
-// and the promo trial's (plan promo-codes.md §4.1; agentry-desktop#415).
-const TIER_LABEL: Record<string, string> = {
-  standard: "Standard",
-  pro: "Pro",
-  promo_pro: "Promo Pro",
-  business: "Business",
-  enterprise: "Enterprise",
-};
-
-const tierLabel = (t: string) => TIER_LABEL[t] ?? t;
-
 // The field's limit is the registry's (MaxDisplayName in the Go host).
 const MAX_DISPLAY_NAME = 100;
-
-function dayOf(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
-
-const creditCount = (n: number) => (n === 1 ? "1 credit" : `${n} credits`);
-
-const runningPromo = (s: main.SubscriptionView) => (s.promo?.state === "running" ? s.promo : null);
-
-// creditsPhrase: what the account has to spend; during a promo trial the
-// credits are the code's.
-function creditsPhrase(s: main.SubscriptionView): string {
-  const promo = runningPromo(s);
-  if (promo && promo.credits) return `${s.balance} of ${promo.credits} promo credits`;
-  return `${s.balance} of ${s.allowance} credits`;
-}
 
 const submissionsLeft = (s: main.SubscriptionView) => (s.submissionCost > 0 ? Math.floor(s.balance / s.submissionCost) : 0);
 
@@ -265,7 +235,7 @@ function PersonView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: 
         <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
         {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}</Row>}
         {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
-        {sub.pendingTier && <Row label="Changes">{tierLabel(sub.pendingTier)} from {dayOf(sub.periodEnd)}</Row>}
+        {changesPhrase(sub) && <Row label="Changes">{changesPhrase(sub)}</Row>}
       </dl>
       {limit && <Notice tone="warn">{limit}</Notice>}
       {promo && (
