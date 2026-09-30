@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test 'tests/**/*.test.ts'"
   },
   "dependencies": {
     "react": "^19.1.0",

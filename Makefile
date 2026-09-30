@@ -84,7 +84,7 @@ copy:
 # frontend/dist, so `check` runs this target first; wails builds its own
 # bundle at packaging time.
 frontend:
-	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx vite build
+	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx vite build && npm test
 
 check: frontend lint test copy
 	$(GO) build ./...
