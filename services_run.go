@@ -241,10 +241,9 @@ type SetupStatusView struct {
 	DockerErr    string `json:"dockerErr,omitempty"`
 	PolicyPath   string `json:"policyPath"`
 	PolicyExists bool   `json:"policyExists"`
-	// ProviderSetUp: the policy names a provider somebody set up (a model
-	// block that is not the default's, or a key for it in the keychain or
-	// in its variable), not only one written from defaults by another
-	// step (#462).
+	// ProviderSetUp: the policy's model block is not the default's, so
+	// somebody chose a provider, a model, a key source or an endpoint; a
+	// policy another step wrote from defaults is not that (#462).
 	ProviderSetUp bool   `json:"providerSetUp"`
 	Provider      string `json:"provider"`
 	Model         string `json:"model"`

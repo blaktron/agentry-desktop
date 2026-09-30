@@ -199,8 +199,8 @@ the key's; `wizard-done-nothing` asserts the key's row pending under
 "Nothing is set up yet"; and `#5-keyonly` (`wizard-done-key-only`) is Done
 after the key alone was saved, where the policy exists only because that
 save wrote it from defaults: the ending is still Nothing set up, the
-provider's row says the policy has the default and no key for it, and the
-key's row is checked. `#2-refused` is a save the backend
+provider's row says the policy has only the default and where its key is
+read from, and the key's row is checked. `#2-refused` is a save the backend
 refuses after the key was stored: `shots.mjs` types the custom endpoint's
 form, clicks Save, and fails unless the refusal shows and the key field is
 empty and says the key is stored (agentry-desktop#141, #378). The wizard's

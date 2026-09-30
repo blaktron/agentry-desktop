@@ -15,6 +15,7 @@ import { RuntimeSetup } from "./RuntimeSetup";
 import { AIReviewKeyCard, type ReviewKeyState } from "./AIReviewKey";
 import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
 import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } from "../wizardRecap";
+import { keyStanding } from "../keyRecommendation";
 
 const STEPS = ["Welcome", "Sign in", "Runtime", "AI Review key", "Coding agent", "Done"];
 
@@ -435,7 +436,7 @@ function DoneStep({
   ];
   // The key's row comes last and is an aside (D13): a recommendation, so
   // Browse's notice never lists it.
-  const keyLine = keyRow(keyStatus);
+  const keyLine = keyRow(keyStatus && { standing: keyStanding(keyStatus), envName: keyStatus.envName });
   if (keyLine) rows.push(keyLine);
 
   // Nothing set up (D10): the person did none of the three things this

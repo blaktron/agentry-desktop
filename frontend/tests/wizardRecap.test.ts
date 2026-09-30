@@ -10,32 +10,31 @@ import assert from "node:assert/strict";
 import type { main } from "../wailsjs/go/models";
 import { keyRow, missingForNotice, nothingSetUp, providerRow } from "../src/wizardRecap.ts";
 
-const view = (v: Record<string, unknown>) => v as unknown as main.JevKeyView;
 const setup = (v: Record<string, unknown>) => v as unknown as main.SetupStatusView;
 
 test("a key in the keychain that the policy reads is a done row", () => {
   assert.deepEqual(
-    keyRow(view({ stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true })),
+    keyRow({ standing: "saved", envName: "TYPESAFE_API_KEY" }),
     { ok: true, text: "AI Review key saved", aside: true },
   );
 });
 
 test("a key from the variable the app was started with names the variable, never a value", () => {
   assert.deepEqual(
-    keyRow(view({ stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true })),
+    keyRow({ standing: "env", envName: "TYPESAFE_API_KEY" }),
     { ok: true, text: "AI Review key from $TYPESAFE_API_KEY", aside: true },
   );
 });
 
 test("no key is a pending row that says what is off, and where to add one", () => {
   assert.deepEqual(
-    keyRow(view({ stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false })),
+    keyRow({ standing: "none", envName: "TYPESAFE_API_KEY" }),
     { ok: false, text: "No AI Review key — drafting on this computer is off until you add one in Settings", aside: true },
   );
 });
 
 test("a key the keychain holds but the policy does not read is pending, and says to save it again", () => {
-  const row = keyRow(view({ stored: true, source: "", envName: "TYPESAFE_API_KEY", envSet: false, ready: false }));
+  const row = keyRow({ standing: "unread", envName: "TYPESAFE_API_KEY" });
   assert.equal(row?.ok, false);
   assert.equal(row?.aside, true);
   assert.match(row?.text ?? "", /save it again/);
@@ -62,10 +61,10 @@ test("a provider somebody set up is a done row", () => {
   );
 });
 
-test("a policy written from defaults is not a provider set up, and the row says what is missing", () => {
+test("a policy written from defaults is not a provider set up, and the row claims nothing about a key", () => {
   assert.deepEqual(
-    providerRow(setup({ policyExists: true, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-4-5" })),
-    { ok: false, text: "The runner policy has the default provider, anthropic (claude-sonnet-4-5), and no key for it — set the provider up in Settings before a run" },
+    providerRow(setup({ policyExists: true, providerSetUp: false, provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY" })),
+    { ok: false, text: "The runner policy has only the default provider, anthropic (claude-sonnet-4-5), with its key read from $ANTHROPIC_API_KEY — choose yours in Settings" },
   );
 });
 

@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
@@ -44,10 +43,11 @@ type Status struct {
 	// the first run each write the policy from defaults, and a page that
 	// read PolicyExists as "a provider was chosen" would say so of a person
 	// who chose none (agentry-desktop#462). It is true when the policy's
-	// model block is not the default's, or a key for its provider is there
-	// to run with: in the keychain, or in the variable the policy names,
-	// set where this app was started (its presence is read, never its
-	// value).
+	// model block is not the default's: a provider, a model, a key source
+	// or an endpoint was chosen. It reads no keychain and no variable, so
+	// nothing but a change to that block can change it; the default
+	// provider kept on purpose with its key in the variable is the one
+	// choice it cannot tell from no choice.
 	ProviderSetUp bool
 	Provider      string
 	Model         string
@@ -130,9 +130,7 @@ func GetStatus(ctx context.Context) (*Status, error) {
 			st.KeysStored = append(st.KeysStored, provider)
 		}
 	}
-	st.ProviderSetUp = st.PolicyExists && (!reflect.DeepEqual(pol.Model, policy.Default().Model) ||
-		slices.Contains(st.KeysStored, pol.Model.Provider) ||
-		(pol.Model.APIKeyEnv != "" && os.Getenv(pol.Model.APIKeyEnv) != ""))
+	st.ProviderSetUp = st.PolicyExists && !reflect.DeepEqual(pol.Model, policy.Default().Model)
 	st.BaseURL = pol.Model.BaseURL
 	st.TimeoutSeconds = pol.Budgets.TimeoutSeconds
 	st.MaxTurns = pol.Budgets.MaxTurns

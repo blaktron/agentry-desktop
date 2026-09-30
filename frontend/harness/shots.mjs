@@ -365,7 +365,7 @@ const states = [
   // Reached by Continue from Coding agent, and the key's own Continue before
   // it (#462): the two renumbered steps forward.
   { name: "wizard-done", url: "/wizard.html#3-saved", note: "the first-run wizard: done, reached by Continue from the AI Review key step and from Coding agent, with the key's row", locator: ".wizard", click: ['.wizard-foot button:has-text("Continue")', '.wizard-foot button:has-text("Continue")'], expectText: ["You're set up", "Provider anthropic (claude-sonnet-4-5) written to the runner policy", "AI Review key saved"] },
-  { name: "wizard-done-key-only", url: "/wizard.html#5-keyonly", note: "done after the AI Review key alone was saved: the policy its save wrote is not a provider set up, so the ending is still Nothing set up", locator: ".wizard", expectText: ["Nothing is set up yet", "The runner policy has the default provider, anthropic (claude-sonnet-4-5), and no key for it", "AI Review key saved"] },
+  { name: "wizard-done-key-only", url: "/wizard.html#5-keyonly", note: "done after the AI Review key alone was saved: the policy its save wrote is not a provider set up, so the ending is still Nothing set up", locator: ".wizard", expectText: ["Nothing is set up yet", "The runner policy has only the default provider, anthropic (claude-sonnet-4-5), with its key read from $ANTHROPIC_API_KEY", "AI Review key saved"] },
   { name: "wizard-done-nothing", url: "/wizard.html#5-nothing", note: "the first-run wizard: every step skipped, the Nothing set up ending, the key's row pending", locator: ".wizard", expectText: ["Nothing is set up yet", "No AI Review key — drafting on this computer is off until you add one in Settings"] },
 ];
 
