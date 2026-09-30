@@ -183,3 +183,16 @@ test("a second start while the first waits for its run to begin is refused, and 
   await dBegun;
   assert.equal(h.store.state().run?.runId, "r4");
 });
+
+test("a call that throws before it returns is refused like any other, and the next start is not blocked", async () => {
+  const h = harness();
+  const threw = h.store.start("setup A", "acme/a@1.0.0", () => { throw new Error("binding missing"); });
+  await assert.rejects(threw, /binding missing/);
+  assert.equal(h.store.state().run, null);
+  assert.equal(h.listening(), 0, "the refused start's listeners outlived it");
+  const b = pending();
+  const begun = h.store.start("setup B", "acme/b@1.0.0", b.call);
+  h.report("r2", "acme/b@1.0.0");
+  await begun;
+  assert.equal(h.store.state().run?.runId, "r2");
+});

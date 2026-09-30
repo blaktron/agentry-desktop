@@ -173,7 +173,11 @@ export function createRunStore<S>(deps: RunStoreDeps) {
           mine = next;
           publish();
         });
-        call()
+        // A call that throws before it returns a promise is refused like
+        // one that rejects, so it never leaves the store starting. It runs
+        // a microtask later, after the listeners above are up.
+        Promise.resolve()
+          .then(call)
           .then((r) => {
             mine = finished(mine, r);
             begin();
