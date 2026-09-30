@@ -138,7 +138,7 @@ func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) 
 	// A build is a run: the Creator's containers carry the run id, so
 	// quitting mid-build ends it and sweeps them (services_quit.go).
 	var res *knowledge.BuildResult
-	err := k.run.asRun(knowledgeRunRef, eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
+	err := k.run.asRun(jobBuild, "a knowledge build by the Knowledge Creator", knowledgeRunRef, eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		req := knowledge.BuildRequest{
 			Registry: reg, Name: name, Documents: documents, RunID: runID, Build: k.build, Log: logw,
 			Progress: func(p knowledge.Progress) { emitEvent(k.app, eventKnowledgeProgress, p) },

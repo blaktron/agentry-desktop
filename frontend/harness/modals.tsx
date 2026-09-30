@@ -457,7 +457,15 @@ g.go = { main: {
     SetHostedSecret: async () => {},
     DiscardHostedSecrets: async () => {},
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
-    RunAgent: async () => localResult,
+    // A run on this computer is handed to the run's flow at Run
+    // (agentry-desktop#465): Go's first report says it has begun, then its
+    // result comes back, and the flow shows the result the panel used to.
+    RunAgent: async () => {
+      const begun = { runId: localResult.runId, ref: localResult.ref, startedAt: Date.now() - 41_200, timeoutSeconds: 900, maxTurns: 60, turns: 4, inputTokens: 5120, outputTokens: 1430, prepared: true };
+      for (const cb of listeners["runner:run-progress"] ?? []) cb(begun);
+      return localResult;
+    },
+    ForgetRun: async () => {},
     UnsafeNotice: async () => unsafeNotice,
     RunOutputs: async () => runOutputs,
     ShowRunFolder: async () => {},
@@ -504,7 +512,9 @@ g.runtime = {
   EventsOff: () => {}, EventsEmit: () => {}, LogPrint: () => {},
 };
 
+import { useState } from "react";
 import RunPanel from "../src/pages/RunPanel";
+import RunFlow from "../src/pages/RunFlow";
 import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
@@ -560,9 +570,16 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
 } else if (view === "toolspanel" || view === "toolspanel-hostile") {
   createRoot(el).render(<><Backdrop /><ToolsPanel registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0" onClose={() => {}} /></>);
 } else {
+  // The setup closes once a run on this computer has begun, as the pages'
+  // own do; the run's flow, mounted as App mounts it, shows the rest.
+  const Panel = (props: React.ComponentProps<typeof RunPanel>) => {
+    const [open, setOpen] = useState(true);
+    return open ? <RunPanel {...props} onClose={() => setOpen(false)} /> : null;
+  };
   createRoot(el).render(
     <><Backdrop />
-      <RunPanel
+      <RunFlow onBackToSetup={() => {}} />
+      <Panel
         registry="https://secureagentry.net"
         ns={keysShape ? "agentry" : "demo1"} name={keysShape ? "pr-review-brief" : "incident-summarizer"} version={keysShape ? "1.2.1" : "1.2.0"}
         attestation={att} onClose={() => {}} local={localInstall}

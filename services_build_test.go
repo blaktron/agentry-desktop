@@ -335,7 +335,7 @@ func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	// draft.
 	for _, ref := range []string{"acme/triage@1.0.0", drafter.Namespace + "/" + drafter.Name, knowledgeRunRef} {
 		cancelled := false
-		l, err := f.b.run.beginRun(ref, func() { cancelled = true })
+		l, err := f.b.run.beginRun(jobRun, ref, func() { cancelled = true })
 		if err != nil {
 			t.Fatal(err)
 		}

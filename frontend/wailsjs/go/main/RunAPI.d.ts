@@ -35,11 +35,15 @@ export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
 export function ForgetJevKey():Promise<main.JevKeyView>;
 
+export function ForgetRun(arg1:string):Promise<void>;
+
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
 
 export function HarnessStatus():Promise<Array<main.HarnessView>>;
 
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedAvailabilityView>;
+
+export function InFlight():Promise<main.InFlightView>;
 
 export function InstallDocker():Promise<main.PrereqView>;
 
@@ -86,6 +90,8 @@ export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<st
 export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>):Promise<main.HostedStartView>;
 
 export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>):Promise<main.SessionView>;
+
+export function StopRun():Promise<void>;
 
 export function StoreJevKey(arg1:string):Promise<main.JevKeyView>;
 

@@ -2340,6 +2340,20 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class InFlightView {
+	    kind: string;
+	    line: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new InFlightView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.line = source["line"];
+	    }
+	}
 	export class InstallUpdatesView {
 	    checked?: string;
 	    available: number;

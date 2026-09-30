@@ -106,3 +106,23 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
           : "In Agentry is unavailable for it (the notice below says why)";
   return `Your Run defaults say In Agentry, but ${why}, so this run starts on this computer.`;
 }
+
+/** The run setup's answers, as the person left them: kept with a run on
+ *  this computer so that Back to the setup reopens the setup as it was
+ *  (agentry-desktop#465). */
+export type RunForm = {
+  mode: string;
+  task: string;
+  inputs: string[];
+  pickedFiles: string[];
+  intakeValues: Record<string, string>;
+  attach: string[];
+  outDir: string;
+  timeoutSec: string;
+  maxTurns: string;
+  keep: boolean;
+  keepTouched: boolean;
+  acceptUnsigned: boolean;
+  acceptUnscanned: boolean;
+  allowVulnerableMCP: boolean;
+};
