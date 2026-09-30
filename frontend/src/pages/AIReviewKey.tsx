@@ -2,11 +2,21 @@
 // TypeSafe Jev key, which Describe it, on this computer scans with. It is
 // kept in the OS keychain beside the model key (RunAPI.StoreJevKey, the one
 // call that carries it), shown as saved and never as its value, and Test
-// key makes one small call and says TypeSafe's answer in plain words.
+// key makes one small call and says TypeSafe's answer in plain words. The
+// card leads with the recommendation to get a key and the link to TypeSafe
+// (reviewKey.ts, #461), which every surface that offers the key shares.
 import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
+import { GET_A_KEY, KEY_RECOMMENDATION, TYPESAFE_URL } from "../reviewKey";
+
+/** The link to TypeSafe, where a person gets a key: the system browser
+ *  opens it (App.OpenExternal), at the one address reviewKey.ts holds. */
+export function GetAKeyLink() {
+  return <Button variant="link" onClick={() => void OpenExternal(TYPESAFE_URL)}>{GET_A_KEY}</Button>;
+}
 
 /** Where the key stands, in one sentence. */
 export function jevKeySentence(k: main.JevKeyView): string {
@@ -60,7 +70,10 @@ export function AIReviewKeyCard() {
 
   return (
     <Card>
-      <p className="muted small" style={{ marginTop: 0 }}>
+      <p style={{ marginTop: 0 }}>
+        {KEY_RECOMMENDATION} <GetAKeyLink />
+      </p>
+      <p className="muted small">
         Your own TypeSafe Jev key. When you describe a QuickAgent and draft it on this computer, AI Review reads your
         description, and every page and search result the draft reads, with this key before the model sees any of it.
         What it flags is held back. It is kept in this computer&apos;s keychain next to your model key: not in a file,

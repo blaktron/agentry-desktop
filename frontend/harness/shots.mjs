@@ -23,6 +23,11 @@ const outDir = path.join(here, "shots");
 const port = Number(process.env.HARNESS_PORT ?? 5199);
 const base = `http://localhost:${port}`;
 
+// The AI Review key's recommendation, word for word as the operator decided
+// it (plan desktop-review-key-and-run-cards.md D1): spelled out here, not
+// imported, so a change to the app's sentence fails the states that show it.
+const KEY_RECOMMENDATION = "Agentry's AI Review is powered by TypeSafe AI's Jev System One. We highly recommend signing up with TypeSafe and getting an API key if you want to build shareable QuickAgents or submit them to Agentry.";
+
 // One entry per state the panel can be in, as the issue lists them.
 const states = [
   { name: "runpanel-modes", url: "/modals.html#runpanel", note: "Before you start: what it does, what to have ready, where to run it (In Agentry beside the local modes)", expectText: "What to have ready" },
@@ -175,8 +180,13 @@ const states = [
   // the wizard on that export.
   // Settings → AI Review key (#282): saved, never shown; none saved; and
   // Test key answered with TypeSafe's refusal in plain words.
-  { name: "settings-aireview-key", url: "/pages.html?settings=provider", note: "Settings → AI Review key: saved in the keychain, the value never shown, Test key and Forget", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Saved in this computer's keychain." },
-  { name: "settings-aireview-key-none", url: "/pages.html?settings=provider#aireview-none", note: "no AI Review key: drafting on this computer is off until one is added; Test key greyed", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: "Drafting on this computer is off" },
+  // The card leads with the operator's recommendation and the link to
+  // TypeSafe (#461): the sentence word for word in every state, and the
+  // link opening the one address, read from what the app asked to open.
+  { name: "settings-aireview-key", url: "/pages.html?settings=provider", note: "Settings → AI Review key: the recommendation and the TypeSafe link, then saved in the keychain, the value never shown, Test key and Forget", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: ["Saved in this computer's keychain.", KEY_RECOMMENDATION, "Get a key from TypeSafe"] },
+  { name: "settings-aireview-key-none", url: "/pages.html?settings=provider#aireview-none", note: "no AI Review key: the recommendation, drafting on this computer is off until one is added; Test key greyed", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: ["Drafting on this computer is off", KEY_RECOMMENDATION, "Get a key from TypeSafe"] },
+  { name: "settings-aireview-key-env", url: "/pages.html?settings=provider#aireview-env", note: "the key from the variable the app was started with: the recommendation, and the line naming the variable", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', expectText: ["$TYPESAFE_API_KEY is set where this app was started", KEY_RECOMMENDATION] },
+  { name: "settings-aireview-key-link", url: "/pages.html?settings=provider#aireview-none", note: "Get a key from TypeSafe opens https://typesafe.ai in the system browser, and nothing else", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', click: '[data-preview="settings"] button:has-text("Get a key from TypeSafe")', expectOpened: ["https://typesafe.ai"] },
   { name: "settings-aireview-key-refused", url: "/pages.html?settings=provider#aireview-refused", note: "Test key answered 401: TypeSafe's refusal in plain words, and which key was tried", locator: '[data-preview="settings"] .card:has-text("Your own TypeSafe Jev key")', click: '[data-preview="settings"] button:has-text("Test key")', expectText: "TypeSafe refused the key (401)" },
   { name: "settings-coding-agents", url: "/pages.html?settings=coding-agents", note: "Settings → Coding agents: Claude Code chosen, the Claude skill in ~/.claude/skills, the switch off", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
   { name: "settings-coding-agents-codex", url: "/pages.html?settings=coding-agents#coding-codex", note: "Codex chosen: AGENTS.md in the chosen project folder, the switch on", locator: '[data-preview="settings"] .card:has-text("Also install into")' },
@@ -219,7 +229,7 @@ const states = [
   // greyed); a draft on Review with the Drafter's notes; a hostile draft
   // whose notes, match, source and withheld address must stay text.
   { name: "page-build-describe", url: "/pages.html#build-describe", note: "Describe it: the description, the hints, on this computer with the policy's model, the key from the keychain, the search line and where the description goes", locator: '[data-preview="build"]', expectText: "AI Review uses your key from this computer's keychain" },
-  { name: "page-build-describe-nokey", url: "/pages.html#build-describe-nokey", note: "Describe it with no AI Review key: the Settings pointer, and Draft it greyed", locator: '[data-preview="build"]', expectText: "needs your own TypeSafe Jev key" },
+  { name: "page-build-describe-nokey", url: "/pages.html#build-describe-nokey", note: "Describe it with no AI Review key: the Settings pointer, the TypeSafe link, and Draft it greyed", locator: '[data-preview="build"]', click: '[data-preview="build"] button:has-text("Get a key from TypeSafe")', expectText: "needs your own TypeSafe Jev key", expectOpened: ["https://typesafe.ai"] },
   { name: "page-build-drafted", url: "/pages.html#build-drafted", note: "a draft on Review, How it was drafted opened: AI Review's check of the finished draft, what AI Review read and held back, the registry's match with its page, the open questions, the Drafter's notes, the sources", locator: '[data-preview="build"]', click: '[data-preview="build"] summary:has-text("How it was drafted")', expectText: ["AI Review read 6 results with your key and held back 0", "The release check: flagged.", "reaching for something the contract does not declare (C3, score 3) in AGENT.md", "This finding sends the version to review when you submit"] },
   { name: "page-build-drafted-hostile", url: "/pages.html#build-drafted-hostile", note: "a hostile draft on Review, How it was drafted opened: no markup of its own, no image, no javascript: link, the withheld address and the check's hostile finding as text, the override shown", locator: '[data-preview="build"]', click: '[data-preview="build"] summary:has-text("How it was drafted")', expectText: ["U+202E", "<img src=x onerror=alert(1)>"], expectNone: '[data-preview="build"] .card img, [data-preview="build"] .card script, [data-preview="build"] .card iframe, [data-preview="build"] .card b[onclick], [data-preview="build"] .card a[href^="javascript"], [data-preview="build"] .card a[href*="evil.example"]' },
   // Describe it In Agentry (#281): the hold in the site's words, the caps
@@ -479,6 +489,12 @@ try {
         const [sel, want] = state.expectValue;
         const got = await page.locator(sel).first().inputValue();
         if (got !== want) throw new Error(`${state.name}: ${sel} holds "${got}", not "${want}"`);
+      }
+      if (state.expectOpened) {
+        // What the app asked the system browser to open, exactly: the
+        // harness's App.OpenExternal records each address (#461).
+        const opened = await page.evaluate(() => window.__opened ?? []);
+        if (JSON.stringify(opened) !== JSON.stringify(state.expectOpened)) throw new Error(`${state.name}: opened ${JSON.stringify(opened)}, not ${JSON.stringify(state.expectOpened)}`);
       }
       if (state.expectSection) {
         // The route, not only the shot: which Settings page is showing.

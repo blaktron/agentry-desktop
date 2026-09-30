@@ -95,8 +95,16 @@ questions, the notes and the sources. `#build-drafted-hostile` is a draft whose
 notes, match, source and withheld address carry raw HTML, a script, an image,
 `javascript:` links and a right-to-left override; `shots.mjs` fails it if any
 becomes markup or a link. Settings → Provider settings → AI Review key is `settings-aireview-key`
-(saved), `#aireview-none` (none) and `#aireview-refused` (Test key answered
-401).
+(saved), `#aireview-none` (none), `#aireview-env` (the key from the variable
+the app was started with) and `#aireview-refused` (Test key answered 401).
+Since agentry-desktop#461 the card leads with the operator's recommendation
+to get a TypeSafe key and the link *Get a key from TypeSafe*, which Describe
+it's missing-key notice carries too. `shots.mjs` holds the sentence word for
+word in each state (spelled out there, not imported), and
+`settings-aireview-key-link` and `page-build-describe-nokey` click the link
+and fail unless the app asked the system browser for exactly
+`https://typesafe.ai`: the harness's `App.OpenExternal` records each address
+in `window.__opened`, and `expectOpened` reads it.
 
 The Knowledge panel (agentry-desktop#273) has its own entry, `knowledge.html`
 (`knowledge.tsx`): `#knowledge` is the list signed in (a pack kept here only,

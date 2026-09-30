@@ -254,6 +254,14 @@ The product never claims an agent is "safe". The language is always:
 - **Settings → Provider settings → AI Review key** — your own TypeSafe Jev key, which every
   local action that requires a scan uses (today, Describe it on this
   computer; plan builder-rework.md D25).
+  - What it leads with: the recommendation to get a key ("Agentry's AI Review
+    is powered by TypeSafe AI's Jev System One. We highly recommend signing up
+    with TypeSafe and getting an API key if you want to build shareable
+    QuickAgents or submit them to Agentry.") and *Get a key from TypeSafe*,
+    which opens `https://typesafe.ai` in the system browser. The words and the
+    address are one module's (`frontend/src/reviewKey.ts`), so every place
+    that offers the key says the same; Describe it's missing-key notice
+    carries the same link (agentry-desktop#461).
   - Where it is kept: in the OS keychain next to your model key, as the entry
     `provider:typesafe` under the CLI's `agentry` service. The runner policy
     records only `judge: {apiKeySource: keyring}`, so `agentry draft` reads
