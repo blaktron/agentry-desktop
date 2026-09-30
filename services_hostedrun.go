@@ -419,7 +419,9 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	if err != nil {
 		return nil, err
 	}
-	dir = r.follow(reg, token, dir, created)
+	if dir, err = r.follow(reg, token, dir, created); err != nil {
+		return nil, err
+	}
 	return &HostedStartView{Run: hostedRunView(created, dir, nil, "", "", false)}, nil
 }
 
@@ -496,6 +498,9 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	}
 	client := hostedrun.New(reg, token)
 	if cur := r.hostedCurrent(); cur != nil {
+		if cur.registry != reg {
+			return &HostedStartView{}, nil
+		}
 		return r.followedView(ctx, client, cur), nil
 	}
 	runs, err := client.List(ctx)
@@ -515,7 +520,9 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir = r.follow(reg, token, dir, active)
+	if dir, err = r.follow(reg, token, dir, active); err != nil {
+		return nil, err
+	}
 	return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
 }
 
@@ -527,11 +534,11 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 // does not yet.
 func activeRun(runs []hostedrun.Run, sessions bool) *hostedrun.Run {
 	for i := range runs {
-		r := &runs[i]
-		if !hostedrun.Active(r.Status) || r.IsBuild() || r.IsDraft() || (r.IsSession() && !sessions) {
+		run := &runs[i]
+		if !hostedrun.Active(run.Status) || run.IsBuild() || run.IsDraft() || (run.IsSession() && !sessions) {
 			continue
 		}
-		return r
+		return run
 	}
 	return nil
 }
@@ -546,13 +553,12 @@ func (r *RunAPI) followedView(ctx context.Context, client *hostedrun.Client, cur
 }
 
 // attachDir is the folder a run attached to downloads into: the one it
-// was started to when this app lost touch with it (taken, so it is used
-// once), else dir as hostedOutDir makes it one of the run's own.
+// was started to when this app lost touch with it (claimFollow drops it
+// once the run is followed again), else dir as hostedOutDir makes it one of
+// the run's own.
 func (r *RunAPI) attachDir(reg, dir string, run *hostedrun.Run) (string, error) {
 	r.hostedMu.Lock()
-	k := lostKey{reg, run.ID}
-	lost, ok := r.lostDirs[k]
-	delete(r.lostDirs, k)
+	lost, ok := r.lostDirs[lostKey{reg, run.ID}]
 	r.hostedMu.Unlock()
 	if ok {
 		return lost, nil
@@ -608,7 +614,9 @@ func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir = r.follow(reg, token, dir, active)
+	if dir, err = r.follow(reg, token, dir, active); err != nil {
+		return nil, err
+	}
 	return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
 }
 
@@ -636,12 +644,12 @@ func (r *RunAPI) CancelHostedRun() (*HostedRunView, error) {
 // forward: a pushed run keeps none (hosted runs in production, D12, D16),
 // so the panel shows where the run stands and, at the end, what it
 // produced.
-func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) string {
+func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) (string, *hostedFollow) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{registry: reg, id: started.ID, ref: started.Ref, outDir: outDir, cancel: cancel, done: make(chan struct{})}
 	if cur := r.claimFollow(f); cur != nil {
 		cancel()
-		return cur.outDir
+		return cur.outDir, cur
 	}
 
 	client := hostedrun.New(reg, token)
@@ -659,7 +667,7 @@ func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run)
 		}()
 		r.watchAndDeliver(ctx, client, reg, started, outDir, poll)
 	}()
-	return outDir
+	return outDir, nil
 }
 
 // watchAndDeliver re-reads a run until it is over, reporting each move,

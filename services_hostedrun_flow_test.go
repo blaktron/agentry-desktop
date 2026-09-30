@@ -237,3 +237,28 @@ func TestALostRunsFolderIsUsedOnceAndForgottenOnDismiss(t *testing.T) {
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
 	waitForIdle(t, r)
 }
+
+// When what this app already follows is another run (a second registry's),
+// following a run says so and names both, rather than answering with the
+// other run's folder for a run no loop follows.
+func TestFollowingWhileAnotherRunIsFollowedSaysSo(t *testing.T) {
+	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
+	f := &hostedFake{enabled: true, run: run}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	other := &hostedFollow{registry: "https://other.example.test", id: "55555555-5555-5555-5555-555555555555", outDir: t.TempDir(), cancel: func() {}, done: make(chan struct{})}
+	r.hostedMu.Lock()
+	r.hosted = other
+	r.hostedMu.Unlock()
+	_, err := r.follow(reg, hostedTestToken, t.TempDir(), run)
+	if err == nil || !strings.Contains(err.Error(), other.id) || !strings.Contains(err.Error(), run.ID) {
+		t.Fatalf("follow over another run = %v", err)
+	}
+	if r.hostedCurrent() != other {
+		t.Fatal("the run already followed was replaced")
+	}
+	r.hostedMu.Lock()
+	r.hosted = nil
+	r.hostedMu.Unlock()
+}

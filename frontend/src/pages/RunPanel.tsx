@@ -25,7 +25,7 @@ import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spin
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
 import { followHostedRunFound, startHostedRun, startLocalRun, useHostedRun } from "../runs";
 import { headlineOf } from "../localRun";
-import { hostedActive as moving, hostedHeadline, hostedTone } from "../hostedRun";
+import { hostedActive as hostedMoving, hostedHeadline, hostedTone } from "../hostedRun";
 import SessionChat from "./SessionChat";
 import { HostedCredits, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
@@ -298,7 +298,7 @@ export default function RunPanel({
     }
   }, [defaults, hosted, unscanned, profile, hostedRun, initialMode, mode]);
   const fallback = modeChosen.current || initialMode || !defaults || !hostedKnown ? null : whereFallback(defaults.where, hosted, unscanned);
-  const hostedActive = !!hostedRun && moving(hostedRun);
+  const hostedActive = !!hostedRun && hostedMoving(hostedRun);
   // The run In Agentry the app follows above the pages: the registry runs
   // one per account, so while it moves, or a start waits for the
   // registry's answer, no setup starts another (agentry-desktop#466).
