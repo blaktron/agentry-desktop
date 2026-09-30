@@ -16,7 +16,7 @@ func TestSessionOfferMatrix(t *testing.T) {
 	full := []string{ScopeRunRead, ScopeRunWrite, "agent:read"}
 	base := Facts{
 		SignedIn: true, Extension: true, Modes: []string{"interactive"}, Scopes: full, ScopesKnown: true,
-		Enabled: true, StatusKnown: true, SessionsEnabled: true, SessionAllowed: &yes,
+		Enabled: true, StatusKnown: true, SessionsEnabled: true, SessionAllowed: &yes, HostsOnline: 1,
 	}
 	with := func(f func(*Facts)) Facts {
 		c := base
@@ -47,6 +47,11 @@ func TestSessionOfferMatrix(t *testing.T) {
 		{"a Standard payer", with(func(f *Facts) { f.SessionAllowed = &no }), true, false, true, "Pro"},
 		{"a Standard payer with an old token", with(func(f *Facts) { f.SessionAllowed, f.Scopes = &no, []string{"agent:read"} }), true, false, true, "Pro"},
 		{"an old token", with(func(f *Facts) { f.Scopes = []string{"agent:read"} }), true, false, false, "run:read"},
+		// A person waits on a session as it starts, so the registry refuses
+		// one with no sandbox host answering (409 sessions-unavailable)
+		// rather than queueing it (agentry-desktop#437).
+		{"no sandbox host answering", with(func(f *Facts) { f.HostsOnline = 0 }), true, false, false, "No sandbox host is answering"},
+		{"no host, and a Standard payer", with(func(f *Facts) { f.HostsOnline, f.SessionAllowed = 0, &no }), true, false, true, "Pro"},
 		{"scopes unreadable", with(func(f *Facts) { f.ScopesKnown, f.Scopes = false, nil }), true, false, false, "did not say"},
 		{"a declared secret, no vault", with(func(f *Facts) { f.DeclaredSecrets = []string{"PAGERDUTY_TOKEN"} }), true, false, false, "PAGERDUTY_TOKEN"},
 		{"a declared secret, the vault and the scope", with(func(f *Facts) {

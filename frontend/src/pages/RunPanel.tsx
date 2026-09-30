@@ -1207,6 +1207,8 @@ export default function RunPanel({
                           ? "This account already has a run In Agentry."
                           : hostedRefusal.refusal === "session-tier"
                             ? "Talking to an agent In Agentry is not part of this subscription."
+                            : hostedRefusal.refusal === "sessions-unavailable"
+                              ? "A session In Agentry cannot start right now."
                             : `The registry refused this ${sessionInAgentry ? "session" : "run"}.`}
                     </strong>{" "}
                     <span className="selectable">{hostedRefusal.detail}</span>
