@@ -18,6 +18,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"github.com/blaktron/agentry-desktop/internal/applog"
+	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
@@ -32,6 +33,13 @@ func main() {
 	// goes). No window, no other argument is read.
 	if len(os.Args) > 1 && os.Args[1] == uninstall.Flag {
 		os.Exit(uninstall.Main(os.Stderr))
+	}
+	// Its images step, unless "Keep my Docker images" is ticked: Agentry's
+	// Docker images, chosen by name (internal/dockerimages), before the
+	// settings step deletes the policy that may name them
+	// (agentry-desktop#424).
+	if len(os.Args) > 1 && os.Args[1] == uninstall.ImagesFlag {
+		os.Exit(uninstall.ImagesMain(os.Stderr, dockerimages.NewCLI()))
 	}
 	app := NewApp()
 	settingsAPI := &SettingsAPI{app: app}

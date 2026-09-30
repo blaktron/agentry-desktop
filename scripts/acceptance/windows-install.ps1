@@ -6,7 +6,9 @@ install release N-1, write known settings and a Credential Manager entry,
 install release N over it, prove every byte and the credential survive,
 uninstall silently and prove they still do; then, with -RemoveSettings, run
 the removal the uninstaller's tick box runs and prove exactly those things
-went. Until #55 gives CI a Windows runner this is the operator's step, and
+went. A silent uninstall also removes the Docker images Agentry put on the
+machine, since "Keep my Docker images" is off by default (agentry-desktop#424):
+run it where losing those images is fine; the next run fetches them again. Until #55 gives CI a Windows runner this is the operator's step, and
 the issue comment says whether it ran.
 
 .EXAMPLE
@@ -107,7 +109,12 @@ if ($RemoveSettings) {
 # 4b. The default uninstall.
 $p = Start-Process -FilePath $uninst -ArgumentList '/S' -Wait -PassThru
 if ($p.ExitCode -ne 0) { Fail "uninstall.exe /S exited $($p.ExitCode)" }
-Start-Sleep -Seconds 2   # the uninstaller copies itself to %TEMP% and finishes after the process returns
+# The uninstaller copies itself to %TEMP% and finishes after the process
+# returns; its Docker images step (agentry-desktop#424) waits on Docker for
+# up to three minutes first, so wait for the application to go rather than
+# for a fixed time.
+$deadline = (Get-Date).AddMinutes(4)
+while ((Test-Path $exe) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Seconds 2 }
 if (Test-Path $exe) { Fail "$exe still exists after uninstalling" }
 if (Get-ItemProperty $uninstKey -ErrorAction SilentlyContinue) { Fail "the Apps & features entry is still there" }
 if (-not $RemoveSettings) {
