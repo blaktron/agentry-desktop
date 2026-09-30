@@ -32,12 +32,12 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/intake"
+	"github.com/blaktron/agentry-cli/pkg/runner/localinstall"
 	"github.com/blaktron/agentry-cli/pkg/runner/mcpinstall"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
-	"github.com/blaktron/agentry-cli/pkg/runner/localinstall"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
@@ -1082,16 +1082,8 @@ func manifestFromWorkspace(dir string) (*manifest.Manifest, error) {
 	return m, nil
 }
 
-// extractLimits bounds what the app unpacks — identical to the install
-// engine's (and the CLI's): the client's job is only to refuse a bomb.
-func extractLimits() pkgarchive.ExtractLimits {
-	return pkgarchive.ExtractLimits{
-		MaxFileBytes:  registry.ExtractMaxFileBytes,
-		MaxTotalBytes: registry.ExtractMaxTotalBytes,
-		MaxFiles:      20000,
-		MaxRatio:      500,
-	}
-}
+// extractLimits is the app's one bound on what it unpacks.
+func extractLimits() pkgarchive.ExtractLimits { return registry.ExtractLimits() }
 
 // loadPolicyForRead loads the operator policy without creating it: status
 // surfaces must not write files as a side effect of looking.

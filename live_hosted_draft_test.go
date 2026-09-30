@@ -16,15 +16,17 @@ package main
 // the Model, saves the Model into a folder the picker gave, and validates
 // it. With AGENTRY_LIVE_HOSTED_DRAFT_AGAIN=1 it then describes again from
 // the saved draft and a note, and with AGENTRY_LIVE_HOSTED_DRAFT_PUBLISH=1
-// it publishes the (last) draft privately, which sends it into the
-// pipeline; the account's email must be verified for that.
+// it submits the (last) draft, publicly since agentry-desktop#425, which
+// sends it into the pipeline; the account's email must be verified for that.
 //
 // With AGENTRY_LIVE_HOSTED_DRAFT_SUBMIT=1 (agentry-desktop#344, plan
 // builder-simplify.md M5) it takes the summary's path instead of the form's:
 // the draft lands, BuildAPI.Summary draws it, the Builder's own settings
 // (D10) hold, and Submit, the second click, saves it into the picked folder
-// and publishes it privately (D3) with no edit in between. The form's checks
-// must pass as the draft came, or Submit would be greyed.
+// and submits it publicly with no edit in between, its native warning (the
+// cost and public) answered Yes (agentry-desktop#425, reversing D3's private
+// default). The form's checks must pass as the draft came, or Submit would
+// be greyed.
 
 import (
 	"context"
@@ -83,7 +85,15 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() { emitEvent = emit })
-	app := &App{ctx: context.Background()}
+	// Submit's warning (agentry-desktop#425) is answered Yes, and what it
+	// said is kept for the test to read: public, and the account's cost.
+	var submitWarning string
+	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, msg string) (bool, error) {
+		if strings.HasPrefix(title, "Submit ") {
+			submitWarning = msg
+		}
+		return true, nil
+	}}
 	b := &BuildAPI{app: app, run: &RunAPI{app: app}}
 
 	avail, err := b.DescribeInAgentryStatus(reg)
@@ -193,9 +203,16 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		if err := b.Save(sdir, *m); err != nil {
 			t.Fatal(err)
 		}
-		pub, err := b.Publish(reg, sdir, "private")
+		pub, err := b.Submit(reg, sdir)
 		if err != nil {
 			t.Fatal(err)
+		}
+		t.Logf("submit warning:\n%s", submitWarning)
+		if !strings.Contains(submitWarning, "makes it public") || !strings.Contains(submitWarning, "credit") {
+			t.Fatalf("the warning does not say public and the cost:\n%s", submitWarning)
+		}
+		if pub.Visibility != "public" {
+			t.Fatalf("submitted, yet %s: %s", pub.Visibility, pub.VisibilityNote)
 		}
 		t.Logf("submit: %s %s/%s@%s %s", pub.Status, m.Namespace, m.Name, pub.Version, pub.Detail)
 		// The pipeline takes it: published, or held for a person's review.
@@ -261,7 +278,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		if err := b.Save(dir, m); err != nil {
 			t.Fatal(err)
 		}
-		pub, err := b.Publish(reg, dir, "private")
+		pub, err := b.Submit(reg, dir)
 		if err != nil {
 			t.Fatal(err)
 		}

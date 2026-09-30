@@ -7,8 +7,11 @@ package install
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/installed"
@@ -136,5 +139,49 @@ func TestCheckUpdateForTheRunnerRecord(t *testing.T) {
 	info, err = CheckUpdateFor(context.Background(), "acme", "demo")
 	if err != nil || info == nil || info.Error == "" || info.UpdateAvailable {
 		t.Fatalf("unreachable: %+v err %v", info, err)
+	}
+}
+
+// TestALocalInstallAsksNoRegistry (agentry-desktop#425): a QuickAgent
+// installed from a folder lists as local with no origin, and its update
+// check sends nothing anywhere, the default registry included.
+func TestALocalInstallAsksNoRegistry(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	reg := srv.URL
+	if err := settings.Save(settings.Settings{DefaultRegistry: reg, Registries: []settings.Registry{{URL: reg}}}); err != nil {
+		t.Fatal(err)
+	}
+	var st installed.State
+	key := installdir.ConsentKey(home, "acme", "demo")
+	st.Upsert(key, "1.0.0", installed.CapSnapshot{}, true)
+	st.MarkLocal(key, "sha256:"+strings.Repeat("a", 64))
+	if err := installed.Save(st); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := List()
+	if err != nil || len(items) != 1 {
+		t.Fatalf("List = %+v, %v", items, err)
+	}
+	if !items[0].Local || items[0].Origin != "" {
+		t.Errorf("local item = %+v, want local with no origin", items[0])
+	}
+	info, err := CheckUpdateFor(context.Background(), "acme", "demo")
+	if err != nil || info == nil || info.UpdateAvailable || info.Latest != "" || info.Error != "" || info.Current != "1.0.0" {
+		t.Fatalf("local record's check = %+v, %v", info, err)
+	}
+	if _, err := CheckUpdates(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("the registry served %d requests for a local install", n)
 	}
 }

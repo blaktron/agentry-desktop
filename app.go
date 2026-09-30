@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -28,13 +29,21 @@ type App struct {
 	// pickDirectory is the native directory picker ("" when cancelled);
 	// a test substitutes one, the way it does for confirm.
 	pickDirectory func(ctx context.Context, title string) (string, error)
-	mu            sync.Mutex
-	picked        map[string]bool
+	// pickDirectoryIn is the same picker opened in a given folder; nil
+	// falls back to pickDirectory, which is what a test substitutes.
+	pickDirectoryIn func(ctx context.Context, title, start string) (string, error)
+	mu              sync.Mutex
+	picked          map[string]bool
 }
 
 // NewApp creates the application struct.
 func NewApp() *App {
-	return &App{confirm: nativeConfirm, pickDirectory: nativePickDirectory}
+	return &App{confirm: nativeConfirm, pickDirectory: nativePickDirectory, pickDirectoryIn: nativePickDirectoryIn}
+}
+
+// nativePickDirectoryIn is the OS directory dialog opened in start.
+func nativePickDirectoryIn(ctx context.Context, title, start string) (string, error) {
+	return runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{Title: title, DefaultDirectory: start})
 }
 
 // nativePickDirectory is the OS directory dialog.
@@ -54,6 +63,10 @@ func nativeConfirm(ctx context.Context, title, message string) (bool, error) {
 	return answer == "Yes", nil
 }
 
+// errNotConfirmed is askConsent's answer to a No, for a binding whose No
+// is an outcome rather than a failure.
+var errNotConfirmed = errors.New("not confirmed")
+
 // askConsent puts the question to the person in a native dialog and
 // returns whether they said yes. A binding that would act on a consent the
 // page passed calls this first; the page's own checkbox is a hint, the
@@ -68,7 +81,7 @@ func (a *App) askConsent(title, message string) error {
 		return fmt.Errorf("consent dialog: %w", err)
 	}
 	if !yes {
-		return fmt.Errorf("not confirmed: %s", title)
+		return fmt.Errorf("%w: %s", errNotConfirmed, title)
 	}
 	return nil
 }
@@ -187,6 +200,20 @@ func (a *App) AppVersion() string {
 // path ("" when the user cancelled).
 func (a *App) ChooseDirectory(title string) (string, error) {
 	return a.chooseDirectory(title)
+}
+
+// ChooseSaveFolder is ChooseDirectory opened in the person's Documents
+// folder: where the Build tab's Save asks where a QuickAgent goes
+// (agentry-desktop#425). What it returns is marked picked the same way.
+func (a *App) ChooseSaveFolder(title string) (string, error) {
+	if a.pickDirectoryIn == nil {
+		return a.chooseDirectory(title)
+	}
+	dir, err := a.pickDirectoryIn(a.ctx, title, documentsDir())
+	if err == nil {
+		a.markPicked(dir)
+	}
+	return dir, err
 }
 
 // chooseDirectory is the picker behind ChooseDirectory and behind the
