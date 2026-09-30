@@ -22,8 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/drafter"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
@@ -36,6 +34,7 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
@@ -171,54 +170,21 @@ const (
 )
 
 // Progress is how far one draft has got, for the progress dialog and its
-// corner card.
+// corner card: the report every job carries (its start; its budgets, which
+// are Plan.Budgets, the runner policy's with at least 30 minutes, and which
+// the repair turn runs inside what is left of; the harness's usage, the
+// repair turn's counted on from the first's), and the stage it is in.
 type Progress struct {
-	// StartedAt is when the draft began, in Unix milliseconds: the page
-	// counts the elapsed time itself.
-	StartedAt int64 `json:"startedAt"`
-	// TimeoutSeconds and MaxTurns are the draft's budgets (Plan.Budgets:
-	// the runner policy's, with at least 30 minutes); the repair turn runs
-	// inside what is left of them. Zero turns is no limit.
-	TimeoutSeconds int `json:"timeoutSeconds"`
-	MaxTurns       int `json:"maxTurns"`
-	// Turns, InputTokens and OutputTokens are the harness's usage as it
-	// last reported it, the repair turn's counted on from the first's.
-	Turns        int   `json:"turns"`
-	InputTokens  int64 `json:"inputTokens"`
-	OutputTokens int64 `json:"outputTokens"`
-	Stage        Stage `json:"stage"`
+	progress.Report
+	Stage Stage `json:"stage"`
 }
 
-// progressMeter reports a draft's Progress under a lock, so a usage report
-// from the harness and a stage change arrive in the order they were made.
-type progressMeter struct {
-	report func(Progress)
-	mu     sync.Mutex
-	p      Progress
-}
-
-func newProgressMeter(report func(Progress), timeoutSeconds, maxTurns int) *progressMeter {
-	return &progressMeter{report: report, p: Progress{StartedAt: time.Now().UnixMilli(), TimeoutSeconds: timeoutSeconds, MaxTurns: maxTurns}}
-}
-
-func (m *progressMeter) stage(s Stage) {
-	if m.report == nil {
-		return
+// atStage moves a draft's Progress to s.
+func atStage(s Stage) func(*Progress) bool {
+	return func(p *Progress) bool {
+		p.Stage = s
+		return true
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.p.Stage = s
-	m.report(m.p)
-}
-
-func (m *progressMeter) usage(u receipt.Usage) {
-	if m.report == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.p.Turns, m.p.InputTokens, m.p.OutputTokens = u.Turns, u.InputTokens, u.OutputTokens
-	m.report(m.p)
 }
 
 // Result is a finished draft: the draft as `agentry draft` records it,
@@ -250,8 +216,8 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		logw = io.Discard
 	}
 	b := p.Budgets()
-	prog := newProgressMeter(req.Progress, b.TimeoutSeconds, b.MaxTurns)
-	prog.stage(StageDescription)
+	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(b.TimeoutSeconds, b.MaxTurns)})
+	prog.Set(atStage(StageDescription))
 	scanner := req.Scanner
 	if scanner == nil {
 		scanner = drafter.CoreJev
@@ -286,11 +252,11 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		Builtin: localrun.Drafter(), Home: home, Policy: p.Policy, PolicySHA: p.PolicySHA, PolicyFile: &p.PolicyFile,
 		Build: version.Build(), Task: strings.NewReader(p.Task), OutDir: outDir,
 		Budgets: &b,
-		RunID:   req.RunID, Stderr: logw, Web: p.Web, OnUsage: prog.usage,
+		RunID:   req.RunID, Stderr: logw, Web: p.Web, OnUsage: prog.Usage,
 	}
-	prog.stage(StageDrafting)
+	prog.Set(atStage(StageDrafting))
 	env, runErr := runner(ctx, first)
-	prog.stage(StageChecking)
+	prog.Set(atStage(StageChecking))
 	checkerFor := req.Checker
 	if checkerFor == nil {
 		checkerFor = drafter.CheckerFor
@@ -303,11 +269,11 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 			if req.OnRepairTurn != nil {
 				req.OnRepairTurn(t.RunID)
 			}
-			prog.stage(StageRepair)
-			defer prog.stage(StageChecking)
+			prog.Set(atStage(StageRepair))
+			defer prog.Set(atStage(StageChecking))
 			return runner(ctx, localrun.RepairRun(first, t))
 		},
-		OnUsage: prog.usage,
+		OnUsage: prog.Usage,
 		// The embedded rule bundle, as the desktop's own Validate uses: the
 		// app has no rules checkout or --rules-update cache of its own
 		// (DR-43's addendum names the difference from `agentry draft`).

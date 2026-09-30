@@ -48,8 +48,8 @@ import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/mai
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
-import { CornerCard, TimeBar, useNow } from "../progress";
-import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildHoldLine, buildTimeWarning, fmtClock, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
+import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
+import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildHoldLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
 type Step = "documents" | "name" | "where" | "review";
 
@@ -110,7 +110,6 @@ export default function KnowledgeCreate({
   const [result, setResult] = useState<knowledge.BuildResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
-  const logRef = useRef<HTMLPreElement | null>(null);
   // Focus follows the step once the person has moved, not on opening.
   const moved = useRef(false);
   const step = steps[at];
@@ -158,9 +157,6 @@ export default function KnowledgeCreate({
   const pastLocal = !!size && size.bytes > size.localMaxBytes;
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [log]);
   useEffect(() => {
     if (moved.current) heading.current?.focus();
   }, [at]);
@@ -297,9 +293,7 @@ export default function KnowledgeCreate({
         line={line}
         tone={tone}
         actions={<>
-          {building && (
-            <Button onClick={stopLocal} disabled={stopping}>{stopping ? "Stopping…" : "Stop"}</Button>
-          )}
+          {building && <StopButton stopping={stopping} onStop={stopLocal} />}
           {hosted && !hosted.final && !hosted.cancelRequested && hosted.status !== "finished" && hosted.status !== "cancelled" && (
             <Button onClick={cancelHosted}>Cancel the build</Button>
           )}
@@ -450,33 +444,31 @@ export default function KnowledgeCreate({
       )}
 
       {building && (
-        <>
-          <Spinner label={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`} />
-          <p className="muted small">
+        <RunningView
+          spinner={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`}
+          about={<>
             The Knowledge Creator is decoding the documents and writing the pages. This can take a long time; the pages it has
             written count up as it goes, and are checked when it finishes, which may drop some.
-          </p>
-          <BuildProgressView progress={progress} />
-          <details className="knowledge-log">
-            <summary>Build log</summary>
-            <pre ref={logRef} className="run-log selectable" aria-label="Build log">{log.join("\n")}</pre>
-          </details>
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button onClick={stopLocal} disabled={stopping}>{stopping ? "Stopping…" : "Stop the build"}</Button>
+          </>}
+          actions={<>
+            <StopButton stopping={stopping} onStop={stopLocal} label="Stop the build" />
             {onMinimize && <Button variant="primary" onClick={onMinimize}>Run in the background</Button>}
-          </div>
-          <p className="muted small">
+          </>}
+          background={<>
             In the background, the build goes on in a card in the corner and the rest of the app stays usable. Stop keeps
             the pages written so far that pass their checks.
-          </p>
-        </>
+          </>}
+        >
+          <BuildProgressView progress={progress} />
+          <FoldedLog label="Build log" lines={log} />
+        </RunningView>
       )}
 
       {!building && error && (
         <>
           <h3 className="run-outcome run-outcome-bad">{addTo ? `Nothing was added to ${addTo}` : "No pack was made"}</h3>
           <ErrorBox error={error} />
-          {log.length > 0 && <pre ref={logRef} className="run-log selectable" aria-label="Build log">{log.join("\n")}</pre>}
+          {log.length > 0 && <LogPane label="Build log" lines={log} />}
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => { setError(null); setLog([]); }}>Back</Button>
             <Button onClick={onClose}>Close</Button>
@@ -529,53 +521,23 @@ export default function KnowledgeCreate({
   );
 }
 
-// BuildProgressView is how far a build on this computer has got: the time
-// it has run against its timeout, as a bar and a clock, the turns against
-// the turn budget, the pages the Creator has written so far and the tokens
-// it has used. Before the first report it says the build is starting. The
+// BuildProgressView is how far a build on this computer has got: the shared
+// view, with the pages the Creator has written so far as its own fact. The
 // pages are counted as written: the apply step checks them after the run.
 function BuildProgressView({ progress, compact }: { progress: BuildProgress | null; compact?: boolean }) {
-  const now = useNow();
-  if (!progress) return <p className="muted small">Starting the build…</p>;
-  const elapsed = Math.max(0, (now - progress.startedAt) / 1000);
-  const bar = <TimeBar elapsed={elapsed} timeoutSeconds={progress.timeoutSeconds} label="Time used of the build's limit" />;
-  if (compact) {
-    return (
-      <div className="knowledge-progress">
-        {bar}
-        <p className="small muted">
-          {fmtClock(elapsed)}
-          {progress.timeoutSeconds > 0 && <> of up to {fmtClock(progress.timeoutSeconds)}</>} · {pagesOf(progress.pages)} written
-        </p>
-      </div>
-    );
-  }
   return (
-    <div className="knowledge-progress">
-      {bar}
-      <dl className="knowledge-facts">
-        <dt>Time</dt>
-        <dd>
-          {fmtClock(elapsed)}
-          {progress.timeoutSeconds > 0 && <> of up to {fmtClock(progress.timeoutSeconds)}</>}
-        </dd>
-        <dt>Turns</dt>
-        <dd>
-          {progress.turns}
-          {progress.maxTurns > 0 && <> of up to {progress.maxTurns}</>}
-        </dd>
-        <dt>Pages written</dt>
-        <dd>{progress.pages}</dd>
-        {(progress.inputTokens > 0 || progress.outputTokens > 0) && (
-          <>
-            <dt>Tokens</dt>
-            <dd>
-              {progress.inputTokens.toLocaleString()} input, {progress.outputTokens.toLocaleString()} output
-            </dd>
-          </>
-        )}
-      </dl>
-    </div>
+    <ProgressView
+      progress={progress}
+      job="build"
+      compact={compact}
+      fact={(p) => `${pagesOf(p.pages)} written`}
+      facts={(p) => (
+        <>
+          <dt>Pages written</dt>
+          <dd>{p.pages}</dd>
+        </>
+      )}
+    />
   );
 }
 

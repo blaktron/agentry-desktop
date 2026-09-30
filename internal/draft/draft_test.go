@@ -23,6 +23,8 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 	"github.com/blaktron/agentry/pkg/draftcheck"
+
+	"github.com/blaktron/agentry-desktop/internal/progress"
 )
 
 const (
@@ -603,5 +605,20 @@ func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
 				t.Errorf("the repair turn ran under %+v, want %d seconds at most %d tool calls", got, drafter.RepairTimeoutSeconds, drafter.RepairMaxTurns)
 			}
 		})
+	}
+}
+
+// A draft's progress event is the object the page has always read: the
+// shared report's fields and the stage, flat, in this order
+// (agentry-desktop#464 moved the shared fields into internal/progress).
+func TestADraftsProgressEventIsUnchanged(t *testing.T) {
+	p := Progress{Report: progress.Report{StartedAt: 1, TimeoutSeconds: 2, MaxTurns: 3, Turns: 4, InputTokens: 5, OutputTokens: 6}, Stage: StageRepair}
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"startedAt":1,"timeoutSeconds":2,"maxTurns":3,"turns":4,"inputTokens":5,"outputTokens":6,"stage":"repair"}`
+	if string(b) != want {
+		t.Fatalf("%s, want %s", b, want)
 	}
 }
