@@ -55,6 +55,9 @@ type liveRun struct {
 	// done is closed when the binding that owns the run has returned from
 	// the engine (RunAgent), or the session has ended (EndSession).
 	done chan struct{}
+	// ending is set by the endRun call that ends the run, under liveMu: a
+	// second call returns at once.
+	ending bool
 	// release removes the opened copies of the knowledge packs attached to
 	// the run (nil when none was). endRun calls it before closing done,
 	// which quitting waits for, up to quitWait: a run that ends in that
@@ -103,28 +106,31 @@ func (r *RunAPI) addTurn(id string) {
 }
 
 // endRun may be called from both ends of a session (EndSession and
-// shutdown): only the call that clears the record releases the attached
-// knowledge, settles the run's crash-path records and closes done.
+// shutdown): only the first call releases the attached knowledge, settles
+// the run's crash-path records and closes done.
 func (r *RunAPI) endRun(l *liveRun) {
 	r.liveMu.Lock()
-	if r.live != l {
+	if r.live != l || l.ending {
 		r.liveMu.Unlock()
 		return
 	}
+	l.ending = true
 	if l.release != nil {
 		l.release()
 	}
 	ids := append([]string{l.id}, l.turns...)
-	r.live = nil
 	r.liveMu.Unlock()
 	// Outside the lock, which the close dialog and the Stop buttons read:
 	// deleting a file Docker Desktop still holds can take seconds on
-	// Windows. Before done is closed, so a quit that waited for this run
-	// finds its records settled.
+	// Windows. The run stays the one in flight until its records are
+	// settled, so a quit in that time waits for it as for any run.
 	for _, id := range ids {
 		r.settle(id)
 	}
+	r.liveMu.Lock()
+	r.live = nil
 	close(l.done)
+	r.liveMu.Unlock()
 }
 
 // settle is what becomes of a run's crash-path record once its engine has

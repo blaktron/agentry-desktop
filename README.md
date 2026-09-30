@@ -68,7 +68,10 @@ The product never claims an agent is "safe". The language is always:
   which the local store removes about an hour on; a knowledge build's work
   directory (agentry-cli#358); the gateway's anonymous volume, which a
   finished run leaves too (agentry-cli#458); on macOS and Windows, the
-  containers the gateway itself started; and files another user owns.
+  containers the gateway itself started; the docker filter's socket
+  directory under the system's temp directory, used when the runner home's
+  path is too long for a socket; and files another user owns. The sweep
+  takes the runner home to be this machine's alone (agentry-desktop#480).
 - **Sessions** — a release that declares the `interactive` mode can run as a
   chat instead: **Start session** in the run panel opens it under the same
   controls as an autonomous run. Every message, and every file you add

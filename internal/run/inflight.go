@@ -2,8 +2,6 @@ package run
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +11,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/owner"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -31,12 +28,19 @@ import (
 // by nobody else, so sweeping by that id can never reach the CLI's runs or
 // another desktop's under a different id. Whether the run is over is judged
 // by its owner: liveness errs toward "alive" — an unreadable process
-// record, a pid the kernel reused, a record another machine wrote — which
-// leaves litter for a later start, never a live run swept mid-turn. The
-// judgement is this machine's and this pid namespace's: a second desktop
-// that shares the runner home from a container of its own on the same
-// machine, where this process cannot see its pid, is not told apart from a
-// dead one.
+// record, a pid the kernel reused — which leaves litter for a later start,
+// never a live run swept mid-turn.
+//
+// That judgement is this machine's and this pid namespace's, and the
+// runner home is taken to be one machine's. A home shared with another
+// machine, or with a container of its own pid namespace, has desktops that
+// cannot see each other's pids: the owner of a run live over there reads
+// as gone here, and its record, and since agentry-desktop#463 its scratch
+// directory, would be swept from under it. A record does not name its
+// machine because no identity tried for it was stable enough: a host name
+// follows the network on macOS, and a record that stopped matching would
+// leave a killed run's secrets file for good, which is the worse fault
+// (agentry-desktop#480).
 //
 // Where the CLI's owner package can identify a process across pid reuse
 // (Linux: pid plus start time), the record carries the start time and is
@@ -64,32 +68,7 @@ type inFlight struct {
 	// Start is the owner's start time where owner.StartTime has one
 	// (Linux); zero elsewhere.
 	Start uint64 `json:"start,omitempty"`
-	// Machine identifies the machine the owner runs on (thisMachine). A
-	// pid says nothing about a process on another machine, and a runner
-	// home can be shared between machines (a home directory on a network
-	// share): a record another machine wrote is left alone, since sweeping
-	// it would delete a live run's scratch directory from under it
-	// (agentry-desktop#463). Empty where the machine has no identity to
-	// give and in a record written before the field existed; such a record
-	// is judged by its pid, as it always was.
-	Machine string `json:"machine,omitempty"`
 }
-
-// thisMachine is the identity a record carries for this machine: a digest
-// of the platform's own installation id (machineName), which stays through
-// a rename, a reboot and a change of network, where a host name does not
-// (on macOS it follows DHCP, and a record that stopped matching would never
-// be swept). A digest because systemd asks that its machine id not be
-// written out as it is. "" when the platform has none. A variable so a
-// test can be another machine.
-var thisMachine = sync.OnceValue(func() string {
-	name := machineName()
-	if name == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte("agentry-desktop-runs:" + name))
-	return hex.EncodeToString(sum[:16])
-})
 
 // runIDPattern is the engine's run id (engine.NewRunID: 8 hex digits),
 // with room to grow. A record whose id does not match is never swept: its
@@ -101,7 +80,7 @@ func RecordInFlight(dir, runID string) error {
 	if !runIDPattern.MatchString(runID) {
 		return fmt.Errorf("record run: bad run id %q", runID)
 	}
-	rec := inFlight{RunID: runID, PID: os.Getpid(), Machine: thisMachine()}
+	rec := inFlight{RunID: runID, PID: os.Getpid()}
 	if start, ok := owner.StartTime(rec.PID); ok {
 		rec.Start = start
 	}
@@ -147,8 +126,8 @@ func recordPath(dir, runID string) string { return filepath.Join(dir, runID+".js
 // SweepOrphaned sweeps, by run id, every recorded run whose owner is gone,
 // and removes its record once the sweep succeeded (a failed sweep — Docker
 // not running yet — keeps the record for the next start). A live owner's
-// record, this process's own, another machine's, and anything unreadable or
-// malformed are left alone. It returns the run ids it swept, sorted. The
+// record, this process's own, and anything unreadable or malformed are left
+// alone. It returns the run ids it swept, sorted. The
 // app runs it at start.
 func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
 	return sweepRecorded(ctx, dir, false, sweep)
@@ -185,9 +164,6 @@ func sweepRecorded(ctx context.Context, dir string, own bool, sweep func(context
 		}
 		var rec inFlight
 		if json.Unmarshal(b, &rec) != nil || !runIDPattern.MatchString(rec.RunID) || name != rec.RunID+".json" {
-			continue
-		}
-		if here := thisMachine(); rec.Machine != "" && here != "" && rec.Machine != here {
 			continue
 		}
 		if !ownerGone(rec.PID, rec.Start) && (!own || rec.PID != os.Getpid()) {

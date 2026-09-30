@@ -138,21 +138,21 @@ func SweepFiles(home, runID string) error {
 // stays with the record. Nothing outside the scratch directory is changed:
 // the delete removes a link rather than what it points at, and the second
 // try walks through an os.Root, which a link swapped in under it cannot
-// lead out of. A variable so a test can make the delete fail on any
+// lead out of (no test holds it to that: the swap is a race). A variable so a test can make the delete fail on any
 // platform.
 var removeTree = func(dir string) error {
 	err := removal.Remove(dir, true)
 	if err == nil {
 		return nil
 	}
-	if fi, lerr := os.Lstat(dir); lerr != nil || !fi.IsDir() {
-		return err
-	}
-	root, rerr := os.OpenRoot(dir)
+	// The root is the runs directory, not the scratch directory itself:
+	// were a link put in the scratch directory's place, the root would
+	// refuse to leave runs through it.
+	root, rerr := os.OpenRoot(filepath.Dir(dir))
 	if rerr != nil {
 		return err
 	}
-	_ = fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, werr error) error {
+	_ = fs.WalkDir(root.FS(), filepath.Base(dir), func(p string, d fs.DirEntry, werr error) error {
 		if werr == nil && d.IsDir() {
 			_ = root.Chmod(p, 0o700)
 		}

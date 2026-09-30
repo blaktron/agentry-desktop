@@ -449,3 +449,45 @@ func TestARunThatLeavesFilesKeepsItsRecordForTheQuitSweep(t *testing.T) {
 		t.Fatal("the swept run's record was kept")
 	}
 }
+
+// Settling a run's records is done outside the lock the close dialog and
+// the Stop buttons read (a delete can wait seconds on Docker Desktop), and
+// the run is still the one in flight until it is done, so a quit in that
+// time waits for it.
+func TestARunBeingSettledIsStillInFlightAndHoldsNoLock(t *testing.T) {
+	f := &fakeEngine{started: make(chan run.Request, 1)}
+	r := newQuitAPI(t, f, nil)
+	_, errc := startRun(t, r, f)
+	leaveScratch(t, r, "ab12cd34")
+	deleting, release := make(chan struct{}), make(chan struct{})
+	run.SetRemoveTreeForTest(t, func(dir string) error {
+		close(deleting)
+		<-release
+		return os.RemoveAll(dir)
+	})
+	live := r.current()
+	live.cancel()
+	<-deleting
+
+	got := make(chan *liveRun, 1)
+	go func() { got <- r.current() }()
+	select {
+	case l := <-got:
+		if l != live {
+			t.Fatal("a run whose files are still being removed is no longer the run in flight")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the lock is held while the run's files are removed")
+	}
+	select {
+	case <-live.done:
+		t.Fatal("the run was reported done before its records were settled")
+	default:
+	}
+
+	close(release)
+	<-errc
+	if r.current() != nil || recorded(r, "ab12cd34") {
+		t.Fatal("the settled run is still recorded")
+	}
+}
