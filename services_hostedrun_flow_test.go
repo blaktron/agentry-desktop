@@ -262,3 +262,41 @@ func TestFollowingWhileAnotherRunIsFollowedSaysSo(t *testing.T) {
 	r.hosted = nil
 	r.hostedMu.Unlock()
 }
+
+// A run the registry created is under way whatever this app does next: a
+// start that cannot follow it (another registry's run was attached while
+// it was being created) leaves the secrets set for it to the run and the
+// vault, as a start that started does (D-043).
+func TestAStartThatCannotFollowItsRunLeavesItsSecrets(t *testing.T) {
+	f := &hostedFake{enabled: true}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	fastPoll(t)
+	if err := r.SetHostedSecret(reg, "GITHUB_TOKEN", "held", false); err != nil {
+		t.Fatal(err)
+	}
+	other := &hostedFollow{registry: "https://other.example.test", id: "55555555-5555-5555-5555-555555555555", outDir: t.TempDir(), cancel: func() {}, done: make(chan struct{})}
+	t.Cleanup(func() {
+		r.hostedMu.Lock()
+		r.hosted = nil
+		r.hostedMu.Unlock()
+	})
+	f.onCreate = func() {
+		r.hostedMu.Lock()
+		r.hosted = other
+		r.hostedMu.Unlock()
+	}
+	out := t.TempDir()
+	r.app.markPicked(out)
+	_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil)
+	if err == nil || !strings.Contains(err.Error(), other.id) {
+		t.Fatalf("start = %v", err)
+	}
+	f.mu.Lock()
+	deleted := append([]string(nil), f.vaultDeletes...)
+	f.mu.Unlock()
+	if len(deleted) != 0 {
+		t.Fatalf("a start whose run exists deleted %v", deleted)
+	}
+}

@@ -356,12 +356,14 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
-	// createUnknown is a create whose answer never came back: the run may
-	// exist and hold the secrets, so they are left to it, or to the
-	// vault's sweep, rather than deleted from under it.
-	createUnknown := false
+	// runMayExist: the registry created the run, or a create's answer never
+	// came back. Either way the run may hold the secrets, so they are left
+	// to it, or to the vault's sweep, rather than deleted from under it,
+	// whatever this app does next (a folder it cannot make, another run
+	// already followed).
+	runMayExist := false
 	defer func() {
-		if (err == nil && view != nil && view.Run != nil) || createUnknown {
+		if (err == nil && view != nil && view.Run != nil) || runMayExist {
 			r.forgetHeld(reg)
 			return
 		}
@@ -412,9 +414,10 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil
 		}
-		createUnknown = true
+		runMayExist = true
 		return nil, err
 	}
+	runMayExist = true
 	dir, err := hostedOutDir(outDir, created)
 	if err != nil {
 		return nil, err

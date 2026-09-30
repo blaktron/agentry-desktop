@@ -108,6 +108,9 @@ type hostedFake struct {
 	// listDelay holds each answer to the runs list, so two attaches are in
 	// flight at once.
 	listDelay time.Duration
+	// onCreate runs as the create is answered: what else happens in the
+	// app while the registry creates the run.
+	onCreate func()
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -234,6 +237,9 @@ func (f *hostedFake) start(t *testing.T) string {
 		if f.refuse != nil {
 			f.refuse(w)
 			return
+		}
+		if f.onCreate != nil {
+			f.onCreate()
 		}
 		var req hostedrun.CreateRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
