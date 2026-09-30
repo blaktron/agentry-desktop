@@ -17,9 +17,9 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
-	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 
+	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -51,18 +51,11 @@ type BuildRequest struct {
 	Progress func(Progress)
 }
 
-// Progress is how far one build has got, for the panel's building view.
+// Progress is how far one build has got, for the panel's building view:
+// the report every job carries (its start, its budgets, the Creator run's
+// usage), and the pages it has written.
 type Progress struct {
-	// StartedAt is when the build began, in Unix milliseconds: the panel
-	// counts the elapsed time itself.
-	StartedAt      int64 `json:"startedAt"`
-	TimeoutSeconds int   `json:"timeoutSeconds"`
-	MaxTurns       int   `json:"maxTurns"`
-	// Turns, InputTokens and OutputTokens are the Creator run's usage as
-	// the harness last reported it.
-	Turns        int   `json:"turns"`
-	InputTokens  int64 `json:"inputTokens"`
-	OutputTokens int64 `json:"outputTokens"`
+	progress.Report
 	// Pages counts the pages the Creator has written so far. The apply
 	// step checks them after the run, and may drop some.
 	Pages int `json:"pages"`
@@ -274,7 +267,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
 		Build: version.Build(), Now: time.Now(), OutDir: outDir,
 		Budgets: &budgets,
-		RunID:   req.RunID, Stderr: req.Log, OnUsage: prog.usage,
+		RunID:   req.RunID, Stderr: req.Log, OnUsage: prog.Usage,
 		// A pack made on this computer may hold up to 1 GB, documents
 		// included; Agentry keeps packs of at most 10 MB (agentry-desktop#354,
 		// agentry-cli#429).
@@ -359,13 +352,12 @@ func DocumentsBytes(paths []string) int64 {
 }
 
 // progressMeter tells a build's Progress what it has done: the harness's
-// usage as it arrives, and the pages written, counted under the run's
-// reports/wiki, which the run's output mount fills as the Creator writes.
+// usage as it arrives (the shared meter), and the pages written, counted
+// under the run's reports/wiki, which the run's output mount fills as the
+// Creator writes.
 type progressMeter struct {
-	report func(Progress)
-	wiki   string
-	mu     sync.Mutex
-	p      Progress
+	*progress.Meter[Progress, *Progress]
+	wiki string
 }
 
 // progressEvery is how often the pages written are counted; a test
@@ -373,18 +365,19 @@ type progressMeter struct {
 var progressEvery = 2 * time.Second
 
 func newProgressMeter(report func(Progress), b spec.Budgets, wiki string) *progressMeter {
-	return &progressMeter{report: report, wiki: wiki, p: Progress{
-		StartedAt: time.Now().UnixMilli(), TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns,
-	}}
+	return &progressMeter{
+		Meter: progress.NewMeter(report, Progress{Report: progress.Start(b.TimeoutSeconds, b.MaxTurns)}),
+		wiki:  wiki,
+	}
 }
 
 // watch reports the start, then counts the pages until the returned stop
 // is called; stop counts once more, so the last page written is reported.
 func (m *progressMeter) watch() (stop func()) {
-	if m.report == nil {
+	if !m.Reporting() {
 		return func() {}
 	}
-	m.emit()
+	m.Emit()
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -411,16 +404,6 @@ func (m *progressMeter) watch() (stop func()) {
 	}
 }
 
-func (m *progressMeter) usage(u receipt.Usage) {
-	if m.report == nil {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.p.Turns, m.p.InputTokens, m.p.OutputTokens = u.Turns, u.InputTokens, u.OutputTokens
-	m.report(m.p)
-}
-
 func (m *progressMeter) countPages() {
 	n := 0
 	// A page as the apply step will read it: a regular .md file that is
@@ -433,20 +416,13 @@ func (m *progressMeter) countPages() {
 		}
 		return nil
 	})
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if n != m.p.Pages {
-		m.p.Pages = n
-		m.report(m.p)
-	}
-}
-
-// emit reports under the lock, so two reports from the usage and the
-// counting goroutines arrive in the order they were made.
-func (m *progressMeter) emit() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.report(m.p)
+	m.Set(func(p *Progress) bool {
+		if n == p.Pages {
+			return false
+		}
+		p.Pages = n
+		return true
+	})
 }
 
 func logf(w io.Writer, format string, a ...any) {
