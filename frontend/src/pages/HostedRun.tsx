@@ -53,7 +53,6 @@ export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView
         "A session costs no credits here: the organization that pays for your runs is not metered."
       )}{" "}
       It closes after {idleWords(s.idleSeconds)} with nothing said or done.
-      {hosted.runnersOnline === 0 && <> No runner is online right now, so the session waits in the queue.</>}
     </p>
   );
 }

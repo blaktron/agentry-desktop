@@ -301,6 +301,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		if st.Sessions != nil {
 			facts.SessionsEnabled, terms = st.Sessions.Enabled, st.Sessions
 		}
+		facts.HostsOnline = st.HostsOnline
 		if st.Caller != nil && st.Caller.Session != nil {
 			allowed := st.Caller.Session.Allowed
 			facts.SessionAllowed = &allowed
