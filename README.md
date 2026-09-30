@@ -108,13 +108,8 @@ The product never claims an agent is "safe". The language is always:
   publication pipeline runs (D-12 local/remote parity by construction), with
   the rule bundle embedded in the binary.
 - **Build** — author a QuickAgent, validate it, and publish it over the same
-  upload path the CLI uses. The tab opens on a start page with three ways in:
-  - **Step by step** walks eight steps: Basics, Instructions, Tools and web
-    access, Files, commands and data, Questions, Before a run, Publishing,
-    Review. Each step is checked with the core's own manifest rules before
-    Next, and shows the lines it writes to `agent.yaml`.
-  - **Advanced** shows every field at once. It is the same form as Step by
-    step, so switching loses nothing.
+  upload path the CLI uses. The tab opens on a start page with three ways in,
+  in the site's order:
   - **Describe it** drafts one from a plain description, with the site's
     three optional hints (the services or sites it works with, how it runs,
     an example of the output). The built-in Drafter (the one `agentry draft`
@@ -185,6 +180,12 @@ The product never claims an agent is "safe". The language is always:
     - Nothing is written into a QuickAgent folder until you save it into one
       you pick. The run's receipts and `draft.json` are kept in
       `~/Downloads/agentry-out/agentry-drafter-<run id>`.
+  - **Step by step** walks eight steps: Basics, Instructions, Tools and web
+    access, Files, commands and data, Questions, Before a run, Publishing,
+    Review. Each step is checked with the core's own manifest rules before
+    Next, and shows the lines it writes to `agent.yaml`.
+  - **Advanced** shows every field at once. It is the same form as Step by
+    step, so switching loses nothing.
 
   **The summary** is the one publish page, where a draft lands and where
   both form views end (**Continue to submit**). It says how the QuickAgent

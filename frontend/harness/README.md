@@ -61,7 +61,9 @@ if the links are not exactly the `https:` URLs expected (the look-alike as
 its punycode).
 
 The Build tab has a start page and two views since agentry-desktop#280
-(plan builder-rework.md M2). `pages.html` opens it on the start page;
+(plan builder-rework.md M2). `pages.html` opens it on the start page,
+whose ways in `shots.mjs` holds to the site's order, Describe it first
+(`expectOrder`, agentry-desktop#421);
 `#build-steps`, `#build-tools`, `#build-guide` and `#build-review` open Step
 by step on Basics, Tools and web access (the reach summary and a server's
 configuration), Before a run (its preview) and Review; `#build-advanced` is
@@ -69,8 +71,8 @@ every section at once, and `#build-comments` is a loaded `agent.yaml` with
 comments, which a save does not keep. `BuildAPI.Check` is mocked with a
 passing answer, so each step shows the lines it writes.
 
-Describe it (#282, plan builder-rework.md M8) is the Build tab's third way
-in: `#build-describe` opens it with the person's AI Review key saved and
+Describe it (#282, plan builder-rework.md M8) is the Build tab's first way
+in since #421: `#build-describe` opens it with the person's AI Review key saved and
 `#build-describe-nokey` without one (the Settings pointer, Draft it greyed).
 `#build-drafted` opens Review with a draft the Drafter made, what AI Review
 read and held back, the registry's match with a link to its page, the open
