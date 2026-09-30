@@ -61,11 +61,11 @@ func TestTheSweepDeletesNothingThroughALink(t *testing.T) {
 	}
 }
 
-// The workspace in a run's scratch directory is a copy of the release with
-// its own mode bits, so it can hold a directory its owner may not write. It
-// goes all the same, and the secrets file with it: a release cannot make a
-// run's record and scratch directory permanent.
-func TestTheSweepRemovesADirectoryTheReleaseShippedReadOnly(t *testing.T) {
+// A run's tools write into the workspace in its scratch directory and can
+// leave a directory there that its owner may not write. It goes all the
+// same, and the secrets file with it: what a run did in its workspace
+// cannot make its record and scratch directory permanent.
+func TestTheSweepRemovesADirectoryTheRunLeftReadOnly(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root deletes from a read-only directory without the second try")
 	}
@@ -78,6 +78,15 @@ func TestTheSweepRemovesADirectoryTheReleaseShippedReadOnly(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(locked, "data"), []byte("x"), 0o400); err != nil {
 		t.Fatal(err)
 	}
+	// A link in the workspace to a directory outside it, which the second
+	// try's walk must neither follow nor change.
+	mine := filepath.Join(t.TempDir(), "documents")
+	if err := os.Mkdir(mine, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(mine, filepath.Join(scratch, "workspace", "out")); err != nil {
+		t.Fatal(err)
+	}
 	for _, dir := range []string{locked, filepath.Dir(locked)} {
 		if err := os.Chmod(dir, 0o555); err != nil {
 			t.Fatal(err)
@@ -87,12 +96,15 @@ func TestTheSweepRemovesADirectoryTheReleaseShippedReadOnly(t *testing.T) {
 	if err := os.RemoveAll(scratch); err == nil {
 		t.Fatal("the fixture's read-only directory did not refuse a plain delete")
 	}
-	scratchOf(t, home, "dead0001") // the refused delete took the secrets file; put the run back whole
+	scratchOf(t, home, "dead0001") // the refused delete took the secrets file; put it back
 
 	if err := SweepFiles(home, "dead0001"); err != nil {
 		t.Fatal(err)
 	}
 	if exists(scratch) {
 		t.Fatal("the scratch directory is still there")
+	}
+	if fi, err := os.Stat(mine); err != nil || fi.Mode().Perm() != 0o500 {
+		t.Fatalf("the directory a link in the workspace pointed at was changed or removed: %v %v", fi, err)
 	}
 }

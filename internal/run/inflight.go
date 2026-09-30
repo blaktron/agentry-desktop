@@ -2,6 +2,8 @@ package run
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/owner"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -26,9 +29,14 @@ import (
 //
 // A record names one run id, minted by the process that wrote it and used
 // by nobody else, so sweeping by that id can never reach the CLI's runs or
-// a second desktop's live run: they carry other ids. Liveness errs toward
-// "alive" — an unreadable process record, a pid the kernel reused — which
-// leaves litter for a later start, never a live run swept mid-turn.
+// another desktop's under a different id. Whether the run is over is judged
+// by its owner: liveness errs toward "alive" — an unreadable process
+// record, a pid the kernel reused, a record another machine wrote — which
+// leaves litter for a later start, never a live run swept mid-turn. The
+// judgement is this machine's and this pid namespace's: a second desktop
+// that shares the runner home from a container of its own on the same
+// machine, where this process cannot see its pid, is not told apart from a
+// dead one.
 //
 // Where the CLI's owner package can identify a process across pid reuse
 // (Linux: pid plus start time), the record carries the start time and is
@@ -56,25 +64,32 @@ type inFlight struct {
 	// Start is the owner's start time where owner.StartTime has one
 	// (Linux); zero elsewhere.
 	Start uint64 `json:"start,omitempty"`
-	// Host is the machine the owner runs on. A pid says nothing about a
-	// process on another machine, and a runner home can be shared between
-	// machines (a home directory on a network share): a record another
-	// machine wrote is left alone, since sweeping it would delete a live
-	// run's scratch directory from under it (agentry-desktop#463). Empty in
-	// a record written before the field existed, which is judged by its
-	// pid as it always was.
-	Host string `json:"host,omitempty"`
+	// Machine identifies the machine the owner runs on (thisMachine). A
+	// pid says nothing about a process on another machine, and a runner
+	// home can be shared between machines (a home directory on a network
+	// share): a record another machine wrote is left alone, since sweeping
+	// it would delete a live run's scratch directory from under it
+	// (agentry-desktop#463). Empty where the machine has no identity to
+	// give and in a record written before the field existed; such a record
+	// is judged by its pid, as it always was.
+	Machine string `json:"machine,omitempty"`
 }
 
-// thisHost is the machine's name as a record carries it; "" when the
-// system has none to give.
-func thisHost() string {
-	h, err := os.Hostname()
-	if err != nil {
+// thisMachine is the identity a record carries for this machine: a digest
+// of the platform's own installation id (machineName), which stays through
+// a rename, a reboot and a change of network, where a host name does not
+// (on macOS it follows DHCP, and a record that stopped matching would never
+// be swept). A digest because systemd asks that its machine id not be
+// written out as it is. "" when the platform has none. A variable so a
+// test can be another machine.
+var thisMachine = sync.OnceValue(func() string {
+	name := machineName()
+	if name == "" {
 		return ""
 	}
-	return h
-}
+	sum := sha256.Sum256([]byte("agentry-desktop-runs:" + name))
+	return hex.EncodeToString(sum[:16])
+})
 
 // runIDPattern is the engine's run id (engine.NewRunID: 8 hex digits),
 // with room to grow. A record whose id does not match is never swept: its
@@ -86,7 +101,7 @@ func RecordInFlight(dir, runID string) error {
 	if !runIDPattern.MatchString(runID) {
 		return fmt.Errorf("record run: bad run id %q", runID)
 	}
-	rec := inFlight{RunID: runID, PID: os.Getpid(), Host: thisHost()}
+	rec := inFlight{RunID: runID, PID: os.Getpid(), Machine: thisMachine()}
 	if start, ok := owner.StartTime(rec.PID); ok {
 		rec.Start = start
 	}
@@ -172,7 +187,7 @@ func sweepRecorded(ctx context.Context, dir string, own bool, sweep func(context
 		if json.Unmarshal(b, &rec) != nil || !runIDPattern.MatchString(rec.RunID) || name != rec.RunID+".json" {
 			continue
 		}
-		if rec.Host != "" && rec.Host != thisHost() {
+		if here := thisMachine(); rec.Machine != "" && here != "" && rec.Machine != here {
 			continue
 		}
 		if !ownerGone(rec.PID, rec.Start) && (!own || rec.PID != os.Getpid()) {

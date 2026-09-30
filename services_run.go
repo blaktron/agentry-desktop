@@ -80,9 +80,11 @@ type RunAPI struct {
 	engineRun     func(context.Context, run.Request, io.Writer) (*run.Result, error)
 	engineSession func(context.Context, run.Request, io.Writer) (localSession, error)
 	sweep         func(context.Context, string) error
-	// inFlightDir holds the crash-path records (services_quit.go,
-	// agentry-desktop#198); "" is the runner home's desktop-runs.
-	inFlightDir string
+	// runnerHomeDir is the runner home a test gives the app, "" for this
+	// machine's: where the crash-path records are kept, in its desktop-runs
+	// (services_quit.go, agentry-desktop#198), and where a run's files are
+	// looked for when it is settled and swept (agentry-desktop#463).
+	runnerHomeDir string
 
 	// Unsafe Mode's seams (services_unsafe.go); nil means internal/run.
 	pullUnsafe   func(context.Context, io.Writer) error

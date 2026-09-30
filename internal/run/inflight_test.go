@@ -68,8 +68,8 @@ func TestRecordInFlightThenForget(t *testing.T) {
 	if start, ok := owner.StartTime(os.Getpid()); ok && rec.Start != start {
 		t.Fatalf("start = %d, want %d", rec.Start, start)
 	}
-	if host, err := os.Hostname(); err == nil && rec.Host != host {
-		t.Fatalf("host = %q, want %q", rec.Host, host)
+	if rec.Machine != thisMachine() {
+		t.Fatalf("machine = %q, want %q", rec.Machine, thisMachine())
 	}
 	if err := ForgetInFlight(dir, "ab12cd34"); err != nil {
 		t.Fatal(err)
@@ -215,6 +215,14 @@ func TestSweepAtQuitSweepsThisProcessesRecordsToo(t *testing.T) {
 	}
 }
 
+// onMachine makes this process's machine identity id for the test.
+func onMachine(t *testing.T, id string) {
+	t.Helper()
+	prev := thisMachine
+	thisMachine = func() string { return id }
+	t.Cleanup(func() { thisMachine = prev })
+}
+
 // A runner home can be shared between machines (a home directory on a
 // network share), and a pid says nothing about a process on another one: a
 // record another machine wrote is never swept, at start or at quit, however
@@ -224,10 +232,11 @@ func TestARecordAnotherMachineWroteIsLeftAlone(t *testing.T) {
 	home := isolateRunEnv(t)
 	fake := &dockerx.Fake{}
 	withFakeDocker(t, fake)
+	onMachine(t, "this-machine")
 	dir := filepath.Join(home, InFlightDirName)
 	pid, start := deadPID(t)
-	writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start, Host: "another-machine.example"})
-	writeRecord(t, dir, inFlight{RunID: "5e1f0004", PID: os.Getpid(), Host: "another-machine.example"})
+	writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start, Machine: "another-machine"})
+	writeRecord(t, dir, inFlight{RunID: "5e1f0004", PID: os.Getpid(), Machine: "another-machine"})
 	kept := []string{scratchOf(t, home, "dead0001"), scratchOf(t, home, "5e1f0004")}
 
 	for name, sweep := range map[string]func(context.Context, string, func(context.Context, string) error) ([]string, error){
@@ -248,6 +257,55 @@ func TestARecordAnotherMachineWroteIsLeftAlone(t *testing.T) {
 	}
 	if !exists(filepath.Join(dir, "dead0001.json")) || !exists(filepath.Join(dir, "5e1f0004.json")) {
 		t.Fatal("removed another machine's record")
+	}
+}
+
+// The machine rule must not turn a dead run into permanent litter: a record
+// with no machine (an older app's, or a machine with no identity to give),
+// and one read where this machine has none, are judged by the pid as
+// before, and a dead owner's run is swept.
+func TestARecordWithNoMachineToCompareIsJudgedByItsPid(t *testing.T) {
+	for name, tc := range map[string]struct{ here, recorded string }{
+		"the record has none":       {"this-machine", ""},
+		"this machine has none":     {"", "whichever-it-was"},
+		"neither has":               {"", ""},
+		"the same machine, for one": {"this-machine", "this-machine"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := isolateRunEnv(t)
+			withFakeDocker(t, &dockerx.Fake{})
+			onMachine(t, tc.here)
+			dir := filepath.Join(home, InFlightDirName)
+			pid, start := deadPID(t)
+			writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start, Machine: tc.recorded})
+			scratch := scratchOf(t, home, "dead0001")
+			swept, err := SweepOrphaned(context.Background(), dir, Sweep)
+			if err != nil || strings.Join(swept, ",") != "dead0001" {
+				t.Fatalf("swept %v, err %v", swept, err)
+			}
+			if exists(scratch) || exists(filepath.Join(dir, "dead0001.json")) {
+				t.Fatal("the dead run's scratch directory or record was left")
+			}
+		})
+	}
+}
+
+// The identity is a digest, never the platform's id as it is, and the same
+// on every call.
+func TestThisMachineIsADigestOfThePlatformsID(t *testing.T) {
+	name := machineName()
+	got := thisMachine()
+	if name == "" {
+		if got != "" {
+			t.Fatalf("a machine with no id identified itself as %q", got)
+		}
+		t.Skip("this machine has no id to digest (a container without /etc/machine-id)")
+	}
+	if len(got) != 32 || strings.Contains(got, name) || strings.Contains(name, got) {
+		t.Fatalf("identity %q for a machine id of %d characters", got, len(name))
+	}
+	if again := thisMachine(); again != got {
+		t.Fatalf("identity changed between calls: %q then %q", got, again)
 	}
 }
 

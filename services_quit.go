@@ -104,38 +104,45 @@ func (r *RunAPI) addTurn(id string) {
 
 // endRun may be called from both ends of a session (EndSession and
 // shutdown): only the call that clears the record releases the attached
-// knowledge and closes done.
+// knowledge, settles the run's crash-path records and closes done.
 func (r *RunAPI) endRun(l *liveRun) {
 	r.liveMu.Lock()
-	defer r.liveMu.Unlock()
-	if r.live == l {
-		if l.release != nil {
-			l.release()
-		}
-		// Before done is closed, so a quit that waited for this run finds
-		// its records settled.
-		r.settle(l.id)
-		for _, id := range l.turns {
-			r.settle(id)
-		}
-		r.live = nil
-		close(l.done)
+	if r.live != l {
+		r.liveMu.Unlock()
+		return
 	}
+	if l.release != nil {
+		l.release()
+	}
+	ids := append([]string{l.id}, l.turns...)
+	r.live = nil
+	r.liveMu.Unlock()
+	// Outside the lock, which the close dialog and the Stop buttons read:
+	// deleting a file Docker Desktop still holds can take seconds on
+	// Windows. Before done is closed, so a quit that waited for this run
+	// finds its records settled.
+	for _, id := range ids {
+		r.settle(id)
+	}
+	close(l.done)
 }
 
 // settle is what becomes of a run's crash-path record once its engine has
-// returned. The engine's teardown has run, so all that can be left is files
-// it could not delete: one Docker Desktop still held (agentry-cli#422), a
-// directory the release shipped read-only. They are tried once more here,
-// and the record goes only when nothing of the run is left under the runner
-// home; otherwise it stays, and quitting and the next start try again
-// (agentry-desktop#463).
+// returned, which it does only after its own teardown. What that teardown
+// could not delete under the runner home (a file Docker Desktop still
+// held, agentry-cli#422; a directory the run's tools left unwritable) is
+// tried once more here, and the record goes only when none of the run's
+// files are left; otherwise it stays, and quitting and the next start
+// sweep the run by it (agentry-desktop#463). Docker is not asked: a
+// container the engine's teardown could not remove is not seen here, as it
+// was not before.
 func (r *RunAPI) settle(id string) {
 	home, err := r.runnerHome()
-	if err == nil {
-		err = run.SweepFiles(home, id)
-	}
 	if err != nil {
+		log.Printf("agentry-desktop: run %s: %v", id, err)
+		return
+	}
+	if err := run.SweepFiles(home, id); err != nil {
 		log.Printf("agentry-desktop: run %s left files behind, to be removed when the app quits or next starts: %v", id, err)
 		return
 	}
@@ -318,22 +325,22 @@ func (r *RunAPI) startEngineSession(ctx context.Context, req run.Request, logw i
 	return s, nil
 }
 
-// inFlight is the crash-path records' directory: the test's, or the runner
-// home's desktop-runs.
-func (r *RunAPI) inFlight() (string, error) {
-	if r.inFlightDir != "" {
-		return r.inFlightDir, nil
-	}
-	return run.InFlightDir()
-}
-
-// runnerHome is the runner home the records belong to: the one a test's
-// records directory sits in, or this machine's.
+// runnerHome is the runner home: a test's, or this machine's.
 func (r *RunAPI) runnerHome() (string, error) {
-	if r.inFlightDir != "" {
-		return filepath.Dir(r.inFlightDir), nil
+	if r.runnerHomeDir != "" {
+		return r.runnerHomeDir, nil
 	}
 	return run.Home()
+}
+
+// inFlight is the crash-path records' directory, the runner home's
+// desktop-runs.
+func (r *RunAPI) inFlight() (string, error) {
+	home, err := r.runnerHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, run.InFlightDirName), nil
 }
 
 func (r *RunAPI) sweepRun(ctx context.Context, id string) error {

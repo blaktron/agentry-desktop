@@ -95,7 +95,7 @@ func newDescribeFixture(t *testing.T) *describeFixture {
 		f.asked = append(f.asked, title)
 		return f.answer, nil
 	}}
-	runAPI := &RunAPI{app: app, inFlightDir: t.TempDir()}
+	runAPI := &RunAPI{app: app, runnerHomeDir: t.TempDir()}
 	f.b = &BuildAPI{app: app, run: runAPI,
 		draftScanner: func(key string) (webscan.Scanner, error) {
 			if key != describeJev {
@@ -120,7 +120,7 @@ func newDescribeFixture(t *testing.T) *describeFixture {
 			case len(f.runs) > 1 && (r.Web != nil || filepath.Dir(r.OutDir) != f.runs[0].OutDir):
 				t.Fatalf("the repair turn has a web configuration %+v or runs outside the draft's folder: %s", r.Web, r.OutDir)
 			case len(f.runs) > 1:
-				_, err := os.Stat(filepath.Join(runAPI.inFlightDir, r.RunID+".json"))
+				_, err := os.Stat(filepath.Join(runAPI.runnerHomeDir, run.InFlightDirName, r.RunID+".json"))
 				f.repairRecorded = err == nil
 			}
 			for name, body := range map[string]string{
@@ -234,7 +234,7 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	if !f.repairRecorded || f.runs[1].RunID == f.runs[0].RunID {
 		t.Fatal("the repair turn ran with no crash-path record of its run id")
 	}
-	if entries, _ := os.ReadDir(f.b.run.inFlightDir); len(entries) != 0 {
+	if entries, _ := os.ReadDir(filepath.Join(f.b.run.runnerHomeDir, run.InFlightDirName)); len(entries) != 0 {
 		t.Fatalf("crash-path records outlived the draft: %v", entries)
 	}
 	if f.runs[1].Web != nil || f.runs[1].Builtin != localrun.Drafter().WithoutWebTools() {

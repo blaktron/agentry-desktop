@@ -96,7 +96,7 @@ func newKnowledgeFixture(t *testing.T) *knowledgeFixture {
 			return f.picked, nil
 		},
 	}
-	r := &RunAPI{app: app, knowledgeEnv: &f.env, inFlightDir: t.TempDir()}
+	r := &RunAPI{app: app, knowledgeEnv: &f.env, runnerHomeDir: t.TempDir()}
 	f.k = &KnowledgeAPI{app: app, run: r, openFolder: func(dir string) error {
 		f.steps = append(f.steps, "reveal: "+dir)
 		return nil

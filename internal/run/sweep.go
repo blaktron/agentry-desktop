@@ -129,24 +129,36 @@ func SweepFiles(home, runID string) error {
 	return errors.Join(errs...)
 }
 
-// removeTree deletes a run's scratch directory. The workspace in it is a
-// copy of the release with the release's own mode bits, so it can hold a
-// directory its owner may not write; when the delete is refused, every
-// directory under it is made writable and the delete tried once more,
-// rather than the record of the run standing for ever. Links are never
-// followed: a link is removed, not what it points at. A variable so a test
-// can make the delete fail on any platform.
+// removeTree deletes a run's scratch directory. The run's tools write into
+// the workspace in it and can leave a directory there that its owner may
+// not write; when the delete is refused, every directory under the scratch
+// directory is made writable and the delete tried once more, rather than
+// the record of the run standing for ever. What another user owns (a tools
+// container killed before it handed its files back) is beyond that, and
+// stays with the record. Nothing outside the scratch directory is changed:
+// the delete removes a link rather than what it points at, and the second
+// try walks through an os.Root, which a link swapped in under it cannot
+// lead out of. A variable so a test can make the delete fail on any
+// platform.
 var removeTree = func(dir string) error {
 	err := removal.Remove(dir, true)
 	if err == nil {
 		return nil
 	}
-	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, werr error) error {
+	if fi, lerr := os.Lstat(dir); lerr != nil || !fi.IsDir() {
+		return err
+	}
+	root, rerr := os.OpenRoot(dir)
+	if rerr != nil {
+		return err
+	}
+	_ = fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, werr error) error {
 		if werr == nil && d.IsDir() {
-			_ = os.Chmod(p, 0o700) //nolint:gosec // a directory of a run that is over, about to be deleted
+			_ = root.Chmod(p, 0o700)
 		}
 		return nil
 	})
+	_ = root.Close()
 	return removal.Remove(dir, true)
 }
 

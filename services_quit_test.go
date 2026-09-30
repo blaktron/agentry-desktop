@@ -58,10 +58,10 @@ func (f *fakeEngine) run(ctx context.Context, req run.Request, _ io.Writer) (*ru
 func newQuitAPI(t *testing.T, f *fakeEngine, confirm func(context.Context, string, string) (bool, error)) *RunAPI {
 	t.Helper()
 	return &RunAPI{
-		inFlightDir: filepath.Join(t.TempDir(), run.InFlightDirName),
-		app:         &App{ctx: context.Background(), confirm: confirm},
-		newRunID:    func() (string, error) { return "ab12cd34", nil },
-		engineRun:   f.run,
+		runnerHomeDir: t.TempDir(),
+		app:           &App{ctx: context.Background(), confirm: confirm},
+		newRunID:      func() (string, error) { return "ab12cd34", nil },
+		engineRun:     f.run,
 		sweep: func(_ context.Context, id string) error {
 			f.record("sweep " + id)
 			return nil
@@ -203,7 +203,7 @@ func TestBeforeCloseAsksOnlyWithARunLive(t *testing.T) {
 }
 
 func recorded(r *RunAPI, id string) bool {
-	_, err := os.Stat(filepath.Join(r.inFlightDir, id+".json"))
+	_, err := os.Stat(filepath.Join(r.runnerHomeDir, run.InFlightDirName, id+".json"))
 	return err == nil
 }
 
@@ -249,11 +249,12 @@ func TestStartupSweepsTheRunOfAnAppThatDied(t *testing.T) {
 // writeOwner writes the crash-path record of a run owned by pid.
 func writeOwner(t *testing.T, r *RunAPI, id string, pid int) {
 	t.Helper()
-	if err := os.MkdirAll(r.inFlightDir, 0o700); err != nil {
+	dir := filepath.Join(r.runnerHomeDir, run.InFlightDirName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(map[string]any{"run_id": id, "pid": pid})
-	if err := os.WriteFile(filepath.Join(r.inFlightDir, id+".json"), b, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, id+".json"), b, 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -389,7 +390,7 @@ func TestQuittingWithAChatStartedEndsItThenSweeps(t *testing.T) {
 // home the API's records belong to, with a secrets file in it.
 func leaveScratch(t *testing.T, r *RunAPI, id string) string {
 	t.Helper()
-	dir := filepath.Join(filepath.Dir(r.inFlightDir), "agents", "acme", "agent", "1.0.0-0123456789ab", "runs", id)
+	dir := filepath.Join(r.runnerHomeDir, "agents", "acme", "agent", "1.0.0-0123456789ab", "runs", id)
 	if err := os.MkdirAll(filepath.Join(dir, "cfg", "gateway"), 0o755); err != nil {
 		t.Fatal(err)
 	}
