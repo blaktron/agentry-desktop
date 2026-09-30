@@ -14,7 +14,7 @@
 // folder is chosen at Save, so a person can start without one.
 //
 // Since #282 (plan builder-rework.md M8, D5, D25) the start page has a third
-// way in, Describe it: a draft made by the built-in Drafter
+// way in, Describe it (listed first since #421, in the site's order): a draft made by the built-in Drafter
 // (BuildDescribe.tsx), since #281 (M7) In Agentry as well as on this
 // computer, decoded into the Model and opened on Review with the Drafter's
 // notes beside it and Describe again under them.
@@ -932,7 +932,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       <div>
         {header}
         {notices}
+        {/* Describe it first, in the site's order (agentry-desktop#421);
+            its sentence is the operator's own words, on both clients. */}
         <div className="build-ways">
+          <button className="card build-way" onClick={() => switchTo("describe")}>
+            <strong>Describe it</strong>
+            <span className="muted small">Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.</span>
+          </button>
           <button className="card build-way" onClick={() => switchTo("steps")}>
             <strong>Step by step</strong>
             <span className="muted small">One section at a time, with the least access already chosen and a review before you save or publish.</span>
@@ -940,10 +946,6 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           <button className="card build-way" onClick={() => switchTo("advanced")}>
             <strong>Advanced</strong>
             <span className="muted small">Every field on one page, for when you know the manifest. It is the same form, and you can switch at any time.</span>
-          </button>
-          <button className="card build-way" onClick={() => switchTo("describe")}>
-            <strong>Describe it</strong>
-            <span className="muted small">Say what it should do, and the Drafter drafts it In Agentry for credits, or on this computer with your own model and AI Review key. You check every part before you save.</span>
           </button>
         </div>
         {touched && (

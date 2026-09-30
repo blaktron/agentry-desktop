@@ -186,7 +186,7 @@ const states = [
   { name: "page-browse", url: "/pages.html", note: "Browse under the shell", locator: '[data-preview="browse"]' },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell", locator: '[data-preview="agent"]' },
   { name: "page-installed", url: "/pages.html", note: "Installed under the shell", locator: '[data-preview="installed"]' },
-  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Step by step and Advanced", locator: '[data-preview="build"]', expectText: "Step by step" },
+  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Describe it first as on the site, then Step by step and Advanced (agentry-desktop#421)", locator: '[data-preview="build"]', expectText: "Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.", expectOrder: ['[data-preview="build"] .build-way strong', ["Describe it", "Step by step", "Advanced"]] },
   // The Build tab's views (plan builder-rework.md §5, agentry-desktop#280):
   // a step with its reach summary and the lines it writes, the preview of
   // what a person sees before a run, Review's recap, and Advanced.
@@ -401,6 +401,13 @@ try {
       }
       if (state.expectChecked) {
         if (!(await page.locator(state.expectChecked).first().isChecked())) throw new Error(`${state.name}: ${state.expectChecked} is not checked`);
+      }
+      if (state.expectOrder) {
+        // The order of a set of elements, read from the page, not the
+        // picture (agentry-desktop#421, the Build start page's ways in).
+        const [sel, want] = state.expectOrder;
+        const got = (await page.locator(sel).allInnerTexts()).map((t) => t.trim());
+        if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error(`${state.name}: ${sel} reads ${got.join(" | ")}, not ${want.join(" | ")}`);
       }
       if (state.expectMinWidth) {
         // A layout check, not only a picture: every matching element keeps
