@@ -467,7 +467,11 @@ func TestARunBeingSettledIsStillInFlightAndHoldsNoLock(t *testing.T) {
 	})
 	live := r.current()
 	live.cancel()
-	<-deleting
+	select {
+	case <-deleting:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the ended run's files were never looked for")
+	}
 
 	got := make(chan *liveRun, 1)
 	go func() { got <- r.current() }()
@@ -482,6 +486,16 @@ func TestARunBeingSettledIsStillInFlightAndHoldsNoLock(t *testing.T) {
 	select {
 	case <-live.done:
 		t.Fatal("the run was reported done before its records were settled")
+	default:
+	}
+
+	// A second end of the same run while the first is settling it (a chat
+	// ended by its window and by a quit at once) does nothing: done is
+	// closed once, by the first.
+	r.endRun(live)
+	select {
+	case <-live.done:
+		t.Fatal("a second end closed the run before the first had settled it")
 	default:
 	}
 

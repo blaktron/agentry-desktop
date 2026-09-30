@@ -135,30 +135,36 @@ func SweepFiles(home, runID string) error {
 // directory is made writable and the delete tried once more, rather than
 // the record of the run standing for ever. What another user owns (a tools
 // container killed before it handed its files back) is beyond that, and
-// stays with the record. Nothing outside the scratch directory is changed:
-// the delete removes a link rather than what it points at, and the second
-// try walks through an os.Root, which a link swapped in under it cannot
-// lead out of (no test holds it to that: the swap is a race). A variable so a test can make the delete fail on any
-// platform.
+// stays with the record.
+//
+// Nothing outside the scratch directory is changed. The delete removes a
+// link rather than what it points at. The second try is made only for a
+// real directory, and walks through an os.Root opened on the runs directory
+// above it, which a link swapped in afterwards cannot lead out of; no test
+// holds it to that last part, since the swap is a race. A variable so a
+// test can make the delete fail on any platform.
 var removeTree = func(dir string) error {
 	err := removal.Remove(dir, true)
 	if err == nil {
 		return nil
 	}
-	// The root is the runs directory, not the scratch directory itself:
-	// were a link put in the scratch directory's place, the root would
-	// refuse to leave runs through it.
 	root, rerr := os.OpenRoot(filepath.Dir(dir))
 	if rerr != nil {
 		return err
 	}
-	_ = fs.WalkDir(root.FS(), filepath.Base(dir), func(p string, d fs.DirEntry, werr error) error {
+	defer func() { _ = root.Close() }()
+	base := filepath.Base(dir)
+	// Not a link standing in the scratch directory's place: the walk would
+	// follow one that stays inside runs, into another run's directory.
+	if fi, lerr := root.Lstat(base); lerr != nil || !fi.IsDir() {
+		return err
+	}
+	_ = fs.WalkDir(root.FS(), base, func(p string, d fs.DirEntry, werr error) error {
 		if werr == nil && d.IsDir() {
 			_ = root.Chmod(p, 0o700)
 		}
 		return nil
 	})
-	_ = root.Close()
 	return removal.Remove(dir, true)
 }
 

@@ -108,3 +108,36 @@ func TestTheSweepRemovesADirectoryTheRunLeftReadOnly(t *testing.T) {
 		t.Fatalf("the directory a link in the workspace pointed at was changed or removed: %v %v", fi, err)
 	}
 }
+
+// A link standing in the scratch directory's place, which a refused delete
+// left there, is not walked by the second try: the directory it points at,
+// another run's beside it, keeps its modes.
+func TestTheSecondTryDoesNotWalkALinkInTheScratchDirectorysPlace(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root's first delete is not refused")
+	}
+	home := isolateRunEnv(t)
+	other := scratchOf(t, home, "a11e0002")
+	kept := filepath.Join(other, "workspace")
+	if err := os.Mkdir(kept, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	runs := filepath.Dir(other)
+	if err := os.Symlink("a11e0002", filepath.Join(runs, "dead0001")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(runs, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(runs, 0o755); _ = os.Chmod(kept, 0o755) })
+
+	if err := SweepFiles(home, "dead0001"); err == nil {
+		t.Fatal("a link in a directory that cannot be written was reported removed")
+	}
+	if fi, err := os.Stat(kept); err != nil || fi.Mode().Perm() != 0o555 {
+		t.Fatalf("the second try changed another run's directory through the link: %v %v", fi, err)
+	}
+	if !exists(filepath.Join(other, "cfg", "gateway", "secrets.env")) {
+		t.Fatal("the other run's files were removed through the link")
+	}
+}

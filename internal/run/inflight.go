@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/owner"
-	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 )
 
 // The crash path (agentry-desktop#198). A killed or crashed app runs no
@@ -29,7 +28,7 @@ import (
 // another desktop's under a different id. Whether the run is over is judged
 // by its owner: liveness errs toward "alive" — an unreadable process
 // record, a pid the kernel reused — which leaves litter for a later start,
-// never a live run swept mid-turn.
+// never a run swept mid-turn that is live where this process can see it.
 //
 // That judgement is this machine's and this pid namespace's, and the
 // runner home is taken to be one machine's. A home shared with another
@@ -51,15 +50,6 @@ import (
 
 // InFlightDirName is the runner-home subdirectory holding the records.
 const InFlightDirName = "desktop-runs"
-
-// InFlightDir is the records' directory: <runner home>/desktop-runs.
-func InFlightDir() (string, error) {
-	home, err := policy.Home()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, InFlightDirName), nil
-}
 
 // inFlight is one record.
 type inFlight struct {
@@ -127,8 +117,7 @@ func recordPath(dir, runID string) string { return filepath.Join(dir, runID+".js
 // and removes its record once the sweep succeeded (a failed sweep — Docker
 // not running yet — keeps the record for the next start). A live owner's
 // record, this process's own, and anything unreadable or malformed are left
-// alone. It returns the run ids it swept, sorted. The
-// app runs it at start.
+// alone. It returns the run ids it swept, sorted. The app runs it at start.
 func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
 	return sweepRecorded(ctx, dir, false, sweep)
 }

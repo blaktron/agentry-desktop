@@ -124,13 +124,19 @@ func (r *RunAPI) endRun(l *liveRun) {
 	// deleting a file Docker Desktop still holds can take seconds on
 	// Windows. The run stays the one in flight until its records are
 	// settled, so a quit in that time waits for it as for any run.
+	// Deferred, so that a run whose settling panics is not left in flight
+	// with nobody ever told it is done.
+	defer func() {
+		r.liveMu.Lock()
+		if r.live == l {
+			r.live = nil
+		}
+		close(l.done)
+		r.liveMu.Unlock()
+	}()
 	for _, id := range ids {
 		r.settle(id)
 	}
-	r.liveMu.Lock()
-	r.live = nil
-	close(l.done)
-	r.liveMu.Unlock()
 }
 
 // settle is what becomes of a run's crash-path record once its engine has
@@ -183,9 +189,11 @@ func (r *RunAPI) forgetInFlight(id string) {
 // a run recorded by an app that died without tearing it down — killed,
 // crashed, the machine lost power — is swept by its run id, and its record
 // removed: its containers, volumes and networks, and its scratch directory
-// with the secrets file (agentry-desktop#463). Only records whose owning process is provably gone are touched
-// (run.SweepOrphaned); a second desktop's live run and every CLI run carry
-// other run ids. Called once, in its own goroutine, from OnStartup.
+// with the secrets file (agentry-desktop#463). Only records whose owning
+// process is gone from this machine are touched (run.SweepOrphaned, which
+// says what that judgement cannot see); a second desktop's live run and
+// every CLI run carry other run ids. Called once, in its own goroutine,
+// from OnStartup.
 func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
 	dir, err := r.inFlight()
 	if err != nil {
@@ -244,8 +252,8 @@ func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 // shutdown is the run half of OnShutdown: end the run in flight, wait for
 // the engine's teardown (bounded by quitWait), then sweep what it left; and,
 // with or without a run in flight, sweep what any earlier run of this app
-// and any run of an app that died left (run.SweepAtQuit). Another live
-// app's run is never touched.
+// and any run of an app that died left (run.SweepAtQuit). Another app's
+// run that is live on this machine is never touched.
 func (r *RunAPI) shutdown() {
 	var ids []string
 	if l := r.current(); l != nil {
