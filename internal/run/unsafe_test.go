@@ -210,8 +210,19 @@ func TestARunIsUnsafeOnlyWhenItsRequestSaysSo(t *testing.T) {
 	// Off (the request's zero value, which is what a run has when
 	// desktop.yaml says nothing): the catalogue refuses, and nothing of
 	// Unsafe Mode was read or built.
+	// compiled counts PlanCompiled's Unsafe answers, the desktop's signal
+	// to keep the red edge up while the run is live (agentry-desktop#479).
+	compiled := 0
+	counted := func(req Request) Request {
+		req.PlanCompiled = func(unsafe bool) {
+			if unsafe {
+				compiled++
+			}
+		}
+		return req
+	}
 	var log strings.Builder
-	_, err := Run(context.Background(), request(regURL, filepath.Join(t.TempDir(), "out")), &log)
+	_, err := Run(context.Background(), counted(request(regURL, filepath.Join(t.TempDir(), "out"))), &log)
 	if err == nil || !strings.Contains(err.Error(), "does not catalogue") {
 		t.Fatalf("with Unsafe Mode off: err = %v, want the exec catalogue refusal\nlog:\n%s", err, log.String())
 	}
@@ -231,7 +242,7 @@ func TestARunIsUnsafeOnlyWhenItsRequestSaysSo(t *testing.T) {
 	fake.ImageFiles[tag+":"+gateway.ExecFailedFile] = "coreutils\tE: Unable to locate package coreutils\n"
 
 	log.Reset()
-	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	req := counted(request(regURL, filepath.Join(t.TempDir(), "out")))
 	req.Unsafe = true
 	res, err := Run(context.Background(), req, &log)
 	if err != nil {
@@ -252,12 +263,30 @@ func TestARunIsUnsafeOnlyWhenItsRequestSaysSo(t *testing.T) {
 	if !strings.Contains(log.String(), "UNSAFE MODE:") {
 		t.Errorf("the run log does not name Unsafe Mode:\n%s", log.String())
 	}
+	if compiled != 1 {
+		t.Fatalf("PlanCompiled said Unsafe %d times for the first Unsafe Mode run, want 1", compiled)
+	}
+
+	// On again: the installed Unsafe Mode plan is reused, and the hook
+	// still fires, since the chrome follows the plan the run holds.
+	log.Reset()
+	req = counted(request(regURL, filepath.Join(t.TempDir(), "out")))
+	req.Unsafe = true
+	if _, err := Run(context.Background(), req, &log); err != nil {
+		t.Fatalf("with Unsafe Mode on, the plan reused: %v\nlog:\n%s", err, log.String())
+	}
+	if compiled != 2 {
+		t.Fatalf("PlanCompiled's Unsafe answers after a run that reused the Unsafe Mode plan: %d calls, want 2", compiled)
+	}
 
 	// Off again, the Unsafe Mode plan still installed: refused.
 	log.Reset()
-	_, err = Run(context.Background(), request(regURL, filepath.Join(t.TempDir(), "out")), &log)
+	_, err = Run(context.Background(), counted(request(regURL, filepath.Join(t.TempDir(), "out"))), &log)
 	if err == nil || !strings.Contains(err.Error(), "does not catalogue") {
 		t.Fatalf("with Unsafe Mode off again: err = %v, want the exec catalogue refusal\nlog:\n%s", err, log.String())
+	}
+	if compiled != 2 {
+		t.Fatalf("a run with Unsafe Mode off was reported Unsafe (%d calls, want 2)", compiled)
 	}
 }
 

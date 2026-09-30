@@ -260,8 +260,10 @@ const validateResult = {
 // Unsafe Mode (agentry-desktop#418): #unsafe-on is the switch on, with the
 // red edge round the window and the sidebar's badge on every page;
 // #unsafe-pulling answers the switch's click as the Go host does after the
-// native Yes, with the image's pull under way.
+// native Yes, with the image's pull under way; #unsafe-running is the switch
+// off while a run compiled in Unsafe Mode is still live (agentry-desktop#479).
 const unsafeOn = window.location.hash === "#unsafe-on";
+const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
 const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
 let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE };
@@ -410,6 +412,7 @@ g.go = { main: {
       }
       return (runDefaultsView = { ...runDefaultsView, unsafeMode: on });
     },
+    UnsafeLive: async () => unsafeRunning,
     UnsafeNotice: async () => ({ on: unsafeOn, line: unsafeOn ? "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. As resolved, it declares none." : "", unplaced: [] }),
     // Run defaults → Docker images (agentry-desktop#424). #images-none has
     // none, #images-nodocker a daemon that does not answer; otherwise
@@ -584,10 +587,10 @@ function Shell({ active, children }: { active: NavPage; children: React.ReactNod
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
         <SidebarNav page={active} installedUpdates={installedUpdates} />
-        <div className="foot">{unsafeOn && <UnsafeBadge />}<div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
+        <div className="foot">{(unsafeOn || unsafeRunning) && <UnsafeBadge running={unsafeRunning} />}<div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>
-      {unsafeOn && <UnsafeGlow />}
+      {(unsafeOn || unsafeRunning) && <UnsafeGlow />}
     </div>
   );
 }

@@ -93,4 +93,6 @@ export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusV
 
 export function TestJevKey():Promise<main.JevKeyTestView>;
 
+export function UnsafeLive():Promise<boolean>;
+
 export function UnsafeNotice(arg1:string,arg2:string):Promise<main.UnsafeNoticeView>;

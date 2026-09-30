@@ -337,6 +337,8 @@ const states = [
     expectNone: ".unsafe-glow, .unsafe-badge", expectUnsafeSwitch: false },
   { name: "settings-unsafe-on", url: "/pages.html?settings=run-defaults#unsafe-on", note: "Unsafe Mode on: the switch reads on, the red edge runs round the window and the sidebar's badge says Unsafe Mode", locator: '[data-preview="settings"]', window: true,
     expectSection: "run-defaults", expectText: ["Unsafe Mode", "On"], expectUnsafeSwitch: true, expectGlow: true, scrollTo: "#settings-part-unsafe" },
+  { name: "settings-unsafe-running", url: "/pages.html?settings=run-defaults#unsafe-running", note: "Unsafe Mode turned off while a run compiled in it is still live (agentry-desktop#479): the switch reads off, the red edge stays and the badge says it is running", locator: '[data-preview="settings"]', window: true,
+    expectSection: "run-defaults", expectText: ["Unsafe Mode", "Off", "applies from the next run or chat", "One already running keeps Unsafe Mode"], expectUnsafeSwitch: false, expectGlow: true, expectBadge: "Unsafe Mode: running", scrollTo: "#settings-part-unsafe" },
   { name: "settings-unsafe-pulling", url: "/pages.html?settings=run-defaults#unsafe-pulling", note: "the switch clicked and the native Yes given: the image's pull under way, the switch still off until it ends", locator: '[data-preview="settings"] #settings-part-unsafe',
     click: '[data-preview="settings"] #settings-part-unsafe input[role="switch"]', expectSection: "run-defaults", expectText: ["Downloading the Unsafe Mode image", "Pulling from blaktron/agentry-unsafe-kali"], expectUnsafeSwitch: false },
   { name: "settings-landing-unsafe", url: "/pages.html#unsafe-on", note: "the Settings landing in Unsafe Mode: the Run defaults card's status line says it is on, under the red edge", locator: '[data-preview="settings"]', window: true,
@@ -581,7 +583,7 @@ try {
         });
         if (!glow.covers || glow.clicks !== "none" || !glow.shadow.includes("inset") || !glow.above) throw new Error(`${state.name}: the Unsafe Mode edge is ${JSON.stringify(glow)}`);
         const badge = (await page.locator(".sidebar .unsafe-badge").first().innerText()).trim();
-        if (badge !== "Unsafe Mode") throw new Error(`${state.name}: the sidebar's badge reads "${badge}"`);
+        if (badge !== (state.expectBadge ?? "Unsafe Mode")) throw new Error(`${state.name}: the sidebar's badge reads "${badge}"`);
       }
       if (state.scrollTo) {
         await page.locator(state.scrollTo).first().scrollIntoViewIfNeeded();
