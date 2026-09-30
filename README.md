@@ -56,7 +56,12 @@ The product never claims an agent is "safe". The language is always:
   `ready`, or `manual` (a hand-off to the official installer, or an installed
   engine that refuses for its own reason). The app never runs as root. Runs
   stream their log live and finish with the §R8 result envelope — status,
-  usage, receipts, and the output folder.
+  usage, receipts, and the output folder. What a run needs while it is live
+  (its containers, volumes and networks, and a scratch directory under the
+  runner home that holds its secrets file, staged inputs and copies of the
+  attached knowledge) goes when it ends. If the app is killed mid-run, the
+  next start removes it, and so does quitting; the output folder, the
+  QuickAgent's install and its kept profile are left alone.
 - **Sessions** — a release that declares the `interactive` mode can run as a
   chat instead: **Start session** in the run panel opens it under the same
   controls as an autonomous run. Every message, and every file you add

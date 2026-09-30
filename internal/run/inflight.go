@@ -20,8 +20,9 @@ import (
 // hook, so a run it had in flight keeps its agent, gateway and proxy
 // containers up. The app therefore records each run it starts — its run id
 // and the process that owns it — in a small file under the runner home,
-// removes the file when the run ends, and at the next start sweeps the run
-// of any record whose owner is provably gone (D-034).
+// removes the file when the run ends, and at the next start, and when it
+// quits, sweeps the run of any record whose owner is provably gone (D-034;
+// the quit half and the sweep's reach beyond docker, agentry-desktop#463).
 //
 // A record names one run id, minted by the process that wrote it and used
 // by nobody else, so sweeping by that id can never reach the CLI's runs or
@@ -114,8 +115,21 @@ func recordPath(dir, runID string) string { return filepath.Join(dir, runID+".js
 // and removes its record once the sweep succeeded (a failed sweep — Docker
 // not running yet — keeps the record for the next start). A live owner's
 // record, this process's own, and anything unreadable or malformed are left
-// alone. It returns the run ids it swept, sorted.
+// alone. It returns the run ids it swept, sorted. The app runs it at start.
 func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
+	return sweepRecorded(ctx, dir, false, sweep)
+}
+
+// SweepAtQuit is SweepOrphaned for an app that is closing, after it has torn
+// down what it had live: every record this process wrote is swept as well,
+// since nothing of this process's is running any more, so a run whose own
+// teardown left something behind does not wait for the next start
+// (agentry-desktop#463). Another live process's record is still left alone.
+func SweepAtQuit(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
+	return sweepRecorded(ctx, dir, true, sweep)
+}
+
+func sweepRecorded(ctx context.Context, dir string, own bool, sweep func(context.Context, string) error) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -138,7 +152,7 @@ func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, 
 		if json.Unmarshal(b, &rec) != nil || !runIDPattern.MatchString(rec.RunID) || name != rec.RunID+".json" {
 			continue
 		}
-		if !ownerGone(rec.PID, rec.Start) {
+		if !ownerGone(rec.PID, rec.Start) && (!own || rec.PID != os.Getpid()) {
 			continue
 		}
 		if err := sweep(ctx, rec.RunID); err != nil {

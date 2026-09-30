@@ -225,10 +225,13 @@ func isolateRunEnv(t *testing.T) string {
 }
 
 // withFakeDocker swaps the docker seam for a dockerx.Fake for one test.
-func withFakeDocker(t *testing.T, f *dockerx.Fake) {
+func withFakeDocker(t *testing.T, f *dockerx.Fake) { withDocker(t, f) }
+
+// withDocker swaps the docker seam for any client, for one test.
+func withDocker(t *testing.T, d dockerx.Client) {
 	t.Helper()
 	old := newDockerClient
-	newDockerClient = func() dockerx.Client { return f }
+	newDockerClient = func() dockerx.Client { return d }
 	t.Cleanup(func() { newDockerClient = old })
 }
 

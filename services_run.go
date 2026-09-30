@@ -21,6 +21,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -54,7 +55,7 @@ type RunAPI struct {
 	// agentry-desktop#424); nil is the docker CLI. A test passes its own.
 	images dockerimages.Docker
 	// session is the live interactive session, nil otherwise.
-	session *run.Session
+	session chat
 	// knowledgeEnv is the local knowledge store's wiring; nil is this
 	// app's (internal/knowledge.Default). A test passes its own.
 	knowledgeEnv *knowledge.Env
@@ -75,9 +76,10 @@ type RunAPI struct {
 	liveMu sync.Mutex
 	live   *liveRun
 	// Engine seams for tests; nil means internal/run.
-	newRunID  func() (string, error)
-	engineRun func(context.Context, run.Request, io.Writer) (*run.Result, error)
-	sweep     func(context.Context, string) error
+	newRunID      func() (string, error)
+	engineRun     func(context.Context, run.Request, io.Writer) (*run.Result, error)
+	engineSession func(context.Context, run.Request, io.Writer) (chat, error)
+	sweep         func(context.Context, string) error
 	// inFlightDir holds the crash-path records (services_quit.go,
 	// agentry-desktop#198); "" is the runner home's desktop-runs.
 	inFlightDir string
@@ -92,6 +94,16 @@ type RunAPI struct {
 	foldersMu  sync.Mutex
 	folders    map[string]string
 	openFolder func(dir string) error
+}
+
+// chat is the engine's interactive session as the app drives it
+// (*run.Session); a test substitutes its own, as it does the engine's run.
+type chat interface {
+	Ref() string
+	Events() <-chan session.Event
+	Send(ctx context.Context, text string) error
+	AddInput(ctx context.Context, path string) error
+	End(ctx context.Context, finish bool) (*run.Result, error)
 }
 
 // SessionView is what StartSession returns.
@@ -153,7 +165,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		return nil, err
 	}
 	logw := r.eventWriter(eventRunLog)
-	s, err := run.StartSession(ctx, run.Request{
+	s, err := r.startEngineSession(ctx, run.Request{
 		RunID:              live.id,
 		Registry:           reg,
 		Ref:                ref,
