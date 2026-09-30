@@ -14,6 +14,10 @@ export function ChooseFiles(arg1) {
   return window['go']['main']['App']['ChooseFiles'](arg1);
 }
 
+export function ChooseSaveFolder(arg1) {
+  return window['go']['main']['App']['ChooseSaveFolder'](arg1);
+}
+
 export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }

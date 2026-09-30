@@ -10,6 +10,12 @@
 // the namespace, version, licence, tags, include list, file name and run
 // mode) stays in the form views.
 //
+// It ends on three actions (agentry-desktop#425, reversing D3's private
+// Submit): Save writes the QuickAgent to a folder; Install puts it on this
+// computer only, local and unsigned, with no registry and no credit; Submit
+// sends it to the registry publicly, after a native warning that names what
+// it costs. The two dialogs are the Go side's, which the page cannot answer.
+//
 // Every string here may be the Drafter's: the overview and each key's help
 // go through AgentMarkdown's rules (AuthorHelp frames the help as the
 // author's), and the rest is text through RevealText.
@@ -34,18 +40,21 @@ function Hosts({ hosts, label }: { hosts: build.SummaryHost[]; label: string }) 
 }
 
 export function SummaryView({
-  s, check, visibility, onVisibility, problem, onForm, onSubmit, submitting, ready, dir, headingRef, outcome,
+  s, check, problem, onForm, onSave, onInstall, onSubmit, busy, ready, dir, registry, headingRef, outcome,
 }: {
   s: build.Summary;
   /** AI Review's check of a draft as one line, or null (a form-written QuickAgent has none). */
   check: main.DraftCheckView["line"] | null;
-  visibility: string;
-  onVisibility: (pub: boolean) => void;
   /** The first rule the form still fails, and the step that fixes it; null when it passes. */
   problem: { label: string; text: string; fix: () => void } | null;
   onForm: (v: "steps" | "advanced") => void;
+  onSave: () => void;
+  onInstall: () => void;
   onSubmit: () => void;
-  submitting: boolean;
+  /** The action under way: "save", "install" or "publish". */
+  busy: string | null;
+  /** Where Submit sends it. */
+  registry: string;
   /** The form's check has answered and nothing else is under way. */
   ready: boolean;
   dir: string;
@@ -56,7 +65,7 @@ export function SummaryView({
   return (
     <section aria-labelledby="build-summary-heading" className="build-summary">
       <h2 id="build-summary-heading" ref={headingRef} tabIndex={-1}>Summary</h2>
-      <p className="muted small">How the QuickAgent works and what it needs. Submit it when this is what you want; every other choice is in the form.</p>
+      <p className="muted small">How the QuickAgent works and what it needs. Save it, install it here, or submit it when this is what you want; every other choice is in the form.</p>
 
       <Card>
         <strong>How it works</strong>
@@ -127,22 +136,24 @@ export function SummaryView({
         </div>
       )}
 
-      <label className="check-row" style={{ marginTop: 12 }}>
-        <input type="checkbox" checked={visibility === "public"} onChange={(e) => onVisibility(e.target.checked)} />
-        <span>
-          Make it public
-          <span className="muted small" style={{ display: "block" }}>
-            {visibility === "public" ? "Anyone can find and install it once the pipeline publishes it." : "It stays private unless you switch this on."}
-          </span>
-        </span>
-      </label>
-      <div className="row" style={{ marginTop: 8 }}>
-        <Button variant="primary" disabled={!ready || !!problem} onClick={onSubmit}>{submitting ? "Submitting…" : "Submit"}</Button>
+      <div className="row" style={{ marginTop: 12 }}>
+        <Button disabled={!ready} onClick={onSave}>{busy === "save" ? "Saving…" : "Save"}</Button>
+        <Button disabled={!ready || !!problem} onClick={onInstall}>{busy === "install" ? "Installing…" : "Install"}</Button>
+        <Button variant="primary" disabled={!ready || !!problem} onClick={onSubmit}>{busy === "publish" ? "Submitting…" : "Submit"}</Button>
       </div>
-      <p className="muted small">
-        {dir ? <>It saves into <span className="mono selectable">{dir}</span> first. </> : "Submit first asks where to save the workspace: an empty folder. "}
-        The security pipeline scans it before anything is published.
-      </p>
+      <ul className="muted small build-summary-actions">
+        <li>
+          <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : "a folder you choose, an empty one"}.
+        </li>
+        <li>
+          <strong>Install</strong> puts it on this computer only, in Installed: private, unsigned, with no registry and no
+          credit. Every run asks you to accept that it is unsigned.
+        </li>
+        <li>
+          <strong>Submit</strong> sends it to <RevealText text={registry.replace(/^https?:\/\//, "")} /> for the security pipeline and
+          makes it <strong>public</strong>. It first says what the submission costs, and sends nothing until you agree.
+        </li>
+      </ul>
       {outcome}
       <p className="small">
         See it in the form: <Button variant="link" onClick={() => onForm("steps")}>step by step</Button> or{" "}

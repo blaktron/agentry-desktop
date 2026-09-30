@@ -1,20 +1,30 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
-import { install, installed } from "../../wailsjs/go/models";
+import { install, installed, trust } from "../../wailsjs/go/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, fmtDate,
 } from "../ui";
 import InstallWizard from "./InstallWizard";
+import RunPanel from "./RunPanel";
 
 type UpdateMap = Record<string, install.UpdateInfo>;
+
+// What a local install's run panel is told of its provenance: the Go side
+// holds the release to its integrity record and asks the consent again.
+// A plain object, not createFrom: the class carries a convertValues method
+// the production bundle's createFrom did not survive (agentry-desktop#441).
+const localAttestation = { state: "local", detail: "installed from a folder on this computer" } as trust.AttestationResult;
 
 function keyOf(r: { registry: string; namespace: string; name: string; target: string; dir: string }): string {
   return [r.registry, r.namespace, r.name, r.target, r.dir].join(" ");
 }
 
 export default function Installed({
-  onBrowse, onOpenAgent,
+  registry, onBrowse, onOpenAgent,
 }: {
+  /** The app's registry: a local install's run reads its knowledge packs and
+   * its MCP servers' vulnerability verdicts there, and sends it nothing. */
+  registry: string;
   onBrowse: () => void;
   onOpenAgent: (registry: string, ns: string, name: string) => void;
 }) {
@@ -31,6 +41,9 @@ export default function Installed({
   const [warning, setWarning] = useState<string | null>(null);
   const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
   const [updatingRunner, setUpdatingRunner] = useState<string | null>(null);
+  // A QuickAgent installed from a folder (agentry-desktop#425) has no
+  // registry page to open, so it runs from here.
+  const [running, setRunning] = useState<install.Item | null>(null);
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
@@ -176,6 +189,25 @@ export default function Installed({
             "Installed here",
             managed,
             (rec) => {
+              if (rec.local) {
+                return (
+                  <AgentRow
+                    key={keyOf(rec)}
+                    title={`${rec.namespace}/${rec.name}`}
+                    badges={<>
+                      <span className="mono small">v{rec.version}</span>
+                      <span className="badge warn">local, unsigned</span>
+                    </>}
+                    summary={<span className="mono small selectable">{rec.dir}</span>}
+                    meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} from a folder on this computer; no registry holds it</>}
+                    actions={<>
+                      <Button variant="primary" onClick={() => setRunning(rec)}>Run</Button>
+                      <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
+                    </>}
+                    onClick={() => setRunning(rec)}
+                  />
+                );
+              }
               const u = updates[keyOf(rec)];
               return (
                 <AgentRow
@@ -228,6 +260,18 @@ export default function Installed({
             ),
           )}
         </>
+      )}
+
+      {running && (
+        <RunPanel
+          registry={registry}
+          ns={running.namespace}
+          name={running.name}
+          version={running.version}
+          attestation={localAttestation}
+          local
+          onClose={() => setRunning(null)}
+        />
       )}
 
       {confirmRemove && (

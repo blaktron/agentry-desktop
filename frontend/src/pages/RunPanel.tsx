@@ -32,7 +32,7 @@ import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
 
 export default function RunPanel({
-  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep,
+  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false,
 }: {
   registry: string;
   ns: string;
@@ -48,6 +48,10 @@ export default function RunPanel({
   initialMode?: string;
   /** Harness-only: open on this step, for screenshots. */
   initialStep?: StepKey;
+  /** A QuickAgent installed from a folder on this computer
+   * (agentry-desktop#425): no registry holds it, so it is not offered In
+   * Agentry, and its run needs the unsigned consent. */
+  local?: boolean;
 }) {
   const agentRef = `${ns}/${name}@${version}`;
 
@@ -146,7 +150,9 @@ export default function RunPanel({
         if (d.outputDir) setOutDir((cur) => cur || d.outputDir || "");
       })
       .catch(() => setDefaults(null));
-    RunAPI.GatewayRequirements(registry, ns, name).then(setMcp).catch(() => setMcp(null));
+    // The tool surface of the release this run would run: the local
+    // install of it when there is one (agentry-desktop#425).
+    RunAPI.RunRequirements(registry, agentRef).then(setMcp).catch(() => setMcp(null));
     KnowledgeAPI.List(registry).then((l) => setPacks(l.packs)).catch(() => setPacks([]));
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
@@ -171,6 +177,12 @@ export default function RunPanel({
   // account already have a run the panel should reattach to (D11)?
   useEffect(() => {
     let live = true;
+    // No registry holds a local install, so nothing In Agentry can run it.
+    if (local) {
+      setHosted(null);
+      setHostedKnown(true);
+      return;
+    }
     RunAPI.HostedAvailability(registry, agentRef)
       .then((h) => {
         if (!live) return;
@@ -213,7 +225,10 @@ export default function RunPanel({
   // install wizard's gate); mismatch/unverifiable never runs — the Go
   // side re-verifies the downloaded bytes and refuses those regardless.
   const provPending = attestation == null;
-  const unsigned = attestation?.state === "unsigned";
+  // A local install (agentry-desktop#425) is unsigned by definition: the
+  // same consent, enforced in Go the same way, with its own words.
+  const isLocal = local || attestation?.state === "local";
+  const unsigned = attestation?.state === "unsigned" || isLocal;
   // Unscanned: the registry admitted the version without a scan (plan
   // organization-subscriptions §4) — its own verdict, its own checkbox,
   // enforced in Go like the unsigned one. A run In Agentry is not
@@ -1151,8 +1166,13 @@ export default function RunPanel({
                     <span>
                       <strong>Run an unsigned release.</strong>{" "}
                       <span className="muted">
-                        This registry published no attestation for this version — nothing cryptographically
-                        vouches for these bytes. The run&apos;s receipts are marked unsigned.
+                        {isLocal ? (
+                          <>It was installed from a folder on this computer: no pipeline scanned it and no one signed it.
+                            The run&apos;s receipts are marked local.</>
+                        ) : (
+                          <>This registry published no attestation for this version — nothing cryptographically
+                            vouches for these bytes. The run&apos;s receipts are marked unsigned.</>
+                        )}
                       </span>
                     </span>
                   </label>

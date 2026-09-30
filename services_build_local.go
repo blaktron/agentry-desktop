@@ -37,8 +37,9 @@ type LocalInstallView struct {
 // Install lays the QuickAgent in dir down on this computer. dir is the
 // folder Save wrote, which the native picker gave (D-030). The consent is
 // a native dialog the page cannot answer: the contract, and that the
-// install is local and unsigned. A copy of the same release whose files
-// changed since it was installed is laid down again only on a second Yes.
+// install is local and unsigned; a No installs nothing and returns nil. A
+// copy of the same release whose files changed since it was installed is
+// laid down again only on a second Yes.
 func (b *BuildAPI) Install(dir string) (*LocalInstallView, error) {
 	if !b.mu.TryLock() {
 		return nil, fmt.Errorf("a submit or an install is already in progress")
@@ -63,6 +64,9 @@ func (b *BuildAPI) Install(dir string) (*LocalInstallView, error) {
 		prev = st.Find(installdir.ConsentKey(home, m.Namespace, m.Name))
 	}
 	if err := b.app.askConsent("Install "+m.Namespace+"/"+m.Name+" on this computer?", localInstallConsentText(s, prev, dir)); err != nil {
+		if errors.Is(err, errNotConfirmed) {
+			return nil, nil //nolint:nilnil // a No is the answer: nothing was installed
+		}
 		return nil, err
 	}
 
@@ -78,6 +82,9 @@ func (b *BuildAPI) Install(dir string) (*LocalInstallView, error) {
 	var changed *installdir.ChangedError
 	if errors.As(err, &changed) {
 		if cerr := b.app.askConsent("Replace the changed copy?", "The installed copy of "+s.Ref()+" changed after it was installed ("+changedText(changed)+").\n\nLay it down again from "+dir+"?"); cerr != nil {
+			if errors.Is(cerr, errNotConfirmed) {
+				return nil, fmt.Errorf("the installed copy of %s changed after it was installed, and was left as it is: %w", s.Ref(), changed)
+			}
 			return nil, cerr
 		}
 		_, err = s.Repair(home, style)

@@ -391,6 +391,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-keys-saved": "tools",
   "runpanel-file-intake": "review",
   "runpanel-unscanned": "review",
+  "runpanel-local-install": "review",
   "runpanel-step-files": "files",
   "runpanel-step-tools": "tools",
   "runpanel-step-details": "details",
@@ -414,7 +415,7 @@ const g = window as any;
 g.go = { main: {
   SettingsAPI: { RunDefaults: async () => runDefaults },
   RunAPI: {
-    SetupStatus: async () => setup, GatewayRequirements: async () => mcp,
+    SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
     ProfileStatus: async () => profile,
     // Saving the keys makes the profile exist: the line above Run goes and
     // Run enables (#runpanel-keys-saved, agentry-desktop#167).
@@ -489,7 +490,11 @@ import ToolsPanel from "../src/pages/ToolsPanel";
 import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 
-const att = (hostedState === "unscanned" || hostedState === "default-agentry-unscanned" || view === "install-unscanned"
+// #runpanel-local-install (agentry-desktop#425): a QuickAgent installed
+// from a folder on this computer, run from Installed.
+const localInstall = view === "runpanel-local-install";
+const att = (localInstall ? { state: "local", detail: "installed from a folder on this computer" }
+  : hostedState === "unscanned" || hostedState === "default-agentry-unscanned" || view === "install-unscanned"
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
   : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified" }) as any;
 
@@ -536,7 +541,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
       <RunPanel
         registry="https://secureagentry.net"
         ns={keysShape ? "agentry" : "demo1"} name={keysShape ? "pr-review-brief" : "incident-summarizer"} version={keysShape ? "1.2.1" : "1.2.0"}
-        attestation={att} onClose={() => {}}
+        attestation={att} onClose={() => {}} local={localInstall}
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}

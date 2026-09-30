@@ -38,16 +38,16 @@ export function Exists(arg1) {
   return window['go']['main']['BuildAPI']['Exists'](arg1);
 }
 
+export function Install(arg1) {
+  return window['go']['main']['BuildAPI']['Install'](arg1);
+}
+
 export function Load(arg1) {
   return window['go']['main']['BuildAPI']['Load'](arg1);
 }
 
 export function NewModel(arg1) {
   return window['go']['main']['BuildAPI']['NewModel'](arg1);
-}
-
-export function Publish(arg1, arg2, arg3) {
-  return window['go']['main']['BuildAPI']['Publish'](arg1, arg2, arg3);
 }
 
 export function Save(arg1, arg2) {
@@ -60,6 +60,10 @@ export function ServerChecks(arg1, arg2) {
 
 export function StopDraft() {
   return window['go']['main']['BuildAPI']['StopDraft']();
+}
+
+export function Submit(arg1, arg2) {
+  return window['go']['main']['BuildAPI']['Submit'](arg1, arg2);
 }
 
 export function Summary(arg1, arg2) {

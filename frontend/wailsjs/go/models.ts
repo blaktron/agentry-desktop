@@ -306,6 +306,8 @@ export namespace build {
 	    refusal?: string;
 	    account?: string;
 	    findingCounts?: {[key: string]: number};
+	    visibility?: string;
+	    visibilityNote?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PublishResult(source);
@@ -320,6 +322,8 @@ export namespace build {
 	        this.refusal = source["refusal"];
 	        this.account = source["account"];
 	        this.findingCounts = source["findingCounts"];
+	        this.visibility = source["visibility"];
+	        this.visibilityNote = source["visibilityNote"];
 	    }
 	}
 	
@@ -675,8 +679,11 @@ export namespace install {
 	    installedAt: any;
 	    capabilities: installed.CapSnapshot;
 	    managed?: boolean;
+	    source?: string;
+	    digest?: string;
 	    origin: string;
 	    present: boolean;
+	    local: boolean;
 	    manageable: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -694,8 +701,11 @@ export namespace install {
 	        this.installedAt = this.convertValues(source["installedAt"], null);
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
 	        this.managed = source["managed"];
+	        this.source = source["source"];
+	        this.digest = source["digest"];
 	        this.origin = source["origin"];
 	        this.present = source["present"];
+	        this.local = source["local"];
 	        this.manageable = source["manageable"];
 	    }
 	
@@ -962,6 +972,8 @@ export namespace installed {
 	    installedAt: any;
 	    capabilities: CapSnapshot;
 	    managed?: boolean;
+	    source?: string;
+	    digest?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Record(source);
@@ -978,6 +990,8 @@ export namespace installed {
 	        this.installedAt = this.convertValues(source["installedAt"], null);
 	        this.capabilities = this.convertValues(source["capabilities"], CapSnapshot);
 	        this.managed = source["managed"];
+	        this.source = source["source"];
+	        this.digest = source["digest"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2576,6 +2590,24 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class LocalInstallView {
+	    ref: string;
+	    digest: string;
+	    repaired: boolean;
+	    warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalInstallView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.digest = source["digest"];
+	        this.repaired = source["repaired"];
+	        this.warnings = source["warnings"];
+	    }
 	}
 	export class MCPToolRow {
 	    tool: string;

@@ -107,8 +107,8 @@ func TestInstallLaysAFolderDownAsALocalInstall(t *testing.T) {
 
 func TestInstallDeclinedInstallsNothing(t *testing.T) {
 	b, home, dir, _ := localBuild(t, false)
-	if _, err := b.Install(dir); err == nil || !errors.Is(err, errNotConfirmed) {
-		t.Fatalf("Install answered No = %v", err)
+	if v, err := b.Install(dir); err != nil || v != nil {
+		t.Fatalf("Install answered No = %+v, %v; want nothing and no error", v, err)
 	}
 	if _, err := os.Stat(installdir.AgentDir(home, "acme", "reporter")); !os.IsNotExist(err) {
 		t.Errorf("something was laid down: %v", err)

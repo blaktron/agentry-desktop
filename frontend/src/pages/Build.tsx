@@ -28,7 +28,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { ChooseDirectory } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, ChooseSaveFolder } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
@@ -199,7 +199,7 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings, onOpenInstalled }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
@@ -214,6 +214,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   onOpenAgent?: (ns: string, name: string) => void;
   /** Settings, for Describe it's missing AI Review key. */
   onOpenSettings?: () => void;
+  /** Installed, where Install puts the QuickAgent (agentry-desktop#425). */
+  onOpenInstalled?: () => void;
 }) {
   const [dir, setDir] = useState(kept?.dir ?? "");
   const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
@@ -234,7 +236,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<validate.Result | null>(null);
   const [pubResult, setPubResult] = useState<build.PublishResult | null>(null);
-  const [visibility, setVisibility] = useState("private");
+  // What Install laid down on this computer (agentry-desktop#425).
+  const [localInstall, setLocalInstall] = useState<main.LocalInstallView | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -367,7 +370,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // written over: open it instead.
   async function ensureDir(): Promise<string> {
     if (dir) return dir;
-    const d = await ChooseDirectory("Choose where to save the QuickAgent");
+    // The picker opens in the person's Documents folder (agentry-desktop#425).
+    const d = await ChooseSaveFolder("Choose where to save the QuickAgent");
     if (!d) return "";
     if (await BuildAPI.Exists(d)) {
       setError(`${d} already holds an agent.yaml. Open it with "Open folder…" to edit it, or choose an empty folder.`);
@@ -395,6 +399,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setResult(await BuildAPI.Validate(d));
     });
 
+  // Submit is public (agentry-desktop#425): the Go side first asks, in a
+  // native dialog, whether to spend the submission's credits and make it
+  // public, and a No returns nothing and sends nothing.
   const publish = () =>
     wrap("publish", async () => {
       const d = await ensureDir();
@@ -403,7 +410,24 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
       setLog([]);
       setPubResult(null);
-      setPubResult(await BuildAPI.Publish(registry, d, visibility));
+      setLocalInstall(null);
+      const r = await BuildAPI.Submit(registry, d);
+      if (r) setPubResult(r);
+    });
+
+  // Install lays the saved folder down on this computer, local and
+  // unsigned (agentry-desktop#425); its consent is the Go side's native
+  // dialog, and a No returns nothing.
+  const installHere = () =>
+    wrap("install", async () => {
+      const d = await ensureDir();
+      if (!m || !d) return;
+      await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
+      setPubResult(null);
+      setLocalInstall(null);
+      const v = await BuildAPI.Install(d);
+      if (v) setLocalInstall(v);
     });
 
   if (!m) return error ? <ErrorBox error={error} /> : <Spinner />;
@@ -441,6 +465,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   function resetOutcome() {
     setResult(null);
     setPubResult(null);
+    setLocalInstall(null);
     setStepProblem(null);
     setNotice(null);
     setError(null);
@@ -469,7 +494,6 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setDrafted(v);
     setTouched(true);
     setDir("");
-    setVisibility("private");
     resetOutcome();
     setSummary(null);
     setView("summary");
@@ -798,12 +822,6 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           <label className="small">license (SPDX)
             <input className="mono" value={m.license} onChange={(e) => set({ license: e.target.value })} />
           </label>
-          <label className="small">visibility
-            <select value={visibility} onChange={(e) => setVisibility(e.target.value)}>
-              <option value="private">private</option>
-              <option value="public">public</option>
-            </select>
-          </label>
         </div>
         <label className="small" style={{ display: "block", marginTop: 8 }}>homepage (optional)
           <input style={inputStyle} value={m.homepage ?? ""} onChange={(e) => set({ homepage: e.target.value })} placeholder="https://github.com/you/your-quickagent" />
@@ -854,10 +872,11 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     </>
   );
 
-  const outcome = (log.length > 0 || pubResult) ? (
+  const outcome = (log.length > 0 || pubResult || localInstall) ? (
     <Card className="mt">
-      <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>
+      {log.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>}
       {pubResult && <PublishOutcome pub={pubResult} m={m} registry={registry} onError={setError} />}
+      {localInstall && <LocalInstallOutcome v={localInstall} onOpenInstalled={onOpenInstalled} />}
     </Card>
   ) : null;
 
@@ -900,12 +919,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
           <SummaryView
             s={summary}
             check={drafted?.check?.line ?? null}
-            visibility={visibility}
-            onVisibility={(pub) => setVisibility(pub ? "public" : "private")}
             problem={first ? { label, text: first.problem, fix: () => { switchTo("steps"); setAt(stepOf(first.section as StepKey)); } } : null}
             onForm={toForm}
+            onSave={save}
+            onInstall={installHere}
             onSubmit={publish}
-            submitting={busy === "publish"}
+            busy={busy}
+            registry={registry}
             ready={!!check && !busy}
             dir={dir}
             headingRef={summaryHeading}
@@ -1027,7 +1047,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                   ) : "Not written: the run setup uses the summary and the contract",
                   onEdit: () => goTo(stepOf("guide")),
                 },
-                { label: "Publishing", value: <><span className="mono">{m.namespace || "?"}/{m.name || "?"}@{m.version || "?"}</span>, {visibility}, licence {m.license || "none"}</>, onEdit: () => goTo(stepOf("publish")) },
+                { label: "Publishing", value: <><span className="mono">{m.namespace || "?"}/{m.name || "?"}@{m.version || "?"}</span>, public once submitted, licence {m.license || "none"}</>, onEdit: () => goTo(stepOf("publish")) },
               ]}
             />
             <ReachList title="What it may reach" rows={[...net, ...local]} />
@@ -1099,6 +1119,20 @@ function ValidateCard({ result }: { result: validate.Result }) {
   );
 }
 
+function LocalInstallOutcome({ v, onOpenInstalled }: { v: main.LocalInstallView; onOpenInstalled?: () => void }) {
+  return (
+    <div className="selectable">
+      <strong>{v.repaired ? "laid down again" : "installed"} {v.ref} on this computer — local and unsigned</strong>
+      <p className="muted small">
+        No registry holds it and nothing was submitted. It is in Installed, where Run starts it; every run asks you to
+        accept that it is unsigned. Its archive digest is <span className="mono">{v.digest}</span>.
+      </p>
+      {(v.warnings ?? []).map((w, i) => <Notice key={i} tone="warn">{w}</Notice>)}
+      {onOpenInstalled && <p className="small"><Button onClick={onOpenInstalled}>Open Installed</Button></p>}
+    </div>
+  );
+}
+
 function PublishOutcome({ pub, m, registry, onError }: { pub: build.PublishResult; m: build.Model; registry: string; onError: (e: string) => void }) {
   return (
     <div className="selectable">
@@ -1109,6 +1143,8 @@ function PublishOutcome({ pub, m, registry, onError }: { pub: build.PublishResul
         {pub.status === "refused" && "refused — the registry stored nothing"}
       </strong>
       {pub.detail && <p className="muted small">{pub.detail}</p>}
+      {pub.status !== "refused" && pub.visibility === "public" && <p className="muted small">It is public.</p>}
+      {pub.visibilityNote && <Notice tone="warn">{pub.visibilityNote}</Notice>}
       {pub.status === "refused" && pub.account && (
         // Whose subscription the refusal is about (plan
         // organization-subscriptions.md D22): a member publishes to their own

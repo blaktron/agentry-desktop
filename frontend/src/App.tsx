@@ -200,6 +200,7 @@ export default function App() {
             )}
             {route.page === "installed" && (
               <Installed
+                registry={registry}
                 onBrowse={() => nav({ page: "browse" })}
                 onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
               />
@@ -221,7 +222,7 @@ export default function App() {
             />
           )}
             {route.page === "build" && (
-              <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} />
+              <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenInstalled={() => nav({ page: "installed" })} />
             )}
             {route.page === "validate" && <Validate />}
             {route.page === "settings" && (
