@@ -97,6 +97,8 @@ type hostedFake struct {
 	// streamError, when set, is the class of the `error` event every
 	// stream answers with: the registry cannot show this session.
 	streamError string
+	// noHosts makes the status route report no sandbox host answering.
+	noHosts bool
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -166,7 +168,7 @@ func (f *hostedFake) start(t *testing.T) string {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		st := map[string]any{
-			"enabled": f.enabled, "workersOnline": 0, "hostsOnline": 1, "queued": 0,
+			"enabled": f.enabled, "workersOnline": 0, "hostsOnline": map[bool]int{false: 1, true: 0}[f.noHosts], "queued": 0,
 			"caller": map[string]any{
 				"tier": "standard", "caps": map[string]any{"timeoutSeconds": 300, "maxTurns": 20, "maxTokens": 20000},
 				"holdCredits": 20, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,

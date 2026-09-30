@@ -49,6 +49,10 @@ type Facts struct {
 	// say.
 	SessionsEnabled bool
 	SessionAllowed  *bool
+	// HostsOnline is the status route's sandbox hosts answering: a session
+	// is refused with none (409 sessions-unavailable), never queued, since
+	// a person waits on it as it starts (agentry-desktop#437).
+	HostsOnline int
 }
 
 // Offer is the answer: whether the choice appears at all, whether it can
@@ -98,6 +102,11 @@ func Decide(f Facts) Offer {
 const (
 	SessionTierReason = "Talking to an agent In Agentry is part of Pro, Business and Enterprise."
 	SessionTierRemedy = "On Standard, talk to it on this computer, for no credits; or upgrade to Pro."
+	// SessionNoHostReason and SessionNoHostRemedy say why no session can
+	// start while no sandbox host answers, in the registry's own words for
+	// its refusal.
+	SessionNoHostReason = "No sandbox host is answering right now, so a session In Agentry cannot start."
+	SessionNoHostRemedy = "Try again in a few minutes, or talk to it on this computer."
 )
 
 // DecideSession applies the rule for Talk to it In Agentry, a hosted
@@ -118,6 +127,10 @@ func DecideSession(f Facts) Offer {
 		return o
 	}
 	if o.Reason, o.Remedy = tokenAndSecrets(f, "a session"); o.Reason != "" {
+		return o
+	}
+	if f.HostsOnline == 0 {
+		o.Reason, o.Remedy = SessionNoHostReason, SessionNoHostRemedy
 		return o
 	}
 	o.Available = true

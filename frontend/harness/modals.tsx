@@ -95,6 +95,8 @@
 //                              registry's terms
 //   #runpanel-session-tier     a payer on Standard: the choice offered,
 //                              unavailable, with the reason and See Pro
+//   #runpanel-session-nohost   no sandbox host answering: the choice offered,
+//                              unavailable, with the reason (#437)
 //   #runpanel-session          a session running: the chat over the stream,
 //                              a file added, a hostile agent reply drawn as
 //                              text, the time-and-credits strip, D2's sentence
@@ -267,9 +269,11 @@ const availability = {
   // payer is offered it unavailable, with the way up.
   session: sessionShape
     ? {
-      offered: true, available: view !== "runpanel-session-tier",
-      reason: view === "runpanel-session-tier" ? "Talking to an agent In Agentry is part of Pro, Business and Enterprise." : "",
-      remedy: view === "runpanel-session-tier" ? "On Standard, talk to it on this computer, for no credits; or upgrade to Pro." : "",
+      offered: true, available: view !== "runpanel-session-tier" && view !== "runpanel-session-nohost",
+      reason: view === "runpanel-session-tier" ? "Talking to an agent In Agentry is part of Pro, Business and Enterprise."
+        : view === "runpanel-session-nohost" ? "No sandbox host is answering right now, so a session In Agentry cannot start." : "",
+      remedy: view === "runpanel-session-tier" ? "On Standard, talk to it on this computer, for no credits; or upgrade to Pro."
+        : view === "runpanel-session-nohost" ? "Try again in a few minutes, or talk to it on this computer." : "",
       upgrade: view === "runpanel-session-tier",
       freeMinutes: 10, creditsPerMinute: 50, minCredits: 50, idleSeconds: 300,
       transport: "Transport encrypted by the user key, messages not stored; the transcript comes back only in your sealed output.",

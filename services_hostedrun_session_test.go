@@ -43,6 +43,11 @@ func TestHostedAvailabilityOffersASession(t *testing.T) {
 		{"no caller line", func(f *hostedFake) { f.sessionAllowed = nil }, false, false, false, false},
 		{"autonomous only", func(f *hostedFake) { f.modes = []string{"autonomous"} }, false, false, false, true},
 		{"a token from before", func(f *hostedFake) { f.scopes = []string{"agent:read", "user:profile"} }, true, false, false, false},
+		// No sandbox host answering: the registry would refuse the start
+		// (409 sessions-unavailable), so it is not available (#437); a run
+		// of a both-modes release still queues, as it always has.
+		{"no sandbox host answering", func(f *hostedFake) { f.noHosts = true }, true, false, false, false},
+		{"no sandbox host, both modes", func(f *hostedFake) { f.noHosts = true; f.modes = []string{"autonomous", "interactive"} }, true, false, false, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
