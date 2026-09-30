@@ -11,6 +11,7 @@ import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
 import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
+import { DockerImagesCard } from "./DockerImages";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
@@ -26,7 +27,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 export type SettingsPart =
   | "profile" | "subscription"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "where" | "output" | "docker" | "provider" | "ai-review-key";
+  | "budgets" | "where" | "output" | "docker" | "images" | "provider" | "ai-review-key";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -54,10 +55,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "run-defaults", title: "Run defaults",
-    sentence: "How long a run may take, where runs go and where their files land, and the Docker engine runs on this computer use.",
+    sentence: "How long a run may take, where runs go and where their files land, and the Docker engine runs on this computer use, with Agentry's images on it.",
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "where", label: "Where to run" },
       { id: "output", label: "Output folder" }, { id: "docker", label: "Docker engine" },
+      { id: "images", label: "Docker images" },
     ],
   },
   {
@@ -415,6 +417,7 @@ function RunDefaultsSettings() {
           ? <Card><p className="small" style={{ margin: 0 }}>{runStatus(setup)}</p></Card>
           : <PrereqCard onDone={async () => { await read(); }} />)}
       </PartSection>
+      <PartSection id="images" title="Docker images"><DockerImagesCard /></PartSection>
     </>
   );
 }

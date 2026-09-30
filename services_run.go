@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"io"
@@ -46,6 +47,9 @@ type RunAPI struct {
 	// sweeps unambiguous. An interactive session holds it from
 	// StartSession to EndSession (D-017: one session per app).
 	mu sync.Mutex
+	// images lists and removes Docker images (Run defaults' Docker images,
+	// agentry-desktop#424); nil is the docker CLI. A test passes its own.
+	images dockerimages.Docker
 	// session is the live interactive session, nil otherwise.
 	session *run.Session
 	// knowledgeEnv is the local knowledge store's wiring; nil is this

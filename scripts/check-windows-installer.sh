@@ -160,6 +160,15 @@ fi
 grep -q -E '^Section /o "un\.Also remove my Agentry settings and sign-in"' "$nsi" || fail "the settings section is not off by default (/o)"
 awk '/^Section "un\./{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi" | grep 'SectionIn RO' >/dev/null || fail "the application section can be unticked"
 grep -q -- '--remove-my-settings' "$nsi" || fail "the settings section does not hand the removal to the app"
+# Agentry's Docker images go unless "Keep my Docker images" is ticked
+# (agentry-desktop#424): the box is off by default, the app does the
+# removal, and it runs before the settings section deletes the policy.
+grep -q -E '^Section /o "un\.Keep my Docker images" SEC_UN_KEEP_IMAGES' "$nsi" || fail "the keep-images box is not off by default (/o)"
+grep -q -- '--remove-docker-images' "$nsi" || fail "the images section does not hand the removal to the app"
+images_at=$(grep -n -E '^[[:space:]]*ExecWait .*--remove-docker-images' "$nsi" | head -1 | cut -d: -f1)
+settings_at=$(grep -n -E '^[[:space:]]*ExecWait .*--remove-my-settings' "$nsi" | head -1 | cut -d: -f1)
+[ -n "$images_at" ] && [ -n "$settings_at" ] || fail "the images or the settings step does not run the app (no ExecWait)"
+[ "$images_at" -lt "$settings_at" ] || fail "the images step runs after the settings step, which deletes the policy that names them"
 
 if [ "$signed" -eq 0 ]; then
   echo "check-windows-installer: $name ok — asInvoker, installs agentry-desktop.exe + uninstall.exe, same binary as $(basename "$exe"), install section stays in \$INSTDIR; unsigned (no --signed)"

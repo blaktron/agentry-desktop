@@ -295,6 +295,12 @@ const states = [
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
   // Run defaults (agentry-desktop#347): the four defaults and Docker; a
   // budget saved, In Agentry chosen and a folder picked, as Go answers.
+  { name: "settings-docker-images", url: "/pages.html?settings=run-defaults", note: "Run defaults → Docker images: Agentry's images by name, the CLI's use of them, and Remove (agentry-desktop#424)", locator: '[data-preview="settings"]',
+    expectSection: "run-defaults", expectText: ["Docker images", "3 Docker images Agentry put on this computer", "ghcr.io/blaktron/agentry-mcp-gateway:v0.43.3 (86.3MB)", "The agentry CLI uses the same images", "Remove Agentry's Docker images"] },
+  { name: "settings-docker-images-removed", url: "/pages.html?settings=run-defaults", note: "after Remove (the native Yes is the Go host's): the report, and none listed", locator: '[data-preview="settings"]',
+    click: '[data-preview="settings"] button:has-text("Remove Agentry\'s Docker images")', expectSection: "run-defaults", expectText: ["Removed 3 images.", "No Docker images of Agentry's are on this computer."] },
+  { name: "settings-docker-images-nodocker", url: "/pages.html?settings=run-defaults#images-nodocker", note: "Docker not answering: nothing listed, and why", locator: '[data-preview="settings"]',
+    expectSection: "run-defaults", expectText: "Docker's images could not be listed", expectNone: '[data-preview="settings"] button:has-text("Remove Agentry\'s Docker images")' },
   { name: "settings-run-defaults", url: "/pages.html?settings=run-defaults", note: "Run defaults: timeout and turns (the policy's, which the CLI shares), where to run, the output folder, Docker", locator: '[data-preview="settings"]',
     expectSection: "run-defaults", expectText: ["Timeout (seconds)", "the agentry CLI runs with them too", "Where to run", "every consent is asked on every run", "None chosen", "Docker engine"],
     expectValue: ['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "900"] },

@@ -363,6 +363,18 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    // Run defaults → Docker images (agentry-desktop#424). #images-none has
+    // none, #images-nodocker a daemon that does not answer; otherwise
+    // three of Agentry's. Remove answers as the Go host would after Yes.
+    AgentryImages: async () => {
+      if (location.hash === "#images-nodocker") return { images: [], unavailable: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" };
+      if (location.hash === "#images-none" || imagesRemoved) return { images: [] };
+      return { images: agentryImages };
+    },
+    RemoveAgentryImages: async () => {
+      imagesRemoved = true;
+      return { removed: agentryImages.map((i) => i.ref), failed: [] };
+    },
     // Settings' Secrets card (agentry-desktop#300): the registry keeps
     // secrets; a save and a delete answer as the vault does.
     KeepsSecrets: async () => true,
@@ -459,6 +471,12 @@ const settingsView = {
   ],
 };
 const REG = "https://secureagentry.net";
+let imagesRemoved = false;
+const agentryImages = [
+  { ref: "ghcr.io/blaktron/agentry-mcp-gateway:v0.43.3", size: "86.3MB" },
+  { ref: "ghcr.io/blaktron/agentry-docker-agent:1.128.0", size: "112MB" },
+  { ref: "agentry-runner:0.6.25", size: "21.5MB" },
+];
 let profileName = "Chris";
 const profileView = () => {
   const user = { handle: "chris", displayName: profileName, email: "chris@example.test", emailVerified: true };
