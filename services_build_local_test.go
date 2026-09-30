@@ -140,6 +140,11 @@ func TestSubmitDeclinedSendsNothing(t *testing.T) {
 	if len(*said) != 1 || !strings.Contains((*said)[0], "Submit acme/reporter publicly?") || !strings.Contains((*said)[0], "makes it public") {
 		t.Fatalf("dialogs = %v", *said)
 	}
+	// This registry answers no metadata: what a submission costs is not
+	// known, and the warning must not say it is free.
+	if !strings.Contains((*said)[0], "could not be read") || strings.Contains((*said)[0], "charges no credits") {
+		t.Errorf("a registry whose extensions could not be read: %s", (*said)[0])
+	}
 }
 
 func TestSubmitWarningNamesTheCost(t *testing.T) {

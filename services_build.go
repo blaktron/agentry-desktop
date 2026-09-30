@@ -143,7 +143,7 @@ func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {
 // nil.
 func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if !b.mu.TryLock() {
-		return nil, fmt.Errorf("a submit or an install is already in progress")
+		return nil, errBuildBusy
 	}
 	defer b.mu.Unlock()
 	// Submit sends the folder Save wrote, which the native picker gave
@@ -164,7 +164,7 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	sub, subErr := fetchSubscription(b.app.ctx, url, token)
+	sub, subErr := fetchSubscriptionStrictly(b.app.ctx, url, token)
 	if cerr := b.app.askConsent("Submit "+m.Namespace+"/"+m.Name+" publicly?", submitConsentText(m.Namespace+"/"+m.Name+"@"+m.Version, originOf(url), private, sub, subErr)); cerr != nil {
 		if errors.Is(cerr, errNotConfirmed) {
 			return nil, nil //nolint:nilnil // a No is the answer: nothing was sent
@@ -173,8 +173,13 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	}
 	logw := (&RunAPI{app: b.app}).eventWriter(eventBuildLog)
 	defer logw.Flush()
-	return build.Publish(b.app.ctx, url, token, dir, logw)
+	// What the person was told decides what may be made public: an agent
+	// that turned private after the dialog is not (build.Publish).
+	return build.Publish(b.app.ctx, url, token, dir, private, logw)
 }
+
+// errBuildBusy refuses a second Submit or Install while one is under way.
+var errBuildBusy = errors.New("a submit or an install is already in progress")
 
 // submitConsentText is Submit's warning: public, and what it spends.
 func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error) string {
@@ -182,7 +187,7 @@ func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, 
 		"This sends " + ref + " to " + origin + ", where the security pipeline scans it, and makes it public: anyone can find and install it once the pipeline publishes it.",
 	}
 	if private {
-		lines = append(lines, "It exists there as a private QuickAgent: it becomes public with its earlier versions once this version is accepted.")
+		lines = append(lines, "It exists there as a private QuickAgent: once the pipeline has scanned this version and not rejected it, the QuickAgent becomes public with its earlier versions.")
 	}
 	switch {
 	case subErr != nil:

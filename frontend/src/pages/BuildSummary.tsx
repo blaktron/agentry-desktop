@@ -51,7 +51,7 @@ export function SummaryView({
   onSave: () => void;
   onInstall: () => void;
   onSubmit: () => void;
-  /** The action under way: "save", "install" or "publish". */
+  /** The action under way: "save", "install" or "submit". */
   busy: string | null;
   /** Where Submit sends it. */
   registry: string;
@@ -139,7 +139,7 @@ export function SummaryView({
       <div className="row" style={{ marginTop: 12 }}>
         <Button disabled={!ready} onClick={onSave}>{busy === "save" ? "Saving…" : "Save"}</Button>
         <Button disabled={!ready || !!problem} onClick={onInstall}>{busy === "install" ? "Installing…" : "Install"}</Button>
-        <Button variant="primary" disabled={!ready || !!problem} onClick={onSubmit}>{busy === "publish" ? "Submitting…" : "Submit"}</Button>
+        <Button variant="primary" disabled={!ready || !!problem} onClick={onSubmit}>{busy === "submit" ? "Submitting…" : "Submit"}</Button>
       </div>
       <ul className="muted small build-summary-actions">
         <li>

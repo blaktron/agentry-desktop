@@ -150,9 +150,9 @@ export default function RunPanel({
         if (d.outputDir) setOutDir((cur) => cur || d.outputDir || "");
       })
       .catch(() => setDefaults(null));
-    // The tool surface of the release this run would run: the local
-    // install of it when there is one (agentry-desktop#425).
-    RunAPI.RunRequirements(registry, agentRef).then(setMcp).catch(() => setMcp(null));
+    // A local install's tool surface is its own (agentry-desktop#425); a
+    // registry release's is the one its page shows.
+    (local ? RunAPI.RunRequirements(registry, agentRef) : RunAPI.GatewayRequirements(registry, ns, name)).then(setMcp).catch(() => setMcp(null));
     KnowledgeAPI.List(registry).then((l) => setPacks(l.packs)).catch(() => setPacks([]));
     RunAPI.ProfileStatus(registry, agentRef)
       .then((p) => {
@@ -227,8 +227,7 @@ export default function RunPanel({
   const provPending = attestation == null;
   // A local install (agentry-desktop#425) is unsigned by definition: the
   // same consent, enforced in Go the same way, with its own words.
-  const isLocal = local || attestation?.state === "local";
-  const unsigned = attestation?.state === "unsigned" || isLocal;
+  const unsigned = attestation?.state === "unsigned" || local;
   // Unscanned: the registry admitted the version without a scan (plan
   // organization-subscriptions §4) — its own verdict, its own checkbox,
   // enforced in Go like the unsigned one. A run In Agentry is not
@@ -1166,7 +1165,7 @@ export default function RunPanel({
                     <span>
                       <strong>Run an unsigned release.</strong>{" "}
                       <span className="muted">
-                        {isLocal ? (
+                        {local ? (
                           <>It was installed from a folder on this computer: no pipeline scanned it and no one signed it.
                             The run&apos;s receipts are marked local.</>
                         ) : (

@@ -1232,13 +1232,17 @@ func ExistsPrivate(ctx context.Context, regURL, token, ns, name string) (bool, e
 
 // Publish submits the QuickAgent publicly (agentry-desktop#425, reversing
 // builder-simplify D3's private default): it creates the agent public if
-// it does not exist, uploads the packed archive (cli-upload source), makes
-// an agent that exists private public once the registry has accepted the
-// version, and follows the pipeline to a verdict — the port of `agentry
-// publish` without --tag. A registry that stores nothing and says why
-// (credits, the namespace, the private-agent cap, an unverified email) is a
-// refused result in words, not an error. Progress lines go to logw.
-func Publish(ctx context.Context, regURL, token, dir string, logw io.Writer) (*PublishResult, error) {
+// it does not exist, uploads the packed archive (cli-upload source),
+// follows the pipeline to a verdict — the port of `agentry publish`
+// without --tag — and then makes an agent that exists private public,
+// unless the pipeline rejected the version. privateConsented is what the
+// person was told: an agent found private that they were not told about is
+// refused before anything is sent, since making it public would publish
+// earlier versions nobody agreed to. A registry that stores nothing and
+// says why (credits, the namespace, the private-agent cap, an unverified
+// email) is a refused result in words, not an error. Progress lines go to
+// logw.
+func Publish(ctx context.Context, regURL, token, dir string, privateConsented bool, logw io.Writer) (*PublishResult, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
 		return nil, err
@@ -1261,8 +1265,13 @@ func Publish(ctx context.Context, regURL, token, dir string, logw io.Writer) (*P
 	switch aresp.StatusCode() {
 	case http.StatusOK:
 		if aresp.JSON200 != nil && aresp.JSON200.Visibility == apiclient.AgentVisibilityPrivate {
+			if !privateConsented {
+				msg := fmt.Sprintf("%s/%s is private, which it was not when you confirmed; submit again to be asked about its earlier versions", m.Namespace, m.Name)
+				_, _ = fmt.Fprintf(logw, "refused: %s\n", msg)
+				return &PublishResult{Status: StatusRefused, Refusal: "private-not-confirmed", Detail: msg}, nil
+			}
 			makePublic = true
-			_, _ = fmt.Fprintf(logw, "agent %s/%s exists and is private: it is made public once this version is accepted\n", m.Namespace, m.Name)
+			_, _ = fmt.Fprintf(logw, "agent %s/%s exists and is private: it is made public once the pipeline has taken this version\n", m.Namespace, m.Name)
 		} else {
 			_, _ = fmt.Fprintf(logw, "agent %s/%s exists\n", m.Namespace, m.Name)
 		}
@@ -1329,6 +1338,9 @@ func Publish(ctx context.Context, regURL, token, dir string, logw io.Writer) (*P
 		return nil, fmt.Errorf("upload version: %w", err)
 	}
 	if sresp.JSON202 == nil {
+		if refused := refusedWithReason(sresp.StatusCode(), sresp.Body, logw); refused != nil {
+			return refused, nil
+		}
 		if sresp.StatusCode() == http.StatusPaymentRequired {
 			// The allowance's refusal is a result the page renders with the
 			// way onward, not a failure: the registry stored nothing and
@@ -1341,26 +1353,6 @@ func Publish(ctx context.Context, regURL, token, dir string, logw io.Writer) (*P
 	}
 	v := sresp.JSON202
 	_, _ = fmt.Fprintf(logw, "version %s accepted (status %s) — waiting for the pipeline verdict\n", v.Version, v.Status)
-
-	// Only now, with the version stored, is a private agent made public:
-	// a submission the registry refused leaves its visibility as it was.
-	visibility, visNote := "public", ""
-	if makePublic {
-		pub := apiclient.UpdateAgentJSONBodyVisibilityPublic
-		uresp, uerr := client.UpdateAgentWithResponse(ctx, m.Namespace, m.Name, apiclient.UpdateAgentJSONRequestBody{Visibility: &pub})
-		switch {
-		case uerr != nil:
-			visibility, visNote = "private", "it stays private: "+uerr.Error()
-		case uresp.StatusCode() != http.StatusOK:
-			_, msg, _ := refusalOf(uresp.Body)
-			visibility, visNote = "private", "it stays private: "+msg
-		default:
-			_, _ = fmt.Fprintf(logw, "made %s/%s public\n", m.Namespace, m.Name)
-		}
-		if visNote != "" {
-			_, _ = fmt.Fprintf(logw, "%s\n", visNote)
-		}
-	}
 
 	// Poll to a terminal state (SSE deferred, like the CLI).
 	deadline := time.Now().Add(5 * time.Minute)
@@ -1385,6 +1377,14 @@ func Publish(ctx context.Context, regURL, token, dir string, logw io.Writer) (*P
 			status = next
 			_, _ = fmt.Fprintf(logw, "status: %s\n", status)
 		}
+	}
+
+	// Only now, with the version stored and the pipeline's verdict in, is a
+	// private agent made public: a refused submission and a rejected
+	// version leave its visibility as it was.
+	visibility, visNote := "public", ""
+	if makePublic {
+		visibility, visNote = makeAgentPublic(ctx, client, m.Namespace, m.Name, status, logw)
 	}
 
 	res := &PublishResult{Version: m.Version, Status: status, Digest: info.Digest, Visibility: visibility, VisibilityNote: visNote}
@@ -1429,10 +1429,37 @@ SOFTWARE.
 `, time.Now().Year(), holder)
 }
 
-// refusedWithReason turns the registry's refusal to create the agent into
-// a refused result in words, for the refusals the person can act on: a
-// namespace they may not publish to (403), and the private-agent cap
-// (422 private-agent-cap). Anything else stays an error.
+// makeAgentPublic makes ns/name public after its version's verdict, and
+// says in words why it stays private when it does.
+func makeAgentPublic(ctx context.Context, client *apiclient.ClientWithResponses, ns, name, status string, logw io.Writer) (visibility, note string) {
+	if status == "rejected" {
+		note = "it stays private: the pipeline rejected this version"
+	} else {
+		pub := apiclient.UpdateAgentJSONBodyVisibilityPublic
+		uresp, uerr := client.UpdateAgentWithResponse(ctx, ns, name, apiclient.UpdateAgentJSONRequestBody{Visibility: &pub})
+		switch {
+		case uerr != nil:
+			note = "it stays private: " + uerr.Error()
+		case uresp.StatusCode() != http.StatusOK:
+			_, msg, _ := refusalOf(uresp.Body)
+			if msg == "" {
+				msg = http.StatusText(uresp.StatusCode())
+			}
+			note = "it stays private: " + msg
+		default:
+			_, _ = fmt.Fprintf(logw, "made %s/%s public\n", ns, name)
+			return "public", ""
+		}
+	}
+	_, _ = fmt.Fprintf(logw, "%s\n", note)
+	return "private", note
+}
+
+// refusedWithReason turns the registry's refusal to create the agent or
+// take its version into a refused result in words, for the refusals the
+// person can act on: a namespace they may not publish to (403), and the
+// private-agent cap (422 private-agent-cap). Anything else is the
+// caller's.
 func refusedWithReason(status int, body []byte, logw io.Writer) *PublishResult {
 	slug, msg, account := refusalOf(body)
 	if status != http.StatusForbidden && slug != "private-agent-cap" {

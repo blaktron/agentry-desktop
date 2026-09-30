@@ -59,7 +59,7 @@ const STEPS: { key: StepKey; label: string; intro: string }[] = [
   { key: "access", label: "Files, commands and data", intro: "Say what else it may touch. The least answer is already chosen." },
   { key: "questions", label: "Questions", intro: "Questions a run asks before it starts, in either mode. Ask only what the run cannot find out for itself." },
   { key: "guide", label: "Before a run", intro: "What a person reads before they start a run: what it does and what to gather first. It is shown to people only, never to the agent." },
-  { key: "publish", label: "Publishing", intro: "Where it is published, under which version and licence, and who may see it." },
+  { key: "publish", label: "Publishing", intro: "Where it is published, under which version and licence. Submit makes it public." },
   { key: "review", label: "Review", intro: "Check what it says it is and what it may reach, then save it, validate it or publish it." },
 ];
 
@@ -403,7 +403,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // native dialog, whether to spend the submission's credits and make it
   // public, and a No returns nothing and sends nothing.
   const publish = () =>
-    wrap("publish", async () => {
+    wrap("submit", async () => {
       const d = await ensureDir();
       if (!m || !d) return;
       await BuildAPI.Save(d, m);

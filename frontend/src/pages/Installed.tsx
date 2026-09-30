@@ -22,8 +22,9 @@ function keyOf(r: { registry: string; namespace: string; name: string; target: s
 export default function Installed({
   registry, onBrowse, onOpenAgent,
 }: {
-  /** The app's registry: a local install's run reads its knowledge packs and
-   * its MCP servers' vulnerability verdicts there, and sends it nothing. */
+  /** The app's registry: a local install's run lists its knowledge packs
+   * and asks the vulnerability verdicts of its declared MCP servers there,
+   * as any run does; the release itself is never fetched from it. */
   registry: string;
   onBrowse: () => void;
   onOpenAgent: (registry: string, ns: string, name: string) => void;

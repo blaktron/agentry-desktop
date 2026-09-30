@@ -42,7 +42,7 @@ type LocalInstallView struct {
 // laid down again only on a second Yes.
 func (b *BuildAPI) Install(dir string) (*LocalInstallView, error) {
 	if !b.mu.TryLock() {
-		return nil, fmt.Errorf("a submit or an install is already in progress")
+		return nil, errBuildBusy
 	}
 	defer b.mu.Unlock()
 	if err := b.app.requirePicked("folder", dir); err != nil {
