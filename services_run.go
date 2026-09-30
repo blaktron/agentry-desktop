@@ -91,6 +91,9 @@ type SessionView struct {
 // SessionEventView is one runner:session-event payload — the session's
 // event, flattened for the chat view.
 type SessionEventView struct {
+	// Seq is a hosted session's frame sequence number (0 on this
+	// machine): a chat that replays a session keeps each one once.
+	Seq          uint64  `json:"seq,omitempty"`
 	Kind         string  `json:"kind"`
 	Time         string  `json:"time"`
 	Text         string  `json:"text,omitempty"`

@@ -24,7 +24,7 @@ import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Spinner, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type StepKey } from "../runSetup";
 import SessionChat from "./SessionChat";
-import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable } from "./HostedRun";
+import { HostedCredits, HostedProgress, HostedResult, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { RunResultView } from "./RunResult";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { GuideText, connectHelp } from "../GuideText";
@@ -179,7 +179,7 @@ export default function RunPanel({
         // Only when the mode can actually be used: listing this account's
         // runs needs run:read, and a token without it must not be sent to
         // a route that would refuse it.
-        if (!h.available) return;
+        if (!h.available && !h.session?.available) return;
         // The folder a reattached run downloads into is the one the field
         // would hold: Run defaults' saved folder, which may not have been
         // read into it yet.
@@ -188,7 +188,7 @@ export default function RunPanel({
           .then((saved) => RunAPI.AttachHostedRun(registry, outDir.trim() || saved))
           .then((a) => {
           if (!live || !a.run) return;
-          setMode("hosted");
+          setMode(a.run.mode === "interactive" ? "hosted-session" : "hosted");
           setHostedRun(a.run);
         });
       })
@@ -226,16 +226,21 @@ export default function RunPanel({
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
-  const inAgentry = mode === "hosted";
+  // Talk to it In Agentry (agentry-desktop#403) is mode "hosted-session": a
+  // hosted session of the release's interactive mode, and In Agentry too.
+  const sessionInAgentry = mode === "hosted-session";
+  const inAgentry = mode === "hosted" || sessionInAgentry;
+  // The offer that governs the mode chosen: the run's, or the session's.
+  const offer = sessionInAgentry ? hosted?.session : hosted;
   // Where to run's default, applied once the offer is known and before the
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
     if (modeChosen.current || initialMode || hostedRun || !profile) return;
     const allowed = inAgentryByDefault(defaults?.where, hosted, unscanned);
-    if (allowed && mode !== "hosted") {
+    if (allowed && !inAgentry) {
       byDefault.current = true;
       setMode("hosted");
-    } else if (!allowed && byDefault.current && mode === "hosted") {
+    } else if (!allowed && byDefault.current && inAgentry) {
       byDefault.current = false;
       setMode((profile.modes ?? []).includes("autonomous") || (profile.modes ?? []).length === 0 ? "autonomous" : profile.modes[0]);
     }
@@ -249,7 +254,7 @@ export default function RunPanel({
   const blockers: string[] = [];
   if (inAgentry) {
     if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
-    else if (!hosted.available) blockers.push(hosted.reason || "A run In Agentry is not available for this release.");
+    else if (!offer?.available) blockers.push(offer?.reason || "A run In Agentry is not available for this release.");
   } else if (!setup) {
     blockers.push("Checking this machine's setup.");
   } else if (!setup.dockerOk) {
@@ -443,6 +448,7 @@ export default function RunPanel({
   // where it stands until the outputs come back. A refused create is a
   // sentence, not an error.
   async function runInAgentry() {
+    const start = sessionInAgentry ? RunAPI.StartHostedSession : RunAPI.StartHostedRun;
     setStarting(true);
     setRunErr(null);
     setResult(null);
@@ -450,7 +456,7 @@ export default function RunPanel({
     setHostedRun(null);
     setLog([]);
     try {
-      const started = await RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
+      const started = await start(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
       if (started.refusal) {
         setHostedRefusal(started);
         return;
@@ -498,7 +504,7 @@ export default function RunPanel({
   }
 
   async function runAgent() {
-    if (mode === "hosted") {
+    if (inAgentry) {
       await runInAgentry();
       return;
     }
@@ -522,10 +528,12 @@ export default function RunPanel({
     }
   }
 
-  const runLabel = inAgentry
+  const runLabel = sessionInAgentry
+    ? starting ? "Starting…" : hostedActive ? "In a session In Agentry…" : "Start session In Agentry"
+    : inAgentry
     ? starting ? "Starting…" : hostedActive ? "Running In Agentry…" : "Run In Agentry"
     : running ? "Running…" : mode === "interactive" ? "Start session" : "Run";
-  const modeWord = inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
+  const modeWord = sessionInAgentry ? "an interactive session In Agentry" : inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
   const answered = (profile?.intake ?? []).filter((q) => q.type !== "secret");
 
   return (
@@ -591,7 +599,7 @@ export default function RunPanel({
                       {hosted?.offered && (
                         <label className="check-row" style={{ margin: 0 }}>
                           <input
-                            type="radio" name="run-mode" checked={inAgentry} onChange={() => chooseMode("hosted")}
+                            type="radio" name="run-mode" checked={mode === "hosted"} onChange={() => chooseMode("hosted")}
                             disabled={running || sessionActive || !hosted.available || unscanned}
                           />
                           <span>
@@ -600,15 +608,43 @@ export default function RunPanel({
                           </span>
                         </label>
                       )}
+                      {/* Talk to it In Agentry (agentry-desktop#403): offered only
+                          where the registry runs sessions and says this account's
+                          payer may start one; a Standard payer sees why. */}
+                      {hosted?.session?.offered && (
+                        <label className="check-row" style={{ margin: 0 }}>
+                          <input
+                            type="radio" name="run-mode" checked={sessionInAgentry} onChange={() => chooseMode("hosted-session")}
+                            disabled={running || sessionActive || !hosted.session.available || unscanned}
+                          />
+                          <span>
+                            <strong>Talk to it In Agentry</strong>{" "}
+                            <span className="muted">— a chat with it running on the platform; nothing runs on this machine</span>
+                          </span>
+                        </label>
+                      )}
                     </div>
-                    {mode === "interactive" && (
+                    {(mode === "interactive" || sessionInAgentry) && (
                       <p className="muted small">
                         Interactive: you can talk to this agent and give it files; you cannot give it more access than this release declares.
                       </p>
                     )}
                     {fallback && !inAgentry && <p className="muted small" style={{ margin: "4px 0" }}>{fallback}</p>}
                     {hosted && <HostedUnavailable hosted={hosted} />}
-                    {inAgentry && hosted && (
+                    {hosted && <SessionUnavailable registry={registry} hosted={hosted} />}
+                    {sessionInAgentry && hosted && (
+                      <>
+                        <p className="muted small" style={{ marginBottom: 2 }}>
+                          The task, your answers, the input files and each message go to {registry}, which runs this release
+                          under the same contract, relays the conversation to this window and sends back the outputs and the
+                          receipt, with the transcript, when the session ends. This machine needs no docker engine and no
+                          operator policy for it.
+                        </p>
+                        <SessionCredits hosted={hosted} />
+                        <HostedSecretsNote hosted={hosted} />
+                      </>
+                    )}
+                    {mode === "hosted" && hosted && (
                       <>
                         <p className="muted small" style={{ marginBottom: 2 }}>
                           The task, your answers and the input files go to {registry}, which runs this release under the same
@@ -1023,12 +1059,19 @@ export default function RunPanel({
                     <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label="Edit the task">Edit</Button>
                   </dd>
                 </dl>
-                {inAgentry && hosted && <HostedCredits hosted={hosted} />}
+                {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
+                {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
                 <h4>Output</h4>
-                {inAgentry && (
+                {mode === "hosted" && (
                   <p className="muted small" style={{ margin: "2px 0 6px" }}>
                     The run&apos;s result, reports, receipts and outputs download into this folder when it finishes. The time and
                     turn ceilings are the tier&apos;s, so Advanced is not offered for a run In Agentry.
+                  </p>
+                )}
+                {sessionInAgentry && (
+                  <p className="muted small" style={{ margin: "2px 0 6px" }}>
+                    The session&apos;s result, receipts (with transcript.md) and outputs download into this folder when it
+                    ends. A session In Agentry has no ceilings but its idle close, so Advanced is not offered for it.
                   </p>
                 )}
                 <div className="row">
@@ -1159,13 +1202,15 @@ export default function RunPanel({
                   <Notice tone="warn">
                     <strong>
                       {hostedRefusal.refusal === "credits-exhausted"
-                        ? "Not enough credits for this run."
+                        ? `Not enough credits for this ${sessionInAgentry ? "session" : "run"}.`
                         : hostedRefusal.refusal === "run-active"
                           ? "This account already has a run In Agentry."
-                          : "The registry refused this run."}
+                          : hostedRefusal.refusal === "session-tier"
+                            ? "Talking to an agent In Agentry is not part of this subscription."
+                            : `The registry refused this ${sessionInAgentry ? "session" : "run"}.`}
                     </strong>{" "}
                     <span className="selectable">{hostedRefusal.detail}</span>
-                    {hostedRefusal.refusal === "credits-exhausted" && (
+                    {(hostedRefusal.refusal === "credits-exhausted" || hostedRefusal.refusal === "session-tier") && (
                       <p className="small" style={{ marginBottom: 0 }}>
                         {/* The destination is the registry's to name and the app's
                             to check, so this asks for the registry and never hands
@@ -1206,7 +1251,19 @@ export default function RunPanel({
             no log (agentry-desktop#182): the card moves as the run does. */}
         {/* While it is in flight; once it has ended, the result view below
             says how, and this card's facts are under its Run details. */}
-        {inAgentry && hostedRun && !hostedRun.final && (
+        {/* A session In Agentry: the chat, over the registry's stream, until
+            its output has come back (agentry-desktop#403). */}
+        {sessionInAgentry && hostedRun && !hostedRun.final && (
+          <SessionChat
+            key={hostedRun.id}
+            agentRef={agentRef}
+            task={hostedRun.task ?? task}
+            opening={profile?.opening ?? ""}
+            hosted={{ run: hostedRun, terms: hosted?.session ?? null }}
+          />
+        )}
+
+        {mode === "hosted" && hostedRun && !hostedRun.final && (
           <>
             <h3>Run In Agentry</h3>
             <HostedProgress run={hostedRun} onCancel={cancelInAgentry} cancelling={cancelling} />

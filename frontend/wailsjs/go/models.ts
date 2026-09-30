@@ -1915,6 +1915,36 @@ export namespace main {
 	        this.path = source["path"];
 	    }
 	}
+	export class HostedSessionOfferView {
+	    offered: boolean;
+	    available: boolean;
+	    reason?: string;
+	    remedy?: string;
+	    upgrade?: boolean;
+	    freeMinutes: number;
+	    creditsPerMinute: number;
+	    minCredits: number;
+	    idleSeconds: number;
+	    transport: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedSessionOfferView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.offered = source["offered"];
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	        this.remedy = source["remedy"];
+	        this.upgrade = source["upgrade"];
+	        this.freeMinutes = source["freeMinutes"];
+	        this.creditsPerMinute = source["creditsPerMinute"];
+	        this.minCredits = source["minCredits"];
+	        this.idleSeconds = source["idleSeconds"];
+	        this.transport = source["transport"];
+	    }
+	}
 	export class HostedCapsView {
 	    timeoutSeconds: number;
 	    maxTurns: number;
@@ -1954,6 +1984,7 @@ export namespace main {
 	    maxInputFiles: number;
 	    maxInputBytes: number;
 	    declaredSecrets?: string[];
+	    session?: HostedSessionOfferView;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedAvailabilityView(source);
@@ -1983,6 +2014,7 @@ export namespace main {
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
 	        this.declaredSecrets = source["declaredSecrets"];
+	        this.session = this.convertValues(source["session"], HostedSessionOfferView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2117,6 +2149,34 @@ export namespace main {
 	        this.digest = source["digest"];
 	    }
 	}
+	export class HostedSessionView {
+	    freeMinutes: number;
+	    creditsPerMinute: number;
+	    paidThrough: number;
+	    timeCredits: number;
+	    tokenCredits: number;
+	    tokensUnpaid: number;
+	    outOfCredits: boolean;
+	    filesAdded: number;
+	    idleSeconds: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedSessionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.freeMinutes = source["freeMinutes"];
+	        this.creditsPerMinute = source["creditsPerMinute"];
+	        this.paidThrough = source["paidThrough"];
+	        this.timeCredits = source["timeCredits"];
+	        this.tokenCredits = source["tokenCredits"];
+	        this.tokensUnpaid = source["tokensUnpaid"];
+	        this.outOfCredits = source["outOfCredits"];
+	        this.filesAdded = source["filesAdded"];
+	        this.idleSeconds = source["idleSeconds"];
+	    }
+	}
 	export class HostedRunView {
 	    id: string;
 	    ref: string;
@@ -2151,6 +2211,10 @@ export namespace main {
 	    outputs: HostedArtefactView[];
 	    downloadError?: string;
 	    caps?: HostedCapsView;
+	    mode?: string;
+	    task?: string;
+	    session?: HostedSessionView;
+	    startedAt?: string;
 	    createdAt?: string;
 	    finishedAt?: string;
 	    final: boolean;
@@ -2194,6 +2258,10 @@ export namespace main {
 	        this.outputs = this.convertValues(source["outputs"], HostedArtefactView);
 	        this.downloadError = source["downloadError"];
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
+	        this.mode = source["mode"];
+	        this.task = source["task"];
+	        this.session = this.convertValues(source["session"], HostedSessionView);
+	        this.startedAt = source["startedAt"];
 	        this.createdAt = source["createdAt"];
 	        this.finishedAt = source["finishedAt"];
 	        this.final = source["final"];
@@ -2217,6 +2285,8 @@ export namespace main {
 		    return a;
 		}
 	}
+	
+	
 	export class HostedStartView {
 	    run?: HostedRunView;
 	    refusal?: string;
