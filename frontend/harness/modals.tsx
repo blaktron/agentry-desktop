@@ -88,6 +88,19 @@
 //                                 secret-missing, so the ask shows, Keep it
 //                                 for later runs unticked
 //
+// Talk to it In Agentry, a hosted session (agentry-desktop#403), on an
+// interactive-only copy of the release:
+//   #runpanel-session-offer    Before you start with Talk to it In Agentry
+//                              chosen: what a session costs, from the
+//                              registry's terms
+//   #runpanel-session-tier     a payer on Standard: the choice offered,
+//                              unavailable, with the reason and See Pro
+//   #runpanel-session          a session running: the chat over the stream,
+//                              a file added, a hostile agent reply drawn as
+//                              text, the time-and-credits strip, D2's sentence
+//   #runpanel-session-finished the session over: the result view, with the
+//                              session's credits and transcript.md
+//
 // A run on this machine, finished (shots.mjs clicks Run on the review):
 //   #runpanel-local-finished      its Run details name the operator policy
 //                                 it enforced, the runner home's default
@@ -154,6 +167,7 @@ const longPromptShape = view === "runpanel-step-review-long";
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
 const hostedSecrets = view === "runpanel-hosted-secrets";
+const sessionShape = view.startsWith("runpanel-session");
 // The first start of #runpanel-hosted-secrets is refused secret-missing;
 // the one after the ask is saved is queued.
 let hostedStarts = 0;
@@ -198,10 +212,10 @@ const profile = keysShape
     ref: "demo1/incident-summarizer@1.2.0", digest: "sha256:9c356fd0d20fef07",
     capabilityLines: ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
     declaredSecrets: ["PAGERDUTY_TOKEN"], storedSecretNames: ["PAGERDUTY_TOKEN"], exists: true, keep: true,
-    modes: ["autonomous", "interactive"],
+    modes: sessionShape ? ["interactive"] : ["autonomous", "interactive"],
     intake: fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
-      : localFinished || view === "runpanel-hosted-secrets" ? []
+      : localFinished || view === "runpanel-hosted-secrets" || sessionShape ? []
       : longPromptShape
       ? [{ id: "focus", prompt: "Focus area (optional): a function, embedded payload, or part of the binary to prioritize; leave blank for a full pass.", type: "text", required: false, choices: [] }]
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
@@ -236,7 +250,8 @@ const runDefaults = {
 const signedOut = hostedState === "default-agentry-signedout";
 
 const availability = {
-  offered: !signedOut, available: hostedState !== "unavailable" && !signedOut,
+  // An interactive-only release is not offered the autonomous run In Agentry.
+  offered: !signedOut && !sessionShape, available: hostedState !== "unavailable" && !signedOut && !sessionShape,
   reason: hostedState === "unavailable"
     ? "The token stored for this registry does not carry run:read and run:write, which a run In Agentry needs. It was minted before this app asked for them."
     : "",
@@ -244,10 +259,22 @@ const availability = {
   signedIn: !signedOut, extension: true, enabled: true, runnersOnline: 1, queued: 2,
   tier: "standard", holdCredits: 20, tokensPerCredit: 1000,
   caps: { timeoutSeconds: 300, maxTurns: 20, maxTokens: 20000 },
-  balance: 46, balanceKnown: true,
+  balance: sessionShape ? 460 : 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
   declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [],
+  // Talk to it In Agentry: offered on the sessions' own terms; a Standard
+  // payer is offered it unavailable, with the way up.
+  session: sessionShape
+    ? {
+      offered: true, available: view !== "runpanel-session-tier",
+      reason: view === "runpanel-session-tier" ? "Talking to an agent In Agentry is part of Pro, Business and Enterprise." : "",
+      remedy: view === "runpanel-session-tier" ? "On Standard, talk to it on this computer, for no credits; or upgrade to Pro." : "",
+      upgrade: view === "runpanel-session-tier",
+      freeMinutes: 10, creditsPerMinute: 50, minCredits: 50, idleSeconds: 300,
+      transport: "Transport encrypted by the user key, messages not stored; the transcript comes back only in your sealed output.",
+    }
+    : undefined,
 };
 
 const hostedBase = {
@@ -308,7 +335,33 @@ hostedRuns["hosted-knowledge-finished"] = {
   },
   knowledgeLine: "incident-runbooks mounted read-only at /knowledge/incident-runbooks (sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 131 pages, 6902112 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only",
 };
+// A session In Agentry: running twelve minutes in, two paid minutes pulled,
+// and over with its tokens settled.
+const sessionStarted = new Date(Date.now() - (12 * 60 + 40) * 1000).toISOString();
+hostedRuns.session = {
+  ...hostedRuns.running, mode: "interactive", holdCredits: 0, task: "",
+  startedAt: sessionStarted,
+  session: { freeMinutes: 10, creditsPerMinute: 50, paidThrough: 12, timeCredits: 100, tokenCredits: 0, tokensUnpaid: 0, outOfCredits: false, filesAdded: 1, idleSeconds: 300 },
+};
+hostedRuns["session-finished"] = {
+  ...hostedRuns.finished, mode: "interactive", holdCredits: 0, settledCredits: 104,
+  session: { ...hostedRuns.session.session, tokenCredits: 4 },
+  outputs: [...hostedRuns.finished.outputs, { name: "receipts/transcript.md", bytes: 2210, path: "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4/receipts/transcript.md" }],
+};
 const hostedRun = hostedRuns[hostedState] ?? null;
+
+// The conversation a session's stream replays when its chat opens, in the
+// events' own shape (main.SessionEventView), with a hostile agent reply.
+const at = (s: number) => new Date(Date.parse(sessionStarted) + s * 1000).toISOString();
+const sessionEvents = [
+  { seq: 1, kind: "user_turn", time: at(20), text: "Summarise INC-4821 from the last 24 hours." },
+  { seq: 2, kind: "tool_call", time: at(30), text: "read_input" },
+  { seq: 3, kind: "assistant_turn", time: at(80), text: "INC-4821 began at 02:14 UTC. <script>alert('x')</script><b onclick=\"steal()\">raw html</b> [open me](javascript:alert(1)) pay\u200Bpal" },
+  { seq: 4, kind: "input_added", time: at(400), path: "/inputs/pager-export.csv" },
+  { seq: 5, kind: "user_turn", time: at(410), text: "I added the pager export; does it change the timeline?" },
+  { seq: 6, kind: "assistant_text", time: at(700), text: "Yes: the first page went out at 02:09, five minutes before" },
+];
+const listeners: Record<string, ((v: any) => void)[]> = {};
 
 // What the result view lists from the run folder (RunAPI.RunOutputs).
 const runOutputs = view === "runpanel-hostile"
@@ -364,6 +417,15 @@ g.go = { main: {
     SaveProfile: async () => ({ ...profile, exists: true, storedSecretNames: profile.declaredSecrets }),
     HostedAvailability: async () => availability,
     AttachHostedRun: async () => ({ run: hostedRun }),
+    ReplayHostedSession: async () => {
+      if (view !== "runpanel-session") return;
+      for (const cb of listeners["runner:hosted-session-state"] ?? []) {
+        cb({ status: "running", startedAt: sessionStarted, session: hostedRuns.session.session });
+      }
+      for (const ev of sessionEvents) for (const cb of listeners["runner:hosted-session-event"] ?? []) cb(ev);
+    },
+    StartHostedSession: async () => ({ run: hostedRuns.session }),
+    SendHostedTurn: async () => {}, AddHostedSessionFile: async () => {}, EndHostedSession: async () => {},
     StartHostedRun: async () => (hostedSecrets && hostedStarts++ === 0
       ? { refusal: "secret-missing", detail: "A declared secret is missing: The release declares secrets you have not set: PAGERDUTY_TOKEN.", missing: ["PAGERDUTY_TOKEN"] }
       : { run: hostedRuns.queued }),
@@ -399,12 +461,17 @@ g.go = { main: {
   KnowledgeAPI: {
     List: async () => ({ packs: knowledgePacks, registry: "https://secureagentry.net", signedIn: true }),
   },
-  App: { OpenExternal: async () => {} },
+  App: { OpenExternal: async () => {}, ChooseFiles: async () => [] },
 } };
+g.go.main.SettingsAPI.OpenUpgrade = async () => {};
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
 // shim). A run In Agentry sends no log (agentry-desktop#182), so nothing
 // is scripted on runner:run-log.
-const subscribe = (_name: string, _cb: (v: any) => void) => () => {};
+// A session's chat listens for its events, which ReplayHostedSession sends.
+const subscribe = (name: string, cb: (v: any) => void) => {
+  (listeners[name] ??= []).push(cb);
+  return () => { listeners[name] = (listeners[name] ?? []).filter((c) => c !== cb); };
+};
 g.runtime = {
   EventsOn: subscribe,
   EventsOnMultiple: (name: string, cb: (v: any) => void) => subscribe(name, cb),
@@ -469,7 +536,8 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted" : undefined}
+        initialMode={hostedState === "hosted" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted"
+          : view === "runpanel-session-offer" ? "hosted-session" : undefined}
         initialStep={STEP_OF[view]}
       />
     </>,

@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";
+import { OpenUpgrade } from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
 
@@ -26,6 +27,56 @@ export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView 
       )}
       {hosted.runnersOnline === 0 && <> No runner is online right now, so the run waits in the queue.</>}
     </p>
+  );
+}
+
+/** What a session In Agentry costs, before it starts (plan
+ *  hosted-sessions.md §7; agentry-desktop#403): it holds nothing, its first
+ *  minutes are free, each minute after is pulled as it starts, and its
+ *  tokens settle when it ends. Every number is the registry's. */
+export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
+  const s = hosted.session;
+  if (!s) return null;
+  // A run of this caller's that holds nothing is an unmetered
+  // organization's (hosted runs D5): its sessions cost no credits either.
+  const metered = !(hosted.caps && hosted.holdCredits === 0);
+  return (
+    <p className="muted small" style={{ margin: "4px 0" }}>
+      {metered ? (
+        <>
+          A session holds nothing. Its first <strong>{s.freeMinutes}</strong> minutes are free, then each minute costs{" "}
+          <strong>{s.creditsPerMinute}</strong> credits as it starts, and its tokens settle when it ends. It starts on a
+          balance of at least {s.minCredits} credits.{" "}
+          {hosted.balanceKnown ? <>Your balance is <strong>{hosted.balance}</strong> credits.</> : "The balance could not be read."}
+        </>
+      ) : (
+        "A session costs no credits here: the organization that pays for your runs is not metered."
+      )}{" "}
+      It closes after {idleWords(s.idleSeconds)} with nothing said or done.
+      {hosted.runnersOnline === 0 && <> No runner is online right now, so the session waits in the queue.</>}
+    </p>
+  );
+}
+
+/** Talk to it In Agentry, offered but not available: why, the way out,
+ *  and — for a payer whose tier does not include it — the registry's
+ *  subscription page, opened after Go checks its origin. */
+export function SessionUnavailable({ registry, hosted }: { registry: string; hosted: main.HostedAvailabilityView }) {
+  const s = hosted.session;
+  const [err, setErr] = useState<string | null>(null);
+  if (!s || !s.offered || s.available) return null;
+  return (
+    <Notice tone="warn">
+      <strong>Talk to it In Agentry is unavailable here.</strong> {s.reason}
+      {s.remedy ? ` ${s.remedy}` : ""}
+      {s.upgrade && (
+        <>
+          {" "}
+          <Button variant="link" onClick={() => OpenUpgrade(registry).catch((e) => setErr(String(e)))}>See Pro</Button>
+        </>
+      )}
+      <ErrorBox error={err} />
+    </Notice>
   );
 }
 
@@ -317,9 +368,13 @@ export function HostedResult({ run }: { run: main.HostedRunView }) {
       {run.error && <div className="error-box selectable">{run.error}</div>}
       <div className="kv">
         <span className="k">credits</span>
-        <span className="mono">
-          {run.holdCredits} held · {run.settled ? `${run.settledCredits} settled` : "settlement not reported"}
-        </span>
+        {run.session ? (
+          <span>{sessionCreditsSentence(run)}</span>
+        ) : (
+          <span className="mono">
+            {run.holdCredits} held · {run.settled ? `${run.settledCredits} settled` : "settlement not reported"}
+          </span>
+        )}
       </div>
       {!run.receiptKept && (
         <p className="muted small" style={{ margin: "6px 0 2px" }}>
@@ -347,4 +402,25 @@ export function HostedResult({ run }: { run: main.HostedRunView }) {
       )}
     </Card>
   );
+}
+
+/** idleWords says an idle close as Go's quit dialog does. */
+function idleWords(seconds: number): string {
+  if (seconds % 60 !== 0) return `${seconds} seconds`;
+  return seconds === 60 ? "a minute" : `${seconds / 60} minutes`;
+}
+
+/** A finished session's credits (plan hosted-sessions.md §7; DEV-178): it
+ *  held nothing; its time is the minutes after the free ones, each pulled
+ *  as it started; its tokens settled at the end within the balance, and
+ *  any rest was the platform's. The site's sentence, in this app. */
+export function sessionCreditsSentence(run: main.HostedRunView): string {
+  const s = run.session!;
+  const credits = (n: number) => `${n} ${n === 1 ? "credit" : "credits"}`;
+  const paid = Math.max(0, s.paidThrough - s.freeMinutes);
+  const time = `its time cost ${credits(s.timeCredits)}${paid > 0 ? ` (${paid} ${paid === 1 ? "minute" : "minutes"} after the ${s.freeMinutes} free)` : ` (within the ${s.freeMinutes} free minutes)`}`;
+  const total = run.settled ? run.settledCredits : s.timeCredits + s.tokenCredits;
+  const unpaid = s.tokensUnpaid > 0 ? ` The rest of its tokens, ${credits(s.tokensUnpaid)}, went past the balance and were not charged.` : "";
+  const stopped = s.outOfCredits ? " A minute the balance could not cover stopped it." : "";
+  return `This session held nothing: ${time}, and its tokens ${credits(s.tokenCredits)}, ${credits(total)} in all.${unpaid}${stopped}`;
 }

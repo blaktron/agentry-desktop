@@ -168,10 +168,25 @@ func (r *RunAPI) current() *liveRun {
 // dialog, whether to quit and stop it. No keeps the window open. Yes — or
 // a dialog that cannot be shown — lets the close go ahead; the run is then
 // ended in shutdown, never left running.
+//
+// A session In Agentry is not stopped by quitting (agentry-desktop#403):
+// with no local run in flight, the dialog says it goes on until its idle
+// close, and that reopening its run picks the conversation up.
 func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 	l := r.current()
-	if l == nil || r.app == nil || r.app.confirm == nil {
+	if r.app == nil || r.app.confirm == nil {
 		return false
+	}
+	if l == nil {
+		cur := r.hostedCurrent()
+		if cur == nil || !cur.session {
+			return false
+		}
+		yes, err := r.app.confirm(ctx, "Quit Agentry Desktop?", hostedSessionQuitNote(cur.ref, cur.idle))
+		if err != nil {
+			return false
+		}
+		return !yes
 	}
 	yes, err := r.app.confirm(ctx, "Quit Agentry Desktop?",
 		"A run of "+l.ref+" is in progress. Quitting stops it and removes its containers; its receipts are written as far as it got. Quit anyway?")

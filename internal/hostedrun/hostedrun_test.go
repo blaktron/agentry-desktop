@@ -665,6 +665,41 @@ func TestOnlyTheAccountsTokenTravels(t *testing.T) {
 	if len(sent) < 8 {
 		t.Fatalf("only %d requests were recorded; the test no longer covers every route: %v", len(sent), routes)
 	}
+	onlyTheToken(t, sent, canaries)
+
+	// A session's calls (agentry-desktop#403): its stream from the start
+	// and again after the registry's timeout, a turn, a file, the end.
+	sent = nil
+	fs := &fakeSession{streams: []fakeStream{
+		{status: 200, body: sse("frame", 1, `{"kind":"user_turn","text":"hi"}`) + sse("timeout", 0, "{}")},
+		{status: 200, body: sse("done", 0, "{}")},
+	}}
+	sc := New(fs.start(t), testToken)
+	sc.HTTP.Transport = recorder(&sent)
+	sc.Download.Transport = sc.HTTP.Transport
+	if err := sc.FollowSession(ctx, sessionRun, FollowSessionOptions{Retry: time.Millisecond}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sc.SessionTurn(ctx, sessionRun, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sc.SessionFile(ctx, sessionRun, "33333333-3333-3333-3333-333333333333"); err != nil {
+		t.Fatal(err)
+	}
+	if err := sc.SessionEnd(ctx, sessionRun, true); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 5 {
+		t.Fatalf("recorded %d session requests, want the two streams, the turn, the file and the end", len(sent))
+	}
+	onlyTheToken(t, sent, canaries)
+}
+
+// onlyTheToken fails when a recorded request carried anything but the
+// account's bearer token in its one header: another header, the token
+// elsewhere, a canary, a worker credential.
+func onlyTheToken(t *testing.T, sent []sentRequest, canaries map[string]string) {
+	t.Helper()
 	allowed := map[string]bool{"Authorization": true, "Accept": true, "Content-Type": true}
 	for _, r := range sent {
 		where := r.Method + " " + r.URL

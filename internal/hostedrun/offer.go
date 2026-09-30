@@ -41,6 +41,14 @@ type Facts struct {
 	// the route could not be read.
 	Enabled     bool
 	StatusKnown bool
+	// SessionsEnabled is the status route's `sessions.enabled`: this
+	// deployment runs hosted sessions (agentry-enterprise#276); false from
+	// a registry that predates them. SessionAllowed is the signed-in
+	// caller's `caller.session.allowed`, whether their payer's tier may
+	// start one (agentry-enterprise#286); nil where the registry did not
+	// say.
+	SessionsEnabled bool
+	SessionAllowed  *bool
 }
 
 // Offer is the answer: whether the choice appears at all, whether it can
@@ -68,25 +76,10 @@ func Decide(f Facts) Offer {
 		return Offer{}
 	}
 	o := Offer{Offered: true}
-	secrets := len(f.DeclaredSecrets) > 0
+	if o.Reason, o.Remedy = tokenAndSecrets(f, "a run"); o.Reason != "" {
+		return o
+	}
 	switch {
-	case secrets && !f.Vault:
-		// D7: a registry without the vault holds no secret of anyone's.
-		o.Reason = "This release declares " + secretList(f.DeclaredSecrets) +
-			", and this registry keeps no secrets for runs In Agentry."
-		o.Remedy = "Run it on this machine, where the key stays in the release's own profile."
-	case !f.ScopesKnown:
-		o.Reason = "This registry did not say what the stored token may do, so the app cannot tell whether it may start a run."
-		o.Remedy = "Sign in again from Settings."
-	case !has(f.Scopes, ScopeRunWrite) || !has(f.Scopes, ScopeRunRead):
-		o.Reason = "The token stored for this registry does not carry " + ScopeRunRead + " and " + ScopeRunWrite +
-			", which a run In Agentry needs. It was minted before this app asked for them."
-		o.Remedy = "Sign in again from Settings to mint a token that carries them."
-	case secrets && !has(f.Scopes, ScopeSecretWrite):
-		o.Reason = "This release declares " + secretList(f.DeclaredSecrets) +
-			", and the token stored for this registry does not carry " + ScopeSecretWrite +
-			", which a run In Agentry needs to set a secret your account does not keep. It was minted before this app asked for it."
-		o.Remedy = "Sign in again from Settings to mint a token that carries it."
 	case f.StatusKnown && !f.Enabled:
 		o.Reason = "This registry is not taking hosted runs at the moment."
 		o.Remedy = "Run it on this machine, or try again later."
@@ -97,6 +90,65 @@ func Decide(f Facts) Offer {
 		o.Available = true
 	}
 	return o
+}
+
+// SessionTierReason and SessionTierRemedy say why a payer on Standard is not
+// offered a session In Agentry, and the way out (agentry-enterprise#286; the
+// site's SESSION_TIER_SENTENCE, in this app's words).
+const (
+	SessionTierReason = "Talking to an agent In Agentry is part of Pro, Business and Enterprise."
+	SessionTierRemedy = "On Standard, talk to it on this computer, for no credits; or upgrade to Pro."
+)
+
+// DecideSession applies the rule for Talk to it In Agentry, a hosted
+// session of the release's interactive mode (plan hosted-sessions.md §6;
+// agentry-desktop#403). The choice appears only where the release declares
+// the interactive mode, the registry's status says it runs sessions and
+// says whether the caller's payer may start one; anything short of that
+// leaves the local modes exactly as they were. A payer whose tier may not
+// (Standard) is told so, with the way up, before anything about the token.
+func DecideSession(f Facts) Offer {
+	if !f.SignedIn || !f.Extension || !declares(f.Modes, ModeInteractive) ||
+		!f.StatusKnown || !f.SessionsEnabled || f.SessionAllowed == nil {
+		return Offer{}
+	}
+	o := Offer{Offered: true}
+	if !*f.SessionAllowed {
+		o.Reason, o.Remedy, o.Upgrade = SessionTierReason, SessionTierRemedy, true
+		return o
+	}
+	if o.Reason, o.Remedy = tokenAndSecrets(f, "a session"); o.Reason != "" {
+		return o
+	}
+	o.Available = true
+	return o
+}
+
+// tokenAndSecrets is what both choices ask of the release's secrets and the
+// stored token: a reason and a remedy, or two empty strings when neither
+// stands in the way. what names the thing started ("a run", "a session").
+func tokenAndSecrets(f Facts, what string) (reason, remedy string) {
+	secrets := len(f.DeclaredSecrets) > 0
+	switch {
+	case secrets && !f.Vault:
+		// D7: a registry without the vault holds no secret of anyone's.
+		return "This release declares " + secretList(f.DeclaredSecrets) +
+				", and this registry keeps no secrets for runs In Agentry.",
+			"Run it on this machine, where the key stays in the release's own profile."
+	case !f.ScopesKnown:
+		return "This registry did not say what the stored token may do, so the app cannot tell whether it may start " + what + ".",
+			"Sign in again from Settings."
+	case !has(f.Scopes, ScopeRunWrite) || !has(f.Scopes, ScopeRunRead):
+		return "The token stored for this registry does not carry " + ScopeRunRead + " and " + ScopeRunWrite +
+				", which " + what + " In Agentry needs. It was minted before this app asked for them.",
+			"Sign in again from Settings to mint a token that carries them."
+	case secrets && !has(f.Scopes, ScopeSecretWrite):
+		return "This release declares " + secretList(f.DeclaredSecrets) +
+				", and the token stored for this registry does not carry " + ScopeSecretWrite +
+				", which " + what + " In Agentry needs to set a secret your account does not keep. It was minted before this app asked for it.",
+			"Sign in again from Settings to mint a token that carries it."
+	}
+	return "", ""
 }
 
 func declares(modes []string, want string) bool { return has(modes, want) }

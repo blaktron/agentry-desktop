@@ -45,6 +45,16 @@ markdown (raw HTML, a script, an image, a `javascript:` link) and a file name
 with a right-to-left override; `shots.mjs` fails it if any `img`, `script`,
 `iframe`, `onclick` or `javascript:` link appears in the result view.
 
+Talk to it In Agentry, a hosted session (agentry-desktop#403), has four
+states on an interactive-only copy of the release: `#runpanel-session-offer`
+(the choice made, with what a session costs from the registry's terms),
+`#runpanel-session-tier` (a payer on Standard: offered, unavailable, See
+Pro), `#runpanel-session` (the chat replayed from the stream through
+`ReplayHostedSession`, with a file added, a hostile agent reply that
+`shots.mjs` fails if it becomes markup or a link, the time-and-credits strip
+and D2's sentence) and `#runpanel-session-finished` (the result view with
+the session's credits and `receipts/transcript.md`).
+
 A run on this machine has two finished states since agentry-desktop#269:
 `#runpanel-local-finished` and `#runpanel-local-finished-env` open on
 Review and start, and `shots.mjs` clicks Run and then Run details (a state

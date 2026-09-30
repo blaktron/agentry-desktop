@@ -80,6 +80,10 @@ type Caller struct {
 	// (agentry-enterprise#183); nil from a registry from before the draft
 	// kind.
 	Draft *TierPrice `json:"draft,omitempty"`
+	// Session says whether the caller's payer may start a hosted session
+	// (agentry-enterprise#286); nil from a registry that predates it, which
+	// this app offers no session against.
+	Session *CallerSession `json:"session,omitempty"`
 }
 
 // TierPrice is a set of caps and what they hold (x-runs.yaml RunTierPrice).
@@ -123,6 +127,9 @@ type Status struct {
 	// set for every tier; absent from a registry from before the draft
 	// kind, which offers no Describe it In Agentry.
 	Draft *DraftTerms `json:"draft,omitempty"`
+	// Sessions is a hosted session's terms here (agentry-enterprise#276);
+	// absent from a registry from before sessions.
+	Sessions *SessionTerms `json:"sessions,omitempty"`
 }
 
 // KnowledgeAttach is the status route's knowledgeAttach block.
@@ -222,9 +229,12 @@ type Run struct {
 	Outputs         []Artefact `json:"outputs"`
 	QueuePosition   int        `json:"queuePosition,omitempty"`
 	Knowledge       []Attached `json:"knowledge,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-	StartedAt       *time.Time `json:"startedAt,omitempty"`
-	FinishedAt      *time.Time `json:"finishedAt,omitempty"`
+	// Session is a hosted session's record; nil on every run that is not
+	// one (agentry-enterprise#276).
+	Session    *Session   `json:"session,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 }
 
 // Empty reports whether the registry kept no receipt for the run: a run
@@ -288,7 +298,13 @@ type CreateRequest struct {
 	// run attaches (agentry-enterprise#172, Knowledge M7); a build takes
 	// none.
 	Knowledge []string `json:"knowledge,omitempty"`
+	// Mode is ModeInteractive for a hosted session of Ref's release
+	// (agentry-enterprise#276); empty is a run.
+	Mode string `json:"mode,omitempty"`
 }
+
+// IsSession reports whether this row is a hosted session.
+func (r *Run) IsSession() bool { return r != nil && r.Mode == ModeInteractive }
 
 // Client talks to one registry's runs extension as one account.
 type Client struct {
