@@ -30,9 +30,9 @@ type Report struct {
 	OutputTokens int64 `json:"outputTokens"`
 }
 
-// Shared is the report inside a job's progress, which is how the meter
-// reaches it in whatever embeds it.
-func (r *Report) Shared() *Report { return r }
+// shared is the report inside a job's progress: embedding Report promotes
+// it, which is how the meter reaches the report in whatever embeds it.
+func (r *Report) shared() *Report { return r }
 
 // Start is a job's report as it begins: now, under its budgets.
 func Start(timeoutSeconds, maxTurns int) Report {
@@ -44,9 +44,13 @@ func Start(timeoutSeconds, maxTurns int) Report {
 // whole and arrive in the order they were made. With no report function
 // every method does nothing. The report function is called under the lock
 // and must not block: the engine's usage hook waits on it.
+//
+// T embeds Report: that is how the meter reaches the shared fields, through
+// Report's unexported shared method, and a T that does not embed it does not
+// satisfy P.
 type Meter[T any, P interface {
 	*T
-	Shared() *Report
+	shared() *Report
 }] struct {
 	report func(T)
 	mu     sync.Mutex
@@ -56,10 +60,14 @@ type Meter[T any, P interface {
 // NewMeter starts a meter at p, reporting to report.
 func NewMeter[T any, P interface {
 	*T
-	Shared() *Report
+	shared() *Report
 }](report func(T), p T) *Meter[T, P] {
 	return &Meter[T, P]{report: report, p: p}
 }
+
+// Reporting says whether anyone is told the job's progress, for a job
+// whose own watcher need not run when no one is.
+func (m *Meter[T, P]) Reporting() bool { return m.report != nil }
 
 // Emit reports the job's progress as it stands.
 func (m *Meter[T, P]) Emit() {
@@ -78,7 +86,7 @@ func (m *Meter[T, P]) Usage(u receipt.Usage) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	r := P(&m.p).Shared()
+	r := P(&m.p).shared()
 	r.Turns, r.InputTokens, r.OutputTokens = u.Turns, u.InputTokens, u.OutputTokens
 	m.report(m.p)
 }

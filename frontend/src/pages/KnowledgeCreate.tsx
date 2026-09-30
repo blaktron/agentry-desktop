@@ -48,6 +48,7 @@ import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/mai
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
+import type { Tone } from "../jobProgress";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildHoldLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
@@ -266,7 +267,7 @@ export default function KnowledgeCreate({
   if (minimized) {
     const packName = hosted?.name || addTo || name;
     let line: string;
-    let tone: "" | "ok" | "warn" | "bad" = "";
+    let tone: Tone = "";
     if (building) line = "";
     else if (hosted && !hosted.final) line = hosted.statusLine || hosted.state;
     else if (hosted) {

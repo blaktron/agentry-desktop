@@ -170,10 +170,10 @@ const (
 )
 
 // Progress is how far one draft has got, for the progress dialog and its
-// corner card: the report every job carries (its start; its budgets, which
-// are Plan.Budgets, the runner policy's with at least 30 minutes, and which
-// the repair turn runs inside what is left of; the harness's usage, the
-// repair turn's counted on from the first's), and the stage it is in.
+// corner card: the report every job carries, and the stage the draft is in.
+// Its budgets are Plan.Budgets (the runner policy's, with at least 30
+// minutes), and the repair turn runs inside what is left of them; its usage
+// counts the repair turn's on from the first turn's.
 type Progress struct {
 	progress.Report
 	Stage Stage `json:"stage"`

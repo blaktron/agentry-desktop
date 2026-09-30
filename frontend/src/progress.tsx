@@ -11,26 +11,15 @@
 // itself in the bottom-right corner on its own.
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { fmtClock } from "./knowledge";
+import { JobProgress, Tone, fmtClock } from "./jobProgress";
 import { Button, Spinner } from "./primitives";
 import { RevealText } from "./reveal";
-
-/** What every job's progress carries, as Go reports it (internal/progress's
- *  Report); a job's own report adds its facts beside these. */
-export type JobProgress = {
-  startedAt: number;
-  timeoutSeconds: number;
-  maxTurns: number;
-  turns: number;
-  inputTokens: number;
-  outputTokens: number;
-};
 
 /** The corner the running flows' cards stack in; App provides it. */
 export const CornerHost = createContext<HTMLElement | null>(null);
 
 /** The time now, ticking once a second while it is in use. */
-export function useNow(): number {
+function useNow(): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -41,7 +30,7 @@ export function useNow(): number {
 
 /** The time a run has used against its limit, as a bar. With no limit the
  *  bar stays empty. */
-export function TimeBar({ elapsed, timeoutSeconds, label }: { elapsed: number; timeoutSeconds: number; label: string }) {
+function TimeBar({ elapsed, timeoutSeconds, label }: { elapsed: number; timeoutSeconds: number; label: string }) {
   const share = timeoutSeconds > 0 ? Math.min(1, elapsed / timeoutSeconds) : 0;
   return (
     <div
@@ -66,7 +55,7 @@ export function CornerCard({ label, title, running, line, tone, children, action
   title: React.ReactNode;
   running: boolean;
   line?: string;
-  tone?: "" | "ok" | "warn" | "bad";
+  tone?: Tone;
   children?: React.ReactNode;
   actions: React.ReactNode;
 }) {

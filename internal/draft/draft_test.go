@@ -608,10 +608,11 @@ func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
 	}
 }
 
-// A draft's progress event is the object the page has always read: the
-// shared report's fields and the stage, flat, in this order
-// (agentry-desktop#464 moved the shared fields into internal/progress).
-func TestADraftsProgressEventIsUnchanged(t *testing.T) {
+// A draft's progress event is one flat object: the shared report's fields
+// and the stage, in this order, which is what the page reads
+// (build:draft-progress; the shared fields live in internal/progress since
+// agentry-desktop#464, and the object did not change).
+func TestADraftsProgressIsOneFlatObjectWithItsStage(t *testing.T) {
 	p := Progress{Report: progress.Report{StartedAt: 1, TimeoutSeconds: 2, MaxTurns: 3, Turns: 4, InputTokens: 5, OutputTokens: 6}, Stage: StageRepair}
 	b, err := json.Marshal(p)
 	if err != nil {

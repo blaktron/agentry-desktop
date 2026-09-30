@@ -4,6 +4,7 @@
 // The copy names what holds a pack's key and what read it, and never calls
 // a pack "safe", "secure" or "private" (plan §3).
 import { knowledge } from "../wailsjs/go/models";
+import type { JobProgress } from "./jobProgress";
 import { fmtBytes } from "./ui";
 
 /** A pack name: 1-64 lowercase letters, digits, '.', '-' or '_', starting
@@ -120,25 +121,9 @@ export function inAgentryNote(registry: string): string {
 }
 
 /** How far a build on this computer has got, as Go's knowledge.Progress
- *  emits it on knowledge:build-progress (agentry-desktop#352). */
-export type BuildProgress = {
-  startedAt: number;
-  timeoutSeconds: number;
-  maxTurns: number;
-  turns: number;
-  inputTokens: number;
-  outputTokens: number;
-  pages: number;
-};
-
-/** Seconds as m:ss, or h:mm:ss past an hour. */
-export function fmtClock(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, "0");
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
+ *  emits it on knowledge:build-progress (agentry-desktop#352): the report
+ *  every job carries, and the pages written so far. */
+export type BuildProgress = JobProgress & { pages: number };
 
 /** The warning the review step gives before a build on this computer: it
  *  is long work, and how long it may run. */

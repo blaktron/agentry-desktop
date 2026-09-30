@@ -10,18 +10,14 @@ import { useEffect, useState } from "react";
 import * as BuildAPI from "../wailsjs/go/main/BuildAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main } from "../wailsjs/go/models";
+import type { JobProgress } from "./jobProgress";
 
 export type Where = "agentry" | "here";
 
 /** How far a draft on this computer has got, as Go reports it
- *  (internal/draft's Progress, build:draft-progress). */
-export type DraftProgress = {
-  startedAt: number;
-  timeoutSeconds: number;
-  maxTurns: number;
-  turns: number;
-  inputTokens: number;
-  outputTokens: number;
+ *  (internal/draft's Progress, build:draft-progress): the report every job
+ *  carries, and the stage the draft is in. */
+export type DraftProgress = JobProgress & {
   stage: "description" | "drafting" | "checking" | "repair" | "";
 };
 

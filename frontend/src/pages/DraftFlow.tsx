@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { DraftProgress, DraftState, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
+import type { Tone } from "../jobProgress";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { RevealText } from "../reveal";
 import { Button, ErrorBox, Modal, Notice, Spinner } from "../ui";
@@ -68,7 +69,7 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
 
   if (minimized) {
     let line = "";
-    let tone: "" | "ok" | "warn" | "bad" = "";
+    let tone: Tone = "";
     if (err) {
       line = err;
       tone = "bad";
@@ -125,6 +126,8 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
           </>}
         >
           <DraftProgressView progress={d.progress} />
+          {/* The log carries what pages and the registry said, so an invisible
+              character in it is shown, as in the error. */}
           <FoldedLog label="Draft log" lines={d.log} reveal />
         </RunningView>
       )}
@@ -196,9 +199,7 @@ function DraftFailed({ d }: { d: DraftState }) {
 }
 
 // DraftProgressView is how far a draft on this computer has got: the shared
-// view, whose compact form names the turns after the clock. The log carries
-// what pages and the registry said, so an invisible character in it is shown,
-// as in the error above it (LogPane's reveal).
+// view, whose compact form names the turns after the clock.
 function DraftProgressView({ progress, compact }: { progress: DraftProgress | null; compact?: boolean }) {
   return <ProgressView progress={progress} job="draft" compact={compact} fact={(p) => (p.turns === 1 ? "1 turn" : `${p.turns} turns`)} />;
 }

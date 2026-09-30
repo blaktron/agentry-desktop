@@ -357,7 +357,6 @@ func DocumentsBytes(paths []string) int64 {
 // Creator writes.
 type progressMeter struct {
 	*progress.Meter[Progress, *Progress]
-	on   bool
 	wiki string
 }
 
@@ -368,14 +367,14 @@ var progressEvery = 2 * time.Second
 func newProgressMeter(report func(Progress), b spec.Budgets, wiki string) *progressMeter {
 	return &progressMeter{
 		Meter: progress.NewMeter(report, Progress{Report: progress.Start(b.TimeoutSeconds, b.MaxTurns)}),
-		on:    report != nil, wiki: wiki,
+		wiki:  wiki,
 	}
 }
 
 // watch reports the start, then counts the pages until the returned stop
 // is called; stop counts once more, so the last page written is reported.
 func (m *progressMeter) watch() (stop func()) {
-	if !m.on {
+	if !m.Reporting() {
 		return func() {}
 	}
 	m.Emit()

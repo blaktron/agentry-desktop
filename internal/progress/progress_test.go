@@ -101,3 +101,14 @@ func TestReportsFromTwoGoroutinesArriveWholeAndInOrder(t *testing.T) {
 		t.Fatalf("last report turns %d pages %d", turns, pages)
 	}
 }
+
+// Reporting says whether anyone is told, so a job's own watcher can stay
+// off when no one is.
+func TestReportingSaysWhetherAnyoneIsTold(t *testing.T) {
+	if NewMeter[job](nil, job{}).Reporting() {
+		t.Fatal("a meter with no report says it is reporting")
+	}
+	if !NewMeter(func(job) {}, job{}).Reporting() {
+		t.Fatal("a meter with a report says it is not reporting")
+	}
+}
