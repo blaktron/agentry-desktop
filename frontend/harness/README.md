@@ -10,6 +10,11 @@ It is not part of the app: it sits outside `tsconfig.json`'s `include` and
 is never referenced by the app's Vite entry (`index.html` → `src/main.tsx`),
 so `make check` and the shipped `frontend/dist` never touch it.
 
+Every entry's sidebar is the app's own `SidebarNav` (`src/nav.tsx`), so
+the preview shows the navigation the app has: Validate under Build, shown
+only while Build or Validate is open (agentry-desktop#422). `shots.mjs`
+holds the order and the lit items with `expectOrder`.
+
 Run it:
 
 ```

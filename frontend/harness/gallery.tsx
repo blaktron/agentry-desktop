@@ -10,17 +10,15 @@ import {
   EmptyState, Spinner, ErrorBox, Notice, Modal,
   Mark, Wordmark, Sev, ModeBadges, SignedBadge, CapabilityBadges, QuarantineBadge,
 } from "../src/ui";
+import { SidebarNav } from "../src/nav";
 import type { trust } from "../wailsjs/go/models";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const nav = ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"];
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        {nav.map((n, i) => (
-          <button key={n} className={`nav-item ${i === 0 ? "active" : ""}`}>{n}</button>
-        ))}
+        <SidebarNav page="browse" />
         <div className="foot">
           <div>v0.1.0</div>
           <div className="nowrap">secureagentry.net</div>

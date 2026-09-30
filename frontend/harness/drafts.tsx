@@ -21,6 +21,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
+import { SidebarNav } from "../src/nav";
 
 const hash = window.location.hash.replace(/^#/, "") || "draft-local";
 const REG = "https://secureagentry.net";
@@ -113,12 +114,11 @@ import { startDraft } from "../src/drafts";
 import { CornerHost } from "../src/progress";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const nav = ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"];
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        {nav.map((n) => <button key={n} className={`nav-item ${n === "Build" ? "active" : ""}`}>{n}</button>)}
+        <SidebarNav page="build" />
         <div className="foot"><div>v0.6.22</div><div className="nowrap">{HOST}</div></div>
       </div>
       <div className="content">{children}</div>
