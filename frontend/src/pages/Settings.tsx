@@ -405,7 +405,8 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               <p className="muted small" style={{ marginBottom: 0 }}>
                 A run stops when it reaches either. These are the runner policy&apos;s
                 (<span className="mono selectable">{defaults.policyPath}</span>), so the <span className="mono">agentry</span> CLI
-                runs with them too. A run&apos;s own fields under Advanced can only ask for less.
+                runs with them too. A run&apos;s own fields under Advanced can only ask for less. A draft made on this
+                computer has at least 30 minutes and a knowledge build at least 60, however short the timeout here.
               </p>
               {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
             </Card>
