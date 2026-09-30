@@ -33,7 +33,11 @@ const (
 	// eventUnsafeProgress carries the Unsafe Mode image's pull to the Run
 	// defaults card (services_unsafe.go).
 	eventUnsafeProgress = "runner:unsafe-progress"
-	eventRunLog         = "runner:run-log"
+	// eventUnsafeLive says a run or chat compiled in Unsafe Mode has become
+	// live (true) or has ended (false): the shell keeps the red edge and the
+	// badge up while one is, switch or no switch (services_unsafe.go).
+	eventUnsafeLive = "runner:unsafe-live"
+	eventRunLog     = "runner:run-log"
 	// eventSessionEvent carries an interactive session's events (JSON
 	// SessionEventView) to the chat view; runner:run-log stays autonomous.
 	eventSessionEvent = "runner:session-event"
@@ -186,6 +190,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
 		Unsafe:             unsafe,
+		UnsafeCompiled:     func() { r.markUnsafeLive(live) },
 	}, logw)
 	logw.Flush()
 	if err != nil {
@@ -791,6 +796,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		Intake:             intakeAnswers,
 		PathPicked:         r.app.requirePicked,
 		Unsafe:             unsafe,
+		UnsafeCompiled:     func() { r.markUnsafeLive(live) },
 	}, logw)
 	if err != nil {
 		return nil, err

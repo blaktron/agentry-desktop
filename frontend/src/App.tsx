@@ -3,6 +3,8 @@ import * as SettingsAPI from "../wailsjs/go/main/SettingsAPI";
 import { AppVersion } from "../wailsjs/go/main/App";
 import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/main/SelfUpdateAPI";
 import { UpdatesStatus } from "../wailsjs/go/main/InstallAPI";
+import { UnsafeLive } from "../wailsjs/go/main/RunAPI";
+import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
@@ -72,6 +74,11 @@ export default function App() {
   // trip), and never persisted — the next launch starts clean, and D-019's
   // flag keeps the wizard closed.
   const [setupMissing, setSetupMissing] = useState<string[] | null>(null);
+  // A run or chat compiled in Unsafe Mode that is still live on this computer
+  // (agentry-desktop#479): turning the switch off changes the next run, not
+  // this one, so the edge and the badge stay until Go says it has ended.
+  const [unsafeLive, setUnsafeLive] = useState(false);
+  useEffect(() => EventsOn("runner:unsafe-live", (live: boolean) => setUnsafeLive(live)), []);
 
   const refreshSettings = useCallback(async () => {
     const s = await SettingsAPI.Get();
@@ -110,6 +117,7 @@ export default function App() {
       // The settings file too: the red edge and the badge follow the Unsafe
       // Mode switch Go reads, which another window of this app can change.
       refreshSettings().catch(() => {});
+      UnsafeLive().then(setUnsafeLive).catch(() => {});
     };
     read();
     const t = setInterval(read, 60_000);
@@ -130,6 +138,7 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
+  const unsafeShown = !!settings?.unsafeMode || unsafeLive;
 
   return (
     <CornerHost.Provider value={corner}>
@@ -141,7 +150,9 @@ export default function App() {
           <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} />
           <div className="foot">
             {/* Unsafe Mode in words, beside the red edge below (D-050). */}
-            {settings?.unsafeMode && <UnsafeBadge onOpen={() => setRoute({ page: "settings", ...SETTINGS_FOR.unsafeMode })} />}
+            {unsafeShown && (
+              <UnsafeBadge running={!settings?.unsafeMode} onOpen={() => setRoute({ page: "settings", ...SETTINGS_FOR.unsafeMode })} />
+            )}
             {version && <div>v{version}</div>}
             {newer?.available && !newer.dismissed && (
               <div className="update-line">
@@ -291,7 +302,7 @@ export default function App() {
           />
         )}
         <div className="corner-cards" ref={setCorner} />
-        {settings?.unsafeMode && <UnsafeGlow />}
+        {unsafeShown && <UnsafeGlow />}
       </div>
     </CornerHost.Provider>
   );

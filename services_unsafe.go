@@ -81,6 +81,30 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 	return runDefaultsView()
 }
 
+// markUnsafeLive records that the live run's plan was compiled in Unsafe
+// Mode and tells the shell, which keeps the red edge and the badge up until
+// endRun says the run is over (agentry-desktop#479, D-050's addendum).
+// Turning the switch off changes the next run, never this one, so the
+// window must not stop saying so while this one is live.
+func (r *RunAPI) markUnsafeLive(l *liveRun) {
+	r.liveMu.Lock()
+	was := l.unsafe
+	l.unsafe = true
+	r.liveMu.Unlock()
+	if !was {
+		emitEvent(r.app, eventUnsafeLive, true)
+	}
+}
+
+// UnsafeLive says whether a run or chat compiled in Unsafe Mode is live on
+// this computer now: the shell draws the red edge and the badge while it is
+// or the switch is on. A run In Agentry is never one (D7).
+func (r *RunAPI) UnsafeLive() bool {
+	r.liveMu.Lock()
+	defer r.liveMu.Unlock()
+	return r.live != nil && r.live.unsafe
+}
+
 // UnsafeNoticeView is what Unsafe Mode means for one QuickAgent's run on
 // this computer, for the run setup's Review step.
 type UnsafeNoticeView struct {

@@ -58,6 +58,9 @@ type liveRun struct {
 	// ending is set by the endRun call that ends the run, under liveMu: a
 	// second call returns at once.
 	ending bool
+	// unsafe is set, under liveMu, once the run's plan is compiled in Unsafe
+	// Mode (markUnsafeLive); endRun says so when it ends (agentry-desktop#479).
+	unsafe bool
 	// release removes the opened copies of the knowledge packs attached to
 	// the run (nil when none was). endRun calls it before closing done,
 	// which quitting waits for, up to quitWait: a run that ends in that
@@ -128,7 +131,11 @@ func (r *RunAPI) endRun(l *liveRun) {
 			r.live = nil
 		}
 		close(l.done)
+		unsafe := l.unsafe
 		r.liveMu.Unlock()
+		if unsafe {
+			emitEvent(r.app, eventUnsafeLive, false)
+		}
 	}()
 	// Settled outside the lock, which the close dialog and the Stop buttons
 	// read: deleting a file Docker Desktop still holds can take seconds on

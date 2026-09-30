@@ -182,6 +182,10 @@ export function TestJevKey() {
   return window['go']['main']['RunAPI']['TestJevKey']();
 }
 
+export function UnsafeLive() {
+  return window['go']['main']['RunAPI']['UnsafeLive']();
+}
+
 export function UnsafeNotice(arg1, arg2) {
   return window['go']['main']['RunAPI']['UnsafeNotice'](arg1, arg2);
 }
