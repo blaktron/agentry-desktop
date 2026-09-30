@@ -7,6 +7,7 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -684,5 +685,74 @@ func TestGetStatusReadsTheMarkerNotTheKey(t *testing.T) {
 	err := ApplySetup(context.Background(), SetupOpts{Provider: "anthropic", APIKeySource: modelkey.SourceKeyring}, &strings.Builder{})
 	if err == nil || !strings.Contains(err.Error(), modelkey.Account("anthropic")) {
 		t.Fatalf("a keyring source on a marker alone must refuse naming the missing entry, got %v", err)
+	}
+}
+
+// A policy can exist without anyone having set a provider up: saving the AI
+// Review key, choosing a coding agent and the first run each write it from
+// defaults. ProviderSetUp says which it is, so the first-run wizard does not
+// read a saved AI Review key as a provider written (agentry-desktop#462;
+// plan desktop-review-key-and-run-cards.md D13).
+func TestAPolicyWrittenFromDefaultsIsNotAProviderSetUp(t *testing.T) {
+	jevKeychain(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	ctx := context.Background()
+	status := func() *Status {
+		t.Helper()
+		st, err := GetStatus(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+	if st := status(); st.PolicyExists || st.ProviderSetUp {
+		t.Fatalf("a fresh machine: %+v", st)
+	}
+	// The AI Review key alone: the policy is written, no provider is set up.
+	var log strings.Builder
+	if err := StoreJevKey(testJevKey, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st := status(); !st.PolicyExists || st.ProviderSetUp {
+		t.Fatalf("after the AI Review key alone: policyExists %v providerSetUp %v; want the policy written and no provider set up", st.PolicyExists, st.ProviderSetUp)
+	}
+	// The default provider with a key of its own in the keychain is set up.
+	if err := ApplySetup(ctx, SetupOpts{Provider: "anthropic", StoreKey: "sk-ant-api-example"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st := status(); !st.ProviderSetUp {
+		t.Fatalf("after the default provider's key was stored: %+v", st)
+	}
+	// The key forgotten, the policy's model block is the default's again
+	// and nothing is there to run with: not set up.
+	if err := ApplySetup(ctx, SetupOpts{Provider: "anthropic", ForgetKey: true}, &log); err != nil {
+		t.Fatal(err)
+	}
+	if st := status(); len(st.KeysStored) != 0 || st.ProviderSetUp {
+		t.Fatalf("after the key was forgotten: keysStored %v providerSetUp %v", st.KeysStored, st.ProviderSetUp)
+	}
+	// The variable the policy names, set where the app was started, is a
+	// key to run with; only its presence is read.
+	t.Setenv(policy.Default().Model.APIKeyEnv, "sk-ant-api-from-the-shell")
+	st := status()
+	if !st.ProviderSetUp {
+		t.Fatalf("with the policy's variable set: %+v", st)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", st), "sk-ant-api-from-the-shell") {
+		t.Fatalf("the status carries the variable's value: %+v", st)
+	}
+}
+
+// A provider other than the default's is a choice, whatever holds its key.
+func TestAnotherProviderInThePolicyIsAProviderSetUp(t *testing.T) {
+	jevKeychain(t)
+	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
+	var log strings.Builder
+	if err := ApplySetup(context.Background(), SetupOpts{Provider: "openai", Model: "gpt-5"}, &log); err != nil {
+		t.Fatal(err)
+	}
+	st, err := GetStatus(context.Background())
+	if err != nil || !st.ProviderSetUp {
+		t.Fatalf("status %+v err %v", st, err)
 	}
 }

@@ -3421,6 +3421,7 @@ export namespace main {
 	    dockerErr?: string;
 	    policyPath: string;
 	    policyExists: boolean;
+	    providerSetUp: boolean;
 	    provider: string;
 	    model: string;
 	    apiKeyEnv: string;
@@ -3445,6 +3446,7 @@ export namespace main {
 	        this.dockerErr = source["dockerErr"];
 	        this.policyPath = source["policyPath"];
 	        this.policyExists = source["policyExists"];
+	        this.providerSetUp = source["providerSetUp"];
 	        this.provider = source["provider"];
 	        this.model = source["model"];
 	        this.apiKeyEnv = source["apiKeyEnv"];

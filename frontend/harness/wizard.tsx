@@ -11,9 +11,12 @@
 // the Nothing set up ending instead of Done.
 //
 // The AI Review key (agentry-desktop#462): no key is saved unless the
-// suffix is -saved, or the step is Done and something was set up; -refused
-// has the keychain refuse the save, so the shot script types a key and
-// clicks Save.
+// suffix is -saved or -keyonly, or the step is Done and something was set
+// up; -refused has the keychain refuse the save, so the shot script types a
+// key and clicks Save; -slow has the save never answer, so the footer's
+// hold can be shot. #5-keyonly is Done after the key alone was saved: the
+// policy exists, written from defaults by that save, and no provider is set
+// up, so the ending is still Nothing set up.
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -51,13 +54,15 @@ const refused = suffix === "refused";
 const preparing = suffix === "preparing";
 const prepared = suffix === "prepared";
 const prepareRefused = location.hash.endsWith("-prepare-refused");
-const harnessesMissing = suffix === "missing" || nothing;
+const keyOnly = suffix === "keyonly";
+const harnessesMissing = suffix === "missing" || nothing || keyOnly;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
 const setup = {
-  dockerOk: dockerState === "", imagesReady: !nothing, policyExists: !nothing,
+  dockerOk: dockerState === "", imagesReady: !nothing && !keyOnly, policyExists: !nothing,
+  providerSetUp: !nothing && !keyOnly,
   policyPath: "~/.agentry/runner/policy.yaml",
   provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
-  apiKeySource: nothing ? "" : "keyring", keysStored: nothing ? [] : ["anthropic"], keyStoreErr: "",
+  apiKeySource: nothing || keyOnly ? "" : "keyring", keysStored: nothing || keyOnly ? [] : ["anthropic"], keyStoreErr: "",
   apiKeyKind: subscription ? "subscription" : "", keyNotice: subscription ? catalog.notice : "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
 };
@@ -90,7 +95,7 @@ const harnesses = [
 ];
 
 const step = Number(location.hash.replace("#", "").split("-")[0]) || 0;
-const keySaved = suffix === "saved" || (step === 5 && !nothing);
+const keySaved = suffix === "saved" || keyOnly || (step === 5 && !nothing);
 const noKey = { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false };
 const savedKey = { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 
@@ -101,6 +106,7 @@ g.go = { main: {
     JevKeyStatus: async () => (keySaved ? savedKey : noKey),
     StoreJevKey: async () => {
       if (refused) throw new Error("store the key in the OS keychain: The name org.freedesktop.secrets was not provided by any .service files");
+      if (suffix === "slow") await new Promise(() => {});
       return savedKey;
     },
     ForgetJevKey: async () => noKey,

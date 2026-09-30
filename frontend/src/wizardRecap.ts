@@ -1,10 +1,11 @@
 import type { main } from "../wailsjs/go/models";
+import { keyStanding } from "./keyRecommendation.ts";
 
 // The first-run wizard's recap rules that are worth holding in a test
 // (agentry-desktop#462; plan desktop-review-key-and-run-cards.md D13): the
-// AI Review key's row on Done, and what Browse's "Setup isn't finished"
-// notice lists after "I'll do it later". Pure, with a type-only import, so
-// node's own test runner can load it.
+// AI Review key's row on Done, what Browse's "Setup isn't finished" notice
+// lists after "I'll do it later", and what counts as a provider set up.
+// Pure, with a type-only import, so node's own test runner can load it.
 
 /** One line of the recap: a check for what is true, a bullet for what is
  *  not. aside: the row is a recommendation, not something the app needs
@@ -16,12 +17,37 @@ export type RecapRow = { ok: boolean; text: string; aside?: boolean };
  *  never what it is (D-040). */
 export function keyRow(k: main.JevKeyView | null): RecapRow | null {
   if (!k) return null;
-  if (k.envSet) return { ok: true, text: `AI Review key from $${k.envName}`, aside: true };
-  if (k.ready) return { ok: true, text: "AI Review key saved", aside: true };
-  if (k.stored) {
-    return { ok: false, text: "An AI Review key is in the keychain, but the runner policy does not read it — save it again in Settings", aside: true };
+  switch (keyStanding(k)) {
+    case "env":
+      return { ok: true, text: `AI Review key from $${k.envName}`, aside: true };
+    case "saved":
+      return { ok: true, text: "AI Review key saved", aside: true };
+    case "unread":
+      return { ok: false, text: "An AI Review key is in the keychain, but the runner policy does not read it — save it again in Settings", aside: true };
+    default:
+      return { ok: false, text: "No AI Review key — drafting on this computer is off until you add one in Settings", aside: true };
   }
-  return { ok: false, text: "No AI Review key — drafting on this computer is off until you add one in Settings", aside: true };
+}
+
+/** The provider's row. A policy that exists is not a provider set up:
+ *  saving the AI Review key, choosing a coding agent and the first run each
+ *  write the policy from defaults, so the row goes by providerSetUp (Go's
+ *  run.Status) and says so when the policy holds only the default. */
+export function providerRow(s: main.SetupStatusView | null): RecapRow {
+  if (s?.providerSetUp) return { ok: true, text: `Provider ${s.provider}${s.model ? ` (${s.model})` : ""} written to the runner policy` };
+  if (s?.policyExists) {
+    return { ok: false, text: `The runner policy has the default provider, ${s.provider}${s.model ? ` (${s.model})` : ""}, and no key for it — set the provider up in Settings before a run` };
+  }
+  return { ok: false, text: "Provider defaults will be written on your first run" };
+}
+
+/** Nothing set up (plan desktop-installers.md D10): the person did none of
+ *  the three things the wizard is for — a sign-in, a provider set up, a
+ *  coding agent chosen. Docker being present is the machine's doing, and a
+ *  saved AI Review key is a recommendation taken, so neither counts (D13);
+ *  nor does the policy the key's save wrote from defaults. */
+export function nothingSetUp(v: { signedIn: boolean; setup: main.SetupStatusView | null; codingAgentChosen: boolean }): boolean {
+  return !v.signedIn && !v.setup?.providerSetUp && !v.codingAgentChosen;
 }
 
 /** What the notice lists: every pending row the app cannot work without. */

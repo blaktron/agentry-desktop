@@ -10,6 +10,7 @@ import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
+import { keyStanding } from "../keyRecommendation";
 import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
 import { DockerImagesCard } from "./DockerImages";
@@ -296,7 +297,10 @@ export function runStatus(s: main.SetupStatusView): string {
 export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyView | null): string {
   const parts: string[] = [];
   if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}` : "No provider chosen yet");
-  if (k) parts.push(k.envSet ? `AI Review key from $${k.envName}` : k.stored && k.source === "keyring" ? "AI Review key saved" : "No AI Review key");
+  if (k) {
+    const standing = keyStanding(k);
+    parts.push(standing === "env" ? `AI Review key from $${k.envName}` : standing === "saved" ? "AI Review key saved" : "No AI Review key");
+  }
   return parts.join(" · ") + ".";
 }
 

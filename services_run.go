@@ -241,9 +241,14 @@ type SetupStatusView struct {
 	DockerErr    string `json:"dockerErr,omitempty"`
 	PolicyPath   string `json:"policyPath"`
 	PolicyExists bool   `json:"policyExists"`
-	Provider     string `json:"provider"`
-	Model        string `json:"model"`
-	APIKeyEnv    string `json:"apiKeyEnv"`
+	// ProviderSetUp: the policy names a provider somebody set up (a model
+	// block that is not the default's, or a key for it in the keychain or
+	// in its variable), not only one written from defaults by another
+	// step (#462).
+	ProviderSetUp bool   `json:"providerSetUp"`
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	APIKeyEnv     string `json:"apiKeyEnv"`
 	// APIKeySource is "keyring" when the OS keychain is the fallback for
 	// an unset variable; KeysStored which of the providers the form can
 	// show have a key in it, so the badge follows the provider chosen and
@@ -272,6 +277,7 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 		DockerErr:             s.DockerErr,
 		PolicyPath:            s.PolicyPath,
 		PolicyExists:          s.PolicyExists,
+		ProviderSetUp:         s.ProviderSetUp,
 		Provider:              s.Provider,
 		Model:                 s.Model,
 		APIKeyEnv:             s.APIKeyEnv,
