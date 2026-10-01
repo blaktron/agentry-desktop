@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/drafter"
@@ -52,6 +53,14 @@ type DescribeHostedView struct {
 	TimeoutSeconds int    `json:"timeoutSeconds"`
 	MaxTurns       int    `json:"maxTurns"`
 	MaxPages       int    `json:"maxPages"`
+	// KnowledgeEnabled says a draft here may read the person's packs kept
+	// in Agentry (agentry-enterprise#295), at most MaxPacks of them and
+	// MaxBytes in all; KnowledgeNote says why it may not where the token is
+	// the reason (agentry-desktop#497).
+	KnowledgeEnabled bool   `json:"knowledgeEnabled"`
+	MaxPacks         int    `json:"maxPacks"`
+	MaxBytes         int64  `json:"maxBytes"`
+	KnowledgeNote    string `json:"knowledgeNote,omitempty"`
 
 	// Balance is the credits the draft is paid from; Pool names the
 	// organization for a member; BalanceKnown is false when billing did
@@ -141,6 +150,13 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 			v.HoldSentence = hostedrun.DraftHoldSentence(f.Hold.HoldCredits, *f.Terms)
 			v.TimeoutSeconds, v.MaxTurns, v.MaxPages = f.Hold.Caps.TimeoutSeconds, f.Hold.Caps.MaxTurns, f.Terms.MaxPages
 		}
+		if k := f.Terms; k != nil && k.Knowledge != nil && k.Knowledge.Enabled {
+			if f.ScopesKnown && !slices.Contains(f.Scopes, hostedrun.ScopeKnowledgeRead) {
+				v.KnowledgeNote = "This computer's token for " + reg + " does not carry " + hostedrun.ScopeKnowledgeRead + ", which a draft In Agentry needs to read your knowledge packs. It was minted before this app asked for it: sign in again to pick packs."
+			} else {
+				v.KnowledgeEnabled, v.MaxPacks, v.MaxBytes = true, k.Knowledge.MaxPacks, k.Knowledge.MaxBytes
+			}
+		}
 		if sub, err := fetchSubscription(ctx, reg, token); err == nil && sub != nil {
 			v.Balance, v.BalanceKnown, v.Pool, v.Unmetered = sub.Balance, true, sub.MemberOf, sub.Unmetered
 			v.Short = !sub.Unmetered && v.HoldCredits > 0 && sub.Balance < v.HoldCredits
@@ -154,8 +170,12 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 // DescribeInAgentry drafts a QuickAgent from a description In Agentry.
 // The description and hints are held to the registry's bounds before
 // anything is sent, and the draft is created and followed; it is this
-// app's one draft In Agentry while it lasts.
-func (b *BuildAPI) DescribeInAgentry(reg, description string, hints []string) (*HostedDraftStartView, error) {
+// app's one draft In Agentry while it lasts. packs are the names of the
+// person's knowledge packs kept in Agentry the Drafter reads first
+// (agentry-desktop#497), resolved to the registry's ids as a run's are
+// (each kept and scanned there); the registry checks each again, and holds
+// them to its bounds.
+func (b *BuildAPI) DescribeInAgentry(reg, description string, hints, packs []string) (*HostedDraftStartView, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, err
@@ -169,6 +189,10 @@ func (b *BuildAPI) DescribeInAgentry(reg, description string, hints []string) (*
 	if err != nil {
 		return nil, err
 	}
+	ids, err := b.run.packsInAgentry(reg, packs)
+	if err != nil {
+		return nil, err
+	}
 	if err := b.claimHosted(); err != nil {
 		return nil, err
 	}
@@ -179,7 +203,7 @@ func (b *BuildAPI) DescribeInAgentry(reg, description string, hints []string) (*
 		}
 	}()
 	client := hostedrun.New(reg, token)
-	created, err := client.Create(ctx, hostedrun.CreateRequest{Kind: hostedrun.KindDraft, Description: description, Hints: hints})
+	created, err := client.Create(ctx, hostedrun.CreateRequest{Kind: hostedrun.KindDraft, Description: description, Hints: hints, Knowledge: ids})
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return hostedDraftRefusal(refusal), nil

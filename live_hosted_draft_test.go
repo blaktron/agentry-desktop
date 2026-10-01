@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/drafter"
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
@@ -148,7 +149,17 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 	description := "Every Monday, read the week's closed GitHub issues in one repository I name and write a short Markdown summary of what changed, grouped by label."
 	hints := []string{"The services or sites it works with: GitHub", "It runs on its own, from a task, with no conversation.",
 		"An example of the output wanted: a Markdown list, one line per issue, with a link"}
-	start, err := b.DescribeInAgentry(reg, description, hints)
+	// With AGENTRY_LIVE_HOSTED_DRAFT_PACK, the name of a knowledge pack the
+	// account keeps in Agentry, the draft reads it first
+	// (agentry-desktop#497): the draft records it as scanned in Agentry.
+	var packs []string
+	if p := os.Getenv("AGENTRY_LIVE_HOSTED_DRAFT_PACK"); p != "" {
+		packs = []string{p}
+		if avail, _ := b.DescribeInAgentryStatus(reg); !avail.KnowledgeEnabled {
+			t.Fatalf("a pack was named, and this registry's drafts read none: %+v", avail)
+		}
+	}
+	start, err := b.DescribeInAgentry(reg, description, hints, packs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,6 +167,12 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		t.Fatalf("refused: %s %s", start.Refusal, start.Detail)
 	}
 	d := report(wait(1))
+	if len(packs) > 0 {
+		if len(d.Knowledge) != 1 || d.Knowledge[0].Name != packs[0] || d.Knowledge[0].Scan != drafter.ScannedInAgentry {
+			t.Fatalf("the draft's knowledge record: %+v", d.Knowledge)
+		}
+		t.Logf("knowledge: %s scanned in Agentry, %d file(s) withheld; accepts %q", d.Knowledge[0].Name, len(d.Knowledge[0].Withheld), d.Model.KnowledgePrompt)
+	}
 
 	dir := t.TempDir()
 	app.markPicked(dir)
@@ -230,7 +247,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		if _, first, ok := draft.SplitDescribeAgain(text); !ok || first != description {
 			t.Fatalf("Describe again's description does not carry the first one: %q", first)
 		}
-		again, err := b.DescribeInAgentry(reg, text, d.Hints)
+		again, err := b.DescribeInAgentry(reg, text, d.Hints, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
