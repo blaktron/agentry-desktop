@@ -398,9 +398,10 @@ type Request struct {
 	// ChatIdleTimeoutSeconds is a chat's idle timeout, Run defaults' Chat
 	// idle timeout from desktop.yaml, 0 for none (agentry-desktop#468;
 	// plan desktop-review-key-and-run-cards.md D21, D32). StartSession runs
-	// every chat with no wall clock and no count of the person's turns and
-	// this idle timeout, whatever the runner policy's sessions block and the
-	// release's own idle hint say; Run, which is not a chat, ignores it.
+	// every chat with no wall clock, no count of the person's turns and no
+	// run timeout, and this idle timeout, whatever the runner policy's
+	// sessions block and the release's own idle hint say; TimeoutSeconds
+	// does not apply to a chat. Run, which is not a chat, ignores it.
 	ChatIdleTimeoutSeconds int
 	// PlanCompiled, when set, is called once the run holds its plan, just
 	// compiled or reused, before anything of it starts, with whether that

@@ -163,7 +163,7 @@ type SessionEventView struct {
 // of the person's turns, and its one limit is Run defaults' Chat idle
 // timeout, none by default, which Go reads here from desktop.yaml
 // (agentry-desktop#468, D-052). maxTurns is the tool-call budget, as a
-// run's.
+// run's: -1 keeps the policy's, 0 lifts it.
 func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {

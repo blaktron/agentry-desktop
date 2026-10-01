@@ -196,7 +196,8 @@ Run defaults (agentry-desktop#347) is `settings-run-defaults` (the four
 defaults and Docker) and `settings-run-defaults-saved` (a timeout typed and
 saved, In Agentry chosen, a folder picked, as the mocks answer for Go);
 its Chat idle timeout (agentry-desktop#468) is `settings-chat-idle-none`
-(none, the default) and `settings-chat-idle-set` (30 minutes saved), and
+(none, the default), `settings-chat-idle-set` (30 minutes saved) and
+`settings-chat-idle-cleared` (saved, then No timeout), and
 `modals.html#runpanel-chat-review` is a chat's Review and start, whose
 Advanced offers no timeout and says why. In
 the run setup, `modals.html#runpanel-default-agentry` opens with In Agentry

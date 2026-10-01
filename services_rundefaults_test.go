@@ -279,7 +279,7 @@ func TestTheChatIdleTimeoutIsKeptInDesktopYAML(t *testing.T) {
 	if st, _ := settings.Load(); st.ChatIdleTimeoutSeconds != 1800 {
 		t.Fatalf("desktop.yaml holds %d, want 1800", st.ChatIdleTimeoutSeconds)
 	}
-	for _, bad := range []int{-1, settings.MaxChatIdleTimeoutSeconds + 1} {
+	for _, bad := range []int{-60, 90, settings.MaxChatIdleTimeoutSeconds + 60} {
 		if _, err := s.SetChatIdleTimeout(bad); err == nil {
 			t.Errorf("SetChatIdleTimeout(%d) was accepted", bad)
 		}
@@ -333,7 +333,7 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 	if err := settings.Save(st); err != nil {
 		t.Fatal(err)
 	}
-	if err := chat(); err == nil || !strings.Contains(err.Error(), "chatIdleTimeoutSeconds") {
+	if err := chat(); err == nil || !strings.Contains(err.Error(), "Chat idle timeout") {
 		t.Fatalf("a hand-edited idle timeout of -5: err = %v, want the chat refused", err)
 	}
 	if len(got) != 2 {

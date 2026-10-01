@@ -14,8 +14,9 @@ import (
 // RunDefaultsView is Settings → Run defaults (plan settings-cards.md D2,
 // D13; agentry-desktop#347). The timeout and max turns are the runner
 // policy's budgets, which the CLI runs with too; where runs go, the output
-// folder and the Chat idle timeout are this app's own, in desktop.yaml. A broken policy file is
-// said, not hidden behind the defaults, as Settings' status says it.
+// folder and the Chat idle timeout are this app's own, in desktop.yaml. A
+// broken policy file is said, not hidden behind the defaults, as Settings'
+// status says it.
 type RunDefaultsView struct {
 	TimeoutSeconds int    `json:"timeoutSeconds"`
 	MaxTurns       int    `json:"maxTurns"`
@@ -67,8 +68,8 @@ func (s *SettingsAPI) SetRunWhere(where string) (*RunDefaultsView, error) {
 }
 
 // SetChatIdleTimeout records the Chat idle timeout for the next chat on this
-// computer, 0 for none. It is refused outside none to a week, and the file
-// is left as it was.
+// computer, 0 for none. Anything but none or whole minutes up to a week is
+// refused, and the file is left as it was.
 func (s *SettingsAPI) SetChatIdleTimeout(seconds int) (*RunDefaultsView, error) {
 	if err := settings.CheckChatIdleTimeout(seconds); err != nil {
 		return nil, err
@@ -94,7 +95,7 @@ func chatIdleTimeout() (int, error) {
 		return 0, err
 	}
 	if err := settings.CheckChatIdleTimeout(st.ChatIdleTimeoutSeconds); err != nil {
-		return 0, fmt.Errorf("desktop.yaml's chatIdleTimeoutSeconds: %w; set it again in Settings → Run defaults", err)
+		return 0, fmt.Errorf("the saved Chat idle timeout is not one this app accepts (%w): set it again in Settings → Run defaults", err)
 	}
 	return st.ChatIdleTimeoutSeconds, nil
 }

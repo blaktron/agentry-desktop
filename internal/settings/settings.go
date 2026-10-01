@@ -122,11 +122,12 @@ type Settings struct {
 const MaxChatIdleTimeoutSeconds = 7 * 24 * 60 * 60
 
 // CheckChatIdleTimeout says whether seconds is a Chat idle timeout: 0 for
-// none, or 1 second to a week. The setting's save refuses anything else, and
-// a chat refuses to start on a desktop.yaml edited by hand to hold it.
+// none, or whole minutes from 1 minute to a week, which is what Run defaults
+// offers. The setting's save refuses anything else, and a chat refuses to
+// start on a desktop.yaml edited by hand to hold it.
 func CheckChatIdleTimeout(seconds int) error {
-	if seconds < 0 || seconds > MaxChatIdleTimeoutSeconds {
-		return fmt.Errorf("a chat idle timeout is none or 1 second to a week (%d seconds), not %d seconds", MaxChatIdleTimeoutSeconds, seconds)
+	if seconds < 0 || seconds > MaxChatIdleTimeoutSeconds || seconds%60 != 0 {
+		return fmt.Errorf("a chat idle timeout is none, or whole minutes from 1 minute to a week, not %d seconds", seconds)
 	}
 	return nil
 }

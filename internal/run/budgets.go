@@ -10,8 +10,9 @@ import (
 // SetBudgets writes Run defaults' timeout and max turns (plan
 // settings-cards.md D2, agentry-desktop#347) into the runner policy's
 // budgets, through the same policy package the provider form writes with
-// and the CLI reads: `agentry run` then runs with them too, and a run's own
-// fields may only tighten them (the policy's rule). Nothing else in the
+// and the CLI reads: `agentry run` then runs with them too. A run's own
+// Advanced fields name that one run's budgets, longer or shorter, as the
+// CLI's --timeout and --max-turns do. Nothing else in the
 // policy changes; a policy that does not exist yet is created from the
 // defaults first, as the provider form's write does. It refuses what the
 // CLI's policy.Validate refuses, in the app's words, before the file is

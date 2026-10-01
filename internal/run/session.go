@@ -44,9 +44,6 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	if !sig.Manifest.Supports(manifest.ModeInteractive) {
 		return nil, ErrNotInteractive
 	}
-	if req.ChatIdleTimeoutSeconds < 0 {
-		return nil, fmt.Errorf("a chat's idle timeout is 0 (none) or more seconds, not %d", req.ChatIdleTimeoutSeconds)
-	}
 	p, err := prepare(ctx, req, logw, manifest.ModeInteractive)
 	if err != nil {
 		return nil, err
@@ -54,11 +51,16 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	// The compile took the session caps from the runner policy, which the
 	// CLI's chats read too, tightened by the release's idle hint. A chat
 	// here has its own (D21, D22): the engine reads them from this plan in
-	// memory, and the receipt's run-plan.json records them. The policy file
-	// and the installed plan.json are not changed.
-	if p.plan.Harness.Session != nil {
-		p.plan.Harness.Session.Budgets = spec.SessionBudgets{IdleTimeoutSeconds: req.ChatIdleTimeoutSeconds}
+	// memory, and the receipt's run-plan.json records them. The run timeout
+	// is no limit on a session, so the plan and meta.json say none rather
+	// than the policy's. The policy file and the installed plan.json are not
+	// changed.
+	if p.plan.Harness.Session == nil {
+		finishProfile(logw, p.prof, p.profDir, p.keep)
+		return nil, fmt.Errorf("the interactive plan for %s has no session block", p.sig.Ref)
 	}
+	p.plan.Harness.Session.Budgets = spec.SessionBudgets{IdleTimeoutSeconds: req.ChatIdleTimeoutSeconds}
+	p.plan.Budgets.TimeoutSeconds, p.params.Budgets.TimeoutSeconds = 0, 0
 	inner, err := engine.StartSession(ctx, p.docker, p.params)
 	if err != nil {
 		finishProfile(logw, p.prof, p.profDir, p.keep)

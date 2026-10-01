@@ -189,9 +189,9 @@ func TestStartSessionRefusesAutonomousOnlyRelease(t *testing.T) {
 var idleHintYAML = strings.Replace(twoModeYAML, `  opening: "What should I look at?"`,
 	"  opening: \"What should I look at?\"\n  idleTimeoutSeconds: 60", 1)
 
-// sessionBudgetsOf reads the session caps from the plan the engine was
-// handed, as the receipt keeps it (receipts/run-plan.json).
-func sessionBudgetsOf(t *testing.T, res *Result) spec.SessionBudgets {
+// runPlanOf reads the plan the engine was handed, as the receipt keeps it
+// (receipts/run-plan.json), and its session caps.
+func runPlanOf(t *testing.T, res *Result) (spec.Plan, spec.SessionBudgets) {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(res.ReceiptsDir, "run-plan.json"))
 	if err != nil {
@@ -204,20 +204,30 @@ func sessionBudgetsOf(t *testing.T, res *Result) spec.SessionBudgets {
 	if plan.Harness.Session == nil {
 		t.Fatalf("the run plan has no session block:\n%s", b)
 	}
-	return plan.Harness.Session.Budgets
+	return plan, plan.Harness.Session.Budgets
 }
 
 // A chat the desktop starts has no idle timeout, no wall clock and no
 // count of the person's turns (agentry-desktop#468; plan
 // desktop-review-key-and-run-cards.md D21, D22): not the runner policy's
-// 900 s, 7,200 s and 200, and not the release's own 60 s idle hint. The
-// policy file, which the CLI's chats read, keeps all three; the tool-call
-// budget is still the policy's max turns.
+// 900 s, 7,200 s and 200, and not the release's own 60 s idle hint; and
+// its receipt names no run timeout, which a session never applies. The
+// policy file, which the CLI's chats read, is not written; the tool-call
+// budget is still max turns, the one the setup names when it names one.
 func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 	regURL, _ := sessionFixtureFor(t, idleHintYAML)
+	polPath := filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml")
+	if _, _, err := policy.EnsureDefault(polPath); err != nil {
+		t.Fatal(err)
+	}
+	polBefore, err := os.ReadFile(polPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statBefore, _ := os.Stat(polPath)
 	var log strings.Builder
 	s, err := StartSession(context.Background(), Request{
-		AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: -1,
+		AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: 7,
 		Intake: map[string]string{"region": "apac"},
 	}, &log)
 	if err != nil {
@@ -231,26 +241,43 @@ func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("End: %v", err)
 	}
-	if got := sessionBudgetsOf(t, res); got != (spec.SessionBudgets{}) {
+	plan, got := runPlanOf(t, res)
+	if got != (spec.SessionBudgets{}) {
 		t.Errorf("the chat ran under %+v, want no limits", got)
 	}
-	b, err := os.ReadFile(filepath.Join(res.ReceiptsDir, "run-plan.json"))
+	if plan.Budgets.TimeoutSeconds != 0 {
+		t.Errorf("the run plan names a run timeout of %d s for a chat", plan.Budgets.TimeoutSeconds)
+	}
+	var meta struct {
+		Budgets struct {
+			TimeoutSeconds int `json:"timeoutSeconds"`
+			MaxTurns       int `json:"maxTurns"`
+		} `json:"budgets"`
+	}
+	mb, err := os.ReadFile(filepath.Join(res.ReceiptsDir, "meta.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var plan spec.Plan
-	if err := json.Unmarshal(b, &plan); err != nil {
+	if err := json.Unmarshal(mb, &meta); err != nil {
 		t.Fatal(err)
 	}
-	pol, _, err := policy.Load(filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml"))
+	if meta.Budgets.MaxTurns != 7 || meta.Budgets.TimeoutSeconds != 0 {
+		t.Errorf("meta.json budgets = %+v, want the setup's 7 tool calls and no run timeout", meta.Budgets)
+	}
+	polAfter, err := os.ReadFile(polPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statAfter, _ := os.Stat(polPath)
+	if string(polAfter) != string(polBefore) || !statAfter.ModTime().Equal(statBefore.ModTime()) {
+		t.Errorf("the runner policy was written by a chat")
+	}
+	pol, _, err := policy.Load(polPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := (policy.Sessions{IdleTimeoutSeconds: 900, MaxWallSeconds: 7200, MaxUserTurns: 200}); pol.Sessions != want {
-		t.Errorf("the policy's sessions = %+v, want the CLI's %+v untouched", pol.Sessions, want)
-	}
-	if plan.Budgets.MaxTurns != pol.Budgets.MaxTurns {
-		t.Errorf("the tool-call budget = %d, want the policy's max turns %d", plan.Budgets.MaxTurns, pol.Budgets.MaxTurns)
+		t.Errorf("the policy's sessions = %+v, want the CLI's %+v", pol.Sessions, want)
 	}
 }
 
@@ -294,8 +321,8 @@ func TestAChatEndsAfterTheChosenIdleTimeout(t *testing.T) {
 		t.Fatalf("End: %v", err)
 	}
 	<-done
-	if want := (spec.SessionBudgets{IdleTimeoutSeconds: 1}); sessionBudgetsOf(t, res) != want {
-		t.Errorf("the chat ran under %+v, want %+v", sessionBudgetsOf(t, res), want)
+	if _, got := runPlanOf(t, res); got != (spec.SessionBudgets{IdleTimeoutSeconds: 1}) {
+		t.Errorf("the chat ran under %+v, want an idle timeout of 1 s alone", got)
 	}
 	if res.ExitCode != engine.ExitTimeout || !strings.Contains(res.Error, "idle") {
 		t.Errorf("result = %+v, want the idle timeout's exit", res)

@@ -295,9 +295,17 @@ export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusVi
 // default (agentry-desktop#468, D-052).
 export function chatLimitLine(idleSeconds: number): string {
   return idleSeconds > 0
-    ? `A chat here ends after ${fmtDuration(idleSeconds)} without a message from you.`
-    : "A chat here ends when you end it.";
+    ? `A chat on this computer ends after ${fmtDuration(idleSeconds)} without a message from you.`
+    : "A chat on this computer ends when you end it or quit Agentry Desktop.";
 }
+
+// The longest Chat idle timeout Go accepts, a week, in the minutes the
+// field takes (settings.CheckChatIdleTimeout).
+const MAX_CHAT_IDLE_MINUTES = 7 * 24 * 60;
+
+// The field's text for a saved Chat idle timeout: whole minutes, or empty
+// for none.
+const idleField = (seconds: number) => (seconds > 0 ? String(seconds / 60) : "");
 
 export function runStatus(s: main.SetupStatusView): string {
   if (!s.dockerOk) return "Docker is not ready, so QuickAgents cannot run on this computer yet.";
@@ -336,30 +344,33 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   const [busy, setBusy] = useState(false);
   const read = () => RunAPI.SetupStatus().then(setSetup).catch((e) => setErr(String(e)));
   // The fields take the saved budgets on the first read and after a budgets
-  // save only, so choosing where to run keeps a timeout typed and not saved.
+  // save only, so choosing where to run keeps a timeout typed and not saved;
+  // the Chat idle timeout's field likewise, on the first read and after its
+  // own save.
   const show = (v: main.RunDefaultsView, budgets: boolean) => {
     setDefaults(v);
     if (!budgets) return;
     setTimeoutText(String(v.timeoutSeconds));
     setTurns(String(v.maxTurns));
-    setIdleText(v.chatIdleTimeoutSeconds > 0 && v.chatIdleTimeoutSeconds % 60 === 0 ? String(v.chatIdleTimeoutSeconds / 60) : "");
   };
   useEffect(() => {
     read();
-    SettingsAPI.RunDefaults().then((v) => show(v, true)).catch((e) => setErr(String(e)));
+    SettingsAPI.RunDefaults().then((v) => { show(v, true); setIdleText(idleField(v.chatIdleTimeoutSeconds)); }).catch((e) => setErr(String(e)));
   }, []);
 
-  async function act(fn: () => Promise<main.RunDefaultsView>, said?: string): Promise<boolean> {
+  // act returns Run defaults as Go now holds them, or null when it refused.
+  async function act(fn: () => Promise<main.RunDefaultsView>, said?: string): Promise<main.RunDefaultsView | null> {
     setBusy(true);
     setErr(null);
     setSaved(null);
     try {
-      show(await fn(), !!said);
+      const v = await fn();
+      show(v, !!said);
       if (said) setSaved(said);
-      return true;
+      return v;
     } catch (e) {
       setErr(String(e));
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -397,10 +408,12 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   const budgetsChanged = !!defaults && (timeoutSeconds !== defaults.timeoutSeconds || maxTurns !== defaults.maxTurns);
   // The Chat idle timeout in whole minutes, a week at most; Go keeps seconds.
   const idleMinutes = parseInt(idleText, 10);
-  const idleValid = /^\d+$/.test(idleText.trim()) && idleMinutes >= 1 && idleMinutes <= 7 * 24 * 60;
+  const idleValid = /^\d+$/.test(idleText.trim()) && idleMinutes >= 1 && idleMinutes <= MAX_CHAT_IDLE_MINUTES;
   async function setChatIdle(seconds: number) {
     setIdleSaved(null);
-    if (!(await act(() => SettingsAPI.SetChatIdleTimeout(seconds)))) return;
+    const v = await act(() => SettingsAPI.SetChatIdleTimeout(seconds));
+    if (!v) return;
+    setIdleText(idleField(v.chatIdleTimeoutSeconds));
     setIdleSaved(seconds > 0 ? "Saved. The next chat uses it." : "Saved. The next chat has no idle timeout.");
   }
 
@@ -431,7 +444,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               <p className="muted small" style={{ marginBottom: 0 }}>
                 A run stops when it reaches either. These are the runner policy&apos;s
                 (<span className="mono selectable">{defaults.policyPath}</span>), so the <span className="mono">agentry</span> CLI
-                runs with them too. A run&apos;s own fields under Advanced can only ask for less. A draft made on this
+                runs with them too. A run&apos;s own fields under Advanced apply to that run only. A draft made on this
                 computer has at least 30 minutes and a knowledge build at least 60, however short the timeout here.
               </p>
               {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
@@ -442,7 +455,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
               <div className="row">
                 <label className="row" style={{ gap: 6 }}>
                   <span className="small">Minutes without a message from you</span>
-                  <Input type="number" min={1} max={7 * 24 * 60} style={{ width: 120 }} value={idleText} disabled={busy}
+                  <Input type="number" min={1} max={MAX_CHAT_IDLE_MINUTES} style={{ width: 120 }} value={idleText} disabled={busy}
                     placeholder="none" data-chat-idle
                     onChange={(e) => { setIdleText(e.target.value); setIdleSaved(null); }} />
                 </label>
@@ -456,13 +469,11 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 )}
               </div>
               <p className="small" style={{ margin: "8px 0 0" }} data-chat-idle-state>
-                {defaults.chatIdleTimeoutSeconds > 0
-                  ? `A chat on this computer ends after ${fmtDuration(defaults.chatIdleTimeoutSeconds)} without a message from you.`
-                  : "None: a chat on this computer ends when you end it or quit Agentry Desktop."}
+                {defaults.chatIdleTimeoutSeconds > 0 ? "" : "None. "}{chatLimitLine(defaults.chatIdleTimeoutSeconds)}
               </p>
               <p className="muted small" style={{ marginBottom: 0 }}>
-                A chat here has no other time limit and no limit on your messages; the max turns above still limits the
-                QuickAgent&apos;s tool calls. This is kept by Agentry Desktop, so chats with the <span className="mono">agentry</span> CLI
+                A chat here has no other time limit and no limit on your messages. The max turns above still limits the
+                QuickAgent&apos;s tool calls, unless it is 0. This is kept by Agentry Desktop, so chats with the <span className="mono">agentry</span> CLI
                 keep the runner policy&apos;s limits, and a chat In Agentry keeps Agentry&apos;s idle close.
               </p>
               {idleSaved && <p className="small" role="status" style={{ marginBottom: 0 }}>{idleSaved}</p>}
