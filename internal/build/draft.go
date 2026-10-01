@@ -56,7 +56,16 @@ func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []s
 		return nil, nil, fmt.Errorf("the draft's manifest does not fit the form: %w", err)
 	}
 	var notes []string
-	if dropped := unknownFields(obj, draftFields, ""); len(dropped) > 0 {
+	dropped := unknownFields(obj, draftFields, "")
+	// A draft never ships the person's pack (plan knowledge-and-drafter.md
+	// D4): its knowledge.ships is dropped and named, as the site's importer
+	// does, and its knowledge.accepts is kept.
+	if len(m.KnowledgeShips) > 0 {
+		dropped = append(dropped, "knowledge.ships")
+		m.KnowledgeShips = nil
+	}
+	if len(dropped) > 0 {
+		sort.Strings(dropped)
 		notes = append(notes, "The form cannot hold these fields of the draft, so they were left out: "+strings.Join(dropped, ", ")+".")
 	}
 	if f := m.InstructionFile; f != "" && (!draftInstructionRE.MatchString(f) || strings.EqualFold(f, "README.md")) {
@@ -103,6 +112,7 @@ var draftFields = map[string]any{
 		"secrets":    nil, "dataAccess": nil,
 		"mcpServers": []any{map[string]any{"npm": nil, "pypi": nil, "version": nil, "tools": nil, "secrets": nil, "egress": nil, "env": nil}},
 	},
+	"knowledge":    map[string]any{"accepts": map[string]any{"prompt": nil, "required": nil}, "ships": nil},
 	"dependencies": map[string]any{"agents": []any{map[string]any{"ref": nil, "version": nil}}},
 	"publish":      map[string]any{"include": nil, "channel": nil},
 }

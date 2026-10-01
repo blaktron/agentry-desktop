@@ -34,6 +34,7 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/version"
@@ -53,6 +54,10 @@ type Plan struct {
 	PolicyFile  policy.File
 	Web         *engine.WebRun
 	Search      drafter.SearchState
+	// Knowledge are the packs kept on this computer the Drafter reads first
+	// (agentry-desktop#497; plan knowledge-and-drafter.md K4), opened by
+	// knowledge.Env.ForDraft; nil for none. Its caller removes them.
+	Knowledge *knowledge.DraftPacks
 }
 
 // Budgets are the budgets the draft runs under: the runner policy's, with
@@ -89,12 +94,19 @@ func SearchSentence(s drafter.SearchState, pol *policy.Policy) string {
 }
 
 // Prepare checks a draft before anything leaves this computer: the
-// description and hints as the Drafter's task (at most 32 KiB, text), the
-// runner policy, and the person's keys read as the policy says. Without a
-// Jev key it refuses, saying where to add one, and nothing else happens
-// (D22, D25).
-func Prepare(registry, description string, hints []string) (*Plan, error) {
-	task, err := drafter.Task(description, hints)
+// description and hints as the Drafter's task (at most 32 KiB, text), with
+// the names of the packs it reads first when it reads any, the runner
+// policy, and the person's keys read as the policy says. Without a Jev key
+// it refuses, saying where to add one, and nothing else happens (D22, D25):
+// a pack not scanned in Agentry is scanned with that key too.
+func Prepare(registry, description string, hints []string, packs *knowledge.DraftPacks) (*Plan, error) {
+	var task string
+	var err error
+	if names := packs.Names(); len(names) > 0 {
+		task, err = drafter.TaskWithKnowledge(description, hints, names)
+	} else {
+		task, err = drafter.Task(description, hints)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +121,15 @@ func Prepare(registry, description string, hints []string) (*Plan, error) {
 	w, search, err := drafter.LocalWeb(pol, registry)
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads your description and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", err)
+		reads := "your description"
+		if len(packs.Names()) > 0 {
+			reads = "your description, your knowledge packs"
+		}
+		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads %s and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", reads, err)
 	case err != nil:
 		return nil, err
 	}
-	return &Plan{Description: description, Task: task, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Web: w, Search: search}, nil
+	return &Plan{Description: description, Task: task, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Web: w, Search: search, Knowledge: packs}, nil
 }
 
 // Request is one draft's run.
@@ -152,6 +168,10 @@ const (
 	// StageDescription: AI Review reads the description, with the
 	// person's key, before anything else.
 	StageDescription Stage = "description"
+	// StageKnowledge: AI Review reads each pack not scanned in Agentry,
+	// with the person's key, before the Drafter starts (D3); a draft with
+	// no such pack passes it at once.
+	StageKnowledge Stage = "knowledge"
 	// StageDrafting: the Drafter's turn, its searches and reads each read
 	// by AI Review first.
 	StageDrafting Stage = "drafting"
@@ -226,6 +246,20 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		"Every result goes to AI Review with your key before the model reads it, and this computer reads each page from its site. It submits nothing.\n",
 		p.ModelName(), SearchSentence(p.Search, p.Policy))
 
+	// A pack not scanned in Agentry is scanned now, after the description
+	// and before the Drafter starts, and what AI Review flags in any pack
+	// (now or in Agentry) is withheld from the copy the Drafter reads (D3,
+	// D14), as `agentry draft --knowledge` does.
+	var read *drafter.KnowledgeRead
+	if k := p.Knowledge; k != nil && len(k.Packs) > 0 {
+		if len(k.ScanFirst) > 0 {
+			prog.Set(atStage(StageKnowledge))
+		}
+		if read, err = drafter.ReadyKnowledge(ctx, k.Packs, sc, k.Scratch, logw); err != nil {
+			return nil, err
+		}
+	}
+
 	home, err := run.Home()
 	if err != nil {
 		return nil, err
@@ -246,6 +280,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		Budgets: &b,
 		RunID:   req.RunID, Stderr: logw, Web: p.Web, OnUsage: prog.Usage,
 	}
+	if read != nil {
+		first.Knowledge = read.Packs
+	}
 	prog.Set(atStage(StageDrafting))
 	env, runErr := runner(ctx, first)
 	prog.Set(atStage(StageChecking))
@@ -265,7 +302,8 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 			defer prog.Set(atStage(StageChecking))
 			return runner(ctx, localrun.RepairRun(first, t))
 		},
-		OnUsage: prog.Usage,
+		OnUsage:   prog.Usage,
+		Knowledge: read,
 		// The embedded rule bundle, as the desktop's own Validate uses: the
 		// app has no rules checkout or --rules-update cache of its own
 		// (DR-43's addendum names the difference from `agentry draft`).

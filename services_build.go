@@ -25,6 +25,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/draft"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -243,6 +244,11 @@ type DescribeStatusView struct {
 	Search         string     `json:"search"`
 	SearchSentence string     `json:"searchSentence"`
 	ModelName      string     `json:"modelName"`
+	// MaxPacks and MaxBytes are what a draft on this computer reads of the
+	// person's knowledge packs (agentry-desktop#497): the CLI's own bounds,
+	// drafter.MaxKnowledgePacks and MaxKnowledgeBytes.
+	MaxPacks int   `json:"maxPacks"`
+	MaxBytes int64 `json:"maxBytes"`
 }
 
 // DescribeStatus reads it: presence markers and whether a variable is set,
@@ -252,7 +258,8 @@ func (b *BuildAPI) DescribeStatus() (*DescribeStatusView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DescribeStatusView{Key: *jevKeyView(st.Key), Search: string(st.Search), SearchSentence: st.SearchSentence, ModelName: st.ModelName}, nil
+	return &DescribeStatusView{Key: *jevKeyView(st.Key), Search: string(st.Search), SearchSentence: st.SearchSentence, ModelName: st.ModelName,
+		MaxPacks: drafter.MaxKnowledgePacks, MaxBytes: drafter.MaxKnowledgeBytes}, nil
 }
 
 // DraftView is a finished draft for the Build page: the form's Model, what
@@ -288,6 +295,12 @@ type DraftView struct {
 	// Check is AI Review's check of the finished draft (agentry-cli#418),
 	// or nil for a draft that has none.
 	Check *DraftCheckView `json:"check"`
+	// Knowledge are the person's packs the Drafter was given
+	// (agentry-desktop#497): each one's name, how it was scanned (in
+	// Agentry, or for this draft with the person's key) and every file AI
+	// Review withheld from it, with the reason. Never empty for a draft
+	// that read none: an empty list.
+	Knowledge []drafter.PackRead `json:"knowledge"`
 }
 
 // DraftCheckView is AI Review's check of a finished draft for the page:
@@ -380,8 +393,19 @@ type DraftAIReviewView struct {
 //
 // Nothing is written into a QuickAgent folder: the draft reaches one only
 // when the person saves it where the native picker says.
-func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []string) (*DraftView, error) {
-	p, err := draft.Prepare(reg, description, hints)
+//
+// packs are knowledge packs kept on this computer the Drafter reads first
+// (agentry-desktop#497; plan knowledge-and-drafter.md K4): opened before
+// the dialog and held to the Drafter's bound, and the dialog says which of
+// them AI Review scans first with the person's key, because no scan in
+// Agentry stands in for them (D3).
+func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs []string) (*DraftView, error) {
+	k, err := b.run.knowledge().ForDraft(b.app.ctx, reg, packs)
+	if err != nil {
+		return nil, err
+	}
+	defer k.Done()
+	p, err := draft.Prepare(reg, description, hints, k)
 	if err != nil {
 		return nil, err
 	}
@@ -394,6 +418,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 			"AI Review (TypeSafe's Jev) reads your description first, with your key, then every search result, page and registry answer "+
 			"before the model does, and holds back what it flags. It then sends the finished draft and your description to TypeSafe for AI Review's check, "+
 			"with the questions the pipeline asks at publish, and if the rules refuse the draft or the check flags something it can fix, the model has one more turn, with no web access, to fix it. "+
+			knowledgeConsent(k)+
 			"Your description goes to "+goes+" and the sites the Drafter reads, "+
 			"so it should hold no secret. The run's receipts and the draft are kept in your Downloads folder under agentry-out; "+
 			"nothing is written into a QuickAgent folder or submitted until you save or publish it. Continue?"); err != nil {
@@ -419,6 +444,25 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints []strin
 	v.Where, v.Description, v.Hints = draftHere, description, append([]string{}, hints...)
 	v.settle(b.app.ctx, reg, settings.TokenFor(reg), ns)
 	return v, nil
+}
+
+// knowledgeConsent is what the dialog says of a draft's packs: that the
+// Drafter reads them first, and which of them AI Review scans first with the
+// person's key (D3), the rest standing on their scan in Agentry. "" for none.
+func knowledgeConsent(k *knowledge.DraftPacks) string {
+	names := k.Names()
+	if len(names) == 0 {
+		return ""
+	}
+	out := "It reads your knowledge packs " + strings.Join(names, ", ") + " first, and leaves out what AI Review flags in them. "
+	switch first := k.ScanFirst; len(first) {
+	case 0:
+	case 1:
+		out += first[0] + " has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts, and withholds what it flags. "
+	default:
+		out += strings.Join(first, ", ") + " have not been scanned in Agentry, so AI Review reads every file of them with your key before the draft starts, and withholds what it flags. "
+	}
+	return out
 }
 
 // draftRunRef names a draft on this computer as the run in flight: what
@@ -507,6 +551,12 @@ func draftView(res *draft.Result) *DraftView {
 	}
 	if d.AIReview != nil {
 		v.Check = checkView(d.AIReview.Check)
+	}
+	v.Knowledge = append([]drafter.PackRead{}, d.Knowledge...)
+	for i := range v.Knowledge {
+		if v.Knowledge[i].Withheld == nil {
+			v.Knowledge[i].Withheld = []drafter.WithheldFile{}
+		}
 	}
 	return v
 }

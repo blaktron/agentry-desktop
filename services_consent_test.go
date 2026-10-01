@@ -51,7 +51,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		// asked before anything leaves this computer.
 		"BuildAPI.DescribeOnThisComputer": func() error {
 			b := &BuildAPI{app: app, run: r}
-			_, err := b.DescribeOnThisComputer("https://r.example", "Summarize my meeting notes.", nil)
+			_, err := b.DescribeOnThisComputer("https://r.example", "Summarize my meeting notes.", nil, nil)
 			return err
 		},
 	} {

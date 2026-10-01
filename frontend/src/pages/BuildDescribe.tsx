@@ -23,9 +23,11 @@
 // plain text and never a link, and every other field is text.
 import { useEffect, useState } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
+import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { build, main } from "../../wailsjs/go/models";
+import { build, knowledge, main } from "../../wailsjs/go/models";
+import { keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine, totalLine, whyNot, type Bounds } from "../describeKnowledge";
 import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
@@ -49,8 +51,8 @@ function hintLines(h: Hints): string[] {
 
 // The description the page keeps while the tab is away, as Build keeps its
 // form (the tab unmounts on every change); a draft that lands clears it.
-let kept: { text: string; hints: Hints; where: Where | null } = { text: "", hints: NO_HINTS, where: null };
-whenLanded(() => { kept = { text: "", hints: NO_HINTS, where: kept.where }; });
+let kept: { text: string; hints: Hints; where: Where | null; picked: string[] } = { text: "", hints: NO_HINTS, where: null, picked: [] };
+whenLanded(() => { kept = { text: "", hints: NO_HINTS, where: kept.where, picked: [] }; });
 
 // credits is a count of credits, singular for one (the site's creditsPhrase).
 function credits(n: number): string {
@@ -70,6 +72,10 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   const [text, setText] = useState(kept.text);
   const [hints, setHints] = useState<Hints>(kept.hints);
   const [where, setWhere] = useState<Where | null>(kept.where);
+  // The knowledge packs the Drafter reads first (agentry-desktop#497), by
+  // name, and the person's packs as the Knowledge list gives them.
+  const [picked, setPicked] = useState<string[]>(kept.picked);
+  const [packs, setPacks] = useState<knowledge.Pack[]>([]);
   const [status, setStatus] = useState<main.DescribeStatusView | null>(null);
   const [agentry, setAgentry] = useState<main.DescribeHostedView | null>(null);
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
@@ -80,13 +86,18 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
     BuildAPI.DescribeStatus().then(setStatus).catch((e) => setError(String(e)));
     BuildAPI.DescribeInAgentryStatus(registry).then(setAgentry).catch(() => {});
     RunAPI.SetupStatus().then(setSetup).catch(() => {});
+    KnowledgeAPI.List(registry).then((l) => setPacks(l.packs ?? [])).catch(() => setPacks([]));
     attachHosted(registry);
   }, [registry]);
   // In Agentry is chosen first where it can be, as on the site.
   useEffect(() => {
     if (where === null && agentry) setWhere(agentry.available ? "agentry" : "here");
   }, [agentry, where]);
-  useEffect(() => { kept = { text, hints, where }; }, [text, hints, where]);
+  useEffect(() => { kept = { text, hints, where, picked }; }, [text, hints, where, picked]);
+  // A switch of where it drafts keeps only the picks it can still read.
+  useEffect(() => {
+    if (where) setPicked((p) => keepPickable(p, packs, where));
+  }, [where, packs]);
   // A draft that landed, while this page showed or before it came back.
   useEffect(() => {
     const v = takeLandedDraft();
@@ -98,12 +109,20 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   const dockerOk = setup?.dockerOk ?? false;
   const readyHere = !!key?.ready && dockerOk;
   const readyAgentry = !!agentry?.available;
-  const ready = text.trim() !== "" && (where === "agentry" ? readyAgentry : where === "here" && readyHere);
+  // The pick's bounds where it drafts: Go's for this computer, the
+  // registry's for In Agentry; null where a draft there reads none.
+  const bounds: Bounds | null = where === "here"
+    ? (status && status.maxPacks > 0 ? { maxPacks: status.maxPacks, maxBytes: status.maxBytes } : null)
+    : where === "agentry" && agentry?.knowledgeEnabled ? { maxPacks: agentry.maxPacks, maxBytes: agentry.maxBytes } : null;
+  const offered = bounds && where && packs.some((p) => pickable(p, where)) ? packs.filter((p) => p.local || p.inAgentry) : [];
+  const packProblem = bounds ? pickProblem(picked, packs, bounds) : null;
+  const scanFirst = where ? scanFirstLine(picked, packs, where) : null;
+  const ready = text.trim() !== "" && !packProblem && (where === "agentry" ? readyAgentry : where === "here" && readyHere);
 
   function draft() {
     if (!where) return;
     setError(null);
-    startDraft(registry, where, text, hintLines(hints));
+    startDraft(registry, where, text, hintLines(hints), offered.length > 0 ? picked : []);
   }
 
   return (
@@ -203,6 +222,39 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
         )}
       </Card>
 
+      {where === "agentry" && agentry?.knowledgeNote && <Notice tone="warn">{agentry.knowledgeNote}</Notice>}
+      {bounds && offered.length > 0 && where && (
+        <Card className="mt">
+          <p className="small" style={{ marginTop: 0 }}><strong>Knowledge, if you keep some</strong></p>
+          <p className="small muted">
+            Pick knowledge packs you keep, or your organization shares. The Drafter reads them before it searches the web:
+            it learns the domain from them and writes what the QuickAgent needs into its instruction, so the draft is
+            better and may need fewer searches. Where the QuickAgent needs a pack when it runs, the draft asks for one; it
+            never ships yours.
+          </p>
+          <fieldset className="describe-knowledge">
+            <legend className="sr-only">Knowledge packs for the Drafter</legend>
+            {offered.map((p) => {
+              const why = whyNot(p, where);
+              const note = pickNote(p, where);
+              return (
+                <label key={`${p.org ?? ""}/${p.name}`} className="small" style={{ display: "block", marginTop: 4 }}>
+                  <input type="checkbox" disabled={busy || why !== null} checked={picked.includes(p.name)}
+                    onChange={(e) => setPicked(e.target.checked ? [...picked, p.name] : picked.filter((n) => n !== p.name))} />{" "}
+                  <span className="mono"><RevealText text={p.name} /></span>
+                  {p.shared && p.org && <span className="muted"> shared by <RevealText text={p.org} /></span>}
+                  <span className="muted"> — {p.pages} {p.pages === 1 ? "page" : "pages"}, {packSize(p.bytes)}, <RevealText text={p.scan} /></span>
+                  {(why ?? note) && <span className="muted"> ({why ?? note})</span>}
+                </label>
+              );
+            })}
+          </fieldset>
+          <p className="small muted" style={{ marginBottom: 0 }}>{totalLine(picked, packs, bounds)}</p>
+          {packProblem && <Notice tone="warn">{packProblem}</Notice>}
+          {scanFirst && <Notice tone="warn">{scanFirst}</Notice>}
+        </Card>
+      )}
+
       {where === "agentry" ? (
         <p className="small">{agentry?.inputsSentence} The draft&apos;s output and its receipts are kept in your Downloads folder, under <span className="mono">agentry-out</span>.</p>
       ) : (
@@ -300,6 +352,27 @@ export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?
             <li key={i}><span className="mono selectable"><RevealText text={w.url} /></span> ({w.tool}): {w.reason}</li>
           ))}
         </ul>
+      )}
+      {(v.knowledge ?? []).length > 0 && (
+        <>
+          <strong className="small">The knowledge it read</strong>
+          <ul className="small">
+            {v.knowledge.map((k) => (
+              <li key={k.name}>
+                <span className="mono selectable"><RevealText text={k.name} /></span>, {k.pages} {k.pages === 1 ? "page" : "pages"},{" "}
+                {k.scan === "agentry" ? "scanned in Agentry" : "scanned with your key for this draft"};{" "}
+                {(k.withheld ?? []).length === 0 ? "nothing withheld" : `${k.withheld.length} ${k.withheld.length === 1 ? "file" : "files"} withheld`}
+                {(k.withheld ?? []).length > 0 && (
+                  <ul>
+                    {k.withheld.map((w) => (
+                      <li key={w.path}><span className="mono selectable"><RevealText text={w.path} /></span>: <RevealText text={w.reason} /></li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {v.check && <CheckNotes c={v.check} />}
       {(v.unmentioned ?? []).length > 0 && (

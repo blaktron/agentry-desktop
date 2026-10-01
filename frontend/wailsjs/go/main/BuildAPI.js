@@ -18,16 +18,16 @@ export function DescribeAgainText(arg1, arg2, arg3) {
   return window['go']['main']['BuildAPI']['DescribeAgainText'](arg1, arg2, arg3);
 }
 
-export function DescribeInAgentry(arg1, arg2, arg3) {
-  return window['go']['main']['BuildAPI']['DescribeInAgentry'](arg1, arg2, arg3);
+export function DescribeInAgentry(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['BuildAPI']['DescribeInAgentry'](arg1, arg2, arg3, arg4);
 }
 
 export function DescribeInAgentryStatus(arg1) {
   return window['go']['main']['BuildAPI']['DescribeInAgentryStatus'](arg1);
 }
 
-export function DescribeOnThisComputer(arg1, arg2, arg3) {
-  return window['go']['main']['BuildAPI']['DescribeOnThisComputer'](arg1, arg2, arg3);
+export function DescribeOnThisComputer(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['BuildAPI']['DescribeOnThisComputer'](arg1, arg2, arg3, arg4);
 }
 
 export function DescribeStatus() {

@@ -18,8 +18,9 @@ import (
 // it does not declare. The run modes and the intake questions stay in the
 // form: neither widens what a run may touch (a secret question is carried
 // by a declared key, which is listed). It mirrors the site's
-// lib/builder-summary.ts summarize (agentry-web#651); the Build form has no
-// Knowledge section, so it has no knowledge line.
+// lib/builder-summary.ts summarize (agentry-web#651), the knowledge lines
+// included since agentry-desktop#497: the packs it ships and the one it asks
+// a person for, one line each, only those declared.
 type Summary struct {
 	Name    string `json:"name"`
 	Summary string `json:"summary"`
@@ -32,6 +33,9 @@ type Summary struct {
 	// Grants is each file, command or data grant, one line each, only
 	// those declared.
 	Grants []string `json:"grants"`
+	// Knowledge is the packs it ships and the one it asks a person for, one
+	// line each; only those declared.
+	Knowledge []string `json:"knowledge"`
 	// AnyUnnamed says whether anything it reaches is a host the draft's
 	// description did not name.
 	AnyUnnamed bool `json:"anyUnnamed"`
@@ -77,7 +81,7 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 		marked[strings.ToLower(strings.TrimSpace(h))] = true
 	}
 	s := &Summary{Name: m.Name, Summary: m.Summary, Overview: m.Guide.Overview,
-		Keys: []SummaryKey{}, Websites: []SummaryHost{}, Servers: []SummaryServer{}, Grants: []string{}}
+		Keys: []SummaryKey{}, Websites: []SummaryHost{}, Servers: []SummaryServer{}, Grants: []string{}, Knowledge: []string{}}
 	host := func(h string) SummaryHost {
 		sh := SummaryHost{Host: h, Unnamed: marked[strings.ToLower(h)]}
 		s.AnyUnnamed = s.AnyUnnamed || sh.Unnamed
@@ -146,6 +150,21 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	}
 	if data := compact(m.DataAccess); len(data) > 0 {
 		s.Grants = append(s.Grants, "Touches these kinds of data: "+strings.Join(data, ", ")+".")
+	}
+	// The site's words (lib/builder-summary.ts).
+	if ships := compact(m.KnowledgeShips); len(ships) > 0 {
+		word, them := "packs", "them"
+		if len(ships) == 1 {
+			word, them = "pack", "it"
+		}
+		s.Knowledge = append(s.Knowledge, fmt.Sprintf("Ships the knowledge %s %s in the release, unencrypted: anyone who can download it can read %s.", word, strings.Join(ships, ", "), them))
+	}
+	if strings.TrimSpace(m.KnowledgePrompt) != "" {
+		line := "Asks a person to attach a knowledge pack of their own"
+		if m.KnowledgeRequired {
+			line += ", and cannot run without one"
+		}
+		s.Knowledge = append(s.Knowledge, line+".")
 	}
 	return s
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -472,4 +473,42 @@ func TestNoTokenGoesToAURLSettingsWouldRefuse(t *testing.T) {
 		t.Fatalf("an upload to a plain-http registry: %v", err)
 	}
 	noPlaintextLeft(t, e)
+}
+
+// ForDraft (agentry-desktop#497; plan knowledge-and-drafter.md K4, D3):
+// each named pack kept here opened for the Drafter, once, with a scratch
+// inside the store; a pack with no scan in Agentry is named to be scanned
+// first; done removes every copy. A pack not kept, a name that is not a
+// pack's, or more packs than a draft reads is refused with nothing left in
+// the clear.
+func TestForDraftOpensThePacksAndNamesThoseToScanFirst(t *testing.T) {
+	ctx := context.Background()
+	reg := knowledgetest.NewRegistry(t)
+	e := testEnv(t, reg, reg.Token("ana"), newKeys())
+	en := keep(t, e, reg.URL, "handbook")
+	d, err := e.ForDraft(ctx, reg.URL, []string{"handbook", "handbook"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Packs) != 1 || d.Packs[0].Pack.Manifest.SHA256 != en.Manifest.SHA256 || len(d.Packs[0].Agentry) != 0 ||
+		!reflect.DeepEqual(d.Names(), []string{"handbook"}) || !reflect.DeepEqual(d.ScanFirst, []string{"handbook"}) {
+		t.Fatalf("for draft = %+v", d)
+	}
+	if fi, err := os.Stat(d.Scratch); err != nil || !fi.IsDir() || !strings.HasPrefix(d.Scratch, homeOf(t, e)) {
+		t.Fatalf("scratch %q: %v", d.Scratch, err)
+	}
+	d.Done()
+	noPlaintextLeft(t, e)
+
+	for _, names := range [][]string{{"missing"}, {"../handbook"}, {"handbook", "missing"}, {"a", "b", "c", "d", "e", "f"}} {
+		if _, err := e.ForDraft(ctx, reg.URL, names); err == nil {
+			t.Errorf("for draft %v passed", names)
+		}
+	}
+	noPlaintextLeft(t, e)
+	none, err := e.ForDraft(ctx, reg.URL, nil)
+	if err != nil || len(none.Packs) != 0 || len(none.Names()) != 0 {
+		t.Fatalf("no packs: %+v %v", none, err)
+	}
+	none.Done()
 }

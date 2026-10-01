@@ -790,6 +790,19 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             ))}
             <Button type="button" className="small" onClick={() => setGuide({ connect: [...connect, new build.ConnectRow({ secret: "", help: "" })] })}>+ add help for a key</Button>
           </div>
+          {/* knowledge.accepts (agentry-desktop#497): a pack of the person's
+              own the run setup's Knowledge step asks for. */}
+          <label className="small" style={{ display: "block", marginTop: 12 }}>knowledge it asks for (one line the run setup shows, ≤ 300 chars; empty for none)
+            <input style={inputStyle} maxLength={300} value={m.knowledgePrompt ?? ""} onChange={(e) => set({ knowledgePrompt: e.target.value })}
+              placeholder="Attach your team's runbook: the steps it quotes come from it." />
+          </label>
+          <label className="small">
+            <input type="checkbox" checked={!!m.knowledgeRequired} onChange={(e) => set({ knowledgeRequired: e.target.checked })} />{" "}
+            required: a run cannot start without a pack
+          </label>
+          {(m.knowledgeShips ?? []).length > 0 && (
+            <p className="small muted">It ships the knowledge {(m.knowledgeShips ?? []).length === 1 ? "pack" : "packs"} <span className="mono">{(m.knowledgeShips ?? []).join(", ")}</span>, kept as it was loaded.</p>
+          )}
           {stepped && (
             <div className="card" style={{ marginTop: 12 }}>
               <strong className="small">What a person sees before a run</strong>
