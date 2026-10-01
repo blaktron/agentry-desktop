@@ -54,6 +54,10 @@ export function RunDefaults() {
   return window['go']['main']['SettingsAPI']['RunDefaults']();
 }
 
+export function SetChatIdleTimeout(arg1) {
+  return window['go']['main']['SettingsAPI']['SetChatIdleTimeout'](arg1);
+}
+
 export function SetDefault(arg1) {
   return window['go']['main']['SettingsAPI']['SetDefault'](arg1);
 }

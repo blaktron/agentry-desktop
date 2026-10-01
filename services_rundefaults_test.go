@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"io"
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -77,7 +80,7 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 	// saved folder passes the picked-path gate in a session that never
 	// picked it.
 	passedTheGate("the gates, output", r.runGates("acme/x@1.0.0", nil, saved, false, false, false))
-	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, 0, false, nil, false, false, nil)
+	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, false, nil, false, false, nil)
 	passedTheGate("StartSession", err)
 	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", nil, saved, nil, nil)
 	passedTheGate("StartHostedRun", err)
@@ -254,5 +257,86 @@ func TestARunInAgentryLandsInItsOwnFolderInsideTheSavedOne(t *testing.T) {
 	picked := t.TempDir()
 	if got, err := hostedOutDir(picked, run); err != nil || got != picked {
 		t.Fatalf("hostedOutDir(picked) = %q, %v; want the picked folder as it is", got, err)
+	}
+}
+
+// Run defaults' Chat idle timeout (agentry-desktop#468; plan
+// desktop-review-key-and-run-cards.md D21, D32): none by default, kept in
+// desktop.yaml and never in the runner policy the CLI's chats read, refused
+// outside none to a week with the file left as it was.
+func TestTheChatIdleTimeoutIsKeptInDesktopYAML(t *testing.T) {
+	_, s := runDefaultsApp(t, "")
+	v, err := s.RunDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.ChatIdleTimeoutSeconds != 0 {
+		t.Fatalf("a fresh Run defaults has a chat idle timeout of %d s, want none", v.ChatIdleTimeoutSeconds)
+	}
+	if v, err = s.SetChatIdleTimeout(1800); err != nil || v.ChatIdleTimeoutSeconds != 1800 {
+		t.Fatalf("SetChatIdleTimeout(1800) = %+v, %v", v, err)
+	}
+	if st, _ := settings.Load(); st.ChatIdleTimeoutSeconds != 1800 {
+		t.Fatalf("desktop.yaml holds %d, want 1800", st.ChatIdleTimeoutSeconds)
+	}
+	for _, bad := range []int{-1, settings.MaxChatIdleTimeoutSeconds + 1} {
+		if _, err := s.SetChatIdleTimeout(bad); err == nil {
+			t.Errorf("SetChatIdleTimeout(%d) was accepted", bad)
+		}
+	}
+	if st, _ := settings.Load(); st.ChatIdleTimeoutSeconds != 1800 {
+		t.Fatalf("a refused value changed desktop.yaml to %d", st.ChatIdleTimeoutSeconds)
+	}
+	if path, _ := policy.DefaultPath(); func() bool { _, err := os.Stat(path); return err == nil }() {
+		t.Errorf("the runner policy %s was written; the chat idle timeout is the desktop's own", path)
+	}
+	if v, err = s.SetChatIdleTimeout(0); err != nil || v.ChatIdleTimeoutSeconds != 0 {
+		t.Fatalf("SetChatIdleTimeout(0) = %+v, %v", v, err)
+	}
+}
+
+// The next chat on this computer takes the Chat idle timeout from
+// desktop.yaml, none until one is chosen; a value the save would refuse,
+// put there by hand, refuses the chat rather than dropping the limit.
+func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
+	app, s := runDefaultsApp(t, "")
+	var got []int
+	r := &RunAPI{app: app, runnerHomeDir: t.TempDir(), newRunID: func() (string, error) { return "ab12cd34", nil }}
+	r.engineSession = func(_ context.Context, req run.Request, _ io.Writer) (localSession, error) {
+		got = append(got, req.ChatIdleTimeoutSeconds)
+		events := make(chan session.Event)
+		close(events)
+		return &fakeChat{f: &fakeEngine{}, id: req.RunID, events: events}, nil
+	}
+	chat := func() error {
+		_, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil)
+		if err == nil {
+			_, err = r.EndSession(false)
+		}
+		return err
+	}
+	if err := chat(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetChatIdleTimeout(600); err != nil {
+		t.Fatal(err)
+	}
+	if err := chat(); err != nil {
+		t.Fatal(err)
+	}
+	if want := []int{0, 600}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("the chats were started with idle timeouts %v, want %v", got, want)
+	}
+
+	st, _ := settings.Load()
+	st.ChatIdleTimeoutSeconds = -5
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	if err := chat(); err == nil || !strings.Contains(err.Error(), "chatIdleTimeoutSeconds") {
+		t.Fatalf("a hand-edited idle timeout of -5: err = %v, want the chat refused", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("the refused chat reached the engine: %v", got)
 	}
 }

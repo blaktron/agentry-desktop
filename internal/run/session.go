@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // Session is an interactive run driven from the app (plan §7): the CLI's
@@ -42,9 +44,20 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	if !sig.Manifest.Supports(manifest.ModeInteractive) {
 		return nil, ErrNotInteractive
 	}
+	if req.ChatIdleTimeoutSeconds < 0 {
+		return nil, fmt.Errorf("a chat's idle timeout is 0 (none) or more seconds, not %d", req.ChatIdleTimeoutSeconds)
+	}
 	p, err := prepare(ctx, req, logw, manifest.ModeInteractive)
 	if err != nil {
 		return nil, err
+	}
+	// The compile took the session caps from the runner policy, which the
+	// CLI's chats read too, tightened by the release's idle hint. A chat
+	// here has its own (D21, D22): the engine reads them from this plan in
+	// memory, and the receipt's run-plan.json records them. The policy file
+	// and the installed plan.json are not changed.
+	if p.plan.Harness.Session != nil {
+		p.plan.Harness.Session.Budgets = spec.SessionBudgets{IdleTimeoutSeconds: req.ChatIdleTimeoutSeconds}
 	}
 	inner, err := engine.StartSession(ctx, p.docker, p.params)
 	if err != nil {

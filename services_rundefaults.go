@@ -13,8 +13,8 @@ import (
 
 // RunDefaultsView is Settings → Run defaults (plan settings-cards.md D2,
 // D13; agentry-desktop#347). The timeout and max turns are the runner
-// policy's budgets, which the CLI runs with too; where runs go and the
-// output folder are this app's own, in desktop.yaml. A broken policy file is
+// policy's budgets, which the CLI runs with too; where runs go, the output
+// folder and the Chat idle timeout are this app's own, in desktop.yaml. A broken policy file is
 // said, not hidden behind the defaults, as Settings' status says it.
 type RunDefaultsView struct {
 	TimeoutSeconds int    `json:"timeoutSeconds"`
@@ -24,6 +24,10 @@ type RunDefaultsView struct {
 	Where string `json:"where"`
 	// OutputDir is the saved output folder, "" for none.
 	OutputDir string `json:"outputDir,omitempty"`
+	// ChatIdleTimeoutSeconds is the Chat idle timeout (desktop.yaml, D32;
+	// agentry-desktop#468), 0 for none: a chat on this computer has no
+	// limit but this one.
+	ChatIdleTimeoutSeconds int `json:"chatIdleTimeoutSeconds"`
 	// UnsafeMode is the switch (desktop.yaml's unsafeMode, D-050), written
 	// only by RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands
 	// are installed on, the runner policy's images.unsafe or the pinned
@@ -60,6 +64,39 @@ func (s *SettingsAPI) SetRunWhere(where string) (*RunDefaultsView, error) {
 		return nil, err
 	}
 	return runDefaultsView()
+}
+
+// SetChatIdleTimeout records the Chat idle timeout for the next chat on this
+// computer, 0 for none. It is refused outside none to a week, and the file
+// is left as it was.
+func (s *SettingsAPI) SetChatIdleTimeout(seconds int) (*RunDefaultsView, error) {
+	if err := settings.CheckChatIdleTimeout(seconds); err != nil {
+		return nil, err
+	}
+	st, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	st.ChatIdleTimeoutSeconds = seconds
+	if err := settings.Save(st); err != nil {
+		return nil, err
+	}
+	return runDefaultsView()
+}
+
+// chatIdleTimeout is Run defaults' Chat idle timeout, 0 for none. A
+// settings file that cannot be read, or holds a value its save would refuse,
+// refuses the chat: a person who chose an idle timeout is told, not given a
+// chat without one.
+func chatIdleTimeout() (int, error) {
+	st, err := settings.Load()
+	if err != nil {
+		return 0, err
+	}
+	if err := settings.CheckChatIdleTimeout(st.ChatIdleTimeoutSeconds); err != nil {
+		return 0, fmt.Errorf("desktop.yaml's chatIdleTimeoutSeconds: %w; set it again in Settings → Run defaults", err)
+	}
+	return st.ChatIdleTimeoutSeconds, nil
 }
 
 // ChooseDefaultOutputDir opens the native picker for the default output
@@ -124,7 +161,7 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	}
 	return &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
-		Where: where, OutputDir: st.DefaultOutputDir,
+		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
 		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(),
 	}, nil
 }

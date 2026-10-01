@@ -97,6 +97,14 @@ type Settings struct {
 	// A run's gate admits it as an output folder because it is read from
 	// this file, never as an input root (D-044).
 	DefaultOutputDir string `yaml:"defaultOutputDir,omitempty" json:"defaultOutputDir,omitempty"`
+	// ChatIdleTimeoutSeconds is Settings → Run defaults → Chat idle timeout
+	// (plan desktop-review-key-and-run-cards.md D21, D32;
+	// agentry-desktop#468): a chat on this computer ends after this much
+	// silence from the person. 0, the default, is none: such a chat has no
+	// idle timeout, wall clock or count of the person's turns, and ends when
+	// the person ends it or quits. It lives here, not in the runner policy,
+	// which the CLI's chats read and which keeps their limits.
+	ChatIdleTimeoutSeconds int `yaml:"chatIdleTimeoutSeconds,omitempty" json:"chatIdleTimeoutSeconds,omitempty"`
 	// UnsafeMode is Settings → Run defaults → Unsafe Mode (plan
 	// unsafe-mode.md D5, D6; agentry-desktop#418): while it is on, a run on
 	// this computer is compiled without this machine's exec catalogue, its
@@ -107,6 +115,20 @@ type Settings struct {
 	// after a native confirmation and the image's pull (D-030: the page
 	// cannot turn it on, and no other setting's save can carry it).
 	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
+}
+
+// MaxChatIdleTimeoutSeconds is the longest Chat idle timeout, a week: a
+// chat that should wait longer wants none.
+const MaxChatIdleTimeoutSeconds = 7 * 24 * 60 * 60
+
+// CheckChatIdleTimeout says whether seconds is a Chat idle timeout: 0 for
+// none, or 1 second to a week. The setting's save refuses anything else, and
+// a chat refuses to start on a desktop.yaml edited by hand to hold it.
+func CheckChatIdleTimeout(seconds int) error {
+	if seconds < 0 || seconds > MaxChatIdleTimeoutSeconds {
+		return fmt.Errorf("a chat idle timeout is none or 1 second to a week (%d seconds), not %d seconds", MaxChatIdleTimeoutSeconds, seconds)
+	}
+	return nil
 }
 
 // Where a run goes when Run defaults says nothing else.

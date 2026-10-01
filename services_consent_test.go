@@ -39,7 +39,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 			return err
 		},
 		"StartSession vulnerable MCP": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil)
 			return err
 		},
 		"InstallAPI.Confirm unscanned": func() error {
@@ -91,7 +91,7 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 			return err
 		},
 		"StartSession outDir": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, 0, false, nil, false, false, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, false, nil, false, false, nil)
 			return err
 		},
 		"BuildAPI.Save": func() error { return b.Save(typed, build.Model{}) },

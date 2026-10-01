@@ -30,7 +30,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 export type SettingsPart =
   | "profile" | "subscription"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "where" | "output" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search";
+  | "budgets" | "chats" | "where" | "output" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -58,9 +58,9 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "run-defaults", title: "Run defaults",
-    sentence: "How long a run may take, where runs go and where their files land, and the Docker engine runs on this computer use, with Agentry's images on it.",
+    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, and the Docker engine runs on this computer use, with Agentry's images on it.",
     parts: [
-      { id: "budgets", label: "Timeout and turns" }, { id: "where", label: "Where to run" },
+      { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
       { id: "output", label: "Output folder" }, { id: "unsafe", label: "Unsafe Mode" },
       { id: "docker", label: "Docker engine" }, { id: "images", label: "Docker images" },
     ],
@@ -287,8 +287,16 @@ export function codingStatus(v: main.CodingAgentsView): string {
 // when it is what stands in the way.
 export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusView | null): string {
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
-  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
+  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}. ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
+}
+
+// A chat on this computer has no limit but the Chat idle timeout, none by
+// default (agentry-desktop#468, D-052).
+export function chatLimitLine(idleSeconds: number): string {
+  return idleSeconds > 0
+    ? `A chat here ends after ${fmtDuration(idleSeconds)} without a message from you.`
+    : "A chat here ends when you end it.";
 }
 
 export function runStatus(s: main.SetupStatusView): string {
@@ -321,6 +329,8 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
   const [timeoutText, setTimeoutText] = useState("");
   const [turns, setTurns] = useState("");
+  const [idleText, setIdleText] = useState("");
+  const [idleSaved, setIdleSaved] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -332,21 +342,24 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
     if (!budgets) return;
     setTimeoutText(String(v.timeoutSeconds));
     setTurns(String(v.maxTurns));
+    setIdleText(v.chatIdleTimeoutSeconds > 0 && v.chatIdleTimeoutSeconds % 60 === 0 ? String(v.chatIdleTimeoutSeconds / 60) : "");
   };
   useEffect(() => {
     read();
     SettingsAPI.RunDefaults().then((v) => show(v, true)).catch((e) => setErr(String(e)));
   }, []);
 
-  async function act(fn: () => Promise<main.RunDefaultsView>, said?: string) {
+  async function act(fn: () => Promise<main.RunDefaultsView>, said?: string): Promise<boolean> {
     setBusy(true);
     setErr(null);
     setSaved(null);
     try {
       show(await fn(), !!said);
       if (said) setSaved(said);
+      return true;
     } catch (e) {
       setErr(String(e));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -382,6 +395,14 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   const maxTurns = parseInt(turns, 10);
   const budgetsValid = /^\d+$/.test(timeoutText.trim()) && timeoutSeconds >= 1 && /^\d+$/.test(turns.trim()) && maxTurns >= 0;
   const budgetsChanged = !!defaults && (timeoutSeconds !== defaults.timeoutSeconds || maxTurns !== defaults.maxTurns);
+  // The Chat idle timeout in whole minutes, a week at most; Go keeps seconds.
+  const idleMinutes = parseInt(idleText, 10);
+  const idleValid = /^\d+$/.test(idleText.trim()) && idleMinutes >= 1 && idleMinutes <= 7 * 24 * 60;
+  async function setChatIdle(seconds: number) {
+    setIdleSaved(null);
+    if (!(await act(() => SettingsAPI.SetChatIdleTimeout(seconds)))) return;
+    setIdleSaved(seconds > 0 ? "Saved. The next chat uses it." : "Saved. The next chat has no idle timeout.");
+  }
 
   return (
     <>
@@ -414,6 +435,37 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 computer has at least 30 minutes and a knowledge build at least 60, however short the timeout here.
               </p>
               {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
+            </Card>
+          </PartSection>
+          <PartSection id="chats" title="Chat idle timeout">
+            <Card>
+              <div className="row">
+                <label className="row" style={{ gap: 6 }}>
+                  <span className="small">Minutes without a message from you</span>
+                  <Input type="number" min={1} max={7 * 24 * 60} style={{ width: 120 }} value={idleText} disabled={busy}
+                    placeholder="none" data-chat-idle
+                    onChange={(e) => { setIdleText(e.target.value); setIdleSaved(null); }} />
+                </label>
+                <Button variant="primary" disabled={busy || !idleValid || idleMinutes * 60 === defaults.chatIdleTimeoutSeconds}
+                  title={!idleValid ? "1 minute to a week" : ""}
+                  onClick={() => void setChatIdle(idleMinutes * 60)}>
+                  Save
+                </Button>
+                {defaults.chatIdleTimeoutSeconds > 0 && (
+                  <Button disabled={busy} onClick={() => void setChatIdle(0)}>No timeout</Button>
+                )}
+              </div>
+              <p className="small" style={{ margin: "8px 0 0" }} data-chat-idle-state>
+                {defaults.chatIdleTimeoutSeconds > 0
+                  ? `A chat on this computer ends after ${fmtDuration(defaults.chatIdleTimeoutSeconds)} without a message from you.`
+                  : "None: a chat on this computer ends when you end it or quit Agentry Desktop."}
+              </p>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                A chat here has no other time limit and no limit on your messages; the max turns above still limits the
+                QuickAgent&apos;s tool calls. This is kept by Agentry Desktop, so chats with the <span className="mono">agentry</span> CLI
+                keep the runner policy&apos;s limits, and a chat In Agentry keeps Agentry&apos;s idle close.
+              </p>
+              {idleSaved && <p className="small" role="status" style={{ marginBottom: 0 }}>{idleSaved}</p>}
             </Card>
           </PartSection>
           <PartSection id="where" title="Where to run">

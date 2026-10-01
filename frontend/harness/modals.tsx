@@ -31,6 +31,8 @@
 //                           declared MCP server and the unsaved key
 //   #runpanel-step-details  Details: the intake question, then the task
 //   #runpanel-step-review   Review and start: the recap, output, consents
+//   #runpanel-chat-review   Review and start for a chat on this computer:
+//                           Advanced has no timeout, and says why
 //   #runpanel-step-review-long  the same with an intake prompt as long as
 //                           binary-reverse-engineer's: the label wraps and
 //                           every value keeps its width (agentry-desktop#420)
@@ -252,6 +254,7 @@ const runDefaults = {
   timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml",
   where: view.startsWith("runpanel-default-agentry") ? "agentry" : "here",
   outputDir: view === "runpanel-default-folder" ? "/home/me/agentry-runs" : "",
+  chatIdleTimeoutSeconds: 0,
 };
 
 // #runpanel-default-agentry-signedout: signed out, where Go offers no run In
@@ -354,6 +357,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-step-details": "details",
   "runpanel-step-review": "review",
   "runpanel-step-review-long": "review",
+  "runpanel-chat-review": "review",
   "runpanel-guided-files": "files",
   "runpanel-guided-tools": "tools",
   "runpanel-guided-details": "details",
@@ -526,7 +530,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
         initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted"
-          : view === "runpanel-session-offer" ? "hosted-session" : undefined}
+          : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
       />
     </>,

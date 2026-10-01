@@ -10,9 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // twoModeYAML is a schema v2 release declaring both run modes and an intake
@@ -78,10 +82,16 @@ func fakeACPHarness(_ context.Context, r dockerx.RunSpec, stdin io.Reader, stdou
 
 func sessionFixture(t *testing.T) (string, *dockerx.Fake) {
 	t.Helper()
+	return sessionFixtureFor(t, twoModeYAML)
+}
+
+// sessionFixtureFor is sessionFixture for a release of the caller's.
+func sessionFixtureFor(t *testing.T, agentYAML string) (string, *dockerx.Fake) {
+	t.Helper()
 	isolateRunEnv(t)
 	fr := &fakeRunRegistry{
-		manifestDoc: manifestDocFromYAML(t, twoModeYAML),
-		archive:     buildRunArchive(t, map[string]string{"agent.yaml": twoModeYAML, "AGENT.md": "Chat helpfully.\n"}),
+		manifestDoc: manifestDocFromYAML(t, agentYAML),
+		archive:     buildRunArchive(t, map[string]string{"agent.yaml": agentYAML, "AGENT.md": "Chat helpfully.\n"}),
 		namespace:   "acme", name: "chatty", version: "1.0.0",
 	}
 	regURL := startRunRegistry(t, fr)
@@ -171,5 +181,135 @@ func TestStartSessionRefusesAutonomousOnlyRelease(t *testing.T) {
 	_, err := StartSession(context.Background(), request(regURL, filepath.Join(t.TempDir(), "out")), &strings.Builder{})
 	if !errors.Is(err, ErrNotInteractive) {
 		t.Fatalf("err = %v, want ErrNotInteractive", err)
+	}
+}
+
+// idleHintYAML is twoModeYAML with the release's own idle hint, which the
+// CLI's compile applies when it is shorter than the policy's.
+var idleHintYAML = strings.Replace(twoModeYAML, `  opening: "What should I look at?"`,
+	"  opening: \"What should I look at?\"\n  idleTimeoutSeconds: 60", 1)
+
+// sessionBudgetsOf reads the session caps from the plan the engine was
+// handed, as the receipt keeps it (receipts/run-plan.json).
+func sessionBudgetsOf(t *testing.T, res *Result) spec.SessionBudgets {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(res.ReceiptsDir, "run-plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan spec.Plan
+	if err := json.Unmarshal(b, &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Harness.Session == nil {
+		t.Fatalf("the run plan has no session block:\n%s", b)
+	}
+	return plan.Harness.Session.Budgets
+}
+
+// A chat the desktop starts has no idle timeout, no wall clock and no
+// count of the person's turns (agentry-desktop#468; plan
+// desktop-review-key-and-run-cards.md D21, D22): not the runner policy's
+// 900 s, 7,200 s and 200, and not the release's own 60 s idle hint. The
+// policy file, which the CLI's chats read, keeps all three; the tool-call
+// budget is still the policy's max turns.
+func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
+	regURL, _ := sessionFixtureFor(t, idleHintYAML)
+	var log strings.Builder
+	s, err := StartSession(context.Background(), Request{
+		AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: -1,
+		Intake: map[string]string{"region": "apac"},
+	}, &log)
+	if err != nil {
+		t.Fatalf("StartSession: %v\nlog:\n%s", err, log.String())
+	}
+	go func() {
+		for range s.Events() {
+		}
+	}()
+	res, err := s.End(context.Background(), false)
+	if err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	if got := sessionBudgetsOf(t, res); got != (spec.SessionBudgets{}) {
+		t.Errorf("the chat ran under %+v, want no limits", got)
+	}
+	b, err := os.ReadFile(filepath.Join(res.ReceiptsDir, "run-plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan spec.Plan
+	if err := json.Unmarshal(b, &plan); err != nil {
+		t.Fatal(err)
+	}
+	pol, _, err := policy.Load(filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (policy.Sessions{IdleTimeoutSeconds: 900, MaxWallSeconds: 7200, MaxUserTurns: 200}); pol.Sessions != want {
+		t.Errorf("the policy's sessions = %+v, want the CLI's %+v untouched", pol.Sessions, want)
+	}
+	if plan.Budgets.MaxTurns != pol.Budgets.MaxTurns {
+		t.Errorf("the tool-call budget = %d, want the policy's max turns %d", plan.Budgets.MaxTurns, pol.Budgets.MaxTurns)
+	}
+}
+
+// Run defaults' Chat idle timeout is the one limit a chat here runs under
+// when it is set, in place of the release's own hint even when that is
+// shorter; an idle chat then ends with the engine's idle_timeout and its
+// receipt (agentry-desktop#468, D32).
+func TestAChatEndsAfterTheChosenIdleTimeout(t *testing.T) {
+	regURL, _ := sessionFixtureFor(t, idleHintYAML)
+	var log strings.Builder
+	s, err := StartSession(context.Background(), Request{
+		AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: -1,
+		Intake: map[string]string{"region": "apac"}, ChatIdleTimeoutSeconds: 1,
+	}, &log)
+	if err != nil {
+		t.Fatalf("StartSession: %v\nlog:\n%s", err, log.String())
+	}
+	var events []session.Event
+	done := make(chan struct{})
+	go func() {
+		for ev := range s.Events() {
+			events = append(events, ev)
+		}
+		close(done)
+	}()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if ended, why := s.Ended(); ended {
+			if why != session.EndIdle {
+				t.Fatalf("the chat ended for %q, want %q", why, session.EndIdle)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("an idle chat with a 1 s idle timeout had not ended after 15 s")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	res, err := s.End(context.Background(), false)
+	if err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	<-done
+	if want := (spec.SessionBudgets{IdleTimeoutSeconds: 1}); sessionBudgetsOf(t, res) != want {
+		t.Errorf("the chat ran under %+v, want %+v", sessionBudgetsOf(t, res), want)
+	}
+	if res.ExitCode != engine.ExitTimeout || !strings.Contains(res.Error, "idle") {
+		t.Errorf("result = %+v, want the idle timeout's exit", res)
+	}
+	var end *session.Event
+	for i := range events {
+		if events[i].Kind == session.KindSessionEnd {
+			end = &events[i]
+		}
+	}
+	if end == nil || end.Reason != session.EndIdle {
+		t.Errorf("session_end = %+v, want reason %q", end, session.EndIdle)
+	}
+	if _, err := os.Stat(filepath.Join(res.ReceiptsDir, "events.ndjson")); err != nil {
+		t.Errorf("receipt: %v", err)
 	}
 }
