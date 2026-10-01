@@ -113,9 +113,7 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
     case "usage":
       return ev.costUsd !== undefined && ev.costUsd > 0 ? { ...next, cost: Math.max(c.cost, ev.costUsd) } : next;
     case "error":
-      // A turn that fails ends with this rather than the agent's turn, so
-      // the agent is no longer on one.
-      return { ...next, busy: false, streaming: "", lines: [...c.lines, { kind: "warn", text: `harness error: ${text}` }] };
+      return { ...next, lines: [...c.lines, { kind: "warn", text: `harness error: ${text}` }] };
     case "session_end": {
       const reason = ev.reason || "ended";
       return { ...next, busy: false, streaming: "", ended: reason, endedAt: when, lines: [...c.lines, { kind: "end", reason }] };
@@ -322,7 +320,12 @@ export function createChatStore<S>(deps: ChatDeps) {
     deps.on("runner:session-event", (ev: SessionEvent) => {
       if (!c || c.kind !== "local" || c.over) return;
       const g = gen;
-      update(g, (r) => ({ ...r, chat: applyEvent(r.chat, ev, Date.now()) }));
+      // On this computer a turn that fails ends with an error rather than
+      // the agent's turn (agentry-cli engine/session.go), so the agent is no
+      // longer on one. In Agentry an error can come mid-turn (a file the
+      // host refused), so there the turn ends with the agent's own.
+      const ended = (chat: Chat) => (ev.kind === "error" ? { ...chat, busy: false, streaming: "" } : chat);
+      update(g, (r) => ({ ...r, chat: ended(applyEvent(r.chat, ev, Date.now())) }));
       if (c?.chat.ended) collect(g);
     });
     deps.on("runner:run-log", (line: string) => {
@@ -409,12 +412,13 @@ export function createChatStore<S>(deps: ChatDeps) {
         return true;
       }
       if (c && !c.over) {
-        pending = v;
+        // A waiting chat already over keeps its last word.
+        if (!(pending?.run.id === v.run.id && pending.run.final)) pending = v;
         return false;
       }
       // The chat followed now is the one Go follows: one waiting from
-      // before is no longer.
-      if (pending?.run.id === v.run.id) v = pending;
+      // before is no longer, and its last word, if it has one, stands.
+      if (pending?.run.id === v.run.id && pending.run.final) v = { ...v, run: pending.run };
       pending = null;
       const g = begin({
         ...blank("hosted", v.run.ref, v.task || v.run.task || "", v.opening),

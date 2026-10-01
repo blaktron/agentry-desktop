@@ -221,3 +221,15 @@ test("a turn that fails ends the agent's turn: the chat is waiting for the perso
   h.fire("runner:session-event", { kind: "error", text: "HTTP 401 from the model", time: new Date().toISOString() });
   assert.equal(working(h.store.state().chat!), false);
 });
+
+test("a waiting chat In Agentry that has ended keeps its last word when a later attach finds it again", async () => {
+  const h = harness();
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  h.store.followHosted({ registry: "https://dev.example.test", run: hostedRun("h9"), terms: null, opening: "", task: "" }, null, true);
+  h.fire("runner:hosted-run", hostedRun("h9", { status: "finished", final: true }));
+  h.store.followHosted({ registry: "https://dev.example.test", run: hostedRun("h9"), terms: null, opening: "", task: "" }, null, true);
+  await h.store.end(true);
+  h.store.dismiss();
+  assert.equal(h.store.state().chat?.over, true);
+});
