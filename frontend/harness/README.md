@@ -46,15 +46,13 @@ and a file name with a right-to-left override; `shots.mjs` fails them if any
 `img`, `script`, `iframe`, `onclick` or `javascript:` link appears in the
 result view.
 
-Talk to it In Agentry, a hosted session (agentry-desktop#403), has four
-states on an interactive-only copy of the release: `#runpanel-session-offer`
-(the choice made, with what a session costs from the registry's terms),
-`#runpanel-session-tier` (a payer on Standard: offered, unavailable, See
-Pro), `#runpanel-session` (the chat replayed from the stream through
-`ReplayHostedSession`, with a file added, a hostile agent reply that
-`shots.mjs` fails if it becomes markup or a link, the time-and-credits strip
-and D2's sentence) and `#runpanel-session-finished` (the result view with
-the session's credits and `receipts/transcript.md`).
+Talk to it In Agentry, a hosted session (agentry-desktop#403), has three
+setup states on an interactive-only copy of the release:
+`#runpanel-session-offer` (the choice made, with what a session costs from
+the registry's terms), `#runpanel-session-tier` (a payer on Standard:
+offered, unavailable, See Pro) and `#runpanel-session-nohost`. The chat
+itself is the chat's flow's since agentry-desktop#467, in `runs.html`
+(below).
 
 A run on this machine has two finished states since agentry-desktop#269:
 `#runpanel-local-finished` and `#runpanel-local-finished-env` open on
@@ -169,6 +167,19 @@ knowledge line), `#hosted-failed`, `#hosted-hostile`, `#hosted-lost` (the app
 lost touch: Follow it again), `#hosted-card` (a run attached at start, as its
 card), `#hosted-card-finished` (a run that ended with its dialog closed lands in
 its card) and `#hosted-card-stacked` (beside a run on this computer's card).
+
+A chat, on this computer or In Agentry, is followed the same way since
+agentry-desktop#467, by the chat's store (`sessionChat.ts`
+`createChatStore`) and `ChatFlow`, with the session's events scripted:
+`#chat-local` and `#chat-hosted` (the dialog is the chat; the hosted one is
+replayed through `ReplayHostedSession`, with a file added, a hostile agent
+reply that `shots.mjs` fails if it becomes markup or a link, the
+time-and-credits strip and D2's sentence), `#chat-local-working`,
+`#chat-local-waiting`, `#chat-hosted-working` and `#chat-hosted-waiting`
+(the card: working or waiting for you, the turns, Finish and Open),
+`#chat-local-ended` (the engine ended it with the dialog closed and the store
+collected its result) and `#chat-hosted-ended` (the result view with the
+session's credits and `receipts/transcript.md`).
 
 Settings opens on five cards since agentry-desktop#346. `pages.html` shows the
 cards (`page-settings`, which asserts each card and its status line), and

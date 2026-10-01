@@ -89,11 +89,8 @@
 //                              unavailable, with the reason and See Pro
 //   #runpanel-session-nohost   no sandbox host answering: the choice offered,
 //                              unavailable, with the reason (#437)
-//   #runpanel-session          a session running: the chat over the stream,
-//                              a file added, a hostile agent reply drawn as
-//                              text, the time-and-credits strip, D2's sentence
-//   #runpanel-session-finished the session over: the result view, with the
-//                              session's credits and transcript.md
+//   (a chat, once started, is the chat's flow's since agentry-desktop#467:
+//   runs.html#chat-* shows it here and In Agentry, going and over)
 //
 // A run on this machine, finished (shots.mjs clicks Run on the review):
 //   #runpanel-local-finished      its Run details name the operator policy
@@ -331,24 +328,8 @@ hostedRuns.session = {
   startedAt: sessionStarted,
   session: { freeMinutes: 10, creditsPerMinute: 50, paidThrough: 12, timeCredits: 100, tokenCredits: 0, tokensUnpaid: 0, outOfCredits: false, filesAdded: 1, idleSeconds: 300 },
 };
-hostedRuns["session-finished"] = {
-  ...hostedRuns.finished, mode: "interactive", holdCredits: 0, settledCredits: 104,
-  session: { ...hostedRuns.session.session, tokenCredits: 4 },
-  outputs: [...hostedRuns.finished.outputs, { name: "receipts/transcript.md", bytes: 2210, path: "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4/receipts/transcript.md" }],
-};
 const hostedRun = hostedRuns[hostedState] ?? null;
 
-// The conversation a session's stream replays when its chat opens, in the
-// events' own shape (main.SessionEventView), with a hostile agent reply.
-const at = (s: number) => new Date(Date.parse(sessionStarted) + s * 1000).toISOString();
-const sessionEvents = [
-  { seq: 1, kind: "user_turn", time: at(20), text: "Summarise INC-4821 from the last 24 hours." },
-  { seq: 2, kind: "tool_call", time: at(30), text: "read_input" },
-  { seq: 3, kind: "assistant_turn", time: at(80), text: "INC-4821 began at 02:14 UTC. <script>alert('x')</script><b onclick=\"steal()\">raw html</b> [open me](javascript:alert(1)) pay\u200Bpal" },
-  { seq: 4, kind: "input_added", time: at(400), path: "/inputs/pager-export.csv" },
-  { seq: 5, kind: "user_turn", time: at(410), text: "I added the pager export; does it change the timeline?" },
-  { seq: 6, kind: "assistant_text", time: at(700), text: "Yes: the first page went out at 02:09, five minutes before" },
-];
 const listeners: Record<string, ((v: any) => void)[]> = {};
 
 // What the result view lists from the run folder (RunAPI.RunOutputs).
@@ -402,13 +383,7 @@ g.go = { main: {
     HostedAvailability: async () => availability,
     AttachHostedRun: async () => ({ run: hostedRun }),
     AttachHostedRunAtStart: async () => ({ run: view === "runpanel-hosted-followed" ? hostedRuns.running : undefined }),
-    ReplayHostedSession: async () => {
-      if (view !== "runpanel-session") return;
-      for (const cb of listeners["runner:hosted-session-state"] ?? []) {
-        cb({ status: "running", startedAt: sessionStarted, session: hostedRuns.session.session });
-      }
-      for (const ev of sessionEvents) for (const cb of listeners["runner:hosted-session-event"] ?? []) cb(ev);
-    },
+    ReplayHostedSession: async () => {},
     StartHostedSession: async () => ({ run: hostedRuns.session }),
     SendHostedTurn: async () => {}, AddHostedSessionFile: async () => {}, EndHostedSession: async () => {},
     StartHostedRun: async () => (hostedSecrets && hostedStarts++ === 0
@@ -461,7 +436,6 @@ g.go.main.SettingsAPI.OpenUpgrade = async () => {};
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
 // shim). A run In Agentry sends no log (agentry-desktop#182), so nothing
 // is scripted on runner:run-log.
-// A session's chat listens for its events, which ReplayHostedSession sends.
 const subscribe = (name: string, cb: (v: any) => void) => {
   (listeners[name] ??= []).push(cb);
   return () => { listeners[name] = (listeners[name] ?? []).filter((c) => c !== cb); };
