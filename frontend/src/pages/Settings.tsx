@@ -304,8 +304,8 @@ export function chatLimitLine(idleSeconds: number): string {
 const MAX_CHAT_IDLE_MINUTES = 7 * 24 * 60;
 
 // The field's text for a saved Chat idle timeout: whole minutes, or empty
-// for none.
-const idleField = (seconds: number) => (seconds > 0 ? String(seconds / 60) : "");
+// for none (and for a value Go would refuse, edited into desktop.yaml).
+const idleField = (seconds: number) => (seconds > 0 && seconds % 60 === 0 ? String(seconds / 60) : "");
 
 export function runStatus(s: main.SetupStatusView): string {
   if (!s.dockerOk) return "Docker is not ready, so QuickAgents cannot run on this computer yet.";
@@ -469,7 +469,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 )}
               </div>
               <p className="small" style={{ margin: "8px 0 0" }} data-chat-idle-state>
-                {defaults.chatIdleTimeoutSeconds > 0 ? "" : "None. "}{chatLimitLine(defaults.chatIdleTimeoutSeconds)}
+                {defaults.chatIdleTimeoutSeconds === 0 && "None. "}{chatLimitLine(defaults.chatIdleTimeoutSeconds)}
               </p>
               <p className="muted small" style={{ marginBottom: 0 }}>
                 A chat here has no other time limit and no limit on your messages. The max turns above still limits the

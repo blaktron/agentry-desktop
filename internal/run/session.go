@@ -44,6 +44,9 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	if !sig.Manifest.Supports(manifest.ModeInteractive) {
 		return nil, ErrNotInteractive
 	}
+	if req.ChatIdleTimeoutSeconds < 0 {
+		return nil, fmt.Errorf("a chat's idle timeout is 0 (none) or more seconds, not %d", req.ChatIdleTimeoutSeconds)
+	}
 	p, err := prepare(ctx, req, logw, manifest.ModeInteractive)
 	if err != nil {
 		return nil, err

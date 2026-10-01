@@ -224,7 +224,10 @@ func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	statBefore, _ := os.Stat(polPath)
+	statBefore, err := os.Stat(polPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var log strings.Builder
 	s, err := StartSession(context.Background(), Request{
 		AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: 7,
@@ -268,7 +271,10 @@ func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	statAfter, _ := os.Stat(polPath)
+	statAfter, err := os.Stat(polPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if string(polAfter) != string(polBefore) || !statAfter.ModTime().Equal(statBefore.ModTime()) {
 		t.Errorf("the runner policy was written by a chat")
 	}
@@ -284,10 +290,15 @@ func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 // Run defaults' Chat idle timeout is the one limit a chat here runs under
 // when it is set, in place of the release's own hint even when that is
 // shorter; an idle chat then ends with the engine's idle_timeout and its
-// receipt (agentry-desktop#468, D32).
+// receipt (agentry-desktop#468, D32). One second keeps the test short:
+// internal/run takes any seconds, and only the setting holds the person to
+// whole minutes.
 func TestAChatEndsAfterTheChosenIdleTimeout(t *testing.T) {
 	regURL, _ := sessionFixtureFor(t, idleHintYAML)
 	var log strings.Builder
+	if _, err := StartSession(context.Background(), Request{Registry: regURL, Ref: "acme/chatty@1.0.0", ChatIdleTimeoutSeconds: -1}, &log); err == nil {
+		t.Fatal("a negative idle timeout started a chat")
+	}
 	s, err := StartSession(context.Background(), Request{
 		AcceptUnsigned: true, Registry: regURL, Ref: "acme/chatty@1.0.0", OutDir: filepath.Join(t.TempDir(), "out"), MaxTurns: -1,
 		Intake: map[string]string{"region": "apac"}, ChatIdleTimeoutSeconds: 1,
