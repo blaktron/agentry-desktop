@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/drafter"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 )
@@ -89,11 +90,24 @@ func TestLiveDescribe(t *testing.T) {
 	}
 	t.Logf("status: model %s; %s", st.ModelName, st.SearchSentence)
 
+	// With AGENTRY_LIVE_DESCRIBE_PACK, the name of a knowledge pack kept on
+	// this computer, the draft reads it first (agentry-desktop#497): the
+	// draft records it, scanned in Agentry or for this draft.
+	var packs []string
+	if p := os.Getenv("AGENTRY_LIVE_DESCRIBE_PACK"); p != "" {
+		packs = []string{p}
+	}
 	dv, err := b.DescribeOnThisComputer(reg,
 		"Check a CSV file I add for data-quality problems: missing values, duplicate rows, and columns whose values are not all the same format. Report the problems per column.",
-		[]string{"It runs on its own, from the one file I add"})
+		[]string{"It runs on its own, from the one file I add"}, packs)
 	if err != nil {
 		t.Fatalf("draft: %v", err)
+	}
+	if len(packs) > 0 {
+		if len(dv.Knowledge) != 1 || dv.Knowledge[0].Name != packs[0] || (dv.Knowledge[0].Scan != drafter.ScannedInAgentry && dv.Knowledge[0].Scan != drafter.ScannedForDraft) {
+			t.Fatalf("the draft's knowledge record: %+v", dv.Knowledge)
+		}
+		t.Logf("knowledge: %s scanned %s, %d file(s) withheld; accepts %q", dv.Knowledge[0].Name, dv.Knowledge[0].Scan, len(dv.Knowledge[0].Withheld), dv.Model.KnowledgePrompt)
 	}
 	if len(asked) != 1 || asked[0] != "Draft on this computer?" {
 		t.Fatalf("dialogs %v", asked)
