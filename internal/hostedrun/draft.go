@@ -34,6 +34,19 @@ type DraftTerms struct {
 	CreditsPerSearch int64 `json:"creditsPerSearch"`
 	MaxPages         int   `json:"maxPages"`
 	AIReviewCredits  int64 `json:"aiReviewCredits"`
+	// Knowledge is whether a draft here reads knowledge packs, and how
+	// many and how much in all (agentry-enterprise#295); nil from a
+	// registry that predates it.
+	Knowledge *DraftKnowledge `json:"knowledge,omitempty"`
+}
+
+// DraftKnowledge is the status route's draft.knowledge: at most MaxPacks
+// packs, MaxBytes in all, each counted with the scan record its sandbox
+// host writes beside it.
+type DraftKnowledge struct {
+	Enabled  bool  `json:"enabled"`
+	MaxPacks int   `json:"maxPacks"`
+	MaxBytes int64 `json:"maxBytes"`
 }
 
 // Draft is a hosted draft's record (x-runs.yaml Draft): the terms it was

@@ -24,6 +24,7 @@ import (
 	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
@@ -34,6 +35,7 @@ import (
 	"github.com/blaktron/agentry/pkg/draftcheck"
 
 	"github.com/blaktron/agentry-desktop/internal/draft"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -158,7 +160,7 @@ func TestALocalDraftsViewCarriesItsCheckLine(t *testing.T) {
 		"publish": {"include": ["agent.yaml", "AGENT.md", "README.md", "LICENSE"]}},
 		"matches": [], "sources": [], "openQuestions": []}`
 	saveDescribeKey(t)
-	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
+	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +181,7 @@ func saveDescribeKey(t *testing.T) {
 // anything is scanned or run.
 func TestDescribeWithoutAKeyIsRefusedBeforeAnyDialog(t *testing.T) {
 	f := newDescribeFixture(t)
-	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
+	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "Settings → Provider settings → AI Review key") {
 		t.Fatalf("err = %v", err)
 	}
@@ -198,7 +200,7 @@ func TestDescribeAsksInANativeDialogFirst(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
 	f.answer = false
-	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
+	_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "not confirmed") {
 		t.Fatalf("err = %v", err)
 	}
@@ -212,7 +214,7 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	saveDescribeKey(t)
 
 	f.b.run.mu.Lock()
-	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil); !errors.Is(err, errBusy) {
+	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil); !errors.Is(err, errBusy) {
 		t.Fatalf("describe while a run holds the lock: %v", err)
 	}
 	f.b.run.mu.Unlock()
@@ -220,7 +222,7 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 		t.Fatal("scanned while another run held the lock")
 	}
 
-	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", []string{"Slack"})
+	v, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", []string{"Slack"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +309,7 @@ func TestTheChecksVerdictsAreTheChecksOwnWords(t *testing.T) {
 func TestADraftOnThisComputerReportsItsProgress(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
-	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil); err != nil {
+	if _, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	var stages []string
@@ -353,7 +355,7 @@ func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil)
+		_, err := f.b.DescribeOnThisComputer("https://registry.example", "Summarize my meeting notes.", nil, nil)
 		done <- err
 	}()
 	<-started
@@ -370,5 +372,27 @@ func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	}
 	if f.b.run.current() != nil {
 		t.Fatal("the stopped draft is still the run in flight")
+	}
+}
+
+// The dialog before a draft on this computer names its packs, and says
+// which AI Review scans first with the person's key because no scan in
+// Agentry stands in (agentry-desktop#497; D3). A draft with none says
+// nothing of knowledge.
+func TestTheDraftDialogSaysWhichPacksAreScannedFirst(t *testing.T) {
+	pack := func(name string) drafter.KnowledgeIn {
+		return drafter.KnowledgeIn{Pack: &kn.Pack{Manifest: kn.Manifest{Name: name}}}
+	}
+	if got := knowledgeConsent(&knowledge.DraftPacks{}); got != "" {
+		t.Fatalf("no packs: %q", got)
+	}
+	got := knowledgeConsent(&knowledge.DraftPacks{Packs: []drafter.KnowledgeIn{pack("handbook"), pack("runbook")}, ScanFirst: []string{"runbook"}})
+	if got != "It reads your knowledge packs handbook, runbook first, and leaves out what AI Review flags in them. "+
+		"runbook has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts, and withholds what it flags. " {
+		t.Fatalf("one to scan first: %q", got)
+	}
+	got = knowledgeConsent(&knowledge.DraftPacks{Packs: []drafter.KnowledgeIn{pack("a"), pack("b")}, ScanFirst: []string{"a", "b"}})
+	if !strings.Contains(got, "a, b have not been scanned in Agentry, so AI Review reads every file of them with your key") {
+		t.Fatalf("two to scan first: %q", got)
 	}
 }

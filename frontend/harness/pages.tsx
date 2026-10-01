@@ -107,6 +107,7 @@ const runnerRecForShown = {
 
 
 const buildModel = {
+  knowledgePrompt: "", knowledgeRequired: false, knowledgeShips: [] as string[],
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
   license: "Apache-2.0", summary: "Summarises an incident channel into a report card, redacting secrets first.",
   tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
@@ -148,7 +149,7 @@ const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "
 // markup; #build-summary-problem a rule the form still fails, with Fix it.
 const buildSummary = buildHash.startsWith("summary");
 const buildView = buildHash === "" || buildHash === "landed" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it (#282): #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
@@ -172,12 +173,27 @@ const describeHosted = describeSignedOut
       holdSentence: "This draft holds 41 credits and settles from what it uses: the tokens its model reads and writes, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds.",
       inputsSentence: "Your description and the Drafter's searches go to a search provider, to AI Review (TypeSafe's Jev) and to the sites the Drafter reads, so the description should hold no secret. AI Review reads every result before the Drafter's model does, and holds back what it flags.",
       timeoutSeconds: 1200, maxTurns: 60, maxPages: 40, balance: buildHash === "describe-agentry-short" ? 12 : 496, balanceKnown: true, unmetered: false,
-      short: buildHash === "describe-agentry-short" };
+      short: buildHash === "describe-agentry-short", knowledgeEnabled: true, maxPacks: 5, maxBytes: 10 << 20 };
 const hostedDrafting = buildHash === "describe-agentry-drafting"
   ? { id: "01a0e424-0000-0000-0000-000000000000", status: "queued", state: "queued", statusLine: "waiting for a runner — number 1 in the queue",
       queuePosition: 1, cancelRequested: false, holdCredits: 41, creditsLine: "41 credits are held for this draft.", final: false }
   : null;
 const summaryDraft = buildHash === "summary-drafted";
+// Describe it's Knowledge pick (agentry-desktop#497): #build-describe-knowledge
+// on this computer, a pack scanned in Agentry and one kept only here, which
+// is scanned first; #build-describe-knowledge-over a pick past 10 MB;
+// #build-describe-agentry-knowledge In Agentry, the pack kept only here
+// greyed with why; #build-drafted-knowledge a draft that read a pack, one
+// page withheld, and asks for one at run time.
+const describeKnowledge = buildHash.includes("knowledge");
+const knowledgeDraft = buildHash === "drafted-knowledge";
+const pickPack = (name: string, over: Record<string, unknown> = {}) => ({
+  name, pages: 4, bytes: 6903, scan: "scanned, 0 findings", scanState: "scanned", local: true, inAgentry: true, agentryReady: true, changed: false,
+  shared: false, opensOffline: true, ...over });
+const describePacks = !describeKnowledge ? [] : buildHash === "describe-knowledge-over"
+  ? [pickPack("manuals", { bytes: 6 << 20, pages: 120 }), pickPack("catalogue", { bytes: 5 << 20, pages: 90 })]
+  : [pickPack("m6-dev-runbook"), pickPack("team-notes", { inAgentry: false, agentryReady: false, scan: "not scanned", scanState: "not-scanned", pages: 2, bytes: 1900 }),
+    pickPack("handbook", { local: false, shared: true, org: "acme", pages: 12, bytes: 48000 })];
 // #build-landed (agentry-desktop#410): a draft that landed while the tab was
 // away, opened as Build mounts, with the fresh form's NewModel answering
 // after it; the draft must stay in the form.
@@ -192,6 +208,7 @@ const draftedView = buildHash.startsWith("drafted") || summaryDraft || landedDra
     fsWrite: "none", fsWritePaths: [], secrets: [], mcpServers: [], dataAccess: ["files"],
     intake: [{ id: "file", prompt: "The CSV file to check", type: "file", required: true, choices: [] }],
     guide: { overview: "Reads the CSV you add and reports its problems per column.", prepare: ["The CSV file"], files: "One CSV file.", task: "Check sales.csv", connect: [] },
+    knowledgePrompt: knowledgeDraft ? "Attach your team's runbook: the commands this QuickAgent quotes come from it." : "", knowledgeRequired: knowledgeDraft, knowledgeShips: [],
     instructions: "# CSV quality check\n\nRead the CSV under /inputs. For each column, report missing values, duplicate rows and values whose format differs from the rest.\n",
     hadComments: false },
   decodeNotes: hostileDraft ? ["The form cannot hold these fields of the draft, so they were left out: x-run-this."] : [],
@@ -202,6 +219,8 @@ const draftedView = buildHash.startsWith("drafted") || summaryDraft || landedDra
   sources: [{ url: hostileDraft ? "javascript:alert(document.cookie)" : "https://www.rfc-editor.org/rfc/rfc4180", used: "the CSV format", withheld: false },
     ...(hostileDraft ? [{ url: "https://evil.example/inject", used: "", withheld: true }] : [])],
   openQuestions: ["Should dates be ISO 8601?", "One file per run, or several?"],
+  knowledge: knowledgeDraft ? [{ name: "m6-dev-runbook", digest: "sha256:2bd2", pages: 4, bytes: 6903, scan: "agentry", withheld: [] },
+    { name: "team-notes", digest: "sha256:91aa", pages: 2, bytes: 1900, scan: "draft", withheld: [{ path: "wiki/topics/override.md", reason: "AI Review flagged it (injection)" }] }] : [],
   aiReview: { scan: agentryDraft ? "registry" : "jev", read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
@@ -238,7 +257,8 @@ function summaryFor(m: typeof buildModel, unmentioned: string[]) {
   const grants = [fs(m.fsRead, m.fsReadPaths, "Reads"), fs(m.fsWrite, m.fsWritePaths, "Writes"),
     m.execCommands.length ? `Runs the ${m.execCommands.length === 1 ? "command" : "commands"} ${m.execCommands.join(", ")}.` : null,
     m.dataAccess.length ? `Touches these kinds of data: ${m.dataAccess.join(", ")}.` : null].filter((g): g is string => g !== null);
-  return { name: m.name, summary: m.summary, overview: m.guide.overview, keys, websites, servers, grants,
+  const knowledge = m.knowledgePrompt ? [`Asks a person to attach a knowledge pack of their own${m.knowledgeRequired ? ", and cannot run without one" : ""}.`] : [];
+  return { name: m.name, summary: m.summary, overview: m.guide.overview, keys, websites, servers, grants, knowledge,
     anyUnnamed: [...websites, ...servers.flatMap((sv) => sv.hosts)].some((h) => h.unnamed) };
 }
 // Settings → Provider settings → AI Review key: saved by default; #aireview-none has none;
@@ -356,7 +376,7 @@ g.go = { main: {
       issues: [{ rule: "V5", path: "capabilities.network.egress[0]", message: "\"http://api.pagerduty.com\" is not a valid DNS host name", warning: false }],
       findings: [{ ruleId: "S4-prompt-injection-001", scanner: "S4", severity: "high", confidence: "medium", title: "instruction override phrasing", filePath: "AGENT.md", lineStart: 12, lineEnd: 12, excerpt: "ignore previous instructions" }] }),
     ServerChecks: async () => [{ ref: "npm:@cyanheads/osv-advisory-mcp-server@0.1.13", status: "safe", advisories: [], checkedAt: "2026-09-25T11:13:00Z", refuses: false }],
-    DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next",
+    DescribeStatus: async () => ({ key: jevKeyView, search: "no-provider", modelName: "openai qwen3.8-flash-next", maxPacks: 5, maxBytes: 10 << 20,
       searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),
     DescribeOnThisComputer: async () => (landedDraft ? draftedView : new Promise(() => {})),
     DescribeInAgentryStatus: async () => describeHosted,
@@ -366,6 +386,9 @@ g.go = { main: {
     DescribeAgainText: async () => "What the person wants changed now:\n…",
   },
   ValidateAPI: { Run: async () => validateResult },
+  // The person's packs, for Describe it's Knowledge pick: only where a
+  // knowledge state asks for them, so no other preview gains a list.
+  KnowledgeAPI: { List: async () => ({ packs: describePacks, registry: "https://dev.secureagentry.net", signedIn: true }) },
   // Registry settings' "signed in as" line reads the user alone since
   // agentry-desktop#423; the account and the subscription are the Profile
   // card's (Profile below).

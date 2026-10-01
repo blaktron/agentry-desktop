@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry/pkg/manifest"
 
@@ -467,6 +469,11 @@ func hostedManifestDoc(t *testing.T, modes, secrets []string) map[string]any {
 // run wrote nothing into either.
 func signIn(t *testing.T, reg string) (home, runnerHome string) {
 	t.Helper()
+	// settings.TokenFor reads the OS keychain before the settings file, by
+	// host and port: a token an earlier run left there for 127.0.0.1 and
+	// this server's port would be read instead of this one. The keychain
+	// is held in memory for the test (agentry-desktop#497).
+	keyring.MockInit()
 	home, runnerHome = t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("AGENTRY_RUNNER_HOME", runnerHome)

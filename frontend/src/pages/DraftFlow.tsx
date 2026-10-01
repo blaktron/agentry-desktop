@@ -27,6 +27,7 @@ import { Button, ErrorBox, Modal, Notice, Spinner } from "../ui";
 
 const STAGE: Record<Exclude<DraftProgress["stage"], "">, string> = {
   description: "AI Review is reading your description",
+  knowledge: "AI Review is scanning your knowledge packs that were not scanned in Agentry",
   drafting: "The Drafter is drafting",
   checking: "AI Review is checking the draft",
   repair: "The Drafter is repairing the draft, in its one repair turn",

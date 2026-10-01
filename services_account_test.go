@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
@@ -139,6 +141,10 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 	opened := make(chan string, 1)
 	sapi := &SettingsAPI{app: app, open: func(u string) error { opened <- u; return nil }}
 	t.Setenv(configdir.EnvVar, t.TempDir())
+	// The keychain in memory: StoreToken writes it first, and the real one
+	// would keep agy_test under 127.0.0.1:<port> after the test, where a
+	// later test's server on the same port reads it (agentry-desktop#497).
+	keyring.MockInit()
 	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
 		t.Fatal(err)
 	}

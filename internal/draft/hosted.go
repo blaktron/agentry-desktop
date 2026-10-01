@@ -45,6 +45,8 @@ const (
 var draftJSONFields = map[string]bool{
 	"manifest": true, "instructions": true, "notes": true, "matches": true, "sources": true, "openQuestions": true,
 	"drafter": true, "aiReview": true, "validation": true, "manifestError": true,
+	// The person's packs the Drafter read (agentry-desktop#497).
+	"knowledge": true,
 }
 
 // ReadHosted reads a hosted draft's draft.json from the run folder its
@@ -137,6 +139,9 @@ func Decode(raw []byte, namespace string) (*drafter.Draft, *build.Model, []strin
 	return &d, model, append(notes, more...), nil
 }
 
+// maxPackFiles is a pack's file cap (the core's manifest.MaxKnowledgePackFiles).
+const maxPackFiles = 2000
+
 // holdDraft holds the draft's own texts, which the page renders beside
 // Review, to their bounds: the notes, each list and each value in it.
 func holdDraft(d *drafter.Draft) error {
@@ -172,6 +177,24 @@ func holdDraft(d *drafter.Draft) error {
 	for _, s := range d.Sources {
 		if err := errors.Join(value("sources", s.URL, maxDraftURL), value("sources", s.Used, maxDraftValue)); err != nil {
 			return err
+		}
+	}
+	// The packs it read: at most a draft's packs, each withholding at most
+	// a pack's files, every path and reason bounded.
+	if len(d.Knowledge) > drafter.MaxKnowledgePacks {
+		return fmt.Errorf("the draft lists %d knowledge packs; a draft reads at most %d", len(d.Knowledge), drafter.MaxKnowledgePacks)
+	}
+	for _, k := range d.Knowledge {
+		if len(k.Withheld) > maxPackFiles {
+			return fmt.Errorf("the draft withheld %d files of a pack; a pack holds at most %d", len(k.Withheld), maxPackFiles)
+		}
+		if err := errors.Join(value("knowledge", k.Name, maxDraftShort), value("knowledge", k.Scan, maxDraftShort), value("knowledge", k.Digest, maxDraftShort)); err != nil {
+			return err
+		}
+		for _, w := range k.Withheld {
+			if err := errors.Join(value("knowledge", w.Path, maxDraftURL), value("knowledge", w.Reason, maxDraftValue)); err != nil {
+				return err
+			}
 		}
 	}
 	if err := list("open questions", len(d.OpenQuestions)); err != nil {

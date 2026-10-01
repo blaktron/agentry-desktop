@@ -282,7 +282,8 @@ type Input struct {
 // new pack), Pack (the account's pack in Agentry, by its registry id) or
 // Continue (a finished or cancelled build, whose documents the registry
 // copies, so it sends no Inputs), and no Ref, Task or Intake; a draft
-// (Kind KindDraft) carries a Description and its Hints alone.
+// (Kind KindDraft) carries a Description, its Hints and, since
+// agentry-enterprise#295, the Knowledge it reads.
 type CreateRequest struct {
 	Kind        string            `json:"kind,omitempty"`
 	Description string            `json:"description,omitempty"`
