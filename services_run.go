@@ -158,7 +158,17 @@ type SessionEventView struct {
 // consent-recorded contract, images, profile and intake as RunAgent, then
 // the engine's session; events stream as runner:session-event until
 // EndSession. The run lock is held for the session's whole life.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
+//
+// A chat takes no timeout from the page: it has no wall clock and no count
+// of the person's turns, and its one limit is Run defaults' Chat idle
+// timeout, none by default, which Go reads here from desktop.yaml
+// (agentry-desktop#468, D-052). maxTurns is the tool-call budget, as a
+// run's: -1 keeps the policy's, 0 lifts it.
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
+	idle, err := chatIdleTimeout()
+	if err != nil {
+		return nil, err
+	}
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -193,24 +203,24 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	}
 	logw := r.eventWriter(eventRunLog)
 	s, err := r.startEngineSession(ctx, run.Request{
-		RunID:              live.id,
-		Registry:           reg,
-		Ref:                ref,
-		Task:               task,
-		InputPaths:         inputPaths,
-		Knowledge:          packs,
-		OutDir:             outDir,
-		OutDirIsRoot:       isSavedOutputDir(outDir),
-		KeepProfile:        keepProfile,
-		TimeoutSeconds:     timeoutSec,
-		MaxTurns:           maxTurns,
-		AcceptUnsigned:     acceptUnsigned,
-		AcceptUnscanned:    acceptUnscanned,
-		AllowVulnerableMCP: allowVulnerableMCP,
-		Intake:             intakeAnswers,
-		PathPicked:         r.app.requirePicked,
-		Unsafe:             unsafe,
-		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
+		RunID:                  live.id,
+		Registry:               reg,
+		Ref:                    ref,
+		Task:                   task,
+		InputPaths:             inputPaths,
+		Knowledge:              packs,
+		OutDir:                 outDir,
+		OutDirIsRoot:           isSavedOutputDir(outDir),
+		KeepProfile:            keepProfile,
+		MaxTurns:               maxTurns,
+		ChatIdleTimeoutSeconds: idle,
+		AcceptUnsigned:         acceptUnsigned,
+		AcceptUnscanned:        acceptUnscanned,
+		AllowVulnerableMCP:     allowVulnerableMCP,
+		Intake:                 intakeAnswers,
+		PathPicked:             r.app.requirePicked,
+		Unsafe:                 unsafe,
+		PlanCompiled:           func(u bool) { r.setUnsafeLive(live, u) },
 	}, logw)
 	logw.Flush()
 	if err != nil {

@@ -264,7 +264,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 
 	// A session asks the same way.
 	before := len(u.asked)
-	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, true, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "not confirmed") {
 		t.Fatalf("StartSession unsigned, in Unsafe Mode: err = %v", err)
 	}
 	if len(u.asked) != before+1 || !strings.Contains(u.asked[before], "Unsafe Mode is on") {
@@ -614,7 +614,7 @@ func TestTheEdgeStaysWhileAChatCompiledInUnsafeModeIsLive(t *testing.T) {
 		req.PlanCompiled(true)
 		return &unsafeChat{events: make(chan session.Event)}, nil
 	}
-	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "", nil, "", nil, 0, -1, true, nil, false, false, nil); err != nil {
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "", nil, "", nil, -1, true, nil, false, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := u.r.SetUnsafeMode(false); err != nil {

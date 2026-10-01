@@ -95,7 +95,7 @@ export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<st
 
 export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>):Promise<main.HostedStartView>;
 
-export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>):Promise<main.SessionView>;
+export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>):Promise<main.SessionView>;
 
 export function StopRun():Promise<void>;
 

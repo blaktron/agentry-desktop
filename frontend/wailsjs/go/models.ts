@@ -3128,6 +3128,7 @@ export namespace main {
 	    policyPath: string;
 	    where: string;
 	    outputDir?: string;
+	    chatIdleTimeoutSeconds: number;
 	    unsafeMode: boolean;
 	    unsafeImage?: string;
 	
@@ -3142,6 +3143,7 @@ export namespace main {
 	        this.policyPath = source["policyPath"];
 	        this.where = source["where"];
 	        this.outputDir = source["outputDir"];
+	        this.chatIdleTimeoutSeconds = source["chatIdleTimeoutSeconds"];
 	        this.unsafeMode = source["unsafeMode"];
 	        this.unsafeImage = source["unsafeImage"];
 	    }
