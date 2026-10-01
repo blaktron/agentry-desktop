@@ -39,8 +39,17 @@ export function pickable(p: PickPack, where: Where): boolean {
 export function whyNot(p: PickPack, where: Where): string | null {
   if (pickable(p, where)) return null;
   if (where === "here") return "kept in Agentry only: download it to draft with it on this computer";
+  if (p.shared && !p.inAgentry) return `${p.org ?? "its organization"} does not list this pack in Agentry now`;
   if (!p.inAgentry) return "kept on this computer only: upload it to Agentry to draft with it there";
-  return p.scanState === "scanning" ? "pick it once Agentry's scan of it ends" : "Agentry has not scanned it: upload it again to draft with it there";
+  if (p.scanState === "scanning") return "pick it once Agentry's scan of it ends";
+  if (p.scanState === "failed") return "Agentry's scan could not read it: upload it again to draft with it there";
+  return "Agentry holds no pages of it yet: upload it to draft with it there";
+}
+
+/** A note on a pack that can be picked, or null: In Agentry the draft
+ *  reads Agentry's copy, which may be older than this computer's. */
+export function pickNote(p: PickPack, where: Where): string | null {
+  return where === "agentry" && p.local && p.changed ? "the draft reads the copy Agentry keeps, which is older than this computer's" : null;
 }
 
 /** Whether a draft on this computer scans the pack first: no scan in
@@ -55,7 +64,7 @@ export function pickedBytes(names: string[], packs: PickPack[]): number {
 }
 
 /** A size in the binary units the Knowledge pages count in, "10 MB". */
-export function fmtStorage(n: number): string {
+export function packSize(n: number): string {
   if (n < 1024) return `${n} B`;
   const units = ["KB", "MB", "GB"];
   let v = n / 1024;
@@ -77,15 +86,15 @@ export function pickProblem(names: string[], packs: PickPack[], b: Bounds): stri
   }
   const total = pickedBytes(names, packs);
   if (b.maxBytes > 0 && total > b.maxBytes) {
-    return `These packs hold ${fmtStorage(total)}, and a draft reads at most ${fmtStorage(b.maxBytes)} of knowledge in all. Untick one to go on.`;
+    return `These packs hold ${packSize(total)}, and a draft reads at most ${packSize(b.maxBytes)} of knowledge in all. Untick one to go on.`;
   }
   return null;
 }
 
 /** The line under the pick: the bound, and what the picked ones hold. */
 export function totalLine(names: string[], packs: PickPack[], b: Bounds): string {
-  if (names.length === 0) return `None picked. A draft reads up to ${b.maxPacks} packs, ${fmtStorage(b.maxBytes)} in all.`;
-  return `Picked ${names.length} of up to ${b.maxPacks}, ${fmtStorage(pickedBytes(names, packs))} of ${fmtStorage(b.maxBytes)}.`;
+  if (names.length === 0) return `None picked. A draft reads up to ${b.maxPacks} packs, ${packSize(b.maxBytes)} in all.`;
+  return `Picked ${names.length} of up to ${b.maxPacks}, ${packSize(pickedBytes(names, packs))} of ${packSize(b.maxBytes)}.`;
 }
 
 /** The warning before a draft on this computer: which picked packs AI
@@ -96,8 +105,11 @@ export function scanFirstLine(names: string[], packs: PickPack[], where: Where):
     return p !== undefined && scansFirst(p, where);
   });
   if (first.length === 0) return null;
-  const them = first.length === 1 ? `${first[0]} has` : `${first.join(", ")} have`;
-  return `${them} not been scanned in Agentry, so AI Review scans ${first.length === 1 ? "it" : "them"} first with your key, every file, before the draft starts. What it flags is left out of the draft.`;
+  // The dialog's own sentence (Go's knowledgeConsent), which says it again,
+  // exactly, from the registry's answer before the draft starts.
+  return first.length === 1
+    ? `${first[0]} has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts, and withholds what it flags.`
+    : `${first.join(", ")} have not been scanned in Agentry, so AI Review reads every file of them with your key before the draft starts, and withholds what it flags.`;
 }
 
 /** The picks that still hold where the draft is now made: a switch from

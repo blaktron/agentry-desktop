@@ -27,7 +27,7 @@ import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { build, knowledge, main } from "../../wailsjs/go/models";
-import { keepPickable, pickProblem, pickable, scanFirstLine, totalLine, whyNot, type Bounds } from "../describeKnowledge";
+import { keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine, totalLine, whyNot, type Bounds } from "../describeKnowledge";
 import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
 import { RevealText } from "../reveal";
@@ -228,7 +228,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
           <p className="small" style={{ marginTop: 0 }}><strong>Knowledge, if you keep some</strong></p>
           <p className="small muted">
             Pick knowledge packs you keep, or your organization shares. The Drafter reads them before it searches the web:
-            it learns the domain from them and writes what the QuickAgent needs into its instructions, so the draft is
+            it learns the domain from them and writes what the QuickAgent needs into its instruction, so the draft is
             better and may need fewer searches. Where the QuickAgent needs a pack when it runs, the draft asks for one; it
             never ships yours.
           </p>
@@ -236,14 +236,15 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
             <legend className="sr-only">Knowledge packs for the Drafter</legend>
             {offered.map((p) => {
               const why = whyNot(p, where);
+              const note = pickNote(p, where);
               return (
                 <label key={`${p.org ?? ""}/${p.name}`} className="small" style={{ display: "block", marginTop: 4 }}>
                   <input type="checkbox" disabled={busy || why !== null} checked={picked.includes(p.name)}
                     onChange={(e) => setPicked(e.target.checked ? [...picked, p.name] : picked.filter((n) => n !== p.name))} />{" "}
                   <span className="mono"><RevealText text={p.name} /></span>
                   {p.shared && p.org && <span className="muted"> shared by <RevealText text={p.org} /></span>}
-                  <span className="muted"> — {p.pages} {p.pages === 1 ? "page" : "pages"}, <RevealText text={p.scan} /></span>
-                  {why && <span className="muted"> ({why})</span>}
+                  <span className="muted"> — {p.pages} {p.pages === 1 ? "page" : "pages"}, {packSize(p.bytes)}, <RevealText text={p.scan} /></span>
+                  {(why ?? note) && <span className="muted"> ({why ?? note})</span>}
                 </label>
               );
             })}

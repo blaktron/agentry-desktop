@@ -458,9 +458,9 @@ func knowledgeConsent(k *knowledge.DraftPacks) string {
 	switch first := k.ScanFirst; len(first) {
 	case 0:
 	case 1:
-		out += "The pack " + first[0] + " has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts. "
+		out += first[0] + " has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts, and withholds what it flags. "
 	default:
-		out += "The packs " + strings.Join(first, ", ") + " have not been scanned in Agentry, so AI Review reads every file of them with your key before the draft starts. "
+		out += strings.Join(first, ", ") + " have not been scanned in Agentry, so AI Review reads every file of them with your key before the draft starts, and withholds what it flags. "
 	}
 	return out
 }

@@ -121,7 +121,11 @@ func Prepare(registry, description string, hints []string, packs *knowledge.Draf
 	w, search, err := drafter.LocalWeb(pol, registry)
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads your description, your knowledge packs and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", err)
+		reads := "your description"
+		if len(packs.Names()) > 0 {
+			reads = "your description, your knowledge packs"
+		}
+		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads %s and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", reads, err)
 	case err != nil:
 		return nil, err
 	}
@@ -248,7 +252,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	// D14), as `agentry draft --knowledge` does.
 	var read *drafter.KnowledgeRead
 	if k := p.Knowledge; k != nil && len(k.Packs) > 0 {
-		prog.Set(atStage(StageKnowledge))
+		if len(k.ScanFirst) > 0 {
+			prog.Set(atStage(StageKnowledge))
+		}
 		if read, err = drafter.ReadyKnowledge(ctx, k.Packs, sc, k.Scratch, logw); err != nil {
 			return nil, err
 		}

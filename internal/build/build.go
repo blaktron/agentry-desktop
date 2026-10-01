@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
@@ -412,8 +413,8 @@ func (m *Model) formProblems() []SectionProblem {
 	}
 	// knowledge.accepts (V11): one plain line the run setup shows.
 	if p := strings.TrimSpace(m.KnowledgePrompt); p != "" {
-		if strings.ContainsAny(p, "\r\n") {
-			add(SectionGuide, "the knowledge it asks for is one line")
+		if strings.ContainsFunc(p, func(r rune) bool { return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) }) {
+			add(SectionGuide, "the knowledge it asks for is one line of plain text")
 		}
 		if utf8.RuneCountInString(p) > manifest.MaxKnowledgePromptChars {
 			add(SectionGuide, "the knowledge it asks for is at most %d characters", manifest.MaxKnowledgePromptChars)

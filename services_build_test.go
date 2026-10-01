@@ -388,11 +388,11 @@ func TestTheDraftDialogSaysWhichPacksAreScannedFirst(t *testing.T) {
 	}
 	got := knowledgeConsent(&knowledge.DraftPacks{Packs: []drafter.KnowledgeIn{pack("handbook"), pack("runbook")}, ScanFirst: []string{"runbook"}})
 	if got != "It reads your knowledge packs handbook, runbook first, and leaves out what AI Review flags in them. "+
-		"The pack runbook has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts. " {
+		"runbook has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts, and withholds what it flags. " {
 		t.Fatalf("one to scan first: %q", got)
 	}
 	got = knowledgeConsent(&knowledge.DraftPacks{Packs: []drafter.KnowledgeIn{pack("a"), pack("b")}, ScanFirst: []string{"a", "b"}})
-	if !strings.Contains(got, "The packs a, b have not been scanned in Agentry, so AI Review reads every file of them with your key") {
+	if !strings.Contains(got, "a, b have not been scanned in Agentry, so AI Review reads every file of them with your key") {
 		t.Fatalf("two to scan first: %q", got)
 	}
 }

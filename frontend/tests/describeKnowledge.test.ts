@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  fmtStorage, keepPickable, pickProblem, pickable, scanFirstLine, scansFirst, totalLine, whyNot, type PickPack,
+  keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine, scansFirst, totalLine, whyNot, type PickPack,
 } from "../src/describeKnowledge.ts";
 
 const pack = (name: string, over: Partial<PickPack> = {}): PickPack => ({
@@ -24,13 +24,16 @@ test("a draft on this computer reads packs kept here; In Agentry, packs Agentry 
   assert.equal(pickable(onlyThere, "agentry"), true);
   assert.match(whyNot(scanning, "agentry") ?? "", /once Agentry's scan of it ends/);
   assert.equal(whyNot(pack("runbook"), "here"), null);
+  assert.match(whyNot(pack("x", { local: false, agentryReady: false, scanState: "failed" }), "agentry") ?? "", /could not read it/);
+  assert.match(pickNote(pack("y", { changed: true }), "agentry") ?? "", /older than this computer's/);
+  assert.equal(pickNote(pack("y", { changed: true }), "here"), null);
 });
 
 test("the total states the bound, then what the picked packs hold, in binary units", () => {
   const packs = [pack("runbook"), pack("big", { bytes: 6 << 20 })];
   assert.equal(totalLine([], packs, bounds), "None picked. A draft reads up to 5 packs, 10 MB in all.");
   assert.equal(totalLine(["runbook"], packs, bounds), "Picked 1 of up to 5, 6.7 KB of 10 MB.");
-  assert.equal(fmtStorage(10 << 20), "10 MB");
+  assert.equal(packSize(10 << 20), "10 MB");
 });
 
 test("a pick past the bytes or the number is refused with the site's sentence", () => {
@@ -51,8 +54,8 @@ test("on this computer, a pack with no scan in Agentry for this copy is scanned 
   const packs = [scanned, never, changed];
   assert.equal(scanFirstLine(["runbook"], packs, "here"), null);
   assert.equal(scanFirstLine(["runbook", "notes"], packs, "here"),
-    "notes has not been scanned in Agentry, so AI Review scans it first with your key, every file, before the draft starts. What it flags is left out of the draft.");
-  assert.match(scanFirstLine(["notes", "handbook"], packs, "here") ?? "", /^notes, handbook have not been scanned in Agentry, so AI Review scans them first/);
+    "notes has not been scanned in Agentry, so AI Review reads every file of it with your key before the draft starts, and withholds what it flags.");
+  assert.match(scanFirstLine(["notes", "handbook"], packs, "here") ?? "", /^notes, handbook have not been scanned in Agentry, so AI Review reads every file of them/);
   assert.equal(scanFirstLine(["notes"], packs, "agentry"), null);
 });
 
