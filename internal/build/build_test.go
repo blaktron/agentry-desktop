@@ -408,6 +408,11 @@ func TestEveryFieldRoundTrips(t *testing.T) {
 	m.Dependencies = []DependencyRow{{Ref: "acme/helper", Version: "^1.2.0"}}
 	m.PublishChannel = "beta"
 	m.Intake = []IntakeRow{{ID: "region", Prompt: "Which region?", Type: "choice", Choices: []string{"emea", "apac"}, Required: true}}
+	// The knowledge block (agentry-desktop#497): the form edits accepts and
+	// carries a loaded ships list through, never adding one.
+	m.KnowledgePrompt = "Attach your runbook: the steps it quotes come from it."
+	m.KnowledgeRequired = true
+	m.KnowledgeShips = []string{"glossary"}
 	if err := Save(dir, m); err != nil {
 		t.Fatal(err)
 	}

@@ -31,6 +31,9 @@ func kinds(s *Summary) []string {
 	if len(s.Grants) > 0 {
 		out = append(out, "grants")
 	}
+	if len(s.Knowledge) > 0 {
+		out = append(out, "knowledge")
+	}
 	return out
 }
 
@@ -104,6 +107,19 @@ func TestTheSummaryListsEveryDeclaredCapabilityAndNothingElse(t *testing.T) {
 			want: func(t *testing.T, s *Summary) { wantGrants(t, s, "Runs the commands git, jq.") }},
 		{name: "data", set: func(m *Model) { m.DataAccess = []string{"email", "calendar"} }, kinds: []string{"grants"},
 			want: func(t *testing.T, s *Summary) { wantGrants(t, s, "Touches these kinds of data: email, calendar.") }},
+		// The knowledge block (agentry-desktop#497), in the site's words.
+		{name: "asks for a pack", set: func(m *Model) { m.KnowledgePrompt, m.KnowledgeRequired = "Attach your runbook.", true }, kinds: []string{"knowledge"},
+			want: func(t *testing.T, s *Summary) {
+				if !reflect.DeepEqual(s.Knowledge, []string{"Asks a person to attach a knowledge pack of their own, and cannot run without one."}) {
+					t.Errorf("knowledge = %q", s.Knowledge)
+				}
+			}},
+		{name: "ships a pack", set: func(m *Model) { m.KnowledgeShips = []string{"glossary"} }, kinds: []string{"knowledge"},
+			want: func(t *testing.T, s *Summary) {
+				if !reflect.DeepEqual(s.Knowledge, []string{"Ships the knowledge pack glossary in the release, unencrypted: anyone who can download it can read it."}) {
+					t.Errorf("knowledge = %q", s.Knowledge)
+				}
+			}},
 		// Help written for a key nothing declares names no key, and a
 		// secret question with no declared key (which the form's rules
 		// refuse) adds none either.

@@ -145,3 +145,37 @@ func TestFromDraftHoldsAHostileDraftAsData(t *testing.T) {
 		t.Fatal("the decode wrote into the working folder")
 	}
 }
+
+// A draft's knowledge block (agentry-desktop#497; plan knowledge-and-drafter.md
+// K4, D4): the Drafter declares knowledge.accepts when the QuickAgent needs a
+// pack at run time, and the form keeps it. It never ships the person's pack:
+// a draft's knowledge.ships is dropped and named, as the site's importer does.
+func TestFromDraftKeepsAcceptsAndDropsShips(t *testing.T) {
+	withKnowledge := strings.Replace(draftManifest, `"publish":`,
+		`"knowledge": {"accepts": {"prompt": "Attach the team's runbook: the commands it quotes come from it.", "required": true},
+		  "ships": [{"name": "m6-dev-runbook"}]}, "publish":`, 1)
+	m, notes, err := FromDraft([]byte(withKnowledge), "# Runbook answers\n", "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.KnowledgePrompt != "Attach the team's runbook: the commands it quotes come from it." || !m.KnowledgeRequired {
+		t.Fatalf("accepts not kept: %q %v", m.KnowledgePrompt, m.KnowledgeRequired)
+	}
+	if len(m.KnowledgeShips) != 0 {
+		t.Fatalf("a draft shipped a pack: %v", m.KnowledgeShips)
+	}
+	if !slices.Contains(notes, "The form cannot hold these fields of the draft, so they were left out: knowledge.ships.") {
+		t.Fatalf("ships not named: %q", notes)
+	}
+	if strings.Contains(m.manifestYAML(), "ships") || !strings.Contains(m.manifestYAML(), "required: true") {
+		t.Fatalf("the saved manifest:\n%s", m.manifestYAML())
+	}
+	if c := m.Check(); c.First != nil {
+		t.Fatalf("the decoded draft fails the form's checks: %+v", c.First)
+	}
+	// A draft that asks for none carries no knowledge block.
+	plain, _, err := FromDraft([]byte(draftManifest), "x", "alice")
+	if err != nil || plain.KnowledgePrompt != "" || strings.Contains(plain.manifestYAML(), "knowledge:") {
+		t.Fatalf("a draft with no knowledge: %+v %v", plain.KnowledgePrompt, err)
+	}
+}

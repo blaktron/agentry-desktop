@@ -91,6 +91,16 @@ type Model struct {
 	// line syntax.
 	MCPServers []MCPServerRow `json:"mcpServers"`
 
+	// The knowledge block (Knowledge M9; agentry-desktop#497). The prompt
+	// is knowledge.accepts: one plain line the run setup's Knowledge step
+	// shows when the QuickAgent needs a pack of the person's own, empty for
+	// none; KnowledgeRequired makes the step unskippable. KnowledgeShips are
+	// the packs knowledge.ships names, which the form carries through a load
+	// and a save and never adds: a draft never brings one (FromDraft).
+	KnowledgePrompt   string   `json:"knowledgePrompt"`
+	KnowledgeRequired bool     `json:"knowledgeRequired"`
+	KnowledgeShips    []string `json:"knowledgeShips"`
+
 	// Dependencies are dependencies.agents.
 	Dependencies []DependencyRow `json:"dependencies"`
 	// PublishChannel is publish.channel (stable when empty).
@@ -788,6 +798,29 @@ func (m *Model) accessLines() []string {
 	return out
 }
 
+// knowledgeLines is the knowledge block: accepts when the form asks for a
+// pack, and the ships list a loaded manifest carried.
+func (m *Model) knowledgeLines() []string {
+	prompt, ships := strings.TrimSpace(m.KnowledgePrompt), compact(m.KnowledgeShips)
+	if prompt == "" && len(ships) == 0 {
+		return nil
+	}
+	out := []string{"knowledge:"}
+	if prompt != "" {
+		out = append(out, "  accepts:", "    prompt: "+q(prompt))
+		if m.KnowledgeRequired {
+			out = append(out, "    required: true")
+		}
+	}
+	if len(ships) > 0 {
+		out = append(out, "  ships:")
+		for _, s := range ships {
+			out = append(out, "    - name: "+q(s))
+		}
+	}
+	return out
+}
+
 func (m *Model) dependencyLines() []string {
 	if len(m.Dependencies) == 0 {
 		return nil
@@ -861,6 +894,7 @@ func (m *Model) manifestYAML() string {
 	caps := append([]string{"capabilities:"}, m.networkLines()...)
 	caps = append(caps, m.accessLines()...)
 	block(append(caps, m.serverLines()...))
+	block(m.knowledgeLines())
 	block(m.dependencyLines())
 	block(m.publishLines())
 	return strings.Join(out, "\n") + "\n"
@@ -1047,6 +1081,15 @@ func decodeManifest(raw []byte) (*Model, error) {
 				Env     map[string]string `yaml:"env"`
 			} `yaml:"mcpServers"`
 		} `yaml:"capabilities"`
+		Knowledge struct {
+			Accepts struct {
+				Prompt   string `yaml:"prompt"`
+				Required bool   `yaml:"required"`
+			} `yaml:"accepts"`
+			Ships []struct {
+				Name string `yaml:"name"`
+			} `yaml:"ships"`
+		} `yaml:"knowledge"`
 		Dependencies struct {
 			Agents []struct {
 				Ref     string `yaml:"ref"`
@@ -1121,6 +1164,10 @@ func decodeManifest(raw []byte) (*Model, error) {
 			row.Env = append(row.Env, EnvRow{Name: name, Value: srv.Env[name]})
 		}
 		m.MCPServers = append(m.MCPServers, row)
+	}
+	m.KnowledgePrompt, m.KnowledgeRequired = doc.Knowledge.Accepts.Prompt, doc.Knowledge.Accepts.Required
+	for _, sh := range doc.Knowledge.Ships {
+		m.KnowledgeShips = append(m.KnowledgeShips, sh.Name)
 	}
 	for _, d := range doc.Dependencies.Agents {
 		m.Dependencies = append(m.Dependencies, DependencyRow{Ref: d.Ref, Version: d.Version})
