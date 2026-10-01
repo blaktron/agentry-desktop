@@ -244,6 +244,11 @@ type DescribeStatusView struct {
 	Search         string     `json:"search"`
 	SearchSentence string     `json:"searchSentence"`
 	ModelName      string     `json:"modelName"`
+	// MaxPacks and MaxBytes are what a draft on this computer reads of the
+	// person's knowledge packs (agentry-desktop#497): the CLI's own bounds,
+	// drafter.MaxKnowledgePacks and MaxKnowledgeBytes.
+	MaxPacks int   `json:"maxPacks"`
+	MaxBytes int64 `json:"maxBytes"`
 }
 
 // DescribeStatus reads it: presence markers and whether a variable is set,
@@ -253,7 +258,8 @@ func (b *BuildAPI) DescribeStatus() (*DescribeStatusView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DescribeStatusView{Key: *jevKeyView(st.Key), Search: string(st.Search), SearchSentence: st.SearchSentence, ModelName: st.ModelName}, nil
+	return &DescribeStatusView{Key: *jevKeyView(st.Key), Search: string(st.Search), SearchSentence: st.SearchSentence, ModelName: st.ModelName,
+		MaxPacks: drafter.MaxKnowledgePacks, MaxBytes: drafter.MaxKnowledgeBytes}, nil
 }
 
 // DraftView is a finished draft for the Build page: the form's Model, what

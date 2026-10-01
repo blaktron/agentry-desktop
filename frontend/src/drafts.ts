@@ -18,7 +18,7 @@ export type Where = "agentry" | "here";
  *  (internal/draft's Progress, build:draft-progress): the report every job
  *  carries, and the stage the draft is in. */
 export type DraftProgress = JobProgress & {
-  stage: "description" | "drafting" | "checking" | "repair" | "";
+  stage: "description" | "knowledge" | "drafting" | "checking" | "repair" | "";
 };
 
 let where: Where | null = null;
@@ -102,7 +102,7 @@ function begin(w: Where) {
   follow(w);
 }
 
-function startLocal(registry: string, text: string, hints: string[]) {
+function startLocal(registry: string, text: string, hints: string[], packs: string[]) {
   begin("here");
   stopping = false;
   const offLog = EventsOn("build:draft-log", (line: string) => {
@@ -113,7 +113,7 @@ function startLocal(registry: string, text: string, hints: string[]) {
     progress = p;
     notify();
   });
-  localInflight = BuildAPI.DescribeOnThisComputer(registry, text, hints)
+  localInflight = BuildAPI.DescribeOnThisComputer(registry, text, hints, packs)
     .then((v) => land(v, "The Drafter returned no draft the form can open."))
     .catch((e) => {
       stopped = stopping;
@@ -143,13 +143,13 @@ function listenHosted() {
   });
 }
 
-function startHosted(registry: string, text: string, hints: string[]) {
+function startHosted(registry: string, text: string, hints: string[], packs: string[]) {
   listenHosted();
   begin("agentry");
   hosted = null;
   hostedStarting = true;
   notify();
-  BuildAPI.DescribeInAgentry(registry, text, hints)
+  BuildAPI.DescribeInAgentry(registry, text, hints, packs)
     .then((v) => {
       if (v.draft) {
         // An event may already have said more than the create's answer.
@@ -165,10 +165,11 @@ function startHosted(registry: string, text: string, hints: string[]) {
     });
 }
 
-/** Starts a draft in the place chosen, and opens its progress dialog. */
-export function startDraft(registry: string, w: Where, text: string, hints: string[]) {
-  if (w === "agentry") startHosted(registry, text, hints);
-  else startLocal(registry, text, hints);
+/** Starts a draft in the place chosen, and opens its progress dialog.
+ *  packs are the knowledge packs it reads first, by name (#497). */
+export function startDraft(registry: string, w: Where, text: string, hints: string[], packs: string[] = []) {
+  if (w === "agentry") startHosted(registry, text, hints, packs);
+  else startLocal(registry, text, hints, packs);
 }
 
 /** Follows this account's draft In Agentry after the app was reopened, in

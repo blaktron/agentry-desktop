@@ -238,6 +238,9 @@ export namespace build {
 	    secrets: string[];
 	    dataAccess: string[];
 	    mcpServers: MCPServerRow[];
+	    knowledgePrompt: string;
+	    knowledgeRequired: boolean;
+	    knowledgeShips: string[];
 	    dependencies: DependencyRow[];
 	    publishChannel: string;
 	    publishInclude: string[];
@@ -276,6 +279,9 @@ export namespace build {
 	        this.secrets = source["secrets"];
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = this.convertValues(source["mcpServers"], MCPServerRow);
+	        this.knowledgePrompt = source["knowledgePrompt"];
+	        this.knowledgeRequired = source["knowledgeRequired"];
+	        this.knowledgeShips = source["knowledgeShips"];
 	        this.dependencies = this.convertValues(source["dependencies"], DependencyRow);
 	        this.publishChannel = source["publishChannel"];
 	        this.publishInclude = source["publishInclude"];
@@ -407,6 +413,7 @@ export namespace build {
 	    websites: SummaryHost[];
 	    servers: SummaryServer[];
 	    grants: string[];
+	    knowledge: string[];
 	    anyUnnamed: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -422,6 +429,7 @@ export namespace build {
 	        this.websites = this.convertValues(source["websites"], SummaryHost);
 	        this.servers = this.convertValues(source["servers"], SummaryServer);
 	        this.grants = source["grants"];
+	        this.knowledge = source["knowledge"];
 	        this.anyUnnamed = source["anyUnnamed"];
 	    }
 	
@@ -502,6 +510,62 @@ export namespace drafter {
 	        this.why = source["why"];
 	    }
 	}
+	export class WithheldFile {
+	    path: string;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WithheldFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class PackRead {
+	    name: string;
+	    digest: string;
+	    pages: number;
+	    bytes: number;
+	    scan: string;
+	    withheld: WithheldFile[];
+	    requests?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PackRead(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.digest = source["digest"];
+	        this.pages = source["pages"];
+	        this.bytes = source["bytes"];
+	        this.scan = source["scan"];
+	        this.withheld = this.convertValues(source["withheld"], WithheldFile);
+	        this.requests = source["requests"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Source {
 	    url: string;
 	    used: string;
@@ -518,6 +582,7 @@ export namespace drafter {
 	        this.withheld = source["withheld"];
 	    }
 	}
+	
 	export class WithheldSource {
 	    tool: string;
 	    url: string;
@@ -1532,6 +1597,10 @@ export namespace main {
 	    timeoutSeconds: number;
 	    maxTurns: number;
 	    maxPages: number;
+	    knowledgeEnabled: boolean;
+	    maxPacks: number;
+	    maxBytes: number;
+	    knowledgeNote?: string;
 	    balance: number;
 	    balanceKnown: boolean;
 	    pool?: string;
@@ -1555,6 +1624,10 @@ export namespace main {
 	        this.timeoutSeconds = source["timeoutSeconds"];
 	        this.maxTurns = source["maxTurns"];
 	        this.maxPages = source["maxPages"];
+	        this.knowledgeEnabled = source["knowledgeEnabled"];
+	        this.maxPacks = source["maxPacks"];
+	        this.maxBytes = source["maxBytes"];
+	        this.knowledgeNote = source["knowledgeNote"];
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
 	        this.pool = source["pool"];
@@ -1589,6 +1662,8 @@ export namespace main {
 	    search: string;
 	    searchSentence: string;
 	    modelName: string;
+	    maxPacks: number;
+	    maxBytes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DescribeStatusView(source);
@@ -1600,6 +1675,8 @@ export namespace main {
 	        this.search = source["search"];
 	        this.searchSentence = source["searchSentence"];
 	        this.modelName = source["modelName"];
+	        this.maxPacks = source["maxPacks"];
+	        this.maxBytes = source["maxBytes"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1756,6 +1833,7 @@ export namespace main {
 	    problems: string[];
 	    moreProblems: number;
 	    check?: DraftCheckView;
+	    knowledge: drafter.PackRead[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DraftView(source);
@@ -1781,6 +1859,7 @@ export namespace main {
 	        this.problems = source["problems"];
 	        this.moreProblems = source["moreProblems"];
 	        this.check = this.convertValues(source["check"], DraftCheckView);
+	        this.knowledge = this.convertValues(source["knowledge"], drafter.PackRead);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

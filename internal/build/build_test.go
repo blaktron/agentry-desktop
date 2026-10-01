@@ -797,3 +797,34 @@ func TestPublishRefusesWhenTheAgentIsNoLongerPrivate(t *testing.T) {
 		}
 	}
 }
+
+// The knowledge a QuickAgent asks for (knowledge.accepts, V11;
+// agentry-desktop#497) is checked in the Before a run section: one line of
+// at most 300 characters, and a required ask names what it asks for.
+func TestCheckHoldsTheKnowledgeAskToV11(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		prompt   string
+		required bool
+		want     string
+	}{
+		{"two lines", "Attach your runbook.\nAnd more.", false, "one line"},
+		{"too long", strings.Repeat("a", 301), false, "at most 300 characters"},
+		{"required with no words", "", true, "say which knowledge pack it needs"},
+	} {
+		m := model()
+		m.KnowledgePrompt, m.KnowledgeRequired = tc.prompt, tc.required
+		c := m.Check()
+		if c.First == nil || c.First.Section != SectionGuide || !strings.Contains(c.First.Problem, tc.want) {
+			t.Errorf("%s: %+v", tc.name, c.First)
+		}
+	}
+	m := model()
+	m.KnowledgePrompt, m.KnowledgeRequired = "Attach your runbook.", true
+	if c := m.Check(); c.First != nil {
+		t.Fatalf("a fit ask: %+v", c.First)
+	}
+	if !strings.Contains(m.fragment(SectionGuide), "accepts:") {
+		t.Fatalf("the section's fragment shows no ask:\n%s", m.fragment(SectionGuide))
+	}
+}

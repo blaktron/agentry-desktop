@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 
@@ -408,6 +409,17 @@ func (m *Model) formProblems() []SectionProblem {
 			add(SectionGuide, "help for %s is given twice", name)
 		}
 		seenHelp[name] = true
+	}
+	// knowledge.accepts (V11): one plain line the run setup shows.
+	if p := strings.TrimSpace(m.KnowledgePrompt); p != "" {
+		if strings.ContainsAny(p, "\r\n") {
+			add(SectionGuide, "the knowledge it asks for is one line")
+		}
+		if utf8.RuneCountInString(p) > manifest.MaxKnowledgePromptChars {
+			add(SectionGuide, "the knowledge it asks for is at most %d characters", manifest.MaxKnowledgePromptChars)
+		}
+	} else if m.KnowledgeRequired {
+		add(SectionGuide, "say which knowledge pack it needs, or untick required")
 	}
 
 	if !manifest.ValidNamespace(m.Namespace) {
@@ -862,7 +874,7 @@ func (m *Model) fragment(sec Section) string {
 	case SectionQuestions:
 		lines = m.intakeLines()
 	case SectionGuide:
-		lines = m.guideLines()
+		lines = append(m.guideLines(), m.knowledgeLines()...)
 	case SectionPublish:
 		lines = append(m.publishingLines(), m.dependencyLines()...)
 	}

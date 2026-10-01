@@ -13,11 +13,11 @@ export function Check(arg1:build.Model):Promise<build.CheckResult>;
 
 export function DescribeAgainText(arg1:build.Model,arg2:string,arg3:string):Promise<string>;
 
-export function DescribeInAgentry(arg1:string,arg2:string,arg3:Array<string>):Promise<main.HostedDraftStartView>;
+export function DescribeInAgentry(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>):Promise<main.HostedDraftStartView>;
 
 export function DescribeInAgentryStatus(arg1:string):Promise<main.DescribeHostedView>;
 
-export function DescribeOnThisComputer(arg1:string,arg2:string,arg3:Array<string>):Promise<main.DraftView>;
+export function DescribeOnThisComputer(arg1:string,arg2:string,arg3:Array<string>,arg4:Array<string>):Promise<main.DraftView>;
 
 export function DescribeStatus():Promise<main.DescribeStatusView>;
 

@@ -128,6 +128,15 @@ export function SummaryView({
             </ul>
           </>
         )}
+
+        {(s.knowledge ?? []).length > 0 && (
+          <>
+            <h4 className="small">Knowledge</h4>
+            <ul className="small build-summary-list" aria-label="Knowledge">
+              {s.knowledge.map((k) => <li key={k}><RevealText text={k} /></li>)}
+            </ul>
+          </>
+        )}
       </Card>
 
       {check && <p className={`small ${check.tone === "review" ? "build-summary-unnamed" : "muted"}`}>{check.text}</p>}
