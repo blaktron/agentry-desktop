@@ -194,3 +194,30 @@ test("a chat In Agentry found while another chat is live waits, and is followed 
   assert.equal(s.chat?.run?.id, "h9");
   assert.equal(s.asCard, true);
 });
+
+test("a waiting chat In Agentry that ends before it is shown is followed already over, with its result", async () => {
+  const h = harness();
+  h.store.startLocal("setup", "acme/helper@1.0.0", "go", "", async () => {});
+  await tick();
+  h.store.followHosted({ registry: "https://dev.example.test", run: hostedRun("h9"), terms: null, opening: "", task: "" }, null, true);
+  // Go follows it meanwhile, and its last word arrives while the local
+  // chat is still the one shown.
+  h.fire("runner:hosted-run", hostedRun("h9", { status: "finished", final: true, outcome: "succeeded" }));
+  await h.store.end(true);
+  h.store.dismiss();
+  const s = h.store.state();
+  assert.equal(s.chat?.run?.id, "h9");
+  assert.equal(s.chat?.over, true);
+  assert.ok(!h.calls.includes("replay"), "a chat already over asked the host to replay");
+  h.store.dismiss();
+  assert.equal(h.store.state().chat, null);
+});
+
+test("a turn that fails ends the agent's turn: the chat is waiting for the person again", async () => {
+  const h = harness();
+  h.store.startLocal("setup", "acme/helper@1.0.0", "summarise", "", async () => {});
+  await tick();
+  h.fire("runner:session-event", { kind: "user_turn", text: "summarise", time: new Date().toISOString() });
+  h.fire("runner:session-event", { kind: "error", text: "HTTP 401 from the model", time: new Date().toISOString() });
+  assert.equal(working(h.store.state().chat!), false);
+});

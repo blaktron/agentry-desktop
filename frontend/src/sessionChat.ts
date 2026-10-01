@@ -113,7 +113,9 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
     case "usage":
       return ev.costUsd !== undefined && ev.costUsd > 0 ? { ...next, cost: Math.max(c.cost, ev.costUsd) } : next;
     case "error":
-      return { ...next, lines: [...c.lines, { kind: "warn", text: `harness error: ${text}` }] };
+      // A turn that fails ends with this rather than the agent's turn, so
+      // the agent is no longer on one.
+      return { ...next, busy: false, streaming: "", lines: [...c.lines, { kind: "warn", text: `harness error: ${text}` }] };
     case "session_end": {
       const reason = ev.reason || "ended";
       return { ...next, busy: false, streaming: "", ended: reason, endedAt: when, lines: [...c.lines, { kind: "end", reason }] };
@@ -336,6 +338,9 @@ export function createChatStore<S>(deps: ChatDeps) {
       update(gen, (r) => ({ ...r, hosted: s }));
     });
     deps.on("runner:hosted-run", (v: main.HostedRunView) => {
+      // Go follows a waiting chat too: its last word is kept for when it is
+      // shown.
+      if (pending && v.id === pending.run.id) pending = { ...pending, run: v };
       if (!c || c.kind !== "hosted" || c.over || v.id !== c.run?.id) return;
       update(gen, (r) => ({ ...r, run: v, ending: v.final ? false : r.ending }));
     });
@@ -380,7 +385,7 @@ export function createChatStore<S>(deps: ChatDeps) {
      *  consent, the sandbox and the harness. Go's refusal is the chat's
      *  error, with its setup to go back to. One chat at a time. */
     startLocal(s: S, ref: string, task: string, opening: string, call: () => Promise<unknown>): void {
-      if (c && !c.over) throw "A chat is already open in this app; finish it, then start another.";
+      if (c && !c.over) throw "A chat is already open in this app; end it, then start another.";
       listen();
       const g = begin({ ...blank("local", ref, task, opening), starting: true }, s, false);
       Promise.resolve()
@@ -407,12 +412,16 @@ export function createChatStore<S>(deps: ChatDeps) {
         pending = v;
         return false;
       }
-      if (pending?.run.id === v.run.id) pending = null;
+      // The chat followed now is the one Go follows: one waiting from
+      // before is no longer.
+      if (pending?.run.id === v.run.id) v = pending;
+      pending = null;
       const g = begin({
         ...blank("hosted", v.run.ref, v.task || v.run.task || "", v.opening),
         registry: v.registry, run: v.run, terms: v.terms, hosted: { status: v.run.status, startedAt: v.run.startedAt, session: v.run.session },
       }, s, card);
-      deps.replay().catch((e) => update(g, (r) => ({ ...r, error: String(e) })));
+      // A chat already over has nothing for the host to replay.
+      if (!v.run.final) deps.replay().catch((e) => update(g, (r) => ({ ...r, error: String(e) })));
       return true;
     },
 
