@@ -95,7 +95,7 @@ func chatIdleTimeout() (int, error) {
 		return 0, err
 	}
 	if err := settings.CheckChatIdleTimeout(st.ChatIdleTimeoutSeconds); err != nil {
-		return 0, fmt.Errorf("the saved Chat idle timeout is refused, %w: set it again in Settings → Run defaults", err)
+		return 0, fmt.Errorf("%w: set it again in Settings → Run defaults", err)
 	}
 	return st.ChatIdleTimeoutSeconds, nil
 }

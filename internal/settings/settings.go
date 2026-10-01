@@ -127,7 +127,7 @@ const MaxChatIdleTimeoutSeconds = 7 * 24 * 60 * 60
 // start on a desktop.yaml edited by hand to hold it.
 func CheckChatIdleTimeout(seconds int) error {
 	if seconds < 0 || seconds > MaxChatIdleTimeoutSeconds || seconds%60 != 0 {
-		return fmt.Errorf("a chat idle timeout is none, or whole minutes from 1 minute to a week, not %d seconds", seconds)
+		return fmt.Errorf("the Chat idle timeout is none, or whole minutes from 1 minute to a week, not %d seconds", seconds)
 	}
 	return nil
 }
