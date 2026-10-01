@@ -14,6 +14,7 @@ import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import RunFlow from "./pages/RunFlow";
 import HostedRunFlow from "./pages/HostedRunFlow";
+import ChatFlow from "./pages/ChatFlow";
 import RunPanel from "./pages/RunPanel";
 import { type RunSetup, attachHostedRun } from "./runs";
 import { CornerHost } from "./progress";
@@ -108,7 +109,8 @@ export default function App() {
   useEffect(() => {
     if (registry) attachHosted(registry);
   }, [registry]);
-  // So is a run In Agentry, in its own card (agentry-desktop#466).
+  // So is a run or a chat In Agentry, in its own card (agentry-desktop#466,
+  // #467).
   useEffect(() => {
     if (registry) void attachHostedRun(registry);
   }, [registry]);
@@ -283,6 +285,7 @@ export default function App() {
         />
         <RunFlow onBackToSetup={setReopened} />
         <HostedRunFlow onBackToSetup={setReopened} />
+        <ChatFlow onBackToSetup={setReopened} />
         {reopened && (
           <RunPanel
             {...reopened.panel}

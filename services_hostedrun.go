@@ -515,7 +515,7 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 		}
 		return nil, err
 	}
-	active := activeRun(runs, true)
+	active := activeRun(runs)
 	if active == nil {
 		return &HostedStartView{}, nil
 	}
@@ -529,16 +529,15 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	return &HostedStartView{Run: hostedRunView(active, dir, nil, "", "", false)}, nil
 }
 
-// activeRun is the account's run in flight that a run setup or the card
-// follows, if it has one: a knowledge build in flight is the Knowledge
-// panel's (its result is a pack, not outputs in a run folder), and a draft
-// in flight the Build tab's (its result is a draft in the form). A chat is
-// taken only where sessions says so: a run setup follows one, the card
-// does not yet.
-func activeRun(runs []hostedrun.Run, sessions bool) *hostedrun.Run {
+// activeRun is the account's run or chat in flight that a run setup or
+// the cards follow, if it has one: a knowledge build in flight is the
+// Knowledge panel's (its result is a pack, not outputs in a run folder),
+// and a draft in flight the Build tab's (its result is a draft in the
+// form).
+func activeRun(runs []hostedrun.Run) *hostedrun.Run {
 	for i := range runs {
 		run := &runs[i]
-		if !hostedrun.Active(run.Status) || run.IsBuild() || run.IsDraft() || (run.IsSession() && !sessions) {
+		if !hostedrun.Active(run.Status) || run.IsBuild() || run.IsDraft() {
 			continue
 		}
 		return run
@@ -573,12 +572,12 @@ func (r *RunAPI) attachDir(reg, dir string, run *hostedrun.Run) (string, error) 
 // it and its id.
 type lostKey struct{ registry, id string }
 
-// AttachHostedRunAtStart follows this account's run In Agentry already in
-// flight when the app starts, so that it is followed in its card whether or
-// not a run setup is ever opened (agentry-desktop#466; plan
-// desktop-review-key-and-run-cards.md D15). It takes a run and nothing
-// else: a knowledge build is the Knowledge panel's, a draft the Build
-// tab's, and a chat stays the run setup's until chats move to the cards.
+// AttachHostedRunAtStart follows this account's run or chat In Agentry
+// already in flight when the app starts, so that it is followed in its card
+// whether or not a run setup is ever opened (agentry-desktop#466, #467;
+// plan desktop-review-key-and-run-cards.md D15). It takes a run or a chat
+// and nothing else: a knowledge build is the Knowledge panel's and a draft
+// the Build tab's.
 // No folder was picked at start, so Go chooses the one the run downloads
 // into: the folder it was started to when this app lost touch with it,
 // else Run defaults' saved folder, a folder of the run's own inside it
@@ -593,7 +592,7 @@ func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
 	}
 	client := hostedrun.New(reg, token)
 	if cur := r.hostedCurrent(); cur != nil {
-		if cur.session || cur.registry != reg {
+		if cur.registry != reg {
 			return &HostedStartView{}, nil
 		}
 		return r.followedView(ctx, client, cur), nil
@@ -605,7 +604,7 @@ func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
 		// asks again.
 		return &HostedStartView{}, nil //nolint:nilerr // nothing to attach to
 	}
-	active := activeRun(runs, false)
+	active := activeRun(runs)
 	if active == nil {
 		return &HostedStartView{}, nil
 	}
@@ -695,21 +694,17 @@ func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, 
 			return
 		}
 		if !last.Terminal() {
-			// A chat is followed again from its run setup, whose folder is
-			// its own; a run from its card, into the folder it was started
-			// to, which this app keeps for it by registry and id.
-			again := "reopen this panel to follow it again"
-			if !last.IsSession() {
-				again = "follow it again to see how it ends"
-				r.hostedMu.Lock()
-				if r.lostDirs == nil {
-					r.lostDirs = map[lostKey]string{}
-				}
-				r.lostDirs[lostKey{reg, started.ID}] = outDir
-				r.hostedMu.Unlock()
+			// A run or a chat is followed again from its card, into the
+			// folder it was started to, which this app keeps for it by
+			// registry and id.
+			r.hostedMu.Lock()
+			if r.lostDirs == nil {
+				r.lostDirs = map[lostKey]string{}
 			}
+			r.lostDirs[lostKey{reg, started.ID}] = outDir
+			r.hostedMu.Unlock()
 			emitEvent(r.app, eventHostedRun, hostedRunView(last, outDir, nil, "",
-				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); "+again, true))
+				"lost touch with the registry while the run was "+hostedrun.State(last)+" ("+err.Error()+"); follow it again to see how it ends", true))
 			return
 		}
 		final = last

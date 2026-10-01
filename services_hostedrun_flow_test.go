@@ -12,16 +12,15 @@ import (
 )
 
 // The run In Agentry App follows from the start (agentry-desktop#466): the
-// attach takes only a run, never a knowledge build, a draft or a chat in
-// flight for the same account, and downloads into a folder Go chose itself,
-// since the page has picked none at start (D-030).
+// attach takes a run, never a knowledge build or a draft in flight for the
+// same account, and downloads into a folder Go chose itself, since the page
+// has picked none at start (D-030).
 func TestTheAttachAtStartTakesOnlyARun(t *testing.T) {
 	build := &hostedrun.Run{ID: "11111111-1111-1111-1111-111111111111", Kind: hostedrun.KindKnowledgeBuild, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
 	draft := &hostedrun.Run{ID: "22222222-2222-2222-2222-222222222222", Kind: hostedrun.KindDraft, Status: hostedrun.StatusQueued, CreatedAt: time.Now().UTC()}
-	chat := &hostedrun.Run{ID: "44444444-4444-4444-4444-444444444444", Ref: "acme/helper@1.0.0", Mode: hostedrun.ModeInteractive, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
 	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, HoldCredits: 20, CreatedAt: time.Now().UTC()}
 
-	f := &hostedFake{enabled: true, others: []*hostedrun.Run{build, draft, chat}}
+	f := &hostedFake{enabled: true, others: []*hostedrun.Run{build, draft}}
 	reg := f.start(t)
 	home, _ := signIn(t, reg)
 	r, _ := newRunAPI(t)
@@ -29,7 +28,7 @@ func TestTheAttachAtStartTakesOnlyARun(t *testing.T) {
 
 	got, err := r.AttachHostedRunAtStart(reg)
 	if err != nil || got.Run != nil {
-		t.Fatalf("with a build, a draft and a chat in flight and no run, the attach = %+v, %v", got, err)
+		t.Fatalf("with a build and a draft in flight and no run, the attach = %+v, %v", got, err)
 	}
 	if r.hostedCurrent() != nil {
 		t.Fatal("the attach followed something that is not a run")
@@ -42,7 +41,7 @@ func TestTheAttachAtStartTakesOnlyARun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Run == nil || got.Run.ID != run.ID || got.Run.Mode == hostedrun.ModeInteractive {
+	if got.Run == nil || got.Run.ID != run.ID {
 		t.Fatalf("attach = %+v", got)
 	}
 	// No folder was picked: the run's folder is the default one, named
@@ -89,24 +88,26 @@ func TestTheAttachAtStartUsesRunDefaultsFolder(t *testing.T) {
 	waitForIdle(t, r)
 }
 
-// A chat In Agentry the app already follows is the run setup's (a chat
-// moves to the cards in B4), so the attach at start does not hand it over
-// as a run.
-func TestTheAttachAtStartLeavesAFollowedChatAlone(t *testing.T) {
+// A chat In Agentry in flight at start is attached as a run is, since chats
+// follow in the cards (agentry-desktop#467), and one the app already follows
+// is the answer to a second attach.
+func TestTheAttachAtStartTakesAChat(t *testing.T) {
 	chat := &hostedrun.Run{ID: "44444444-4444-4444-4444-444444444444", Ref: "acme/helper@1.0.0", Mode: hostedrun.ModeInteractive, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
 	f := &hostedFake{enabled: true, run: chat}
 	reg := f.start(t)
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
 	fastPoll(t)
-	dir := t.TempDir()
-	r.app.markPicked(dir)
-	if a, err := r.AttachHostedRun(reg, dir); err != nil || a.Run == nil {
-		t.Fatalf("the setup's attach = %+v, %v", a, err)
-	}
 	got, err := r.AttachHostedRunAtStart(reg)
-	if err != nil || got.Run != nil {
-		t.Fatalf("attach at start over a followed chat = %+v, %v", got, err)
+	if err != nil || got.Run == nil || got.Run.ID != chat.ID || got.Run.Mode != hostedrun.ModeInteractive {
+		t.Fatalf("attach at start with a chat in flight = %+v, %v", got, err)
+	}
+	if cur := r.hostedCurrent(); cur == nil || !cur.session {
+		t.Fatal("the chat is not followed as a session")
+	}
+	again, err := r.AttachHostedRunAtStart(reg)
+	if err != nil || again.Run == nil || again.Run.ID != chat.ID {
+		t.Fatalf("a second attach = %+v, %v", again, err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 0)
 	waitForIdle(t, r)
