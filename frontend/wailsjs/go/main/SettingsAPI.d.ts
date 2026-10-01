@@ -28,6 +28,8 @@ export function RemoveRegistry(arg1:string):Promise<main.SettingsView>;
 
 export function RunDefaults():Promise<main.RunDefaultsView>;
 
+export function SetChatIdleTimeout(arg1:number):Promise<main.RunDefaultsView>;
+
 export function SetDefault(arg1:string):Promise<main.SettingsView>;
 
 export function SetDisplayName(arg1:string,arg2:string):Promise<main.UserView>;

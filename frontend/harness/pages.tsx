@@ -279,7 +279,7 @@ const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
 const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
-let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE };
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE };
 // The harness's event bus: only the Unsafe Mode pull emits on this entry.
 const pageListeners: Record<string, ((v: any) => void)[]> = {};
 const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[name] ?? []) cb(v); };
@@ -387,6 +387,7 @@ g.go = { main: {
     RunDefaults: async () => runDefaultsView,
     SetRunBudgets: async (t: number, m: number) => (runDefaultsView = { ...runDefaultsView, timeoutSeconds: t, maxTurns: m }),
     SetRunWhere: async (w: string) => (runDefaultsView = { ...runDefaultsView, where: w }),
+    SetChatIdleTimeout: async (sec: number) => (runDefaultsView = { ...runDefaultsView, chatIdleTimeoutSeconds: sec }),
     ChooseDefaultOutputDir: async () => (runDefaultsView = { ...runDefaultsView, outputDir: "/home/me/agentry-runs" }),
     ClearDefaultOutputDir: async () => (runDefaultsView = { ...runDefaultsView, outputDir: "" }),
     SetInstallIntoCodingAgent: async (on: boolean) => { codingSwitch = on; return codingView(); },

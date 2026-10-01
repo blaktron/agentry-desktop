@@ -248,10 +248,21 @@ The product never claims an agent is "safe". The language is always:
   - **Run defaults** (agentry-desktop#347, D-044):
     - **Timeout and max turns**: the runner policy's budgets, so `agentry
       run` from the CLI runs with them too. A run's own fields under
-      Advanced can only ask for less. A draft made on this computer has at
+      Advanced apply to that run only, longer or shorter, as the CLI's
+      `--timeout` and `--max-turns` do. A draft made on this computer has at
       least 30 minutes and a knowledge build at least 60, however short the
       timeout (agentry-desktop#458): the floors are the CLI's, so `agentry
       draft` and `agentry knowledge create` give the same.
+    - **Chat idle timeout** (agentry-desktop#468, D-052): a chat on this
+      computer has no idle timeout, no wall clock and no count of your
+      messages by default, so it ends when you end it or quit the app. Set
+      a number of minutes here and the next chat ends after that long
+      without a message from you. It is kept in `desktop.yaml`, not in the
+      runner policy, so `agentry run` keeps the policy's session limits
+      (900 s idle, 7,200 s, 200 turns) and a chat In Agentry keeps
+      Agentry's idle close. Max turns above still limits a chat's tool
+      calls unless it is 0 (unlimited), and the run setup offers no timeout
+      for a chat.
     - **Where to run**: This computer or In Agentry. It only pre-selects the
       run setup's Where step. In Agentry is chosen only where it is offered
       and available and the release was scanned; otherwise the run starts

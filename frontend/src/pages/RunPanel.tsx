@@ -471,12 +471,12 @@ export default function RunPanel({
   // inside it, and this setup closes (agentry-desktop#467). Go's refusal
   // shows in that dialog, with Back to the setup.
   function startLocalSession() {
-    const { timeout, turns } = limits();
+    const { turns } = limits();
     try {
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, timeout, turns, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached),
       );
       onClose();
     } catch (e) {
@@ -1141,15 +1141,23 @@ export default function RunPanel({
                       Advanced (agentry-desktop#167). */}
                   <details className="advanced">
                     <summary className="muted small">Advanced</summary>
+                  {mode === "interactive" && (
+                    <p className="muted small" style={{ margin: "2px 0 6px" }} data-chat-limits>
+                      A chat here has no time limit. It ends when you end it, or after the Chat idle timeout in
+                      Settings → Run defaults, if you set one.
+                    </p>
+                  )}
                   <div className="row">
-                    <label className="row" style={{ gap: 6 }}>
+                    {/* A chat's only time limit is Run defaults' Chat idle timeout,
+                        which Go reads itself (agentry-desktop#468). */}
+                    {mode !== "interactive" && <label className="row" style={{ gap: 6 }}>
                       <span className="muted small">timeout (s)</span>
                       <input
                         type="number" min={1} style={{ width: 110 }}
                         placeholder={setup ? String(setup.timeoutSeconds) : ""}
                         value={timeoutSec} onChange={(e) => setTimeoutSec(e.target.value)} disabled={running}
                       />
-                    </label>
+                    </label>}
                     <label className="row" style={{ gap: 6 }}>
                       <span className="muted small">max turns (0 = unlimited)</span>
                       <input
