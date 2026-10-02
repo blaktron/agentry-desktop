@@ -1035,6 +1035,13 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .profile-facts { display: grid; grid-template-columns: fit-content(12rem) minmax(0, 1fr); gap: 4px 16px; margin: 8px 0 12px; }
 .profile-facts dt { color: var(--color-muted); }
 .profile-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* The Top up credits card (agentry-desktop#511): the packs side by side
+   where there is room, the credits larger and bolder than the struck base. */
+.top-up-packs { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 12px; }
+.top-up-pack { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.top-up-pack p { margin: 0; }
+.top-up-credits { font-size: 1.5rem; font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* Review Your QuickAgents locally (agentry-desktop#469): the action on the
    Build summary and on Validate, and the report's kinds of finding. */

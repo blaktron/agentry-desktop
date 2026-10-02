@@ -34,6 +34,10 @@ export function MarkOnboarded() {
   return window['go']['main']['SettingsAPI']['MarkOnboarded']();
 }
 
+export function OpenTopUp(arg1) {
+  return window['go']['main']['SettingsAPI']['OpenTopUp'](arg1);
+}
+
 export function OpenUpgrade(arg1) {
   return window['go']['main']['SettingsAPI']['OpenUpgrade'](arg1);
 }

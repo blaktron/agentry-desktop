@@ -228,3 +228,101 @@ func TestTheAppOpensOnlyTheRegistrysOwnPage(t *testing.T) {
 		t.Fatalf("no credential gave %v", err)
 	}
 }
+
+// Top up credits (agentry-desktop#511, plan credit-top-ups.md D7): the
+// view carries the registry's packs, and Buy opens the site's card only
+// where packs are offered (or a suspension sends the person to pay), never
+// for a member and never off the registry's origin.
+func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
+	var accountDoc string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"1","apiVersion":"v1","features":{},"extensions":["billing"]}`))
+	})
+	mux.HandleFunc("GET /api/v1/x/billing/account", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(accountDoc))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	ctx := context.Background()
+	doc := func(extra string) string {
+		return `{"kind":"user","tier":"pro","balance":80,"allowance":1000,"submissionCost":1,"periodStart":"2026-10-01T00:00:00Z","periodEnd":"2026-11-01T00:00:00Z","tierSince":"2026-09-01T00:00:00Z","privateAgents":{"max":0,"used":0},"upgrade":{"available":false,"manage":true}` + extra + `}`
+	}
+	packs := `"packs":[{"id":"1250","credits":1250,"baseCredits":1000,"amount":999,"currency":"usd"},{"id":"5000","credits":5000,"baseCredits":3500,"amount":3499,"currency":"usd"}]`
+
+	accountDoc = doc(`,"bought":300,"topUp":{"available":true,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,` + packs + `}`)
+	sub, err := fetchSubscription(ctx, srv.URL, "agy_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Bought != 300 || sub.TopUp == nil || !sub.TopUp.Available || len(sub.TopUp.Packs) != 2 ||
+		sub.TopUp.Packs[0] != (TopUpPack{ID: "1250", Credits: 1250, BaseCredits: 1000, Amount: 999, Currency: "usd"}) {
+		t.Fatalf("the packs read = %+v bought=%d", sub.TopUp, sub.Bought)
+	}
+	got, err := topUpDestination(ctx, srv.URL, "agy_test")
+	if err != nil || got != srv.URL+"/settings/profile#top-up" {
+		t.Fatalf("a Pro person is sent to %q (%v)", got, err)
+	}
+
+	// A suspended account is sent to the card to pay what it owes.
+	accountDoc = doc(`,"suspended":{"since":"2026-10-02T00:00:00Z","owed":40},"topUp":{"available":false,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,"packs":[]}`)
+	if got, err = topUpDestination(ctx, srv.URL, "agy_test"); err != nil || got != srv.URL+"/settings/profile#top-up" {
+		t.Fatalf("a suspended account is sent to %q (%v)", got, err)
+	}
+	if sub, err = fetchSubscription(ctx, srv.URL, "agy_test"); err != nil || sub == nil || sub.Suspended == nil || sub.Suspended.Owed != 40 {
+		t.Fatalf("the suspension read = %+v (%v)", sub, err)
+	}
+
+	for _, tc := range []struct{ name, doc, wantErr string }{
+		{"another site entirely", doc(`,"topUp":{"available":true,"url":"https://evil.test/settings/profile#top-up","processing":false,` + packs + `}`), "another site"},
+		{"a script URL", doc(`,"topUp":{"available":true,"url":"javascript:alert(1)","processing":false,` + packs + `}`), "another site"},
+		{"a file URL", doc(`,"topUp":{"available":true,"url":"file:///etc/passwd","processing":false,` + packs + `}`), "another site"},
+		{"the registry as userinfo before another host", doc(`,"topUp":{"available":true,"url":"http://` + strings.TrimPrefix(srv.URL, "http://") + `@evil.test/x","processing":false,` + packs + `}`), "another site"},
+		{"a scheme-relative URL", doc(`,"topUp":{"available":true,"url":"//evil.test/settings/profile#top-up","processing":false,` + packs + `}`), "another site"},
+		{"the same host on another scheme", doc(`,"topUp":{"available":true,"url":"` + strings.Replace(srv.URL, "http://", "https://", 1) + `/settings/profile#top-up","processing":false,` + packs + `}`), "another site"},
+		{"no page at all", doc(`,"topUp":{"available":true,"processing":false,` + packs + `}`), "names no page"},
+		{"no packs offered", doc(`,"topUp":{"available":false,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,"packs":[]}`), "no credit packs"},
+		{"a registry from before packs", doc(``), "no credit packs"},
+		{"a member's view", `{"kind":"org","tier":"business","memberOf":"acme","balance":3960,"allowance":5000,"submissionCost":1,"periodStart":"2026-09-11T00:00:00Z","periodEnd":"2026-10-11T00:00:00Z","privateAgents":{"max":0,"used":4},"upgrade":{"available":false,"manage":false},"topUp":{"available":true,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,` + packs + `}}`, "no credit packs"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			accountDoc = tc.doc
+			got, err := topUpDestination(ctx, srv.URL, "agy_test")
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("gave %q, %v; want an error naming %q", got, err, tc.wantErr)
+			}
+		})
+	}
+	if _, err := topUpDestination(ctx, srv.URL, ""); err == nil || !strings.Contains(err.Error(), "not signed in") {
+		t.Fatalf("no credential gave %v", err)
+	}
+
+	// End to end, through the method the front end calls with a registry
+	// and never a page: it opens the card the registry named, and opens
+	// nothing for a page off its origin.
+	opened := make(chan string, 1)
+	sapi := &SettingsAPI{app: &App{ctx: ctx}, open: func(u string) error { opened <- u; return nil }}
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	keyring.MockInit()
+	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
+		t.Fatal(err)
+	}
+	accountDoc = doc(`,"topUp":{"available":true,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,` + packs + `}`)
+	if err := sapi.OpenTopUp(srv.URL + "/"); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-opened; got != srv.URL+"/settings/profile#top-up" {
+		t.Fatalf("OpenTopUp opened %q", got)
+	}
+	accountDoc = doc(`,"topUp":{"available":true,"url":"https://evil.test/settings/profile#top-up","processing":false,` + packs + `}`)
+	if err := sapi.OpenTopUp(srv.URL); err == nil {
+		t.Fatal("OpenTopUp opened a page on another site")
+	}
+	select {
+	case u := <-opened:
+		t.Fatalf("OpenTopUp opened %q off the registry's origin", u)
+	default:
+	}
+}

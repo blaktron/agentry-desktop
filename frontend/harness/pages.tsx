@@ -439,7 +439,10 @@ g.go = { main: {
   SettingsAPI: {
     Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
+    OpenTopUp: async () => undefined,
     // Settings → Profile (agentry-desktop#423). The hash picks the account:
+    // #profile-pro a Pro person offered credit packs, #profile-suspended one
+    // suspended for non-payment (agentry-desktop#511),
     // #profile-promo a Promo Pro trial, #profile-org a member of an
     // organization, #profile-core a registry that sells nothing; anything
     // else a person on Standard who signed up with Google.
@@ -647,6 +650,26 @@ const profileView = () => {
         upgrade: { available: false, manage: true, url: "https://secureagentry.net/orgs/acme/admin" },
       },
       hostedRuns: { ...caps, tier: "business" },
+    };
+  }
+  const packs = [
+    { id: "1250", credits: 1250, baseCredits: 1000, amount: 999, currency: "usd" },
+    { id: "5000", credits: 5000, baseCredits: 3500, amount: 3499, currency: "usd" },
+  ];
+  const card = "https://secureagentry.net/settings/profile#top-up";
+  if (location.hash === "#profile-pro" || location.hash === "#profile-suspended") {
+    const suspended = location.hash === "#profile-suspended";
+    return {
+      user, signedUpWith: "Google",
+      subscription: {
+        tier: "pro", balance: suspended ? -40 : 1380, allowance: 1000, submissionCost: 1, periodEnd: "2026-11-01T00:00:00Z", tierSince: "2026-09-01T00:00:00Z",
+        privateAgents: { max: 0, used: 4, enabled: true }, knowledge: { enabled: true, bytes: 20971520, max: 5368709120 },
+        upgrade: { available: false, manage: true, url: page },
+        bought: suspended ? 0 : 1250,
+        topUp: { available: true, url: card, processing: false, packs },
+        ...(suspended ? { suspended: { since: "2026-10-02T00:00:00Z", owed: 40 } } : {}),
+      },
+      hostedRuns: { ...caps, tier: "pro" },
     };
   }
   if (location.hash === "#profile-promo") {
