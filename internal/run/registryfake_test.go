@@ -12,11 +12,14 @@ package run
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 
@@ -30,6 +33,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	runnerdecode "github.com/blaktron/agentry-cli/runnerimage/decode"
+	"github.com/blaktron/agentry-cli/runnerimage/probe"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
 )
@@ -310,6 +314,20 @@ func decodeImage(pol *policy.Policy) decode.Spec {
 	return decode.ImageSpec(runnerImageTag(pol), pol.Images.FilesImage())
 }
 
+// fakeProbe plays the gateway probe: healthy, and when a session asks it
+// to list the gateway's tools (--list-tools, agentry-cli#578) it prints an
+// empty catalog beyond the run's own grant, as the runner's probe prints
+// it; a session whose probe lists nothing does not start.
+func fakeProbe() *dockerx.FakeForeground {
+	return &dockerx.FakeForeground{Handler: func(_ context.Context, r dockerx.RunSpec, _ io.Reader, stdout, _ io.Writer) (int, error) {
+		if slices.Contains(r.Argv, "--list-tools") {
+			b, _ := json.Marshal(probe.Listing{Tools: []string{}})
+			_, _ = stdout.Write(append(b, '\n'))
+		}
+		return 0, nil
+	}}
+}
+
 // scriptDecode plays the decode container a run or a session's added file
 // goes through before the agent sees it: it writes a report that decodes
 // nothing, so the engine records each staged file as unread and the run
@@ -333,7 +351,7 @@ func scriptDecode(f *dockerx.Fake) {
 // engine tests).
 func scriptHappyAgent(f *dockerx.Fake) {
 	f.Foreground = map[string]*dockerx.FakeForeground{
-		"-probe": {ExitCode: 0},
+		"-probe": fakeProbe(),
 		"-agent": {Stdout: `{"type":"tool_call","tool":"fs_read"}` + "\n" +
 			`{"type":"tool_call","tool":"write_report"}` + "\n" +
 			`{"type":"agent_choice","message":{"content":"final answer"}}` + "\n" +
