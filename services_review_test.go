@@ -194,7 +194,8 @@ func TestTheDialogNamesOnlyANameTheRegistryAccepts(t *testing.T) {
 	if _, err := f.b.ReviewLocally(f.reg, f.dir); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.asked) != 1 || f.asked[0] != "Review the QuickAgent in "+f.dir+" on this computer?" || strings.Contains(f.texts[0], "approved") {
+	if len(f.asked) != 1 || f.asked[0] != "Review the QuickAgent in "+f.dir+" on this computer?" || strings.Contains(f.texts[0], "approved") ||
+		strings.Count(f.texts[0], f.dir) != 1 {
 		t.Fatalf("asked %q: %s", f.asked, f.texts)
 	}
 }

@@ -117,7 +117,11 @@ func (b *BuildAPI) ReviewLocally(reg, dir string) (*ReviewView, error) {
 // reviewConsentText is the review's dialog: where the QuickAgent's text
 // goes, and what it does not do.
 func reviewConsentText(p *review.Plan, reg string) string {
-	return "The Examiner reviews " + p.What() + " on this computer, from " + p.Dir + ", for no credits. " +
+	what := p.What()
+	if p.Ref != "" {
+		what += " from " + p.Dir
+	}
+	return "The Examiner reviews " + what + " on this computer, for no credits. " +
 		"The registry's own rules run here first, and " + originOf(reg) + " is asked for its public policy and its record of each MCP server the QuickAgent declares, with no sign-in. " +
 		"Then the QuickAgent's text goes to TypeSafe (AI Review's Jev) with your key, and to the model your runner policy names (" + p.ModelName() + "), which reads it from a read-only copy. " +
 		"Nothing of the QuickAgent runs, and nothing is submitted. The report and the run's receipts are kept in your Downloads folder under agentry-out. " +
@@ -294,7 +298,7 @@ func reviewView(runID string, res *review.Result) *ReviewView {
 		RunID: runID, OutDir: res.OutDir, Ref: r.Package.Ref, Files: r.Package.Files,
 		Outcome: word(r.Expected.Outcome, reviewOutcomes), Reason: r.Expected.Reason, Assumes: r.Expected.Assumes,
 		PolicyFromRegistry: r.Expected.Policy.Source == examiner.PolicyFromRegistry, PolicyError: r.Expected.Policy.Error,
-		PublishesUpTo: examiner.AutoPublishUpTo(r.Expected.Policy.Policy),
+		PublishesUpTo: word(examiner.AutoPublishUpTo(r.Expected.Policy.Policy), reviewSeverities),
 		NotRunHere:    append([]string{}, r.NotRunHere...), Notice: examiner.Notice, ExaminerModel: r.Examiner.Model,
 	}
 	if v.Outcome == "" {
