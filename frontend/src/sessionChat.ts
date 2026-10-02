@@ -23,8 +23,12 @@ export interface SessionEvent {
   path?: string;
   digest?: string;
   reason?: string;
+  /** A usage event's tokens for its turn (this machine's harnesses; a
+   *  session In Agentry carries none, agentry-desktop#457). totalTokens is
+   *  a harness's that gives no input/output split. */
   inputTokens?: number;
   outputTokens?: number;
+  totalTokens?: number;
   costUsd?: number;
 }
 
@@ -44,6 +48,9 @@ export interface Chat {
   tools: number;
   /** The session's reported cost in dollars (this machine's harnesses). */
   cost: number;
+  /** The tokens its usage events have reported, summed as the CLI's
+   *  session counts them (this machine's harnesses). */
+  tokens: number;
   /** A message the agent has not answered yet (hosted: the turn call
    * returns before the reply, so the events say when it is done). */
   busy: boolean;
@@ -72,7 +79,7 @@ export const DROPPED_NOTE = "Earlier turns are not shown here. They are in the t
  * the first Agent bubble when the session starts with no first message. */
 export function newChat(opening: string, task: string): Chat {
   const lines: Line[] = !task.trim() && opening.trim() ? [{ kind: "assistant", text: opening.trim() }] : [];
-  return { lines, streaming: "", turns: 0, tools: 0, cost: 0, busy: false, ended: null, lastActivity: null, endedAt: null, lastSeq: 0 };
+  return { lines, streaming: "", turns: 0, tools: 0, cost: 0, tokens: 0, busy: false, ended: null, lastActivity: null, endedAt: null, lastSeq: 0 };
 }
 
 // The events that reset a session's idle close, as the CLI counts them
@@ -110,8 +117,11 @@ export function applyEvent(c: Chat, ev: SessionEvent, now: number): Chat {
       return { ...next, lines: [...c.lines, { kind: "note", text: `permission request denied: ${text}` }] };
     case "input_added":
       return { ...next, lines: [...c.lines, { kind: "note", text: `input added: ${ev.path}` }] };
-    case "usage":
-      return ev.costUsd !== undefined && ev.costUsd > 0 ? { ...next, cost: Math.max(c.cost, ev.costUsd) } : next;
+    case "usage": {
+      const split = (ev.inputTokens ?? 0) + (ev.outputTokens ?? 0);
+      const tokens = c.tokens + (split > 0 ? split : (ev.totalTokens ?? 0));
+      return { ...next, tokens, cost: Math.max(c.cost, ev.costUsd ?? 0) };
+    }
     case "error":
       return { ...next, lines: [...c.lines, { kind: "warn", text: `harness error: ${text}` }] };
     case "session_end": {
@@ -138,6 +148,17 @@ export function clock(ms: number): string {
   const m = Math.floor((s % 3600) / 60);
   const ss = String(s % 60).padStart(2, "0");
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/** localStatusLine is the strip under a chat on this computer: the
+ * release, the turns and tool calls, the tokens its usage reported and the
+ * provider's dollar cost, and whether the agent is answering or how it
+ * ended. Never credits: the person's own provider is paid in its own
+ * terms (agentry-desktop#457). */
+export function localStatusLine(ref: string, c: Pick<Chat, "turns" | "tools" | "tokens" | "cost" | "ended">, busy: boolean): string {
+  return `${ref} · interactive · ${c.turns} turn${c.turns === 1 ? "" : "s"} · ${c.tools} tool call${c.tools === 1 ? "" : "s"}` +
+    `${c.tokens > 0 ? ` · ${c.tokens.toLocaleString("en-US")} tokens` : ""}` +
+    `${c.cost > 0 ? ` · $${c.cost.toFixed(4)}` : ""}${busy ? " · thinking…" : ""}${c.ended ? ` · ended (${c.ended})` : ""}`;
 }
 
 /** hostedStatusLine is the strip under a hosted session (plan §6): the

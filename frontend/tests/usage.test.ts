@@ -17,6 +17,7 @@ import {
   sessionTermsSentence,
 } from "../src/usage.ts";
 import { hostedProgress } from "../src/hostedRun.ts";
+import { applyEvent, hostedStatusLine, localStatusLine, newChat } from "../src/sessionChat.ts";
 
 const noTokens = (s: string) => {
   assert.doesNotMatch(s, /token/i, s);
@@ -89,4 +90,28 @@ test("progress on this computer shows its tokens; a run In Agentry's progress ca
   assert.equal("inputTokens" in p, false);
   assert.equal("outputTokens" in p, false);
   assert.equal(progressTokens(p), null);
+});
+
+test("a chat on this computer counts its tokens and names no credit; a chat In Agentry names no token", () => {
+  let c = newChat("", "hello");
+  const at = "2026-10-02T10:00:00Z";
+  c = applyEvent(c, { kind: "user_turn", time: at, text: "hello" }, 1);
+  c = applyEvent(c, { kind: "usage", time: at, inputTokens: 5120, outputTokens: 1430, costUsd: 0.0182 }, 2);
+  c = applyEvent(c, { kind: "usage", time: at, totalTokens: 900 }, 3);
+  assert.equal(c.tokens, 7450);
+  const local = localStatusLine("acme/helper@1.0.0", c, false);
+  assert.equal(local, "acme/helper@1.0.0 · interactive · 1 turn · 0 tool calls · 7,450 tokens · $0.0182");
+  noCredits(local);
+
+  // A session In Agentry's frames carry no tokens, so its strip, the
+  // credits its time has cost, has none to show.
+  let h = newChat("", "hello");
+  h = applyEvent(h, { seq: 1, kind: "user_turn", time: at, text: "hello" }, 1);
+  h = applyEvent(h, { seq: 2, kind: "usage", time: at }, 2);
+  const hosted = hostedStatusLine({
+    ref: "acme/helper@1.0.0", turns: h.turns, tools: h.tools, now: 120_000, startedAt: 0, lastActivity: 60_000,
+    freeMinutes: 10, timeCredits: 0, idleSeconds: 300, busy: false, ended: null,
+  });
+  noTokens(hosted);
+  assert.equal(h.tokens, 0);
 });
