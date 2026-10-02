@@ -24,7 +24,7 @@ export function dayOf(iso: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-export const creditCount = (n: number) => (n === 1 ? "1 credit" : `${n} credits`);
+export const creditCount = (n: number) => (n === 1 ? "1 credit" : `${n.toLocaleString("en-US")} credits`);
 
 export const runningPromo = (s: main.SubscriptionView) => (s.promo?.state === "running" ? s.promo : null);
 
@@ -89,5 +89,5 @@ export function packPrice(p: Pick<main.TopUpPack, "amount" | "currency">): strin
 // owedSentence: a suspension for non-payment (D11, D12), in the site's
 // words: what is owed, what stops, what still works, how it ends.
 export function owedSentence(owed: number): string {
-  return `A credit pack's payment failed after some of its credits were spent, so this account owes ${owed === 1 ? "1 credit" : `${creditNumber(owed)} credits`}. Until the balance is back at zero, submissions, hosted runs, knowledge builds, drafts and hosted sessions are refused; sign-in, installs and your published QuickAgents work as before. The next credits to arrive pay what is owed first.`;
+  return `A credit pack's payment failed after some of its credits were spent, so this account owes ${creditCount(owed)}. Until the balance is back at zero, submissions, hosted runs, knowledge builds, drafts and hosted sessions are refused; sign-in, installs and your published QuickAgents work as before. The next credits to arrive pay what is owed first.`;
 }

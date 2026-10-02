@@ -18,7 +18,9 @@ import {
 // The field's limit is the registry's (MaxDisplayName in the Go host).
 const MAX_DISPLAY_NAME = 100;
 
-const submissionsLeft = (s: main.SubscriptionView) => (s.submissionCost > 0 ? Math.floor(s.balance / s.submissionCost) : 0);
+// Never below zero: a suspended account's balance is (agentry-desktop#511),
+// and "-40 submissions left" says nothing a person can act on.
+const submissionsLeft = (s: main.SubscriptionView) => (s.submissionCost > 0 ? Math.max(0, Math.floor(s.balance / s.submissionCost)) : 0);
 
 // privateAgentsPhrase: "none" where the registry disables them, with the
 // count still held; "4 of no cap" where max is 0; "4 of 10" otherwise.
@@ -230,49 +232,49 @@ function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView
   const limit = sub.knowledge ? knowledgeLimitSentence(sub.knowledge) : null;
   return (
     <>
-    <Card>
-      <p>
-        <span className={`badge ${sub.tier === "standard" ? "" : "ok"}`}>{tierLabel(sub.tier)}</span>
-        {sub.tier === "pro" && sub.tierSince && <span className="muted small"> This account has been on Pro since {dayOf(sub.tierSince)}.</span>}
-      </p>
-      <dl className="profile-facts">
-        <Row label="Credits">{creditsPhrase(sub)} · {left} submission{left === 1 ? "" : "s"} left this cycle</Row>
-        <Row label="A submission costs">{creditCount(sub.submissionCost)}, spent when the registry accepts it</Row>
-        {promo
-          ? <Row label="Promo trial">code <span className="mono">{promo.code}</span>, {creditCount(promo.credits ?? 0)} granted; until {dayOf(promo.endsAt || sub.periodEnd)}</Row>
-          : <Row label="Allowance">{sub.allowance} credits a month; resets on {dayOf(sub.periodEnd)}</Row>}
-        <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
-        {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}</Row>}
-        {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
-        {changesPhrase(sub) && <Row label="Changes">{changesPhrase(sub)}</Row>}
-      </dl>
-      {limit && <Notice tone="warn">{limit}</Notice>}
-      {sub.suspended && (
-        <Notice tone="warn">
-          <strong>This account is suspended for non-payment.</strong> {owedSentence(sub.suspended.owed)}{" "}
-          {sub.topUp?.url && (
-            <button type="button" className="link" onClick={onTopUp}>
-              Top up credits on the site
-            </button>
-          )}
-        </Notice>
-      )}
-      {promo && (
-        <Notice tone="info">
-          Your promo credits expire on {dayOf(promo.endsAt || sub.periodEnd)}, and this account moves to Standard then. You will not be charged.
-        </Notice>
-      )}
-      <p className="muted small">
-        {promo
-          ? "Promo credits are the whole of this account's credits until the trial ends; Standard's monthly allowance starts then."
-          : sub.bought
-            ? "Unused monthly credits expire when the allowance resets; bought credits never do."
-            : "Unused credits expire when the allowance resets."}{" "}
-        A submission the pipeline itself fails is refunded; one the gate sends to review is not.
-      </p>
-      <UpgradeButton sub={sub} onOpen={onOpen} />
-    </Card>
-    {topUp && <TopUpCard sub={sub} topUp={topUp} onBuy={onTopUp} />}
+      <Card>
+        <p>
+          <span className={`badge ${sub.tier === "standard" ? "" : "ok"}`}>{tierLabel(sub.tier)}</span>
+          {sub.tier === "pro" && sub.tierSince && <span className="muted small"> This account has been on Pro since {dayOf(sub.tierSince)}.</span>}
+        </p>
+        <dl className="profile-facts">
+          <Row label="Credits">{creditsPhrase(sub)} · {left} submission{left === 1 ? "" : "s"} left this cycle</Row>
+          <Row label="A submission costs">{creditCount(sub.submissionCost)}, spent when the registry accepts it</Row>
+          {promo
+            ? <Row label="Promo trial">code <span className="mono">{promo.code}</span>, {creditCount(promo.credits ?? 0)} granted; until {dayOf(promo.endsAt || sub.periodEnd)}</Row>
+            : <Row label="Allowance">{sub.allowance} credits a month; resets on {dayOf(sub.periodEnd)}</Row>}
+          <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
+          {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}</Row>}
+          {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
+          {changesPhrase(sub) && <Row label="Changes">{changesPhrase(sub)}</Row>}
+        </dl>
+        {limit && <Notice tone="warn">{limit}</Notice>}
+        {sub.suspended && (
+          <Notice tone="warn">
+            <strong>This account is suspended for non-payment.</strong> {owedSentence(sub.suspended.owed)}{" "}
+            {sub.topUp?.url && (
+              <button type="button" className="link" onClick={onTopUp}>
+                Top up credits on the site
+              </button>
+            )}
+          </Notice>
+        )}
+        {promo && (
+          <Notice tone="info">
+            Your promo credits expire on {dayOf(promo.endsAt || sub.periodEnd)}, and this account moves to Standard then. You will not be charged.
+          </Notice>
+        )}
+        <p className="muted small">
+          {promo
+            ? "Promo credits are the whole of this account's credits until the trial ends; Standard's monthly allowance starts then."
+            : sub.bought
+              ? "Unused monthly credits expire when the allowance resets; bought credits never do."
+              : "Unused credits expire when the allowance resets."}{" "}
+          A submission the pipeline itself fails is refunded; one the gate sends to review is not.
+        </p>
+        <UpgradeButton sub={sub} onOpen={onOpen} />
+      </Card>
+      {topUp && <TopUpCard sub={sub} topUp={topUp} onBuy={onTopUp} />}
     </>
   );
 }
@@ -310,7 +312,7 @@ function TopUpCard({ sub, topUp, onBuy }: { sub: main.SubscriptionView; topUp: m
                   variant="primary"
                   disabled={topUp.processing}
                   onClick={onBuy}
-                  aria-label={`Buy ${creditNumber(p.credits)} credits for ${price}`}
+                  aria-label={`Buy ${creditNumber(p.credits)} credits for ${price} on the site`}
                   title="Opens the Top up credits card on the registry's site in your browser"
                 >
                   Buy

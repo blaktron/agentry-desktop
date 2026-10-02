@@ -271,12 +271,16 @@ func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
 	if got, err = topUpDestination(ctx, srv.URL, "agy_test"); err != nil || got != srv.URL+"/settings/profile#top-up" {
 		t.Fatalf("a suspended account is sent to %q (%v)", got, err)
 	}
-	if sub, _ = fetchSubscription(ctx, srv.URL, "agy_test"); sub.Suspended == nil || sub.Suspended.Owed != 40 {
-		t.Fatalf("the suspension read = %+v", sub.Suspended)
+	if sub, err = fetchSubscription(ctx, srv.URL, "agy_test"); err != nil || sub == nil || sub.Suspended == nil || sub.Suspended.Owed != 40 {
+		t.Fatalf("the suspension read = %+v (%v)", sub, err)
 	}
 
 	for _, tc := range []struct{ name, doc, wantErr string }{
 		{"another site entirely", doc(`,"topUp":{"available":true,"url":"https://evil.test/settings/profile#top-up","processing":false,` + packs + `}`), "another site"},
+		{"a script URL", doc(`,"topUp":{"available":true,"url":"javascript:alert(1)","processing":false,` + packs + `}`), "another site"},
+		{"a file URL", doc(`,"topUp":{"available":true,"url":"file:///etc/passwd","processing":false,` + packs + `}`), "another site"},
+		{"the registry as userinfo before another host", doc(`,"topUp":{"available":true,"url":"http://` + strings.TrimPrefix(srv.URL, "http://") + `@evil.test/x","processing":false,` + packs + `}`), "another site"},
+		{"a scheme-relative URL", doc(`,"topUp":{"available":true,"url":"//evil.test/settings/profile#top-up","processing":false,` + packs + `}`), "another site"},
 		{"the same host on another scheme", doc(`,"topUp":{"available":true,"url":"` + strings.Replace(srv.URL, "http://", "https://", 1) + `/settings/profile#top-up","processing":false,` + packs + `}`), "another site"},
 		{"no page at all", doc(`,"topUp":{"available":true,"processing":false,` + packs + `}`), "names no page"},
 		{"no packs offered", doc(`,"topUp":{"available":false,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,"packs":[]}`), "no credit packs"},
@@ -293,5 +297,32 @@ func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
 	}
 	if _, err := topUpDestination(ctx, srv.URL, ""); err == nil || !strings.Contains(err.Error(), "not signed in") {
 		t.Fatalf("no credential gave %v", err)
+	}
+
+	// End to end, through the method the front end calls with a registry
+	// and never a page: it opens the card the registry named, and opens
+	// nothing for a page off its origin.
+	opened := make(chan string, 1)
+	sapi := &SettingsAPI{app: &App{ctx: ctx}, open: func(u string) error { opened <- u; return nil }}
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	keyring.MockInit()
+	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
+		t.Fatal(err)
+	}
+	accountDoc = doc(`,"topUp":{"available":true,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,` + packs + `}`)
+	if err := sapi.OpenTopUp(srv.URL + "/"); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-opened; got != srv.URL+"/settings/profile#top-up" {
+		t.Fatalf("OpenTopUp opened %q", got)
+	}
+	accountDoc = doc(`,"topUp":{"available":true,"url":"https://evil.test/settings/profile#top-up","processing":false,` + packs + `}`)
+	if err := sapi.OpenTopUp(srv.URL); err == nil {
+		t.Fatal("OpenTopUp opened a page on another site")
+	}
+	select {
+	case u := <-opened:
+		t.Fatalf("OpenTopUp opened %q off the registry's origin", u)
+	default:
 	}
 }

@@ -187,29 +187,34 @@ func (s *SettingsAPI) OpenTopUp(url string) error {
 // them there to pay what is owed; never for a member, whose view is the
 // organization's, and never off the registry's origin.
 func topUpDestination(ctx context.Context, registryURL, token string) (string, error) {
-	named := originOf(registryURL)
-	if token == "" {
-		return "", fmt.Errorf("not signed in to %s", named)
-	}
-	sub, err := fetchSubscription(ctx, registryURL, token)
-	if err != nil {
-		return "", err
-	}
-	if sub == nil || sub.MemberOf != "" || sub.TopUp == nil || (!sub.TopUp.Available && sub.Suspended == nil) {
-		return "", fmt.Errorf("%s offers this account no credit packs", named)
-	}
-	if sub.TopUp.URL == "" {
-		return "", fmt.Errorf("%s names no page for its credit packs", named)
-	}
-	if !sameOrigin(registryURL, sub.TopUp.URL) {
-		return "", fmt.Errorf("%s named a credit packs page on another site; not opening it", named)
-	}
-	return sub.TopUp.URL, nil
+	return registryPage(ctx, registryURL, token, "credit packs page", func(sub *SubscriptionView, named string) (string, error) {
+		if sub == nil || sub.MemberOf != "" || sub.TopUp == nil || (!sub.TopUp.Available && sub.Suspended == nil) {
+			return "", fmt.Errorf("%s offers this account no credit packs", named)
+		}
+		if sub.TopUp.URL == "" {
+			return "", fmt.Errorf("%s names no page for its credit packs", named)
+		}
+		return sub.TopUp.URL, nil
+	})
 }
 
 // upgradeDestination asks the registry where this account's subscription
 // is managed and checks the answer before anything opens it.
 func upgradeDestination(ctx context.Context, registryURL, token string) (string, error) {
+	return registryPage(ctx, registryURL, token, "subscription page", func(sub *SubscriptionView, named string) (string, error) {
+		if sub == nil || sub.Upgrade.URL == "" {
+			return "", fmt.Errorf("%s names no page for this subscription", named)
+		}
+		return sub.Upgrade.URL, nil
+	})
+}
+
+// registryPage is the one place the app decides it may open a page the
+// registry named: it reads the account with this registry's credential,
+// lets pick choose the page from the answer, and refuses any page off the
+// registry's own origin. Upgrade and Top up both open through it, so the
+// origin rule cannot drift between them.
+func registryPage(ctx context.Context, registryURL, token, what string, pick func(sub *SubscriptionView, named string) (string, error)) (string, error) {
 	// A registry may be configured with userinfo in its URL, and these
 	// errors are rendered on Settings: name the registry by origin, never
 	// by the credential someone typed into it.
@@ -221,13 +226,14 @@ func upgradeDestination(ctx context.Context, registryURL, token string) (string,
 	if err != nil {
 		return "", err
 	}
-	if sub == nil || sub.Upgrade.URL == "" {
-		return "", fmt.Errorf("%s names no page for this subscription", named)
+	page, err := pick(sub, named)
+	if err != nil {
+		return "", err
 	}
-	if !sameOrigin(registryURL, sub.Upgrade.URL) {
-		return "", fmt.Errorf("%s named a subscription page on another site; not opening it", named)
+	if !sameOrigin(registryURL, page) {
+		return "", fmt.Errorf("%s named a %s on another site; not opening it", named, what)
 	}
-	return sub.Upgrade.URL, nil
+	return page, nil
 }
 
 // originOf is a URL with any userinfo dropped, for a message a person
