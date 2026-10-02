@@ -42,7 +42,8 @@ export function hostedTone(v: View): Exclude<Tone, ""> {
 /** How far the run has got as the registry reports it: its clock from when
  *  a host started it, against the cap the run was created under. Before a
  *  host starts it, and for a registry that names no start, there is none.
- *  The registry reports turns and tokens only once the run is over. */
+ *  The registry reports turns only once the run is over, and a run In
+ *  Agentry carries no tokens at all (agentry-desktop#457). */
 export function hostedProgress(v: View): JobProgress | null {
   const started = v.startedAt ? Date.parse(v.startedAt) : NaN;
   if (!Number.isFinite(started)) return null;
@@ -51,8 +52,6 @@ export function hostedProgress(v: View): JobProgress | null {
     timeoutSeconds: v.caps?.timeoutSeconds ?? 0,
     maxTurns: v.caps?.maxTurns ?? 0,
     turns: v.turns,
-    inputTokens: v.inputTokens,
-    outputTokens: v.outputTokens,
   };
 }
 

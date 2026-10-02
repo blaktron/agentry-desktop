@@ -95,13 +95,6 @@ export function unscannedWarning(model: string): string {
   );
 }
 
-/** What a build In Agentry holds (agentry-desktop#274), in the site's own
- *  words: both numbers are the registry's, and the scan's credit is inside
- *  the hold, never on top of it (DEV-149's M6 addendum, DEV-150). */
-export function buildHoldLine(hold: number, scan: number): string {
-  if (hold === 0) return "This build holds no credits: the organization that pays for your builds is not metered.";
-  return `This build holds ${hold} credits and settles from the tokens it uses, plus ${scan === 1 ? "1 credit" : `${scan} credits`} to scan the pack when the build changes it, never more than it holds.`;
-}
 
 /** What a finished build cost, from the registry's settlement. */
 export function buildCreditsLine(v: { holdCredits: number; settledCredits: number; settled: boolean; scanCredits: number }): string {

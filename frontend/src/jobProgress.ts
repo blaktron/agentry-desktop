@@ -10,8 +10,10 @@ export type JobProgress = {
   timeoutSeconds: number;
   maxTurns: number;
   turns: number;
-  inputTokens: number;
-  outputTokens: number;
+  /** The tokens a job on this computer has used so far. A job In Agentry
+   *  carries none: it is stated in credits (agentry-desktop#457). */
+  inputTokens?: number;
+  outputTokens?: number;
 };
 
 /** The tone a card's line and an outcome's heading are drawn in. */

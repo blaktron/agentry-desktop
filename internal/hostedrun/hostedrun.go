@@ -55,27 +55,29 @@ func Active(status string) bool {
 	return false
 }
 
-// Caps are the tier's ceilings for a run (x-runs.yaml `RunCaps`).
+// Caps are the tier's ceilings for a run (x-runs.yaml `RunCaps`), as this
+// app reads them: time and turns. A run In Agentry is stated in credits,
+// time and turns only (plan scan-and-run-tweaks.md track B,
+// agentry-desktop#457), so the token ceiling the registry may still send is
+// not decoded.
 type Caps struct {
-	TimeoutSeconds int   `json:"timeoutSeconds"`
-	MaxTurns       int   `json:"maxTurns"`
-	MaxTokens      int64 `json:"maxTokens"`
+	TimeoutSeconds int `json:"timeoutSeconds"`
+	MaxTurns       int `json:"maxTurns"`
 }
 
-// Caller is what a run of the signed-in caller's would hold, the two rates
-// a settlement is computed at (Knowledge D29, agentry-enterprise#171: the
-// single tokensPerCredit is retired), and what a knowledge build of theirs
-// holds. The numbers come from the registry so no client does credit
-// arithmetic of its own (plan §4.1).
+// Caller is what a run of the signed-in caller's would hold and what a
+// knowledge build, a draft, a session and a Voice Writer run of theirs
+// hold or may do. The numbers come from the registry so no client does
+// credit arithmetic of its own (plan §4.1). The rates a settlement is
+// computed at are the registry's and are not decoded (plan
+// scan-and-run-tweaks.md D9).
 type Caller struct {
 	Tier    string `json:"tier"`
 	Account string `json:"account,omitempty"`
 	Caps    Caps   `json:"caps"`
 	// HoldCredits is 0 for a member of an unmetered organization.
-	HoldCredits           int64      `json:"holdCredits"`
-	InputTokensPerCredit  int64      `json:"inputTokensPerCredit"`
-	OutputTokensPerCredit int64      `json:"outputTokensPerCredit"`
-	Build                 *TierPrice `json:"build,omitempty"`
+	HoldCredits int64      `json:"holdCredits"`
+	Build       *TierPrice `json:"build,omitempty"`
 	// Draft is what a hosted draft of the caller's holds, and its caps
 	// (agentry-enterprise#183); nil from a registry from before the draft
 	// kind.
@@ -164,28 +166,13 @@ type Artefact struct {
 	Bytes int64  `json:"bytes"`
 }
 
-// Usage is the receipt's usage block as the worker reported it. A harness
-// that reports the split and not the sum leaves TotalTokens at 0, which is
-// why Tokens() exists.
+// Usage is the receipt's usage block as this app reads it: the turns and
+// the wall time. The token counts and their dollar cost the registry may
+// still send are not decoded: a run In Agentry is settled and stated in
+// credits (agentry-desktop#457).
 type Usage struct {
-	InputTokens  int64   `json:"inputTokens"`
-	OutputTokens int64   `json:"outputTokens"`
-	TotalTokens  int64   `json:"totalTokens"`
-	CostUSD      float64 `json:"costUsd"`
-	WallMS       int64   `json:"wallMs"`
-	Turns        int     `json:"turns"`
-}
-
-// Tokens is the run's token count for display: the reported total, or the
-// sum of the split when only the split was reported.
-func (u *Usage) Tokens() int64 {
-	if u == nil {
-		return 0
-	}
-	if u.TotalTokens > 0 {
-		return u.TotalTokens
-	}
-	return u.InputTokens + u.OutputTokens
+	WallMS int64 `json:"wallMs"`
+	Turns  int   `json:"turns"`
 }
 
 // The kinds of run (x-runs.yaml `Run.kind`). A registry from before the

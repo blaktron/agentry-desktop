@@ -200,9 +200,9 @@ func TestLiveHostedRun(t *testing.T) {
 	if st.Caller == nil {
 		t.Fatal("the status route told this token nothing about its tier, caps or hold")
 	}
-	t.Logf("hosted runs: %d runners online (%d hosts, %d workers), %d queued; this account is %s, a run holds %d credits (a credit is %d input or %d output tokens), caps %ds/%d turns/%d tokens",
-		st.RunnersOnline(), st.HostsOnline, st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits, st.Caller.InputTokensPerCredit, st.Caller.OutputTokensPerCredit,
-		st.Caller.Caps.TimeoutSeconds, st.Caller.Caps.MaxTurns, st.Caller.Caps.MaxTokens)
+	t.Logf("hosted runs: %d runners online (%d hosts, %d workers), %d queued; this account is %s, a run holds %d credits, caps %ds/%d turns",
+		st.RunnersOnline(), st.HostsOnline, st.WorkersOnline, st.Queued, st.Caller.Tier, st.Caller.HoldCredits,
+		st.Caller.Caps.TimeoutSeconds, st.Caller.Caps.MaxTurns)
 
 	task := os.Getenv("AGENTRY_HOSTED_TASK")
 	if task == "" {
@@ -227,8 +227,8 @@ func TestLiveHostedRun(t *testing.T) {
 	if final.Usage != nil {
 		turns, wall = final.Usage.Turns, final.Usage.WallMS
 	}
-	t.Logf("finished: %s (%s) — %s; %d turns, %d tokens, %d ms",
-		final.Outcome, final.ExitClass, verdict.Line, turns, final.Usage.Tokens(), wall)
+	t.Logf("finished: %s (%s) — %s; %d turns, %d ms",
+		final.Outcome, final.ExitClass, verdict.Line, turns, wall)
 	if final.SettledCredits != nil {
 		t.Logf("credits: %d held, %d settled", final.HoldCredits, *final.SettledCredits)
 	}

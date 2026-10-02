@@ -16,6 +16,7 @@ import { main } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText, plainName } from "../reveal";
 import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
+import { localUseLine } from "../usage";
 
 export function RunResultView({
   runId, headline, tone, error, resultJson, knowledge, unsafeExec, children,
@@ -188,10 +189,7 @@ export function LocalRunDetails({ result, log }: { result: main.RunResultView; l
           <span className={`badge ${result.attestationState === "verified" ? "ok" : "warn"}`}>
             attestation: {result.attestationState}
           </span>
-          <span className="muted small">
-            {result.turns} turns · {result.inputTokens + result.outputTokens} tokens ·{" "}
-            {(result.wallMs / 1000).toFixed(1)}s{result.costUsd > 0 ? ` · $${result.costUsd.toFixed(4)}` : ""}
-          </span>
+          <span className="muted small">{localUseLine(result)}</span>
         </div>
         <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
         <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>

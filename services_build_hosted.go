@@ -430,9 +430,9 @@ func draftOutcomeLine(r *hostedrun.Run) string {
 	case hostedrun.OutcomeTimeout:
 		return "Stopped at its time limit. No draft came of it."
 	case hostedrun.OutcomeBudget:
-		return "Stopped at its token or credit limit. No draft came of it."
+		return "Stopped at its turn or cost limit. No draft came of it."
 	case hostedrun.OutcomeInterrupted:
-		return "Cancelled while it ran; what it used was settled. No draft came of it."
+		return "Interrupted while it ran, by your cancel or at its limit on model use; what it used was settled. No draft came of it."
 	case hostedrun.OutcomeError:
 		return "The platform could not run it; the hold was refunded. No draft came of it."
 	}

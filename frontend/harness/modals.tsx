@@ -271,8 +271,8 @@ const availability = {
     : "",
   remedy: hostedState === "unavailable" ? "Sign in again from Settings to mint a token that carries them." : "",
   signedIn: !signedOut, extension: true, enabled: true, runnersOnline: 1, queued: 2,
-  tier: "standard", holdCredits: 20, tokensPerCredit: 1000,
-  caps: { timeoutSeconds: 300, maxTurns: 20, maxTokens: 20000 },
+  tier: "standard", holdCredits: 20,
+  caps: { timeoutSeconds: 300, maxTurns: 20 },
   balance: sessionShape ? 460 : 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
@@ -296,7 +296,7 @@ const availability = {
 const hostedBase = {
   id: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42", ref: "demo1/incident-summarizer@1.2.0",
   digest: "sha256:9c356fd0d20fef07", holdCredits: 20, caps: availability.caps,
-  outputs: [], turns: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, wallMs: 0,
+  outputs: [], turns: 0, wallMs: 0,
   settledCredits: 0, settled: false, cancelRequested: false, final: false,
   createdAt: "2026-09-16T10:04:00Z",
 };
@@ -308,7 +308,7 @@ const hostedRuns: Record<string, any> = {
     ...hostedBase, status: "finished", state: "done — pass", statusLine: "ran to the end and wrote its result",
     outcome: "succeeded", outcomeTone: "ok", outcomeLine: "ran to the end and wrote its result",
     exitClass: "ok", attestationState: "verified", adapter: "claude-code",
-    turns: 4, inputTokens: 5120, outputTokens: 1430, totalTokens: 6550, costUsd: 0.0182, wallMs: 41200,
+    turns: 4, wallMs: 41200,
     settledCredits: 7, settled: true, final: true, receiptKept: true,
     capabilitiesEnforced: {
       "network.egress": "llm-proxy allowlist: api.pagerduty.com",

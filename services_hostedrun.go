@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -73,11 +74,18 @@ type hostedFollow struct {
 	lost string
 }
 
-// HostedCapsView is a tier's ceilings for one run.
+// HostedCapsView is a tier's ceilings for one run, as the person is told
+// them: time and turns. The registry's token ceiling is not carried: a
+// hosted run is stated in credits, time and turns only (plan
+// scan-and-run-tweaks.md track B, agentry-desktop#457).
 type HostedCapsView struct {
-	TimeoutSeconds int   `json:"timeoutSeconds"`
-	MaxTurns       int   `json:"maxTurns"`
-	MaxTokens      int64 `json:"maxTokens"`
+	TimeoutSeconds int `json:"timeoutSeconds"`
+	MaxTurns       int `json:"maxTurns"`
+}
+
+// hostedCaps is the panel's reading of a tier's caps.
+func hostedCaps(c hostedrun.Caps) *HostedCapsView {
+	return &HostedCapsView{TimeoutSeconds: c.TimeoutSeconds, MaxTurns: c.MaxTurns}
 }
 
 // HostedAvailabilityView answers "is In Agentry offered here, and can it
@@ -100,15 +108,13 @@ type HostedAvailabilityView struct {
 	RunnersOnline int `json:"runnersOnline"`
 	Queued        int `json:"queued"`
 
-	// Tier, HoldCredits, the two rates and Caps are the registry's numbers
-	// for a run of this account's; the app does no arithmetic of its own
-	// with them. A credit buys InputTokensPerCredit tokens the model reads
-	// or OutputTokensPerCredit it writes (agentry-enterprise#171).
-	Tier                  string          `json:"tier,omitempty"`
-	HoldCredits           int64           `json:"holdCredits"`
-	InputTokensPerCredit  int64           `json:"inputTokensPerCredit"`
-	OutputTokensPerCredit int64           `json:"outputTokensPerCredit"`
-	Caps                  *HostedCapsView `json:"caps,omitempty"`
+	// Tier, HoldCredits and Caps are the registry's numbers for a run of
+	// this account's; the app does no arithmetic of its own with them. The
+	// rates a settlement is computed at are the registry's and are not
+	// carried (plan scan-and-run-tweaks.md D9).
+	Tier        string          `json:"tier,omitempty"`
+	HoldCredits int64           `json:"holdCredits"`
+	Caps        *HostedCapsView `json:"caps,omitempty"`
 	// Balance is the account's credits; BalanceKnown is false when the
 	// registry has no billing extension or the read failed.
 	Balance      int64 `json:"balance"`
@@ -145,8 +151,8 @@ type HostedArtefactView struct {
 }
 
 // HostedRunView is one hosted run as the panel shows it: the identity and
-// status while it moves, and the §R8 result once it is over — the same
-// facts a local run's result view carries, plus the credits.
+// status while it moves, and the §R8 result once it is over — a local
+// run's facts in credits, time and turns, never tokens.
 type HostedRunView struct {
 	ID     string `json:"id"`
 	Ref    string `json:"ref"`
@@ -169,12 +175,11 @@ type HostedRunView struct {
 	OutcomeTone string `json:"outcomeTone,omitempty"`
 	Error       string `json:"error,omitempty"`
 
-	Turns        int     `json:"turns"`
-	InputTokens  int64   `json:"inputTokens"`
-	OutputTokens int64   `json:"outputTokens"`
-	TotalTokens  int64   `json:"totalTokens"`
-	CostUSD      float64 `json:"costUsd"`
-	WallMS       int64   `json:"wallMs"`
+	// Turns and WallMS are the run's use as the person is told it; its
+	// tokens and their dollar cost stay with the registry, which settles
+	// them in credits (agentry-desktop#457).
+	Turns  int   `json:"turns"`
+	WallMS int64 `json:"wallMs"`
 
 	// HoldCredits is what the run holds; SettledCredits what it cost once
 	// it finished, both as the account reports them. Settled says the
@@ -309,8 +314,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		v.Enabled, v.RunnersOnline, v.Queued = st.Enabled, st.RunnersOnline(), st.Queued
 		if st.Caller != nil {
 			v.Tier, v.HoldCredits = st.Caller.Tier, st.Caller.HoldCredits
-			v.InputTokensPerCredit, v.OutputTokensPerCredit = st.Caller.InputTokensPerCredit, st.Caller.OutputTokensPerCredit
-			v.Caps = &HostedCapsView{TimeoutSeconds: st.Caller.Caps.TimeoutSeconds, MaxTurns: st.Caller.Caps.MaxTurns, MaxTokens: st.Caller.Caps.MaxTokens}
+			v.Caps = hostedCaps(st.Caller.Caps)
 		}
 		if ka := st.KnowledgeAttach; ka != nil && ka.Enabled {
 			if facts.ScopesKnown && !slices.Contains(facts.Scopes, hostedrun.ScopeKnowledgeRead) {
@@ -796,7 +800,8 @@ func hostedOutDir(dir string, r *hostedrun.Run) (string, error) {
 }
 
 // resultText finds result.json among the downloaded artefacts and returns
-// its bytes, which the panel renders exactly as a local run's result.
+// its bytes, which the panel renders exactly as a local run's result,
+// without the envelope's token counts (resultWithoutTokens).
 func resultText(got []hostedrun.Downloaded) string {
 	for _, a := range got {
 		if a.Name != "result.json" {
@@ -806,9 +811,39 @@ func resultText(got []hostedrun.Downloaded) string {
 		if err != nil {
 			return ""
 		}
-		return string(b)
+		return resultWithoutTokens(b)
 	}
 	return ""
+}
+
+// resultWithoutTokens is a hosted run's result.json as the page gets it.
+// On a sandbox host that file is the CLI's run/v1 envelope, whose usage
+// block carries the run's token counts and their dollar cost; a run In
+// Agentry is stated in credits, so they are taken out before the page sees
+// it (agentry-desktop#457). The file in the run folder keeps them, as a
+// downloaded receipt does (plan scan-and-run-tweaks.md D11). Anything that
+// is not a JSON object is passed on as it is: it carries no usage block.
+func resultWithoutTokens(b []byte) string {
+	var env map[string]json.RawMessage
+	if json.Unmarshal(b, &env) != nil || env["usage"] == nil {
+		return string(b)
+	}
+	var usage map[string]json.RawMessage
+	if json.Unmarshal(env["usage"], &usage) != nil {
+		delete(env, "usage")
+	} else {
+		for k := range usage {
+			if k != "turns" && k != "wallMs" {
+				delete(usage, k)
+			}
+		}
+		env["usage"], _ = json.Marshal(usage)
+	}
+	out, err := json.Marshal(env)
+	if err != nil {
+		return ""
+	}
+	return string(out)
 }
 
 // hostedRunView flattens a run for the panel.
@@ -822,7 +857,7 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 		StatusLine: verdict.Line, QueuePosition: r.QueuePosition, CancelRequested: r.CancelRequested,
 		Outcome: r.Outcome, ExitClass: r.ExitClass, Error: r.Error,
 		HoldCredits: r.HoldCredits,
-		Caps:        &HostedCapsView{TimeoutSeconds: r.Caps.TimeoutSeconds, MaxTurns: r.Caps.MaxTurns, MaxTokens: r.Caps.MaxTokens},
+		Caps:        hostedCaps(r.Caps),
 		OutDir:      outDir, Outputs: []HostedArtefactView{}, ResultJSON: result,
 		DownloadError: downloadErr, Final: final,
 		CreatedAt: rfc3339(r.CreatedAt),
@@ -841,8 +876,7 @@ func hostedRunView(r *hostedrun.Run, outDir string, got []hostedrun.Downloaded, 
 		v.FinishedAt = rfc3339(*r.FinishedAt)
 	}
 	if u := r.Usage; u != nil {
-		v.Turns, v.InputTokens, v.OutputTokens = u.Turns, u.InputTokens, u.OutputTokens
-		v.TotalTokens, v.CostUSD, v.WallMS = u.Tokens(), u.CostUSD, u.WallMS
+		v.Turns, v.WallMS = u.Turns, u.WallMS
 	}
 	if r.SettledCredits != nil {
 		v.SettledCredits, v.Settled = *r.SettledCredits, true
