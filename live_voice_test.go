@@ -38,6 +38,7 @@ func TestLiveVoice(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_VOICE_REGISTRY and _TOKEN to run the live Writing Voice check")
 	}
 	var hostedFinal *VoiceHostedView
+	// Only the final view is kept: the follow emits every state change.
 	finals := make(chan *VoiceHostedView, 4)
 	emit := emitEvent
 	emitEvent = func(_ *App, name string, data ...any) {
@@ -96,7 +97,8 @@ func TestLiveVoice(t *testing.T) {
 	if os.Getenv("AGENTRY_LIVE_VOICE_HOSTED") == "" {
 		return
 	}
-	fastPoll(t)
+	// The app's own poll (hostedPoll, 3 s): the unit tests' fastPoll would
+	// spend the account's rate class against a real registry.
 	avail, err := v.HostedAvailability(reg, "edit")
 	if err != nil || !avail.Available {
 		t.Fatalf("an AI Edit In Agentry is not available: %+v, %v", avail, err)
