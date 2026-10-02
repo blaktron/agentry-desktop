@@ -18,6 +18,8 @@ export function Get():Promise<main.SettingsView>;
 
 export function MarkOnboarded():Promise<main.SettingsView>;
 
+export function OpenTopUp(arg1:string):Promise<void>;
+
 export function OpenUpgrade(arg1:string):Promise<void>;
 
 export function Profile(arg1:string):Promise<main.ProfileView>;

@@ -55,6 +55,42 @@ type SubscriptionView struct {
 	// organization's console for a member, the subscription page for a
 	// person (agentry-enterprise#41, D28). The app never derives it.
 	Upgrade UpgradeRef `json:"upgrade"`
+	// Credit packs (plan credit-top-ups.md, D7; agentry-desktop#511), on a
+	// person's own view: how much of the balance is bought credits, the
+	// packs the registry offers this account, and a suspension for
+	// non-payment. A registry from before them omits all three, and the
+	// card is not drawn.
+	Bought    int64          `json:"bought,omitempty"`
+	TopUp     *TopUpView     `json:"topUp,omitempty"`
+	Suspended *SuspendedView `json:"suspended,omitempty"`
+}
+
+// TopUpView is the registry's Top up credits card: whether packs are
+// offered here, the site's card (URL, the page Buy opens), whether a
+// pack's payment is still clearing, and the packs at the provider's
+// prices in the currency's minor unit.
+type TopUpView struct {
+	Available  bool        `json:"available"`
+	URL        string      `json:"url,omitempty"`
+	Processing bool        `json:"processing"`
+	Packs      []TopUpPack `json:"packs"`
+}
+
+// TopUpPack is one pack: the credits it brings, the number shown struck
+// through beside them, and its price.
+type TopUpPack struct {
+	ID          string `json:"id"`
+	Credits     int64  `json:"credits"`
+	BaseCredits int64  `json:"baseCredits"`
+	Amount      int64  `json:"amount"`
+	Currency    string `json:"currency"`
+}
+
+// SuspendedView is an account suspended for non-payment (D11): since when,
+// and what the balance is below zero by.
+type SuspendedView struct {
+	Since string `json:"since"`
+	Owed  int64  `json:"owed"`
 }
 
 // KnowledgeAllocation is the bytes of knowledge packs kept in Agentry
@@ -127,6 +163,48 @@ func (s *SettingsAPI) OpenUpgrade(url string) error {
 		return err
 	}
 	return s.openExternal(page)
+}
+
+// OpenTopUp opens the site's Top up credits card for this account
+// (agentry-desktop#511, plan credit-top-ups.md D7): the app takes no
+// money, so Buy is the site's. As with OpenUpgrade, the caller names a
+// registry, never a destination; the registry names the card, and it is
+// opened only on that registry's own origin.
+func (s *SettingsAPI) OpenTopUp(url string) error {
+	url = settings.Normalize(url)
+	if err := settings.ValidateURL(url); err != nil {
+		return err
+	}
+	page, err := topUpDestination(s.app.ctx, url, settings.TokenFor(url))
+	if err != nil {
+		return err
+	}
+	return s.openExternal(page)
+}
+
+// topUpDestination reads the account again and returns the card's page
+// where the registry offers this person packs, or where a suspension sends
+// them there to pay what is owed; never for a member, whose view is the
+// organization's, and never off the registry's origin.
+func topUpDestination(ctx context.Context, registryURL, token string) (string, error) {
+	named := originOf(registryURL)
+	if token == "" {
+		return "", fmt.Errorf("not signed in to %s", named)
+	}
+	sub, err := fetchSubscription(ctx, registryURL, token)
+	if err != nil {
+		return "", err
+	}
+	if sub == nil || sub.MemberOf != "" || sub.TopUp == nil || (!sub.TopUp.Available && sub.Suspended == nil) {
+		return "", fmt.Errorf("%s offers this account no credit packs", named)
+	}
+	if sub.TopUp.URL == "" {
+		return "", fmt.Errorf("%s names no page for its credit packs", named)
+	}
+	if !sameOrigin(registryURL, sub.TopUp.URL) {
+		return "", fmt.Errorf("%s named a credit packs page on another site; not opening it", named)
+	}
+	return sub.TopUp.URL, nil
 }
 
 // upgradeDestination asks the registry where this account's subscription

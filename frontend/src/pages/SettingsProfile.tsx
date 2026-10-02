@@ -2,7 +2,10 @@ import React, { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main, hostedrun } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtDuration, fmtStorage } from "../ui";
-import { changesPhrase, creditCount, creditsPhrase, dayOf, runningPromo, tierLabel } from "../subscription";
+import {
+  bonusOf, changesPhrase, creditCount, creditNumber, creditsPhrase, dayOf, owedSentence, packBonus, packLabel, packPrice, runningPromo, tierLabel,
+  topUpOffer,
+} from "../subscription";
 
 // Settings → Profile (agentry-desktop#423): what the site's
 // /settings/profile shows in its Profile and Subscription cards, for the
@@ -185,9 +188,13 @@ function SubscriptionPart({ profile, registry, onError }: { profile: main.Profil
     return <Notice tone="warn">The subscription could not be read: {profile.subscriptionError} Open Settings again to retry.</Notice>;
   }
   const open = () => SettingsAPI.OpenUpgrade(registry).catch((e) => onError(String(e)));
+  // Buy, and the owed notice's link, open the site's Top up credits card:
+  // the app takes no money (plan credit-top-ups.md D7). The registry names
+  // the page and the Go side checks it is on the registry's own origin.
+  const openTopUp = () => SettingsAPI.OpenTopUp(registry).catch((e) => onError(String(e)));
   return sub.memberOf
     ? <MemberView sub={sub} runs={profile.hostedRuns} onOpen={open} />
-    : <PersonView sub={sub} runs={profile.hostedRuns} onOpen={open} />;
+    : <PersonView sub={sub} runs={profile.hostedRuns} onOpen={open} onTopUp={openTopUp} />;
 }
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -216,11 +223,13 @@ function UpgradeButton({ sub, onOpen }: { sub: main.SubscriptionView; onOpen: ()
 }
 
 // PersonView is the site's personal Subscription card.
-function PersonView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: hostedrun.Caller; onOpen: () => void }) {
+function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView; runs?: hostedrun.Caller; onOpen: () => void; onTopUp: () => void }) {
   const promo = runningPromo(sub);
+  const topUp = topUpOffer(sub);
   const left = submissionsLeft(sub);
   const limit = sub.knowledge ? knowledgeLimitSentence(sub.knowledge) : null;
   return (
+    <>
     <Card>
       <p>
         <span className={`badge ${sub.tier === "standard" ? "" : "ok"}`}>{tierLabel(sub.tier)}</span>
@@ -238,6 +247,16 @@ function PersonView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: 
         {changesPhrase(sub) && <Row label="Changes">{changesPhrase(sub)}</Row>}
       </dl>
       {limit && <Notice tone="warn">{limit}</Notice>}
+      {sub.suspended && (
+        <Notice tone="warn">
+          <strong>This account is suspended for non-payment.</strong> {owedSentence(sub.suspended.owed)}{" "}
+          {sub.topUp?.url && (
+            <button type="button" className="link" onClick={onTopUp}>
+              Top up credits on the site
+            </button>
+          )}
+        </Notice>
+      )}
       {promo && (
         <Notice tone="info">
           Your promo credits expire on {dayOf(promo.endsAt || sub.periodEnd)}, and this account moves to Standard then. You will not be charged.
@@ -246,10 +265,64 @@ function PersonView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: 
       <p className="muted small">
         {promo
           ? "Promo credits are the whole of this account's credits until the trial ends; Standard's monthly allowance starts then."
-          : "Unused credits expire when the allowance resets."}{" "}
+          : sub.bought
+            ? "Unused monthly credits expire when the allowance resets; bought credits never do."
+            : "Unused credits expire when the allowance resets."}{" "}
         A submission the pipeline itself fails is refunded; one the gate sends to review is not.
       </p>
       <UpgradeButton sub={sub} onOpen={onOpen} />
+    </Card>
+    {topUp && <TopUpCard sub={sub} topUp={topUp} onBuy={onTopUp} />}
+    </>
+  );
+}
+
+// TopUpCard is the site's Top up credits card (plan credit-top-ups.md
+// §4.4, D6, D7; agentry-desktop#511): each pack's base number struck
+// through and the credits it brings larger and bolder, its bonus, the
+// provider's price from the registry, and a Buy that opens the site's card
+// in the browser, where the purchase is made. A screen reader hears one
+// sentence per pack (packLabel); the drawn numbers are hidden from it.
+function TopUpCard({ sub, topUp, onBuy }: { sub: main.SubscriptionView; topUp: main.TopUpView; onBuy: () => void }) {
+  return (
+    <Card className="top-up">
+      <p><strong>Top up credits</strong></p>
+      <p className="small">
+        A pack&apos;s credits are spent after {runningPromo(sub) ? "your promo credits" : "your monthly credits"} and never expire.
+        {sub.bought ? ` This account holds ${creditNumber(sub.bought)} bought credits.` : ""}
+      </p>
+      <ul className="top-up-packs">
+        {topUp.packs.map((p) => {
+          const bonus = packBonus(p);
+          const price = packPrice(p);
+          return (
+            <li key={p.id} className="top-up-pack">
+              <p>
+                <span className="sr-only">{packLabel(p)}</span>
+                <span aria-hidden="true">
+                  {bonusOf(p) > 0 && <><s className="muted">{creditNumber(p.baseCredits)}</s>{" "}</>}
+                  <span className="top-up-credits">{creditNumber(p.credits)}</span> credits
+                </span>
+              </p>
+              {bonus && <p className="muted small" aria-hidden="true">{bonus}</p>}
+              <p className="row">
+                <Button
+                  variant="primary"
+                  disabled={topUp.processing}
+                  onClick={onBuy}
+                  aria-label={`Buy ${creditNumber(p.credits)} credits for ${price}`}
+                  title="Opens the Top up credits card on the registry's site in your browser"
+                >
+                  Buy
+                </Button>
+                <span>{price}</span>
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      {topUp.processing && <p className="small">A pack&apos;s payment is still clearing. Another can be bought once it has.</p>}
+      <p className="muted small">Buy opens the card on the site in your browser, where the payment is taken; this app never takes money or sees your card.</p>
     </Card>
   );
 }
