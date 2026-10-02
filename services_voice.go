@@ -8,8 +8,10 @@
 // registry's flat price (agentry-enterprise#306).
 //
 // The gates are the Knowledge panel's (D-030): samples come only from the
-// native pickers, replacing or deleting a voice is asked in a native
-// dialog, and a Voice Writer run on this computer takes the run lock.
+// native pickers; Use, which puts the account's voice over a different one
+// here, and Delete are asked in a native dialog (a Save or a Voice Writer
+// run replaces this computer's voice at the person's own press, as the
+// panel says beside it); and a Voice Writer run here takes the run lock.
 package main
 
 import (
@@ -47,7 +49,7 @@ type VoiceAPI struct {
 	hosted hostedSlot
 }
 
-func (v *VoiceAPI) env() voice.Env { return voice.Env{Env: v.run.knowledge()} }
+func (v *VoiceAPI) env() voice.Env { return v.run.voiceEnv() }
 
 // VoiceView is the panel: this computer's voice, and, signed in to a
 // registry that keeps voices, the account's.
@@ -63,6 +65,12 @@ type VoiceView struct {
 	// Model is the model the Voice Writer runs on here, from the runner
 	// policy.
 	Model string `json:"model"`
+	// ReviewCredits is what AI Review of a voice saved or submitted costs
+	// here (the runs status route's voiceBuild.aiReviewCredits; 0 where the
+	// registry charges nothing or did not say). AttachEnabled says a run In
+	// Agentry may write in the account's voice here (voiceBuild.attach).
+	ReviewCredits int64 `json:"reviewCredits"`
+	AttachEnabled bool  `json:"attachEnabled"`
 }
 
 // View is the panel for reg.
@@ -85,6 +93,11 @@ func (v *VoiceAPI) View(reg string) (*VoiceView, error) {
 		out.AccountOffered, out.AccountError = true, "Your account's voice could not be read: "+err.Error()
 	default:
 		out.AccountOffered, out.Account = true, a
+	}
+	if out.AccountOffered {
+		if st, err := hostedrun.New(reg, e.TokenFor(reg)).Status(ctx); err == nil && st.VoiceBuild != nil {
+			out.ReviewCredits, out.AttachEnabled = st.VoiceBuild.AIReviewCredits, st.VoiceBuild.Attach.Enabled
+		}
 	}
 	return out, nil
 }
@@ -147,7 +160,11 @@ func (v *VoiceAPI) UseAccount(reg string) (*VoiceSaveView, error) {
 	if a.Live == nil {
 		return nil, voice.ErrNoLiveVoice
 	}
-	if here, err := e.Local(ctx, reg); err == nil && here.Exists && here.Digest != a.Live.Digest {
+	here, err := e.Local(ctx, reg)
+	if err != nil {
+		return nil, err
+	}
+	if here.Exists && here.Digest != a.Live.Digest {
 		if err := v.app.askConsent("Replace this computer's voice?",
 			"This replaces the Writing Voice kept on this computer with your account's live one. The one here cannot be recovered. Continue?"); err != nil {
 			return nil, err
@@ -213,11 +230,26 @@ func (v *VoiceAPI) Write(reg, job string, samples []string, brief string) (*voic
 	if err := v.checkVoiceJob(j, samples, brief); err != nil {
 		return nil, err
 	}
+	reg = settings.Normalize(reg)
+	if j == build.Create {
+		// A Create starts from nothing: over a voice kept here it is a
+		// replacement, asked first as Use asks.
+		here, err := v.env().Local(v.app.ctx, reg)
+		if err != nil {
+			return nil, err
+		}
+		if here.Exists {
+			if err := v.app.askConsent("Replace this computer's voice?",
+				"Create writes a new voice from your samples, in place of the Writing Voice kept on this computer, which cannot be recovered. Improve builds on the one you have instead. Continue?"); err != nil {
+				return nil, err
+			}
+		}
+	}
 	var res *voice.BuildResult
 	err = v.run.asRun(jobBuild, "a run of the Voice Writer", voiceRunRef, eventVoiceLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		var err error
 		res, err = v.env().Build(ctx, voice.BuildRequest{
-			Registry: settings.Normalize(reg), Job: j, Samples: samples, Brief: brief, RunID: runID, Build: v.build, Log: logw,
+			Registry: reg, Job: j, Samples: samples, Brief: brief, RunID: runID, Build: v.build, Log: logw,
 		})
 		return err
 	})
@@ -250,8 +282,10 @@ type VoiceHostedAvailabilityView struct {
 	// (0 for a member of an unmetered organization).
 	Credits     int64 `json:"credits"`
 	HoldCredits int64 `json:"holdCredits"`
-	// Limited is Standard's one a cycle; Left is how many are left.
+	// Limited is Standard's runs a cycle (Max of them); Left is how many
+	// are left.
 	Limited bool `json:"limited"`
+	Max     int  `json:"max"`
 	Left    int  `json:"left"`
 	// AIReviewCredits is what a voice saved by hand or submitted costs.
 	AIReviewCredits int64  `json:"aiReviewCredits"`
@@ -265,6 +299,11 @@ type VoiceHostedAvailabilityView struct {
 // HostedAvailability answers the Where step for a job at reg.
 func (v *VoiceAPI) HostedAvailability(reg, job string) (*VoiceHostedAvailabilityView, error) {
 	reg = settings.Normalize(reg)
+	// The token is found by host alone: the URL is held to Settings' rule
+	// before it is looked up (agentry-desktop#307's lesson).
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, fmt.Errorf("the registry: %w", err)
+	}
 	ctx := v.app.ctx
 	e := v.env()
 	token := e.TokenFor(reg)
@@ -294,7 +333,7 @@ func (v *VoiceAPI) HostedAvailability(reg, job string) (*VoiceHostedAvailability
 		if st.Caller != nil && st.Caller.Voice != nil {
 			c := st.Caller.Voice
 			f.Caller = c
-			out.HoldCredits, out.Limited, out.Left = c.HoldCredits, c.Limited, max(c.Max-c.Used, 0)
+			out.HoldCredits, out.Limited, out.Max, out.Left = c.HoldCredits, c.Limited, c.Max, max(c.Max-c.Used, 0)
 		}
 	}
 	if runs, err := client.List(ctx); err == nil {
@@ -377,6 +416,9 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 	if err := v.checkVoiceJob(j, samples, brief); err != nil {
 		return nil, err
 	}
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, fmt.Errorf("the registry: %w", err)
+	}
 	token := v.env().TokenFor(reg)
 	if token == "" {
 		return nil, fmt.Errorf("sign in to %s to run the Voice Writer In Agentry", regHost(reg))
@@ -390,6 +432,7 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 			v.hosted.release()
 		}
 	}()
+	client := hostedrun.New(reg, token)
 	req := hostedrun.CreateRequest{Kind: hostedrun.KindVoiceBuild, Op: job}
 	if j == build.Edit {
 		req.Note = strings.TrimSpace(brief)
@@ -399,7 +442,7 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 		if err != nil {
 			return nil, err
 		}
-		ids, err := hostedrun.New(reg, token).UploadInputs(ctx, files)
+		ids, err := client.UploadInputs(ctx, files)
 		if err != nil {
 			if r := hostedrun.RefusalOf(err); r != nil {
 				return voiceRefusal(r), nil
@@ -408,7 +451,7 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 		}
 		req.Inputs = ids
 	}
-	created, err := hostedrun.New(reg, token).Create(ctx, req)
+	created, err := client.Create(ctx, req)
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
 			return voiceRefusal(r), nil
@@ -451,6 +494,9 @@ func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
 			last, gerr := client.Get(context.Background(), started.ID)
 			if gerr != nil || !last.Terminal() {
 				out := voiceHostedView(started, true)
+				if gerr == nil {
+					out = voiceHostedView(last, true)
+				}
 				out.Error = "lost touch with the registry while the Voice Writer ran (" + err.Error() + "); open the Voice panel again to see your account's voice"
 				emitEvent(v.app, eventVoiceHosted, out)
 				return
@@ -459,4 +505,23 @@ func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
 		}
 		emitEvent(v.app, eventVoiceHosted, voiceHostedView(final, true))
 	}()
+}
+
+// CancelHosted asks the registry to cancel the Voice Writer run In Agentry
+// this app follows (D-022: the registry stops it; the app never drives it).
+// What it held is settled as the registry settles a cancelled run.
+func (v *VoiceAPI) CancelHosted() (*VoiceHostedView, error) {
+	cur := v.hosted.current()
+	if cur == nil || cur.id == "" {
+		return nil, errors.New("no Voice Writer run In Agentry is in progress")
+	}
+	token := v.env().TokenFor(cur.registry)
+	if token == "" {
+		return nil, fmt.Errorf("sign in to %s to cancel this run", regHost(cur.registry))
+	}
+	r, err := hostedrun.New(cur.registry, token).Cancel(v.app.ctx, cur.id)
+	if err != nil {
+		return nil, err
+	}
+	return voiceHostedView(r, false), nil
 }

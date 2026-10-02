@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {voice} from '../models';
 
+export function CancelHosted():Promise<main.VoiceHostedView>;
+
 export function DeleteLocal(arg1:string):Promise<void>;
 
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.VoiceHostedAvailabilityView>;

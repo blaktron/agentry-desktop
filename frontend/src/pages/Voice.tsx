@@ -22,14 +22,14 @@ import { main, voice } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, EmptyState, ErrorBox, Notice, PageHeader, Spinner, Textarea, fmtDate } from "../ui";
 import { AgentMarkdown } from "../AgentMarkdown";
-import { MAX_VOICE_BYTES, VOICE_ON, accountSource, findingText, hostedVoiceCost, reviewWord, voiceTextProblem } from "../voice";
+import { MAX_VOICE_BYTES, VOICE_ON, accountSource, findingText, hostedVoiceCost, reviewCostLine, reviewWord, submitCostLine, voiceTextProblem } from "../voice";
 
 type Job = "create" | "improve" | "edit";
 
 export default function Voice({ registry, onOpenSettings }: {
   registry: string;
-  /** Opens Settings at the voice's switch: "here" (Run defaults) or
-   *  "account" (Profile). */
+  /** Opens Settings at the voice's switch: "here" (Run defaults),
+   *  "account" (Profile), or "sign-in" (Registry settings). */
   onOpenSettings: (which: "here" | "account" | "sign-in") => void;
 }) {
   const [view, setView] = useState<main.VoiceView | null>(null);
@@ -65,6 +65,11 @@ export default function Voice({ registry, onOpenSettings }: {
   }
 
   if (!view) return error ? <ErrorBox error={error} /> : <Spinner label="Reading your voice…" />;
+  const saveHere = (text: string) =>
+    act("save-here", async () => {
+      const r = await VoiceAPI.SaveLocal(registry, text);
+      return r.created ? `Saved on this computer. ${VOICE_ON}` : "Saved on this computer.";
+    });
   const local = view.local;
   const account = view.account;
 
@@ -95,13 +100,9 @@ export default function Voice({ registry, onOpenSettings }: {
               initial={local.text}
               note="Save keeps it on this computer at once, for no credits."
               busy={busy === "save-here"}
-              onSave={(text) =>
-                act("save-here", async () => {
-                  const r = await VoiceAPI.SaveLocal(registry, text);
-                  return r.created ? `Saved on this computer. ${VOICE_ON}` : "Saved on this computer.";
-                })
-              }
+              onSave={saveHere}
             />
+            {view.accountOffered && <p className="muted small">{submitCostLine(view.reviewCredits)}</p>}
             <div className="row gap mt">
               {view.accountOffered && (
                 <Button busy={busy === "submit"} busyLabel="Submitting…" onClick={() => act("submit", async () => {
@@ -128,12 +129,7 @@ export default function Voice({ registry, onOpenSettings }: {
               initial=""
               note="Save keeps it on this computer at once, for no credits."
               busy={busy === "save-here"}
-              onSave={(text) =>
-                act("save-here", async () => {
-                  const r = await VoiceAPI.SaveLocal(registry, text);
-                  return r.created ? `Saved on this computer. ${VOICE_ON}` : "Saved on this computer.";
-                })
-              }
+              onSave={saveHere}
             />
           </>
         ) : null}
@@ -176,9 +172,7 @@ function AccountVoice({ view, account, busy, onOpenSettings, act, registry }: {
   // The editor holds the newest version: a pending one to repair or finish,
   // else the live one.
   const draft = pending?.text ?? live?.text ?? "";
-  const saveNote = live
-    ? "Save sends it to AI Review, which may cost a credit. Your live voice stays live until the new version passes."
-    : "Save sends it to AI Review, which may cost a credit. It goes live when it passes.";
+  const saveNote = reviewCostLine(view.reviewCredits, !!live);
   return (
     <Card>
       <div className="row spread">
@@ -186,7 +180,13 @@ function AccountVoice({ view, account, busy, onOpenSettings, act, registry }: {
         {live && <span className="badge kind">{account?.alwaysAttach ? "On for every run In Agentry" : "Off by default"}</span>}
       </div>
       <p className="muted small">Your account's voice. AI Review reads every version before it is live, and runs In Agentry write in the live one.</p>
-      {live && account?.alwaysAttach && !account.previous && <Notice tone="ok">{VOICE_ON}</Notice>}
+      {live && (
+        <Notice tone={account?.alwaysAttach ? "ok" : "info"}>
+          {account?.alwaysAttach
+            ? "Your voice is on for every run In Agentry. You can turn it off in Settings."
+            : "Your voice is off by default for runs In Agentry. A run's setup can still tick Write in my voice."}
+        </Notice>
+      )}
       {pending && (
         <div className="voice-pending">
           <p>
@@ -446,6 +446,9 @@ function VoiceWriter({ view, registry, onDone }: { view: main.VoiceView; registr
           {job === "create" ? "Start the Voice Writer" : job === "improve" ? "Start Improve" : "Start AI Edit"}
         </Button>
         {running && where === "here" && <Button onClick={() => VoiceAPI.StopWrite().catch(() => {})}>Stop</Button>}
+        {running && where === "agentry" && hosted && !hosted.final && (
+          <Button onClick={() => VoiceAPI.CancelHosted().then(setHosted).catch((e) => setError(String(e)))}>Cancel run</Button>
+        )}
       </div>
       {hosted && (
         <p className="small mt">

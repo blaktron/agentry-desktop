@@ -16,17 +16,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blaktron/agentry-desktop/internal/dockerimages"
-	"github.com/blaktron/agentry-desktop/internal/mcpview"
-	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
-
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
+	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/voice"
@@ -1205,6 +1204,10 @@ func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context
 	return f(ctx, live.id, logw)
 }
 
+// voiceEnv is the Writing Voice's wiring: the knowledge store's, whose key
+// wrapping the voice shares. The Voice panel and a run read it the same.
+func (r *RunAPI) voiceEnv() voice.Env { return voice.Env{Env: r.knowledge()} }
+
 // voiceFor is this computer's Writing Voice for a run that writes in it
 // (plan writing-voice.md §5, D5, D11): the person ticked Write in my voice
 // in the run setup, which starts ticked from the voice's own switch. nil
@@ -1214,7 +1217,7 @@ func (r *RunAPI) voiceFor(ctx context.Context, reg string, want bool) (*engine.A
 	if !want {
 		return nil, nil
 	}
-	v, err := voice.Env{Env: r.knowledge()}.Attach(ctx, settings.Normalize(reg))
+	v, err := r.voiceEnv().Attach(ctx, settings.Normalize(reg))
 	if err != nil {
 		return nil, err
 	}

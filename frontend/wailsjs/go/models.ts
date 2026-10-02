@@ -3745,6 +3745,7 @@ export namespace main {
 	    credits: number;
 	    holdCredits: number;
 	    limited: boolean;
+	    max: number;
 	    left: number;
 	    aiReviewCredits: number;
 	    balance: number;
@@ -3767,6 +3768,7 @@ export namespace main {
 	        this.credits = source["credits"];
 	        this.holdCredits = source["holdCredits"];
 	        this.limited = source["limited"];
+	        this.max = source["max"];
 	        this.left = source["left"];
 	        this.aiReviewCredits = source["aiReviewCredits"];
 	        this.balance = source["balance"];
@@ -3893,6 +3895,8 @@ export namespace main {
 	    account?: voice.Account;
 	    accountError?: string;
 	    model: string;
+	    reviewCredits: number;
+	    attachEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new VoiceView(source);
@@ -3907,6 +3911,8 @@ export namespace main {
 	        this.account = this.convertValues(source["account"], voice.Account);
 	        this.accountError = source["accountError"];
 	        this.model = source["model"];
+	        this.reviewCredits = source["reviewCredits"];
+	        this.attachEnabled = source["attachEnabled"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

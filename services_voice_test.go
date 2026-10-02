@@ -197,3 +197,34 @@ func TestAHostedRunAsksForTheAccountsVoiceOnlyWhenTicked(t *testing.T) {
 		t.Fatal("the sign-in does not ask for the voice scopes")
 	}
 }
+
+func TestACreateAsksBeforeItReplacesTheVoiceHere(t *testing.T) {
+	f := newVoiceFixture(t, false)
+	if _, err := f.v.SaveLocal(f.reg.URL, voiceText); err != nil {
+		t.Fatal(err)
+	}
+	sample := t.TempDir()
+	f.v.app.markPicked(sample)
+	f.answer = false
+	if _, err := f.v.Write(f.reg.URL, "create", []string{sample}, ""); err == nil {
+		t.Fatal("a Create answered No ran")
+	}
+	if strings.Join(f.steps, "|") != "ask: Replace this computer's voice?" {
+		t.Fatalf("asked %v", f.steps)
+	}
+	if view, _ := f.v.View(f.reg.URL); view.Local.Text != voiceText {
+		t.Fatal("a No still replaced the voice")
+	}
+}
+
+func TestTheVoiceWriterInAgentrySendsNoTokenToAURLSettingsRefuses(t *testing.T) {
+	f := newVoiceFixture(t, true)
+	if _, err := f.v.HostedAvailability("http://example.com", "create"); err == nil {
+		t.Fatal("availability asked a registry Settings refuses")
+	}
+	sample := t.TempDir()
+	f.v.app.markPicked(sample)
+	if _, err := f.v.StartHosted("http://example.com", "create", []string{sample}, ""); err == nil || !strings.Contains(err.Error(), "registry") {
+		t.Fatalf("a start at a refused URL: %v", err)
+	}
+}

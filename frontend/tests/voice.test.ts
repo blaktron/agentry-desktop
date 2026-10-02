@@ -4,7 +4,7 @@
 // holds a voice to the format's rule; the price is the registry's.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findingText, hostedVoiceCost, voiceChoice, voiceTextProblem } from "../src/voice.ts";
+import { findingText, hostedVoiceCost, reviewCostLine, voiceChoice, voiceTextProblem } from "../src/voice.ts";
 
 test("a run on this computer is offered this computer's voice, ticked from its switch", () => {
   assert.deepEqual(voiceChoice(null, false), { offered: false, ticked: false });
@@ -20,7 +20,9 @@ test("a run In Agentry is offered the account's live voice only, ticked from the
   const local = { exists: true, alwaysAttach: true };
   assert.deepEqual(voiceChoice({ local, account: null }, true), { offered: false, ticked: false });
   assert.deepEqual(voiceChoice({ local, account: { live: null, alwaysAttach: true } }, true), { offered: false, ticked: false });
-  assert.deepEqual(voiceChoice({ local, account: { live: { digest: "sha256:a" }, alwaysAttach: false } }, true), { offered: true, ticked: false });
+  assert.deepEqual(voiceChoice({ local, account: { live: { digest: "sha256:a" }, alwaysAttach: false }, attachEnabled: true }, true), { offered: true, ticked: false });
+  // A registry that attaches no voice to a run: no box, rather than a refusal at Start.
+  assert.deepEqual(voiceChoice({ local, account: { live: { digest: "sha256:a" }, alwaysAttach: true }, attachEnabled: false }, true).offered, false);
 });
 
 test("the editor holds a voice to the format: not empty, at most 32 KiB", () => {
@@ -32,6 +34,9 @@ test("the editor holds a voice to the format: not empty, at most 32 KiB", () => 
 test("a finding says the question in words, and the cost is the registry's", () => {
   assert.match(findingText({ title: "beyond_style", question: "beyond_style" }), /more than a way of writing/);
   assert.equal(findingText({ title: "A rule", line: 3 }), "A rule (line 3)");
-  assert.match(hostedVoiceCost({ credits: 20, holdCredits: 20, limited: true, left: 1 }), /20 credits.*1 left this cycle/);
-  assert.match(hostedVoiceCost({ credits: 20, holdCredits: 0, limited: false, left: 0 }), /no credits/);
+  assert.match(hostedVoiceCost({ credits: 20, holdCredits: 20, limited: true, max: 1, left: 1 }), /20 credits.*once a billing cycle.*1 left this cycle/);
+  assert.match(hostedVoiceCost({ credits: 20, holdCredits: 20, limited: true, max: 2, left: 2 }), /twice a billing cycle/);
+  assert.match(hostedVoiceCost({ credits: 20, holdCredits: 0, limited: false, max: 0, left: 0 }), /no credits/);
+  assert.match(reviewCostLine(1, true), /for 1 credit\. Your live voice stays live/);
+  assert.equal(reviewCostLine(0, false), "Save sends it to AI Review. It goes live when it passes.");
 });

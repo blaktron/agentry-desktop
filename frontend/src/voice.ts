@@ -22,6 +22,8 @@ export const WRITE_IN_MY_VOICE_HINT =
 export interface VoiceFacts {
   local?: { exists: boolean; alwaysAttach: boolean; problem?: string } | null;
   account?: { live?: unknown | null; alwaysAttach: boolean } | null;
+  /** The registry lets a run In Agentry write in the account's voice. */
+  attachEnabled?: boolean;
 }
 
 /** Whether the run setup shows Write in my voice, and ticked or not: the
@@ -31,7 +33,7 @@ export function voiceChoice(v: VoiceFacts | null | undefined, inAgentry: boolean
   if (!v) return { offered: false, ticked: false };
   if (inAgentry) {
     const a = v.account;
-    return a?.live ? { offered: true, ticked: a.alwaysAttach } : { offered: false, ticked: false };
+    return a?.live && v.attachEnabled ? { offered: true, ticked: a.alwaysAttach } : { offered: false, ticked: false };
   }
   const l = v.local;
   return l?.exists && !l.problem ? { offered: true, ticked: l.alwaysAttach } : { offered: false, ticked: false };
@@ -43,7 +45,7 @@ const ACCOUNT_SOURCE: Record<string, string> = {
   build: "written by the Voice Writer",
   "ai-edit": "an AI Edit",
   edit: "edited by hand",
-  upload: "submitted from a computer",
+  upload: "submitted from your computer",
   restore: "restored",
 };
 export function accountSource(s: string): string {
@@ -89,9 +91,31 @@ export function voiceTextProblem(text: string): string | null {
 
 /** What one Voice Writer run In Agentry costs this payer, from the
  *  registry's numbers. */
-export function hostedVoiceCost(a: { credits: number; holdCredits: number; limited: boolean; left: number }): string {
+export function hostedVoiceCost(a: { credits: number; holdCredits: number; limited: boolean; max: number; left: number }): string {
   if (a.holdCredits === 0) return "It costs no credits: the organization that pays for your runs is not metered.";
   const cost = `It costs ${a.credits} credits, AI Review included. If no voice comes out, the credits are refunded.`;
   if (!a.limited) return cost;
-  return `${cost} On Standard you can run it in Agentry once a billing cycle, and you have ${a.left} left this cycle.`;
+  return `${cost} On Standard you can run it in Agentry ${timesACycle(a.max)}, and you have ${a.left} left this cycle.`;
+}
+
+/** How often Standard may run the Voice Writer in a cycle, in the
+ *  registry's number (caller.voice.max), as the site says it. */
+export function timesACycle(max: number): string {
+  return max === 1 ? "once a billing cycle" : max === 2 ? "twice a billing cycle" : `${max} times a billing cycle`;
+}
+
+/** The line beside the account's Save and Submit: AI Review reads it
+ *  first, for the registry's credit where it charges one. */
+export function reviewCostLine(credits: number, live: boolean): string {
+  const cost = credits > 0 ? `, for ${credits === 1 ? "1 credit" : `${credits} credits`}` : "";
+  return live
+    ? `Save sends it to AI Review${cost}. Your live voice stays live until the new version passes.`
+    : `Save sends it to AI Review${cost}. It goes live when it passes.`;
+}
+
+/** The line beside Submit to Agentry: the account's review, for the
+ *  registry's credit where it charges one; nothing here changes. */
+export function submitCostLine(credits: number): string {
+  const cost = credits > 0 ? `, for ${credits === 1 ? "1 credit" : `${credits} credits`}` : "";
+  return `Submit sends this computer's voice to your account, where AI Review reads it${cost} before it is live. Nothing on this computer changes.`;
 }
