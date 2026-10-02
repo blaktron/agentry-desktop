@@ -159,15 +159,20 @@ func TestNoDefaultIsAConsent(t *testing.T) {
 	app.confirm = func(context.Context, string, string) (bool, error) { asked++; return false, nil }
 	r := &RunAPI{app: app, runnerHomeDir: t.TempDir()}
 	for name, flags := range map[string][3]bool{
-		"unsigned": {true, false, false}, "vulnerable MCP": {false, true, false}, "unscanned": {false, false, true},
+		"unsigned": {true, false, false}, "unscanned": {false, false, true},
 	} {
 		err := r.runGates("acme/x@1.0.0", nil, saved, flags[0], flags[1], flags[2])
 		if err == nil || !strings.Contains(err.Error(), "not confirmed") {
 			t.Errorf("%s with every default saved: err = %v, want the dialog's refusal", name, err)
 		}
 	}
-	if asked != 3 {
+	if asked != 2 {
 		t.Fatalf("dialogs raised = %d, want one per consent", asked)
+	}
+	// A vulnerable server's consent is no default either: with Unsafe Mode
+	// off it is refused outright (agentry-desktop#459, D-055).
+	if err := r.runGates("acme/x@1.0.0", nil, saved, false, true, false); err == nil || !strings.Contains(err.Error(), "only in Unsafe Mode") || asked != 2 {
+		t.Errorf("vulnerable MCP with every default saved: err = %v, dialogs %d, want the refusal and no dialog", err, asked)
 	}
 }
 

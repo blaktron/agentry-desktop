@@ -10,8 +10,10 @@ import (
 // computer no longer needs this machine's exec catalogue to name each
 // command the QuickAgent declares: the commands are installed from the
 // Unsafe Mode image (Kali Linux) instead, and each runs with that image's
-// PATH (the CLI's DR-53). Nothing else about a run changes, and a run In
-// Agentry never carries it (D7).
+// PATH (the CLI's DR-53). It is also the one way a declared MCP server the
+// registry's gate rates high or critical runs here, with the person's consent for each
+// run (agentry-desktop#459, D-055). Nothing else about a run changes, and
+// a run In Agentry never carries it (D7).
 //
 // The renderer is not a principal (D-030), so the page cannot turn it on:
 // SetUnsafeMode(true) is a native confirmation the page cannot answer,
@@ -28,6 +30,7 @@ const (
 	unsafeConfirmTitle   = "Turn on Unsafe Mode?"
 	unsafeConfirmMessage = "QuickAgents can run commands this computer has not approved. Each command is installed from Kali Linux's repository when the QuickAgent first runs. Tools Kali does not package come from PyPI.\n\n" +
 		"A declared command also runs with that image's own PATH, in an image that keeps everything it installed, so it can start any program the image holds. run_command still takes only the commands a QuickAgent declares, and every other limit on a run stays: the container's isolation, its network limits, and each consent.\n\n" +
+		"A declared MCP server the registry's gate rates high or critical for a known vulnerability can run too, and each such run asks you first.\n\n" +
 		"This applies to runs on this computer only, never to a run In Agentry. Agentry downloads the Unsafe Mode image now, and a red edge round the window shows it is on.\n\nTurn it on?"
 )
 

@@ -1008,6 +1008,9 @@ type MCPView struct {
 	Vulnerabilities   []mcpvuln.Status `json:"vulnerabilities"`
 	VulnerabilityLine string           `json:"vulnerabilityLine,omitempty"`
 	Refusal           string           `json:"refusal,omitempty"`
+	// Refusing names the refusing servers alone, for the consent row
+	// Unsafe Mode offers (D-055).
+	Refusing string `json:"refusing,omitempty"`
 }
 
 // GatewayRequirements computes the tool surface the latest published
@@ -1047,6 +1050,7 @@ func mcpViewOf(info *run.MCPInfo) *MCPView {
 		Vulnerabilities:   info.Vulnerabilities,
 		VulnerabilityLine: info.VulnerabilityLine,
 		Refusal:           info.Refusal,
+		Refusing:          info.Refusing,
 	}
 	if v.Vulnerabilities == nil {
 		v.Vulnerabilities = []mcpvuln.Status{}
@@ -1141,6 +1145,12 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 // cannot provide (plan unsafe-mode.md D6, D8). That paragraph adds no
 // dialog of its own: turning Unsafe Mode on was the native confirmation,
 // and a run with nothing to accept still raises none.
+//
+// A declared MCP server the registry's gate rates high or critical runs on this
+// computer only in Unsafe Mode (agentry-desktop#459, D-055), so with the
+// switch off the page's consent for one is refused here, before any
+// dialog: there is nothing to ask. The engine refuses the server again
+// on the registry's own answer whatever the page sent.
 func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe bool) error {
 	for _, p := range inputPaths {
 		if err := r.app.requirePicked("input", p); err != nil {
@@ -1150,6 +1160,9 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 	if err := r.app.requireOutputDir(outDir); err != nil {
 		return err
 	}
+	if allowVulnerableMCP && !unsafe {
+		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Run defaults, or run a release that pins a fixed version")
+	}
 	var accepting []string
 	if acceptUnsigned {
 		accepting = append(accepting, "a release with no attestation")
@@ -1158,7 +1171,10 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 		accepting = append(accepting, "a release the registry admitted without a scan")
 	}
 	if allowVulnerableMCP {
-		accepting = append(accepting, "a declared MCP server with a known vulnerability")
+		// Go has not looked at the servers here, so the line asserts none:
+		// the engine decides on the registry's answer, and the receipt
+		// names each server it let through.
+		accepting = append(accepting, "any declared MCP server the registry's gate rates high or critical, which runs only in Unsafe Mode")
 	}
 	if len(accepting) == 0 {
 		return nil

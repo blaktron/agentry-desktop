@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
@@ -30,16 +31,14 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	// the variable's, under a runner home of the test's own.
 	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(policy.DefaultJudgeKeyEnv, "jev-consent-test")
+	// A settings file of the test's own: Unsafe Mode is off.
+	t.Setenv(configdir.EnvVar, t.TempDir())
 	for name, call := range map[string]func() error{
 		"RestartNow":       func() error { return r.RestartNow() },
 		"InstallDocker":    func() error { _, err := r.InstallDocker(); return err },
 		"AddToDockerGroup": func() error { _, err := r.AddToDockerGroup(); return err },
 		"RunAgent unsigned": func() error {
 			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false)
-			return err
-		},
-		"StartSession vulnerable MCP": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false)
 			return err
 		},
 		"InstallAPI.Confirm unscanned": func() error {
@@ -60,7 +59,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 			t.Errorf("%s with the dialog answered No: err = %v, want a refusal", name, err)
 		}
 	}
-	if len(asked) != 7 {
+	if len(asked) != 6 {
 		t.Fatalf("dialogs raised = %v, want one per call", asked)
 	}
 	// A consent-free run raises no dialog: nothing to confirm.
@@ -68,6 +67,28 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	_, _ = r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false)
 	if len(asked) != before {
 		t.Fatalf("a run with no consent flags raised a dialog: %v", asked[before:])
+	}
+	// A declared server the gate rates high runs here only in Unsafe Mode
+	// (agentry-desktop#459, D-055): with the switch off, the page's consent
+	// for one is refused before any dialog, since a Yes could not let it
+	// through, and the page cannot turn the switch on (no binding takes it).
+	before = len(asked)
+	for name, call := range map[string]func() error{
+		"RunAgent": func() error {
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false)
+			return err
+		},
+		"StartSession": func() error {
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false)
+			return err
+		},
+	} {
+		if err := call(); err == nil || !strings.Contains(err.Error(), "only in Unsafe Mode, and Unsafe Mode is off") {
+			t.Errorf("%s with a vulnerable server's consent and Unsafe Mode off: err = %v, want the refusal", name, err)
+		}
+	}
+	if len(asked) != before {
+		t.Fatalf("a consent Unsafe Mode's absence refuses raised a dialog: %v", asked[before:])
 	}
 	// No dialog available at all (no window): refuse, never assume yes.
 	none := &RunAPI{app: &App{ctx: context.Background()}}

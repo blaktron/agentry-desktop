@@ -126,3 +126,47 @@ export type RunForm = {
   acceptUnscanned: boolean;
   allowVulnerableMCP: boolean;
 };
+
+/** What the run setup does with a declared MCP server the registry's gate
+ *  rates high (agentry-desktop#459, D-055). On this computer it runs only
+ *  in Unsafe Mode, and there only with the person's consent for the run,
+ *  which Go asks again in a native dialog; with the switch off the setup
+ *  offers no consent and says how to get through. A run In Agentry has no
+ *  way through at all. Medium and low never reach here: the registry's
+ *  verdict carries no refusal for them. */
+export type VulnerableServerStep = {
+  /** Offer the "Allow vulnerable MCP servers for this run" consent. */
+  offerConsent: boolean;
+  /** What holds Run, or null when nothing does. */
+  blocker: string | null;
+  /** Whether the consent is sent to Go with the run. */
+  send: boolean;
+  /** Show the registry's refusal, with its way through, on this computer. */
+  showRefusal: boolean;
+};
+
+export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; unsafeOn: boolean; consented: boolean }): VulnerableServerStep {
+  if (!s.refused) return { offerConsent: false, blocker: null, send: false, showRefusal: false };
+  if (s.inAgentry) {
+    return {
+      offerConsent: false,
+      send: false,
+      showRefusal: false,
+      blocker: "A run In Agentry refuses a declared MCP server the registry's gate rates high or critical, with no way through: run it on this computer in Unsafe Mode, or run a release that pins a fixed version.",
+    };
+  }
+  if (!s.unsafeOn) {
+    return {
+      offerConsent: false,
+      send: false,
+      showRefusal: true,
+      blocker: "A declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode: turn it on in Settings → Run defaults, or run a release that pins a fixed version.",
+    };
+  }
+  return {
+    offerConsent: true,
+    send: s.consented,
+    showRefusal: false,
+    blocker: s.consented ? null : "Tick “Allow vulnerable MCP servers for this run”.",
+  };
+}

@@ -543,11 +543,12 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 command the QuickAgent declares is installed from Kali Linux&apos;s repository when it first runs, or from
                 PyPI for a tool Kali does not package. It runs with that image&apos;s own PATH, in an image that keeps
                 everything it installed, so it can start any program the image holds. A command that cannot be installed is
-                left out, and the run goes on without it.
+                left out, and the run goes on without it. A declared MCP server the registry&apos;s gate rates high or
+                critical for a known vulnerability can run too, only in Unsafe Mode and only with your consent for each run.
               </p>
               <p className="muted small">
                 <span className="mono">run_command</span> still takes only the commands a QuickAgent declares. The
-                container&apos;s isolation, its network limits and every consent stay as they are, and a run In Agentry never
+                container&apos;s isolation, its network limits and every other consent stay as they are, and a run In Agentry never
                 uses Unsafe Mode. Turning it on asks you to confirm, then downloads the Unsafe Mode image, a few hundred
                 megabytes. While it is on, a red edge runs round the window and the sidebar says so. Turning it off applies
                 from the next run or chat and keeps the images (Docker images, below, removes them). One already running

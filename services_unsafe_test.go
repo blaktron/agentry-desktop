@@ -188,9 +188,12 @@ func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 	}
 	runIt := func() {
 		t.Helper()
-		// Every consent flag the page can send, accepted in the dialog.
+		// Every consent flag the page can send, accepted in the dialog. A
+		// vulnerable server's consent is refused with the switch off
+		// (D-055), so it is sent only while the switch is on.
 		u.answer = true
-		if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, map[string]string{"unsafeMode": "true"}, true, true, nil, false); err != nil {
+		vuln := savedUnsafeMode(t)
+		if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, map[string]string{"unsafeMode": "true"}, vuln, true, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -220,7 +223,8 @@ func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 }
 
 // Invariant 7: with Unsafe Mode on, every consent that exists still asks,
-// in its own dialog, and a No still refuses. The dialog carries one more
+// in its own dialog, and a No still refuses (a vulnerable server's consent
+// exists only there since D-055). The dialog carries one more
 // line naming Unsafe Mode and the commands its image cannot provide (D6,
 // D8), and Unsafe Mode adds no dialog to a run that had none.
 func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
@@ -235,9 +239,9 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	u.r.engineRun = func(context.Context, run.Request, io.Writer) (*run.Result, error) { ran++; return &run.Result{}, nil }
 
 	for name, flags := range map[string][3]bool{
-		"a release with no attestation":                    {true, false, false},
-		"a declared MCP server with a known vulnerability": {false, true, false},
-		"a release the registry admitted without a scan":   {false, false, true},
+		"a release with no attestation": {true, false, false},
+		"any declared MCP server the registry's gate rates high or critical, which runs only in Unsafe Mode": {false, true, false},
+		"a release the registry admitted without a scan":                                                     {false, false, true},
 	} {
 		before := len(u.asked)
 		_, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, flags[0], nil, flags[1], flags[2], nil, false)
@@ -296,6 +300,42 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false)
 	if msg := u.asked[len(u.asked)-1]; msg != "Run acme/x@1.0.0 anyway?\nThis run accepts a release with no attestation. The receipt will record the consent. Continue?" {
 		t.Fatalf("with Unsafe Mode off the dialog changed:\n%s", msg)
+	}
+}
+
+// In Unsafe Mode a declared server the gate rates high runs on the
+// person's Yes to the native dialog (agentry-desktop#459, D-055): the
+// engine gets the switch and the consent together, and decides on the
+// registry's answer itself. A No reaches nothing.
+func TestUnsafeModeRunsAVulnerableServerOnTheDialogsYes(t *testing.T) {
+	u := newUnsafeApp(t)
+	switchOn(t)
+	u.r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) { return &run.UnsafeNotice{}, nil }
+	var got []run.Request
+	u.r.engineRun = func(_ context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
+		got = append(got, req)
+		return &run.Result{}, nil
+	}
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false); err == nil || len(got) != 0 {
+		t.Fatalf("the dialog's No: err = %v, engine reached %d time(s)", err, len(got))
+	}
+	msg := u.asked[len(u.asked)-1]
+	for _, want := range []string{"any declared MCP server the registry's gate rates high or critical, which runs only in Unsafe Mode", "Unsafe Mode is on"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("the dialog lacks %q:\n%s", want, msg)
+		}
+	}
+	// A chat asks the same, and a No starts nothing.
+	before := len(u.asked)
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false); err == nil || !strings.Contains(err.Error(), "not confirmed") || len(u.asked) != before+1 {
+		t.Fatalf("StartSession's No in Unsafe Mode: err = %v, dialogs %d", err, len(u.asked)-before)
+	}
+	u.answer = true
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !got[0].Unsafe || !got[0].AllowVulnerableMCP {
+		t.Fatalf("the engine's request after a Yes = %+v, want Unsafe and the consent", got)
 	}
 }
 

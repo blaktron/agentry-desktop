@@ -79,6 +79,10 @@ type fakeRunRegistry struct {
 	// unscanned makes the resolve result say the version was admitted
 	// without a scan (scanStatus skipped, no attestationUrl).
 	unscanned bool
+	// mcpScan, when set, is the answer to every declared server's
+	// vulnerability lookup (/api/v1/mcp-servers/scan); unset, the route
+	// 404s, which the runner reads as a server never seen.
+	mcpScan map[string]any
 
 	mu   sync.Mutex
 	hits map[string]int
@@ -204,6 +208,16 @@ func startRunRegistry(t *testing.T, f *fakeRunRegistry) string {
 	mux.HandleFunc("/.well-known/agentry/signing-keys.json", func(w http.ResponseWriter, _ *http.Request) {
 		f.count("/.well-known/agentry/signing-keys.json")
 		w.WriteHeader(http.StatusNotFound)
+	})
+
+	mux.HandleFunc("/api/v1/mcp-servers/scan", func(w http.ResponseWriter, _ *http.Request) {
+		f.count("/api/v1/mcp-servers/scan")
+		if f.mcpScan == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(f.mcpScan)
 	})
 
 	f.srv = httptest.NewServer(mux)

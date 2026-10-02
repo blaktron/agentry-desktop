@@ -11,6 +11,7 @@ import {
 import InstallWizard from "./InstallWizard";
 import { codingAgentName } from "./CodingAgents";
 import RunPanel from "./RunPanel";
+import { advisoryWords } from "../advisory";
 import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 
@@ -473,13 +474,13 @@ function MCPSection({
                   <td className="mono">{v.ref}</td>
                   <td>
                     {v.status}
-                    {v.maxSeverity ? <> <Sev severity={v.maxSeverity} /></> : null}
+                    {v.rating ? <> <Sev severity={v.rating} /></> : null}
                     {v.error ? <span className="muted small"> {v.error}</span> : null}
                   </td>
                   <td className="small">
                     {(v.advisories ?? []).map((a) => (
                       <div key={a.id}>
-                        <span className="mono">{a.id}</span> {a.severity}
+                        <span className="mono">{a.id}</span> {advisoryWords(a)}
                         {a.fixedIn.length > 0 ? `, fixed in ${a.fixedIn.join(", ")}` : ""}
                       </div>
                     ))}
@@ -491,8 +492,8 @@ function MCPSection({
           {info.refusal
             ? (
               <div className="error-box selectable">
-                Runs are refused by default: {info.refusal}. The run panel has the override; it is
-                recorded in the run&apos;s receipt.
+                Runs are refused by default: {info.refusal}. In Unsafe Mode the run panel asks your
+                consent for the run, and the receipt names it.
               </div>
             )
             : <p className="muted small">Declared MCP servers {info.vulnerabilityLine}.</p>}
