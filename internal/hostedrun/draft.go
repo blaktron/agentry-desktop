@@ -149,7 +149,7 @@ func DraftHoldSentence(holdCredits int64, t DraftTerms) string {
 	if holdCredits == 0 {
 		return "This draft holds no credits: the organization that pays for your drafts is not metered."
 	}
-	return fmt.Sprintf("This draft holds %d credits and settles from what it uses: the tokens its model reads and writes, up to %d web searches at %s each, and %s for AI Review, never more than it holds.",
+	return fmt.Sprintf("This draft holds %d credits and settles from what it uses: its model's work, up to %d web searches at %s each, and %s for AI Review, never more than it holds.",
 		holdCredits, t.MaxSearches, creditCount(t.CreditsPerSearch), creditCount(t.AIReviewCredits))
 }
 

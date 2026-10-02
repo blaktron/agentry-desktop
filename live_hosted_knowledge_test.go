@@ -112,9 +112,9 @@ func TestLiveHostedKnowledge(t *testing.T) {
 	if final == nil {
 		t.Fatal("the build did not end within 25 minutes")
 	}
-	t.Logf("final: %s (%s); applied %v, %d pages, %d bytes; note %q; %d held, %d settled (scan %d); tokens %d in / %d out, %d turns",
+	t.Logf("final: %s (%s); applied %v, %d pages, %d bytes; note %q; %d held, %d settled (scan %d); %d turns",
 		final.State, final.OutcomeLine, final.Applied, final.Pages, final.Bytes, final.Note, final.HoldCredits, final.SettledCredits, final.ScanCredits,
-		final.InputTokens, final.OutputTokens, final.Turns)
+		final.Turns)
 	t.Logf("kept: downloaded %v %q; error %q; scan %q (%s)", final.Downloaded, final.Kept, final.DownloadError, final.Scan, final.ScanState)
 	if final.Status != "finished" || !final.Applied || !final.Downloaded || final.ScanState != knowledge.ScanScanned {
 		t.Fatalf("the build did not land a scanned pack here: %+v", final)

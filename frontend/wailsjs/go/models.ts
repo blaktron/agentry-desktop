@@ -602,165 +602,6 @@ export namespace drafter {
 
 }
 
-export namespace hostedrun {
-	
-	export class CallerVoice {
-	    allowed: boolean;
-	    limited: boolean;
-	    used: number;
-	    max: number;
-	    // Go type: time
-	    nextAt?: any;
-	    holdCredits: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new CallerVoice(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.allowed = source["allowed"];
-	        this.limited = source["limited"];
-	        this.used = source["used"];
-	        this.max = source["max"];
-	        this.nextAt = this.convertValues(source["nextAt"], null);
-	        this.holdCredits = source["holdCredits"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class CallerSession {
-	    allowed: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new CallerSession(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.allowed = source["allowed"];
-	    }
-	}
-	export class TierPrice {
-	    caps: Caps;
-	    holdCredits: number;
-	    allowed?: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new TierPrice(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.caps = this.convertValues(source["caps"], Caps);
-	        this.holdCredits = source["holdCredits"];
-	        this.allowed = source["allowed"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class Caps {
-	    timeoutSeconds: number;
-	    maxTurns: number;
-	    maxTokens: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new Caps(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.timeoutSeconds = source["timeoutSeconds"];
-	        this.maxTurns = source["maxTurns"];
-	        this.maxTokens = source["maxTokens"];
-	    }
-	}
-	export class Caller {
-	    tier: string;
-	    account?: string;
-	    caps: Caps;
-	    holdCredits: number;
-	    inputTokensPerCredit: number;
-	    outputTokensPerCredit: number;
-	    build?: TierPrice;
-	    draft?: TierPrice;
-	    session?: CallerSession;
-	    voice?: CallerVoice;
-	
-	    static createFrom(source: any = {}) {
-	        return new Caller(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.tier = source["tier"];
-	        this.account = source["account"];
-	        this.caps = this.convertValues(source["caps"], Caps);
-	        this.holdCredits = source["holdCredits"];
-	        this.inputTokensPerCredit = source["inputTokensPerCredit"];
-	        this.outputTokensPerCredit = source["outputTokensPerCredit"];
-	        this.build = this.convertValues(source["build"], TierPrice);
-	        this.draft = this.convertValues(source["draft"], TierPrice);
-	        this.session = this.convertValues(source["session"], CallerSession);
-	        this.voice = this.convertValues(source["voice"], CallerVoice);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	
-	
-
-}
-
 export namespace install {
 	
 	export class CodingAgentExport {
@@ -2036,7 +1877,6 @@ export namespace main {
 	export class HostedCapsView {
 	    timeoutSeconds: number;
 	    maxTurns: number;
-	    maxTokens: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedCapsView(source);
@@ -2046,7 +1886,6 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.timeoutSeconds = source["timeoutSeconds"];
 	        this.maxTurns = source["maxTurns"];
-	        this.maxTokens = source["maxTokens"];
 	    }
 	}
 	export class HostedAvailabilityView {
@@ -2061,8 +1900,6 @@ export namespace main {
 	    queued: number;
 	    tier?: string;
 	    holdCredits: number;
-	    inputTokensPerCredit: number;
-	    outputTokensPerCredit: number;
 	    caps?: HostedCapsView;
 	    balance: number;
 	    balanceKnown: boolean;
@@ -2091,8 +1928,6 @@ export namespace main {
 	        this.queued = source["queued"];
 	        this.tier = source["tier"];
 	        this.holdCredits = source["holdCredits"];
-	        this.inputTokensPerCredit = source["inputTokensPerCredit"];
-	        this.outputTokensPerCredit = source["outputTokensPerCredit"];
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	        this.balance = source["balance"];
 	        this.balanceKnown = source["balanceKnown"];
@@ -2280,10 +2115,6 @@ export namespace main {
 	    outcomeTone?: string;
 	    error?: string;
 	    turns: number;
-	    inputTokens: number;
-	    outputTokens: number;
-	    totalTokens: number;
-	    costUsd: number;
 	    wallMs: number;
 	    holdCredits: number;
 	    settledCredits: number;
@@ -2327,10 +2158,6 @@ export namespace main {
 	        this.outcomeTone = source["outcomeTone"];
 	        this.error = source["error"];
 	        this.turns = source["turns"];
-	        this.inputTokens = source["inputTokens"];
-	        this.outputTokens = source["outputTokens"];
-	        this.totalTokens = source["totalTokens"];
-	        this.costUsd = source["costUsd"];
 	        this.wallMs = source["wallMs"];
 	        this.holdCredits = source["holdCredits"];
 	        this.settledCredits = source["settledCredits"];
@@ -2353,6 +2180,38 @@ export namespace main {
 	        this.createdAt = source["createdAt"];
 	        this.finishedAt = source["finishedAt"];
 	        this.final = source["final"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HostedRunsTermsView {
+	    holdCredits: number;
+	    caps: HostedCapsView;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedRunsTermsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.holdCredits = source["holdCredits"];
+	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2624,8 +2483,6 @@ export namespace main {
 	    pages: number;
 	    bytes: number;
 	    note?: string;
-	    inputTokens: number;
-	    outputTokens: number;
 	    turns: number;
 	    documents: HostedArtefactView[];
 	    canContinue: boolean;
@@ -2661,8 +2518,6 @@ export namespace main {
 	        this.pages = source["pages"];
 	        this.bytes = source["bytes"];
 	        this.note = source["note"];
-	        this.inputTokens = source["inputTokens"];
-	        this.outputTokens = source["outputTokens"];
 	        this.turns = source["turns"];
 	        this.documents = this.convertValues(source["documents"], HostedArtefactView);
 	        this.canContinue = source["canContinue"];
@@ -3230,7 +3085,7 @@ export namespace main {
 	    subscription?: any;
 	    subscriptionError?: string;
 	    signedUpWith?: string;
-	    hostedRuns?: hostedrun.Caller;
+	    hostedRuns?: HostedRunsTermsView;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileView(source);
@@ -3242,7 +3097,7 @@ export namespace main {
 	        this.subscription = this.convertValues(source["subscription"], null);
 	        this.subscriptionError = source["subscriptionError"];
 	        this.signedUpWith = source["signedUpWith"];
-	        this.hostedRuns = this.convertValues(source["hostedRuns"], hostedrun.Caller);
+	        this.hostedRuns = this.convertValues(source["hostedRuns"], HostedRunsTermsView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

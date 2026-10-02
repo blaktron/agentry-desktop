@@ -148,8 +148,9 @@ export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
 
 // HostedProgressView is where the run stands as the registry reports it:
 // its place in the queue while it waits, then the time it has run against
-// its cap, and the credits it holds. The registry reports turns and tokens
-// only once the run is over, so there are none while it runs.
+// its cap, and the credits it holds. The registry reports turns only once
+// the run is over, so there are none while it runs, and a run In Agentry
+// is never stated in tokens (agentry-desktop#457).
 function HostedProgressView({ r, compact }: { r: main.HostedRunView; compact?: boolean }) {
   const queued = r.status === "queued" && (r.queuePosition ?? 0) > 0;
   const held = r.holdCredits === 1 ? "1 credit held" : `${r.holdCredits} credits held`;

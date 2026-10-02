@@ -209,9 +209,11 @@ func Run(dir string) (*Result, error) {
 
 // scanS1 runs the S1 subset over already-read file contents — the same
 // classification, severities, and wording the pipeline's S1 stage and the
-// CLI's local scan produce, built on the same pkg/archive predicates.
+// CLI's local scan produce, built on the same pkg/archive predicates. A
+// clean folder answers an empty list, never nil: the Result crosses the IPC
+// as JSON and the Validate page reads the list's length (agentry-desktop#534).
 func scanS1(files []scanFile) []InventoryFinding {
-	var out []InventoryFinding
+	out := []InventoryFinding{}
 	for _, f := range files {
 		switch {
 		case archive.IsExecutable(f.content):

@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChooseFiles } from "../../wailsjs/go/main/App";
 import { Button, ErrorBox, Input, Spinner } from "../ui";
 import { addChatFiles, endChat, sendChat } from "../runs";
-import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, working, type ChatRecord } from "../sessionChat";
+import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord } from "../sessionChat";
 
 // Since agentry-desktop#467 the chat's store (runs.ts over sessionChat.ts's
 // createChatStore) starts the session and owns its events, messages, files
@@ -86,8 +86,7 @@ export default function SessionChat({ c }: { c: ChatRecord }) {
         ended: chat.ended,
         outOfCredits,
       })
-    : `${c.ref} · interactive · ${chat.turns} turn${chat.turns === 1 ? "" : "s"} · ${chat.tools} tool call${chat.tools === 1 ? "" : "s"}` +
-      `${chat.cost > 0 ? ` · $${chat.cost.toFixed(4)}` : ""}${busy ? " · thinking…" : ""}${chat.ended ? ` · ended (${chat.ended})` : ""}`;
+    : localStatusLine(c.ref, chat, busy);
   // In Agentry, until the first event: where the session stands.
   const waiting = inAgentry && !over && chat.lines.length === openingLines && !chat.streaming;
   const locked = starting || !running || over || ending;

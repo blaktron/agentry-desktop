@@ -22,7 +22,7 @@ import (
 func TestCreateWatchFinishAndDownload(t *testing.T) {
 	f := &fakeRuns{
 		enabled: true, workersOnline: 0, queued: 1, pushed: true,
-		caller: &Caller{Tier: "standard", Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, HoldCredits: 20, InputTokensPerCredit: 50000, OutputTokensPerCredit: 25000},
+		caller: &Caller{Tier: "standard", Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20}, HoldCredits: 20},
 		outputs: map[string][]byte{
 			"result.json":         []byte(`"the incident summary"`),
 			"reports/report.md":   []byte("# Report\n"),
@@ -38,7 +38,7 @@ func TestCreateWatchFinishAndDownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !st.Enabled || st.Caller == nil || st.Caller.HoldCredits != 20 || st.Caller.Caps.MaxTokens != 20000 {
+	if !st.Enabled || st.Caller == nil || st.Caller.HoldCredits != 20 || st.Caller.Caps.MaxTurns != 20 {
 		t.Fatalf("status = %+v (caller %+v)", st, st.Caller)
 	}
 
@@ -76,7 +76,7 @@ func TestCreateWatchFinishAndDownload(t *testing.T) {
 	if strings.Join(seen, " ") != strings.Join(want, " ") {
 		t.Fatalf("statuses = %v, want %v", seen, want)
 	}
-	if final.Outcome != OutcomeSucceeded || final.ExitClass != "ok" || final.Usage.Tokens() != 1200 {
+	if final.Outcome != OutcomeSucceeded || final.ExitClass != "ok" || final.Usage == nil || final.Usage.Turns != 4 {
 		t.Fatalf("final = %+v usage %+v", final, final.Usage)
 	}
 	if final.SettledCredits == nil || *final.SettledCredits != 2 {
@@ -472,8 +472,8 @@ func TestVerdictPerOutcome(t *testing.T) {
 		{OutcomeSucceeded, "ok", true, "ran to the end"},
 		{OutcomeFailed, "bad", true, "the agent ran and failed"},
 		{OutcomeTimeout, "bad", true, "time limit"},
-		{OutcomeBudget, "bad", true, "turn or token budget"},
-		{OutcomeInterrupted, "warn", true, "you cancelled it"},
+		{OutcomeBudget, "bad", true, "turn or cost limit"},
+		{OutcomeInterrupted, "warn", true, "by your cancel or at its limit on model use"},
 		{OutcomeRefused, "bad", false, "the platform's own verification refused this release"},
 		{OutcomeError, "bad", false, "the platform could not run it"},
 	}
@@ -490,6 +490,11 @@ func TestVerdictPerOutcome(t *testing.T) {
 			t.Fatalf("%s does not read distinguishably: %q", c.outcome, v.Line)
 		}
 		seen[v.Line] = true
+		// A run In Agentry is stated in credits, time and turns
+		// (agentry-desktop#457).
+		if strings.Contains(strings.ToLower(v.Line), "token") {
+			t.Fatalf("%s names tokens: %q", c.outcome, v.Line)
+		}
 		if c.outcome == OutcomeRefused && !strings.Contains(v.Line, "refunded") {
 			t.Fatalf("a refusal must say the credits came back: %q", v.Line)
 		}
@@ -522,20 +527,6 @@ func TestVerdictPerOutcome(t *testing.T) {
 		if got := State(&s.run); got != s.word {
 			t.Fatalf("%s/%s reads %q, want %q", s.run.Status, s.run.Outcome, got, s.word)
 		}
-	}
-}
-
-// A harness that reports only the split still shows a token count.
-func TestUsageTokens(t *testing.T) {
-	if got := (&Usage{InputTokens: 900, OutputTokens: 300}).Tokens(); got != 1200 {
-		t.Fatalf("split only = %d", got)
-	}
-	if got := (&Usage{InputTokens: 900, OutputTokens: 300, TotalTokens: 1150}).Tokens(); got != 1150 {
-		t.Fatalf("reported total = %d", got)
-	}
-	var none *Usage
-	if none.Tokens() != 0 {
-		t.Fatal("no usage must be no tokens")
 	}
 }
 

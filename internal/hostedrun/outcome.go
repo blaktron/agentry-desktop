@@ -4,7 +4,11 @@ package hostedrun
 // from the run and never re-derived here; this file only decides how each
 // one reads, so the seven outcomes are distinguishable and honest — a
 // refusal says the platform's own verification refused the release and the
-// credits came back, an error says the platform could not run it.
+// credits came back, an error says the platform could not run it. A run In
+// Agentry is stated in credits, time and turns, so no line names tokens
+// (agentry-desktop#457): budget is the runner's turn budget or a policy's
+// cost budget, and interrupted is a cancel or the sandbox host's stop at
+// what the hold may buy, as the site words them (agentry-web lib/runs.ts).
 
 // The outcomes a finished run carries.
 const (
@@ -54,9 +58,9 @@ func Read(run *Run) Verdict {
 	case OutcomeTimeout:
 		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "stopped at the time limit for this tier", Settled: true}
 	case OutcomeBudget:
-		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "stopped at the turn or token budget for this tier", Settled: true}
+		return Verdict{Outcome: run.Outcome, Tone: "bad", Line: "stopped at its turn or cost limit", Settled: true}
 	case OutcomeInterrupted:
-		return Verdict{Outcome: run.Outcome, Tone: "warn", Line: "you cancelled it — what had run was settled", Settled: true}
+		return Verdict{Outcome: run.Outcome, Tone: "warn", Line: "interrupted, by your cancel or at its limit on model use — what had run was settled", Settled: true}
 	case OutcomeRefused:
 		return Verdict{
 			Outcome: run.Outcome, Tone: "bad",

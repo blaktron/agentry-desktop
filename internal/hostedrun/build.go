@@ -95,7 +95,7 @@ func DecideBuild(f BuildFacts) Offer {
 }
 
 // CanContinue reports whether a build stopped short of its work — at its
-// token or time cap, interrupted, cancelled, or finished over a pack that
+// turn, cost or time limit, interrupted, cancelled, or finished over a pack that
 // took other pages while it ran — so a new build may continue it from the
 // pack as it is now, with its documents (the registry copies them).
 func CanContinue(r *Run) bool {

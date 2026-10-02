@@ -143,17 +143,21 @@ type SessionView struct {
 type SessionEventView struct {
 	// Seq is a hosted session's frame sequence number (0 on this
 	// machine): a chat that replays a session keeps each one once.
-	Seq          uint64  `json:"seq,omitempty"`
-	Kind         string  `json:"kind"`
-	Time         string  `json:"time"`
-	Text         string  `json:"text,omitempty"`
-	Synthetic    bool    `json:"synthetic,omitempty"`
-	StopReason   string  `json:"stopReason,omitempty"`
-	Path         string  `json:"path,omitempty"`
-	Digest       string  `json:"digest,omitempty"`
-	Reason       string  `json:"reason,omitempty"`
+	Seq        uint64 `json:"seq,omitempty"`
+	Kind       string `json:"kind"`
+	Time       string `json:"time"`
+	Text       string `json:"text,omitempty"`
+	Synthetic  bool   `json:"synthetic,omitempty"`
+	StopReason string `json:"stopReason,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Digest     string `json:"digest,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+	// InputTokens, OutputTokens, TotalTokens and CostUSD are a usage
+	// event's, from a session on this computer only; a session In
+	// Agentry's frames carry none (agentry-desktop#457).
 	InputTokens  int64   `json:"inputTokens,omitempty"`
 	OutputTokens int64   `json:"outputTokens,omitempty"`
+	TotalTokens  int64   `json:"totalTokens,omitempty"`
 	CostUSD      float64 `json:"costUsd,omitempty"`
 }
 
@@ -243,7 +247,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 			runtime.EventsEmit(r.app.ctx, eventSessionEvent, SessionEventView{
 				Kind: string(ev.Kind), Time: ev.Time.Format(time.RFC3339Nano), Text: ev.Text, Synthetic: ev.Synthetic,
 				StopReason: ev.StopReason, Path: ev.Path, Digest: ev.Digest, Reason: string(ev.Reason),
-				InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, CostUSD: ev.CostUSD,
+				InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens, TotalTokens: ev.TotalTokens, CostUSD: ev.CostUSD,
 			})
 		}
 	}()

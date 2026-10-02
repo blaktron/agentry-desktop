@@ -96,7 +96,7 @@ func (f *fakeRuns) start(t *testing.T) string {
 		}
 		f.run = &Run{
 			ID: "11111111-1111-1111-1111-111111111111", Ref: req.Ref, Digest: "sha256:abc",
-			Mode: "autonomous", Status: StatusQueued, Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000},
+			Mode: "autonomous", Status: StatusQueued, Caps: Caps{TimeoutSeconds: 300, MaxTurns: 20},
 			HoldCredits: 20, QueuePosition: 2, CreatedAt: time.Now().UTC(), Outputs: []Artefact{},
 		}
 		writeJSON(w, http.StatusCreated, f.run)
@@ -225,7 +225,7 @@ func (f *fakeRuns) finish(outcome, exitClass string, settled int64) {
 	f.run.ExitClass = exitClass
 	f.run.FinishedAt = &now
 	f.run.SettledCredits = &settled
-	f.run.Usage = &Usage{InputTokens: 900, OutputTokens: 300, Turns: 4, WallMS: 12000, CostUSD: 0.02}
+	f.run.Usage = &Usage{Turns: 4, WallMS: 12000}
 	f.run.Receipt = Receipt{CapabilitiesEnforced: map[string]string{
 		"network.egress": "llm-proxy allowlist: api.example.com",
 		"filesystem":     "workspace bind mount, read-only /inputs",

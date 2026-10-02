@@ -65,18 +65,16 @@ type Session struct {
 // on the stream's `frame` events (agentry-enterprise hostapi.FrameEvent):
 // the CLI's session event filtered to what a chat shows. An input_added
 // names the file by its basename, and an error by a fixed class, never by
-// text the harness wrote.
+// text the harness wrote. A frame's token counts are not decoded: a
+// session In Agentry is stated in credits (agentry-desktop#457).
 type FrameEvent struct {
-	Kind         string    `json:"kind"`
-	Time         time.Time `json:"time"`
-	Text         string    `json:"text,omitempty"`
-	Synthetic    bool      `json:"synthetic,omitempty"`
-	StopReason   string    `json:"stopReason,omitempty"`
-	Reason       string    `json:"reason,omitempty"`
-	Class        string    `json:"class,omitempty"`
-	InputTokens  int64     `json:"inputTokens,omitempty"`
-	OutputTokens int64     `json:"outputTokens,omitempty"`
-	TotalTokens  int64     `json:"totalTokens,omitempty"`
+	Kind       string    `json:"kind"`
+	Time       time.Time `json:"time"`
+	Text       string    `json:"text,omitempty"`
+	Synthetic  bool      `json:"synthetic,omitempty"`
+	StopReason string    `json:"stopReason,omitempty"`
+	Reason     string    `json:"reason,omitempty"`
+	Class      string    `json:"class,omitempty"`
 }
 
 // SessionState is the stream's `state` event: the run's content-free state

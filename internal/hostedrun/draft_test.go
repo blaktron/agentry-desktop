@@ -47,7 +47,7 @@ func TestDecideDraft(t *testing.T) {
 // lib/__tests__/runs.test.ts).
 func TestDraftSentencesAreTheSites(t *testing.T) {
 	got := DraftHoldSentence(41, DraftTerms{MaxSearches: 10, CreditsPerSearch: 1, AIReviewCredits: 1})
-	want := "This draft holds 41 credits and settles from what it uses: the tokens its model reads and writes, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds."
+	want := "This draft holds 41 credits and settles from what it uses: its model's work, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds."
 	if got != want {
 		t.Fatalf("got %q", got)
 	}

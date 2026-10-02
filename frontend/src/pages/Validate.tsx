@@ -105,7 +105,13 @@ export default function Validate({ registry, onOpenSettings }: {
 }
 
 function ResultView({ r }: { r: validate.Result }) {
-  const totalProblems = r.errorCount + r.inventoryFailing + r.findings.length;
+  // Go sends a nil slice as null; read every list as Build's review card does
+  // (agentry-desktop#534: a clean folder's null inventory stopped the page).
+  const issues = r.issues ?? [];
+  const inventory = r.inventory ?? [];
+  const findings = r.findings ?? [];
+  const readErrors = r.readErrors ?? [];
+  const totalProblems = r.errorCount + r.inventoryFailing + findings.length;
   return (
     <div>
       <Card>
@@ -122,13 +128,13 @@ function ResultView({ r }: { r: validate.Result }) {
           {r.warnCount > 0 && <> · {r.warnCount} manifest warning{r.warnCount === 1 ? "" : "s"}</>}
         </p>
         {r.manifestError && <Notice tone="warn">{r.manifestError}</Notice>}
-        {(r.readErrors ?? []).map((e, i) => <div key={i} className="error-box">{e}</div>)}
+        {readErrors.map((e, i) => <div key={i} className="error-box">{e}</div>)}
       </Card>
 
-      {r.issues.length > 0 && (
+      {issues.length > 0 && (
         <Card>
           <h3 style={{ marginTop: 0 }}>Manifest rules (public-publish context)</h3>
-          {r.issues.map((iss, i) => (
+          {issues.map((iss, i) => (
             <div key={i} className="finding">
               <div className="row">
                 <Sev severity={iss.warning ? "medium" : "high"} />
@@ -143,9 +149,9 @@ function ResultView({ r }: { r: validate.Result }) {
 
       <Card>
         <h3 style={{ marginTop: 0 }}>Inventory (S1)</h3>
-        {r.inventory.length === 0
+        {inventory.length === 0
           ? <p className="muted" style={{ marginBottom: 0 }}>Clean — no binaries, nested archives, or encoding problems.</p>
-          : r.inventory.map((f, i) => (
+          : inventory.map((f, i) => (
             <div key={i} className="finding">
               <div className="row">
                 <Sev severity={f.severity} />
@@ -160,9 +166,9 @@ function ResultView({ r }: { r: validate.Result }) {
 
       <Card>
         <h3 style={{ marginTop: 0 }}>Content scan (S3 hidden-content + S4 signatures)</h3>
-        {r.findings.length === 0
+        {findings.length === 0
           ? <p className="muted" style={{ marginBottom: 0 }}>Clean — {r.fileCount} file{r.fileCount === 1 ? "" : "s"}, no findings.</p>
-          : r.findings.map((f, i) => (
+          : findings.map((f, i) => (
             <div key={i} className="finding">
               <div className="row">
                 <Sev severity={f.severity} />

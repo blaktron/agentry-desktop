@@ -147,7 +147,7 @@ func newBuildFake(t *testing.T) *buildFake {
 		f.run = &hostedrun.Run{
 			ID: buildID, Kind: hostedrun.KindKnowledgeBuild, Ref: "agentry/knowledge-creator@1.0.0", Digest: "builtin",
 			Mode: "autonomous", Status: hostedrun.StatusQueued, QueuePosition: 1, HoldCredits: 100, Inputs: inputs,
-			Caps: hostedrun.Caps{TimeoutSeconds: 3600, MaxTurns: 300, MaxTokens: 5000000}, CreatedAt: time.Now().UTC(),
+			Caps: hostedrun.Caps{TimeoutSeconds: 3600, MaxTurns: 300}, CreatedAt: time.Now().UTC(),
 			Build: &hostedrun.KnowledgeBuild{Pack: "55555555-5555-5555-5555-555555555555", Name: name},
 		}
 		hostedJSON(w, http.StatusCreated, f.run)
@@ -208,7 +208,7 @@ func (f *buildFake) finish(outcome string, applied bool, note string, settled in
 	defer f.mu.Unlock()
 	f.run.Status, f.run.Outcome, f.run.QueuePosition = hostedrun.StatusFinished, outcome, 0
 	f.run.SettledCredits = &settled
-	f.run.Usage = &hostedrun.Usage{InputTokens: 23056, OutputTokens: 2501, Turns: 10}
+	f.run.Usage = &hostedrun.Usage{Turns: 10}
 	f.run.Build.Applied, f.run.Build.Note = applied, note
 	if applied {
 		f.run.Build.Pages, f.run.Build.Bytes, f.run.Build.ScanCredits = 2, 1912, 1

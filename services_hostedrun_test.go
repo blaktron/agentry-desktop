@@ -96,6 +96,12 @@ type hostedFake struct {
 	frames       []string
 	streamAfters []string
 	sessionPosts map[string][]string
+	// tokensGone answers as the registry will once it stops serving a
+	// hosted run's token counts (plan scan-and-run-tweaks.md B3,
+	// agentry-enterprise#291): no token counts or dollar cost in a run's
+	// usage, no token cap, no rates. False answers as today's routes do,
+	// with all of them, which this app no longer reads (agentry-desktop#457).
+	tokensGone bool
 	// sessionRefuse, when set, answers a session post instead of 202.
 	sessionRefuse func(w http.ResponseWriter, route string) bool
 	cancelled     int
@@ -184,9 +190,15 @@ func (f *hostedFake) start(t *testing.T) string {
 		st := map[string]any{
 			"enabled": f.enabled, "workersOnline": 0, "hostsOnline": map[bool]int{false: 1, true: 0}[f.noHosts], "queued": 0,
 			"caller": map[string]any{
-				"tier": "standard", "caps": map[string]any{"timeoutSeconds": 300, "maxTurns": 20, "maxTokens": 20000},
-				"holdCredits": 20, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
+				"tier": "standard", "caps": map[string]any{"timeoutSeconds": 300, "maxTurns": 20},
+				"holdCredits": 20,
 			},
+		}
+		if !f.tokensGone {
+			c := st["caller"].(map[string]any)
+			c["caps"].(map[string]any)["maxTokens"] = 20000
+			c["inputTokensPerCredit"], c["outputTokensPerCredit"] = 50000, 25000
+			st["inputTokensPerCredit"], st["outputTokensPerCredit"] = 50000, 25000
 		}
 		if f.attach {
 			st["knowledgeAttach"] = map[string]any{"enabled": true, "maxPacks": 5}
@@ -249,7 +261,7 @@ func (f *hostedFake) start(t *testing.T) string {
 		f.run = &hostedrun.Run{
 			ID: "22222222-2222-2222-2222-222222222222", Ref: req.Ref, Digest: "sha256:abc", Mode: "autonomous",
 			Status: hostedrun.StatusQueued, QueuePosition: 3, HoldCredits: 20,
-			Caps: hostedrun.Caps{TimeoutSeconds: 300, MaxTurns: 20, MaxTokens: 20000}, CreatedAt: time.Now().UTC(),
+			Caps: hostedrun.Caps{TimeoutSeconds: 300, MaxTurns: 20}, CreatedAt: time.Now().UTC(),
 		}
 		if req.Mode == hostedrun.ModeInteractive {
 			// A session holds nothing and carries its record (DEV-178).
@@ -263,7 +275,7 @@ func (f *hostedFake) start(t *testing.T) string {
 				}
 			}
 		}
-		hostedJSON(w, http.StatusCreated, f.run)
+		hostedJSON(w, http.StatusCreated, f.served(f.run))
 	})
 	mux.HandleFunc("GET /api/v1/x/runs/", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
@@ -272,9 +284,12 @@ func (f *hostedFake) start(t *testing.T) string {
 		time.Sleep(delay)
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		items := append([]*hostedrun.Run{}, f.others...)
+		items := []map[string]any{}
+		for _, o := range f.others {
+			items = append(items, f.served(o))
+		}
 		if f.run != nil {
-			items = append(items, f.run)
+			items = append(items, f.served(f.run))
 		}
 		hostedJSON(w, http.StatusOK, map[string]any{"items": items})
 	})
@@ -286,14 +301,14 @@ func (f *hostedFake) start(t *testing.T) string {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		hostedJSON(w, http.StatusOK, f.run)
+		hostedJSON(w, http.StatusOK, f.served(f.run))
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/{id}/cancel", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		f.cancelled++
 		f.run.CancelRequested = true
-		hostedJSON(w, http.StatusOK, f.run)
+		hostedJSON(w, http.StatusOK, f.served(f.run))
 	})
 	mux.HandleFunc("GET /api/v1/x/runs/{id}/outputs/{name...}", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -406,7 +421,7 @@ func (f *hostedFake) finish(outcome, exitClass string, settled int64) {
 	f.run.Status = hostedrun.StatusFinished
 	f.run.Outcome, f.run.ExitClass, f.run.FinishedAt = outcome, exitClass, &now
 	f.run.SettledCredits = &settled
-	f.run.Usage = &hostedrun.Usage{InputTokens: 800, OutputTokens: 200, Turns: 3, WallMS: 9000}
+	f.run.Usage = &hostedrun.Usage{Turns: 3, WallMS: 9000}
 	// A pushed run: the registry keeps the host's cut of the CLI's stdout
 	// envelope as the receipt (agentry-enterprise#121); a run pushed before
 	// that (noReceipt) has none.
@@ -429,6 +444,25 @@ func (f *hostedFake) set(status string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.run.Status, f.run.QueuePosition = status, 0
+}
+
+// served is a run as the fake's registry answers for it. Today's routes
+// carry the usage's token counts and dollar cost and the caps' token
+// ceiling, which this app no longer decodes; tokensGone leaves them out.
+func (f *hostedFake) served(r *hostedrun.Run) map[string]any {
+	b, _ := json.Marshal(r)
+	var m map[string]any
+	_ = json.Unmarshal(b, &m)
+	if f.tokensGone {
+		return m
+	}
+	if caps, ok := m["caps"].(map[string]any); ok {
+		caps["maxTokens"] = 20000
+	}
+	if u, ok := m["usage"].(map[string]any); ok {
+		u["inputTokens"], u["outputTokens"], u["totalTokens"], u["costUsd"] = 800, 200, 1000, 0.0182
+	}
+	return m
 }
 
 func hostedJSON(w http.ResponseWriter, status int, v any) {
@@ -618,7 +652,7 @@ func TestHostedAvailability(t *testing.T) {
 			if v.RunnersOnline != 1 {
 				t.Fatalf("runners online = %d, want the one host", v.RunnersOnline)
 			}
-			if v.HoldCredits != 20 || v.Tier != "standard" || v.Caps == nil || v.Caps.MaxTokens != 20000 {
+			if v.HoldCredits != 20 || v.Tier != "standard" || v.Caps == nil || v.Caps.TimeoutSeconds != 300 || v.Caps.MaxTurns != 20 {
 				t.Fatalf("the hold and caps come from the registry: %+v", v)
 			}
 			if !v.BalanceKnown || v.Balance != 40 {
@@ -717,7 +751,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	if final.State != "done — pass" || final.Outcome != hostedrun.OutcomeSucceeded || final.OutcomeTone != "ok" || final.ExitClass != "ok" {
 		t.Fatalf("final = %+v", final)
 	}
-	if final.TotalTokens != 1000 || final.Turns != 3 || final.WallMS != 9000 {
+	if final.Turns != 3 || final.WallMS != 9000 {
 		t.Fatalf("usage = %+v", final)
 	}
 	if !final.Settled || final.SettledCredits != 2 || final.HoldCredits != 20 {

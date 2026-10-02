@@ -77,7 +77,8 @@ func sessionOffer(o hostedrun.Offer, terms *hostedrun.SessionTerms) *HostedSessi
 }
 
 // HostedSessionView is a session's content-free record as the panel shows
-// it: what its time has cost, its tokens once settled, and the idle close.
+// it: what its time has cost, its model use once settled (in credits, as
+// the registry names it), and the idle close.
 type HostedSessionView struct {
 	FreeMinutes      int   `json:"freeMinutes"`
 	CreditsPerMinute int64 `json:"creditsPerMinute"`
@@ -275,11 +276,12 @@ func streamLost(err error) string {
 // frameView is a frame in the shape the engine's session events take, so
 // the chat reads both transports alike: a file added is named where the
 // agent finds it, and an error by the fixed words of its class, never by
-// text the harness wrote.
+// text the harness wrote. A frame's token counts are not carried: a
+// session In Agentry is stated in credits (agentry-desktop#457).
 func frameView(seq uint64, ev hostedrun.FrameEvent) SessionEventView {
 	v := SessionEventView{
 		Seq: seq, Kind: ev.Kind, Text: ev.Text, Synthetic: ev.Synthetic, StopReason: ev.StopReason,
-		Reason: ev.Reason, InputTokens: ev.InputTokens, OutputTokens: ev.OutputTokens,
+		Reason: ev.Reason,
 	}
 	if !ev.Time.IsZero() {
 		v.Time = ev.Time.UTC().Format(time.RFC3339Nano)
