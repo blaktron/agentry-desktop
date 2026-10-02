@@ -3247,6 +3247,300 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class ReviewFindingView {
+	    scanner: string;
+	    severity?: string;
+	    confidence?: string;
+	    title: string;
+	    file?: string;
+	    line?: number;
+	    excerpt?: string;
+	    detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewFindingView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scanner = source["scanner"];
+	        this.severity = source["severity"];
+	        this.confidence = source["confidence"];
+	        this.title = source["title"];
+	        this.file = source["file"];
+	        this.line = source["line"];
+	        this.excerpt = source["excerpt"];
+	        this.detail = source["detail"];
+	    }
+	}
+	export class ReviewAIReviewView {
+	    ran: boolean;
+	    model?: string;
+	    rubricHash?: string;
+	    findings: ReviewFindingView[];
+	    files: number;
+	    notRead: number;
+	    failure?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewAIReviewView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ran = source["ran"];
+	        this.model = source["model"];
+	        this.rubricHash = source["rubricHash"];
+	        this.findings = this.convertValues(source["findings"], ReviewFindingView);
+	        this.files = source["files"];
+	        this.notRead = source["notRead"];
+	        this.failure = source["failure"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReviewFileView {
+	    file: string;
+	    why: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewFileView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.file = source["file"];
+	        this.why = source["why"];
+	    }
+	}
+	
+	export class ReviewIssueView {
+	    rule: string;
+	    error: boolean;
+	    path?: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewIssueView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rule = source["rule"];
+	        this.error = source["error"];
+	        this.path = source["path"];
+	        this.message = source["message"];
+	    }
+	}
+	export class ReviewReadingView {
+	    summary?: string;
+	    findings: ReviewFindingView[];
+	    notRead: ReviewFileView[];
+	    withheld: ReviewFileView[];
+	    error?: string;
+	    recovered?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewReadingView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.summary = source["summary"];
+	        this.findings = this.convertValues(source["findings"], ReviewFindingView);
+	        this.notRead = this.convertValues(source["notRead"], ReviewFileView);
+	        this.withheld = this.convertValues(source["withheld"], ReviewFileView);
+	        this.error = source["error"];
+	        this.recovered = source["recovered"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReviewServerView {
+	    ref: string;
+	    status: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewServerView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.status = source["status"];
+	        this.error = source["error"];
+	    }
+	}
+	export class ReviewRulesView {
+	    manifest: ReviewIssueView[];
+	    findings: ReviewFindingView[];
+	    bundleVersion: string;
+	    bundleSource: string;
+	    servers: ReviewServerView[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewRulesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.manifest = this.convertValues(source["manifest"], ReviewIssueView);
+	        this.findings = this.convertValues(source["findings"], ReviewFindingView);
+	        this.bundleVersion = source["bundleVersion"];
+	        this.bundleSource = source["bundleSource"];
+	        this.servers = this.convertValues(source["servers"], ReviewServerView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class ReviewStatusView {
+	    key: JevKeyView;
+	    modelName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewStatusView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = this.convertValues(source["key"], JevKeyView);
+	        this.modelName = source["modelName"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReviewView {
+	    runId: string;
+	    outDir: string;
+	    ref: string;
+	    files: number;
+	    outcome: string;
+	    outcomeWords: string;
+	    reason: string;
+	    assumes: string;
+	    policyFromRegistry: boolean;
+	    policyError?: string;
+	    publishesUpTo: string;
+	    aiCounted: boolean;
+	    rules: ReviewRulesView;
+	    aiReview: ReviewAIReviewView;
+	    reading: ReviewReadingView;
+	    notRunHere: string[];
+	    notice: string;
+	    examinerModel?: string;
+	    runError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runId = source["runId"];
+	        this.outDir = source["outDir"];
+	        this.ref = source["ref"];
+	        this.files = source["files"];
+	        this.outcome = source["outcome"];
+	        this.outcomeWords = source["outcomeWords"];
+	        this.reason = source["reason"];
+	        this.assumes = source["assumes"];
+	        this.policyFromRegistry = source["policyFromRegistry"];
+	        this.policyError = source["policyError"];
+	        this.publishesUpTo = source["publishesUpTo"];
+	        this.aiCounted = source["aiCounted"];
+	        this.rules = this.convertValues(source["rules"], ReviewRulesView);
+	        this.aiReview = this.convertValues(source["aiReview"], ReviewAIReviewView);
+	        this.reading = this.convertValues(source["reading"], ReviewReadingView);
+	        this.notRunHere = source["notRunHere"];
+	        this.notice = source["notice"];
+	        this.examinerModel = source["examinerModel"];
+	        this.runError = source["runError"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class RunDefaultsView {
 	    timeoutSeconds: number;
 	    maxTurns: number;

@@ -87,6 +87,8 @@ export const SETTINGS_FOR = {
   knowledgeSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
   describeKey: { section: "provider", part: "ai-review-key" },
+  // Review Your QuickAgents locally, which needs the AI Review key (#469)
+  reviewKey: { section: "provider", part: "ai-review-key" },
   // the sidebar's Unsafe Mode badge
   unsafeMode: { section: "run-defaults", part: "unsafe" },
   // the Voice panel's links to the two always-attach switches (D11)

@@ -11,6 +11,13 @@ The product never claims an agent is "safe". The language is always:
 
 ## Surfaces
 
+- **First run** — a skippable wizard until the app is onboarded, in six
+  steps: Welcome, Sign in, Runtime (the model provider and the images),
+  **AI Review key** (agentry-desktop#462, D-051: the recommendation to get
+  your own TypeSafe key, with *Get a key from TypeSafe*, and the field that
+  keeps it in the keychain), Coding agent, and Done. Done lists what is set
+  up and what is not; "nothing is set up yet" goes by whether a model
+  provider was set up, and the AI Review key's row never counts toward it.
 - **Browse** — search the connected registry, with filters for run mode and
   declared capability, and a sort order. An agent page shows the summary,
   capability badges, the public security report card (findings by severity,
@@ -59,12 +66,22 @@ The product never claims an agent is "safe". The language is always:
   `ready`, or `manual` (a hand-off to the official installer, or an installed
   engine that refuses for its own reason). The app never runs as root. Runs
   stream their log live and finish with the §R8 result envelope — status,
-  usage, receipts, and the output folder. What a run needs while it is live
+  usage, receipts, and the output folder. A run leaves its setup at **Run**
+  and is followed above the pages (agentry-desktop#465, D-052): a progress
+  dialog shows the time against its limit, turns and tokens over the log;
+  **Run in the background** shrinks it to a card in the corner while the
+  rest of the app stays usable; **Stop** ends it with its receipts written as
+  far as it got; once over, the dialog is its result, **Back to the setup**
+  reopens the setup as you left it, and **Dismiss** makes the app forget the
+  run (its folder stays). One local job runs at a time: a run, a chat, a
+  draft, a knowledge build or a review started meanwhile is refused with
+  what is running. What a run needs while it is live
   (its containers, volumes and networks, and a scratch directory under the
   runner home that holds its secrets file, staged inputs and copies of the
   attached knowledge) is removed when it ends. The app records each run it
   starts, and if it is killed mid-run the next start removes what that
-  record names, as quitting does for anything still recorded; the output
+  record names, as quitting does for anything still recorded (a review's
+  staged copy in the system's temp directory included, D-056); the output
   folder, the QuickAgent's install and its profile are left alone. Not
   reached by that sweep: a profile the killed run was to remove
   (agentry-desktop#478); the opened copy of an attached knowledge pack,
@@ -78,11 +95,16 @@ The product never claims an agent is "safe". The language is always:
 - **Sessions** — a release that declares the `interactive` mode can run as a
   chat instead: **Start session** in the run panel opens it under the same
   controls as an autonomous run. Every message, and every file you add
-  (read-only under `/inputs`), goes through the runner's session API, and the
-  engine ends the session at the operator policy's caps whatever the window
-  does. **Finish** asks the agent for its final result before teardown;
-  **Stop** ends without one. Either way the receipts folder holds
-  `transcript.md` and the session's events.
+  (read-only under `/inputs`), goes through the runner's session API. A chat
+  is followed in the same dialog and corner card as a run (agentry-desktop#467),
+  so it can go to the background mid-turn and come back with the reply. A chat
+  on this computer has no idle timeout, wall clock or turn count by default
+  (agentry-desktop#468): it ends when you end it or quit the app. Settings →
+  **Run defaults** → **Chat idle timeout** sets an idle limit for chats on
+  this computer, kept in `desktop.yaml`, never in the policy file the CLI shares, whose
+  chat caps are unchanged. **Finish** asks the agent for its final result
+  before teardown; **Stop** ends without one. Either way the receipts folder
+  holds `transcript.md` and the session's events.
 - **In Agentry** — where the registry mounts the runs extension and the
   release declares the autonomous mode, the run panel offers a third
   choice: the platform runs it, not this machine (plan
@@ -91,7 +113,9 @@ The product never claims an agent is "safe". The language is always:
   with its own token, and shows the run queued (with its position), then
   running, then done with pass or fail — it keeps no log of the run — and
   downloads the result, reports, receipts and outputs into the run folder
-  you picked. The panel states what the run holds in credits
+  you picked. It is followed in the same dialog and corner card as a run
+  here (agentry-desktop#466), and a run In Agentry still going when the app
+  starts comes back as its card. The panel states what the run holds in credits
   and what the balance is, both as the account reports them, and the
   finished run shows the outcome, the runner's exit class and the receipt's
   `capabilities_enforced` listed verbatim. It needs no docker engine and no
@@ -242,6 +266,38 @@ The product never claims an agent is "safe". The language is always:
     desktop sign-in does not carry, so the result links to its settings on
     the site. The form's check holds Submit to the public rules (V7): the
     publish list must carry README.md and LICENSE.
+
+  Beside them, **Review Your QuickAgents locally** (agentry-desktop#469)
+  saves the QuickAgent and reviews the folder with the built-in **Examiner**
+  (the one `agentry review` runs), on this computer, before you submit. It
+  is offered on Validate too, for a folder chosen with **Choose…**.
+  - It never runs by itself, and Submit, Save, Install and Validate are the
+    same with or without it.
+  - It needs your own AI Review key; without one it says so and opens
+    Provider settings at the key.
+  - A native dialog asks first: the QuickAgent's text goes to TypeSafe (AI
+    Review) with your key and to the model your runner policy names, and the
+    registry is asked, with no sign-in, for its public policy and its record
+    of each declared MCP server. Nothing of the QuickAgent runs and nothing
+    is submitted.
+  - The registry's own rules run here (the embedded rule bundle, as
+    Validate's), then the Examiner runs over a read-only copy of the files a
+    submission would carry, for no credits. It is a local job under the run
+    lock, followed in a progress dialog and corner card, with its own
+    **Stop** (`StopReview`, which stops only a review). The copy is removed
+    when the review ends, and swept at the next start or quit if the app
+    died first.
+  - The report shows the outcome the pipeline would be expected to reach
+    (published, held for review, rejected, refused at Submit, or not
+    determined here) under the registry's public policy, from the rules and
+    AI Review alone, and every finding under its kind with its file and
+    line: the registry's rules, AI Review asked as the pipeline asks it, and
+    the Examiner's own reading, which is never counted. It lists what did
+    not run here and ends with the registry's notice: it scans again at
+    Submit, and its answer is the one that counts.
+  - `report.json` and the run's receipts are kept in
+    `~/Downloads/agentry-out/agentry-examiner-<run id>`, a folder no earlier
+    run wrote. **Dismiss** makes the app forget it; the folder stays.
 
   A rule the form still fails is named with **Fix it**, and Install and
   Submit wait for it. **See it in the form** opens Step by step on Review,

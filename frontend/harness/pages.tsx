@@ -397,6 +397,13 @@ g.go = { main: {
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
       : buildCheck),
     Summary: async (m: typeof buildModel, unmentioned: string[]) => summaryFor(m, unmentioned ?? []),
+    // Review Your QuickAgents locally (agentry-desktop#469): its flow's
+    // states are reviews.html's; here only the action, with a key and
+    // without (#build-summary-nokey).
+    ReviewStatus: async () => ({ key: { stored: buildHash !== "summary-nokey", source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: buildHash !== "summary-nokey" },
+      modelName: "openai qwen3.8-flash-next" }),
+    ReviewLocally: async () => null,
+    StopReview: async () => undefined,
     Save: async () => undefined,
     // The summary's Install and Submit (agentry-desktop#425), each after the
     // Go side's native dialog, answered Yes here. #build-summary-private is
@@ -708,9 +715,9 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="browse"><Shell active="browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     <div data-preview="installed"><Shell active="installed"><Installed registry={REG} onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenInstalled={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
+    <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenInstalled={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
-    <div data-preview="validate"><Shell active="validate"><Validate /></Shell></div>
+    <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
     <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
   </div>,

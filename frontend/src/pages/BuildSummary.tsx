@@ -15,6 +15,9 @@
 // computer only, local and unsigned, with no registry and no credit; Submit
 // sends it to the registry publicly, after a native warning that names what
 // it costs. The two dialogs are the Go side's, which the page cannot answer.
+// Beside them, Review Your QuickAgents locally (agentry-desktop#469) saves it
+// and reviews the folder with the built-in Examiner, after its own native
+// dialog; it holds none of the three.
 //
 // Every string here may be the Drafter's: the overview and each key's help
 // go through AgentMarkdown's rules (AuthorHelp frames the help as the
@@ -23,6 +26,7 @@ import type { ReactNode, Ref } from "react";
 import { build, main } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { AuthorHelp } from "../KeyHelp";
+import { ReviewAction } from "./ReviewAction";
 import { RevealText } from "../reveal";
 import { Button, Card } from "../ui";
 
@@ -40,7 +44,7 @@ function Hosts({ hosts, label }: { hosts: build.SummaryHost[]; label: string }) 
 }
 
 export function SummaryView({
-  s, check, problem, publicProblem, onForm, onSave, onInstall, onSubmit, busy, ready, dir, registry, headingRef, outcome,
+  s, check, problem, publicProblem, onForm, onSave, onInstall, onSubmit, onReview, onOpenReviewKey, busy, ready, dir, registry, headingRef, outcome,
 }: {
   s: build.Summary;
   /** AI Review's check of a draft as one line, or null (a form-written QuickAgent has none). */
@@ -54,7 +58,11 @@ export function SummaryView({
   onSave: () => void;
   onInstall: () => void;
   onSubmit: () => void;
-  /** The action under way: "save", "install" or "submit". */
+  /** Review Your QuickAgents locally: saves, then reviews the folder. */
+  onReview: () => void;
+  /** Settings at the AI Review key. */
+  onOpenReviewKey?: () => void;
+  /** The action under way: "save", "install", "submit" or "review". */
   busy: string | null;
   /** Where Submit sends it. */
   registry: string;
@@ -174,6 +182,7 @@ export function SummaryView({
           costs, and sends nothing until you agree.
         </li>
       </ul>
+      <ReviewAction onReview={onReview} busy={busy === "review"} disabled={!ready} onOpenSettings={onOpenReviewKey} />
       {outcome}
       <p className="small">
         See it in the form: <Button variant="link" onClick={() => onForm("steps")}>step by step</Button> or{" "}

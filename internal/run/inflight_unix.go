@@ -4,6 +4,7 @@ package run
 
 import (
 	"errors"
+	"os"
 	"syscall"
 )
 
@@ -13,4 +14,11 @@ import (
 func processExists(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return !errors.Is(err, syscall.ESRCH)
+}
+
+// ownedByMe says whether this process's user owns fi: the system's temp
+// directory is shared between users here.
+func ownedByMe(fi os.FileInfo) bool {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && int(st.Uid) == os.Getuid()
 }

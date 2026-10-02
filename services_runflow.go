@@ -34,7 +34,9 @@ const (
 	jobChat  jobKind = "chat"
 	jobDraft jobKind = "draft"
 	jobBuild jobKind = "build"
-	jobSetup jobKind = "setup"
+	// jobReview is a review by the Examiner (agentry-desktop#469).
+	jobReview jobKind = "review"
+	jobSetup  jobKind = "setup"
 )
 
 // jobHolder is what holds the run lock: its kind and a noun phrase naming
@@ -80,7 +82,7 @@ func (r *RunAPI) busy() error {
 	if h != nil {
 		what = h.what
 		switch h.kind {
-		case jobRun, jobDraft, jobBuild:
+		case jobRun, jobDraft, jobBuild, jobReview:
 			how = ", or stop it"
 		case jobChat:
 			how = ", or end it"
@@ -98,7 +100,7 @@ func capitalize(s string) string {
 
 // InFlightView names the local job holding the run lock.
 type InFlightView struct {
-	// Kind is run, chat, draft, build or setup.
+	// Kind is run, chat, draft, build, review or setup.
 	Kind string `json:"kind"`
 	// Line names the job in a sentence's subject position.
 	Line string `json:"line"`
