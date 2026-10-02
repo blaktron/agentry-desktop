@@ -97,7 +97,7 @@ func sessionFixtureFor(t *testing.T, agentYAML string) (string, *dockerx.Fake) {
 	regURL := startRunRegistry(t, fr)
 	fake := readyImagesFake()
 	fake.Foreground = map[string]*dockerx.FakeForeground{
-		"-probe": {ExitCode: 0},
+		"-probe": fakeProbe(),
 		"-agent": {Handler: fakeACPHarness},
 	}
 	scriptDecode(fake)

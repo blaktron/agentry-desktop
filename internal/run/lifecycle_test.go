@@ -773,7 +773,7 @@ func TestRunAgentFailureStillReturnsView(t *testing.T) {
 	regURL := startRunRegistry(t, fr)
 	fake := readyImagesFake()
 	fake.Foreground = map[string]*dockerx.FakeForeground{
-		"-probe": {ExitCode: 0},
+		"-probe": fakeProbe(),
 		"-agent": {Stdout: `{"type":"error","message":{"content":"model refused"}}` + "\n", ExitCode: 3},
 	}
 	withFakeDocker(t, fake)
