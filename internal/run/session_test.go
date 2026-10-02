@@ -100,6 +100,7 @@ func sessionFixtureFor(t *testing.T, agentYAML string) (string, *dockerx.Fake) {
 		"-probe": {ExitCode: 0},
 		"-agent": {Handler: fakeACPHarness},
 	}
+	scriptDecode(fake)
 	withFakeDocker(t, fake)
 	t.Setenv("ANTHROPIC_API_KEY", "sk-test-key")
 	return regURL, fake
