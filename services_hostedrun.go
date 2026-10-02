@@ -346,14 +346,18 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // (SetHostedSecret with keep false) are deleted again when the run does
 // not start, whatever stopped it; when it starts, the vault removes them
 // as the run ends (plan hosted-credentials-vault.md D12).
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (*HostedStartView, error) {
-	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "")
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice bool) (*HostedStartView, error) {
+	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice)
 }
 
 // startHosted is StartHostedRun and StartHostedSession: the same gates, the
 // same uploads and the same create, which mode makes a run ("") or a hosted
 // session (hostedrun.ModeInteractive).
-func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string) (view *HostedStartView, err error) {
+//
+// writeInVoice asks the run to write in the account's live Writing Voice
+// (plan writing-voice.md §5, D5): the registry checks there is one, and at
+// the hand-off gives the run the live version as it stands then.
+func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice bool) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	// runMayExist: the registry created the run, or a create's answer never
@@ -409,7 +413,7 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		}
 		return nil, err
 	}
-	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode})
+	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice})
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
 			return r.refusalView(refusal), nil

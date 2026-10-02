@@ -10,6 +10,7 @@ import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
 import Knowledge from "./pages/Knowledge";
+import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import RunFlow from "./pages/RunFlow";
@@ -35,6 +36,7 @@ export type Route =
   | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "installed" }
   | { page: "installed" }
   | { page: "knowledge" }
+  | { page: "voice" }
   | { page: "validate" }
   | { page: "build" }
   // section: one of Settings' five section pages, or the landing's cards
@@ -240,6 +242,14 @@ export default function App() {
                 registry={registry}
                 onBrowse={() => nav({ page: "browse" })}
                 onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
+              />
+            )}
+            {route.page === "voice" && (
+              <Voice
+                registry={registry}
+                onOpenSettings={(which) =>
+                  nav({ page: "settings", ...(which === "here" ? SETTINGS_FOR.voiceHere : which === "account" ? SETTINGS_FOR.voiceAccount : SETTINGS_FOR.knowledgeSignIn) })
+                }
               />
             )}
             {route.page === "knowledge" && (

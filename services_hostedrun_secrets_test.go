@@ -119,7 +119,7 @@ func TestAStartThatDoesNotStartDeletesItsHeldSecrets(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false)
 	if err != nil || start.Refusal != "credits-exhausted" {
 		t.Fatalf("start = %+v, %v", start, err)
 	}
@@ -136,7 +136,7 @@ func TestAStartThatDoesNotStartDeletesItsHeldSecrets(t *testing.T) {
 	}
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	if start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil); err != nil || start.Run == nil {
+	if start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false); err != nil || start.Run == nil {
 		t.Fatalf("start = %+v, %v", start, err)
 	}
 	if len(f.vaultDeletes) != 0 {
@@ -161,7 +161,7 @@ func TestStartHostedRunReportsTheMissingSecrets(t *testing.T) {
 	r, _ := newRunAPI(t)
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false)
 	if err != nil || start.Refusal != "secret-missing" || strings.Join(start.Missing, ",") != "GITHUB_TOKEN" {
 		t.Fatalf("start = %+v, %v", start, err)
 	}
@@ -195,7 +195,7 @@ func TestACreateWithNoAnswerLeavesTheHeldSecrets(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(out)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil); err == nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false); err == nil {
 		t.Fatal("a create with no answer was not an error")
 	}
 	if len(f.vaultDeletes) != 0 {

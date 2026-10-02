@@ -11,21 +11,25 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/blaktron/agentry-desktop/internal/dockerimages"
-	"github.com/blaktron/agentry-desktop/internal/mcpview"
-	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
 	"io"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/blaktron/agentry-desktop/internal/dockerimages"
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
+	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/settings"
+	"github.com/blaktron/agentry-desktop/internal/voice"
 )
 
 // Event names the frontend subscribes to.
@@ -164,7 +168,7 @@ type SessionEventView struct {
 // timeout, none by default, which Go reads here from desktop.yaml
 // (agentry-desktop#468, D-052). maxTurns is the tool-call budget, as a
 // run's: -1 keeps the policy's, 0 lifts it.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {
 		return nil, err
@@ -195,6 +199,10 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	// The attached packs' opened copies live as long as the session: its
 	// endRun, from EndSession or quitting, removes them.
 	packs, err := r.attach(ctx, live, reg, knowledge)
+	var voiced *engine.AttachedVoice
+	if err == nil {
+		voiced, err = r.voiceFor(ctx, reg, writeInVoice)
+	}
 	if err != nil {
 		cancel()
 		r.endRun(live)
@@ -209,6 +217,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		Task:                   task,
 		InputPaths:             inputPaths,
 		Knowledge:              packs,
+		Voice:                  voiced,
 		OutDir:                 outDir,
 		OutDirIsRoot:           isSavedOutputDir(outDir),
 		KeepProfile:            keepProfile,
@@ -875,7 +884,7 @@ type RunResultView struct {
 // knowledge names the knowledge packs kept on this computer to attach
 // (plan knowledge.md §4.5): each is opened from the local store once the
 // gates have passed, and its opened copy is removed when the run returns.
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string) (*RunResultView, error) {
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool) (*RunResultView, error) {
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -909,6 +918,10 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	if err != nil {
 		return nil, err
 	}
+	voiced, err := r.voiceFor(ctx, reg, writeInVoice)
+	if err != nil {
+		return nil, err
+	}
 	logw := r.runLineWriter(live.id)
 	defer logw.Flush()
 	usage, stopUsage := usageOf(meter)
@@ -922,6 +935,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		Task:               task,
 		InputPaths:         inputPaths,
 		Knowledge:          packs,
+		Voice:              voiced,
 		OutDir:             outDir,
 		OutDirIsRoot:       isSavedOutputDir(outDir),
 		KeepProfile:        keepProfile,
@@ -1189,4 +1203,23 @@ func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context
 	logw := r.eventWriter(event)
 	defer logw.Flush()
 	return f(ctx, live.id, logw)
+}
+
+// voiceFor is this computer's Writing Voice for a run that writes in it
+// (plan writing-voice.md §5, D5, D11): the person ticked Write in my voice
+// in the run setup, which starts ticked from the voice's own switch. nil
+// when the run does not ask; a refusal when it asks and this computer keeps
+// none, or the one it keeps will not open.
+func (r *RunAPI) voiceFor(ctx context.Context, reg string, want bool) (*engine.AttachedVoice, error) {
+	if !want {
+		return nil, nil
+	}
+	v, err := voice.Env{Env: r.knowledge()}.Attach(ctx, settings.Normalize(reg))
+	if err != nil {
+		return nil, err
+	}
+	if v == nil {
+		return nil, errors.New("this run was asked to write in your voice, and this computer keeps no Writing Voice: untick Write in my voice, or make one in the Voice panel")
+	}
+	return v, nil
 }

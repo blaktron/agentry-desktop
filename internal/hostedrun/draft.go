@@ -135,6 +135,8 @@ func ActiveWhat(r *Run) string {
 		return "a build"
 	case r.IsDraft():
 		return "a draft"
+	case r.IsVoiceBuild():
+		return "a Voice Writer run"
 	}
 	return "a run"
 }
