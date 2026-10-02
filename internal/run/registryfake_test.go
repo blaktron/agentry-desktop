@@ -24,10 +24,12 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/decode"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
+	runnerdecode "github.com/blaktron/agentry-cli/runnerimage/decode"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
 )
@@ -286,14 +288,44 @@ func fixtureExecTag() string {
 // happens and the record is what the fake answers with afterwards.
 func readyImagesFake() *dockerx.Fake {
 	pol := cataloguedPolicy()
+	dec := decodeImage(pol)
 	return &dockerx.Fake{
 		ExistingImages: map[string]bool{
 			pol.Images.Gateway:            true,
 			pol.Images.HarnessDockerAgent: true,
 			runnerImageTag(pol):           true,
+			dec.Tag:                       true,
 		},
-		ImageFiles: map[string]string{fixtureExecTag() + ":" + gateway.ExecPackagesFile: "busybox\n"},
+		ImageFiles: map[string]string{
+			fixtureExecTag() + ":" + gateway.ExecPackagesFile: "busybox\n",
+			dec.Tag + ":" + decode.FilesPackagesFile:          "pandoc-cli-3.6.4-r0\n",
+		},
 	}
+}
+
+// decodeImage is the decode image a run with inputs builds from the
+// policy's files image and this build's runner image (agentry-cli#560,
+// CLI v0.6.47): present in readyImagesFake, so nothing is pulled or built.
+func decodeImage(pol *policy.Policy) decode.Spec {
+	return decode.ImageSpec(runnerImageTag(pol), pol.Images.FilesImage())
+}
+
+// scriptDecode plays the decode container a run or a session's added file
+// goes through before the agent sees it: it writes a report that decodes
+// nothing, so the engine records each staged file as unread and the run
+// goes on. Call it after anything that replaces f.Foreground wholesale.
+func scriptDecode(f *dockerx.Fake) {
+	if f.Foreground == nil {
+		f.Foreground = map[string]*dockerx.FakeForeground{}
+	}
+	f.Foreground["agentry-decode-"] = &dockerx.FakeForeground{Before: func(r dockerx.RunSpec) {
+		for _, m := range r.Mounts {
+			if m.Target == "/out" {
+				report, _ := json.Marshal(map[string]any{"schema": runnerdecode.Schema, "files": []any{}})
+				_ = os.WriteFile(filepath.Join(m.Source, runnerdecode.ReportFile), report, 0o644)
+			}
+		}
+	}}
 }
 
 // scriptHappyAgent scripts a clean run: probe passes, the agent makes two
@@ -307,4 +339,5 @@ func scriptHappyAgent(f *dockerx.Fake) {
 			`{"type":"agent_choice","message":{"content":"final answer"}}` + "\n" +
 			`{"type":"stream_stopped","usage":{"input_tokens":100,"output_tokens":40,"cost":0.05}}` + "\n"},
 	}
+	scriptDecode(f)
 }
