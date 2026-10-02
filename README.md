@@ -243,6 +243,38 @@ The product never claims an agent is "safe". The language is always:
     the site. The form's check holds Submit to the public rules (V7): the
     publish list must carry README.md and LICENSE.
 
+  Beside them, **Review Your QuickAgents locally** (agentry-desktop#469)
+  saves the QuickAgent and reviews the folder with the built-in **Examiner**
+  (the one `agentry review` runs), on this computer, before you submit. It
+  is offered on Validate too, for a folder chosen with **Choose…**.
+  - It never runs by itself, and Submit, Save, Install and Validate are the
+    same with or without it.
+  - It needs your own AI Review key; without one it says so and opens
+    Provider settings at the key.
+  - A native dialog asks first: the QuickAgent's text goes to TypeSafe (AI
+    Review) with your key and to the model your runner policy names, and the
+    registry is asked, with no sign-in, for its public policy and its record
+    of each declared MCP server. Nothing of the QuickAgent runs and nothing
+    is submitted.
+  - The registry's own rules run here (the embedded rule bundle, as
+    Validate's), then the Examiner runs over a read-only copy of the files a
+    submission would carry, for no credits. It is a local job under the run
+    lock, followed in a progress dialog and corner card, with its own
+    **Stop** (`StopReview`, which stops only a review). The copy is removed
+    when the review ends, and swept at the next start or quit if the app
+    died first.
+  - The report shows the outcome the pipeline would be expected to reach
+    (published, held for review, rejected, refused at Submit, or not
+    determined here) under the registry's public policy, from the rules and
+    AI Review alone, and every finding under its kind with its file and
+    line: the registry's rules, AI Review asked as the pipeline asks it, and
+    the Examiner's own reading, which is never counted. It lists what did
+    not run here and ends with the registry's notice: it scans again at
+    Submit, and its answer is the one that counts.
+  - `report.json` and the run's receipts are kept in
+    `~/Downloads/agentry-out/agentry-examiner-<run id>`, a folder no earlier
+    run wrote. **Dismiss** makes the app forget it; the folder stays.
+
   A rule the form still fails is named with **Fix it**, and Install and
   Submit wait for it. **See it in the form** opens Step by step on Review,
   or Advanced.

@@ -4,6 +4,7 @@ package run
 
 import (
 	"errors"
+	"os"
 
 	"golang.org/x/sys/windows"
 )
@@ -27,3 +28,6 @@ func processExists(pid int) bool {
 	}
 	return code == stillActive
 }
+
+// ownedByMe: the system's temp directory is the user's own here (%TEMP%).
+func ownedByMe(os.FileInfo) bool { return true }

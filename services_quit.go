@@ -42,8 +42,8 @@ const sweepWait = 30 * time.Second
 // liveRun is the run or interactive session in flight.
 type liveRun struct {
 	id string
-	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild): Stop stops
-	// only its own kind.
+	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild, jobReview):
+	// Stop stops only its own kind.
 	kind jobKind
 	ref  string
 	// turns are the run ids of the run's later turns: a draft's one repair
@@ -222,6 +222,7 @@ func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
 	if err != nil {
 		log.Printf("agentry-desktop: %v", err)
 	}
+	sweepStaleStages()
 	return swept
 }
 
@@ -318,6 +319,19 @@ func (r *RunAPI) shutdown() {
 	swept, err := run.SweepAtQuit(sweepCtx, dir, sweep)
 	if len(swept) > 0 {
 		log.Printf("agentry-desktop: removed what %d run(s) left behind: %s", len(swept), strings.Join(swept, ", "))
+	}
+	if err != nil {
+		log.Printf("agentry-desktop: %v", err)
+	}
+	sweepStaleStages()
+}
+
+// sweepStaleStages removes the review copies no record names once they are
+// a day old (run.SweepStaleStages): a review's pre-step the app died inside.
+func sweepStaleStages() {
+	removed, err := run.SweepStaleStages(run.StaleStageAge)
+	if len(removed) > 0 {
+		log.Printf("agentry-desktop: removed %d stale review copies: %s", len(removed), strings.Join(removed, ", "))
 	}
 	if err != nil {
 		log.Printf("agentry-desktop: %v", err)

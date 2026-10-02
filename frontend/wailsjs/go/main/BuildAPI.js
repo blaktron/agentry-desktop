@@ -50,6 +50,14 @@ export function NewModel(arg1) {
   return window['go']['main']['BuildAPI']['NewModel'](arg1);
 }
 
+export function ReviewLocally(arg1, arg2) {
+  return window['go']['main']['BuildAPI']['ReviewLocally'](arg1, arg2);
+}
+
+export function ReviewStatus() {
+  return window['go']['main']['BuildAPI']['ReviewStatus']();
+}
+
 export function Save(arg1, arg2) {
   return window['go']['main']['BuildAPI']['Save'](arg1, arg2);
 }
@@ -60,6 +68,10 @@ export function ServerChecks(arg1, arg2) {
 
 export function StopDraft() {
   return window['go']['main']['BuildAPI']['StopDraft']();
+}
+
+export function StopReview() {
+  return window['go']['main']['BuildAPI']['StopReview']();
 }
 
 export function Submit(arg1, arg2) {

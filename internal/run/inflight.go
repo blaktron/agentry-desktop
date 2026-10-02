@@ -58,6 +58,11 @@ type inFlight struct {
 	// Start is the owner's start time where owner.StartTime has one
 	// (Linux); zero elsewhere.
 	Start uint64 `json:"start,omitempty"`
+	// Stage is where a review's pre-step staged its copy of the QuickAgent
+	// (RecordStage, agentry-desktop#469): outside the runner home, in the
+	// system's temp directory, so the run's own sweep does not reach it,
+	// and the record that is forgotten removes it.
+	Stage string `json:"stage,omitempty"`
 }
 
 // runIDPattern is the engine's run id (engine.NewRunID: 8 hex digits),
@@ -74,6 +79,11 @@ func RecordInFlight(dir, runID string) error {
 	if start, ok := owner.StartTime(rec.PID); ok {
 		rec.Start = start
 	}
+	return saveRecord(dir, rec)
+}
+
+// saveRecord writes rec as its run's record.
+func saveRecord(dir string, rec inFlight) error {
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return err
@@ -93,17 +103,24 @@ func RecordInFlight(dir, runID string) error {
 		_ = os.Remove(tmp.Name())
 		return fmt.Errorf("record run: %w", err)
 	}
-	if err := os.Rename(tmp.Name(), recordPath(dir, runID)); err != nil {
+	if err := os.Rename(tmp.Name(), recordPath(dir, rec.RunID)); err != nil {
 		_ = os.Remove(tmp.Name())
 		return fmt.Errorf("record run: %w", err)
 	}
 	return nil
 }
 
-// ForgetInFlight removes a run's record; a record already gone is fine.
+// ForgetInFlight removes a run's record; a record already gone is fine. A
+// review's staged copy the record names goes first, and a copy that cannot
+// be removed keeps the record, so the next start or quit tries again.
 func ForgetInFlight(dir, runID string) error {
 	if !runIDPattern.MatchString(runID) {
 		return fmt.Errorf("forget run: bad run id %q", runID)
+	}
+	if rec, err := readRecord(dir, runID); err == nil && rec.Stage != "" {
+		if err := removeStage(rec.Stage); err != nil {
+			return fmt.Errorf("forget run: %w", err)
+		}
 	}
 	if err := os.Remove(recordPath(dir, runID)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("forget run: %w", err)
@@ -112,6 +129,22 @@ func ForgetInFlight(dir, runID string) error {
 }
 
 func recordPath(dir, runID string) string { return filepath.Join(dir, runID+".json") }
+
+// readRecord reads runID's record, held to its own name.
+func readRecord(dir, runID string) (inFlight, error) {
+	var rec inFlight
+	b, err := os.ReadFile(recordPath(dir, runID))
+	if err != nil {
+		return rec, err
+	}
+	if err := json.Unmarshal(b, &rec); err != nil {
+		return rec, err
+	}
+	if rec.RunID != runID {
+		return rec, fmt.Errorf("the record of run %s names run %s", runID, rec.RunID)
+	}
+	return rec, nil
+}
 
 // SweepOrphaned sweeps, by run id, every recorded run whose owner is gone,
 // and removes its record once the sweep succeeded (a failed sweep — Docker

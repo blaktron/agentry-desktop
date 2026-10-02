@@ -33,6 +33,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
 import { draftInFlight, takeLandedDraft } from "../drafts";
+import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
@@ -204,7 +205,7 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings, onOpenInstalled }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenInstalled }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
@@ -219,6 +220,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   onOpenAgent?: (ns: string, name: string) => void;
   /** Settings, for Describe it's missing AI Review key. */
   onOpenSettings?: () => void;
+  /** Settings at the AI Review key, for Review Your QuickAgents locally
+   *  (agentry-desktop#469). */
+  onOpenReviewKey?: () => void;
   /** Installed, where Install puts the QuickAgent (agentry-desktop#425). */
   onOpenInstalled?: () => void;
 }) {
@@ -419,6 +423,19 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setLocalInstall(null);
       const r = await BuildAPI.Submit(registry, d);
       if (r) setPubResult(r);
+    });
+
+  // Review Your QuickAgents locally (agentry-desktop#469) reviews the saved
+  // folder with the built-in Examiner on this computer: the Go side asks in
+  // a native dialog first, and a No reviews nothing. The review is followed
+  // in its own dialog and card (ReviewFlow); nothing here waits for it.
+  const reviewHere = () =>
+    wrap("review", async () => {
+      const d = await ensureDir();
+      if (!m || !d) return;
+      await BuildAPI.Save(d, m);
+      if (m.hadComments) setModel(new build.Model({ ...m, hadComments: false }));
+      await startReview(registry, d);
     });
 
   // Install lays the saved folder down on this computer, local and
@@ -944,6 +961,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             onSave={save}
             onInstall={installHere}
             onSubmit={publish}
+            onReview={reviewHere}
+            onOpenReviewKey={onOpenReviewKey}
             busy={busy}
             registry={registry}
             ready={!!check && !busy}
