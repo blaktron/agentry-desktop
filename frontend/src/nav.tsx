@@ -10,7 +10,7 @@ import { Fragment } from "react";
 
 // The pages a sidebar item can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "browse" | "agent" | "installed" | "knowledge" | "build" | "validate" | "settings";
+export type NavPage = "browse" | "agent" | "installed" | "knowledge" | "voice" | "build" | "validate" | "settings";
 
 type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[] };
 
@@ -19,6 +19,8 @@ const ITEMS: Item[] = [
   { label: "Browse", page: "browse", also: ["agent"] },
   { label: "Installed", page: "installed" },
   { label: "Knowledge", page: "knowledge" },
+  // The Writing Voice (plan writing-voice.md §8; agentry-desktop#510).
+  { label: "Voice", page: "voice" },
   { label: "Build", page: "build", sub: [{ label: "Validate", page: "validate" }] },
   { label: "Settings", page: "settings" },
 ];

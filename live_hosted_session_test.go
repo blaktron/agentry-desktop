@@ -73,7 +73,7 @@ func TestLiveHostedSession(t *testing.T) {
 	}
 	r.app.markPicked(out, csv) // what the native pickers record (D-030)
 
-	start, err := r.StartHostedSession(reg, ref, "Say hello in one sentence, then wait for a file I will add.", nil, out, nil, nil)
+	start, err := r.StartHostedSession(reg, ref, "Say hello in one sentence, then wait for a file I will add.", nil, out, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

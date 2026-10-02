@@ -67,7 +67,7 @@ export function ReplayHostedSession():Promise<void>;
 
 export function RestartNow():Promise<void>;
 
-export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>):Promise<main.RunResultView>;
+export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean):Promise<main.RunResultView>;
 
 export function RunOutputs(arg1:string):Promise<main.RunOutputsView>;
 
@@ -91,11 +91,11 @@ export function SetupStatus():Promise<main.SetupStatusView>;
 
 export function ShowRunFolder(arg1:string):Promise<void>;
 
-export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>):Promise<main.HostedStartView>;
+export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean):Promise<main.HostedStartView>;
 
-export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>):Promise<main.HostedStartView>;
+export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean):Promise<main.HostedStartView>;
 
-export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>):Promise<main.SessionView>;
+export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean):Promise<main.SessionView>;
 
 export function StopRun():Promise<void>;
 

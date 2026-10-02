@@ -115,8 +115,8 @@ type HostedSessionStateView struct {
 // talks to it (SendHostedTurn, AddHostedSessionFile, EndHostedSession);
 // when it ends its sealed output comes down into the folder picked, with
 // transcript.md among the receipts.
-func (r *RunAPI) StartHostedSession(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string) (*HostedStartView, error) {
-	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, hostedrun.ModeInteractive)
+func (r *RunAPI) StartHostedSession(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice bool) (*HostedStartView, error) {
+	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, hostedrun.ModeInteractive, writeInVoice)
 }
 
 // follow follows a run the registry has created or this account already

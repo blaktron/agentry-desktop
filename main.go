@@ -49,6 +49,7 @@ func main() {
 	runAPI := &RunAPI{app: app}
 	buildAPI := &BuildAPI{app: app, run: runAPI}
 	knowledgeAPI := &KnowledgeAPI{app: app, run: runAPI}
+	voiceAPI := &VoiceAPI{app: app, run: runAPI}
 	selfUpdateAPI := newSelfUpdateAPI(app)
 
 	err := wails.Run(&options.App{
@@ -113,6 +114,7 @@ func main() {
 			runAPI,
 			buildAPI,
 			knowledgeAPI,
+			voiceAPI,
 			selfUpdateAPI,
 		},
 		Mac: &mac.Options{

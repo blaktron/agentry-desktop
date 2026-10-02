@@ -316,7 +316,7 @@ func TestARunAttachesKeptKnowledgeAndRemovesItsCopyAfter(t *testing.T) {
 		}
 		return &run.Result{Status: "ok", RunID: req.RunID, Knowledge: "handbook: mounted read-only"}, nil
 	}
-	v, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, []string{"handbook"})
+	v, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, []string{"handbook"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestARunAttachesKeptKnowledgeAndRemovesItsCopyAfter(t *testing.T) {
 
 	called := false
 	r.engineRun = func(context.Context, run.Request, io.Writer) (*run.Result, error) { called = true; return nil, nil }
-	if _, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, []string{"missing"}); err == nil || !strings.Contains(err.Error(), "missing") {
+	if _, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, []string{"missing"}, false); err == nil || !strings.Contains(err.Error(), "missing") {
 		t.Fatalf("a run with a pack that is not kept: %v", err)
 	}
 	if called {
@@ -348,7 +348,7 @@ func TestQuittingMidRunRemovesTheAttachedCopyBeforeShutdownReturns(t *testing.T)
 	r.sweep = func(context.Context, string) error { return nil }
 	errc := make(chan error, 1)
 	go func() {
-		_, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, -1, false, nil, false, false, []string{"handbook"})
+		_, err := r.RunAgent(f.reg.URL, "acme/x@1.0.0", "go", nil, "", nil, 0, -1, false, nil, false, false, []string{"handbook"}, false)
 		errc <- err
 	}()
 	var req run.Request

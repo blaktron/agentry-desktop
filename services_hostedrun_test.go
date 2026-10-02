@@ -678,7 +678,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	outDir := t.TempDir()
 	r.app.markPicked(inputDir, outDir) // what the native pickers record (D-030)
 
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"}, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"}, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -777,7 +777,7 @@ func TestAPushedRunWithNoReceiptListsNone(t *testing.T) {
 	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
@@ -800,7 +800,7 @@ func TestHostedRunWithALostOutputListsNothing(t *testing.T) {
 	fastPoll(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	f.finish(hostedrun.OutcomeSucceeded, "ok", 1)
@@ -829,7 +829,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 
 	out1 := t.TempDir()
 	r.app.markPicked(out1)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out1, nil, nil, false)
 	if err != nil {
 		t.Fatalf("a refusal is a result, not an error: %v", err)
 	}
@@ -854,7 +854,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 	f.mu.Unlock()
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil)
+	start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -899,7 +899,7 @@ func TestAttachAndCancel(t *testing.T) {
 		t.Fatalf("attach = %+v", att)
 	}
 	// A second start is refused while one is being followed.
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err == nil ||
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false); err == nil ||
 		!strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("a second start: %v", err)
 	}
@@ -1006,7 +1006,7 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 	}
 
 	for name, want := range map[string]string{"elsewhere": "not kept in Agentry", "rescanned": "not ready in Agentry"} {
-		_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{name})
+		_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{name}, false)
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("attaching %s: %v, want %q", name, err, want)
 		}
@@ -1018,7 +1018,7 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 		t.Fatalf("a refused pack still created a run: %+v", created)
 	}
 
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{"runbook", "runbook"})
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, []string{"runbook", "runbook"}, false)
 	if err != nil || start.Refusal != "" {
 		t.Fatalf("start: %+v %v", start, err)
 	}
@@ -1045,7 +1045,7 @@ func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 	events.mu.Lock()
 	events.runs = nil
 	events.mu.Unlock()
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()

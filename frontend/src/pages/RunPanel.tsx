@@ -19,6 +19,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
+import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
@@ -26,6 +27,7 @@ import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, ty
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
 import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
+import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice";
 import { GuideText, connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
@@ -248,6 +250,25 @@ export default function RunPanel({
   const inAgentry = mode === "hosted" || sessionInAgentry;
   // The offer that governs the mode chosen: the run's, or the session's.
   const offer = sessionInAgentry ? hosted?.session : hosted;
+  // Write in my voice (plan writing-voice.md §5, D11; agentry-desktop#510):
+  // drawn on Review when the voice this run would use exists (this
+  // computer's here, the account's live one In Agentry), ticked from that
+  // voice's own switch until the person changes it; a change of where it
+  // runs goes back to that voice's switch. A read that did not answer draws
+  // no box, and the run goes without the voice.
+  const [voices, setVoices] = useState<main.VoiceView | null>(null);
+  useEffect(() => {
+    // Through a promise, so a binding that is not there (an older build's
+    // harness) is a read that did not answer, not a throw.
+    Promise.resolve()
+      .then(() => VoiceAPI.View(registry))
+      .then(setVoices)
+      .catch(() => setVoices(null));
+  }, [registry]);
+  const voice = voiceChoice(voices, inAgentry);
+  const [voiceSet, setVoiceSet] = useState<boolean | null>(null);
+  useEffect(() => setVoiceSet(null), [inAgentry]);
+  const writeInVoice = voice.offered && (voiceSet ?? voice.ticked);
   // Where to run's default, applied once the offer is known and before the
   // person has chosen; a run already attached chose for itself.
   useEffect(() => {
@@ -476,7 +497,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached, writeInVoice),
       );
       onClose();
     } catch (e) {
@@ -496,7 +517,7 @@ export default function RunPanel({
       if (sessionInAgentry) {
         // A chat In Agentry is followed above the pages once the registry
         // has created it, and this setup closes (agentry-desktop#467).
-        const started = await RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached);
+        const started = await RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice);
         if (started.refusal) setHostedRefusal(started);
         else if (started.run) {
           followHostedChat(setup, started.run, hosted?.session ?? null, profile?.opening ?? "", task);
@@ -509,7 +530,7 @@ export default function RunPanel({
       // here, with the missing-secret ask before any run exists.
       const started = await startHostedRun(
         setup,
-        () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached),
+        () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice),
       );
       if (started.refusal) setHostedRefusal(started);
       else if (started.run) onClose();
@@ -563,7 +584,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached, writeInVoice),
       );
       onClose();
     } catch (e) {
@@ -1103,6 +1124,17 @@ export default function RunPanel({
                   <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label="Edit the task">Edit</Button>
                 </dd>
               </dl>
+              {voice.offered && (
+                <div className="run-voice">
+                  <label className="check-row">
+                    <input type="checkbox" checked={writeInVoice} onChange={(e) => setVoiceSet(e.target.checked)} />
+                    <span>{WRITE_IN_MY_VOICE}</span>
+                  </label>
+                  <p className="muted small" style={{ margin: "2px 0 8px" }}>
+                    {WRITE_IN_MY_VOICE_HINT} {inAgentry ? "In Agentry it is your account's live voice." : "Here it is this computer's voice."}
+                  </p>
+                </div>
+              )}
               {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
               {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
               <h4>Output</h4>

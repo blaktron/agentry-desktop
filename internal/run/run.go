@@ -344,6 +344,11 @@ type Request struct {
 	// container only, and names it in the receipt. The caller removes its
 	// own opened copies once the run returns.
 	Knowledge []engine.AttachedPack
+	// Voice is this computer's Writing Voice when the run writes in it
+	// (plan writing-voice.md §5, D5): the engine stages it read-only beside
+	// the packs and grants voice_read, and the receipt names it; the plan
+	// and its hash do not move. nil runs without one.
+	Voice *engine.AttachedVoice
 	// OutDir is where reports/receipts land ("" = ~/Downloads/agentry-out/
 	// <ns>-<name>-<runid>).
 	OutDir string
@@ -709,6 +714,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			Task:            task,
 			InputPaths:      req.InputPaths,
 			Knowledge:       knowledgePacks,
+			Voice:           req.Voice,
 			Intake:          answers,
 			Adapter:         ad,
 			Policy:          pol,

@@ -190,7 +190,7 @@ func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 		t.Helper()
 		// Every consent flag the page can send, accepted in the dialog.
 		u.answer = true
-		if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, map[string]string{"unsafeMode": "true"}, true, true, nil); err != nil {
+		if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, map[string]string{"unsafeMode": "true"}, true, true, nil, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -240,7 +240,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 		"a release the registry admitted without a scan":   {false, false, true},
 	} {
 		before := len(u.asked)
-		_, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, flags[0], nil, flags[1], flags[2], nil)
+		_, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, flags[0], nil, flags[1], flags[2], nil, false)
 		if err == nil || !strings.Contains(err.Error(), "not confirmed") {
 			t.Errorf("%s, in Unsafe Mode, with the dialog answered No: err = %v, want the refusal", name, err)
 		}
@@ -264,7 +264,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 
 	// A session asks the same way.
 	before := len(u.asked)
-	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, true, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, true, nil, false, false, nil, false); err == nil || !strings.Contains(err.Error(), "not confirmed") {
 		t.Fatalf("StartSession unsigned, in Unsafe Mode: err = %v", err)
 	}
 	if len(u.asked) != before+1 || !strings.Contains(u.asked[before], "Unsafe Mode is on") {
@@ -274,7 +274,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	// A run with nothing to accept raises no dialog, Unsafe Mode or not:
 	// turning it on was the confirmation (D6, "no extra dialog per run").
 	before = len(u.asked)
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil); err != nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(u.asked) != before || ran != 1 {
@@ -286,14 +286,14 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	u.r.unsafeNotice = func(context.Context, string, string) (*run.UnsafeNotice, error) {
 		return nil, errors.New("registry unreachable")
 	}
-	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil)
+	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false)
 	if msg := u.asked[len(u.asked)-1]; !strings.Contains(msg, "Unsafe Mode is on") {
 		t.Fatalf("with the release unreadable the dialog does not name Unsafe Mode:\n%s", msg)
 	}
 	if _, err := u.r.SetUnsafeMode(false); err != nil {
 		t.Fatal(err)
 	}
-	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil)
+	_, _ = u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false)
 	if msg := u.asked[len(u.asked)-1]; msg != "Run acme/x@1.0.0 anyway?\nThis run accepts a release with no attestation. The receipt will record the consent. Continue?" {
 		t.Fatalf("with Unsafe Mode off the dialog changed:\n%s", msg)
 	}
@@ -404,7 +404,7 @@ func TestTheSwitchIsReadOncePerRun(t *testing.T) {
 		}
 		return true, nil
 	}
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(u.asked) != 1 || strings.Contains(u.asked[0], "Unsafe Mode") {
@@ -459,7 +459,7 @@ func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
 
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", nil, outDir, nil, nil)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", nil, outDir, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,7 +554,7 @@ func TestTheEdgeStaysWhileARunCompiledInUnsafeModeIsLive(t *testing.T) {
 		during = append(during, u.r.UnsafeLive())
 		return &run.Result{Unsafe: compiledUnsafe}, nil
 	}
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(during, []bool{true, true}) {
@@ -570,7 +570,7 @@ func TestTheEdgeStaysWhileARunCompiledInUnsafeModeIsLive(t *testing.T) {
 	// The switch on, but the plan not compiled in Unsafe Mode.
 	switchOn(t)
 	*events, during, compiledUnsafe = nil, nil, false
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	// Marked from its start, the switch having been on, and cleared at its
@@ -581,7 +581,7 @@ func TestTheEdgeStaysWhileARunCompiledInUnsafeModeIsLive(t *testing.T) {
 
 	// A run with the switch off never raises it.
 	*events, during, compiledUnsafe = nil, nil, false
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err != nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(*events) != 0 {
@@ -595,7 +595,7 @@ func TestTheEdgeStaysWhileARunCompiledInUnsafeModeIsLive(t *testing.T) {
 		req.PlanCompiled(true)
 		return nil, errors.New("the gateway did not start")
 	}
-	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil); err == nil {
+	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false); err == nil {
 		t.Fatal("the failing run did not fail")
 	}
 	if u.r.UnsafeLive() || !reflect.DeepEqual(*events, []bool{true, false}) {
@@ -614,7 +614,7 @@ func TestTheEdgeStaysWhileAChatCompiledInUnsafeModeIsLive(t *testing.T) {
 		req.PlanCompiled(true)
 		return &unsafeChat{events: make(chan session.Event)}, nil
 	}
-	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "", nil, "", nil, -1, true, nil, false, false, nil); err != nil {
+	if _, err := u.r.StartSession("https://r.example", "acme/x@1.0.0", "", nil, "", nil, -1, true, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := u.r.SetUnsafeMode(false); err != nil {
