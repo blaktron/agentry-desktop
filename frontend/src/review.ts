@@ -93,8 +93,13 @@ export type ReviewStoreState = { review: Review | null; shown: boolean; raised: 
  *  start that is declined or refused changes nothing. */
 export function createReviewStore(deps: ReviewStoreDeps) {
   let review: Review | null = null;
+  // owner is the start whose review is the one followed: only it writes
+  // review, and markStopping is how Stop reaches that start's own record.
   let owner: object | null = null;
   let markStopping: (() => void) | null = null;
+  // starting: a start is waiting for its native dialog and for Go to begin
+  // it. Go runs one local job at a time and a report does not say which
+  // start it answers, so a second start waits for the first.
   let starting_ = false;
   let shown = false;
   let raised = 0;
@@ -109,8 +114,6 @@ export function createReviewStore(deps: ReviewStoreDeps) {
         listeners.delete(f);
       };
     },
-    starting: (): boolean => starting_,
-
     /** Starts a review of dir by call (BuildAPI.ReviewLocally). Resolves
      *  true once Go reports that it has begun, which is when its dialog
      *  opens, and false when the person said No in the native dialog;
@@ -119,6 +122,8 @@ export function createReviewStore(deps: ReviewStoreDeps) {
       if (starting_) return Promise.reject("A review is being started on this computer; wait for it to begin.");
       starting_ = true;
       const token = {};
+      // The review followed when this start began is not this start's,
+      // whatever its reports say.
       const followed = review && !review.over ? review.runId : null;
       let mine = starting(dir);
       let begun = false;
@@ -156,6 +161,9 @@ export function createReviewStore(deps: ReviewStoreDeps) {
           mine = next;
           publish();
         });
+        // A call that throws before it returns a promise is refused like one
+        // that rejects, so it never leaves the store starting. It runs a
+        // microtask later, after the listeners above are up.
         Promise.resolve()
           .then(call)
           .then((v) => {

@@ -73,9 +73,13 @@ test("a No in the native dialog shows and forgets nothing", async () => {
   assert.equal(await begun, false);
   assert.equal(h.store.state().shown, false);
   assert.equal(h.store.state().review, null);
-  assert.equal(h.store.starting(), false);
   await tick();
   assert.equal(h.listening(), 0);
+  // The No left nothing starting: the next review begins.
+  const b = pending();
+  const again = h.store.start("/q/x", b.call);
+  h.report("r2");
+  assert.equal(await again, true);
 });
 
 test("a refused start leaves the review being followed as it is", async () => {

@@ -36,9 +36,6 @@ export function useReview(): ReviewState {
 export const startReview = (registry: string, dir: string): Promise<boolean> =>
   store.start(dir, () => BuildAPI.ReviewLocally(registry, dir));
 
-/** Whether a review is waiting for its dialog or for Go to begin it. */
-export const reviewStarting = (): boolean => store.starting();
-
 export const stopReview = (): Promise<void> => store.stop();
 export const showReview = (): void => store.show();
 export const dismissReview = (): void => store.dismiss();

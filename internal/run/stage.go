@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -27,7 +26,9 @@ import (
 // `agentry review` included. Removing a live review's copy that old harms
 // nothing: a run reads its own copy of its inputs, made when it starts.
 
-// StagePrefix is the name the Examiner's pre-step gives its staged copy.
+// StagePrefix is the name the Examiner's pre-step gives its staged copy
+// (the CLI's examiner.Prepare); TestAReviewsStagedCopyIsOnItsRecordAndGoesWithIt
+// holds it to the copy the CLI makes.
 const StagePrefix = "agentry-examiner-"
 
 // StaleStageAge is how old a staged copy no record names must be before
@@ -60,7 +61,10 @@ func isStage(path string) bool {
 
 // removeStage removes a staged copy a record names. A path that is not one
 // is left alone, as is anything standing in its place that is not a real
-// directory: a record is never a way to delete something else.
+// directory this user owns: a record is never a way to delete something
+// else. A copy whose temp directory is not this process's (TMPDIR changed
+// between launches) is not reached; SweepStaleStages does not reach it
+// either.
 func removeStage(path string) error {
 	if !isStage(path) {
 		return nil
@@ -72,7 +76,7 @@ func removeStage(path string) error {
 	if err != nil {
 		return fmt.Errorf("remove the review's staged copy: %w", err)
 	}
-	if !fi.IsDir() {
+	if !fi.IsDir() || !ownedByMe(fi) {
 		return nil
 	}
 	if err := os.RemoveAll(path); err != nil {
@@ -83,8 +87,8 @@ func removeStage(path string) error {
 
 // SweepStaleStages removes this user's staged copies in the system's temp
 // directory that are older than age, by their own time, and returns the
-// names it removed, sorted. Only real directories under the pre-step's name
-// are touched.
+// names it removed. Only real directories under the pre-step's name are
+// touched.
 func SweepStaleStages(age time.Duration) ([]string, error) {
 	tmp := filepath.Clean(os.TempDir())
 	entries, err := os.ReadDir(tmp)
@@ -110,6 +114,5 @@ func SweepStaleStages(age time.Duration) ([]string, error) {
 		}
 		removed = append(removed, name)
 	}
-	sort.Strings(removed)
 	return removed, errors.Join(errs...)
 }

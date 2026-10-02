@@ -94,7 +94,9 @@ export default function Validate({ registry, onOpenSettings }: {
           <ErrorBox error={reviewError} />
         </>
       )}
-      {dir && picked && dir !== picked && <p className="muted small">Choose the folder with Choose… to review it on this computer.</p>}
+      {dir && dir !== picked && (
+        <p className="muted small">To review this folder on this computer with Review Your QuickAgents locally, choose it with Choose…: a review reads only a folder you picked.</p>
+      )}
       {busy && <Spinner label="Scanning…" />}
 
       {result && <ResultView r={result} />}

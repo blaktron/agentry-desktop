@@ -139,7 +139,7 @@ function Finding({ f, kind }: { f: main.ReviewFindingView; kind?: string }) {
     <div className="finding">
       <div className="row">
         {f.severity && <Sev severity={f.severity} />}
-        {kind ? <span className="badge">{kind}</span> : <span className="mono">{f.scanner}</span>}
+        {kind ? <span className="badge">{kind}</span> : <span className="mono"><RevealText text={f.scanner} /></span>}
         <strong><RevealText text={f.title} /></strong>
         {f.confidence && <span className="badge">{f.confidence}</span>}
       </div>
@@ -182,7 +182,7 @@ export function ReviewReport({ v, log }: { v: main.ReviewView; log: string[] }) 
         <h3 style={{ marginTop: 0 }}>The registry&apos;s rules, run here</h3>
         <p className="muted small">
           The manifest rules, the inventory checks and the hidden-content and injection rules, under rule bundle{" "}
-          <RevealText text={v.rules.bundleVersion} /> ({v.rules.bundleSource}).
+          <RevealText text={v.rules.bundleVersion} /> (<RevealText text={v.rules.bundleSource} />).
         </p>
         {v.rules.manifest.map((is, i) => (
           <div key={`m${i}`} className="finding">

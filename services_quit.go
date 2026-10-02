@@ -42,8 +42,8 @@ const sweepWait = 30 * time.Second
 // liveRun is the run or interactive session in flight.
 type liveRun struct {
 	id string
-	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild, jobReview): Stop stops
-	// only its own kind.
+	// kind is the job's (jobRun, jobChat, jobDraft, jobBuild, jobReview):
+	// Stop stops only its own kind.
 	kind jobKind
 	ref  string
 	// turns are the run ids of the run's later turns: a draft's one repair
@@ -331,7 +331,7 @@ func (r *RunAPI) shutdown() {
 func sweepStaleStages() {
 	removed, err := run.SweepStaleStages(run.StaleStageAge)
 	if len(removed) > 0 {
-		log.Printf("agentry-desktop: removed %d stale review cop(ies): %s", len(removed), strings.Join(removed, ", "))
+		log.Printf("agentry-desktop: removed %d stale review copies: %s", len(removed), strings.Join(removed, ", "))
 	}
 	if err != nil {
 		log.Printf("agentry-desktop: %v", err)

@@ -34,9 +34,8 @@ const (
 )
 
 // reviewRunRef names a review as the run in flight: what quitting says it
-// ends, what the busy refusal names, and how StopReview tells a review from
-// a run, a draft or a build. Words, not the Examiner's ref, so no run the
-// page starts can carry it.
+// ends. Words, not the Examiner's ref, as draftRunRef is. StopReview tells
+// a review by its kind, jobReview, which only ReviewLocally takes.
 const reviewRunRef = "the Examiner"
 
 // ReviewStatusView is what the action says before a review: whether the
@@ -87,7 +86,12 @@ func (b *BuildAPI) ReviewLocally(reg, dir string) (*ReviewView, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := b.app.askConsent("Review "+p.Ref+" on this computer?", reviewConsentText(p, reg)); err != nil {
+	// Another local job is refused before the dialog, so a Yes is not
+	// answered with a refusal; the run lock below still decides.
+	if b.run.InFlight() != nil {
+		return nil, b.run.busy()
+	}
+	if err := b.app.askConsent("Review "+p.What()+" on this computer?", reviewConsentText(p, reg)); err != nil {
 		if errors.Is(err, errNotConfirmed) {
 			return nil, nil //nolint:nilnil // a No is the answer: nothing was reviewed
 		}
@@ -113,7 +117,7 @@ func (b *BuildAPI) ReviewLocally(reg, dir string) (*ReviewView, error) {
 // reviewConsentText is the review's dialog: where the QuickAgent's text
 // goes, and what it does not do.
 func reviewConsentText(p *review.Plan, reg string) string {
-	return "The Examiner reviews " + p.Ref + " from " + p.Dir + " on this computer, for no credits. " +
+	return "The Examiner reviews " + p.What() + " on this computer, from " + p.Dir + ", for no credits. " +
 		"The registry's own rules run here first, and " + originOf(reg) + " is asked for its public policy and its record of each MCP server the QuickAgent declares, with no sign-in. " +
 		"Then the QuickAgent's text goes to TypeSafe (AI Review's Jev) with your key, and to the model your runner policy names (" + p.ModelName() + "), which reads it from a read-only copy. " +
 		"Nothing of the QuickAgent runs, and nothing is submitted. The report and the run's receipts are kept in your Downloads folder under agentry-out. " +
@@ -142,7 +146,7 @@ func (b *BuildAPI) StopReview() error {
 	r := b.run
 	r.liveMu.Lock()
 	defer r.liveMu.Unlock()
-	if r.live == nil || r.live.kind != jobReview || r.live.ref != reviewRunRef {
+	if r.live == nil || r.live.kind != jobReview {
 		return errors.New("no review is running on this computer")
 	}
 	r.live.cancel()
@@ -270,9 +274,10 @@ type ReviewFileView struct {
 
 // The words the page may show as a verdict, a severity or a kind.
 var (
-	reviewOutcomes   = map[string]bool{examiner.OutcomePublished: true, examiner.OutcomeNeedsReview: true, examiner.OutcomeRejected: true, examiner.OutcomeRefused: true}
-	reviewSeverities = map[string]bool{"info": true, "low": true, "medium": true, "high": true, "critical": true}
-	reviewReadKinds  = map[string]bool{"secret": true, "script": true, "instruction": true, "other": true}
+	reviewOutcomes    = map[string]bool{examiner.OutcomePublished: true, examiner.OutcomeNeedsReview: true, examiner.OutcomeRejected: true, examiner.OutcomeRefused: true}
+	reviewSeverities  = map[string]bool{"info": true, "low": true, "medium": true, "high": true, "critical": true}
+	reviewConfidences = map[string]bool{"low": true, "medium": true, "high": true}
+	reviewReadKinds   = map[string]bool{"secret": true, "script": true, "instruction": true, "other": true}
 )
 
 // word is w when it is one of words, else "".
@@ -332,7 +337,7 @@ func findingViews(fs []examiner.Finding, kinds map[string]bool) []ReviewFindingV
 		if kinds != nil && !kinds[scanner] {
 			scanner = "other"
 		}
-		out = append(out, ReviewFindingView{Scanner: scanner, Severity: word(f.Severity, reviewSeverities), Confidence: word(f.Confidence, map[string]bool{"low": true, "medium": true, "high": true}),
+		out = append(out, ReviewFindingView{Scanner: scanner, Severity: word(f.Severity, reviewSeverities), Confidence: word(f.Confidence, reviewConfidences),
 			Title: f.Title, File: f.File, Line: max(f.Line, 0), Excerpt: f.Excerpt, Detail: f.Detail})
 	}
 	return out

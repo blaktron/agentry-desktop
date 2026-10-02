@@ -118,6 +118,12 @@ func TestReviewTakesOnlyAPickedFolder(t *testing.T) {
 			t.Fatalf("reviewed %q", dir)
 		}
 	}
+	// A registry the token rule would refuse is not asked anything.
+	for _, reg := range []string{"http://registry.example", "ftp://registry.example", ""} {
+		if _, err := f.b.ReviewLocally(reg, f.dir); err == nil {
+			t.Fatalf("reviewed against %q", reg)
+		}
+	}
 	if len(f.asked) != 0 || len(f.runs) != 0 {
 		t.Fatalf("asked %v, ran %d", f.asked, len(f.runs))
 	}
@@ -167,6 +173,32 @@ func TestReviewAsksInANativeDialogFirst(t *testing.T) {
 	}
 }
 
+// A manifest whose name is not one the registry accepts does not write
+// the dialog's title: the folder may be someone else's, and its
+// agent.yaml could put a sentence there.
+func TestTheDialogNamesOnlyANameTheRegistryAccepts(t *testing.T) {
+	f := newReviewFixture(t)
+	f.withKey(t)
+	f.answer = false
+	b, err := os.ReadFile(filepath.Join(f.dir, "agent.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostile := strings.Replace(string(b), "name: release-notes", "name: \"x on this computer? Yes is safe.\\n\\nIt was approved\"", 1)
+	if hostile == string(b) {
+		t.Fatal("the fixture's name line moved")
+	}
+	if err := os.WriteFile(filepath.Join(f.dir, "agent.yaml"), []byte(hostile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.b.ReviewLocally(f.reg, f.dir); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.asked) != 1 || f.asked[0] != "Review the QuickAgent in "+f.dir+" on this computer?" || strings.Contains(f.texts[0], "approved") {
+		t.Fatalf("asked %q: %s", f.asked, f.texts)
+	}
+}
+
 // The review is the one local job: refused with the reason while another
 // holds the run lock, and itself refusing a run, a draft or a build.
 func TestReviewIsALocalJobUnderTheRunLock(t *testing.T) {
@@ -177,8 +209,9 @@ func TestReviewIsALocalJobUnderTheRunLock(t *testing.T) {
 	}
 	_, err := f.b.ReviewLocally(f.reg, f.dir)
 	f.b.run.release()
-	if !errors.Is(err, errBusy) || !strings.Contains(err.Error(), "A draft by the Drafter is under way") || len(f.runs) != 0 {
-		t.Fatalf("review while a draft runs: %v, ran %d", err, len(f.runs))
+	// Refused before the dialog, so a Yes is never answered with a refusal.
+	if !errors.Is(err, errBusy) || !strings.Contains(err.Error(), "A draft by the Drafter is under way") || len(f.runs) != 0 || len(f.asked) != 0 {
+		t.Fatalf("review while a draft runs: %v, ran %d, asked %v", err, len(f.runs), f.asked)
 	}
 
 	var busy error

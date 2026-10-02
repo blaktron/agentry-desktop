@@ -20,8 +20,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/examiner"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
@@ -42,7 +45,9 @@ import (
 // policy, and the person's own key.
 type Plan struct {
 	Dir string
-	// Ref is the QuickAgent's ns/name@version as its manifest declares it.
+	// Ref is the QuickAgent's ns/name@version as its manifest declares it,
+	// or "" when a part of it is not one the registry accepts: the folder
+	// may be someone else's, and the dialog says only what a name can be.
 	Ref        string
 	Policy     *policy.Policy
 	PolicySHA  string
@@ -55,25 +60,37 @@ type Plan struct {
 // `agentry review` gives it.
 func (p *Plan) Budgets() spec.Budgets { return localrun.Examiner().LocalBudgets(p.Policy.Budgets) }
 
-// ModelName names the model the runner policy gives the Examiner.
-func (p *Plan) ModelName() string { return ModelName(p.Policy) }
-
-// ModelName names the model pol gives a run, as the dialog and the page say it.
-func ModelName(pol *policy.Policy) string {
-	if m := strings.TrimSpace(pol.Model.Provider + " " + pol.Model.Name); m != "" {
+// ModelName names the model the runner policy gives the Examiner, as the
+// dialog says it (the Drafter's words for its own, draft.Plan.ModelName).
+func (p *Plan) ModelName() string {
+	if m := strings.TrimSpace(p.Policy.Model.Provider + " " + p.Policy.Model.Name); m != "" {
 		return m
 	}
 	return "none configured"
 }
 
-// NoKeySentence is what a review without the person's key says, with
+// What names the QuickAgent in a sentence: its ref when the registry would
+// accept each part of it, else its folder, which the native picker gave.
+func (p *Plan) What() string {
+	if p.Ref != "" {
+		return p.Ref
+	}
+	return "the QuickAgent in " + p.Dir
+}
+
+// versionRE is a version as a sentence may quote it; the manifest rules
+// hold it to strict semver, which the report says when it is not.
+var versionRE = regexp.MustCompile(`^[0-9A-Za-z.+-]{1,64}$`)
+
+// noKeySentence is what a review without the person's key says, with
 // where to add one.
-const NoKeySentence = "Reviewing on this computer needs your own TypeSafe Jev key: AI Review is asked with it, and reads every file before the Examiner's model does. Add one under Settings → Provider settings → AI Review key"
+const noKeySentence = "Reviewing on this computer needs your own TypeSafe Jev key: AI Review is asked with it, and reads every file before the Examiner's model does. Add one under Settings → Provider settings → AI Review key"
 
 // Prepare checks a review before anything leaves this computer: the
 // folder holds a QuickAgent, the runner policy, and the person's own key,
 // read as a draft reads it. Without the key it refuses, saying where to add
-// one, and nothing else happens (D28).
+// one, and nothing else happens (D28). Like a draft's, it writes the
+// default runner policy when there is none.
 func Prepare(dir string) (*Plan, error) {
 	m, err := validate.ReadManifest(dir)
 	if err != nil {
@@ -90,11 +107,15 @@ func Prepare(dir string) (*Plan, error) {
 	key, err := examiner.LocalReview(pol)
 	switch {
 	case errors.Is(err, examiner.ErrNoJevKey):
-		return nil, fmt.Errorf("%s: %w", NoKeySentence, err)
+		return nil, fmt.Errorf("%s: %w", noKeySentence, err)
 	case err != nil:
 		return nil, err
 	}
-	return &Plan{Dir: dir, Ref: fmt.Sprintf("%s/%s@%s", m.Namespace, m.Name, m.Version), Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Key: key}, nil
+	ref := ""
+	if manifest.ValidNamespace(m.Namespace) && manifest.ValidName(m.Name) && versionRE.MatchString(m.Version) {
+		ref = fmt.Sprintf("%s/%s@%s", m.Namespace, m.Name, m.Version)
+	}
+	return &Plan{Dir: dir, Ref: ref, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Key: key}, nil
 }
 
 // Stage is where a review is. It goes through them in order.
