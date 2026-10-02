@@ -5,6 +5,9 @@
 //
 //   #validate          Validate with a folder chosen: the action beside it
 //   #validate-nokey    the same without an AI Review key: add one
+//   #validate-clean    a clean folder answered as Go sent it before
+//                      agentry-desktop#534 (every list null, no readErrors):
+//                      PASSED, never the page's error boundary
 //   #review-running    a review under way: the stage, time, turns, tokens
 //                      over its folded log, Stop the review
 //   #card-running      the same shrunk to its corner card
@@ -99,7 +102,8 @@ g.go = { main: {
     StopReview: async () => undefined,
   },
   ValidateAPI: { Run: async () => ({ passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 4, bundleVersion: "0.3.2", bundleSource: "embedded",
-    manifestName: "me/release-notes", manifestModes: ["autonomous"], manifestVersion: "0.1.0", issues: [], inventory: [], findings: [], readErrors: [] }) },
+    manifestName: "me/release-notes", manifestModes: ["autonomous"], manifestVersion: "0.1.0",
+    ...(hash === "validate-clean" ? { issues: null, inventory: null, findings: null } : { issues: [], inventory: [], findings: [], readErrors: [] }) }) },
   RunAPI: { ForgetRun: async () => undefined, ShowRunFolder: async () => undefined },
   App: { ChooseDirectory: async () => DIR, OpenExternal: async () => undefined },
 } };
