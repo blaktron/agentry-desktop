@@ -1,8 +1,10 @@
 package validate
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -185,5 +187,60 @@ guide:
 	}
 	if res.Passed {
 		t.Fatal("connect help for a secret the release does not declare must be refused")
+	}
+}
+
+// TestValidateACleanFolderSendsEmptyListsNotNull: a clean folder is the
+// common case, and its Result must cross the IPC with every list as [] and
+// never null, which the Validate page reads with .length
+// (agentry-desktop#534). Every slice field of Result that is not omitempty is
+// held, so a field added later is held too.
+func TestValidateACleanFolderSendsEmptyListsNotNull(t *testing.T) {
+	noManifest := t.TempDir()
+	if err := os.WriteFile(filepath.Join(noManifest, "SKILL.md"), []byte("# Notes\n\nSummarise the notes.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		dir      string
+		mustPass bool // without agent.yaml the folder fails by design (ManifestError)
+	}{
+		{"with a manifest", benignWorkspace(t), true},
+		{"without a manifest", noManifest, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := Run(tc.dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.mustPass && !res.Passed {
+				t.Fatalf("the clean folder did not pass: %+v", res)
+			}
+			raw, err := json.Marshal(res)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var sent map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &sent); err != nil {
+				t.Fatal(err)
+			}
+			rt := reflect.TypeOf(Result{})
+			held := 0
+			for i := 0; i < rt.NumField(); i++ {
+				f := rt.Field(i)
+				tag := f.Tag.Get("json")
+				key := strings.Split(tag, ",")[0]
+				if f.Type.Kind() != reflect.Slice || key == "" || key == "-" || strings.Contains(tag, "omitempty") {
+					continue
+				}
+				if got := string(sent[key]); got != "[]" {
+					t.Errorf("%q is sent as %s, want []", key, got)
+				}
+				held++
+			}
+			if held < 3 {
+				t.Fatalf("held %d list fields, want at least issues, inventory and findings", held)
+			}
+		})
 	}
 }
