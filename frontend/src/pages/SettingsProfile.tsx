@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { main, hostedrun } from "../../wailsjs/go/models";
-import { Button, Card, ErrorBox, Input, Notice, fmtDuration, fmtStorage } from "../ui";
+import { main } from "../../wailsjs/go/models";
+import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
+import { capsSentence } from "../usage";
 import {
   bonusOf, changesPhrase, creditCount, creditNumber, creditsPhrase, dayOf, owedSentence, packBonus, packLabel, packPrice, runningPromo, tierLabel,
   topUpOffer,
@@ -51,16 +52,6 @@ function knowledgeLimitSentence(k: main.KnowledgeAllocation, memberOf?: string):
   return `${head} ${kept} Agentry refuses a new pack, or a larger copy of one, until enough is deleted or ${grows}. Delete a pack, or keep a new one on your computer.`;
 }
 
-const fmtNumber = (n: number) => n.toLocaleString("en-US");
-
-// capsSentence: the caller's hosted-run caps and the rates a run settles at.
-function capsSentence(c: hostedrun.Caller): string {
-  return (
-    `A hosted run holds ${c.holdCredits} credits for its cap — ${fmtDuration(c.caps.timeoutSeconds)}, ` +
-    `${c.caps.maxTurns} turns, ${fmtNumber(c.caps.maxTokens)} tokens — and settles from the tokens it uses: ` +
-    `one credit for every ${fmtNumber(c.inputTokensPerCredit)} tokens the model reads and every ${fmtNumber(c.outputTokensPerCredit)} it writes.`
-  );
-}
 
 // OrgLine: the memberships the registry reports. They are the core's own
 // facts, so a registry that sells nothing still says which organization a
@@ -225,7 +216,7 @@ function UpgradeButton({ sub, onOpen }: { sub: main.SubscriptionView; onOpen: ()
 }
 
 // PersonView is the site's personal Subscription card.
-function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView; runs?: hostedrun.Caller; onOpen: () => void; onTopUp: () => void }) {
+function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView; runs?: main.HostedRunsTermsView; onOpen: () => void; onTopUp: () => void }) {
   const promo = runningPromo(sub);
   const topUp = topUpOffer(sub);
   const left = submissionsLeft(sub);
@@ -245,7 +236,7 @@ function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView
             : <Row label="Allowance">{sub.allowance} credits a month; resets on {dayOf(sub.periodEnd)}</Row>}
           <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
           {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}</Row>}
-          {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
+          {runs?.caps && <Row label="Hosted runs">{capsSentence({ holdCredits: runs.holdCredits, caps: runs.caps })}</Row>}
           {changesPhrase(sub) && <Row label="Changes">{changesPhrase(sub)}</Row>}
         </dl>
         {limit && <Notice tone="warn">{limit}</Notice>}
@@ -332,7 +323,7 @@ function TopUpCard({ sub, topUp, onBuy }: { sub: main.SubscriptionView; topUp: m
 // MemberView is the site's member view: the organization pays for this
 // person's work from its pool, and their own account is not in force while
 // they belong to it.
-function MemberView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: hostedrun.Caller; onOpen: () => void }) {
+function MemberView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: main.HostedRunsTermsView; onOpen: () => void }) {
   const org = sub.memberOf!;
   const lapsed = sub.standing && sub.standing !== "active";
   const limit = sub.knowledge ? knowledgeLimitSentence(sub.knowledge, org) : null;
@@ -354,7 +345,7 @@ function MemberView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: 
           <Row label="A submission costs">{creditCount(sub.submissionCost)}, spent when the registry accepts it</Row>
           <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
           {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}, in {org}'s pool</Row>}
-          {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
+          {runs?.caps && <Row label="Hosted runs">{capsSentence({ holdCredits: runs.holdCredits, caps: runs.caps })}</Row>}
         </dl>
         {limit && <Notice tone="warn">{limit}</Notice>}
         {lapsed && (

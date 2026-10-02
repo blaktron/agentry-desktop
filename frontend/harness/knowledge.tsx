@@ -119,14 +119,14 @@ const availability = {
 const hostedRunning = {
   id: "01a0de6e-c1fa-70fe-80ec-8b2cbba957df", name: "handbook", status: "running", state: "running",
   statusLine: "The build is running on a sandbox host.", cancelRequested: false, holdCredits: 100, settledCredits: 0,
-  settled: false, scanCredits: 0, applied: false, pages: 0, bytes: 0, inputTokens: 0, outputTokens: 0, turns: 0,
+  settled: false, scanCredits: 0, applied: false, pages: 0, bytes: 0, turns: 0,
   documents: [{ name: "storage-guide.pdf", bytes: 412000 }, { name: "buckets.md", bytes: 3100 }], canContinue: false,
   downloaded: false, final: false,
 };
 const hostedDone = {
   ...hostedRunning, status: "finished", state: "done — pass", statusLine: "", outcome: "succeeded",
   outcomeLine: "The Knowledge Creator finished.", outcomeTone: "ok", settledCredits: 2, settled: true, scanCredits: 1,
-  applied: true, pages: 4, bytes: 5300, inputTokens: 23056, outputTokens: 2501, turns: 10, downloaded: true,
+  applied: true, pages: 4, bytes: 5300, turns: 10, downloaded: true,
   kept: "Downloaded handbook: 4 pages, kept on this computer, encrypted to your account's key, which Agentry holds.",
   scanState: "scanned", scan: "scanned, 1 finding (medium)", final: true,
 };

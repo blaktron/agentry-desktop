@@ -32,7 +32,7 @@ function harness() {
 
 const view = (id: string, status: string, extra: Partial<View> = {}) =>
   ({ id, ref: "acme/reporter@1.0.0", status, state: status, statusLine: status, final: false, outputs: [], turns: 0,
-    inputTokens: 0, outputTokens: 0, totalTokens: 0, holdCredits: 20, ...extra }) as unknown as View;
+    holdCredits: 20, ...extra }) as unknown as View;
 const REG = "https://dev.example.test";
 const started = (v: View) => async () => ({ run: v }) as main.HostedStartView;
 

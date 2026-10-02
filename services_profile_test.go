@@ -109,7 +109,7 @@ func TestProfileReadsTheAccountTheSignUpAndTheRunCaps(t *testing.T) {
 	if s.Promo == nil || s.Promo.State != "running" || s.Promo.Code != "LAUNCH" || s.Promo.Credits != 100 || s.Promo.EndsAt != "2026-10-29T00:00:00Z" {
 		t.Fatalf("promo = %+v", s.Promo)
 	}
-	if p.HostedRuns == nil || p.HostedRuns.HoldCredits != 20 || p.HostedRuns.Caps.MaxTurns != 60 || p.HostedRuns.OutputTokensPerCredit != 4000 {
+	if p.HostedRuns == nil || p.HostedRuns.HoldCredits != 20 || p.HostedRuns.Caps == nil || p.HostedRuns.Caps.MaxTurns != 60 || p.HostedRuns.Caps.TimeoutSeconds != 900 || p.HostedRuns.Tier != "promo_pro" {
 		t.Fatalf("hosted runs = %+v", p.HostedRuns)
 	}
 }

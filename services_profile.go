@@ -27,7 +27,18 @@ type ProfileView struct {
 	SignedUpWith string `json:"signedUpWith,omitempty"`
 	// HostedRuns is nil where the registry takes no hosted runs, or the
 	// status could not be read.
-	HostedRuns *hostedrun.Caller `json:"hostedRuns,omitempty"`
+	HostedRuns *HostedRunsTermsView `json:"hostedRuns,omitempty"`
+}
+
+// HostedRunsTermsView is what a hosted run of the caller's holds and the
+// caps it holds it for, in credits, time and turns. The registry's token
+// cap and the rates a settlement is computed at are not carried (plan
+// scan-and-run-tweaks.md D9, agentry-desktop#457).
+type HostedRunsTermsView struct {
+	Tier string `json:"tier"`
+	// HoldCredits is 0 for a member of an unmetered organization.
+	HoldCredits int64           `json:"holdCredits"`
+	Caps        *HostedCapsView `json:"caps"`
 }
 
 // MaxDisplayName is the site's form's limit on a display name; the
@@ -73,7 +84,7 @@ func profileFor(app *App, url, token string) (*ProfileView, error) {
 		}
 	}
 	if st, err := hostedrun.New(url, token).Status(app.ctx); err == nil && st.Enabled && st.Caller != nil {
-		out.HostedRuns = st.Caller
+		out.HostedRuns = &HostedRunsTermsView{Tier: st.Caller.Tier, HoldCredits: st.Caller.HoldCredits, Caps: hostedCaps(st.Caller.Caps)}
 	}
 	return out, nil
 }

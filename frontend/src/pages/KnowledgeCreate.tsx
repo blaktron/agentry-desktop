@@ -49,6 +49,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
 import type { Tone } from "../jobProgress";
+import { creatorUseLine } from "../usage";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildHoldLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 
@@ -637,10 +638,10 @@ function BuildDone({ result, added, onClose, onPreview }: { result: knowledge.Bu
         {(result.dropped ?? []).map((d) => (
           <FragmentRow key={d.path} label={d.kept ? "Kept with a note" : "Page dropped"} value={<><span className="mono small">{d.path}</span>: {d.reason}</>} />
         ))}
-        {(result.inputTokens > 0 || result.outputTokens > 0) && (
+        {creatorUseLine(result) && (
           <>
             <dt>The Creator run used</dt>
-            <dd>{result.inputTokens} input and {result.outputTokens} output tokens{result.costUsd > 0 ? `, US$${result.costUsd.toFixed(4)} as the provider reported it` : ""}</dd>
+            <dd>{creatorUseLine(result)}</dd>
           </>
         )}
       </dl>

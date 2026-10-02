@@ -148,7 +148,7 @@ func newDraftFake(t *testing.T) *draftFake {
 		f.run = &hostedrun.Run{
 			ID: draftRunID, Kind: hostedrun.KindDraft, Ref: "agentry/drafter@1.0.0", Digest: "builtin", Mode: "autonomous",
 			Task: desc, Status: hostedrun.StatusQueued, QueuePosition: 1, HoldCredits: 41,
-			Caps: hostedrun.Caps{TimeoutSeconds: 1200, MaxTurns: 60, MaxTokens: 1000000}, CreatedAt: time.Now().UTC(),
+			Caps: hostedrun.Caps{TimeoutSeconds: 1200, MaxTurns: 60}, CreatedAt: time.Now().UTC(),
 			Draft: &hostedrun.Draft{Hints: hints, TokenCredits: 30, MaxSearches: 10, CreditsPerSearch: 1, MaxPages: 40},
 		}
 		hostedJSON(w, http.StatusCreated, f.run)
@@ -207,7 +207,7 @@ func (f *draftFake) finish(outcome, draftJSON string, settled int64) {
 	now := time.Now().UTC()
 	f.run.Status, f.run.Outcome, f.run.QueuePosition, f.run.FinishedAt = hostedrun.StatusFinished, outcome, 0, &now
 	f.run.SettledCredits = &settled
-	f.run.Usage = &hostedrun.Usage{InputTokens: 300000, OutputTokens: 20000, Turns: 12}
+	f.run.Usage = &hostedrun.Usage{Turns: 12}
 	search, review := int64(2), int64(1)
 	f.run.Draft.Searched, f.run.Draft.SearchCredits, f.run.Draft.AIReviewCredits = 2, &search, &review
 	if outcome != hostedrun.OutcomeSucceeded {
@@ -331,7 +331,7 @@ func TestHostedDraftAvailabilityStatesTheHoldInTheSitesWords(t *testing.T) {
 	if !v.Offered || !v.Available || !v.SignedIn || v.HoldCredits != 41 || v.Balance != 496 || !v.BalanceKnown || v.Short {
 		t.Fatalf("%+v", v)
 	}
-	if v.HoldSentence != "This draft holds 41 credits and settles from what it uses: the tokens its model reads and writes, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds." {
+	if v.HoldSentence != "This draft holds 41 credits and settles from what it uses: its model's work, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds." {
 		t.Fatalf("hold %q", v.HoldSentence)
 	}
 	if v.InputsSentence != hostedrun.DraftInputsSentence || v.TimeoutSeconds != 1200 || v.MaxTurns != 60 || v.MaxPages != 40 {

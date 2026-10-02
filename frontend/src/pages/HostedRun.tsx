@@ -12,19 +12,17 @@ import { OpenExternal } from "../../wailsjs/go/main/App";
 import { OpenUpgrade } from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
+import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, sessionTermsSentence } from "../usage";
 
 /** What a run In Agentry holds and what the account has, before anything
- *  is created. Both numbers come from the registry. */
+ *  is created: the hold in credits, the time and the turns, never tokens or
+ *  a rate (agentry-desktop#457). Every number comes from the registry. */
 export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
   return (
     <p className="muted small" style={{ margin: "4px 0" }}>
-      This run holds <strong>{hosted.holdCredits}</strong> credits while it is queued and running, and settles from the
-      tokens it uses.{" "}
+      {runHoldSentence(hosted.holdCredits)}{" "}
       {hosted.balanceKnown ? <>Your balance is <strong>{hosted.balance}</strong> credits.</> : "The balance could not be read."}
-      {hosted.caps && (
-        <> Ceilings for the {hosted.tier} tier: {hosted.caps.timeoutSeconds}s, {hosted.caps.maxTurns} turns,{" "}
-        {hosted.caps.maxTokens.toLocaleString()} tokens.</>
-      )}
+      {hosted.caps && <> {runCapsLine(hosted.tier ?? "", hosted.caps)}</>}
       {hosted.runnersOnline === 0 && <> No runner is online right now, so the run waits in the queue.</>}
     </p>
   );
@@ -33,7 +31,8 @@ export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView 
 /** What a session In Agentry costs, before it starts (plan
  *  hosted-sessions.md §7; agentry-desktop#403): it holds nothing, its first
  *  minutes are free, each minute after is pulled as it starts, and its
- *  tokens settle when it ends. Every number is the registry's. */
+ *  model use settles when it ends, in credits. Every number is the
+ *  registry's. */
 export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
   const s = hosted.session;
   if (!s) return null;
@@ -42,16 +41,8 @@ export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView
   const metered = !(hosted.caps && hosted.holdCredits === 0);
   return (
     <p className="muted small" style={{ margin: "4px 0" }}>
-      {metered ? (
-        <>
-          A session holds nothing. Its first <strong>{s.freeMinutes}</strong> minutes are free, then each minute costs{" "}
-          <strong>{s.creditsPerMinute}</strong> credits as it starts, and its tokens settle when it ends. It starts on a
-          balance of at least {s.minCredits} credits.{" "}
-          {hosted.balanceKnown ? <>Your balance is <strong>{hosted.balance}</strong> credits.</> : "The balance could not be read."}
-        </>
-      ) : (
-        "A session costs no credits here: the organization that pays for your runs is not metered."
-      )}{" "}
+      {sessionTermsSentence(s, metered)}{" "}
+      {metered && (hosted.balanceKnown ? <>Your balance is <strong>{hosted.balance}</strong> credits. </> : "The balance could not be read. ")}
       It closes after {idleWords(s.idleSeconds)} with nothing said or done.
     </p>
   );
@@ -331,17 +322,14 @@ export function HostedResult({ run }: { run: main.HostedRunView }) {
             attestation: {run.attestationState}
           </span>
         )}
-        <span className="muted small">
-          {run.turns} turns · {run.totalTokens.toLocaleString()} tokens ({run.inputTokens.toLocaleString()} in /{" "}
-          {run.outputTokens.toLocaleString()} out) · {(run.wallMs / 1000).toFixed(1)}s
-        </span>
+        <span className="muted small">{hostedUseLine(run)}</span>
       </div>
       <p className="muted small" style={{ margin: "6px 0" }}>{run.outcomeLine}</p>
       {run.error && <div className="error-box selectable">{run.error}</div>}
       <div className="kv">
         <span className="k">credits</span>
         {run.session ? (
-          <span>{sessionCreditsSentence(run)}</span>
+          <span>{sessionCreditsSentence({ ...run, session: run.session })}</span>
         ) : (
           <span className="mono">
             {run.holdCredits} held · {run.settled ? `${run.settledCredits} settled` : "settlement not reported"}
@@ -380,19 +368,4 @@ export function HostedResult({ run }: { run: main.HostedRunView }) {
 function idleWords(seconds: number): string {
   if (seconds % 60 !== 0) return `${seconds} seconds`;
   return seconds === 60 ? "a minute" : `${seconds / 60} minutes`;
-}
-
-/** A finished session's credits (plan hosted-sessions.md §7; DEV-178): it
- *  held nothing; its time is the minutes after the free ones, each pulled
- *  as it started; its tokens settled at the end within the balance, and
- *  any rest was the platform's. The site's sentence, in this app. */
-export function sessionCreditsSentence(run: main.HostedRunView): string {
-  const s = run.session!;
-  const credits = (n: number) => `${n} ${n === 1 ? "credit" : "credits"}`;
-  const paid = Math.max(0, s.paidThrough - s.freeMinutes);
-  const time = `its time cost ${credits(s.timeCredits)}${paid > 0 ? ` (${paid} ${paid === 1 ? "minute" : "minutes"} after the ${s.freeMinutes} free)` : ` (within the ${s.freeMinutes} free minutes)`}`;
-  const total = run.settled ? run.settledCredits : s.timeCredits + s.tokenCredits;
-  const unpaid = s.tokensUnpaid > 0 ? ` The rest of its tokens, ${credits(s.tokensUnpaid)}, went past the balance and were not charged.` : "";
-  const stopped = s.outOfCredits ? " A minute the balance could not cover stopped it." : "";
-  return `This session held nothing: ${time}, and its tokens ${credits(s.tokenCredits)}, ${credits(total)} in all.${unpaid}${stopped}`;
 }

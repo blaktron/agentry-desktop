@@ -63,8 +63,8 @@ const H_ID = "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42";
 const H_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4";
 const hostedBase = {
   id: H_ID, ref: REF, digest: "sha256:9c356fd0d20fef07", holdCredits: 20,
-  caps: { timeoutSeconds: 900, maxTurns: 60, maxTokens: 1000000 },
-  outputs: [], turns: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, wallMs: 0,
+  caps: { timeoutSeconds: 900, maxTurns: 60 },
+  outputs: [], turns: 0, wallMs: 0,
   settledCredits: 0, settled: false, cancelRequested: false, final: false, outDir: H_DIR,
   createdAt: new Date(Date.now() - 300_000).toISOString(),
 };
@@ -78,7 +78,7 @@ const hosted: Record<string, any> = {
     ...hostedBase, status: "finished", state: "done — pass", statusLine: "ran to the end and wrote its result", startedAt: hStarted,
     outcome: "succeeded", outcomeTone: "ok", outcomeLine: "ran to the end and wrote its result",
     exitClass: "ok", attestationState: "verified", adapter: "docker-agent",
-    turns: 4, inputTokens: 5120, outputTokens: 1430, totalTokens: 6550, costUsd: 0.0182, wallMs: 41200,
+    turns: 4, wallMs: 41200,
     settledCredits: 7, settled: true, final: true, receiptKept: true,
     capabilitiesEnforced: { "network.egress": "llm-proxy allowlist: api.pagerduty.com", knowledge: knowledgeLine },
     knowledge: [{ name: "incident-runbooks", digest: "sha256:3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }],

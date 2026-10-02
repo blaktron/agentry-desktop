@@ -159,9 +159,9 @@ type KnowledgeHostedBuildView struct {
 	Bytes   int64  `json:"bytes"`
 	Note    string `json:"note,omitempty"`
 
-	InputTokens  int64 `json:"inputTokens"`
-	OutputTokens int64 `json:"outputTokens"`
-	Turns        int   `json:"turns"`
+	// Turns is the build's use as the person is told it; its tokens stay
+	// with the registry (agentry-desktop#457).
+	Turns int `json:"turns"`
 
 	Documents []HostedArtefactView `json:"documents"`
 	// CanContinue says Continue is offered: the build stopped short.
@@ -606,7 +606,7 @@ func hostedBuildView(r *hostedrun.Run, final bool) *KnowledgeHostedBuildView {
 		QueuePosition: r.QueuePosition, CancelRequested: r.CancelRequested,
 		Outcome: r.Outcome, OutcomeLine: rv.OutcomeLine, OutcomeTone: rv.OutcomeTone, Error: r.Error,
 		HoldCredits: r.HoldCredits, SettledCredits: rv.SettledCredits, Settled: rv.Settled,
-		InputTokens: rv.InputTokens, OutputTokens: rv.OutputTokens, Turns: rv.Turns,
+		Turns:     rv.Turns,
 		Documents: []HostedArtefactView{}, CanContinue: hostedrun.CanContinue(r), Final: final,
 	}
 	for _, in := range r.Inputs {
@@ -650,7 +650,7 @@ func buildOutcomeLine(r *hostedrun.Run) string {
 	case "timeout":
 		return "Stopped at its time limit."
 	case "budget":
-		return "Stopped at its token or credit limit."
+		return "Stopped at its turn or cost limit."
 	case "interrupted":
 		return "Interrupted before it finished."
 	case "error":

@@ -170,7 +170,7 @@ const describeHosted = describeSignedOut
   ? { offered: true, available: false, signedIn: false, reason: "Drafting In Agentry spends credits, so it needs an account.", remedy: "Sign in from Settings.",
       holdCredits: 0, inputsSentence: "", timeoutSeconds: 0, maxTurns: 0, maxPages: 0, balance: 0, balanceKnown: false, unmetered: false, short: false }
   : { offered: true, available: true, signedIn: true, holdCredits: 41,
-      holdSentence: "This draft holds 41 credits and settles from what it uses: the tokens its model reads and writes, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds.",
+      holdSentence: "This draft holds 41 credits and settles from what it uses: its model's work, up to 10 web searches at 1 credit each, and 1 credit for AI Review, never more than it holds.",
       inputsSentence: "Your description and the Drafter's searches go to a search provider, to AI Review (TypeSafe's Jev) and to the sites the Drafter reads, so the description should hold no secret. AI Review reads every result before the Drafter's model does, and holds back what it flags.",
       timeoutSeconds: 1200, maxTurns: 60, maxPages: 40, balance: buildHash === "describe-agentry-short" ? 12 : 496, balanceKnown: true, unmetered: false,
       short: buildHash === "describe-agentry-short", knowledgeEnabled: true, maxPacks: 5, maxBytes: 10 << 20 };
@@ -630,14 +630,9 @@ const agentryImages = [
 let profileName = "Chris";
 const profileView = () => {
   const user = { handle: "chris", displayName: profileName, email: "chris@example.test", emailVerified: true };
-  // The caller as dev's runs status answers it, with the build, draft and
-  // session blocks a real registry sends (agentry-desktop#423's save).
-  const caps = {
-    tier: "standard", caps: { timeoutSeconds: 900, maxTurns: 60, maxTokens: 400000 }, holdCredits: 20, inputTokensPerCredit: 20000, outputTokensPerCredit: 4000,
-    build: { caps: { timeoutSeconds: 1800, maxTurns: 60, maxTokens: 800000 }, holdCredits: 100, allowed: false },
-    draft: { caps: { timeoutSeconds: 900, maxTurns: 40, maxTokens: 400000 }, holdCredits: 41 },
-    session: { allowed: false },
-  };
+  // A hosted run's terms as Go carries them to the page: the hold, the
+  // time and the turns, never tokens or a rate (agentry-desktop#457).
+  const caps = { tier: "standard", caps: { timeoutSeconds: 900, maxTurns: 60 }, holdCredits: 20 };
   const page = "https://secureagentry.net/settings/subscription";
   if (location.hash === "#profile-core") return { user, signedUpWith: "" };
   if (location.hash === "#profile-org") {

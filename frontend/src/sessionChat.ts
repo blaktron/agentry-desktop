@@ -144,7 +144,8 @@ export function clock(ms: number): string {
  * release, the mode, the turns and tool calls; once it runs, the time it
  * has run, the free minutes left, the credits its time has cost and when
  * it closes if nothing happens; and whether the agent is answering, or how
- * it ended. The tokens settle at the end and show in the result. */
+ * it ended. Its model use settles at the end, in credits, and shows in the
+ * result. */
 export function hostedStatusLine(a: {
   ref: string;
   turns: number;
