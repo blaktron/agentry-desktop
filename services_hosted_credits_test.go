@@ -10,15 +10,25 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/progress"
 )
+
+// hostedEnvelopeWithUsage is the CLI's run/v1 envelope as a sandbox host
+// keeps it in the sealed output: with its usage block, tokens and all.
+const hostedEnvelopeWithUsage = `{"agentry":"1","status":"ok","exitClass":"ok","attestation":{"state":"verified","keyId":"k1"},` +
+	`"capabilities_enforced":{"network.egress":"llm-proxy allowlist: api.example.com"},"harness":{"adapter":"docker-agent","model":"m"},` +
+	`"usage":{"inputTokens":800,"outputTokens":200,"totalTokens":1000,"costUsd":0.0182,"turns":3,"wallMs":9000},"result":"the summary"}`
 
 var tokenKey = regexp.MustCompile(`(?i)token|costUsd`)
 
@@ -74,7 +84,7 @@ func TestARunInAgentryReachesThePageInCreditsOnly(t *testing.T) {
 	for _, gone := range []bool{false, true} {
 		name := map[bool]string{false: "today's routes", true: "routes without the counts"}[gone]
 		t.Run(name, func(t *testing.T) {
-			f := &hostedFake{enabled: true, tokensGone: gone, outputs: map[string]string{"result.json": hostedEnvelope}}
+			f := &hostedFake{enabled: true, tokensGone: gone, outputs: map[string]string{"result.json": hostedEnvelopeWithUsage}}
 			reg := f.start(t)
 			signIn(t, reg)
 			r, events := newRunAPI(t)
@@ -108,6 +118,20 @@ func TestARunInAgentryReachesThePageInCreditsOnly(t *testing.T) {
 			}
 			if final.Caps == nil || final.Caps.TimeoutSeconds != 300 || final.Caps.MaxTurns != 20 {
 				t.Fatalf("caps = %+v", final.Caps)
+			}
+			// The result the page renders is the CLI's envelope without its
+			// token counts; the file in the run folder keeps them (D11).
+			var env map[string]any
+			if err := json.Unmarshal([]byte(final.ResultJSON), &env); err != nil {
+				t.Fatalf("result = %q: %v", final.ResultJSON, err)
+			}
+			assertNoTokens(t, "the result the page renders", env)
+			if env["result"] != "the summary" || env["usage"].(map[string]any)["turns"] != float64(3) {
+				t.Fatalf("result = %s", final.ResultJSON)
+			}
+			kept, err := os.ReadFile(filepath.Join(final.OutDir, "result.json"))
+			if err != nil || !strings.Contains(string(kept), `"inputTokens":800`) {
+				t.Fatalf("the run folder's result.json = %s, %v", kept, err)
 			}
 		})
 	}
@@ -202,10 +226,12 @@ func TestHostedOutcomeLinesNameNoTokens(t *testing.T) {
 func TestLocalViewsKeepTheirTokens(t *testing.T) {
 	credit := regexp.MustCompile(`(?i)credit`)
 	for what, v := range map[string]any{
-		"a local run's result":    RunResultView{InputTokens: 5120, OutputTokens: 1430, CostUSD: 0.0182, Turns: 4},
-		"a local session's event": SessionEventView{Kind: "usage", InputTokens: 5120, OutputTokens: 1430, CostUSD: 0.0182},
-		"a local build's result":  knowledge.BuildResult{InputTokens: 184210, OutputTokens: 41088},
-		"a local job's progress":  progress.Report{Turns: 7, InputTokens: 48210, OutputTokens: 3904},
+		"a local run's result":     RunResultView{InputTokens: 5120, OutputTokens: 1430, CostUSD: 0.0182, Turns: 4},
+		"a local session's event":  SessionEventView{Kind: "usage", InputTokens: 5120, OutputTokens: 1430, CostUSD: 0.0182},
+		"a local build's result":   knowledge.BuildResult{InputTokens: 184210, OutputTokens: 41088},
+		"a local draft's progress": draft.Progress{Report: progress.Report{Turns: 7, InputTokens: 48210, OutputTokens: 3904}},
+		"a local build's progress": knowledge.Progress{Report: progress.Report{Turns: 9, InputTokens: 101400, OutputTokens: 6120}},
+		"a local run's progress":   RunProgress{Report: progress.Report{Turns: 4, InputTokens: 5120, OutputTokens: 1430}},
 	} {
 		keys := tokenKeys(t, v)
 		if !slices.Contains(keys, ".inputTokens") || !slices.Contains(keys, ".outputTokens") {

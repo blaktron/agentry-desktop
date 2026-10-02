@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -799,7 +800,8 @@ func hostedOutDir(dir string, r *hostedrun.Run) (string, error) {
 }
 
 // resultText finds result.json among the downloaded artefacts and returns
-// its bytes, which the panel renders exactly as a local run's result.
+// its bytes, which the panel renders exactly as a local run's result,
+// without the envelope's token counts (resultWithoutTokens).
 func resultText(got []hostedrun.Downloaded) string {
 	for _, a := range got {
 		if a.Name != "result.json" {
@@ -809,9 +811,39 @@ func resultText(got []hostedrun.Downloaded) string {
 		if err != nil {
 			return ""
 		}
-		return string(b)
+		return resultWithoutTokens(b)
 	}
 	return ""
+}
+
+// resultWithoutTokens is a hosted run's result.json as the page gets it.
+// On a sandbox host that file is the CLI's run/v1 envelope, whose usage
+// block carries the run's token counts and their dollar cost; a run In
+// Agentry is stated in credits, so they are taken out before the page sees
+// it (agentry-desktop#457). The file in the run folder keeps them, as a
+// downloaded receipt does (plan scan-and-run-tweaks.md D11). Anything that
+// is not a JSON object is passed on as it is: it carries no usage block.
+func resultWithoutTokens(b []byte) string {
+	var env map[string]json.RawMessage
+	if json.Unmarshal(b, &env) != nil || env["usage"] == nil {
+		return string(b)
+	}
+	var usage map[string]json.RawMessage
+	if json.Unmarshal(env["usage"], &usage) != nil {
+		delete(env, "usage")
+	} else {
+		for k := range usage {
+			if k != "turns" && k != "wallMs" {
+				delete(usage, k)
+			}
+		}
+		env["usage"], _ = json.Marshal(usage)
+	}
+	out, err := json.Marshal(env)
+	if err != nil {
+		return ""
+	}
+	return string(out)
 }
 
 // hostedRunView flattens a run for the panel.

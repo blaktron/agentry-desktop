@@ -2201,9 +2201,8 @@ export namespace main {
 		}
 	}
 	export class HostedRunsTermsView {
-	    tier: string;
 	    holdCredits: number;
-	    caps?: HostedCapsView;
+	    caps: HostedCapsView;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedRunsTermsView(source);
@@ -2211,7 +2210,6 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.tier = source["tier"];
 	        this.holdCredits = source["holdCredits"];
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
 	    }

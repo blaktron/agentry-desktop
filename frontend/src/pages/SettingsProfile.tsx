@@ -52,7 +52,6 @@ function knowledgeLimitSentence(k: main.KnowledgeAllocation, memberOf?: string):
   return `${head} ${kept} Agentry refuses a new pack, or a larger copy of one, until enough is deleted or ${grows}. Delete a pack, or keep a new one on your computer.`;
 }
 
-
 // OrgLine: the memberships the registry reports. They are the core's own
 // facts, so a registry that sells nothing still says which organization a
 // person belongs to and in what role; a membership an admin has yet to
@@ -236,7 +235,7 @@ function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView
             : <Row label="Allowance">{sub.allowance} credits a month; resets on {dayOf(sub.periodEnd)}</Row>}
           <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
           {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}</Row>}
-          {runs?.caps && <Row label="Hosted runs">{capsSentence({ holdCredits: runs.holdCredits, caps: runs.caps })}</Row>}
+          {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
           {changesPhrase(sub) && <Row label="Changes">{changesPhrase(sub)}</Row>}
         </dl>
         {limit && <Notice tone="warn">{limit}</Notice>}
@@ -345,7 +344,7 @@ function MemberView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: 
           <Row label="A submission costs">{creditCount(sub.submissionCost)}, spent when the registry accepts it</Row>
           <Row label="Private QuickAgents">{privateAgentsPhrase(sub.privateAgents)}</Row>
           {sub.knowledge && <Row label="Knowledge storage">{knowledgePhrase(sub.knowledge)}, in {org}'s pool</Row>}
-          {runs?.caps && <Row label="Hosted runs">{capsSentence({ holdCredits: runs.holdCredits, caps: runs.caps })}</Row>}
+          {runs && <Row label="Hosted runs">{capsSentence(runs)}</Row>}
         </dl>
         {limit && <Notice tone="warn">{limit}</Notice>}
         {lapsed && (

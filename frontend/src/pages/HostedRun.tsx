@@ -329,7 +329,7 @@ export function HostedResult({ run }: { run: main.HostedRunView }) {
       <div className="kv">
         <span className="k">credits</span>
         {run.session ? (
-          <span>{sessionCreditsSentence({ ...run, session: run.session })}</span>
+          <span>{sessionCreditsSentence({ settled: run.settled, settledCredits: run.settledCredits, session: run.session })}</span>
         ) : (
           <span className="mono">
             {run.holdCredits} held · {run.settled ? `${run.settledCredits} settled` : "settlement not reported"}

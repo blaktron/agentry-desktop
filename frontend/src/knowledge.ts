@@ -95,9 +95,6 @@ export function unscannedWarning(model: string): string {
   );
 }
 
-// What a build In Agentry holds is usage.ts's buildHoldLine, with the
-// other sentences that state a job In Agentry in credits (agentry-desktop#457).
-export { buildHoldLine } from "./usage";
 
 /** What a finished build cost, from the registry's settlement. */
 export function buildCreditsLine(v: { holdCredits: number; settledCredits: number; settled: boolean; scanCredits: number }): string {

@@ -632,7 +632,7 @@ const profileView = () => {
   const user = { handle: "chris", displayName: profileName, email: "chris@example.test", emailVerified: true };
   // A hosted run's terms as Go carries them to the page: the hold, the
   // time and the turns, never tokens or a rate (agentry-desktop#457).
-  const caps = { tier: "standard", caps: { timeoutSeconds: 900, maxTurns: 60 }, holdCredits: 20 };
+  const caps = { caps: { timeoutSeconds: 900, maxTurns: 60 }, holdCredits: 20 };
   const page = "https://secureagentry.net/settings/subscription";
   if (location.hash === "#profile-core") return { user, signedUpWith: "" };
   if (location.hash === "#profile-org") {
@@ -644,7 +644,7 @@ const profileView = () => {
         privateAgents: { max: 0, used: 4, enabled: true }, knowledge: { enabled: true, bytes: 734003200, max: 53687091200 },
         upgrade: { available: false, manage: true, url: "https://secureagentry.net/orgs/acme/admin" },
       },
-      hostedRuns: { ...caps, tier: "business" },
+      hostedRuns: caps,
     };
   }
   const packs = [
@@ -664,7 +664,7 @@ const profileView = () => {
         topUp: { available: true, url: card, processing: false, packs },
         ...(suspended ? { suspended: { since: "2026-10-02T00:00:00Z", owed: 40 } } : {}),
       },
-      hostedRuns: { ...caps, tier: "pro" },
+      hostedRuns: caps,
     };
   }
   if (location.hash === "#profile-promo") {
@@ -677,7 +677,7 @@ const profileView = () => {
         promo: { state: "running", code: "LAUNCH", credits: 100, creditsUsed: 12, endsAt: "2026-10-29T00:00:00Z" },
         upgrade: { available: true, manage: false, url: page },
       },
-      hostedRuns: { ...caps, tier: "promo_pro" },
+      hostedRuns: caps,
     };
   }
   return {

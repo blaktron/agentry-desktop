@@ -69,13 +69,13 @@ test("a finished run In Agentry reads its turns and its time; one on this comput
   assert.equal(hosted, "4 turns · 41.2s");
   noTokens(hosted);
   const local = localUseLine({ turns: 4, inputTokens: 5120, outputTokens: 1430, wallMs: 41200, costUsd: 0.0182 });
-  assert.equal(local, "4 turns · 6550 tokens · 41.2s · $0.0182");
+  assert.equal(local, "4 turns · 6,550 tokens · 41.2s · $0.0182");
   noCredits(local);
 });
 
 test("the Knowledge Creator on this computer reads its tokens and the provider's cost", () => {
   const s = creatorUseLine({ inputTokens: 184210, outputTokens: 41088, costUsd: 0.1893 });
-  assert.equal(s, "184210 input and 41088 output tokens, US$0.1893 as the provider reported it");
+  assert.equal(s, "184,210 input and 41,088 output tokens, US$0.1893 as the provider reported it");
   noCredits(s!);
   assert.equal(creatorUseLine({ inputTokens: 0, outputTokens: 0, costUsd: 0 }), null);
 });

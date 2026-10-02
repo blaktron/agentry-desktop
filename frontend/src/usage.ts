@@ -18,9 +18,11 @@ export function fmtDuration(sec: number): string {
   return `${sec} second${sec === 1 ? "" : "s"}`;
 }
 
-/** "1 credit", "20 credits". */
+/** "1 credit", "1,200 credits": subscription.ts's creditCount. Both modules
+ *  keep their imports type-only so node's test runner can load them, which
+ *  is why each holds its own copy. */
 export function creditCount(n: number): string {
-  return `${n} ${n === 1 ? "credit" : "credits"}`;
+  return n === 1 ? "1 credit" : `${n.toLocaleString("en-US")} credits`;
 }
 
 const fmtNumber = (n: number) => n.toLocaleString("en-US");
@@ -39,7 +41,7 @@ export function capsPhrase(caps: HostedCaps): string {
 /** Settings → Profile's reading of a hosted run's terms: the hold for its
  *  cap in credits, the time and the turns (agentry-web lib/runs.ts
  *  capsSentence). The rates a settlement is computed at are the registry's
- *  and are not stated (D9). */
+ *  and are not stated (plan scan-and-run-tweaks.md D9). */
 export function capsSentence(c: { holdCredits: number; caps: HostedCaps }): string {
   const caps = capsPhrase(c.caps);
   if (c.holdCredits === 0) return `A hosted run may take ${caps}, and holds no credits: ${UNMETERED_RUNS_CLAUSE}.`;
@@ -102,7 +104,7 @@ export function hostedUseLine(v: { turns: number; wallMs: number }): string {
  *  and the provider's dollar cost when it reported one. */
 export function localUseLine(r: { turns: number; inputTokens: number; outputTokens: number; wallMs: number; costUsd: number }): string {
   const cost = r.costUsd > 0 ? ` · $${r.costUsd.toFixed(4)}` : "";
-  return `${r.turns} turns · ${r.inputTokens + r.outputTokens} tokens · ${(r.wallMs / 1000).toFixed(1)}s${cost}`;
+  return `${r.turns} ${r.turns === 1 ? "turn" : "turns"} · ${fmtNumber(r.inputTokens + r.outputTokens)} tokens · ${(r.wallMs / 1000).toFixed(1)}s${cost}`;
 }
 
 /** What the Knowledge Creator used on this computer, as its provider
@@ -110,7 +112,7 @@ export function localUseLine(r: { turns: number; inputTokens: number; outputToke
 export function creatorUseLine(r: { inputTokens: number; outputTokens: number; costUsd: number }): string | null {
   if (r.inputTokens <= 0 && r.outputTokens <= 0) return null;
   const cost = r.costUsd > 0 ? `, US$${r.costUsd.toFixed(4)} as the provider reported it` : "";
-  return `${r.inputTokens} input and ${r.outputTokens} output tokens${cost}`;
+  return `${fmtNumber(r.inputTokens)} input and ${fmtNumber(r.outputTokens)} output tokens${cost}`;
 }
 
 /** The tokens a job on this computer has used so far; null for a job that
@@ -119,5 +121,5 @@ export function progressTokens(p: { inputTokens?: number; outputTokens?: number 
   const i = p.inputTokens ?? 0;
   const o = p.outputTokens ?? 0;
   if (i <= 0 && o <= 0) return null;
-  return `${i.toLocaleString()} input, ${o.toLocaleString()} output`;
+  return `${fmtNumber(i)} input, ${fmtNumber(o)} output`;
 }

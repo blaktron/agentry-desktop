@@ -153,7 +153,6 @@ export function fmtStorage(n: number): string {
 }
 
 /** A number of seconds the way a person says it: "15 minutes", "2 hours". */
-export { fmtDuration } from "./usage";
 
 export function fmtDate(iso?: string): string {
   if (!iso) return "";

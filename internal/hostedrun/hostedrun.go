@@ -69,7 +69,8 @@ type Caps struct {
 // knowledge build, a draft, a session and a Voice Writer run of theirs
 // hold or may do. The numbers come from the registry so no client does
 // credit arithmetic of its own (plan §4.1). The rates a settlement is
-// computed at are the registry's and are not decoded (D9).
+// computed at are the registry's and are not decoded (plan
+// scan-and-run-tweaks.md D9).
 type Caller struct {
 	Tier    string `json:"tier"`
 	Account string `json:"account,omitempty"`

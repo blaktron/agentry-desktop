@@ -35,10 +35,9 @@ type ProfileView struct {
 // cap and the rates a settlement is computed at are not carried (plan
 // scan-and-run-tweaks.md D9, agentry-desktop#457).
 type HostedRunsTermsView struct {
-	Tier string `json:"tier"`
 	// HoldCredits is 0 for a member of an unmetered organization.
-	HoldCredits int64           `json:"holdCredits"`
-	Caps        *HostedCapsView `json:"caps"`
+	HoldCredits int64          `json:"holdCredits"`
+	Caps        HostedCapsView `json:"caps"`
 }
 
 // MaxDisplayName is the site's form's limit on a display name; the
@@ -84,7 +83,7 @@ func profileFor(app *App, url, token string) (*ProfileView, error) {
 		}
 	}
 	if st, err := hostedrun.New(url, token).Status(app.ctx); err == nil && st.Enabled && st.Caller != nil {
-		out.HostedRuns = &HostedRunsTermsView{Tier: st.Caller.Tier, HoldCredits: st.Caller.HoldCredits, Caps: hostedCaps(st.Caller.Caps)}
+		out.HostedRuns = &HostedRunsTermsView{HoldCredits: st.Caller.HoldCredits, Caps: *hostedCaps(st.Caller.Caps)}
 	}
 	return out, nil
 }

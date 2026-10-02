@@ -78,9 +78,9 @@ export function CornerCard({ label, title, running, line, tone, children, action
 /** How far a job has got: the time it has run against its limit, as a bar
  *  and a clock, the turns against the turn budget, the job's own facts and,
  *  for a job on this computer, the tokens it has used (a job In Agentry
- *  reports none, agentry-desktop#457). Compact, as the card shows it: the bar, and the
- *  clock beside the one fact the job names. Before the first report it says
- *  the job is starting. `job` is its name in the sentences ("draft",
+ *  reports none, agentry-desktop#457). Compact, as the card shows it: the
+ *  bar, and the clock beside the one fact the job names. Before the first
+ *  report it says the job is starting. `job` is its name in the sentences ("draft",
  *  "build"). */
 export function ProgressView<P extends JobProgress>({ progress, job, compact, fact, facts, turns = true }: {
   progress: P | null;

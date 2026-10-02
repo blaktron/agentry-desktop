@@ -652,7 +652,7 @@ func buildOutcomeLine(r *hostedrun.Run) string {
 	case "budget":
 		return "Stopped at its turn or cost limit."
 	case "interrupted":
-		return "Interrupted before it finished."
+		return "Interrupted before it finished, by your cancel or at its limit on model use."
 	case "error":
 		return "The platform could not run it; the hold was refunded."
 	}
