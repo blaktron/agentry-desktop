@@ -330,9 +330,12 @@ type Request struct {
 	// RunID names the run's docker objects (label agentry.run=<id>); ""
 	// mints one. The app sets it so it can Sweep the run on quit.
 	RunID string
-	// AllowVulnerableMCP runs even when the registry reports a high or
-	// critical advisory for a declared MCP server (the CLI's
-	// --allow-vulnerable-mcp); recorded in the receipt.
+	// AllowVulnerableMCP is the person's consent, asked in a native
+	// dialog, to run a declared MCP server whose advisory the registry's
+	// gate rates high or critical. It lets the run through only in Unsafe
+	// Mode (Unsafe; agentry-desktop#459, D-055), and the receipt names it.
+	// The policy's mcpServers.allowVulnerable is the CLI's way through and
+	// lets nothing through here.
 	AllowVulnerableMCP bool
 	Task               string
 	// InputPaths feed the read-only /inputs channel (§P4).
@@ -409,11 +412,13 @@ type Request struct {
 	// does not apply to a chat. Run, which is not a chat, ignores it.
 	ChatIdleTimeoutSeconds int
 	// PlanCompiled, when set, is called once the run holds its plan, just
-	// compiled or reused, before anything of it starts, with whether that
-	// plan is compiled in Unsafe Mode. The desktop keeps the red edge up
-	// while such a run or chat is live, whatever the switch says meanwhile
-	// (agentry-desktop#479); false clears the edge of a run the switch was
-	// on for whose plan Unsafe Mode did not change (no declared commands).
+	// compiled or reused, before anything of it starts, with whether the
+	// run is in Unsafe Mode: its plan is compiled so, or Unsafe Mode let a
+	// declared server the gate rates high through (D-055). The desktop
+	// keeps the red edge up while such a run or chat is live, whatever the
+	// switch says meanwhile (agentry-desktop#479); false clears the edge of
+	// a run the switch was on for that Unsafe Mode changed nothing of (no
+	// declared commands, no such server).
 	PlanCompiled func(unsafe bool)
 }
 
@@ -531,18 +536,25 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	var resolvedServers []mcpinstall.Resolved
 	var serverSpecs []spec.MCPServerSpec
 	var vulnLine string
+	unsafeServer := false
 	if len(m.Capabilities.MCPServers) > 0 {
 		// The registry's vulnerability verdict on each declared server
-		// (agentry#177, DR-16), the same rule as `agentry run`: a known
-		// high/critical advisory refuses unless the request or the policy
-		// allows it; an unreachable registry does not stop the run; the
+		// (agentry#177, DR-16, DR-60): an advisory the gate rates high or
+		// critical refuses; on this computer the way through is Unsafe Mode
+		// with the person's consent for the run (agentry-desktop#459,
+		// D-055); an unreachable registry does not stop the run; the
 		// receipt records the outcome.
 		statuses := mcpinstall.CheckVulnerabilities(ctx, nil, req.Registry, m.Capabilities.MCPServers)
 		_, _ = fmt.Fprintf(logw, "declared MCP servers, per the registry: %s\n", mcpinstall.Summary(statuses))
 		var refuseErr error
-		vulnLine, refuseErr = mcpvuln.Verdict(statuses, req.Registry, req.AllowVulnerableMCP, pol.MCPServers.AllowVulnerable)
+		vulnLine, refuseErr = mcpvuln.Verdict(statuses, req.Registry, mcpvuln.Way{Unsafe: req.Unsafe, Consented: req.AllowVulnerableMCP, PolicyAllows: pol.MCPServers.AllowVulnerable})
 		if refuseErr != nil {
 			return nil, refuseErr
+		}
+		for _, st := range statuses {
+			// Let through in Unsafe Mode: the run is an Unsafe Mode run
+			// whatever its plan's exec line says.
+			unsafeServer = unsafeServer || st.Refuses()
 		}
 		resolvedServers, err = ensureServerResolutions(ctx, logw, serversDir, pol, m)
 		if err != nil {
@@ -569,7 +581,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		_, _ = fmt.Fprintln(logw, plan.Enforcement["exec"])
 	}
 	if req.PlanCompiled != nil {
-		req.PlanCompiled(planIsUnsafe(plan))
+		req.PlanCompiled(planIsUnsafe(plan) || unsafeServer)
 	}
 	if vulnLine != "" {
 		if plan.Enforcement == nil {

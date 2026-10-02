@@ -4013,6 +4013,9 @@ export namespace mcpvuln {
 	export class Advisory {
 	    id: string;
 	    severity: string;
+	    rating: string;
+	    cvssScore?: number;
+	    refuses: boolean;
 	    summary: string;
 	    fixedIn: string[];
 	
@@ -4024,6 +4027,9 @@ export namespace mcpvuln {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.severity = source["severity"];
+	        this.rating = source["rating"];
+	        this.cvssScore = source["cvssScore"];
+	        this.refuses = source["refuses"];
 	        this.summary = source["summary"];
 	        this.fixedIn = source["fixedIn"];
 	    }
@@ -4032,6 +4038,7 @@ export namespace mcpvuln {
 	    ref: string;
 	    status: string;
 	    maxSeverity?: string;
+	    rating?: string;
 	    advisories: Advisory[];
 	    checkedAt?: string;
 	    error?: string;
@@ -4046,6 +4053,7 @@ export namespace mcpvuln {
 	        this.ref = source["ref"];
 	        this.status = source["status"];
 	        this.maxSeverity = source["maxSeverity"];
+	        this.rating = source["rating"];
 	        this.advisories = this.convertValues(source["advisories"], Advisory);
 	        this.checkedAt = source["checkedAt"];
 	        this.error = source["error"];
