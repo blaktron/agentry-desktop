@@ -110,6 +110,7 @@ function ResultView({ r }: { r: validate.Result }) {
   const issues = r.issues ?? [];
   const inventory = r.inventory ?? [];
   const findings = r.findings ?? [];
+  const readErrors = r.readErrors ?? [];
   const totalProblems = r.errorCount + r.inventoryFailing + findings.length;
   return (
     <div>
@@ -127,7 +128,7 @@ function ResultView({ r }: { r: validate.Result }) {
           {r.warnCount > 0 && <> · {r.warnCount} manifest warning{r.warnCount === 1 ? "" : "s"}</>}
         </p>
         {r.manifestError && <Notice tone="warn">{r.manifestError}</Notice>}
-        {(r.readErrors ?? []).map((e, i) => <div key={i} className="error-box">{e}</div>)}
+        {readErrors.map((e, i) => <div key={i} className="error-box">{e}</div>)}
       </Card>
 
       {issues.length > 0 && (

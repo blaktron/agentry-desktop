@@ -33,6 +33,7 @@ const HOST = "secureagentry.net";
 const DIR = "/home/me/quickagents/release-notes";
 const running = hash === "review-running" || hash === "card-running";
 const hostile = hash === "report-hostile";
+const clean = hash === "validate-clean";
 
 const started = Date.now() - 212_000;
 const progressReports = [
@@ -103,7 +104,7 @@ g.go = { main: {
   },
   ValidateAPI: { Run: async () => ({ passed: true, errorCount: 0, warnCount: 0, inventoryFailing: 0, fileCount: 4, bundleVersion: "0.3.2", bundleSource: "embedded",
     manifestName: "me/release-notes", manifestModes: ["autonomous"], manifestVersion: "0.1.0",
-    ...(hash === "validate-clean" ? { issues: null, inventory: null, findings: null } : { issues: [], inventory: [], findings: [], readErrors: [] }) }) },
+    ...(clean ? { issues: null, inventory: null, findings: null } : { issues: [], inventory: [], findings: [], readErrors: [] }) }) },
   RunAPI: { ForgetRun: async () => undefined, ShowRunFolder: async () => undefined },
   App: { ChooseDirectory: async () => DIR, OpenExternal: async () => undefined },
 } };

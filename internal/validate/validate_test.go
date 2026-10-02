@@ -190,27 +190,30 @@ guide:
 	}
 }
 
-// A clean folder is the common case: its Result must cross the IPC with
-// every list as [] and never null, which the Validate page reads with
-// .length (agentry-desktop#534). Every slice field of Result that is not
-// omitempty is held, so a field added later is held too.
+// TestValidateACleanFolderSendsEmptyListsNotNull: a clean folder is the
+// common case, and its Result must cross the IPC with every list as [] and
+// never null, which the Validate page reads with .length
+// (agentry-desktop#534). Every slice field of Result that is not omitempty is
+// held, so a field added later is held too.
 func TestValidateACleanFolderSendsEmptyListsNotNull(t *testing.T) {
-	for name, dir := range map[string]string{
-		"with a manifest": benignWorkspace(t),
-		"without manifest": func() string {
-			d := t.TempDir()
-			if err := os.WriteFile(filepath.Join(d, "SKILL.md"), []byte("# Notes\n\nSummarise the notes.\n"), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			return d
-		}(),
+	noManifest := t.TempDir()
+	if err := os.WriteFile(filepath.Join(noManifest, "SKILL.md"), []byte("# Notes\n\nSummarise the notes.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		dir      string
+		mustPass bool // without agent.yaml the folder fails by design (ManifestError)
+	}{
+		{"with a manifest", benignWorkspace(t), true},
+		{"without a manifest", noManifest, false},
 	} {
-		t.Run(name, func(t *testing.T) {
-			res, err := Run(dir)
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := Run(tc.dir)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if name == "with a manifest" && !res.Passed {
+			if tc.mustPass && !res.Passed {
 				t.Fatalf("the clean folder did not pass: %+v", res)
 			}
 			raw, err := json.Marshal(res)
@@ -226,10 +229,10 @@ func TestValidateACleanFolderSendsEmptyListsNotNull(t *testing.T) {
 			for i := 0; i < rt.NumField(); i++ {
 				f := rt.Field(i)
 				tag := f.Tag.Get("json")
-				if f.Type.Kind() != reflect.Slice || strings.Contains(tag, "omitempty") {
+				key := strings.Split(tag, ",")[0]
+				if f.Type.Kind() != reflect.Slice || key == "" || key == "-" || strings.Contains(tag, "omitempty") {
 					continue
 				}
-				key := strings.Split(tag, ",")[0]
 				if got := string(sent[key]); got != "[]" {
 					t.Errorf("%q is sent as %s, want []", key, got)
 				}
