@@ -240,8 +240,8 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 
 	for name, flags := range map[string][3]bool{
 		"a release with no attestation": {true, false, false},
-		"any declared MCP server the registry's gate rates high, which runs only in Unsafe Mode": {false, true, false},
-		"a release the registry admitted without a scan":                                         {false, false, true},
+		"any declared MCP server the registry's gate rates high or critical, which runs only in Unsafe Mode": {false, true, false},
+		"a release the registry admitted without a scan":                                                     {false, false, true},
 	} {
 		before := len(u.asked)
 		_, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, flags[0], nil, flags[1], flags[2], nil, false)
@@ -320,7 +320,7 @@ func TestUnsafeModeRunsAVulnerableServerOnTheDialogsYes(t *testing.T) {
 		t.Fatalf("the dialog's No: err = %v, engine reached %d time(s)", err, len(got))
 	}
 	msg := u.asked[len(u.asked)-1]
-	for _, want := range []string{"any declared MCP server the registry's gate rates high, which runs only in Unsafe Mode", "Unsafe Mode is on"} {
+	for _, want := range []string{"any declared MCP server the registry's gate rates high or critical, which runs only in Unsafe Mode", "Unsafe Mode is on"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("the dialog lacks %q:\n%s", want, msg)
 		}

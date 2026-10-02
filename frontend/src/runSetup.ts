@@ -152,7 +152,7 @@ export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; 
       offerConsent: false,
       send: false,
       showRefusal: false,
-      blocker: "A run In Agentry refuses a declared MCP server the registry's gate rates high, with no way through: run it on this computer in Unsafe Mode, or run a release that pins a fixed version.",
+      blocker: "A run In Agentry refuses a declared MCP server the registry's gate rates high or critical, with no way through: run it on this computer in Unsafe Mode, or run a release that pins a fixed version.",
     };
   }
   if (!s.unsafeOn) {
@@ -160,7 +160,7 @@ export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; 
       offerConsent: false,
       send: false,
       showRefusal: true,
-      blocker: "A declared MCP server the registry's gate rates high runs on this computer only in Unsafe Mode: turn it on in Settings → Run defaults, or run a release that pins a fixed version.",
+      blocker: "A declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode: turn it on in Settings → Run defaults, or run a release that pins a fixed version.",
     };
   }
   return {
