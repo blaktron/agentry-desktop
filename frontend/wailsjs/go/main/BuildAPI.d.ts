@@ -29,11 +29,17 @@ export function Load(arg1:string):Promise<build.Model>;
 
 export function NewModel(arg1:string):Promise<build.Model>;
 
+export function ReviewLocally(arg1:string,arg2:string):Promise<main.ReviewView>;
+
+export function ReviewStatus():Promise<main.ReviewStatusView>;
+
 export function Save(arg1:string,arg2:build.Model):Promise<void>;
 
 export function ServerChecks(arg1:string,arg2:build.Model):Promise<Array<mcpvuln.Status>>;
 
 export function StopDraft():Promise<void>;
+
+export function StopReview():Promise<void>;
 
 export function Submit(arg1:string,arg2:string):Promise<build.PublishResult>;
 

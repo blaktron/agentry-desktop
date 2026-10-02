@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	neturl "net/url"
 	"os"
 	"strings"
@@ -56,6 +57,11 @@ type BuildAPI struct {
 	draftChecker func(*engine.WebRun) (drafter.Checker, error)
 	// hosted is the one draft In Agentry this app follows (#281).
 	hosted hostedSlot
+	// reviewHTTP and reviewRunner are the Examiner's seams a test
+	// substitutes (agentry-desktop#469); nil is a client with a timeout and
+	// this machine's docker.
+	reviewHTTP   *http.Client
+	reviewRunner func(context.Context, localrun.Run) (*receipt.Envelope, error)
 }
 
 // NewModel returns a fresh form model. The namespace defaults to the

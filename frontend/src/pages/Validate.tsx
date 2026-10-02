@@ -1,14 +1,29 @@
 // The author drop-zone: point at a local agent folder and run the same
 // checks the registry runs at publish time (D-12 parity by construction —
-// the same Go packages, embedded in this app).
+// the same Go packages, embedded in this app). For a folder chosen with the
+// picker it also offers Review Your QuickAgents locally (agentry-desktop#469):
+// the built-in Examiner over the same folder, after a native dialog, followed
+// in its own dialog and card. Validate itself is the same with or without it.
 import { useState } from "react";
 import * as ValidateAPI from "../../wailsjs/go/main/ValidateAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { validate } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Excerpt, Input, ModeBadges, Notice, PageHeader, Sev, Spinner, Toolbar } from "../ui";
+import { startReview } from "../reviews";
+import { ReviewAction } from "./ReviewAction";
 
-export default function Validate() {
+export default function Validate({ registry, onOpenSettings }: {
+  /** The registry a review asks for its public policy and server records. */
+  registry: string;
+  /** Settings at the AI Review key, for a review without one. */
+  onOpenSettings?: () => void;
+}) {
   const [dir, setDir] = useState("");
+  // picked is the folder the picker gave: a review takes only that (D-030),
+  // so a path typed into the field is validated but not reviewed.
+  const [picked, setPicked] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [result, setResult] = useState<validate.Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +33,7 @@ export default function Validate() {
       const chosen = await ChooseDirectory("Choose a QuickAgent folder to validate");
       if (chosen) {
         setDir(chosen);
+        setPicked(chosen);
         await run(chosen);
       }
     } catch (e) {
@@ -36,6 +52,18 @@ export default function Validate() {
       setError(String(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function review() {
+    setReviewing(true);
+    setReviewError(null);
+    try {
+      await startReview(registry, picked);
+    } catch (e) {
+      setReviewError(String(e));
+    } finally {
+      setReviewing(false);
     }
   }
 
@@ -60,6 +88,13 @@ export default function Validate() {
       </Toolbar>
 
       <ErrorBox error={error} />
+      {dir && dir === picked && (
+        <>
+          <ReviewAction onReview={review} busy={reviewing} disabled={busy} onOpenSettings={onOpenSettings} what="this folder's QuickAgent" />
+          <ErrorBox error={reviewError} />
+        </>
+      )}
+      {dir && picked && dir !== picked && <p className="muted small">Choose the folder with Choose… to review it on this computer.</p>}
       {busy && <Spinner label="Scanning…" />}
 
       {result && <ResultView r={result} />}

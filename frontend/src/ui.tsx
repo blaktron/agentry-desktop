@@ -2,6 +2,7 @@
 // honest posture: an agent is "scanned, N findings, signed" — never "safe".
 import React from "react";
 import { mcpview, trust } from "../wailsjs/go/models";
+import { RevealText } from "./reveal";
 
 // The shared primitives and the brand live in their own modules; re-export
 // them here so a page imports everything design-related from "../ui".
@@ -103,7 +104,10 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
 }
 
 /** Escapes-to-markup: excerpts arrive with invisible characters already
- * rendered as <U+200B>-style escapes by the scanner. Highlight them. */
+ * rendered as <U+200B>-style escapes by the scanner. Highlight them. An
+ * invisible character that arrives raw (an excerpt no scanner escaped, as a
+ * review's may be) is revealed too, so the excerpt never shows less than is
+ * there. */
 export function Excerpt({ text }: { text?: string }) {
   if (!text) return null;
   const parts = text.split(/(<U\+[0-9A-Fa-f]{4,6}>)/g);
@@ -113,7 +117,7 @@ export function Excerpt({ text }: { text?: string }) {
         /^<U\+[0-9A-Fa-f]{4,6}>$/.test(p) ? (
           <span key={i} className="agy-invisible">{p}</span>
         ) : (
-          <React.Fragment key={i}>{p}</React.Fragment>
+          <React.Fragment key={i}><RevealText text={p} /></React.Fragment>
         ),
       )}
     </div>

@@ -1035,3 +1035,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .profile-facts { display: grid; grid-template-columns: fit-content(12rem) minmax(0, 1fr); gap: 4px 16px; margin: 8px 0 12px; }
 .profile-facts dt { color: var(--color-muted); }
 .profile-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* Review Your QuickAgents locally (agentry-desktop#469): the action on the
+   Build summary and on Validate, and the report's kinds of finding. */
+.review-action { margin-top: 12px; }
+.review-action p { margin: 6px 0 0; }
+.review-report .card h3 { font-size: 15px; }

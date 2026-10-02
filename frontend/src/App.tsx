@@ -14,6 +14,7 @@ import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
 import RunFlow from "./pages/RunFlow";
+import ReviewFlow from "./pages/ReviewFlow";
 import HostedRunFlow from "./pages/HostedRunFlow";
 import ChatFlow from "./pages/ChatFlow";
 import RunPanel from "./pages/RunPanel";
@@ -269,9 +270,9 @@ export default function App() {
             />
           )}
             {route.page === "build" && (
-              <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenInstalled={() => nav({ page: "installed" })} />
+              <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenInstalled={() => nav({ page: "installed" })} />
             )}
-            {route.page === "validate" && <Validate />}
+            {route.page === "validate" && <Validate registry={registry} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} />}
             {route.page === "settings" && (
               <Settings
                 settings={settings}
@@ -296,6 +297,7 @@ export default function App() {
         <RunFlow onBackToSetup={setReopened} />
         <HostedRunFlow onBackToSetup={setReopened} />
         <ChatFlow onBackToSetup={setReopened} />
+        <ReviewFlow />
         {reopened && (
           <RunPanel
             {...reopened.panel}
