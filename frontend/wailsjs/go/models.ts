@@ -2977,6 +2977,76 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SuspendedView {
+	    since: string;
+	    owed: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SuspendedView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.since = source["since"];
+	        this.owed = source["owed"];
+	    }
+	}
+	export class TopUpPack {
+	    id: string;
+	    credits: number;
+	    baseCredits: number;
+	    amount: number;
+	    currency: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TopUpPack(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.credits = source["credits"];
+	        this.baseCredits = source["baseCredits"];
+	        this.amount = source["amount"];
+	        this.currency = source["currency"];
+	    }
+	}
+	export class TopUpView {
+	    available: boolean;
+	    url?: string;
+	    processing: boolean;
+	    packs: TopUpPack[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TopUpView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.url = source["url"];
+	        this.processing = source["processing"];
+	        this.packs = this.convertValues(source["packs"], TopUpPack);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class UpgradeRef {
 	    available: boolean;
 	    manage: boolean;
@@ -3064,6 +3134,11 @@ export namespace main {
 	    promo?: any;
 	    // Go type: UpgradeRef
 	    upgrade: any;
+	    bought?: number;
+	    // Go type: TopUpView
+	    topUp?: any;
+	    // Go type: SuspendedView
+	    suspended?: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new SubscriptionView(source);
@@ -3086,6 +3161,9 @@ export namespace main {
 	        this.knowledge = this.convertValues(source["knowledge"], null);
 	        this.promo = this.convertValues(source["promo"], null);
 	        this.upgrade = this.convertValues(source["upgrade"], null);
+	        this.bought = source["bought"];
+	        this.topUp = this.convertValues(source["topUp"], null);
+	        this.suspended = this.convertValues(source["suspended"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
