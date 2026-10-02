@@ -1008,6 +1008,9 @@ type MCPView struct {
 	Vulnerabilities   []mcpvuln.Status `json:"vulnerabilities"`
 	VulnerabilityLine string           `json:"vulnerabilityLine,omitempty"`
 	Refusal           string           `json:"refusal,omitempty"`
+	// Refusing names the refusing servers alone, for the consent row
+	// Unsafe Mode offers (D-055).
+	Refusing string `json:"refusing,omitempty"`
 }
 
 // GatewayRequirements computes the tool surface the latest published
@@ -1047,6 +1050,7 @@ func mcpViewOf(info *run.MCPInfo) *MCPView {
 		Vulnerabilities:   info.Vulnerabilities,
 		VulnerabilityLine: info.VulnerabilityLine,
 		Refusal:           info.Refusal,
+		Refusing:          info.Refusing,
 	}
 	if v.Vulnerabilities == nil {
 		v.Vulnerabilities = []mcpvuln.Status{}
@@ -1167,7 +1171,10 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 		accepting = append(accepting, "a release the registry admitted without a scan")
 	}
 	if allowVulnerableMCP {
-		accepting = append(accepting, "a declared MCP server the registry's gate rates high, which runs only in Unsafe Mode")
+		// Go has not looked at the servers here, so the line asserts none:
+		// the engine decides on the registry's answer, and the receipt
+		// names each server it let through.
+		accepting = append(accepting, "any declared MCP server the registry's gate rates high, which runs only in Unsafe Mode")
 	}
 	if len(accepting) == 0 {
 		return nil

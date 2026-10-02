@@ -1262,13 +1262,13 @@ export default function RunPanel({
                   <span>
                     <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
                     <span className="muted selectable">
-                      {mcp?.refusal}. Unsafe Mode is on, so this run can go ahead: Run asks you again, and the
+                      {mcp?.refusing}. Unsafe Mode is on, so this run can go ahead: Run asks you again, and the
                       receipt names Unsafe Mode and each server it let through.
                     </span>
                   </span>
                 </label>
               )}
-              {refused && !vuln.offerConsent && !inAgentry && (
+              {vuln.showRefusal && (
                 <div className="error-box selectable">{mcp?.refusal}.</div>
               )}
               {!refused && mcp?.vulnerabilityLine && (

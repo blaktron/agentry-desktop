@@ -27,7 +27,7 @@ var (
 // names the server, the advisory, the gate's rating and Unsafe Mode as the
 // way through. The High the gate rates medium is not named.
 func TestAServerTheGateRatesHighIsRefusedOutsideUnsafeMode(t *testing.T) {
-	for name, way := range map[string]Way{
+	for name, way := range map[string]WayThrough{
 		"no way":                          {},
 		"consent without Unsafe Mode":     {Consented: true},
 		"the CLI's policy key":            {PolicyAllows: true},
@@ -50,11 +50,11 @@ func TestAServerTheGateRatesHighIsRefusedOutsideUnsafeMode(t *testing.T) {
 		}
 	}
 	// The CLI's policy key is named, as what it is, where it is set.
-	_, err := Verdict([]mcpinstall.VulnStatus{high}, "https://reg.example", Way{PolicyAllows: true})
+	_, err := Verdict([]mcpinstall.VulnStatus{high}, "https://reg.example", WayThrough{PolicyAllows: true})
 	if !strings.Contains(err.Error(), "mcpServers.allowVulnerable") {
 		t.Errorf("a policy that allows vulnerable servers is not named: %v", err)
 	}
-	_, err = Verdict([]mcpinstall.VulnStatus{high}, "https://reg.example", Way{})
+	_, err = Verdict([]mcpinstall.VulnStatus{high}, "https://reg.example", WayThrough{})
 	if strings.Contains(err.Error(), "mcpServers.allowVulnerable") {
 		t.Errorf("a refusal offers the CLI's policy key as this app's way through: %v", err)
 	}
@@ -64,11 +64,11 @@ func TestAServerTheGateRatesHighIsRefusedOutsideUnsafeMode(t *testing.T) {
 // it, the run goes ahead and the receipt line names Unsafe Mode and the
 // server that was allowed.
 func TestUnsafeModeRunsItOnlyWithTheConsent(t *testing.T) {
-	_, err := Verdict([]mcpinstall.VulnStatus{high}, "https://reg.example", Way{Unsafe: true})
+	_, err := Verdict([]mcpinstall.VulnStatus{high}, "https://reg.example", WayThrough{Unsafe: true})
 	if err == nil || !strings.Contains(err.Error(), "consent") {
 		t.Fatalf("Unsafe Mode without the consent: err = %v, want a refusal that asks for it", err)
 	}
-	line, err := Verdict([]mcpinstall.VulnStatus{clean, high}, "https://reg.example", Way{Unsafe: true, Consented: true})
+	line, err := Verdict([]mcpinstall.VulnStatus{clean, high}, "https://reg.example", WayThrough{Unsafe: true, Consented: true})
 	if err != nil {
 		t.Fatalf("Unsafe Mode with the consent: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestUnsafeModeRunsItOnlyWithTheConsent(t *testing.T) {
 // either.
 func TestAServerTheGateRatesMediumRunsWithNoWayThrough(t *testing.T) {
 	for _, s := range []mcpinstall.VulnStatus{clean, medium} {
-		line, err := Verdict([]mcpinstall.VulnStatus{s}, "https://reg.example", Way{})
+		line, err := Verdict([]mcpinstall.VulnStatus{s}, "https://reg.example", WayThrough{})
 		if err != nil || !strings.HasPrefix(line, "checked against https://reg.example: ") {
 			t.Fatalf("%s: %q %v", s.Ref, line, err)
 		}
@@ -101,8 +101,17 @@ func TestAServerTheGateRatesMediumRunsWithNoWayThrough(t *testing.T) {
 func TestAnUnratedHighStillRefuses(t *testing.T) {
 	old := mcpinstall.VulnStatus{Ref: "npm:minimist@1.2.5", Status: "vulnerable", MaxSeverity: "high",
 		Advisories: []mcpinstall.VulnAdvisory{{ID: "GHSA-xvch-5gv4-984h", Severity: "high", FixedIn: []string{"1.2.6"}}}}
-	if _, err := Verdict([]mcpinstall.VulnStatus{old}, "https://reg.example", Way{}); err == nil || !strings.Contains(err.Error(), "a known high vulnerability") {
+	if _, err := Verdict([]mcpinstall.VulnStatus{old}, "https://reg.example", WayThrough{}); err == nil || !strings.Contains(err.Error(), "a known high vulnerability") {
 		t.Fatalf("unrated high: %v", err)
+	}
+}
+
+// The consent row Unsafe Mode offers names the refusing servers without
+// the switch-off remedy beside them.
+func TestRefusingNamesTheServersWithoutTheWayThrough(t *testing.T) {
+	got := refusingClause([]mcpinstall.VulnStatus{clean, medium, high})
+	if !strings.HasPrefix(got, "npm:@modelcontextprotocol/sdk@1.25.1 has an advisory the gate rates high") || strings.Contains(got, "Unsafe Mode") || strings.Contains(got, "@1.25.2 has") {
+		t.Fatalf("refusing = %q", got)
 	}
 }
 

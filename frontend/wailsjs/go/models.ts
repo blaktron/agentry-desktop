@@ -2777,6 +2777,7 @@ export namespace main {
 	    vulnerabilities: mcpvuln.Status[];
 	    vulnerabilityLine?: string;
 	    refusal?: string;
+	    refusing?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MCPView(source);
@@ -2796,6 +2797,7 @@ export namespace main {
 	        this.vulnerabilities = this.convertValues(source["vulnerabilities"], mcpvuln.Status);
 	        this.vulnerabilityLine = source["vulnerabilityLine"];
 	        this.refusal = source["refusal"];
+	        this.refusing = source["refusing"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

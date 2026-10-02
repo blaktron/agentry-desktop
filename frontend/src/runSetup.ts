@@ -141,14 +141,17 @@ export type VulnerableServerStep = {
   blocker: string | null;
   /** Whether the consent is sent to Go with the run. */
   send: boolean;
+  /** Show the registry's refusal, with its way through, on this computer. */
+  showRefusal: boolean;
 };
 
 export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; unsafeOn: boolean; consented: boolean }): VulnerableServerStep {
-  if (!s.refused) return { offerConsent: false, blocker: null, send: false };
+  if (!s.refused) return { offerConsent: false, blocker: null, send: false, showRefusal: false };
   if (s.inAgentry) {
     return {
       offerConsent: false,
       send: false,
+      showRefusal: false,
       blocker: "A run In Agentry refuses a declared MCP server the registry's gate rates high, with no way through: run it on this computer in Unsafe Mode, or run a release that pins a fixed version.",
     };
   }
@@ -156,12 +159,14 @@ export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; 
     return {
       offerConsent: false,
       send: false,
+      showRefusal: true,
       blocker: "A declared MCP server the registry's gate rates high runs on this computer only in Unsafe Mode: turn it on in Settings → Run defaults, or run a release that pins a fixed version.",
     };
   }
   return {
     offerConsent: true,
     send: s.consented,
+    showRefusal: false,
     blocker: s.consented ? null : "Tick “Allow vulnerable MCP servers for this run”.",
   };
 }

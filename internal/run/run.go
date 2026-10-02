@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
@@ -547,15 +548,13 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		statuses := mcpinstall.CheckVulnerabilities(ctx, nil, req.Registry, m.Capabilities.MCPServers)
 		_, _ = fmt.Fprintf(logw, "declared MCP servers, per the registry: %s\n", mcpinstall.Summary(statuses))
 		var refuseErr error
-		vulnLine, refuseErr = mcpvuln.Verdict(statuses, req.Registry, mcpvuln.Way{Unsafe: req.Unsafe, Consented: req.AllowVulnerableMCP, PolicyAllows: pol.MCPServers.AllowVulnerable})
+		vulnLine, refuseErr = mcpvuln.Verdict(statuses, req.Registry, mcpvuln.WayThrough{Unsafe: req.Unsafe, Consented: req.AllowVulnerableMCP, PolicyAllows: pol.MCPServers.AllowVulnerable})
 		if refuseErr != nil {
 			return nil, refuseErr
 		}
-		for _, st := range statuses {
-			// Let through in Unsafe Mode: the run is an Unsafe Mode run
-			// whatever its plan's exec line says.
-			unsafeServer = unsafeServer || st.Refuses()
-		}
+		// Let through in Unsafe Mode: the run is an Unsafe Mode run
+		// whatever its plan's exec line says.
+		unsafeServer = slices.ContainsFunc(statuses, mcpinstall.VulnStatus.Refuses)
 		resolvedServers, err = ensureServerResolutions(ctx, logw, serversDir, pol, m)
 		if err != nil {
 			return nil, err

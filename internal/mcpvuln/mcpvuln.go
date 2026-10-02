@@ -50,8 +50,9 @@ type Status struct {
 	Refuses bool `json:"refuses"`
 }
 
-// rank orders the ratings, worst last.
-var rank = map[string]int{"info": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}
+// ratingRank orders the ratings, worst last (the CLI keeps its own
+// unexported).
+var ratingRank = map[string]int{"info": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}
 
 // Views renders the runner's statuses for the frontend (never nil).
 func Views(statuses []mcpinstall.VulnStatus) []Status {
@@ -63,7 +64,7 @@ func Views(statuses []mcpinstall.VulnStatus) []Status {
 		}
 		for _, a := range s.Advisories {
 			r := a.Rating()
-			if rank[r] > rank[v.Rating] {
+			if ratingRank[r] > ratingRank[v.Rating] {
 				v.Rating = r
 			}
 			v.Advisories = append(v.Advisories, Advisory{ID: a.ID, Severity: a.Severity, Rating: r, CVSSScore: a.CVSSScore,
@@ -75,12 +76,14 @@ func Views(statuses []mcpinstall.VulnStatus) []Status {
 }
 
 // Result is the verdict for one release: the statuses, the receipt line,
-// and the refusal a run meets with Unsafe Mode off ("" when the release
-// may run).
+// the refusal a run meets with Unsafe Mode off ("" when the release may
+// run), and Refusing, the servers that refuse and why, without the way
+// through, for the consent Unsafe Mode offers.
 type Result struct {
 	Statuses []Status
 	Line     string
 	Refusal  string
+	Refusing string
 }
 
 // Check asks the registry about the declared servers and words the
@@ -93,10 +96,11 @@ func Check(ctx context.Context, registry string, servers []manifest.MCPServer) R
 	}
 	statuses := mcpinstall.CheckVulnerabilities(ctx, nil, registry, servers)
 	res := Result{Statuses: Views(statuses)}
-	line, err := Verdict(statuses, registry, Way{PolicyAllows: AllowedByPolicy()})
+	line, err := Verdict(statuses, registry, WayThrough{PolicyAllows: AllowedByPolicy()})
 	res.Line = line
 	if err != nil {
 		res.Refusal = err.Error()
+		res.Refusing = refusingClause(statuses)
 	}
 	return res
 }
@@ -116,13 +120,13 @@ func AllowedByPolicy() bool {
 	return pol.MCPServers.AllowVulnerable
 }
 
-// Way is what a run on this computer brings to a declared server the
+// WayThrough is what a run on this computer brings to a declared server the
 // registry's gate rates high or critical (agentry-desktop#459, D-055):
 // such a server runs only in Unsafe Mode, and there only with the person's
 // consent for the run, asked in a native dialog. The CLI keeps its flag
 // and the policy key; a run In Agentry has no way through and never builds
-// a Way.
-type Way struct {
+// a WayThrough.
+type WayThrough struct {
 	// Unsafe is Unsafe Mode, as the run read the switch.
 	Unsafe bool
 	// Consented is the person's yes for this run, which the native dialog
@@ -140,7 +144,7 @@ type Way struct {
 // serves no rating; agentry-cli#501) and the run has no way through. A run
 // let through names Unsafe Mode and each server it let through, with the
 // advisories that refused it.
-func Verdict(statuses []mcpinstall.VulnStatus, registry string, way Way) (string, error) {
+func Verdict(statuses []mcpinstall.VulnStatus, registry string, way WayThrough) (string, error) {
 	line := "checked against " + registry + ": " + mcpinstall.Summary(statuses)
 	var refusing []mcpinstall.VulnStatus
 	for _, s := range statuses {
@@ -162,14 +166,6 @@ func Verdict(statuses []mcpinstall.VulnStatus, registry string, way Way) (string
 		}
 		return line + "; run allowed in Unsafe Mode with the person's consent for this run: " + strings.Join(allowed, "; "), nil
 	}
-	parts := make([]string, 0, len(refusing))
-	for _, s := range refusing {
-		p := s.Ref + " has " + s.Describe(s.Refusing())
-		if fixed := s.FixedIn(); len(fixed) > 0 {
-			p += ", fixed in " + strings.Join(fixed, ", ")
-		}
-		parts = append(parts, p)
-	}
 	how := " — on this computer such a server runs only in Unsafe Mode (Settings → Run defaults), which asks your consent for each run; or run a release that pins a fixed version"
 	if way.Unsafe {
 		how = " — Unsafe Mode is on, and this run was not given your consent for it: tick \u201cAllow vulnerable MCP servers for this run\u201d and confirm the dialog; or run a release that pins a fixed version"
@@ -177,5 +173,22 @@ func Verdict(statuses []mcpinstall.VulnStatus, registry string, way Way) (string
 	if way.PolicyAllows {
 		how += " (the runner policy's mcpServers.allowVulnerable lets the CLI run it; this app's way through is Unsafe Mode)"
 	}
-	return line, fmt.Errorf("declared MCP server refused by the registry's vulnerability scan: %s%s", strings.Join(parts, "; "), how)
+	return line, fmt.Errorf("declared MCP server refused by the registry's vulnerability scan: %s%s", refusingClause(statuses), how)
+}
+
+// refusingClause names each server that refuses a run, the advisories
+// that refuse it at the gate's rating, and the versions that fix them.
+func refusingClause(statuses []mcpinstall.VulnStatus) string {
+	var parts []string
+	for _, s := range statuses {
+		if !s.Refuses() {
+			continue
+		}
+		p := s.Ref + " has " + s.Describe(s.Refusing())
+		if fixed := s.FixedIn(); len(fixed) > 0 {
+			p += ", fixed in " + strings.Join(fixed, ", ")
+		}
+		parts = append(parts, p)
+	}
+	return strings.Join(parts, "; ")
 }
