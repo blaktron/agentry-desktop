@@ -176,10 +176,11 @@ const (
 func UnsafeNoticeUnread() *UnsafeNotice { return &UnsafeNotice{Unread: true} }
 
 // Line is the one paragraph a local run's consent carries while Unsafe Mode
-// is on (plan D6, D8, and DR-53's PATH): what Unsafe Mode does to any run,
-// then what this release declares and what the image cannot provide.
+// is on (plan D6, D8, DR-53's PATH, and D-055's servers): what Unsafe Mode
+// does to any run, then what this release declares and what the image
+// cannot provide.
 func (n *UnsafeNotice) Line() string {
-	line := "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands."
+	line := "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. A declared MCP server the registry's gate rates high can run too, only with your consent for the run."
 	switch {
 	case n.Unread:
 		return line

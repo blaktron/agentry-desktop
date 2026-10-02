@@ -23,7 +23,7 @@ import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
-import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, whereFallback, type RunForm, type StepKey } from "../runSetup";
+import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
 import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
@@ -128,9 +128,10 @@ export default function RunPanel({
   const [acceptUnsigned, setAcceptUnsigned] = useState(f0?.acceptUnsigned ?? false);
   // Its own consent (M23): an unscanned release is not an unsigned one.
   const [acceptUnscanned, setAcceptUnscanned] = useState(f0?.acceptUnscanned ?? false);
-  // The registry's verdict on the declared MCP servers (agentry#177): a
-  // known high/critical advisory refuses the run unless this override
-  // (recorded in the receipt) or the operator policy allows it.
+  // The registry's verdict on the declared MCP servers (agentry#177): an
+  // advisory the gate rates high or critical refuses the run; on this
+  // computer only Unsafe Mode, with this consent (recorded in the
+  // receipt), lets it through (agentry-desktop#459, D-055).
   const [mcp, setMcp] = useState<main.MCPView | null>(null);
   const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(f0?.allowVulnerableMCP ?? false);
 
@@ -248,6 +249,9 @@ export default function RunPanel({
   // hosted session of the release's interactive mode, and In Agentry too.
   const sessionInAgentry = mode === "hosted-session";
   const inAgentry = mode === "hosted" || sessionInAgentry;
+  // A declared server the gate rates high: Unsafe Mode's consent here,
+  // nothing In Agentry (D-055). Go reads the switch itself and asks again.
+  const vuln = vulnerableServerStep({ refused, inAgentry, unsafeOn: !!unsafeNotice?.on, consented: allowVulnerableMCP });
   // The offer that governs the mode chosen: the run's, or the session's.
   const offer = sessionInAgentry ? hosted?.session : hosted;
   // Write in my voice (plan writing-voice.md §5, D11; agentry-desktop#510):
@@ -326,7 +330,7 @@ export default function RunPanel({
   if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
   if (unscanned && inAgentry) blockers.push("A run In Agentry is not offered for an unscanned release.");
   if (unscanned && !inAgentry && !acceptUnscanned) blockers.push("Tick \u201cRun an unscanned release\u201d.");
-  if (refused && !allowVulnerableMCP) blockers.push("Tick \u201cAllow vulnerable MCP servers for this run\u201d.");
+  if (vuln.blocker) blockers.push(vuln.blocker);
 
   // What the release says about knowledge (plan knowledge.md §4.6): the
   // packs it ships, mounted in every run on this computer, and what it asks
@@ -497,7 +501,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached, writeInVoice),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice),
       );
       onClose();
     } catch (e) {
@@ -584,7 +588,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), refused && allowVulnerableMCP, unscanned && acceptUnscanned, attached, writeInVoice),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice),
       );
       onClose();
     } catch (e) {
@@ -1252,16 +1256,20 @@ export default function RunPanel({
                   </span>
                 </label>
               )}
-              {refused && (
+              {vuln.offerConsent && (
                 <label className="check-row">
                   <input type="checkbox" checked={allowVulnerableMCP} onChange={(e) => setAllowVulnerableMCP(e.target.checked)} />
                   <span>
                     <strong>Allow vulnerable MCP servers for this run.</strong>{" "}
                     <span className="muted selectable">
-                      {mcp?.refusal}. The override is recorded in the run&apos;s receipt.
+                      {mcp?.refusing}. Unsafe Mode is on, so this run can go ahead: Run asks you again, and the
+                      receipt names Unsafe Mode and each server it let through.
                     </span>
                   </span>
                 </label>
+              )}
+              {vuln.showRefusal && (
+                <div className="error-box selectable">{mcp?.refusal}.</div>
               )}
               {!refused && mcp?.vulnerabilityLine && (
                 <p className="muted small">Declared MCP servers {mcp.vulnerabilityLine}.</p>

@@ -36,6 +36,7 @@ import { draftInFlight, takeLandedDraft } from "../drafts";
 import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
+import { advisoryWords } from "../advisory";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
 // The §19 instruction-file quota, as internal/build's maxInstructionBytes.
@@ -117,8 +118,12 @@ function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: strin
   const when = at && !Number.isNaN(at.getTime()) ? ` as of ${at.toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
   switch (c.status) {
     case "vulnerable": {
-      const n = (c.advisories ?? []).length;
-      return { tone: "high", text: `${n} known ${n === 1 ? "advisory" : "advisories"}${c.maxSeverity ? ` (${c.maxSeverity})` : ""}: ${(c.advisories ?? []).map((a) => a.id).join(", ")}` };
+      // Weighed at the gate's rating (D-055): a run refuses only an
+      // advisory the gate rates high or critical, so only that is "high".
+      const advs = c.advisories ?? [];
+      const n = advs.length;
+      const list = advs.map((a) => `${a.id} ${advisoryWords(a)}`).join(", ");
+      return { tone: c.refuses ? "high" : "muted", text: `${n} known ${n === 1 ? "advisory" : "advisories"}: ${list}.${c.refuses ? " A run of a release that declares it is refused, except in Unsafe Mode with your consent." : ""}` };
     }
     case "safe":
       return { tone: "muted", text: `No known advisories${when}.` };

@@ -30,12 +30,15 @@ The product never claims an agent is "safe". The language is always:
   `--allow-unscanned`, which the unsigned one does not give, and a run of
   one names that consent in its receipt; a signature that fails to verify
   aborts — there is no override for that. The wizard shows the
-  registry's verdict on each declared MCP server, and a known high or
-  critical advisory refuses runs by default. The run panel's "allow
-  vulnerable MCP servers" override lifts that for one run and is recorded in
-  the receipt; the operator policy can lift it outright, and the agent page
-  shows the verdict per server and, for the publisher, the open dependency
-  alerts.
+  registry's verdict on each declared MCP server, and an advisory the
+  registry's gate rates high or critical refuses runs. On this computer
+  such a server runs only in Unsafe Mode, where the run panel's "allow
+  vulnerable MCP servers" consent, asked again in a native dialog, lets one
+  run through and the receipt names Unsafe Mode and the server (D-055); the
+  operator policy's `mcpServers.allowVulnerable` is the CLI's way through,
+  not this app's, and a run In Agentry has none. The agent page shows the
+  verdict per server, with each advisory's own severity and the gate's
+  rating, and, for the publisher, the open dependency alerts.
 - **Run** — run a QuickAgent from the app (RUNNER-PLAN-2 §P6) with the same
   lifecycle `agentry run` executes: verify (digest + DSSE, the install
   gate) → materialize into the shared `~/.agentry/runner` cache → compile

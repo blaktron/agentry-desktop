@@ -160,8 +160,8 @@ export default function InstallWizard({
             {plan.vulnerabilityRefusal && (
               <div className="notice selectable">
                 <strong>Runs of this release are refused by default.</strong> {plan.vulnerabilityRefusal}.
-                Installing records the declared servers as they are; the run panel has the override,
-                which is recorded in the run&apos;s receipt.
+                Installing records the declared servers as they are; in Unsafe Mode the run panel asks
+                your consent for a run, and the receipt names it.
               </div>
             )}
             {!plan.vulnerabilityRefusal && plan.vulnerabilityLine && (
