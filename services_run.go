@@ -1146,7 +1146,7 @@ func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, accept
 // dialog of its own: turning Unsafe Mode on was the native confirmation,
 // and a run with nothing to accept still raises none.
 //
-// A declared MCP server the registry's gate rates high runs on this
+// A declared MCP server the registry's gate rates high or critical runs on this
 // computer only in Unsafe Mode (agentry-desktop#459, D-055), so with the
 // switch off the page's consent for one is refused here, before any
 // dialog: there is nothing to ask. The engine refuses the server again
@@ -1161,7 +1161,7 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 		return err
 	}
 	if allowVulnerableMCP && !unsafe {
-		return errors.New("a declared MCP server the registry's gate rates high runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Run defaults, or run a release that pins a fixed version")
+		return errors.New("a declared MCP server the registry's gate rates high or critical runs on this computer only in Unsafe Mode, and Unsafe Mode is off: turn it on in Settings → Run defaults, or run a release that pins a fixed version")
 	}
 	var accepting []string
 	if acceptUnsigned {
@@ -1174,7 +1174,7 @@ func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir stri
 		// Go has not looked at the servers here, so the line asserts none:
 		// the engine decides on the registry's answer, and the receipt
 		// names each server it let through.
-		accepting = append(accepting, "any declared MCP server the registry's gate rates high, which runs only in Unsafe Mode")
+		accepting = append(accepting, "any declared MCP server the registry's gate rates high or critical, which runs only in Unsafe Mode")
 	}
 	if len(accepting) == 0 {
 		return nil

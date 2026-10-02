@@ -180,7 +180,7 @@ func UnsafeNoticeUnread() *UnsafeNotice { return &UnsafeNotice{Unread: true} }
 // does to any run, then what this release declares and what the image
 // cannot provide.
 func (n *UnsafeNotice) Line() string {
-	line := "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. A declared MCP server the registry's gate rates high can run too, only with your consent for the run."
+	line := "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. A declared MCP server the registry's gate rates high or critical can run too, only with your consent for the run."
 	switch {
 	case n.Unread:
 		return line
