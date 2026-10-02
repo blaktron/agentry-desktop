@@ -80,9 +80,9 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 	// saved folder passes the picked-path gate in a session that never
 	// picked it.
 	passedTheGate("the gates, output", r.runGates("acme/x@1.0.0", nil, saved, false, false, false))
-	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, false, nil, false, false, nil)
+	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, false, nil, false, false, nil, false)
 	passedTheGate("StartSession", err)
-	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", nil, saved, nil, nil)
+	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", nil, saved, nil, nil, false)
 	passedTheGate("StartHostedRun", err)
 	if err == nil || strings.Contains(err.Error(), "sign in") {
 		t.Fatalf("StartHostedRun stopped before the path gate: %v", err)
@@ -96,7 +96,7 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 		r.runGates("acme/x@1.0.0", []string{filepath.Join(saved, "notes.txt")}, saved, false, false, false))
 	refusedAsTyped("the saved folder as an input",
 		r.runGates("acme/x@1.0.0", []string{saved}, "", false, false, false))
-	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", []string{filepath.Join(saved, "notes.txt")}, saved, nil, nil)
+	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", []string{filepath.Join(saved, "notes.txt")}, saved, nil, nil, false)
 	refusedAsTyped("an input inside the saved folder, In Agentry", err)
 
 	// A path the page sends as "the default" that is not the saved one is
@@ -230,12 +230,12 @@ func TestEachRunGetsItsOwnFolderInsideTheSavedOne(t *testing.T) {
 			got = append(got, req)
 			return &run.Result{}, nil
 		}}
-	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, 0, false, nil, false, false, nil); err != nil {
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, 0, false, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	picked := t.TempDir()
 	app.markPicked(picked)
-	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, picked, nil, 0, 0, false, nil, false, false, nil); err != nil {
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, picked, nil, 0, 0, false, nil, false, false, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 || !got[0].OutDirIsRoot || got[1].OutDirIsRoot {
@@ -309,7 +309,7 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 		return &fakeChat{f: &fakeEngine{}, id: req.RunID, events: events}, nil
 	}
 	chat := func() error {
-		_, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil)
+		_, err := r.StartSession("https://r.example", "acme/agent@1.0.0", "", nil, "", nil, -1, false, nil, false, false, nil, false)
 		if err == nil {
 			_, err = r.EndSession(false)
 		}

@@ -56,6 +56,7 @@ const states = [
   { name: "runpanel-step-tools", url: "/modals.html#runpanel-step-tools", note: "Connect tools: the declared MCP server's pin and tools, then its key", expectText: "Step 3 of 5: Connect tools" },
   { name: "runpanel-step-details", url: "/modals.html#runpanel-step-details", note: "Details: the intake question, then the task", expectText: ": Details" },
   { name: "runpanel-step-review", url: "/modals.html#runpanel-step-review", note: "Review and start: the recap with Edit links, the output folder, Advanced, Run", expectText: "Review and start" },
+  { name: "runpanel-voice", url: "/modals.html#runpanel-voice", note: "Review and start with this computer's Writing Voice on for every run: Write in my voice, ticked from its switch (agentry-desktop#510)", expectText: ["Write in my voice", "Here it is this computer's voice."] },
   { name: "runpanel-step-review-long", url: "/modals.html#runpanel-step-review-long", note: "Review and start with an intake prompt as long as binary-reverse-engineer's: the label wraps in its column and every value keeps a readable width (agentry-desktop#420)", expectText: ["leave blank for a full pass", "none: its own instruction runs"], expectMinWidth: [".run-recap dd", 320] },
   // The author's guide (agentry-desktop#228): each step that reads it, and a
   // hostile guide that must render as text on the two steps it reaches.
@@ -233,13 +234,13 @@ const states = [
   // Every page under the shell and every step of the first-run wizard, so a
   // change to the token table (agentry-desktop#49) is seen everywhere it
   // lands, not only in the states above.
-  { name: "page-browse", url: "/pages.html", note: "Browse under the shell: Validate is not listed outside Build (agentry-desktop#422)", locator: '[data-preview="browse"]', expectOrder: ['[data-preview="browse"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Settings"]] },
+  { name: "page-browse", url: "/pages.html", note: "Browse under the shell: Validate is not listed outside Build (agentry-desktop#422)", locator: '[data-preview="browse"]', expectOrder: ['[data-preview="browse"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Settings"]] },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell", locator: '[data-preview="agent"]' },
   { name: "page-installed", url: "/pages.html", note: "Installed under the shell, with a QuickAgent installed from a folder: local and unsigned, Run in place of Details (agentry-desktop#425)", locator: '[data-preview="installed"]', expectText: ["me/csv-quality-check", "local, unsigned", "from a folder on this computer; no registry holds it"] },
   { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Describe it first as on the site, then Step by step and Advanced (agentry-desktop#421)", locator: '[data-preview="build"]', expectText: "Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.", expectOrder: [
     ['[data-preview="build"] .build-way strong', ["Describe it", "Step by step", "Advanced"]],
     // Validate is Build's sub-item, shown while Build is open (agentry-desktop#422).
-    ['[data-preview="build"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"]],
+    ['[data-preview="build"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
   ] },
   // The Build tab's views (plan builder-rework.md §5, agentry-desktop#280):
@@ -300,8 +301,11 @@ const states = [
   { name: "page-build-summary-problem", url: "/pages.html#build-summary-problem", note: "the summary of a QuickAgent a rule still refuses: the rule named with Fix it in its step, Submit greyed", locator: '[data-preview="build"]', expectText: ["It cannot be submitted yet. Before a run:", "Fix it in Before a run"], expectDisabledSummarySubmit: true },
   { name: "page-build-summary-public", url: "/pages.html#build-summary-public", note: "a folder whose publish.include leaves out README.md: Submit waits with Fix it in Publishing, Save and Install do not, since only a submission is public (agentry-desktop#425)", locator: '[data-preview="build"]', expectText: ["It can be saved and installed, but not submitted yet: a submission is public.", "Fix it in Publishing"], expectDisabledSubmitOnly: true },
   { name: "page-build-comments", url: "/pages.html#build-comments", note: "a loaded agent.yaml with comments: the notice that a save drops them", locator: '[data-preview="build"]', expectText: "the comments are not kept" },
+  { name: "page-voice", url: "/pages.html", note: "the Voice panel (agentry-desktop#510): this computer's voice and the account's, a flagged new version with its finding beside the live one, the editor's Write and Preview tabs, Submit and Use, and the Voice Writer's Where", locator: '[data-preview="voice"]', expectText: ["On this computer", "In Agentry", "Flagged", "It asks for more than a way of writing", "Submit to Agentry", "Use Agentry's voice here", "On this computer", "no credits, and the voice is kept here, not reviewed"], expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Settings"]] },
+  { name: "page-voice-standard", url: "/pages.html#voice-standard", note: "the Voice Writer on Standard with this cycle's run used: In Agentry offered and not chosen, the date the next is theirs, and the upgrade", locator: '[data-preview="voice"]', expectText: ["this cycle's runs are used. The next is yours on 28 October 2026.", "Upgrade"] },
+  { name: "page-voice-none", url: "/pages.html#voice-none", note: "the Voice panel with no voice in either place: the empty state, the editor to write one by hand, and Create", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "Your account keeps no Writing Voice yet.", "Start the Voice Writer"] },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it (agentry-desktop#422)", locator: '[data-preview="validate"]', expectOrder: [
-    ['[data-preview="validate"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Build", "Validate", "Settings"]],
+    ['[data-preview="validate"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "Validate"]],
     ['[data-preview="validate"] .sidebar [aria-current="page"]', ["Validate"]],
   ] },

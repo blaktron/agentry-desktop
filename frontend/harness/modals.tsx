@@ -31,6 +31,8 @@
 //                           declared MCP server and the unsaved key
 //   #runpanel-step-details  Details: the intake question, then the task
 //   #runpanel-step-review   Review and start: the recap, output, consents
+//   #runpanel-voice         Review and start with this computer's voice on:
+//                           Write in my voice, ticked
 //   #runpanel-chat-review   Review and start for a chat on this computer:
 //                           Advanced has no timeout, and says why
 //   #runpanel-step-review-long  the same with an intake prompt as long as
@@ -356,6 +358,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-step-tools": "tools",
   "runpanel-step-details": "details",
   "runpanel-step-review": "review",
+  "runpanel-voice": "review",
   "runpanel-step-review-long": "review",
   "runpanel-chat-review": "review",
   "runpanel-guided-files": "files",
@@ -433,6 +436,17 @@ g.go = { main: {
   // the state shows one.
   KnowledgeAPI: {
     List: async () => ({ packs: knowledgePacks, registry: "https://secureagentry.net", signedIn: true }),
+  },
+  // This computer's Writing Voice (agentry-desktop#510): on for every run
+  // here on #runpanel-voice, so Review and start shows Write in my voice
+  // ticked; none on every other state, which shows no box.
+  VoiceAPI: {
+    View: async () => ({
+      registry: "https://secureagentry.net", signedIn: false, accountOffered: false, model: "",
+      local: window.location.hash === "#runpanel-voice"
+        ? { exists: true, text: "# Voice\n\nShort sentences.\n", digest: "sha256:4fa1", bytes: 28, source: "edit", phrase: "written by hand", alwaysAttach: true, created: "", updated: "" }
+        : { exists: false },
+    }),
   },
   App: { OpenExternal: async () => {}, ChooseFiles: async () => [] },
 } };

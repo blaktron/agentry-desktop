@@ -84,6 +84,10 @@ type Caller struct {
 	// (agentry-enterprise#286); nil from a registry that predates it, which
 	// this app offers no session against.
 	Session *CallerSession `json:"session,omitempty"`
+	// Voice is what the caller's payer may still start of Voice Writer
+	// runs this billing cycle (agentry-enterprise#306); nil where the
+	// deployment runs none.
+	Voice *CallerVoice `json:"voice,omitempty"`
 }
 
 // TierPrice is a set of caps and what they hold (x-runs.yaml RunTierPrice).
@@ -130,6 +134,10 @@ type Status struct {
 	// Sessions is a hosted session's terms here (agentry-enterprise#276);
 	// absent from a registry from before sessions.
 	Sessions *SessionTerms `json:"sessions,omitempty"`
+	// VoiceBuild is the Voice Writer's terms here and whether a run may
+	// attach a voice (agentry-enterprise#306); nil from a registry that
+	// predates it.
+	VoiceBuild *VoiceTerms `json:"voiceBuild,omitempty"`
 }
 
 // KnowledgeAttach is the status route's knowledgeAttach block.
@@ -186,6 +194,9 @@ const (
 	KindRun            = "run"
 	KindKnowledgeBuild = "knowledge_build"
 	KindDraft          = "draft"
+	// KindVoiceBuild is a hosted Voice Writer run (agentry-enterprise#306;
+	// voice.go).
+	KindVoiceBuild = "voice_build"
 )
 
 // KnowledgeBuild is a hosted knowledge build's record (x-runs.yaml
@@ -231,10 +242,14 @@ type Run struct {
 	Knowledge       []Attached `json:"knowledge,omitempty"`
 	// Session is a hosted session's record; nil on every run that is not
 	// one (agentry-enterprise#276).
-	Session    *Session   `json:"session,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	StartedAt  *time.Time `json:"startedAt,omitempty"`
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+	Session *Session `json:"session,omitempty"`
+	// VoiceBuild is a hosted Voice Writer run's record; Voice is the
+	// Writing Voice a run or a session attached (agentry-enterprise#306).
+	VoiceBuild *VoiceBuild    `json:"voiceBuild,omitempty"`
+	Voice      *AttachedVoice `json:"voice,omitempty"`
+	CreatedAt  time.Time      `json:"createdAt"`
+	StartedAt  *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt *time.Time     `json:"finishedAt,omitempty"`
 }
 
 // Empty reports whether the registry kept no receipt for the run: a run
@@ -302,6 +317,13 @@ type CreateRequest struct {
 	// Mode is ModeInteractive for a hosted session of Ref's release
 	// (agentry-enterprise#276); empty is a run.
 	Mode string `json:"mode,omitempty"`
+	// Voice asks a run or a session to write in the runner's live Writing
+	// Voice; Op, Brief and Note are a Voice Writer run's (KindVoiceBuild:
+	// create, improve or edit; agentry-enterprise#306).
+	Voice bool   `json:"voice,omitempty"`
+	Op    string `json:"op,omitempty"`
+	Brief string `json:"brief,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 // IsSession reports whether this row is a hosted session.

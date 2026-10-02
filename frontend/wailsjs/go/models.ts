@@ -604,6 +604,47 @@ export namespace drafter {
 
 export namespace hostedrun {
 	
+	export class CallerVoice {
+	    allowed: boolean;
+	    limited: boolean;
+	    used: number;
+	    max: number;
+	    // Go type: time
+	    nextAt?: any;
+	    holdCredits: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CallerVoice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.allowed = source["allowed"];
+	        this.limited = source["limited"];
+	        this.used = source["used"];
+	        this.max = source["max"];
+	        this.nextAt = this.convertValues(source["nextAt"], null);
+	        this.holdCredits = source["holdCredits"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CallerSession {
 	    allowed: boolean;
 	
@@ -676,6 +717,7 @@ export namespace hostedrun {
 	    build?: TierPrice;
 	    draft?: TierPrice;
 	    session?: CallerSession;
+	    voice?: CallerVoice;
 	
 	    static createFrom(source: any = {}) {
 	        return new Caller(source);
@@ -692,6 +734,7 @@ export namespace hostedrun {
 	        this.build = this.convertValues(source["build"], TierPrice);
 	        this.draft = this.convertValues(source["draft"], TierPrice);
 	        this.session = this.convertValues(source["session"], CallerSession);
+	        this.voice = this.convertValues(source["voice"], CallerVoice);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -712,6 +755,7 @@ export namespace hostedrun {
 		    return a;
 		}
 	}
+	
 	
 	
 
@@ -3691,6 +3735,204 @@ export namespace main {
 	    }
 	}
 	
+	
+	export class VoiceHostedAvailabilityView {
+	    offered: boolean;
+	    available: boolean;
+	    reason?: string;
+	    remedy?: string;
+	    upgradeUrl?: string;
+	    credits: number;
+	    holdCredits: number;
+	    limited: boolean;
+	    max: number;
+	    left: number;
+	    aiReviewCredits: number;
+	    balance: number;
+	    balanceKnown: boolean;
+	    pool?: string;
+	    maxInputFiles: number;
+	    maxInputBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceHostedAvailabilityView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.offered = source["offered"];
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	        this.remedy = source["remedy"];
+	        this.upgradeUrl = source["upgradeUrl"];
+	        this.credits = source["credits"];
+	        this.holdCredits = source["holdCredits"];
+	        this.limited = source["limited"];
+	        this.max = source["max"];
+	        this.left = source["left"];
+	        this.aiReviewCredits = source["aiReviewCredits"];
+	        this.balance = source["balance"];
+	        this.balanceKnown = source["balanceKnown"];
+	        this.pool = source["pool"];
+	        this.maxInputFiles = source["maxInputFiles"];
+	        this.maxInputBytes = source["maxInputBytes"];
+	    }
+	}
+	export class VoiceHostedView {
+	    id: string;
+	    op: string;
+	    status: string;
+	    state: string;
+	    statusLine: string;
+	    cancelRequested: boolean;
+	    outcomeLine?: string;
+	    outcomeTone?: string;
+	    error?: string;
+	    holdCredits: number;
+	    settledCredits: number;
+	    settled: boolean;
+	    applied: boolean;
+	    bytes?: number;
+	    note?: string;
+	    final: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceHostedView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.op = source["op"];
+	        this.status = source["status"];
+	        this.state = source["state"];
+	        this.statusLine = source["statusLine"];
+	        this.cancelRequested = source["cancelRequested"];
+	        this.outcomeLine = source["outcomeLine"];
+	        this.outcomeTone = source["outcomeTone"];
+	        this.error = source["error"];
+	        this.holdCredits = source["holdCredits"];
+	        this.settledCredits = source["settledCredits"];
+	        this.settled = source["settled"];
+	        this.applied = source["applied"];
+	        this.bytes = source["bytes"];
+	        this.note = source["note"];
+	        this.final = source["final"];
+	    }
+	}
+	export class VoiceHostedStartView {
+	    run?: VoiceHostedView;
+	    refusal?: string;
+	    detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceHostedStartView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run = this.convertValues(source["run"], VoiceHostedView);
+	        this.refusal = source["refusal"];
+	        this.detail = source["detail"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class VoiceSaveView {
+	    voice?: voice.Local;
+	    created: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceSaveView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.voice = this.convertValues(source["voice"], voice.Local);
+	        this.created = source["created"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VoiceView {
+	    registry: string;
+	    local?: voice.Local;
+	    signedIn: boolean;
+	    accountOffered: boolean;
+	    account?: voice.Account;
+	    accountError?: string;
+	    model: string;
+	    reviewCredits: number;
+	    attachEnabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registry = source["registry"];
+	        this.local = this.convertValues(source["local"], voice.Local);
+	        this.signedIn = source["signedIn"];
+	        this.accountOffered = source["accountOffered"];
+	        this.account = this.convertValues(source["account"], voice.Account);
+	        this.accountError = source["accountError"];
+	        this.model = source["model"];
+	        this.reviewCredits = source["reviewCredits"];
+	        this.attachEnabled = source["attachEnabled"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -3847,6 +4089,35 @@ export namespace receipt {
 	        this.path = source["path"];
 	        this.source = source["source"];
 	        this.sha256 = source["sha256"];
+	    }
+	}
+
+}
+
+export namespace remote {
+	
+	export class Finding {
+	    scanner: string;
+	    severity: string;
+	    title: string;
+	    line?: number;
+	    question?: string;
+	    score?: number;
+	    flags: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Finding(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scanner = source["scanner"];
+	        this.severity = source["severity"];
+	        this.title = source["title"];
+	        this.line = source["line"];
+	        this.question = source["question"];
+	        this.score = source["score"];
+	        this.flags = source["flags"];
 	    }
 	}
 
@@ -4082,6 +4353,164 @@ export namespace validate {
 		    return a;
 		}
 	}
+
+}
+
+export namespace voice {
+	
+	export class Version {
+	    review: string;
+	    source: string;
+	    digest: string;
+	    bytes: number;
+	    text: string;
+	    verdict?: string;
+	    findings?: remote.Finding[];
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    reviewedAt?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Version(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.review = source["review"];
+	        this.source = source["source"];
+	        this.digest = source["digest"];
+	        this.bytes = source["bytes"];
+	        this.text = source["text"];
+	        this.verdict = source["verdict"];
+	        this.findings = this.convertValues(source["findings"], remote.Finding);
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.reviewedAt = this.convertValues(source["reviewedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Account {
+	    exists: boolean;
+	    alwaysAttach: boolean;
+	    live?: Version;
+	    pending?: Version;
+	    previous?: Version;
+	
+	    static createFrom(source: any = {}) {
+	        return new Account(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.exists = source["exists"];
+	        this.alwaysAttach = source["alwaysAttach"];
+	        this.live = this.convertValues(source["live"], Version);
+	        this.pending = this.convertValues(source["pending"], Version);
+	        this.previous = this.convertValues(source["previous"], Version);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Local {
+	    exists: boolean;
+	    text: string;
+	    digest: string;
+	    bytes: number;
+	    source: string;
+	    phrase: string;
+	    alwaysAttach: boolean;
+	    created: string;
+	    updated: string;
+	    problem?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Local(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.exists = source["exists"];
+	        this.text = source["text"];
+	        this.digest = source["digest"];
+	        this.bytes = source["bytes"];
+	        this.source = source["source"];
+	        this.phrase = source["phrase"];
+	        this.alwaysAttach = source["alwaysAttach"];
+	        this.created = source["created"];
+	        this.updated = source["updated"];
+	        this.problem = source["problem"];
+	    }
+	}
+	export class BuildResult {
+	    voice?: Local;
+	    created: boolean;
+	    samples?: string[];
+	    skipped?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BuildResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.voice = this.convertValues(source["voice"], Local);
+	        this.created = source["created"];
+	        this.samples = source["samples"];
+	        this.skipped = source["skipped"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 

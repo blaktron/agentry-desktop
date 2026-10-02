@@ -15,6 +15,7 @@ import { keyStanding } from "../keyRecommendation";
 import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
 import { DockerImagesCard } from "./DockerImages";
+import { VoiceSwitch } from "./Voice";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
@@ -28,9 +29,9 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
-  | "profile" | "subscription"
+  | "profile" | "subscription" | "account-voice"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search";
+  | "budgets" | "chats" | "where" | "output" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -39,7 +40,7 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   {
     id: "profile", title: "Profile",
     sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
-    parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }],
+    parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
   },
   {
     id: "registry", title: "Registry settings",
@@ -62,7 +63,7 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
       { id: "output", label: "Output folder" }, { id: "unsafe", label: "Unsafe Mode" },
-      { id: "docker", label: "Docker engine" }, { id: "images", label: "Docker images" },
+      { id: "docker", label: "Docker engine" }, { id: "images", label: "Docker images" }, { id: "voice", label: "Writing Voice" },
     ],
   },
   {
@@ -88,6 +89,9 @@ export const SETTINGS_FOR = {
   describeKey: { section: "provider", part: "ai-review-key" },
   // the sidebar's Unsafe Mode badge
   unsafeMode: { section: "run-defaults", part: "unsafe" },
+  // the Voice panel's links to the two always-attach switches (D11)
+  voiceHere: { section: "run-defaults", part: "voice" },
+  voiceAccount: { section: "profile", part: "account-voice" },
 } satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
 
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
@@ -129,7 +133,12 @@ export default function Settings({
       <p className="small settings-back"><Button variant="link" onClick={() => onOpen()}>← Settings</Button></p>
       <PageHeader title={meta?.title ?? "Settings"} sub={meta?.sentence} />
       {section === "profile" && (
-        <ProfileSettings registry={activeRegistry} signedIn={signedInTo(settings, activeRegistry)} onOpenRegistry={() => onOpen("registry")} />
+        <>
+          <ProfileSettings registry={activeRegistry} signedIn={signedInTo(settings, activeRegistry)} onOpenRegistry={() => onOpen("registry")} />
+          {signedInTo(settings, activeRegistry) && (
+            <PartSection id="account-voice" title="Writing Voice"><VoiceSwitch registry={activeRegistry} place="account" /></PartSection>
+          )}
+        </>
       )}
       {section === "registry" && (
         <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} onOpenProfile={() => onOpen("profile")} />
@@ -152,7 +161,12 @@ export default function Settings({
         </>
       )}
       {section === "coding-agents" && <CodingAgentsCard />}
-      {section === "run-defaults" && <RunDefaultsSettings onChanged={onChanged} />}
+      {section === "run-defaults" && (
+        <>
+          <RunDefaultsSettings onChanged={onChanged} />
+          <PartSection id="voice" title="Writing Voice"><VoiceSwitch registry={activeRegistry} place="here" /></PartSection>
+        </>
+      )}
       {section === "provider" && (
         <>
           <div id="settings-part-provider" className="settings-part">

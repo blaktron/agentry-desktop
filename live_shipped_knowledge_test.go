@@ -90,7 +90,7 @@ func TestLiveShippedKnowledge(t *testing.T) {
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
 	run, err := r.RunAgent(reg, ref, "What is an EC2 instance, according to your knowledge pack? Name the page you read.",
-		nil, outDir, nil, 0, -1, false, nil, false, false, nil)
+		nil, outDir, nil, 0, -1, false, nil, false, false, nil, false)
 	if err != nil {
 		t.Fatalf("run %s: %v\n%s", ref, err, strings.Join(events.lines(), "\n"))
 	}
