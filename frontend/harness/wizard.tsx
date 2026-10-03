@@ -99,6 +99,8 @@ const keySaved = suffix === "saved" || keyOnly || (step === 5 && !nothing);
 const noKey = { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false };
 const savedKey = { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 
+// Engine wakes between the parent check and prerequisite detection (#594).
+let dockerChecks = 0;
 const g = window as any;
 g.go = { main: {
   App: { OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); } },
@@ -111,7 +113,9 @@ g.go = { main: {
     },
     ForgetJevKey: async () => noKey,
     TestJevKey: async () => ({ ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
-    SetupStatus: async () => setup,
+    SetupStatus: async () => suffix === "waking"
+      ? { ...setup, dockerOk: ++dockerChecks > 1, dockerErr: "engine is waking" }
+      : setup,
     ApplySetup: async () => {
       if (refused) throw new Error("the base URL must be an absolute http(s) URL: \"llm.example.net/v1\"");
       if (preparing) await new Promise(() => {});
