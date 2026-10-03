@@ -563,9 +563,12 @@ there and checks the settings, the installed agents, the pinned key, the
 runner policy and a keychain item come through byte-identical. The keychain
 item goes into a keychain the script creates, unlocks by name and deletes,
 which needs no login session, so that half runs on the Mac runner too and
-never touches a real sign-in. The
-bundle is ad-hoc signed only and the image is not signed at all (D-001: no
-Developer ID, no notarization), so both meet the same Gatekeeper prompt.
+never touches a real sign-in. A
+production release Developer ID-signs, notarizes and staples the bundle and
+then the image (#6, below, "OS code signing"); anywhere else — a PR build, a
+dev prerelease, a by-hand build — the bundle is ad-hoc signed only and the
+image is not signed at all (D-001), and macOS refuses to open a downloaded
+copy until the person allows it in System Settings → Privacy & Security.
 The Mac needs no GitHub credential. Set `AGENTRY_DEFAULT_REGISTRY` to bake
 in the registry the build connects to by default. The launch smoke at the end
 needs the build user logged in at the Mac's console; without one it is
@@ -699,7 +702,8 @@ the artifacts.
   it is piped to the signer on standard input, so it is never written to the
   runner's disk; `env -u` drops it from the signer's own environment, and it
   reaches no command-line flag, so it is not in a process listing. Nothing on
-  the Mac ever sees it: the macOS job builds, it does not sign.
+  the Mac ever sees it: the macOS job signs only with Apple's certificate (#6),
+  never with this key.
 - **`scripts/operator/update-signing-key.sh`** is how a key is loaded, and the
   only supported way: it generates the pair on the machine running it, sets the
   secret, writes the public half into the key set with
@@ -748,9 +752,34 @@ workflow holds no Azure secret: its identity is the OIDC token, and the six
 repository variables are identifiers (`AZURE_SUBSCRIPTION_ID` is the
 operator wizard's, unused by the release).
 
+The macOS half (#6; plan §5, D4, D5) signs on the Mac runner, in the
+`macos` job, with Apple's own tools, and only in a **production** release (a
+`vX.Y.Z` tag on `main`'s line, or a dry run there): `make build-darwin`
+builds the bundle; `scripts/sign-darwin.sh app` imports the
+`APPLE_DEVELOPER_ID_P12` certificate into a keychain it makes in its own
+`0700` directory and deletes on exit (failing if it is still on the search
+list), signs the bundle inside-out under the hardened runtime with Apple's
+timestamp and **no entitlements**, submits it to Apple's notary service with
+the `APPLE_NOTARY_*` API key, waits for "Accepted" and staples the ticket;
+`make wrap-darwin` then makes the zip and the dmg from the stapled bundle;
+`scripts/sign-darwin.sh dmg` signs, notarizes and staples the image; and
+`scripts/check-darwin-dmg.sh --signed` and `scripts/sign-darwin.sh assess`
+read the shipped dmg, the bundle on it and the bundle in the zip back — the
+identity and Team ID `build/release.env` names, a designated requirement
+naming the team, a valid stapled ticket, and `spctl`'s "Notarized Developer
+ID". The five secrets reach only the two signing steps, never `wails` or
+`npm`, and a production release without them fails. A dev prerelease
+(`-dev.N`) skips Apple and ships ad-hoc signed, so it does not wait on the
+notary queue (each submission took 40 to 75 minutes in October 2026, and the
+job makes two in a row); the CLI's dev prereleases do the same
+(agentry-cli#570). Headless `codesign` on the Mac runner needs Apple's
+Developer ID G2 intermediate in the host's System keychain (#152). The first
+launch of a downloaded copy on a fresh Mac is a by-hand check: the runner has
+no console session (#106).
+
 `BUILD-INFO` records what the release verified, under the estate's own
-signature over `SHA256SUMS`: `signed=` stays `false` until every artifact is
-OS-signed (macOS is #6), and
+signature over `SHA256SUMS`: `signed=` stays `false` because the Linux
+packages carry no OS signature, and
 
 ```
 signed_windows=authenticode CN=<subject CN> profile=<account>/<profile> timestamp=<osslsigncode's time> verified=osslsigncode root=<the root's subject>
@@ -758,7 +787,15 @@ signed_windows=authenticode CN=<subject CN> profile=<account>/<profile> timestam
 
 — the keys in that order, each value running to the next key; the CN, the
 timestamp and the root carry spaces. The site's importer reads this line
-(blaktron/agentry-web#187).
+(blaktron/agentry-web#187). A production release also writes
+
+```
+signed_darwin=developer-id TEAM=<team id> notarized=true
+```
+
+(empty on a dev prerelease), the grammar the CLI's release already writes
+for its darwin binaries; the importer's reading of it for the desktop is
+blaktron/agentry-web#188.
 **`scripts/operator/artifact-signing-setup.sh`** is how the operator connects
 the repository to their validated identity (and, with `--repo OWNER/NAME`,
 another repository this sign-in administers — the CLI's release will sign
@@ -788,9 +825,12 @@ notes generated from the commits under a header naming the signatures. Before
 same jobs as a dry run on a commit on `main`'s or `dev`'s line (the `release`
 environment admits `main` and `v*` tags), named by the describe string
 instead of a tag, and publishes no Release. Every artifact
-on Windows is Authenticode-signed (#54, below); the macOS bundle is ad-hoc
-signed only (D-001, #6) and the Linux packages carry no OS signature, and the
-download page says which is which. The plan behind this and the installers that
+on Windows is Authenticode-signed (#54, below); on macOS a production
+release's bundle and dmg are Developer ID-signed and notarized (#6, below)
+and a dev prerelease's are ad-hoc signed only (D-001); the Linux packages
+carry no OS signature. The download page says which Windows and Linux
+artifacts are signed; it says so of the macOS ones once
+blaktron/agentry-web#188 reads `signed_darwin=`. The plan behind this and the installers that
 follow: `agentry-notes/plans/desktop-installers.md`.
 
 ## The registry it talks to
