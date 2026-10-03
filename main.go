@@ -19,6 +19,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/applog"
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
+	"github.com/blaktron/agentry-desktop/internal/hostpath"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
@@ -27,6 +28,10 @@ import (
 var assets embed.FS
 
 func main() {
+	// Opened from Finder, the app has launchd's PATH, which holds no
+	// docker: give it the usual install directories before anything looks
+	// a program up (agentry-desktop#573; internal/hostpath says why).
+	hostpath.ForGUI()
 	// The Windows uninstaller's "Also remove my Agentry settings and
 	// sign-in" runs this binary once more, headless, before deleting it
 	// (build/windows/installer/project.nsi; internal/uninstall says what
