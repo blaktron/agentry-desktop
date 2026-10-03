@@ -16,6 +16,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -971,7 +972,7 @@ func Save(dir string, m *Model) error {
 	}
 	onlyIfAbsent := map[string]string{
 		"README.md":  fmt.Sprintf("# %s\n\n%s\n", m.Name, m.Summary),
-		"LICENSE":    mitLicense(m.Namespace),
+		"LICENSE":    licenseFile(m.License, m.Namespace),
 		".gitignore": "agentry-out/\n",
 	}
 	// Deterministic creation order keeps logs and tests stable.
@@ -1498,6 +1499,29 @@ func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, l
 		res.FindingCounts = *rresp.JSON200.FindingCounts
 	}
 	return res, nil
+}
+
+// licenseFile is the LICENSE a first save writes for the manifest's
+// license field, with the site's words (agentry-web lib/quickagent.ts
+// licenseFile, agentry-web#46): the MIT text with the namespace as the
+// holder when the field says MIT or nothing, and for any other id a file
+// that names it and points at its SPDX page, since the form carries no
+// other licence text. Until agentry-desktop#559 the file said MIT whatever
+// the field said: a package that declared one licence and shipped another.
+func licenseFile(license, holder string) string {
+	id := strings.TrimSpace(license)
+	if id == "" || strings.EqualFold(id, "MIT") {
+		return mitLicense(holder)
+	}
+	return fmt.Sprintf(`%s
+
+Copyright (c) %d %s
+
+This QuickAgent is licensed under the %s license, as its manifest
+declares. The license text is at https://spdx.org/licenses/%s.html;
+replace this file with that text before publishing if the license asks
+that it accompany the work.
+`, id, time.Now().Year(), holder, id, url.PathEscape(id))
 }
 
 // mitLicense is the full MIT text — a real license file, not a placeholder
