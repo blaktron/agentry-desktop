@@ -33,6 +33,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
 import { draftInFlight, takeLandedDraft } from "../drafts";
+import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest, type Editing } from "../edit";
 import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
@@ -47,7 +48,7 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // every tab change, and the form is not a file until the first save, so
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
-let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null } | null = null;
+let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null } | null = null;
 
 type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -205,7 +206,7 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenInstalled }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, openEditRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenInstalled }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
@@ -216,6 +217,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
    *  (agentry-desktop#410): the draft that landed opens now, whatever view
    *  the tab is on. */
   openDraftRev?: number;
+  /** Raised by the QuickAgent page's Edit (agentry-desktop#500): the
+   *  release it asked for (edit.ts) opens in the form now. */
+  openEditRev?: number;
   /** A registry match's page, for Describe it's "install it instead". */
   onOpenAgent?: (ns: string, name: string) => void;
   /** Settings, for Describe it's missing AI Review key. */
@@ -231,6 +235,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [touched, setTouched] = useState(!!kept || !!initialDraft);
   // The Drafter's notes, while its draft is in the form.
   const [drafted, setDrafted] = useState<main.DraftView | null>(kept?.drafted ?? initialDraft);
+  // The release the form edits (agentry-desktop#500), while the form still
+  // names its QuickAgent: Submit then adds a version to it.
+  const [editing, setEditing] = useState<Editing | null>(kept?.editing ?? null);
   // A draft still being made is followed on Describe it.
   const [view, setView] = useState<View>(draftInFlight() ? "describe" : initialView);
   const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
@@ -275,10 +282,34 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDraftRev]);
 
+  // The QuickAgent page's Edit: its release, read through the registry,
+  // opens in the form (agentry-desktop#500).
+  useEffect(() => {
+    const r = takeEditRequest();
+    if (!r) return;
+    void wrap("edit", async () => {
+      // Submit sends to this tab's registry, so the release must be one of
+      // its QuickAgents.
+      if (!sameRegistry(r.registry, registry)) {
+        throw new Error(`${r.namespace}/${r.name} is on ${r.registry}, and the Build tab submits to ${registry}. Choose that registry in Settings → Registry settings, then press Edit again.`);
+      }
+      takeEdit(await BuildAPI.EditRelease(r.registry, r.namespace, r.name));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openEditRev]);
+
+  // The edit lasts while the form names its QuickAgent.
+  const editingNow = stillEditing(editing, model);
+  useEffect(() => {
+    if (editing && !editingNow) setEditing(null);
+  }, [editing, editingNow]);
+
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
-    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted };
-  }, [model, dir, view, touched, drafted]);
+    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing };
+    // What the QuickAgent page's Edit says it replaces (agentry-desktop#500).
+    noteHeldForm(kept ? kept.model.name || "a QuickAgent with no name yet" : null);
+  }, [model, dir, view, touched, drafted, editing]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
@@ -367,6 +398,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setDir(d);
       setModel(loaded);
       setDrafted(null);
+      setEditing(null);
       setTouched(true);
       setResult(null);
       setPubResult(null);
@@ -496,7 +528,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   function startOver() {
     kept = null;
+    noteHeldForm(null);
     setDrafted(null);
+    setEditing(null);
     resetOutcome();
     asked.current.clear();
     setServerChecks({});
@@ -515,6 +549,26 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     moved.current = true;
     setModel(new build.Model(v.model));
     setDrafted(v);
+    setEditing(null);
+    setTouched(true);
+    setDir("");
+    resetOutcome();
+    setSummary(null);
+    setView("summary");
+    setAt(stepOf("review"));
+  }
+
+  // A release opened by Edit: into the form under its own name at the next
+  // minor, with no folder yet (the first save asks, D-030), on the summary,
+  // as a draft opens. What the Builder cannot hold was dropped in Go,
+  // without a word (D6).
+  function takeEdit(v: main.EditView) {
+    if (!v.model) return;
+    tookDraft.current = true;
+    moved.current = true;
+    setModel(new build.Model(v.model));
+    setDrafted(null);
+    setEditing({ namespace: v.namespace, name: v.name, from: v.from, version: v.version });
     setTouched(true);
     setDir("");
     resetOutcome();
@@ -547,7 +601,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     basics: (
       <>
         <label className="small" style={{ display: "block" }}>name
-          <input style={inputStyle} className="mono" value={m.name} onChange={(e) => set({ name: e.target.value })} placeholder="my-quickagent" />
+          <input style={inputStyle} className="mono" value={m.name} onChange={(e) => set({ name: e.target.value })} placeholder="my-quickagent" readOnly={!!editingNow} title={editingNow ? "Edit adds a version to this QuickAgent, so its name stays" : undefined} />
         </label>
         <label className="small" style={{ display: "block", marginTop: 8 }}>summary (one line, ≤140 chars)
           <input style={inputStyle} maxLength={140} value={m.summary} onChange={(e) => set({ summary: e.target.value })} />
@@ -850,7 +904,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       <>
         <div className="row">
           <label className="small grow">namespace
-            <input style={inputStyle} className="mono" value={m.namespace} onChange={(e) => set({ namespace: e.target.value })} />
+            <input style={inputStyle} className="mono" value={m.namespace} onChange={(e) => set({ namespace: e.target.value })} readOnly={!!editingNow} title={editingNow ? "Edit adds a version to this QuickAgent, so its namespace stays" : undefined} />
           </label>
           <label className="small">version
             <input className="mono" value={m.version} onChange={(e) => set({ version: e.target.value })} />
@@ -930,10 +984,19 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     />
   );
 
+  const editingNotice = editingNow && (view === "steps" || view === "advanced" || view === "summary") ? (
+    <Notice tone="info">
+      {editingLine(editingNow, m.version)}{" "}
+      {onOpenAgent && <Button variant="link" onClick={() => onOpenAgent(editingNow.namespace, editingNow.name)}>Open its page</Button>}
+    </Notice>
+  ) : null;
+
   const notices = (
     <>
       <ErrorBox error={error} />
       {notice && <Notice tone="info">{notice}</Notice>}
+      {editingNotice}
+      {busy === "edit" && <Spinner label="Reading the release into the form…" />}
       {drafted && (view === "steps" || view === "advanced") && (
         <Notice tone="info">The Drafter made this draft from your description. It is a starting point: check every step, and what it may reach on Review, before you save or publish it.</Notice>
       )}
@@ -951,6 +1014,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         {header}
         <ErrorBox error={error} />
         {notice && <Notice tone="info">{notice}</Notice>}
+        {editingNotice}
         {summary ? (
           <SummaryView
             s={summary}
