@@ -258,17 +258,6 @@ jobs:
           # Read in a subshell, so nothing else in the file reaches the build.
           cn=$(set -a; . build/release.env; printf '%s' "${AGENTRY_WINDOWS_SIGNING_CN:-}")
           [ -z "$cn" ] || echo "AGENTRY_WINDOWS_SIGNING_CN=${cn}" >> "$GITHUB_ENV"
-      # The agentry CLI the installer and the Linux packages carry
-      # (agentry-desktop#580; plan cli-on-path.md D3, D5, D8; D-060): the
-      # release go.mod pins, on this release's channel (the registry above),
-      # signed, checked against its SHA256SUMS and its BUILD-INFO, into
-      # build/cli. The installer check reads it back with --cli and verifies
-      # its signature; the package smoke runs it as /usr/bin/agentry. The
-      # build token reads agentry-cli's releases as it reads its module.
-      - name: The pinned agentry CLI, for the installer and the packages
-        env:
-          GH_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
-        run: make fetch-cli
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins
@@ -287,6 +276,18 @@ jobs:
           makensis -VERSION; 7z | sed -n 2p; java -version 2>&1 | sed -n 1p; osslsigncode --version 2>&1 | sed -n 1p
       # jsign, the signer, at the version and digest scripts/sign-windows.sh
       # pins; a jar with another digest is refused before it runs.
+      # The agentry CLI the installer and the Linux packages carry (after the
+      # step above, which brings jq)
+      # (agentry-desktop#580; plan cli-on-path.md D3, D5, D8; D-061): the
+      # release go.mod pins, on this release's channel (the registry above),
+      # signed, checked against its SHA256SUMS and its BUILD-INFO, into
+      # build/cli. The installer check reads it back with --cli and verifies
+      # its signature; the package smoke runs it as /usr/bin/agentry. The
+      # build token reads agentry-cli's releases as it reads its module.
+      - name: The pinned agentry CLI, for the installer and the packages
+        env:
+          GH_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: make fetch-cli
       - name: jsign at the pinned digest
         run: scripts/sign-windows.sh fetch "$RUNNER_TEMP"
       # Authenticode (agentry-desktop#54; plan os-code-signing.md §4), in

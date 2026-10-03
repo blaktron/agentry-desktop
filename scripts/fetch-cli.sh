@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The agentry CLI the desktop's packages carry (agentry-desktop#580; plan
-# agentry-notes/plans/cli-on-path.md §6, D3, D5, D8; D-060).
+# agentry-notes/plans/cli-on-path.md §6, D3, D5, D8; D-061).
 #
 #   scripts/fetch-cli.sh OUT_DIR        (release; GH_TOKEN reads agentry-cli)
 #
@@ -23,6 +23,10 @@
 #     registry this desktop bakes in (a dev desktop never carries a CLI that
 #     talks to production, or the reverse: DEV-066's "one page, one
 #     registry");
+#   - SHA256SUMS.minisig, when the release has one, against the key set
+#     this build carries and for this product and version
+#     (internal/cmd/verifysums; a CLI release's sums are signed once
+#     agentry-cli has the estate's key, and are unsigned before that);
 #   - BUILD-INFO claims a Windows signature (signed_windows=authenticode …):
 #     the signature itself is verified against the pinned Microsoft root and
 #     the CN build/release.env names when the installer is read back
@@ -107,8 +111,20 @@ esac
 
 pin=$(pin_of go.mod)
 [ -n "$pin" ] || die "go.mod requires no $MODULE"
-mapfile -t tags < <(api "releases?per_page=100" -H "Accept: application/vnd.github+json" | jq -r '.[] | select(.draft | not) | .tag_name')
-[ "${#tags[@]}" -gt 0 ] || die "could not list $REPO's releases"
+# Production reads its one tag; dev needs the list, a page of 100 at a time.
+if [ "$channel" = production ]; then
+  tags=("$pin")
+  [ "$(api "releases/tags/$pin" -H "Accept: application/vnd.github+json" | jq -r '.prerelease')" = false ] ||
+    die "$REPO $pin is not a published release (or not one that is not a prerelease)"
+else
+  tags=()
+  for page in 1 2 3 4 5; do
+    mapfile -t more < <(api "releases?per_page=100&page=$page" -H "Accept: application/vnd.github+json" | jq -r '.[] | select(.draft | not) | .tag_name')
+    [ "${#more[@]}" -gt 0 ] || break
+    tags+=("${more[@]}")
+  done
+  [ "${#tags[@]}" -gt 0 ] || die "could not list the releases of $REPO"
+fi
 tag=$(tag_for "$pin" "$channel" "${tags[@]}") || die "no CLI release to carry"
 version=${tag#v}
 echo "fetch-cli: go.mod pins $pin; the $channel desktop carries $REPO $tag"
@@ -128,6 +144,12 @@ for f in "$exe" "$lin" BUILD-INFO; do
   grep -q "  $f\$" "$work/SHA256SUMS" || die "$tag's SHA256SUMS does not list $f"
 done
 (cd "$work" && sha256sum --quiet -c --ignore-missing SHA256SUMS) || die "$tag's files do not match its SHA256SUMS"
+sig_id=$(jq -r '.assets[] | select(.name == "SHA256SUMS.minisig") | .id' "$work/release.json")
+if [ -n "$sig_id" ]; then
+  api "releases/assets/$sig_id" -H "Accept: application/octet-stream" -o "$work/SHA256SUMS.minisig" || die "could not download SHA256SUMS.minisig from $tag"
+  GOWORK=off go run ./internal/cmd/verifysums -product agentry-cli -version "$version" "$work/SHA256SUMS" "$work/SHA256SUMS.minisig" ||
+    die "$tag's SHA256SUMS.minisig does not verify against this build's key set"
+fi
 
 bi="$work/BUILD-INFO"
 [ "$(info "$bi" product)" = agentry-cli ] || die "$tag's BUILD-INFO is not agentry-cli's"

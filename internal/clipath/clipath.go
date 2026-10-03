@@ -1,6 +1,6 @@
 // Package clipath puts the agentry CLI the Windows installer carries on the
 // person's user Path, and takes it off again (agentry-desktop#580; plan
-// agentry-notes/plans/cli-on-path.md §6, D3; D-060).
+// agentry-notes/plans/cli-on-path.md §6, D3; D-061).
 //
 // The installer runs `agentry-desktop.exe --add-cli-to-path` after it has
 // laid the files down, and the uninstaller `--remove-cli-from-path` before it

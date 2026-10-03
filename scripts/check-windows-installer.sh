@@ -173,7 +173,9 @@ grep -q -E '^!define WAILS_INSTALL_SCOPE "user"' "$nsi" || fail "$nsi does not d
 install_section=$(awk '/^Section[[:space:]]*$/{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi")
 [ -n "$install_section" ] || fail "no install section found in $nsi"
 grep -q 'wails.files' <<<"$install_section" || fail "the install section in $nsi does not copy the files (the awk found the wrong block)"
-if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete ' >/dev/null; then
+# The one Delete the section may hold is the CLI's own old copy, moved aside
+# so a running agentry.exe does not stop an upgrade (agentry-desktop#580).
+if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -v -F 'Delete "$INSTDIR\bin\agentry.exe.old"' | grep -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete ' >/dev/null; then
   printf '%s\n' "$install_section" >&2
   fail "the install section reaches beyond \$INSTDIR, the Start Menu and the uninstall key"
 fi

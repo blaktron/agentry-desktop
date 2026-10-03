@@ -126,7 +126,7 @@ FunctionEnd
 # Everything this section touches: $INSTDIR, the per-user Start Menu, the
 # per-user uninstall key (HKCU), the WebView2 runtime if it is missing, and,
 # when the build carries the agentry CLI, one entry on the user Path
-# (HKCU\Environment), which the app writes (D-060). Nothing under the
+# (HKCU\Environment), which the app writes (D-061). Nothing under the
 # person's profile beyond those.
 Section
     !insertmacro wails.setShellContext
@@ -143,7 +143,14 @@ Section
     # plan cli-on-path.md D3, reversing desktop-installers.md D14).
     !if /FileExists "..\..\cli\agentry.exe"
     SetOutPath "$INSTDIR\bin"
+    # A running agentry.exe (an MCP session, a long run) cannot be
+    # overwritten, which would stop a silent self-update half way, but it can
+    # be renamed: the old copy moves aside, the new one is written, and the
+    # old one goes now if it is free or at the next install if it is not.
+    Delete "$INSTDIR\bin\agentry.exe.old"
+    Rename "$INSTDIR\bin\agentry.exe" "$INSTDIR\bin\agentry.exe.old"
     File "..\..\cli\agentry.exe"
+    Delete "$INSTDIR\bin\agentry.exe.old"
     SetOutPath $INSTDIR
     !endif
 
