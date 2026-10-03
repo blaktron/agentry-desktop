@@ -124,8 +124,10 @@ Function .onInit
 FunctionEnd
 
 # Everything this section touches: $INSTDIR, the per-user Start Menu, the
-# per-user uninstall key (HKCU), and the WebView2 runtime if it is missing.
-# Nothing under the person's profile beyond those.
+# per-user uninstall key (HKCU), the WebView2 runtime if it is missing, and,
+# when the build carries the agentry CLI, one entry on the user Path
+# (HKCU\Environment), which the app writes (D-060). Nothing under the
+# person's profile beyond those.
 Section
     !insertmacro wails.setShellContext
 
@@ -135,6 +137,16 @@ Section
 
     !insertmacro wails.files
 
+    # The agentry CLI, when the build carries it: the release fetches the
+    # CLI release go.mod pins, signed, into build/cli (scripts/fetch-cli.sh);
+    # a PR build has none and installs without it (agentry-desktop#580;
+    # plan cli-on-path.md D3, reversing desktop-installers.md D14).
+    !if /FileExists "..\..\cli\agentry.exe"
+    SetOutPath "$INSTDIR\bin"
+    File "..\..\cli\agentry.exe"
+    SetOutPath $INSTDIR
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
     !insertmacro wails.associateFiles
@@ -143,6 +155,22 @@ Section
     !insertmacro wails.writeUninstaller
     WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKCU "${UNINST_KEY}" "URLInfoAbout" "https://secureagentry.net"
+
+    # The CLI's directory on the user Path, appended once. The app does the
+    # edit (internal/clipath): it reads and writes the whole value, which an
+    # NSIS string, 1,024 characters by default, could cut short. A silent
+    # self-update runs this again and changes nothing. A failure leaves the
+    # CLI installed and says where it is.
+    !if /FileExists "..\..\cli\agentry.exe"
+    Push $0
+    ClearErrors
+    ExecWait '"$INSTDIR\${PRODUCT_EXECUTABLE}" --add-cli-to-path' $0
+    ${If} ${Errors}
+    ${OrIf} $0 <> 0
+        DetailPrint "The agentry command is in $INSTDIR\bin but could not be added to your Path (exit code $0)"
+    ${EndIf}
+    Pop $0
+    !endif
 SectionEnd
 
 # The uninstaller. Sections run in the order they are declared. The first
@@ -205,6 +233,20 @@ Section /o "un.Also remove my Agentry settings and sign-in" SEC_UN_SETTINGS
     Pop $0
 SectionEnd
 
+# The agentry command's entry comes off the user Path while the application
+# that put it there is still here to do it (internal/clipath). Every other
+# entry stays as it was, and a Path without the entry is left alone.
+Section "-un.RemoveCliFromPath"
+    Push $0
+    ClearErrors
+    ExecWait '"$INSTDIR\${PRODUCT_EXECUTABLE}" --remove-cli-from-path' $0
+    ${If} ${Errors}
+    ${OrIf} $0 <> 0
+        DetailPrint "The agentry command's entry could not be removed from your Path (exit code $0)"
+    ${EndIf}
+    Pop $0
+SectionEnd
+
 Section "-un.RemoveApplication"
     !insertmacro wails.setShellContext
 
@@ -221,7 +263,7 @@ Section "-un.RemoveApplication"
 SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_APP} "Removes the application from $INSTDIR, its Start Menu shortcut, its Apps & features entry and its WebView2 cache. Your settings and sign-in stay."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_APP} "Removes the application and the agentry command from $INSTDIR, the command's entry on your Path, its Start Menu shortcut, its Apps & features entry and its WebView2 cache. Your settings and sign-in stay."
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_KEEP_IMAGES} "Leaves the Docker images Agentry downloaded and built in Docker: every ghcr.io/blaktron/agentry-* image, the agentry-runner and agentry-runner-exec builds, and the exact images the runner policy pins. Unticked, those are removed, one by one; no other image is selected. The agentry CLI uses the same images."
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_SETTINGS} "Also deletes %USERPROFILE%\.config\agentry (settings, installed agents, pinned keys), %USERPROFILE%\.agentry\runner (runner policy and profiles) — or where AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME point — and every agentry entry in Windows Credential Manager (registry sign-ins and the model key). The agentry CLI shares all of these."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END

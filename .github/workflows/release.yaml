@@ -258,6 +258,17 @@ jobs:
           # Read in a subshell, so nothing else in the file reaches the build.
           cn=$(set -a; . build/release.env; printf '%s' "${AGENTRY_WINDOWS_SIGNING_CN:-}")
           [ -z "$cn" ] || echo "AGENTRY_WINDOWS_SIGNING_CN=${cn}" >> "$GITHUB_ENV"
+      # The agentry CLI the installer and the Linux packages carry
+      # (agentry-desktop#580; plan cli-on-path.md D3, D5, D8; D-060): the
+      # release go.mod pins, on this release's channel (the registry above),
+      # signed, checked against its SHA256SUMS and its BUILD-INFO, into
+      # build/cli. The installer check reads it back with --cli and verifies
+      # its signature; the package smoke runs it as /usr/bin/agentry. The
+      # build token reads agentry-cli's releases as it reads its module.
+      - name: The pinned agentry CLI, for the installer and the packages
+        env:
+          GH_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
+        run: make fetch-cli
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
       - name: Install the wails CLI at the version go.mod pins

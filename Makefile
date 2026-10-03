@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # unsigned Windows package, which PR and workstation builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
+.PHONY: fetch-cli dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -169,7 +169,20 @@ smoke-darwin-selfupdate:
 # scripts/acceptance/windows-signing.sh build/bin/agentry-desktop.exe.
 # Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe, its zip,
 # and build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe.
+#
+# The agentry CLI (agentry-desktop#580; plan cli-on-path.md D3, D8): when
+# build/cli holds it (`make fetch-cli`, which the release runs with the
+# registry it bakes and a token that reads agentry-cli), the installer
+# carries build/cli/agentry.exe into $INSTDIR\bin and puts it on the user
+# Path, the check reads it back with --cli, and the Linux packages carry
+# build/cli/agentry as /usr/bin/agentry. Without it (a PR build) neither
+# carries a CLI.
 package-windows: build-windows sign-windows finish-windows
+
+# The CLI release go.mod pins, on the channel AGENTRY_DEFAULT_REGISTRY names,
+# checked against its sums and BUILD-INFO (scripts/fetch-cli.sh).
+fetch-cli:
+	scripts/fetch-cli.sh build/cli
 
 build-windows:
 	wails build $(WAILS_FLAGS) -skipbindings -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
@@ -183,7 +196,7 @@ endif
 finish-windows:
 	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
-	scripts/check-windows-installer.sh $(if $(strip $(SIGN_CMD)),--signed --report build/bin/windows-signing.txt,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
+	scripts/check-windows-installer.sh $(if $(strip $(SIGN_CMD)),--signed --report build/bin/windows-signing.txt,) $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
 # Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
 # 4.1 headers, from the vendored tree, so the host needs Docker and nothing
