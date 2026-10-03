@@ -29,7 +29,7 @@ import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
-import { requestEdit } from "./edit";
+import { requestEdit, sameRegistry } from "./edit";
 
 export type Route =
   | { page: "browse" }
@@ -240,7 +240,9 @@ export default function App() {
                 name={route.name}
                 backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
                 onBack={() => nav({ page: route.back ?? "browse" })}
-                onEdit={() => {
+                // Edit opens in the Build tab, which submits to the app's
+                // registry: offered only for that registry's QuickAgents.
+                onEdit={!sameRegistry(route.registry ?? registry, registry) ? undefined : () => {
                   requestEdit({ registry: route.registry ?? registry, namespace: route.ns, name: route.name });
                   setOpenEditRev((n) => n + 1);
                   nav({ page: "build" });

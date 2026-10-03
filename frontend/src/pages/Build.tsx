@@ -33,7 +33,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
 import { draftInFlight, takeLandedDraft } from "../drafts";
-import { editingLine, stillEditing, takeEditRequest, type Editing } from "../edit";
+import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest, type Editing } from "../edit";
 import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
@@ -49,12 +49,6 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
 let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null } | null = null;
-
-/** The QuickAgent the form still holds unsaved work for, if any: what the
- *  QuickAgent page's Edit says it replaces (agentry-desktop#500). */
-export function formInProgress(): string | null {
-  return kept ? kept.model.name || "a QuickAgent with no name yet" : null;
-}
 
 type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -296,7 +290,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     void wrap("edit", async () => {
       // Submit sends to this tab's registry, so the release must be one of
       // its QuickAgents.
-      if (r.registry !== registry) {
+      if (!sameRegistry(r.registry, registry)) {
         throw new Error(`${r.namespace}/${r.name} is on ${r.registry}, and the Build tab submits to ${registry}. Choose that registry in Settings → Registry settings, then press Edit again.`);
       }
       takeEdit(await BuildAPI.EditRelease(r.registry, r.namespace, r.name));
@@ -313,6 +307,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
     if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing };
+    // What the QuickAgent page's Edit says it replaces (agentry-desktop#500).
+    noteHeldForm(kept ? kept.model.name || "a QuickAgent with no name yet" : null);
   }, [model, dir, view, touched, drafted, editing]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
@@ -532,6 +528,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   function startOver() {
     kept = null;
+    noteHeldForm(null);
     setDrafted(null);
     setEditing(null);
     resetOutcome();

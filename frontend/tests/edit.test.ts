@@ -4,7 +4,7 @@
 // the form still names the QuickAgent.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { editingLine, offersEdit, requestEdit, stillEditing, takeEditRequest } from "../src/edit.ts";
+import { editingLine, heldForm, noteHeldForm, offersEdit, requestEdit, sameRegistry, stillEditing, takeEditRequest } from "../src/edit.ts";
 
 test("Edit is offered where the registry says this sign-in may publish, with a release to edit", () => {
   assert.equal(offersEdit({ canPublish: true, latest: "1.2.0" }), true);
@@ -37,4 +37,18 @@ test("a request is taken once", () => {
   requestEdit({ registry: "https://dev.example", namespace: "chris", name: "meeting-actions" });
   assert.deepEqual(takeEditRequest(), { registry: "https://dev.example", namespace: "chris", name: "meeting-actions" });
   assert.equal(takeEditRequest(), null);
+});
+
+test("the Build tab edits only its own registry's QuickAgents, however the address is written", () => {
+  assert.equal(sameRegistry("https://dev.secureagentry.net/", "https://dev.secureagentry.net"), true);
+  assert.equal(sameRegistry("HTTPS://dev.secureagentry.net", "https://dev.secureagentry.net"), true);
+  assert.equal(sameRegistry("https://secureagentry.net", "https://dev.secureagentry.net"), false);
+  assert.equal(sameRegistry("", ""), false);
+});
+
+test("Edit asks before replacing what the Build tab holds", () => {
+  noteHeldForm("meeting-actions");
+  assert.equal(heldForm(), "meeting-actions");
+  noteHeldForm(null);
+  assert.equal(heldForm(), null);
 });

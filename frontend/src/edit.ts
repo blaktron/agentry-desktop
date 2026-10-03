@@ -50,6 +50,28 @@ export function editingLine(e: Editing, version: string): string {
   return `Editing ${e.namespace}/${e.name}, from version ${e.from}. Submit adds version ${v} to it.`;
 }
 
+/** Whether a QuickAgent page on registry `page` may open an edit in the
+ *  Build tab, which submits to `build`: the same registry, however its
+ *  address was written (a trailing slash, the scheme's case). */
+export function sameRegistry(page: string, build: string): boolean {
+  const norm = (u: string) => u.trim().replace(/\/+$/, "").toLowerCase();
+  return norm(page) !== "" && norm(page) === norm(build);
+}
+
+// held names the QuickAgent the Build tab's form holds, which Edit would
+// replace: the tab says so whenever its kept work changes.
+let held: string | null = null;
+
+/** The Build tab: what its form holds now, or null when it holds nothing. */
+export function noteHeldForm(name: string | null): void {
+  held = name;
+}
+
+/** What the QuickAgent page's Edit asks before replacing. */
+export function heldForm(): string | null {
+  return held;
+}
+
 let pending: EditRequest | null = null;
 
 /** The QuickAgent page's Edit: the Build tab takes it when it opens. */

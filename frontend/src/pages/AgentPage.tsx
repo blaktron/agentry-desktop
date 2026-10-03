@@ -14,8 +14,7 @@ import RunPanel from "./RunPanel";
 import { advisoryWords } from "../advisory";
 import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { offersEdit } from "../edit";
-import { formInProgress } from "./Build";
+import { heldForm, offersEdit } from "../edit";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -76,7 +75,7 @@ export default function AgentPage({
   // tab holds one (as the site asks before replacing an unsent draft).
   const [confirmEdit, setConfirmEdit] = useState<string | null>(null);
   function edit() {
-    const held = formInProgress();
+    const held = heldForm();
     if (held) setConfirmEdit(held);
     else onEdit?.();
   }

@@ -50,7 +50,9 @@ func TestFromReleaseFixesTheNameSetsTheVersionAndDropsWhatTheBuilderCannotHold(t
 		m.InstructionFile != "AGENT.md" || m.HadComments {
 		t.Fatalf("unheld fields kept: %+v", m)
 	}
-	// The lists the page maps over are never nil.
+	// The lists the page maps over and that FromRelease resets are never
+	// nil (KnowledgeShips is nil, as FromDraft leaves it; the page reads it
+	// with a fallback).
 	if m.Authors == nil || m.Dependencies == nil || m.PublishInclude == nil {
 		t.Fatal("a nil list reaches the page")
 	}
