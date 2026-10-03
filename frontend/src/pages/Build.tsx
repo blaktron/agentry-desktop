@@ -1105,7 +1105,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         {touched && (
           <p className="small">
             {m.name ? <><span className="mono">{m.name}</span> is still in the form{dir ? <> (saving into <span className="mono">{dir}</span>)</> : ""}.</> : "The form still holds your work."}{" "}
-            Continue it{" "}
+            {drafted?.revision && revisionShown && (
+              <>
+                It is Edit with AI&apos;s revision of {drafted.revision.namespace}/{drafted.revision.name} {drafted.revision.from}:{" "}
+                <Button variant="link" onClick={() => switchTo("summary")}>see what changed and publish it</Button>, or continue it{" "}
+              </>
+            )}
+            {!(drafted?.revision && revisionShown) && "Continue it "}
             <Button variant="link" onClick={() => switchTo("steps")}>step by step</Button> or in{" "}
             <Button variant="link" onClick={() => switchTo("advanced")}>Advanced</Button>, or{" "}
             <Button variant="link" onClick={startOver}>start a new one</Button>.
