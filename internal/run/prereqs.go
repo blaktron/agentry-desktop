@@ -129,7 +129,7 @@ func DetectPrereqs(ctx context.Context) *Prereqs {
 		p.DownloadURL = "https://www.docker.com/products/docker-desktop/"
 	}
 	docker := newDockerClient()
-	if err := docker.Available(ctx); err != nil {
+	if err := dockerAvailable(ctx, docker); err != nil {
 		p.DockerErr = err.Error()
 	} else {
 		p.DockerOK = true

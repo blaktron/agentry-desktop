@@ -137,7 +137,7 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.KeepProfilesByDefault = pol.KeepProfilesByDefault()
 
 	docker := newDockerClient()
-	if err := docker.Available(ctx); err != nil {
+	if err := dockerAvailable(ctx, docker); err != nil {
 		st.DockerErr = err.Error()
 		return st, nil
 	}
