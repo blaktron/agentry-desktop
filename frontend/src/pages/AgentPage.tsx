@@ -14,6 +14,8 @@ import RunPanel from "./RunPanel";
 import { advisoryWords } from "../advisory";
 import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { offersEdit } from "../edit";
+import { formInProgress } from "./Build";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -35,13 +37,17 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack, backLabel = "← back to search",
+  registry, ns, name, onBack, backLabel = "← back to search", onEdit,
 }: {
   registry: string;
   ns: string;
   name: string;
   onBack: () => void;
   backLabel?: string;
+  /** Edit (agentry-desktop#500): the Build tab on the current release,
+   *  under this name at its next minor. Offered where the registry says
+   *  this sign-in may add a version (canPublish; DEV-199). */
+  onEdit?: () => void;
 }) {
   const [detail, setDetail] = useState<main.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +72,14 @@ export default function AgentPage({
   // export it could not write): a page with no result screen says it here.
   const [installWarning, setInstallWarning] = useState<string | null>(null);
   const [runOpen, setRunOpen] = useState(false);
+  // Edit replaces the Build tab's unsaved form, so it asks first when the
+  // tab holds one (as the site asks before replacing an unsent draft).
+  const [confirmEdit, setConfirmEdit] = useState<string | null>(null);
+  function edit() {
+    const held = formInProgress();
+    if (held) setConfirmEdit(held);
+    else onEdit?.();
+  }
   const [toolsOpen, setToolsOpen] = useState(false);
 
   // What THIS machine has accepted for this agent (shared install state) —
@@ -198,6 +212,7 @@ export default function AgentPage({
               <>
                 <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
                 <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>
+                {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
                 {installButton}
               </>
             )
@@ -255,6 +270,19 @@ export default function AgentPage({
             </div>
           ))}
         </Card>
+      )}
+
+      {confirmEdit && (
+        <Modal title={`Edit ${a.namespace}/${a.name}?`} onClose={() => setConfirmEdit(null)}>
+          <p>
+            The Build tab&apos;s form holds <span className="mono">{confirmEdit}</span>. Edit replaces it with{" "}
+            {a.namespace}/{a.name} {detail.latest}. Files you saved stay where you saved them.
+          </p>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button onClick={() => setConfirmEdit(null)}>Cancel</Button>
+            <Button variant="primary" onClick={() => { setConfirmEdit(null); onEdit?.(); }}>Replace it</Button>
+          </div>
+        </Modal>
       )}
 
       {confirmRemove && (

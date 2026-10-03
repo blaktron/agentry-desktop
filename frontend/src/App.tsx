@@ -29,6 +29,7 @@ import { Recover } from "./Recover";
 import { SidebarNav } from "./nav";
 import { UnsafeBadge, UnsafeGlow } from "./unsafe";
 import { Button, Notice, Wordmark } from "./ui";
+import { requestEdit } from "./edit";
 
 export type Route =
   | { page: "browse" }
@@ -60,6 +61,9 @@ export default function App() {
   // Bumped by the draft's "Open the draft", so the Build tab opens the
   // draft that landed whatever view it is on (agentry-desktop#410).
   const [openDraftRev, setOpenDraftRev] = useState(0);
+  // Bumped by the QuickAgent page's Edit, so the Build tab opens the
+  // release it asked for (edit.ts; agentry-desktop#500).
+  const [openEditRev, setOpenEditRev] = useState(0);
   // The corner the running flows' cards stack in (progress.tsx).
   const [corner, setCorner] = useState<HTMLElement | null>(null);
   // A run on this computer's setup, opened again by Back to the setup from
@@ -236,6 +240,11 @@ export default function App() {
                 name={route.name}
                 backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
                 onBack={() => nav({ page: route.back ?? "browse" })}
+                onEdit={() => {
+                  requestEdit({ registry: route.registry ?? registry, namespace: route.ns, name: route.name });
+                  setOpenEditRev((n) => n + 1);
+                  nav({ page: "build" });
+                }}
               />
             )}
             {route.page === "installed" && (
@@ -270,7 +279,7 @@ export default function App() {
             />
           )}
             {route.page === "build" && (
-              <Build registry={registry} openDraftRev={openDraftRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenInstalled={() => nav({ page: "installed" })} />
+              <Build registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenInstalled={() => nav({ page: "installed" })} />
             )}
             {route.page === "validate" && <Validate registry={registry} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} />}
             {route.page === "settings" && (
