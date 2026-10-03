@@ -5,7 +5,7 @@
 # without Windows: the install-over-install and uninstall checks run by hand
 # on a Windows machine until #55 gives CI one.
 #
-#   scripts/check-windows-installer.sh [--signed] [--report FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]
+#   scripts/check-windows-installer.sh [--signed] [--report FILE] [--cli FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]
 #   scripts/check-windows-installer.sh --self-test
 #
 # What it proves:
@@ -17,14 +17,18 @@
 #      payload's, which is why the elevated forms are refused too);
 #   3. it installs exactly two files, the application and its uninstaller
 #      (everything else is NSIS plumbing under $PLUGINSDIR, the WebView2
-#      bootstrapper included);
+#      bootstrapper included) — three with --cli FILE (agentry-desktop#580):
+#      bin/agentry.exe too, byte-identical to FILE, the CLI release
+#      scripts/fetch-cli.sh brought in; without --cli an installer carrying
+#      a CLI is refused, since nothing then says which CLI it is;
 #   4. the application it carries is byte-identical to the binary the zip
 #      carries: the installer is not a different build;
 #   5. the script's install section reaches nothing under the person's
 #      profile, the settings section is off by default, and the application
 #      section cannot be unticked;
 #   6. with --signed (agentry-desktop#54): the installer, the application it
-#      carries and the uninstaller it embeds each carry an Authenticode
+#      carries, the uninstaller it embeds and, with --cli, the agentry CLI
+#      each carry an Authenticode
 #      signature that osslsigncode verifies to the pinned Microsoft Identity
 #      Verification root (build/windows/signing/), timestamped, all three by
 #      the same subject — and the subject's CN is AGENTRY_WINDOWS_SIGNING_CN
@@ -87,10 +91,11 @@ if [ "${1:-}" = "--self-test" ]; then
   exit 0
 fi
 
-signed=0; report=""
+signed=0; report=""; cli=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --signed) signed=1; shift ;;
+    --cli) cli="${2:?--cli needs the CLI file}"; shift 2 ;;
     --report) report="${2:?--report needs a file}"; shift 2 ;;
     --) shift; break ;;
     -*) echo "check-windows-installer: unknown option $1" >&2; exit 2 ;;
@@ -107,6 +112,7 @@ fail() { echo "check-windows-installer: $*" >&2; exit 1; }
 [ -f "$setup" ] || fail "$setup does not exist"
 [ -f "$exe" ] || fail "$exe does not exist"
 [ -f "$nsi" ] || fail "$nsi does not exist"
+[ -z "$cli" ] || [ -f "$cli" ] || fail "$cli does not exist"
 command -v 7z >/dev/null 2>&1 || fail "7z is needed to read the installer (apt-get install p7zip-full; dnf install p7zip p7zip-plugins)"
 
 # 1. The name.
@@ -136,9 +142,13 @@ fi
 entries=$(7z l -slt "$setup" | awk '/^----------$/{on=1; next} on && /^Path = /{sub(/^Path = /, ""); print}' | tr '\\' '/')
 listing=$(printf '%s\n' "$entries" | grep -v '^\$PLUGINSDIR' || true)
 expected=$'agentry-desktop.exe\nuninstall.exe'
+[ -z "$cli" ] || expected+=$'\nbin/agentry.exe'
 if [ "$(printf '%s\n' "$listing" | sort)" != "$(printf '%s\n' "$expected" | sort)" ]; then
   printf 'installed files:\n%s\n' "$listing" >&2
-  fail "the installer does not install exactly agentry-desktop.exe and uninstall.exe"
+  if [ -n "$cli" ]; then
+    fail "the installer does not install exactly agentry-desktop.exe, bin/agentry.exe and uninstall.exe"
+  fi
+  fail "the installer does not install exactly agentry-desktop.exe and uninstall.exe (one that carries the CLI is checked with --cli)"
 fi
 grep -q '^\$PLUGINSDIR/webview2bootstrapper/MicrosoftEdgeWebview2Setup.exe$' <<<"$entries" || fail "the WebView2 bootstrapper is not in the installer"
 
@@ -147,13 +157,25 @@ if ! 7z e -so "$setup" agentry-desktop.exe 2>/dev/null | cmp -s - "$exe"; then
   fail "the agentry-desktop.exe inside the installer differs from $exe"
 fi
 
+# 4b. The CLI it carries is the release fetch-cli.sh brought in, byte for
+# byte, and the script hands the user Path to the app both ways.
+if [ -n "$cli" ]; then
+  if ! 7z e -so "$setup" "bin/agentry.exe" 2>/dev/null | cmp -s - "$cli"; then
+    fail "the bin/agentry.exe inside the installer differs from $cli"
+  fi
+  grep -E '^[[:space:]]*ExecWait .*--add-cli-to-path' "$nsi" >/dev/null || fail "the install section does not have the app put the CLI on the Path (--add-cli-to-path)"
+  grep -E '^[[:space:]]*ExecWait .*--remove-cli-from-path' "$nsi" >/dev/null || fail "the uninstaller does not have the app take the CLI off the Path (--remove-cli-from-path)"
+fi
+
 # 5. The script itself: what the install section may touch.
 grep -q -E '^!define REQUEST_EXECUTION_LEVEL "user"' "$nsi" || fail "$nsi does not define REQUEST_EXECUTION_LEVEL user"
 grep -q -E '^!define WAILS_INSTALL_SCOPE "user"' "$nsi" || fail "$nsi does not define WAILS_INSTALL_SCOPE user"
 install_section=$(awk '/^Section[[:space:]]*$/{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi")
 [ -n "$install_section" ] || fail "no install section found in $nsi"
 grep -q 'wails.files' <<<"$install_section" || fail "the install section in $nsi does not copy the files (the awk found the wrong block)"
-if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete ' >/dev/null; then
+# The one Delete the section may hold is the CLI's own old copy, moved aside
+# so a running agentry.exe does not stop an upgrade (agentry-desktop#580).
+if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -v -F 'Delete "$INSTDIR\bin\agentry.exe.old"' | grep -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete ' >/dev/null; then
   printf '%s\n' "$install_section" >&2
   fail "the install section reaches beyond \$INSTDIR, the Start Menu and the uninstall key"
 fi
@@ -170,8 +192,10 @@ settings_at=$(grep -n -E '^[[:space:]]*ExecWait .*--remove-my-settings' "$nsi" |
 [ -n "$images_at" ] && [ -n "$settings_at" ] || fail "the images or the settings step does not run the app (no ExecWait)"
 [ "$images_at" -lt "$settings_at" ] || fail "the images step runs after the settings step, which deletes the policy that names them"
 
+carries="agentry-desktop.exe + uninstall.exe"
+[ -z "$cli" ] || carries="agentry-desktop.exe + bin/agentry.exe ($(basename "$cli")) + uninstall.exe"
 if [ "$signed" -eq 0 ]; then
-  echo "check-windows-installer: $name ok — asInvoker, installs agentry-desktop.exe + uninstall.exe, same binary as $(basename "$exe"), install section stays in \$INSTDIR; unsigned (no --signed)"
+  echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR; unsigned (no --signed)"
   exit 0
 fi
 
@@ -220,6 +244,11 @@ uninst_sig=$(verify_pe "$work/uninstall.exe" "embedded uninstaller")
 cn=${setup_sig%%|*}
 [ "${exe_sig%%|*}" = "$cn" ] || fail "the application binary is signed by '${exe_sig%%|*}', the installer by '$cn'"
 [ "${uninst_sig%%|*}" = "$cn" ] || fail "the uninstaller is signed by '${uninst_sig%%|*}', the installer by '$cn'"
+if [ -n "$cli" ]; then
+  # The CLI was signed by its own release, over the same identity (plan D5).
+  cli_sig=$(verify_pe "$cli" "agentry CLI")
+  [ "${cli_sig%%|*}" = "$cn" ] || fail "the agentry CLI is signed by '${cli_sig%%|*}', the installer by '$cn'"
+fi
 # The CN the release expects, when it names one (AGENTRY_WINDOWS_SIGNING_CN,
 # exported from build/release.env by the release job): the certificate says
 # who signed, this says who was meant to. The pinned root is shared by every
@@ -237,4 +266,4 @@ if [ -n "$report" ]; then
     printf 'root=%s\n' "$root_subject"
   } > "$report"
 fi
-echo "check-windows-installer: $name ok — asInvoker, installs agentry-desktop.exe + uninstall.exe, same binary as $(basename "$exe"), install section stays in \$INSTDIR; signed by CN=$cn (installer, application and uninstaller), timestamped ${setup_sig#*|}, chain to $root_subject"
+echo "check-windows-installer: $name ok — asInvoker, installs $carries, same binary as $(basename "$exe"), install section stays in \$INSTDIR; signed by CN=$cn (installer, application, uninstaller$([ -z "$cli" ] || echo ' and the agentry CLI')), timestamped ${setup_sig#*|}, chain to $root_subject"
