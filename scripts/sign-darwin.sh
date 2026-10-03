@@ -275,7 +275,8 @@ if [ "$cmd" = app ]; then
   [ -f "$main" ] || fail "$main does not exist"
   # Every other Mach-O in the bundle, deepest first.
   find "$target/Contents" -type f ! -path "$main" -print | while IFS= read -r f; do
-    if file -b "$f" | grep -q '^Mach-O'; then printf '%s\t%s\n' "$(tr -cd / <<<"$f" | wc -c | tr -d ' ')" "$f"; fi
+    kind=$(file -b "$f")
+    if grep -q '^Mach-O' <<<"$kind"; then printf '%s\t%s\n' "$(tr -cd / <<<"$f" | wc -c | tr -d ' ')" "$f"; fi
   done | sort -rn | cut -f2- > "$W/nested"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
