@@ -38,8 +38,11 @@
 # context:primary-signature` for the image. A zip is unpacked and its bundle
 # assessed.
 #
-# Inputs come from the environment, never argv (the release job's secrets
-# reach only the two steps that sign):
+# Inputs come from the environment (the release job's secrets reach only the
+# two steps that sign). Two reach a command line on their way: the .p12
+# password, on `security import`'s for the moment it runs, and the notary
+# Key ID and Issuer ID (identifiers, not the key), on notarytool's while it
+# waits; the runner's user runs nothing else of anyone's.
 #
 #   APPLE_DEVELOPER_ID_P12           the .p12, base64 (certificate, key, Apple's G2 intermediate)   app, dmg
 #   APPLE_DEVELOPER_ID_P12_PASSWORD  its password                                                    app, dmg
@@ -52,9 +55,11 @@
 #   NOTARY_TIMEOUT_MINUTES           optional: how long to wait for Apple, default 120
 #
 # Custody (D5): the certificate lives in a keychain this script creates in its
-# own 0700 directory and deletes on exit, with the .p12 and the .p8; nothing
-# persists on the runner, and a keychain left on the search list fails the
-# run. The keychain is on the build user's search list only while codesign
+# own 0700 directory and deletes on exit, with the .p12 (removed as soon as
+# it is imported) and the .p8 (kept for the notary wait); a keychain left on
+# the search list fails the run. A process killed before its EXIT trap runs
+# (a cancelled job) leaves both behind: the release job's last step removes
+# them and fails (release.yaml, "No signing keychain or key is left"). The keychain is on the build user's search list only while codesign
 # runs (codesign finds no identity otherwise). Headless codesign also needs
 # Apple's Developer ID G2 intermediate in the host's System keychain
 # (installed on maxbookpro on 2026-10-01, agentry-desktop#152): without it
@@ -83,8 +88,9 @@ for v in $need; do
   [ -n "$val" ] || fail "$v is not set"
 done
 val=""
-for t in security codesign spctl ditto plutil base64 file; do command -v "$t" >/dev/null 2>&1 || fail "$t is missing"; done
+for t in security codesign spctl ditto plutil base64 file xcrun awk; do command -v "$t" >/dev/null 2>&1 || fail "$t is missing"; done
 xcrun --find stapler >/dev/null 2>&1 || fail "xcrun cannot find stapler (the Command Line Tools)"
+[ "$cmd" = assess ] || [ -x "$OPENSSL" ] || fail "$OPENSSL is missing"
 [ "$cmd" = assess ] || xcrun --find notarytool >/dev/null 2>&1 || fail "xcrun cannot find notarytool (the Command Line Tools)"
 
 W=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/sign-darwin.XXXXXX") || fail "no temporary directory"
@@ -99,7 +105,11 @@ kc_list() { security list-keychains -d user | sed -e 's/^[[:space:]]*"//' -e 's/
 # Put KC first on the list, keeping whatever else is there.
 kc_add() {
   local l; set -- "$KC"
-  while IFS= read -r l; do [ -n "$l" ] && [ "$l" != "$KC" ] && set -- "$@" "$l"; done <<EOF
+  # An earlier run's keychain that a kill left on the list is not carried
+  # forward.
+  while IFS= read -r l; do
+    case "$l" in ""|"$KC"|*/sign-darwin.*) ;; *) set -- "$@" "$l" ;; esac
+  done <<EOF
 $(kc_list)
 EOF
   security list-keychains -d user -s "$@"
@@ -109,7 +119,11 @@ EOF
 cleanup() {
   security delete-keychain "$KC" >/dev/null 2>&1 || true
   rm -rf "$W"
-  if kc_list | grep -qF "$(basename "$W")"; then echo "sign-darwin: the signing keychain is still on the search list" >&2; return 1; fi
+  # Captured, then matched: a grep -q on the live pipe could SIGPIPE
+  # kc_list, and under pipefail that reads as "not on the list".
+  local left
+  left=$(kc_list)
+  if grep -F "$(basename "$W")" <<<"$left" >/dev/null; then echo "sign-darwin: the signing keychain is still on the search list" >&2; return 1; fi
   return 0
 }
 # A keychain left on the list fails the run (plan os-code-signing.md M-M2 step 7).
@@ -135,12 +149,16 @@ assess_gatekeeper() {
   shift
   for i in 1 2 3 4 5 6; do
     out=$(spctl --assess "$@" --verbose=2 "$f" 2>&1 || true)
-    if grep -q ': accepted$' <<<"$out" && grep -qxF 'source=Notarized Developer ID' <<<"$out"; then
+    # Two judges, as the CLI's read-back has: spctl's verdict, and codesign
+    # checking the ticket against the "notarized" requirement.
+    if grep -q ': accepted$' <<<"$out" && grep -qxF 'source=Notarized Developer ID' <<<"$out" \
+      && codesign --verify --strict --check-notarization -R="notarized" "$f" 2>/dev/null; then
       echo "$out"; return 0
     fi
     sleep 20
   done
   echo "$out" >&2
+  codesign --verify --strict --check-notarization -R="notarized" -vvv "$f" >&2 || true
   fail "Gatekeeper does not accept $(basename "$f") as Notarized Developer ID"
 }
 
@@ -157,15 +175,21 @@ assess_app() {
   grep -qE '^CodeDirectory .*flags=0x[0-9a-f]+\(([^)]*,)?runtime[,)]' <<<"$d" || { echo "$d" >&2; fail "$app is not signed under the hardened runtime"; }
   # No entitlements: an ad-hoc entitlements blob, or one a later change
   # slipped in, is a refusal (see the header).
-  if codesign -d --entitlements - --xml "$app" 2>/dev/null | grep -q '<key>'; then
+  # Captured before it is matched (a grep -q on the live pipe could SIGPIPE
+  # codesign, and pipefail would read a match as none), and a codesign that
+  # cannot answer is a refusal, not a pass.
+  local ent dr
+  ent=$(codesign -d --entitlements - --xml "$app" 2>/dev/null) || fail "codesign could not read the entitlements of $app"
+  if grep '<key>' <<<"$ent" >/dev/null; then
     codesign -d --entitlements - "$app" >&2 2>&1 || true
     fail "$app carries entitlements; this release signs with none (add one here, deliberately, with its register line)"
   fi
   # The designated requirement is what macOS keys privacy grants and the
   # keychain's trust on: it must name our team, not a cdhash.
   # codesign quotes the value ("= \"3MU9H2V9Y9\"", seen on macOS 26.6).
-  codesign -d -r- "$app" 2>&1 | grep -qE "certificate leaf\[subject\.OU\] = \"?$APPLE_TEAM_ID\"?( |$)" \
-    || { codesign -d -r- "$app" >&2 2>&1 || true; fail "the designated requirement of $app does not name team $APPLE_TEAM_ID"; }
+  dr=$(codesign -d -r- "$app" 2>&1) || { echo "$dr" >&2; fail "codesign could not read the designated requirement of $app"; }
+  grep -E "certificate leaf\[subject\.OU\] = \"?$APPLE_TEAM_ID\"?( |$)" <<<"$dr" >/dev/null \
+    || { echo "$dr" >&2; fail "the designated requirement of $app does not name team $APPLE_TEAM_ID"; }
   xcrun stapler validate "$app" >/dev/null || fail "$app carries no valid stapled notarization ticket"
   echo "stapled: $(basename "$app")"
   assess_gatekeeper "$app" --type execute
@@ -227,14 +251,19 @@ rm -f "$W/id.p12"
 kcpass=""
 
 kc_add
-sha1=$(security find-identity -v -p codesigning "$KC" | awk -v id="\"$APPLE_SIGNING_IDENTITY\"" 'index($0, id) {print $2; exit}')
-[ -n "$sha1" ] || { security find-identity -v -p codesigning "$KC" >&2; fail "no valid identity \"$APPLE_SIGNING_IDENTITY\" in the .p12 (is Apple's G2 intermediate in the System keychain?)"; }
+idents=$(security find-identity -v -p codesigning "$KC")
+sha1=$(awk -v id="\"$APPLE_SIGNING_IDENTITY\"" 'index($0, id) && !s {s = $2} END {print s}' <<<"$idents")
+[ -n "$sha1" ] || { echo "$idents" >&2; fail "no valid identity \"$APPLE_SIGNING_IDENTITY\" in the .p12"; }
 echo "identity $APPLE_SIGNING_IDENTITY ($sha1)"
 
 sign() {
   # Another job on this user may have rewritten the list; put KC back first.
   kc_add
-  codesign --force --timestamp --keychain "$KC" --sign "$sha1" "$@" || fail "codesign failed on ${@: -1}"
+  # Without a console session, codesign takes Apple's Developer ID G2
+  # intermediate only from the System keychain; find-identity still calls
+  # the identity valid without it (agentry-desktop#152).
+  codesign --force --timestamp --keychain "$KC" --sign "$sha1" "$@" \
+    || fail "codesign failed on ${@: -1} (errSecInternalComponent above means Apple's Developer ID G2 intermediate is missing from this host's System keychain, agentry-desktop#152)"
 }
 
 # --- sign -------------------------------------------------------------------

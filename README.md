@@ -828,7 +828,9 @@ instead of a tag, and publishes no Release. Every artifact
 on Windows is Authenticode-signed (#54, below); on macOS a production
 release's bundle and dmg are Developer ID-signed and notarized (#6, below)
 and a dev prerelease's are ad-hoc signed only (D-001); the Linux packages
-carry no OS signature; and the download page says which is which. The plan behind this and the installers that
+carry no OS signature. The download page says which Windows and Linux
+artifacts are signed; it says so of the macOS ones once
+blaktron/agentry-web#188 reads `signed_darwin=`. The plan behind this and the installers that
 follow: `agentry-notes/plans/desktop-installers.md`.
 
 ## The registry it talks to

@@ -397,6 +397,12 @@ jobs:
   macos:
     needs: preflight
     runs-on: [self-hosted, macOS, ARM64]
+    # The environment the signing credentials belong in (plan
+    # os-code-signing.md D6): it admits only main and v* tags, as for
+    # linux-windows. The five APPLE_* values are still repository secrets,
+    # which any workflow in this repository could read; moving them into
+    # this environment is the operator's (agentry-desktop#563).
+    environment: release
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     outputs:
@@ -429,6 +435,9 @@ jobs:
             echo "npm_config_cache=$HOME/runner-cache/npm"
             echo "GOPRIVATE=github.com/blaktron/*"
             echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig"
+            # The two signing steps append to it, the read-back reads it,
+            # the last step removes it.
+            echo "DARWIN_SIGNING_REPORT=$RUNNER_TEMP/darwin-signing.txt"
           } >> "$GITHUB_ENV"
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
       # Job-scoped on this persistent host (see ci.yaml): removed at the end.
@@ -509,7 +518,8 @@ jobs:
       # team, the ticket, and spctl's "Notarized Developer ID"
       # (scripts/sign-darwin.sh). The certificate is imported into a keychain
       # the script makes in this job's temp directory and deletes on exit,
-      # failing if it is still on the search list (D5). The wait is Apple's.
+      # failing if it is still on the search list; the job's last steps
+      # catch a run killed before it could (D5). The wait is Apple's.
       - name: Developer ID-sign, notarize and staple the bundle
         if: steps.apple.outputs.sign == 'true'
         env:
@@ -520,8 +530,8 @@ jobs:
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: |
           set -euo pipefail
-          rm -f "$RUNNER_TEMP/darwin-signing.txt"
-          SIGN_DARWIN_REPORT="$RUNNER_TEMP/darwin-signing.txt" scripts/sign-darwin.sh app build/bin/agentry-desktop.app
+          rm -f "$DARWIN_SIGNING_REPORT"
+          SIGN_DARWIN_REPORT="$DARWIN_SIGNING_REPORT" scripts/sign-darwin.sh app build/bin/agentry-desktop.app
       # The zip and the dmg from the bundle as it now is (stapled, where this
       # release signs), and the dmg read back (scripts/check-darwin-dmg.sh:
       # it mounts, holds the bundle and an Applications shortcut, is
@@ -539,7 +549,7 @@ jobs:
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: |
           set -euo pipefail
-          SIGN_DARWIN_REPORT="$RUNNER_TEMP/darwin-signing.txt" scripts/sign-darwin.sh dmg "build/bin/agentry-desktop-$VERSION-darwin-universal.dmg"
+          SIGN_DARWIN_REPORT="$DARWIN_SIGNING_REPORT" scripts/sign-darwin.sh dmg "build/bin/agentry-desktop-$VERSION-darwin-universal.dmg"
       # The two files that ship, read back with no secret in reach: the dmg
       # and the bundle on it (check-darwin-dmg.sh --signed), and the bundle
       # the zip unpacks to — each Developer ID-signed by the team, stapled,
@@ -552,7 +562,7 @@ jobs:
           set -euo pipefail
           scripts/check-darwin-dmg.sh --signed "build/bin/agentry-desktop-$VERSION-darwin-universal.dmg" build/bin/agentry-desktop.app
           scripts/sign-darwin.sh assess "build/bin/agentry-desktop-$VERSION-darwin-universal.zip"
-          r="$RUNNER_TEMP/darwin-signing.txt"
+          r=$DARWIN_SIGNING_REPORT
           team=$(sed -n 's/^team=//p' "$r" | sort -u)
           [ "$team" = "$APPLE_TEAM_ID" ] && grep -qx 'notarized=true' "$r" && grep -q '^submission_app=' "$r" && grep -q '^submission_dmg=' "$r" \
             || { cat "$r"; echo "::error::the signing report is incomplete"; exit 1; }
@@ -591,9 +601,27 @@ jobs:
       # this runner has not got (#106) — and the script says so.
       - name: Self-update bundle-swap acceptance
         run: make smoke-darwin-selfupdate VERSION="$VERSION"
+      # The custody check of plan os-code-signing.md M-M2 step 7, at the job
+      # level: sign-darwin.sh deletes its keychain and its directory on exit,
+      # and this catches the paths where it never got to (a cancelled or
+      # timed-out job whose process was killed). Any signing keychain still
+      # on the build user's search list, or any of its directories still in
+      # this job's temp, is removed and fails the job (D5: never a persistent
+      # keychain on the runner).
+      - name: No signing keychain or key is left on the runner
+        if: always()
+        run: |
+          set -uo pipefail
+          left=$(security list-keychains -d user | sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' | grep '/sign-darwin\.' || true)
+          dirs=$(find "$RUNNER_TEMP" -maxdepth 1 -name 'sign-darwin.*' -print 2>/dev/null || true)
+          [ -z "$left$dirs" ] && { echo "no signing keychain on the search list, no signing directory in $RUNNER_TEMP"; exit 0; }
+          while IFS= read -r kc; do [ -n "$kc" ] && { security delete-keychain "$kc" 2>/dev/null || true; }; done <<<"$left"
+          while IFS= read -r d; do [ -n "$d" ] && rm -rf "$d"; done <<<"$dirs"
+          echo "::error::a signing keychain or its directory outlived sign-darwin.sh (removed now): ${left:+keychains: $left }${dirs:+directories: $dirs}"
+          exit 1
       - name: Remove the job-scoped git credential and the signing report
         if: always()
-        run: rm -f "$GIT_CONFIG_GLOBAL" "$RUNNER_TEMP/darwin-signing.txt"
+        run: rm -f "$GIT_CONFIG_GLOBAL" "$DARWIN_SIGNING_REPORT"
 
   # One bundle: every platform artifact, BUILD-INFO saying what built it and
   # what it bakes in, SHA256SUMS covering all of them — every file but

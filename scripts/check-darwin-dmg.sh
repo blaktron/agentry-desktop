@@ -21,7 +21,7 @@
 #      and a dev prerelease ship). With --signed (the production release,
 #      agentry-desktop#6) both the image and the bundle on it must be
 #      Developer ID-signed by APPLE_SIGNING_IDENTITY of APPLE_TEAM_ID (from
-#      build/release.env), carry a stapled notarization ticket and be
+#      the environment; the release sets both from build/release.env), carry a stapled notarization ticket and be
 #      accepted by Gatekeeper as Notarized Developer ID: the read-back is
 #      `scripts/sign-darwin.sh assess`, the same one the signing step ran;
 #   6. the bundle on the image is byte-for-byte the bundle <agentry-desktop.app>
@@ -50,6 +50,9 @@ fail() { echo "check-darwin-dmg: $*" >&2; exit 1; }
 [ -f "$dmg" ] || fail "$dmg does not exist"
 [ -d "$app" ] || fail "$app does not exist"
 [ "$(uname -s)" = Darwin ] || fail "reading a dmg back needs macOS (hdiutil); this is $(uname -s)"
+if [ -n "$signed" ]; then
+  [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] || fail "--signed needs APPLE_SIGNING_IDENTITY and APPLE_TEAM_ID (build/release.env) in the environment"
+fi
 
 # 1. The name.
 name=$(basename "$dmg")

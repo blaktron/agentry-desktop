@@ -111,9 +111,7 @@ check: frontend lint test copy
 # macos job). The secrets reach only those two signing steps, never wails or
 # npm.
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
-package-darwin:
-	$(MAKE) build-darwin
-	$(MAKE) wrap-darwin
+package-darwin: build-darwin wrap-darwin
 
 build-darwin:
 	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
