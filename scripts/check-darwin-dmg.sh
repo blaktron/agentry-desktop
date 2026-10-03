@@ -3,7 +3,7 @@
 # (agentry-desktop#85; agentry-notes/plans/desktop-installers.md §5, D2, D3).
 # Runs on macOS only: it mounts the image.
 #
-#   scripts/check-darwin-dmg.sh <out.dmg> <agentry-desktop.app>
+#   scripts/check-darwin-dmg.sh [--signed] <out.dmg> <agentry-desktop.app>
 #
 # What it proves:
 #   1. the file name is one the site's manifest admits
@@ -16,15 +16,22 @@
 #      nothing else is handed to the person;
 #   4. the bundle on the image is universal: lipo names both arm64 and
 #      x86_64, the same check the release already runs on the built bundle;
-#   5. its signature verifies (the ad-hoc one wails applies, D-001). The
-#      authority is printed rather than asserted, so this check keeps passing
-#      unchanged on the day #6 makes it a Developer ID;
+#   5. its signature verifies. Without --signed the authority is printed
+#      rather than asserted (the ad-hoc one wails applies, which a PR build
+#      and a dev prerelease ship). With --signed (the production release,
+#      agentry-desktop#6) both the image and the bundle on it must be
+#      Developer ID-signed by APPLE_SIGNING_IDENTITY of APPLE_TEAM_ID (from
+#      the environment; the release sets both from build/release.env), carry a stapled notarization ticket and be
+#      accepted by Gatekeeper as Notarized Developer ID: the read-back is
+#      `scripts/sign-darwin.sh assess`, the same one the signing step ran;
 #   6. the bundle on the image is byte-for-byte the bundle <agentry-desktop.app>
 #      holds, which is the bundle the zip was made from: the dmg is a second
 #      wrapper, not a second build. It compares the content of every file and
 #      the target of every symlink, and nothing else — not modes, not owners,
-#      not extended attributes. The ad-hoc signature covers the parts of those
-#      that matter, and check 5 verifies it on the mounted copy.
+#      not extended attributes. The bundle's signature (ad-hoc or Developer
+#      ID) covers the parts of those that matter, and check 5 verifies it on
+#      the mounted copy. A stapled ticket is a file in the bundle
+#      (Contents/CodeResources), so it is compared too.
 #
 # The image is detached whatever happens — on the way out, and on an
 # interrupt or a cancelled CI job — because a leaked mount on a persistent
@@ -33,14 +40,19 @@
 # reason.
 set -euo pipefail
 
-dmg="${1:?usage: $0 <out.dmg> <agentry-desktop.app>}"
-app="${2:?usage: $0 <out.dmg> <agentry-desktop.app>}"
+signed=""
+if [ "${1:-}" = --signed ]; then signed=1; shift; fi
+dmg="${1:?usage: $0 [--signed] <out.dmg> <agentry-desktop.app>}"
+app="${2:?usage: $0 [--signed] <out.dmg> <agentry-desktop.app>}"
 
 fail() { echo "check-darwin-dmg: $*" >&2; exit 1; }
 
 [ -f "$dmg" ] || fail "$dmg does not exist"
 [ -d "$app" ] || fail "$app does not exist"
 [ "$(uname -s)" = Darwin ] || fail "reading a dmg back needs macOS (hdiutil); this is $(uname -s)"
+if [ -n "$signed" ]; then
+  [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] || fail "--signed needs APPLE_SIGNING_IDENTITY and APPLE_TEAM_ID (build/release.env) in the environment"
+fi
 
 # 1. The name.
 name=$(basename "$dmg")
@@ -102,6 +114,11 @@ if ! codesign_out=$(codesign --verify --deep --strict "$mnt/$appname" 2>&1); the
 fi
 authority=$(codesign -dvv "$mnt/$appname" 2>&1 | grep -E '^(Authority|Signature)=' | head -2 | tr '\n' ' ' || true)
 [ -n "$authority" ] || authority="Signature=(none reported)"
+if [ -n "$signed" ]; then
+  "$(dirname "$0")/sign-darwin.sh" assess "$mnt/$appname" || fail "the bundle on the image is not the signed, notarized, stapled bundle a production release ships"
+  "$(dirname "$0")/sign-darwin.sh" assess "$dmg" || fail "$name is not a signed, notarized, stapled image"
+  authority="$authority(asserted: Developer ID, stapled, Notarized Developer ID) "
+fi
 
 # 6. The same bundle as <agentry-desktop.app>, which is the bundle the zip was
 # made from. Every file's content and every symlink's target, both trees,

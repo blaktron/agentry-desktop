@@ -385,12 +385,28 @@ jobs:
   # the universal bundle is built on the estate's Mac, the same way the ci
   # workflow's macos job does, with the release's version and linker flags,
   # and wrapped in both the zip and the dmg the download page offers
-  # (agentry-desktop#85). Unsigned and ad-hoc (D-001, agentry-desktop#6).
+  # (agentry-desktop#85). A production release (a vX.Y.Z tag on main's
+  # line, or a dry run there) Developer ID-signs, notarizes and staples the bundle and then the dmg
+  # (agentry-desktop#6; plan os-code-signing.md §5, D4, D5, D8) with the
+  # five APPLE_* repository secrets, which reach only the two steps that
+  # sign; a missing one fails the release, there is no unsigned fallback.
+  # A dev prerelease (-dev.N) ships ad-hoc signed and does not wait on
+  # Apple's notary queue, as the CLI's dev prereleases do (agentry-cli#570):
+  # each notarization took 40 to 75 minutes for this team in October 2026,
+  # and this job makes two in a row (the dmg holds the stapled bundle).
   macos:
     needs: preflight
     runs-on: [self-hosted, macOS, ARM64]
+    # The environment the signing credentials belong in (plan
+    # os-code-signing.md D6): it admits only main and v* tags, as for
+    # linux-windows. The five APPLE_* values are still repository secrets,
+    # which any workflow in this repository could read; moving them into
+    # this environment is the operator's (agentry-desktop#563).
+    environment: release
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
+    outputs:
+      signed_darwin: ${{ steps.readback.outputs.signed_darwin }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -419,6 +435,9 @@ jobs:
             echo "npm_config_cache=$HOME/runner-cache/npm"
             echo "GOPRIVATE=github.com/blaktron/*"
             echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig"
+            # The two signing steps append to it, the read-back reads it,
+            # the last step removes it.
+            echo "DARWIN_SIGNING_REPORT=$RUNNER_TEMP/darwin-signing.txt"
           } >> "$GITHUB_ENV"
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
       # Job-scoped on this persistent host (see ci.yaml): removed at the end.
@@ -446,21 +465,109 @@ jobs:
           echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
-      # -skipbindings: the checked-in bindings, checked current in
-      # preflight, are what ships; a release never regenerates them
-      # (desktop#97). -m: skip wails' own go mod tidy.
-      # package-darwin builds the bundle, the zip and the dmg, and reads the
-      # dmg back (scripts/check-darwin-dmg.sh: it mounts, holds the bundle
-      # and an Applications shortcut, is universal, its signature verifies,
-      # and it is the same bundle the zip carries).
-      - name: Build the universal bundle, its zip and its dmg
+      # Production signs, dev does not (the job's comment above). The
+      # identity and the Team ID are public and committed (build/release.env,
+      # agentry-desktop#518); the secrets are only counted here.
+      - name: Whether this release signs and notarizes for macOS
+        id: apple
+        env:
+          CHANNEL: ${{ needs.preflight.outputs.channel }}
+          HAS_APPLE_DEVELOPER_ID_P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 != '' }}
+          HAS_APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD != '' }}
+          HAS_APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 != '' }}
+          HAS_APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID != '' }}
+          HAS_APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID != '' }}
         run: |
           set -euo pipefail
-          make package-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
+          case "$CHANNEL" in
+            dev)
+              echo "sign=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::A dev prerelease: the macOS bundle and dmg ship ad-hoc signed and are not notarized (an empty signed_darwin= in BUILD-INFO); only a production release signs them (agentry-desktop#6, as agentry-cli#570)." ;;
+            production)
+              missing=""
+              for v in APPLE_DEVELOPER_ID_P12 APPLE_DEVELOPER_ID_P12_PASSWORD APPLE_NOTARY_KEY_P8 APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER_ID; do
+                eval "has=\${HAS_$v}"
+                [ "$has" = true ] || missing="$missing $v"
+              done
+              [ -z "$missing" ] || { echo "::error::A production release Developer ID-signs and notarizes the macOS bundle and dmg (agentry-desktop#6), and these repository secrets are not set:$missing. The operator's Apple signing wizard loads them (agentry-desktop#152)."; exit 1; }
+              id=$(set -a; . build/release.env; printf '%s' "${APPLE_SIGNING_IDENTITY:-}")
+              team=$(set -a; . build/release.env; printf '%s' "${APPLE_TEAM_ID:-}")
+              [ -n "$id" ] && [ -n "$team" ] || { echo "::error::build/release.env must name APPLE_SIGNING_IDENTITY and APPLE_TEAM_ID"; exit 1; }
+              case "$id" in *"($team)") ;; *) echo "::error::APPLE_SIGNING_IDENTITY ($id) is not of APPLE_TEAM_ID $team"; exit 1 ;; esac
+              { echo "APPLE_SIGNING_IDENTITY=$id"; echo "APPLE_TEAM_ID=$team"; } >> "$GITHUB_ENV"
+              echo "sign=true" >> "$GITHUB_OUTPUT"
+              echo "macOS: Developer ID ($id), notarized and stapled, on this runner" ;;
+            *) echo "::error::preflight named channel '$CHANNEL'"; exit 1 ;;
+          esac
+      # -skipbindings: the checked-in bindings, checked current in
+      # preflight, are what ships; a release never regenerates them
+      # (desktop#97). -m: skip wails' own go mod tidy. build-darwin builds
+      # the bundle only; wrap-darwin below makes the zip and the dmg from it,
+      # after the bundle is signed where this release signs.
+      - name: Build the universal bundle
+        run: |
+          set -euo pipefail
+          make build-darwin VERSION="$VERSION" WAILS_FLAGS='-m -skipbindings' EXTRA_LDFLAGS="$EXTRA_LDFLAGS"
           lipo -info build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop
           /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/bin/agentry-desktop.app/Contents/Info.plist
           grep -q -a -F "$AGENTRY_DEFAULT_REGISTRY" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry $AGENTRY_DEFAULT_REGISTRY"; exit 1; }
           grep -q -a -F "$AGENTRY_UPDATE_CHANNEL" build/bin/agentry-desktop.app/Contents/MacOS/agentry-desktop || { echo "::error::the bundle does not carry the update channel $AGENTRY_UPDATE_CHANNEL, so it would never look for a newer release"; exit 1; }
+      # Signed inside-out under the hardened runtime with Apple's timestamp
+      # and no entitlements, notarized, stapled, and read back: the identity
+      # and team release.env names, the designated requirement naming the
+      # team, the ticket, and spctl's "Notarized Developer ID"
+      # (scripts/sign-darwin.sh). The certificate is imported into a keychain
+      # the script makes in this job's temp directory and deletes on exit,
+      # failing if it is still on the search list; the job's last steps
+      # catch a run killed before it could (D5). The wait is Apple's.
+      - name: Developer ID-sign, notarize and staple the bundle
+        if: steps.apple.outputs.sign == 'true'
+        env:
+          APPLE_DEVELOPER_ID_P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          rm -f "$DARWIN_SIGNING_REPORT"
+          SIGN_DARWIN_REPORT="$DARWIN_SIGNING_REPORT" scripts/sign-darwin.sh app build/bin/agentry-desktop.app
+      # The zip and the dmg from the bundle as it now is (stapled, where this
+      # release signs), and the dmg read back (scripts/check-darwin-dmg.sh:
+      # it mounts, holds the bundle and an Applications shortcut, is
+      # universal, its signature verifies, and it is the same bundle the zip
+      # carries).
+      - name: Wrap the bundle in its zip and its dmg
+        run: make wrap-darwin VERSION="$VERSION"
+      - name: Developer ID-sign, notarize and staple the dmg
+        if: steps.apple.outputs.sign == 'true'
+        env:
+          APPLE_DEVELOPER_ID_P12: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_NOTARY_KEY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          SIGN_DARWIN_REPORT="$DARWIN_SIGNING_REPORT" scripts/sign-darwin.sh dmg "build/bin/agentry-desktop-$VERSION-darwin-universal.dmg"
+      # The two files that ship, read back with no secret in reach: the dmg
+      # and the bundle on it (check-darwin-dmg.sh --signed), and the bundle
+      # the zip unpacks to — each Developer ID-signed by the team, stapled,
+      # and accepted by Gatekeeper as Notarized Developer ID. Only then does
+      # BUILD-INFO get to say so.
+      - name: The shipped zip and dmg, read back as signed and notarized
+        id: readback
+        if: steps.apple.outputs.sign == 'true'
+        run: |
+          set -euo pipefail
+          scripts/check-darwin-dmg.sh --signed "build/bin/agentry-desktop-$VERSION-darwin-universal.dmg" build/bin/agentry-desktop.app
+          scripts/sign-darwin.sh assess "build/bin/agentry-desktop-$VERSION-darwin-universal.zip"
+          r=$DARWIN_SIGNING_REPORT
+          team=$(sed -n 's/^team=//p' "$r" | sort -u)
+          [ "$team" = "$APPLE_TEAM_ID" ] && grep -qx 'notarized=true' "$r" && grep -q '^submission_app=' "$r" && grep -q '^submission_dmg=' "$r" \
+            || { cat "$r"; echo "::error::the signing report is incomplete"; exit 1; }
+          sed -n 's/^submission_/Apple notary submission, /p' "$r"
+          echo "signed_darwin=developer-id TEAM=$team notarized=true" >> "$GITHUB_OUTPUT"
       # Uploaded before the smoke, not after: a smoke that goes red fails the
       # release, and that is exactly when someone wants the image to look at.
       # The bundle job needs this one to have succeeded, so nothing a failed
@@ -494,9 +601,27 @@ jobs:
       # this runner has not got (#106) — and the script says so.
       - name: Self-update bundle-swap acceptance
         run: make smoke-darwin-selfupdate VERSION="$VERSION"
-      - name: Remove the job-scoped git credential
+      # The custody check of plan os-code-signing.md M-M2 step 7, at the job
+      # level: sign-darwin.sh deletes its keychain and its directory on exit,
+      # and this catches the paths where it never got to (a cancelled or
+      # timed-out job whose process was killed). Any signing keychain still
+      # on the build user's search list, or any of its directories still in
+      # this job's temp, is removed and fails the job (D5: never a persistent
+      # keychain on the runner).
+      - name: No signing keychain or key is left on the runner
         if: always()
-        run: rm -f "$GIT_CONFIG_GLOBAL"
+        run: |
+          set -uo pipefail
+          left=$(security list-keychains -d user | sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' | grep '/sign-darwin\.' || true)
+          dirs=$(find "$RUNNER_TEMP" -maxdepth 1 -name 'sign-darwin.*' -print 2>/dev/null || true)
+          [ -z "$left$dirs" ] && { echo "no signing keychain on the search list, no signing directory in $RUNNER_TEMP"; exit 0; }
+          while IFS= read -r kc; do [ -n "$kc" ] && { security delete-keychain "$kc" 2>/dev/null || true; }; done <<<"$left"
+          while IFS= read -r d; do [ -n "$d" ] && rm -rf "$d"; done <<<"$dirs"
+          echo "::error::a signing keychain or its directory outlived sign-darwin.sh (removed now): ${left:+keychains: $left }${dirs:+directories: $dirs}"
+          exit 1
+      - name: Remove the job-scoped git credential and the signing report
+        if: always()
+        run: rm -f "$GIT_CONFIG_GLOBAL" "$DARWIN_SIGNING_REPORT"
 
   # One bundle: every platform artifact, BUILD-INFO saying what built it and
   # what it bakes in, SHA256SUMS covering all of them — every file but
@@ -531,6 +656,7 @@ jobs:
       - name: BUILD-INFO
         env:
           SIGNED_WINDOWS: ${{ needs.linux-windows.outputs.signed_windows }}
+          SIGNED_DARWIN: ${{ needs.macos.outputs.signed_darwin }}
           AGENTRY_DEFAULT_REGISTRY: ${{ needs.preflight.outputs.registry }}
           AGENTRY_RELEASE_CHANNEL: ${{ needs.preflight.outputs.channel }}
         run: |
@@ -545,12 +671,20 @@ jobs:
             echo "default_registry=${AGENTRY_DEFAULT_REGISTRY}"
             echo "channel=${AGENTRY_RELEASE_CHANNEL}"
             # signed= is true only when EVERY artifact is OS-signed; the
-            # per-platform lines say which are. Windows since #54; macOS is
-            # #6, so until it lands this stays false and the page keeps
-            # saying so for the macOS artifacts.
+            # per-platform lines say which are. Windows since #54, macOS on
+            # production releases since #6; the Linux packages carry no OS
+            # signature, so this stays false.
             echo "signed=false"
             : "${SIGNED_WINDOWS:?the linux-windows job reported no Windows signature, and a release without one does not complete}"
             echo "signed_windows=${SIGNED_WINDOWS}"
+            # The site's importer reads this line (agentry-web#188, the
+            # grammar it already reads from the CLI's, agentry-web#215):
+            # "developer-id TEAM=<id> notarized=true", or empty on a dev
+            # prerelease. Production without it does not complete.
+            if [ "$AGENTRY_RELEASE_CHANNEL" = production ] && [ -z "$SIGNED_DARWIN" ]; then
+              echo "::error::a production release whose macos job reported no Developer ID signature does not complete" >&2; exit 1
+            fi
+            echo "signed_darwin=${SIGNED_DARWIN}"
             echo "built_by=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > bundle/BUILD-INFO
           cat bundle/BUILD-INFO
@@ -681,6 +815,14 @@ jobs:
             "") winl="unsigned" ;;
             *) echo "::error::BUILD-INFO signed_windows='$win' is neither empty nor authenticode"; exit 1 ;;
           esac
+          mac=$(info signed_darwin)
+          case "$mac" in
+            "developer-id TEAM="*" notarized=true")
+              team=${mac#developer-id TEAM=}; team=${team%% *}
+              macl="Developer ID-signed (team $team), notarised by Apple and stapled: the \`.dmg\`, and the application inside it and inside the \`.zip\`" ;;
+            "") macl="not signed or notarised (a dev prerelease; production releases are, agentry-desktop#6). macOS will not open a downloaded copy until it is allowed in System Settings → Privacy & Security" ;;
+            *) echo "::error::BUILD-INFO signed_darwin='$mac' is neither empty nor developer-id"; exit 1 ;;
+          esac
           case "$CHANNEL" in
             production) what="A production release: it talks to $REGISTRY by default and checks $REGISTRY/downloads/manifest.json for newer production releases." ;;
             *) what="A dev prerelease, for testing on dev: it talks to $REGISTRY by default and checks $REGISTRY/downloads/manifest.json for newer dev prereleases only." ;;
@@ -691,7 +833,7 @@ jobs:
             echo "**Signatures** (DEV-148: signed where signing exists, unsigned where it does not):"
             echo "- \`SHA256SUMS\`: signed with the estate's update-signing key (\`SHA256SUMS.minisig\`, the key set in \`internal/selfupdate/keys.json\`); the app verifies it before it installs an update."
             echo "- Windows: $winl."
-            echo "- macOS (\`.dmg\`, \`.zip\`): not signed or notarised yet (agentry-desktop#6)."
+            echo "- macOS (\`.dmg\`, \`.zip\`): $macl."
             echo "- Linux (\`.deb\`, \`.rpm\`, the binary): no OS signature; the sums cover them."
             echo
             echo "Check a download against the sums: \`sha256sum -c --ignore-missing SHA256SUMS\`. \`BUILD-INFO\` (covered by the sums) records the commit, the channel and the registry."
