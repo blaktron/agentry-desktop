@@ -1,0 +1,47 @@
+# drafted by the Drafter (agentry draft); review every line before you submit it
+schemaVersion: "2"
+name: talk-only-check
+namespace: draft
+version: 0.1.0
+summary: Profiles a CSV or JSON dataset and reports schema drift, nulls, duplicates, outliers, format violations and its encoding before you load it.
+license: Apache-2.0
+tags:
+  - data
+  - csv
+  - quality
+  - validation
+  - encoding
+modes:
+  - interactive
+entrypoints:
+  instruction: AGENT.md
+guide:
+  overview: 'Profiles a CSV, TSV or JSON-lines dataset before you load it: per-column types, nulls, distinct values and formats, then duplicates, malformed rows, outliers and impossible dates. Given an expected schema, it also reports drift and a verdict of load, load with fixes or do not load. Its first line asks which file to check, which column matters most, and which encoding you expect; every later answer reads on a phone, and each finished check ends with one sentence naming the column it checked first, how many rows it read them over, and the file''s encoding checked against yours. The encoding is inferred from the decoded text it was given (accented characters, replacement characters, mojibake sequences, byte size against text size), so it never guesses: your expected encoding is treated as a claim to test, and the closing sentence says which of the four states it settled on - expected and confirmed, expected X but Y found, or ''encoding not given'' when you answered not sure or skipped it. Mojibake is reported as one encoding finding with the affected columns and example rows, and an expected encoding the text contradicts is a fix rather than a note. `report.md` holds the full per-column table, every finding with example row numbers, one `Encoding` line per file with its evidence and its expectation state, and the same `Rows read: N of M` line. With two files it gives a row count and an encoding for each. On a large file it reads the first 2,000 rows plus a sample and says what it sampled.'
+  prepare:
+    - The data file as CSV, TSV or JSON lines.
+    - 'The expected schema: column names, types, and which columns must be unique.'
+    - 'Any hard rules: allowed values, ranges, and the join key if you add two files.'
+    - The encoding you expect, if you know it; it is asked in the first line and checked against what it sees.
+  files: Add the dataset as one CSV, TSV or JSON-lines file. Add a second file only to check references between the two, and name the key in the task.
+  task: 'e.g. expected: id unique integer; email unique; country ISO-2; signup_date YYYY-MM-DD; plan in {free, pro, team}; file should be UTF-8'
+interactive:
+  opening: Which file should I check, which column matters most, and which encoding do you expect (UTF-8, UTF-16, windows-1252, latin-1, ASCII, or not sure)?
+runtime:
+  interfaces:
+    - claude-skill
+    - agents-md
+capabilities:
+  network:
+    egress: none
+  filesystem:
+    read: none
+    write: none
+  exec: none
+  dataAccess:
+    - files
+publish:
+  include:
+    - agent.yaml
+    - AGENT.md
+    - README.md
+    - LICENSE

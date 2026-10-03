@@ -90,6 +90,16 @@ type Caller struct {
 	// runs this billing cycle (agentry-enterprise#306); nil where the
 	// deployment runs none.
 	Voice *CallerVoice `json:"voice,omitempty"`
+	// Revise says whether the caller's payer may revise a QuickAgent In
+	// Agentry (Edit with AI, agentry-enterprise#297): Pro and above. Whom
+	// it may revise is per QuickAgent, answered at create. Nil from a
+	// registry that predates it, which this app offers no revision against.
+	Revise *CallerRevise `json:"revise,omitempty"`
+}
+
+// CallerRevise is x-runs.yaml's caller.revise.
+type CallerRevise struct {
+	Allowed bool `json:"allowed"`
 }
 
 // TierPrice is a set of caps and what they hold (x-runs.yaml RunTierPrice).
@@ -311,6 +321,13 @@ type CreateRequest struct {
 	Op    string `json:"op,omitempty"`
 	Brief string `json:"brief,omitempty"`
 	Note  string `json:"note,omitempty"`
+	// Revises, Instructions and Problems make a draft a revision of a
+	// QuickAgent's current release (agentry-enterprise#297, R3; Edit with
+	// AI, agentry-desktop#501): Revises is its ref, ns/name@version, and a
+	// revision carries no Description, Hints or Knowledge.
+	Revises      string `json:"revises,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
+	Problems     string `json:"problems,omitempty"`
 }
 
 // IsSession reports whether this row is a hosted session.

@@ -54,6 +54,10 @@ type draftFake struct {
 	// (agentry-enterprise#295); packs are the account's packs in Agentry.
 	knowledge bool
 	packs     []map[string]any
+	// revise is the status route's caller.revise.allowed, absent when nil
+	// (agentry-desktop#501); mux takes a test's extra routes.
+	revise *bool
+	mux    *http.ServeMux
 }
 
 func newDraftFake(t *testing.T) *draftFake {
@@ -116,6 +120,12 @@ func newDraftFake(t *testing.T) *draftFake {
 				"holdCredits": 200, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
 				"build": map[string]any{"caps": caps, "holdCredits": 100, "allowed": true},
 				"draft": map[string]any{"caps": caps, "holdCredits": 41},
+				"revise": func() any {
+					if f.revise == nil {
+						return nil
+					}
+					return map[string]any{"allowed": *f.revise}
+				}(),
 			},
 		})
 	})
@@ -150,6 +160,12 @@ func newDraftFake(t *testing.T) *draftFake {
 			Task: desc, Status: hostedrun.StatusQueued, QueuePosition: 1, HoldCredits: 41,
 			Caps: hostedrun.Caps{TimeoutSeconds: 1200, MaxTurns: 60}, CreatedAt: time.Now().UTC(),
 			Draft: &hostedrun.Draft{Hints: hints, TokenCredits: 30, MaxSearches: 10, CreditsPerSearch: 1, MaxPages: 40},
+		}
+		if ref, _ := body["revises"].(string); ref != "" {
+			f.run.Task = "Revise " + ref + "."
+			f.run.Draft.Revises = &hostedrun.Revises{Ref: ref, Digest: editDigest}
+			f.run.Draft.Instructions, _ = body["instructions"].(string)
+			f.run.Draft.Problems, _ = body["problems"].(string)
 		}
 		hostedJSON(w, http.StatusCreated, f.run)
 	})
@@ -193,6 +209,7 @@ func newDraftFake(t *testing.T) *draftFake {
 		}
 		_ = tw.Close()
 	})
+	f.mux = mux
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	f.url = srv.URL

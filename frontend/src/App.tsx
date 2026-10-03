@@ -242,6 +242,7 @@ export default function App() {
                 onBack={() => nav({ page: route.back ?? "browse" })}
                 // Edit opens in the Build tab, which submits to the app's
                 // registry: offered only for that registry's QuickAgents.
+                onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })}
                 onEdit={!sameRegistry(route.registry ?? registry, registry) ? undefined : () => {
                   requestEdit({ registry: route.registry ?? registry, namespace: route.ns, name: route.name });
                   setOpenEditRev((n) => n + 1);

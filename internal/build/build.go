@@ -1366,6 +1366,16 @@ func ExistsPrivate(ctx context.Context, regURL, token, ns, name string) (bool, e
 // now public or gone would take the version public, so that is refused
 // before anything is sent.
 func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, logw io.Writer) (*PublishResult, error) {
+	return PublishRevision(ctx, regURL, token, dir, privateTold, "", logw)
+}
+
+// PublishRevision is Publish carrying draftRun, the hosted draft a
+// revision was published from as drafted (Edit with AI's Publish this
+// version, agentry-desktop#501): the upload's multipart field draftRun, as
+// the site's Submit sends it (agentry-web#962). It is a claim the registry
+// proves against the draft's record (DEV-194), never a grant. Empty sends
+// none.
+func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold bool, draftRun string, logw io.Writer) (*PublishResult, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
 		return nil, err
@@ -1451,6 +1461,11 @@ func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, l
 	}
 	if err := mw.WriteField("digest", info.Digest); err != nil {
 		return nil, err
+	}
+	if draftRun != "" {
+		if err := mw.WriteField("draftRun", draftRun); err != nil {
+			return nil, err
+		}
 	}
 	if err := mw.Close(); err != nil {
 		return nil, err
