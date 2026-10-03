@@ -77,7 +77,7 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
     } else if (d.local) line = stageLine(d.progress);
     else if (d.inFlight) line = hosted ? hosted.statusLine || hosted.state : "Asking Agentry to start the draft";
     else if (d.drafted) {
-      line = `Drafted ${d.drafted}`;
+      line = d.revising ? `Drafted the next version of ${d.revising}` : `Drafted ${d.drafted}`;
       tone = "ok";
     } else if (d.refusal) {
       line = "Agentry did not start the draft";
@@ -88,9 +88,9 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
     }
     return (
       <CornerCard
-        label="Describe it: the draft"
+        label={d.revising ? "Edit with AI: the revision" : "Describe it: the draft"}
         running={d.inFlight}
-        title={d.inFlight ? `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}` : "Describe it: the draft is over"}
+        title={d.inFlight ? (d.revising ? `Revising ${d.revising}${inAgentry ? " In Agentry" : ""}` : `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}`) : d.revising ? "Edit with AI: the revision is over" : "Describe it: the draft is over"}
         line={line}
         tone={tone}
         actions={<>
@@ -107,7 +107,9 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
     );
   }
 
-  const title = d.inFlight ? `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}` : "Describe it";
+  const title = d.inFlight
+    ? (d.revising ? `Revising ${d.revising}${inAgentry ? " In Agentry" : ""}` : `Drafting a QuickAgent${inAgentry ? " In Agentry" : ""}`)
+    : d.revising ? "Edit with AI" : "Describe it";
   return (
     <Modal title={title} onClose={d.inFlight ? minimize : dismissDraft} wide>
       {d.local && (
@@ -152,10 +154,11 @@ export default function DraftFlow({ registry, onOpenDraft, initialMinimized }: {
 
       {!d.inFlight && d.drafted && (
         <>
-          <h3 className="run-outcome run-outcome-ok">Drafted <RevealText text={d.drafted} /></h3>
+          <h3 className="run-outcome run-outcome-ok">{d.revising ? "Drafted the next version of " : "Drafted "}<RevealText text={d.revising ?? d.drafted} /></h3>
           <p>
-            The draft opens on the Build tab. It is a starting point: check every part, and what it may reach, before you save
-            or publish it.
+            {d.revising
+              ? "It opens on the Build tab with what changed. Publish it as drafted, or open it in the Builder to change it first."
+              : "The draft opens on the Build tab. It is a starting point: check every part, and what it may reach, before you save or publish it."}
           </p>
           {hosted?.final && <p className="small">{hosted.creditsLine}</p>}
           <div className="row" style={{ justifyContent: "flex-end" }}>
@@ -209,6 +212,12 @@ function DraftRefusal({ v, registry, onError }: { v: main.HostedDraftStartView; 
   return (
     <Notice tone="warn">
       The draft was not started: <RevealText text={v.detail ?? v.refusal ?? ""} />
+      {v.refusal === "revise-tier" && (
+        <>
+          {" "}Edit with AI In Agentry is part of Pro and above; on this computer it runs with your own keys.{" "}
+          <Button variant="link" onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => onError(String(e)))}>See Pro</Button>
+        </>
+      )}
       {v.refusal === "credits-exhausted" && (
         <>
           {" "}

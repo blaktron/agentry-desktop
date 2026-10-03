@@ -57,6 +57,9 @@ type BuildAPI struct {
 	draftChecker func(*engine.WebRun) (drafter.Checker, error)
 	// hosted is the one draft In Agentry this app follows (#281).
 	hosted hostedSlot
+	// revised is the revision Edit with AI landed last, which Publish this
+	// version publishes (agentry-desktop#501).
+	revised revisedSlot
 	// reviewHTTP and reviewRunner are the Examiner's seams a test
 	// substitutes (agentry-desktop#469); nil is a client with a timeout and
 	// this machine's docker.
@@ -160,6 +163,13 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if err := b.app.requirePicked("folder", dir); err != nil {
 		return nil, err
 	}
+	return b.submit(reg, dir, "")
+}
+
+// submit is Submit's work under its lock, for a folder the picker gave:
+// the native warning, then the upload, naming draftRun when Publish this
+// version publishes a revision drafted In Agentry (PublishRevision).
+func (b *BuildAPI) submit(reg, dir, draftRun string) (*build.PublishResult, error) {
 	url, token, err := storedCredential(reg)
 	if err != nil {
 		return nil, fmt.Errorf("submitting needs a signed-in registry (sign in under Settings → Registry settings): %w", err)
@@ -185,7 +195,7 @@ func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	}
 	logw := (&RunAPI{app: b.app}).eventWriter(eventBuildLog)
 	defer logw.Flush()
-	res, err := build.Publish(b.app.ctx, url, token, dir, private, logw)
+	res, err := build.PublishRevision(b.app.ctx, url, token, dir, private, draftRun, logw)
 	// The site changes a private agent's visibility; a registry that is
 	// the hosted site mounts billing, and a bare one has no such page.
 	if res != nil && res.Visibility == "private" && sub != nil {
@@ -307,6 +317,10 @@ type DraftView struct {
 	// Review withheld from it, with the reason. Never empty for a draft
 	// that read none: an empty list.
 	Knowledge []drafter.PackRead `json:"knowledge"`
+	// Revision is set when the draft is Edit with AI's revision of a
+	// release (agentry-desktop#501): the QuickAgent, the versions, and the
+	// diff. Nil for a draft from a description.
+	Revision *RevisionView `json:"revision,omitempty"`
 }
 
 // DraftCheckView is AI Review's check of a finished draft for the page:

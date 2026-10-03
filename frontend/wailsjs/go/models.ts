@@ -96,6 +96,55 @@ export namespace build {
 	        this.version = source["version"];
 	    }
 	}
+	export class DiffLine {
+	    op: string;
+	    text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiffLine(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.op = source["op"];
+	        this.text = source["text"];
+	    }
+	}
+	export class DiffFile {
+	    path: string;
+	    lines: DiffLine[];
+	    same: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiffFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.lines = this.convertValues(source["lines"], DiffLine);
+	        this.same = source["same"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class EnvRow {
 	    name: string;
 	    value: string;
@@ -1493,6 +1542,11 @@ export namespace main {
 	    pool?: string;
 	    unmetered: boolean;
 	    short: boolean;
+	    reviseOffered: boolean;
+	    reviseAvailable: boolean;
+	    reviseReason?: string;
+	    reviseRemedy?: string;
+	    reviseUpgrade: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DescribeHostedView(source);
@@ -1520,6 +1574,11 @@ export namespace main {
 	        this.pool = source["pool"];
 	        this.unmetered = source["unmetered"];
 	        this.short = source["short"];
+	        this.reviseOffered = source["reviseOffered"];
+	        this.reviseAvailable = source["reviseAvailable"];
+	        this.reviseReason = source["reviseReason"];
+	        this.reviseRemedy = source["reviseRemedy"];
+	        this.reviseUpgrade = source["reviseUpgrade"];
 	    }
 	}
 	export class JevKeyView {
@@ -1701,6 +1760,48 @@ export namespace main {
 		}
 	}
 	
+	export class RevisionView {
+	    namespace: string;
+	    name: string;
+	    from: string;
+	    version: string;
+	    hosted: boolean;
+	    key: string;
+	    diff: build.DiffFile[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RevisionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.namespace = source["namespace"];
+	        this.name = source["name"];
+	        this.from = source["from"];
+	        this.version = source["version"];
+	        this.hosted = source["hosted"];
+	        this.key = source["key"];
+	        this.diff = this.convertValues(source["diff"], build.DiffFile);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DraftView {
 	    model?: build.Model;
 	    decodeNotes: string[];
@@ -1721,6 +1822,7 @@ export namespace main {
 	    moreProblems: number;
 	    check?: DraftCheckView;
 	    knowledge: drafter.PackRead[];
+	    revision?: RevisionView;
 	
 	    static createFrom(source: any = {}) {
 	        return new DraftView(source);
@@ -1747,6 +1849,7 @@ export namespace main {
 	        this.moreProblems = source["moreProblems"];
 	        this.check = this.convertValues(source["check"], DraftCheckView);
 	        this.knowledge = this.convertValues(source["knowledge"], drafter.PackRead);
+	        this.revision = this.convertValues(source["revision"], RevisionView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2014,6 +2117,7 @@ export namespace main {
 	    creditsLine: string;
 	    draft?: DraftView;
 	    draftError?: string;
+	    revises?: string;
 	    final: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -2036,6 +2140,7 @@ export namespace main {
 	        this.creditsLine = source["creditsLine"];
 	        this.draft = this.convertValues(source["draft"], DraftView);
 	        this.draftError = source["draftError"];
+	        this.revises = source["revises"];
 	        this.final = source["final"];
 	    }
 	
@@ -3514,6 +3619,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class RunDefaultsView {
 	    timeoutSeconds: number;
 	    maxTurns: number;

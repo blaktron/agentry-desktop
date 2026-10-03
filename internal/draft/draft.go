@@ -58,6 +58,11 @@ type Plan struct {
 	// (agentry-desktop#497; plan knowledge-and-drafter.md K4), opened by
 	// knowledge.Env.ForDraft; nil for none. Its caller removes them.
 	Knowledge *knowledge.DraftPacks
+	// Revision is the release Edit with AI revises on this computer
+	// (agentry-desktop#501; plan drafter-revisions.md §5, D10), staged in
+	// the run's own folder under revise/ (drafter.ReadRelease) with the
+	// person's two texts; nil for a draft from a description.
+	Revision *drafter.Revision
 }
 
 // Budgets are the budgets the draft runs under: the runner policy's, with
@@ -110,6 +115,42 @@ func Prepare(registry, description string, hints []string, packs *knowledge.Draf
 	if err != nil {
 		return nil, err
 	}
+	reads := "your description"
+	if len(packs.Names()) > 0 {
+		reads = "your description, your knowledge packs"
+	}
+	p, err := prepare(registry, reads, task)
+	if err != nil {
+		return nil, err
+	}
+	p.Description, p.Knowledge = description, packs
+	return p, nil
+}
+
+// PrepareRevision checks a revision on this computer before anything
+// leaves it, as Prepare checks a draft: the Drafter's task for rev
+// (drafter.RevisionTask: the release's files under /inputs/revise, then the
+// person's two texts, fenced), the runner policy and the person's own
+// keys. AI Review's check of the finished draft reads the revision's
+// description (drafter.RevisionDescription). rev's release is already
+// staged and its texts set (drafter.ReadRelease, WithTexts).
+func PrepareRevision(registry string, rev *drafter.Revision) (*Plan, error) {
+	task, err := drafter.RevisionTask(rev)
+	if err != nil {
+		return nil, err
+	}
+	p, err := prepare(registry, "your texts, the release", task)
+	if err != nil {
+		return nil, err
+	}
+	p.Description, p.Revision = drafter.RevisionDescription(rev), rev
+	return p, nil
+}
+
+// prepare is Prepare's shared half: the runner policy and the person's
+// keys for task, refused without a Jev key, naming what AI Review would
+// have read (reads).
+func prepare(registry, reads, task string) (*Plan, error) {
 	polFile, err := policy.Resolve("")
 	if err != nil {
 		return nil, err
@@ -121,15 +162,11 @@ func Prepare(registry, description string, hints []string, packs *knowledge.Draf
 	w, search, err := drafter.LocalWeb(pol, registry)
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		reads := "your description"
-		if len(packs.Names()) > 0 {
-			reads = "your description, your knowledge packs"
-		}
 		return nil, fmt.Errorf("drafting on this computer needs your own TypeSafe Jev key, because AI Review reads %s and everything the draft reads with it before the model does. Add one under Settings → Provider settings → AI Review key: %w", reads, err)
 	case err != nil:
 		return nil, err
 	}
-	return &Plan{Description: description, Task: task, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Web: w, Search: search, Knowledge: packs}, nil
+	return &Plan{Task: task, Policy: pol, PolicySHA: polSHA, PolicyFile: polFile, Web: w, Search: search}, nil
 }
 
 // Request is one draft's run.
@@ -242,9 +279,20 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, _ = fmt.Fprintf(logw, "AI Review passed the description. The Drafter runs on this computer against the model your runner policy names (%s), for no credits. %s "+
+	// A revision's release is read by AI Review too, before the Drafter
+	// starts (DR-44): a file it does not pass stops the draft here.
+	if rev := p.Revision; rev != nil {
+		if _, err := drafter.PrescanRelease(ctx, sc, rev); err != nil {
+			return nil, err
+		}
+	}
+	passed := "the description"
+	if p.Revision != nil {
+		passed = "your texts and the release"
+	}
+	_, _ = fmt.Fprintf(logw, "AI Review passed %s. The Drafter runs on this computer against the model your runner policy names (%s), for no credits. %s "+
 		"Every result goes to AI Review with your key before the model reads it, and this computer reads each page from its site. It submits nothing.\n",
-		p.ModelName(), SearchSentence(p.Search, p.Policy))
+		passed, p.ModelName(), SearchSentence(p.Search, p.Policy))
 
 	// A pack not scanned in Agentry is scanned now, after the description
 	// and before the Drafter starts, and what AI Review flags in any pack
@@ -283,6 +331,12 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if read != nil {
 		first.Knowledge = read.Packs
 	}
+	if rev := p.Revision; rev != nil {
+		// The release reaches the Drafter as files under /inputs/revise, as
+		// `agentry draft --revise` stages it; its repair turn is given none
+		// (localrun.RepairRun).
+		first.Inputs = []string{rev.Dir}
+	}
 	prog.Set(atStage(StageDrafting))
 	env, runErr := runner(ctx, first)
 	prog.Set(atStage(StageChecking))
@@ -304,6 +358,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		},
 		OnUsage:   prog.Usage,
 		Knowledge: read,
+		Revision:  p.Revision,
 		// The embedded rule bundle, as the desktop's own Validate uses: the
 		// app has no rules checkout or --rules-update cache of its own
 		// (DR-43's addendum names the difference from `agentry draft`).

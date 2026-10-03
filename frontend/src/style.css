@@ -993,6 +993,31 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-summary-unnamed { box-shadow: inset 3px 0 0 0 var(--color-sev-medium); padding-left: 10px; }
 .build-drafted > summary { cursor: pointer; }
 .build-drafted-notes { margin-top: 10px; }
+
+/* Edit with AI's diff (agentry-desktop#501): the release's lines against the
+   revision's, as the form writes both. */
+.revision-diff {
+  /* The containing block of its visually hidden labels, so they scroll and
+     clip with the diff rather than lengthen the window. */
+  position: relative;
+  margin: 8px 0 0;
+  max-height: 420px;
+  overflow: auto;
+  font: 12px/1.45 var(--font-mono);
+  background: var(--color-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.revision-diff > div { padding: 0 10px; }
+.revision-diff .op { display: inline-block; width: 1.5em; color: var(--color-muted); }
+.revision-diff .add { background: var(--color-accent-soft); }
+.revision-diff .add .op { color: var(--color-ok); }
+.revision-diff .del { background: var(--color-sev-high-bg); }
+.revision-diff .del .op { color: var(--color-sev-high); }
+.revision-diff .fold { color: var(--color-muted); font-style: italic; }
 .build-check-notes { margin: 10px 0; }
 
 /* The Knowledge panel (plan knowledge.md §4.8, agentry-desktop#273): a

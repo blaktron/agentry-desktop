@@ -71,6 +71,15 @@ type DescribeHostedView struct {
 	Pool         string `json:"pool,omitempty"`
 	Unmetered    bool   `json:"unmetered"`
 	Short        bool   `json:"short"`
+
+	// Revise is Edit with AI In Agentry's offer on the same facts
+	// (hostedrun.DecideRevise, agentry-desktop#501): a draft's, gated on
+	// the payer's tier; Upgrade says the way out is Pro.
+	ReviseOffered   bool   `json:"reviseOffered"`
+	ReviseAvailable bool   `json:"reviseAvailable"`
+	ReviseReason    string `json:"reviseReason,omitempty"`
+	ReviseRemedy    string `json:"reviseRemedy,omitempty"`
+	ReviseUpgrade   bool   `json:"reviseUpgrade"`
 }
 
 // HostedDraftView is one draft In Agentry as the page shows it: where it
@@ -95,6 +104,10 @@ type HostedDraftView struct {
 	// that ended has none the form can open.
 	Draft      *DraftView `json:"draft,omitempty"`
 	DraftError string     `json:"draftError,omitempty"`
+	// Revises is the release an Edit with AI revision drafts the next
+	// version of, ns/name@version, as the registry recorded it; empty for
+	// a draft from a description (agentry-desktop#501).
+	Revises string `json:"revises,omitempty"`
 	// Final says this is the last word on the draft.
 	Final bool `json:"final"`
 }
@@ -134,7 +147,7 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 		if st, err := client.Status(ctx); err == nil {
 			f.StatusKnown, f.Terms = true, st.Draft
 			if st.Caller != nil {
-				f.Hold = st.Caller.Draft
+				f.Hold, f.Revise = st.Caller.Draft, st.Caller.Revise
 			}
 		}
 		if runs, err := client.List(ctx); err == nil {
@@ -164,6 +177,8 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 	}
 	o := hostedrun.DecideDraft(f)
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
+	r := hostedrun.DecideRevise(f)
+	v.ReviseOffered, v.ReviseAvailable, v.ReviseReason, v.ReviseRemedy, v.ReviseUpgrade = r.Offered, r.Available, r.Reason, r.Remedy, r.Upgrade
 	return v, nil
 }
 
@@ -364,6 +379,17 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 	}
 	dv := draftView(res)
 	dv.Where = draftInAgentry
+	if fd := final.Draft; fd != nil && fd.Revises != nil {
+		// Edit with AI's revision (agentry-desktop#501): the registry's
+		// record names the release, and the draft must say the same.
+		dv.Description = revisionWords(fd.Instructions, fd.Problems)
+		if err := b.landRevision(ctx, reg, token, dv, res.Draft, fd.Revises.Ref, id, true); err != nil {
+			v.DraftError = err.Error()
+			return v
+		}
+		v.Draft = dv
+		return v
+	}
 	dv.Description = final.Task
 	if final.Draft != nil {
 		dv.Hints = append([]string{}, final.Draft.Hints...)
@@ -405,8 +431,14 @@ func hostedDraftView(r *hostedrun.Run, final bool) *HostedDraftView {
 		Outcome: r.Outcome, OutcomeTone: rv.OutcomeTone, Error: r.Error,
 		HoldCredits: r.HoldCredits, CreditsLine: draftCreditsLine(r), Final: final,
 	}
+	if r.Draft != nil && r.Draft.Revises != nil {
+		v.Revises = r.Draft.Revises.Ref
+	}
 	if r.Status == hostedrun.StatusRunning || r.Status == hostedrun.StatusClaimed {
 		v.StatusLine = "It is drafting the QuickAgent from your description."
+		if v.Revises != "" {
+			v.StatusLine = "It is drafting the next version of " + v.Revises + " from your texts."
+		}
 	}
 	if r.Terminal() {
 		v.OutcomeLine = draftOutcomeLine(r)

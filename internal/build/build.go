@@ -623,7 +623,8 @@ func q(s string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// seq is a flow sequence of quoted values.
+// seq is a flow sequence of quoted values, each quoted for flow context
+// (qFlow).
 func seq(items []string) string { return "[" + strings.Join(quoteAll(items), ", ") + "]" }
 
 // The manifest's blocks, each as the lines manifestYAML writes for it, so a
@@ -929,7 +930,24 @@ func fsValue(mode string, paths []string) string {
 func quoteAll(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, s := range in {
-		out = append(out, q(s))
+		out = append(out, qFlow(s))
+	}
+	return out
+}
+
+// qFlow quotes a scalar for a flow sequence: q's rules, then double quotes
+// whenever the plain form holds a flow indicator. A plain scalar may hold a
+// comma or a bracket in block context, which is where q's yaml.Marshal
+// judges it, but inside [...] the comma ends the item: "CSV, TSV or JSON
+// lines." read back as two (agentry-desktop#567).
+func qFlow(s string) string {
+	out := q(s)
+	if out != "" && (out[0] == '"' || out[0] == '\'') {
+		return out
+	}
+	if strings.ContainsAny(out, ",[]{}") {
+		j, _ := json.Marshal(s)
+		return string(j)
 	}
 	return out
 }
@@ -1348,6 +1366,16 @@ func ExistsPrivate(ctx context.Context, regURL, token, ns, name string) (bool, e
 // now public or gone would take the version public, so that is refused
 // before anything is sent.
 func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, logw io.Writer) (*PublishResult, error) {
+	return PublishRevision(ctx, regURL, token, dir, privateTold, "", logw)
+}
+
+// PublishRevision is Publish carrying draftRun, the hosted draft a
+// revision was published from as drafted (Edit with AI's Publish this
+// version, agentry-desktop#501): the upload's multipart field draftRun, as
+// the site's Submit sends it (agentry-web#962). It is a claim the registry
+// proves against the draft's record (DEV-194), never a grant. Empty sends
+// none.
+func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold bool, draftRun string, logw io.Writer) (*PublishResult, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
 		return nil, err
@@ -1433,6 +1461,11 @@ func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, l
 	}
 	if err := mw.WriteField("digest", info.Digest); err != nil {
 		return nil, err
+	}
+	if draftRun != "" {
+		if err := mw.WriteField("draftRun", draftRun); err != nil {
+			return nil, err
+		}
 	}
 	if err := mw.Close(); err != nil {
 		return nil, err
