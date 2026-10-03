@@ -557,7 +557,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A draft made by Describe it: into the form, with no folder yet (the
-  // first save asks, D-030), and open on the summary (plan
+  // first save makes it, D-060), and open on the summary (plan
   // builder-simplify.md §4.1), private unless switched (D3).
   function takeDraft(v: main.DraftView) {
     if (!v.model) return;
@@ -579,7 +579,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A release opened by Edit: into the form under its own name at the next
-  // minor, with no folder yet (the first save asks, D-030), on the summary,
+  // minor, with no folder yet (the first save makes it, D-060), on the summary,
   // as a draft opens. What the Builder cannot hold was dropped in Go,
   // without a word (D6).
   function takeEdit(v: main.EditView) {
@@ -978,7 +978,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         <Button variant="primary" disabled={!!busy} onClick={() => switchTo("summary")}>Continue to submit</Button>
       </div>
       <p className="muted small">
-        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : "The first save asks where the workspace goes: an empty folder, or open an existing one."}
+        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : <>The first save writes it to a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder). To edit one you already have, open its folder.</>}
       </p>
       {result && <ValidateCard result={result} />}
     </>
