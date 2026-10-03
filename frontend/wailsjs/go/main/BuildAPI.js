@@ -54,6 +54,10 @@ export function NewModel(arg1) {
   return window['go']['main']['BuildAPI']['NewModel'](arg1);
 }
 
+export function NewSaveFolder(arg1) {
+  return window['go']['main']['BuildAPI']['NewSaveFolder'](arg1);
+}
+
 export function PublishThisVersion(arg1, arg2, arg3) {
   return window['go']['main']['BuildAPI']['PublishThisVersion'](arg1, arg2, arg3);
 }
