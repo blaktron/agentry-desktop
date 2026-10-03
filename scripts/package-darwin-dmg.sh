@@ -18,11 +18,14 @@
 # the zip and the dmg are two wrappers around one build, not two builds, and
 # the self-update bundle swap (M7, #88) looks for that name.
 #
-# Unsigned: the bundle is ad-hoc signed by wails and the image itself is not
-# signed at all, so Gatekeeper shows the unidentified-developer prompt for
-# the dmg exactly as it does for the zip (register D-001; plan
-# desktop-installers.md D3, which decided the installers ship unsigned now).
-# #6 signs both when it lands and changes nothing here but a manifest field.
+# This script signs nothing. In a production release the bundle it is given
+# is already Developer ID-signed, notarized and stapled, and the release
+# signs, notarizes and staples the image it writes afterwards
+# (scripts/sign-darwin.sh; agentry-desktop#6). Anywhere else (a PR build, a
+# dev prerelease, a by-hand build) the bundle carries only the ad-hoc
+# signature wails applies and the image none, and macOS refuses to open a
+# downloaded copy of either until the person allows it in System Settings →
+# Privacy & Security (register D-001).
 set -euo pipefail
 
 app="${1:?usage: $0 <agentry-desktop.app> <out.dmg>}"
@@ -63,4 +66,4 @@ hdiutil create \
 # path that does not exist.
 [ -f "$out" ] || fail "hdiutil did not write $out"
 
-echo "package-darwin-dmg: $(basename "$out") ($(du -h "$out" | cut -f1)) — $(basename "$app") and an Applications shortcut, unsigned"
+echo "package-darwin-dmg: $(basename "$out") ($(du -h "$out" | cut -f1)) — $(basename "$app") and an Applications shortcut, the image itself unsigned"

@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # unsigned Windows package, which PR and workstation builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -103,10 +103,23 @@ check: frontend lint test copy
 # hdiutil builds the image (scripts/package-darwin-dmg.sh — create-dmg is not
 # on the Mac and would only add a window picture that needs a Finder session)
 # and scripts/check-darwin-dmg.sh reads it back, as the Windows target does
-# with its installer. Unsigned/un-notarized — see DEVIATIONS.md D-001.
+# with its installer. This target is ad-hoc signed only (D-001): the
+# production release splits it in two and signs between the halves —
+# build-darwin, then scripts/sign-darwin.sh app (Developer ID, notarized,
+# stapled), then wrap-darwin, so the zip and the dmg both carry the stapled
+# bundle, then scripts/sign-darwin.sh dmg (agentry-desktop#6; release.yaml's
+# macos job). The secrets reach only those two signing steps, never wails or
+# npm.
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
 package-darwin:
+	$(MAKE) build-darwin
+	$(MAKE) wrap-darwin
+
+build-darwin:
 	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
+
+wrap-darwin:
+	rm -f build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
 	scripts/package-darwin-dmg.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
 	scripts/check-darwin-dmg.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg build/bin/agentry-desktop.app
