@@ -10,6 +10,7 @@ package main
 // upload decides again.
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -49,11 +50,38 @@ func (b *BuildAPI) EditRelease(reg, ns, name string) (*EditView, error) {
 	if err != nil {
 		return nil, fmt.Errorf("editing needs a signed-in registry (sign in under Settings → Registry settings): %w", err)
 	}
+	rel, err := readRelease(b.app.ctx, url, token, ns, name, "")
+	if err != nil {
+		return nil, err
+	}
+	m, err := build.FromRelease(rel.Manifest, rel.Instructions, ns, name, rel.Next)
+	if err != nil {
+		return nil, err
+	}
+	return &EditView{Model: m, Namespace: ns, Name: name, From: rel.Version, Version: rel.Next}, nil
+}
+
+// release is a QuickAgent's release as Edit and Edit with AI read it.
+type release struct {
+	// Version is the release read; Next the next minor above every version
+	// the QuickAgent has, in any state; Digest its archive digest.
+	Version, Next, Digest string
+	// Manifest is the registry's JSON of its manifest; Instructions its
+	// instruction file, at Path in the package.
+	Manifest     []byte
+	Instructions string
+	Path         string
+}
+
+// readRelease reads ns/name's release version ("" for the current one, the
+// newest published, unyanked version), for a caller the registry says may
+// publish to it (canPublish). One refusal for a QuickAgent it does not
+// show and one it may not add a version to.
+func readRelease(ctx context.Context, url, token, ns, name, version string) (*release, error) {
 	client, err := registry.New(url, token)
 	if err != nil {
 		return nil, err
 	}
-	ctx := b.app.ctx
 	aresp, err := client.GetAgentWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, fmt.Errorf("fetch %s/%s: %w", ns, name, err)
@@ -75,28 +103,37 @@ func (b *BuildAPI) EditRelease(reg, ns, name string) (*EditView, error) {
 		return nil, registry.Problem("versions", vresp.StatusCode(), vresp.ApplicationproblemJSONDefault, vresp.Body)
 	}
 	all := make([]string, 0, len(*vresp.JSON200))
-	current := ""
+	rel := &release{}
 	for _, v := range *vresp.JSON200 {
 		all = append(all, v.Version)
+		published := v.Status == apiclient.VersionStatusPublished
 		// ListVersions is newest first, as the page reads it.
-		if current == "" && v.Status == apiclient.VersionStatusPublished && v.YankedAt == nil {
-			current = v.Version
+		if rel.Version == "" && published && (v.Version == version || version == "" && v.YankedAt == nil) {
+			rel.Version = v.Version
+			if v.ArchiveDigest != nil {
+				rel.Digest = *v.ArchiveDigest
+			}
 		}
 	}
-	if current == "" {
+	switch {
+	case rel.Version == "" && version == "":
 		return nil, fmt.Errorf("%s/%s has no published version to edit yet", ns, name)
+	case rel.Version == "":
+		return nil, fmt.Errorf("%s is not a published version of %s/%s", version, ns, name)
 	}
-	mresp, err := client.GetVersionManifestWithResponse(ctx, ns, name, current)
+	rel.Next = build.NextMinor(all)
+	mresp, err := client.GetVersionManifestWithResponse(ctx, ns, name, rel.Version)
 	if err != nil {
-		return nil, fmt.Errorf("fetch the manifest of %s: %w", current, err)
+		return nil, fmt.Errorf("fetch the manifest of %s: %w", rel.Version, err)
 	}
 	if mresp.JSON200 == nil {
 		return nil, registry.Problem("manifest", mresp.StatusCode(), mresp.ApplicationproblemJSONDefault, mresp.Body)
 	}
-	path := build.ReleaseInstructionPath(mresp.Body)
-	fresp, err := client.GetVersionFileWithResponse(ctx, ns, name, current, &apiclient.GetVersionFileParams{Path: path})
+	rel.Manifest = mresp.Body
+	rel.Path = build.ReleaseInstructionPath(mresp.Body)
+	fresp, err := client.GetVersionFileWithResponse(ctx, ns, name, rel.Version, &apiclient.GetVersionFileParams{Path: rel.Path})
 	if err != nil {
-		return nil, fmt.Errorf("fetch %s of %s: %w", path, current, err)
+		return nil, fmt.Errorf("fetch %s of %s: %w", rel.Path, rel.Version, err)
 	}
 	if fresp.JSON200 == nil {
 		return nil, registry.Problem("file", fresp.StatusCode(), fresp.ApplicationproblemJSONDefault, fresp.Body)
@@ -104,14 +141,10 @@ func (b *BuildAPI) EditRelease(reg, ns, name string) (*EditView, error) {
 	f := fresp.JSON200
 	switch {
 	case f.Truncated:
-		return nil, fmt.Errorf("%s of %s is too long for the Build tab to edit; edit it with agentry publish", path, current)
+		return nil, fmt.Errorf("%s of %s is too long for the Build tab to edit; edit it with agentry publish", rel.Path, rel.Version)
 	case f.Binary || f.Content == nil:
-		return nil, fmt.Errorf("%s of %s could not be read as text", path, current)
+		return nil, fmt.Errorf("%s of %s could not be read as text", rel.Path, rel.Version)
 	}
-	next := build.NextMinor(all)
-	m, err := build.FromRelease(mresp.Body, *f.Content, ns, name, next)
-	if err != nil {
-		return nil, err
-	}
-	return &EditView{Model: m, Namespace: ns, Name: name, From: current, Version: next}, nil
+	rel.Instructions = *f.Content
+	return rel, nil
 }

@@ -910,3 +910,60 @@ func TestAListItemWithACommaIsOneItemAfterASave(t *testing.T) {
 		t.Fatalf("written:\n%s", raw)
 	}
 }
+
+// Publish this version of a revision drafted In Agentry names its run as
+// the upload's draftRun (agentry-desktop#501, as agentry-web#962); every
+// other upload names none.
+func TestOnlyPublishRevisionSendsDraftRun(t *testing.T) {
+	const run = "01a1019e-3224-70c9-a2a3-5a5f954de9e0"
+	for _, c := range []struct {
+		draftRun string
+		publish  func(reg, dir string) error
+	}{
+		{"", func(reg, dir string) error {
+			_, err := Publish(t.Context(), reg, "agy_test", dir, false, io.Discard)
+			return err
+		}},
+		{run, func(reg, dir string) error {
+			_, err := PublishRevision(t.Context(), reg, "agy_test", dir, false, run, io.Discard)
+			return err
+		}},
+	} {
+		dir := t.TempDir()
+		if err := Save(dir, model()); err != nil {
+			t.Fatal(err)
+		}
+		got, seen := "", false
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /api/v1/agents/acme/hello-build", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"namespace":"acme","name":"hello-build","visibility":"public","modes":["autonomous"],"summary":"s","quarantineState":"none","createdAt":"2026-08-31T00:00:00Z"}`))
+		})
+		mux.HandleFunc("POST /api/v1/agents/acme/hello-build/versions", func(w http.ResponseWriter, r *http.Request) {
+			if err := r.ParseMultipartForm(32 << 20); err != nil {
+				t.Errorf("multipart: %v", err)
+			}
+			_, seen = r.MultipartForm.Value["draftRun"]
+			got = r.FormValue("draftRun")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"version":"0.1.0","status":"published","channel":"stable","createdAt":"2026-08-31T00:00:00Z"}`))
+		})
+		mux.HandleFunc("GET /api/v1/agents/acme/hello-build/versions/0.1.0", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"version":"0.1.0","status":"published","channel":"stable","createdAt":"2026-08-31T00:00:00Z"}`))
+		})
+		mux.HandleFunc("GET /api/v1/agents/acme/hello-build/versions/0.1.0/report", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"versionStatus":"published","findings":[],"findingCounts":{}}`))
+		})
+		srv := httptest.NewServer(mux)
+		if err := c.publish(srv.URL, dir); err != nil {
+			t.Fatalf("draftRun %q: %v", c.draftRun, err)
+		}
+		srv.Close()
+		if got != c.draftRun || seen != (c.draftRun != "") {
+			t.Fatalf("draftRun sent %q (field present %v), want %q", got, seen, c.draftRun)
+		}
+	}
+}

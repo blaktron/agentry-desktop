@@ -99,10 +99,17 @@ function clear() {
 function begin(w: Where) {
   clear();
   landed = null;
+  revising = null;
   follow(w);
 }
 
-function startLocal(registry: string, text: string, hints: string[], packs: string[]) {
+// revising names the QuickAgent an Edit with AI revision drafts the next
+// version of (agentry-desktop#501), so the flow says so; null for a draft
+// from a description. A revision In Agentry attached at start says it
+// through its record (HostedDraftView.revises).
+let revising: string | null = null;
+
+function startLocal(call: () => Promise<main.DraftView>) {
   begin("here");
   stopping = false;
   const offLog = EventsOn("build:draft-log", (line: string) => {
@@ -113,7 +120,7 @@ function startLocal(registry: string, text: string, hints: string[], packs: stri
     progress = p;
     notify();
   });
-  localInflight = BuildAPI.DescribeOnThisComputer(registry, text, hints, packs)
+  localInflight = call()
     .then((v) => land(v, "The Drafter returned no draft the form can open."))
     .catch((e) => {
       stopped = stopping;
@@ -143,13 +150,13 @@ function listenHosted() {
   });
 }
 
-function startHosted(registry: string, text: string, hints: string[], packs: string[]) {
+function startHosted(call: () => Promise<main.HostedDraftStartView>) {
   listenHosted();
   begin("agentry");
   hosted = null;
   hostedStarting = true;
   notify();
-  BuildAPI.DescribeInAgentry(registry, text, hints, packs)
+  call()
     .then((v) => {
       if (v.draft) {
         // An event may already have said more than the create's answer.
@@ -168,14 +175,26 @@ function startHosted(registry: string, text: string, hints: string[], packs: str
 /** Starts a draft in the place chosen, and opens its progress dialog.
  *  packs are the knowledge packs it reads first, by name (#497). */
 export function startDraft(registry: string, w: Where, text: string, hints: string[], packs: string[] = []) {
-  if (w === "agentry") startHosted(registry, text, hints, packs);
-  else startLocal(registry, text, hints, packs);
+  if (w === "agentry") startHosted(() => BuildAPI.DescribeInAgentry(registry, text, hints, packs));
+  else startLocal(() => BuildAPI.DescribeOnThisComputer(registry, text, hints, packs));
+}
+
+/** Starts Edit with AI's revision of ns/name's current release in the place
+ *  chosen (agentry-desktop#501), followed as a draft is: the same progress
+ *  dialog, card and landing, and the Build tab opens it as a revision. */
+export function startRevision(registry: string, w: Where, ns: string, name: string, instructions: string, problems: string) {
+  if (w === "agentry") startHosted(() => BuildAPI.ReviseInAgentry(registry, ns, name, instructions, problems));
+  else startLocal(() => BuildAPI.ReviseOnThisComputer(registry, ns, name, instructions, problems));
+  revising = `${ns}/${name}`;
+  notify();
 }
 
 /** Follows this account's draft In Agentry after the app was reopened, in
  *  the corner card: App asks as it starts, and Describe it as it opens. */
 export function attachHosted(registry: string) {
   if (hosted || hostedStarting) return;
+  // What the registry says it is decides how the flow names it.
+  revising = null;
   listenHosted();
   BuildAPI.AttachHostedDraft(registry)
     .then((v) => {
@@ -244,6 +263,8 @@ export type DraftState = {
   drafted: string | null;
   error: string | null;
   refusal: main.HostedDraftStartView | null;
+  /** The QuickAgent an Edit with AI revision revises, or null. */
+  revising: string | null;
 };
 
 function snapshot(): DraftState {
@@ -251,6 +272,7 @@ function snapshot(): DraftState {
   return {
     shown, raised, asCard, where, inFlight, local: localInflight !== null, log: inflightLog, progress, stopping, stopped: !inFlight && stopped, hosted, hostedStarting,
     drafted, error: inFlight ? null : landedError, refusal: inFlight ? null : refusal,
+    revising: revising ?? (hosted?.revises ? hosted.revises.replace(/@.*$/, "") : null),
   };
 }
 

@@ -15,6 +15,7 @@ import { advisoryWords } from "../advisory";
 import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { heldForm, offersEdit } from "../edit";
+import ReviseDialog from "./ReviseDialog";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -36,7 +37,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack, backLabel = "← back to search", onEdit,
+  registry, ns, name, onBack, backLabel = "← back to search", onEdit, onOpenReviewKey,
 }: {
   registry: string;
   ns: string;
@@ -47,6 +48,8 @@ export default function AgentPage({
    *  under this name at its next minor. Offered where the registry says
    *  this sign-in may add a version (canPublish; DEV-199). */
   onEdit?: () => void;
+  /** Settings at the AI Review key, for Edit with AI on this computer. */
+  onOpenReviewKey?: () => void;
 }) {
   const [detail, setDetail] = useState<main.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +77,8 @@ export default function AgentPage({
   // Edit replaces the Build tab's unsaved form, so it asks first when the
   // tab holds one (as the site asks before replacing an unsent draft).
   const [confirmEdit, setConfirmEdit] = useState<string | null>(null);
+  // Edit with AI's form (agentry-desktop#501), offered beside Edit.
+  const [reviseOpen, setReviseOpen] = useState(false);
   function edit() {
     const held = heldForm();
     if (held) setConfirmEdit(held);
@@ -212,6 +217,7 @@ export default function AgentPage({
                 <Button variant="primary" onClick={() => setRunOpen(true)}>Run</Button>
                 <Button onClick={() => setToolsOpen(true)}>Set up tools</Button>
                 {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
+                {onEdit && offersEdit(detail) && <Button onClick={() => setReviseOpen(true)} title={`Have the Drafter draft the next version of ${detail.latest}`}>Edit with AI</Button>}
                 {installButton}
               </>
             )
@@ -269,6 +275,11 @@ export default function AgentPage({
             </div>
           ))}
         </Card>
+      )}
+
+      {reviseOpen && detail.latest && (
+        <ReviseDialog registry={registry} ns={a.namespace} name={a.name} version={detail.latest}
+          onClose={() => setReviseOpen(false)} onOpenSettings={onOpenReviewKey} />
       )}
 
       {confirmEdit && (

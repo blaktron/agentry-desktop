@@ -47,6 +47,9 @@ var draftJSONFields = map[string]bool{
 	"drafter": true, "aiReview": true, "validation": true, "manifestError": true,
 	// The person's packs the Drafter read (agentry-desktop#497).
 	"knowledge": true,
+	// The release a revision drafted the next version of
+	// (agentry-desktop#501): its ref and archive digest.
+	"revises": true,
 }
 
 // ReadHosted reads a hosted draft's draft.json from the run folder its

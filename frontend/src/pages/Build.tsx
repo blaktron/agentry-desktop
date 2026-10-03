@@ -36,6 +36,7 @@ import { draftInFlight, takeLandedDraft } from "../drafts";
 import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest, type Editing } from "../edit";
 import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
+import { RevisionView } from "./BuildRevision";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
 import { advisoryWords } from "../advisory";
@@ -48,7 +49,7 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // every tab change, and the form is not a file until the first save, so
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
-let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null } | null = null;
+let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null; revisionShown: boolean } | null = null;
 
 type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -238,6 +239,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // The release the form edits (agentry-desktop#500), while the form still
   // names its QuickAgent: Submit then adds a version to it.
   const [editing, setEditing] = useState<Editing | null>(kept?.editing ?? null);
+  // A landed revision shows its diff and Publish this version until the
+  // person opens it in the form (agentry-desktop#501).
+  const [revisionShown, setRevisionShown] = useState(kept?.revisionShown ?? false);
   // A draft still being made is followed on Describe it.
   const [view, setView] = useState<View>(draftInFlight() ? "describe" : initialView);
   const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
@@ -306,10 +310,10 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
-    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing };
+    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing, revisionShown };
     // What the QuickAgent page's Edit says it replaces (agentry-desktop#500).
     noteHeldForm(kept ? kept.model.name || "a QuickAgent with no name yet" : null);
-  }, [model, dir, view, touched, drafted, editing]);
+  }, [model, dir, view, touched, drafted, editing, revisionShown]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
@@ -440,6 +444,24 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setResult(await BuildAPI.Validate(d));
     });
 
+  // Publish this version (agentry-desktop#501): an empty folder from the
+  // native picker, and Go saves and submits the revision as drafted.
+  const publishRevision = () =>
+    wrap("submit", async () => {
+      const d = await ChooseSaveFolder("Choose an empty folder for the revision");
+      if (!d) return;
+      if (await BuildAPI.Exists(d)) {
+        setError(`${d} already holds an agent.yaml. Choose an empty folder for the revision.`);
+        return;
+      }
+      setLog([]);
+      setPubResult(null);
+      setLocalInstall(null);
+      const r = await BuildAPI.PublishThisVersion(registry, d, drafted?.revision?.key ?? "");
+      setDir(d);
+      if (r) setPubResult(r);
+    });
+
   // Submit is public (agentry-desktop#425): the Go side first asks, in a
   // native dialog, whether to spend the submission's credits, and says
   // whether it becomes public or, existing private, stays so; a No returns
@@ -549,7 +571,11 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     moved.current = true;
     setModel(new build.Model(v.model));
     setDrafted(v);
-    setEditing(null);
+    // Edit with AI's revision is an edit of its QuickAgent: the name fixed,
+    // the next minor set (agentry-desktop#501).
+    const r = v.revision;
+    setEditing(r ? { namespace: r.namespace, name: r.name, from: r.from, version: r.version } : null);
+    setRevisionShown(!!r);
     setTouched(true);
     setDir("");
     resetOutcome();
@@ -579,6 +605,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   function switchTo(v: View) {
     moved.current = true;
+    // The form is the Builder: a revision opened there is the person's own.
+    if (v === "steps" || v === "advanced") setRevisionShown(false);
     setStepProblem(null);
     // The summary is drawn again from the model as it now stands.
     if (v === "summary") setSummary(null);
@@ -1015,7 +1043,10 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         <ErrorBox error={error} />
         {notice && <Notice tone="info">{notice}</Notice>}
         {editingNotice}
-        {summary ? (
+        {drafted?.revision && revisionShown ? (
+          <RevisionView v={drafted} busy={busy} outcome={outcome} onPublish={publishRevision}
+            onOpenInBuilder={() => switchTo("advanced")} onOpenAgent={onOpenAgent} />
+        ) : summary ? (
           <SummaryView
             s={summary}
             check={drafted?.check?.line ?? null}

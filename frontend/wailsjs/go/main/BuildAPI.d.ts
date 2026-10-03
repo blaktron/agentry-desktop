@@ -31,9 +31,15 @@ export function Load(arg1:string):Promise<build.Model>;
 
 export function NewModel(arg1:string):Promise<build.Model>;
 
+export function PublishThisVersion(arg1:string,arg2:string,arg3:string):Promise<build.PublishResult>;
+
 export function ReviewLocally(arg1:string,arg2:string):Promise<main.ReviewView>;
 
 export function ReviewStatus():Promise<main.ReviewStatusView>;
+
+export function ReviseInAgentry(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<main.HostedDraftStartView>;
+
+export function ReviseOnThisComputer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<main.DraftView>;
 
 export function Save(arg1:string,arg2:build.Model):Promise<void>;
 

@@ -54,12 +54,24 @@ export function NewModel(arg1) {
   return window['go']['main']['BuildAPI']['NewModel'](arg1);
 }
 
+export function PublishThisVersion(arg1, arg2, arg3) {
+  return window['go']['main']['BuildAPI']['PublishThisVersion'](arg1, arg2, arg3);
+}
+
 export function ReviewLocally(arg1, arg2) {
   return window['go']['main']['BuildAPI']['ReviewLocally'](arg1, arg2);
 }
 
 export function ReviewStatus() {
   return window['go']['main']['BuildAPI']['ReviewStatus']();
+}
+
+export function ReviseInAgentry(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['BuildAPI']['ReviseInAgentry'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function ReviseOnThisComputer(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['BuildAPI']['ReviseOnThisComputer'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function Save(arg1, arg2) {

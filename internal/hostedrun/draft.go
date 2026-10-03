@@ -68,6 +68,19 @@ type Draft struct {
 	Withheld         int      `json:"withheld"`
 	SearchCredits    *int64   `json:"searchCredits,omitempty"`
 	AIReviewCredits  *int64   `json:"aiReviewCredits,omitempty"`
+	// Revises is the release a revision drafts the next version of
+	// (agentry-enterprise#297), as the registry resolved it: its ref and
+	// archive digest. Nil for a draft from a description.
+	Revises *Revises `json:"revises,omitempty"`
+	// Instructions and Problems are the person's two texts of a revision.
+	Instructions string `json:"instructions,omitempty"`
+	Problems     string `json:"problems,omitempty"`
+}
+
+// Revises is a revision's release (x-runs.yaml DraftRevises).
+type Revises struct {
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
 }
 
 // DraftFacts are what the app knows about a registry before it offers a
@@ -89,6 +102,9 @@ type DraftFacts struct {
 	Hold *TierPrice
 	// Active is the account's run, build or draft in flight, nil for none.
 	Active *Run
+	// Revise is the status route's caller.revise (Edit with AI), nil when
+	// the route did not carry it.
+	Revise *CallerRevise
 }
 
 // DecideDraft applies the rule. Signed out, the choice is offered but
