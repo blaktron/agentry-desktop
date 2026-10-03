@@ -543,6 +543,11 @@ type AgentDetailView struct {
 	// version with a newly known high or critical vulnerability. Empty for
 	// a viewer who is not the publisher or not signed in.
 	DependencyAlerts []DependencyAlertView `json:"dependencyAlerts"`
+	// CanPublish is the registry's answer to whether this sign-in may add a
+	// version to the QuickAgent (GET /agents canPublish, agentry#875): what
+	// the page offers Edit on (agentry-desktop#500, DEV-199). False for a
+	// viewer who is not signed in, and from a registry that predates it.
+	CanPublish bool `json:"canPublish"`
 }
 
 // DependencyAlertView is one open dependency alert.
@@ -580,6 +585,7 @@ func (b *BrowseAPI) Agent(reg, ns, name string) (*AgentDetailView, error) {
 		},
 		Versions:         []VersionView{},
 		DependencyAlerts: []DependencyAlertView{},
+		CanPublish:       a.CanPublish != nil && *a.CanPublish,
 	}
 	if settings.TokenFor(reg) != "" {
 		// The alerts endpoint is the caller's own; a viewer who is not the

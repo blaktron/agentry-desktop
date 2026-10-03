@@ -34,6 +34,10 @@ export function DescribeStatus() {
   return window['go']['main']['BuildAPI']['DescribeStatus']();
 }
 
+export function EditRelease(arg1, arg2, arg3) {
+  return window['go']['main']['BuildAPI']['EditRelease'](arg1, arg2, arg3);
+}
+
 export function Exists(arg1) {
   return window['go']['main']['BuildAPI']['Exists'](arg1);
 }

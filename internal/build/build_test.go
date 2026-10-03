@@ -828,3 +828,55 @@ func TestCheckHoldsTheKnowledgeAskToV11(t *testing.T) {
 		t.Fatalf("the section's fragment shows no ask:\n%s", m.fragment(SectionGuide))
 	}
 }
+
+// Save's LICENSE says the licence the manifest declares (agentry-desktop#559,
+// the site's agentry-web#46): the MIT text for MIT or an empty field, and for
+// any other id a file naming it and pointing at its SPDX page. A LICENSE
+// already in the folder is left alone.
+func TestSaveWritesTheLicenceTheManifestDeclares(t *testing.T) {
+	for license, want := range map[string][]string{
+		"MIT":              {"MIT License", "Copyright (c)", "chris"},
+		"":                 {"MIT License"},
+		"Apache-2.0":       {"Apache-2.0", "licensed under the Apache-2.0 license", "https://spdx.org/licenses/Apache-2.0.html"},
+		"GPL-3.0-or-later": {"https://spdx.org/licenses/GPL-3.0-or-later.html"},
+	} {
+		m := Default("chris")
+		m.Name, m.Summary, m.License = "licence-check", "Checks the licence file.", license
+		if license == "" {
+			m.License = "MIT"
+			if got := licenseFile("", "chris"); !strings.Contains(got, "MIT License") {
+				t.Errorf("an empty field: %q", got)
+			}
+			continue
+		}
+		dir := t.TempDir()
+		if err := Save(dir, m); err != nil {
+			t.Fatalf("%s: %v", license, err)
+		}
+		b, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range want {
+			if !strings.Contains(string(b), w) {
+				t.Errorf("%s: LICENSE lacks %q:\n%s", license, w, b)
+			}
+		}
+		if license != "MIT" && strings.Contains(string(b), "MIT License") {
+			t.Errorf("%s: LICENSE is the MIT text", license)
+		}
+	}
+	// A licence the person placed is kept.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte("my own text\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := Default("chris")
+	m.Name, m.Summary, m.License = "licence-check", "Checks the licence file.", "Apache-2.0"
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "LICENSE")); string(b) != "my own text\n" {
+		t.Fatalf("an existing LICENSE was replaced: %q", b)
+	}
+}

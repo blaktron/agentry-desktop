@@ -21,6 +21,8 @@ export function DescribeOnThisComputer(arg1:string,arg2:string,arg3:Array<string
 
 export function DescribeStatus():Promise<main.DescribeStatusView>;
 
+export function EditRelease(arg1:string,arg2:string,arg3:string):Promise<main.EditView>;
+
 export function Exists(arg1:string):Promise<boolean>;
 
 export function Install(arg1:string):Promise<main.LocalInstallView>;
