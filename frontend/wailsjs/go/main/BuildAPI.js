@@ -54,8 +54,8 @@ export function NewModel(arg1) {
   return window['go']['main']['BuildAPI']['NewModel'](arg1);
 }
 
-export function PublishRevision(arg1, arg2) {
-  return window['go']['main']['BuildAPI']['PublishRevision'](arg1, arg2);
+export function PublishThisVersion(arg1, arg2, arg3) {
+  return window['go']['main']['BuildAPI']['PublishThisVersion'](arg1, arg2, arg3);
 }
 
 export function ReviewLocally(arg1, arg2) {

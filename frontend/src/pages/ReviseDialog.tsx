@@ -11,7 +11,7 @@ import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
-import { startRevision } from "../drafts";
+import { startRevision, useDraft } from "../drafts";
 import { MAX_REVISION_TEXT_BYTES, canStart, firstWhere, revisionBytes, textsProblem, type ReviseWhere, type ReviseWays } from "../revise";
 import { Button, Card, ErrorBox, Modal, Notice, Textarea } from "../ui";
 import { GetAKeyLink } from "./AIReviewKey";
@@ -35,6 +35,8 @@ export default function ReviseDialog({
   const [status, setStatus] = useState<main.DescribeStatusView | null>(null);
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // One draft at a time, as Describe it allows (drafts.ts).
+  const d = useDraft();
 
   useEffect(() => {
     BuildAPI.DescribeInAgentryStatus(registry).then(setAgentry).catch(() => setAgentry(null));
@@ -43,7 +45,8 @@ export default function ReviseDialog({
   }, [registry]);
 
   const ways: ReviseWays = {
-    agentryOffered: !!agentry?.reviseOffered,
+    // A Standard payer is not offered In Agentry (D10): only a line says why.
+    agentryOffered: !!agentry?.reviseOffered && !agentry.reviseUpgrade,
     agentryAvailable: !!agentry?.reviseAvailable,
     keyReady: !!status?.key?.ready,
     dockerOk: setup?.dockerOk ?? false,
@@ -54,7 +57,7 @@ export default function ReviseDialog({
   }, [agentry, status, where]);
 
   const problem = textsProblem(instructions, problems);
-  const ready = where !== null && canStart(where, ways, instructions, problems);
+  const ready = !d.inFlight && where !== null && canStart(where, ways, instructions, problems);
 
   function start() {
     if (!where) return;
@@ -81,7 +84,7 @@ export default function ReviseDialog({
       </label>
 
       <h3 className="small">Where it drafts</h3>
-      {agentry?.reviseOffered && (
+      {agentry?.reviseOffered && !agentry.reviseUpgrade && (
         <Card className={where === "agentry" ? "selected" : ""}>
           <label className="small" style={{ display: "block" }}>
             <input type="radio" name="revise-where" checked={where === "agentry"} disabled={!agentry.reviseAvailable}
@@ -93,11 +96,6 @@ export default function ReviseDialog({
           {!agentry.reviseAvailable && agentry.reviseReason && (
             <Notice tone="warn">
               {agentry.reviseReason}{agentry.reviseRemedy ? ` ${agentry.reviseRemedy}` : ""}
-              {agentry.reviseUpgrade && (
-                <>
-                  {" "}<Button variant="link" onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>See Pro</Button>
-                </>
-              )}
             </Notice>
           )}
         </Card>
@@ -119,12 +117,19 @@ export default function ReviseDialog({
             <GetAKeyLink />
           </Notice>
         )}
+        {agentry?.reviseUpgrade && (
+          <p className="muted small" style={{ marginBottom: 0 }}>
+            {agentry.reviseReason}{" "}
+            <Button variant="link" onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setError(String(e)))}>See Pro</Button>
+          </p>
+        )}
         {setup && !ways.dockerOk && (
           <Notice tone="warn">The Drafter runs in containers, and docker is not ready on this computer{setup.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Run defaults sets it up.</Notice>
         )}
       </Card>
 
       {(instructions !== "" || problems !== "") && problem && <p className="small step-problem">{problem}</p>}
+      {d.inFlight && <Notice tone="warn">A draft is already in progress. Wait for it to finish, or stop it, before you start another.</Notice>}
       <ErrorBox error={error} />
       <div className="row mt" style={{ justifyContent: "flex-end" }}>
         <Button onClick={onClose}>Cancel</Button>

@@ -50,7 +50,7 @@ export function RevisionView({
       <h3>What changed</h3>
       {r.diff.map((f) => (
         <Card key={f.path} className="mt">
-          <strong className="mono">{f.path}</strong>
+          <strong className="mono"><RevealText text={f.path} /></strong>
           {f.same
             ? <p className="muted small" style={{ marginBottom: 0 }}>Unchanged.</p>
             : (

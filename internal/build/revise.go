@@ -19,33 +19,10 @@ func FromRevision(manifestJSON []byte, instructions, namespace, name, version, r
 	}
 	release := strings.TrimSpace(releaseLicense)
 	drafted := strings.TrimSpace(m.License)
-	if release != "" && !strings.EqualFold(drafted, release) && !mentionsWord(words, drafted) {
+	if release != "" && !strings.EqualFold(drafted, release) && (drafted == "" || !namesLicence(words, drafted)) {
 		m.License = release
 	}
 	return m, nil
-}
-
-// mentionsWord reports whether words names w as a word of its own, any case.
-func mentionsWord(words, w string) bool {
-	if w == "" {
-		return false
-	}
-	lw, lt := strings.ToLower(words), strings.ToLower(w)
-	for i := 0; ; {
-		j := strings.Index(lw[i:], lt)
-		if j < 0 {
-			return false
-		}
-		start, end := i+j, i+j+len(lt)
-		if (start == 0 || !wordByte(lw[start-1])) && (end == len(lw) || !wordByte(lw[end])) {
-			return true
-		}
-		i = start + 1
-	}
-}
-
-func wordByte(c byte) bool {
-	return c == '-' || c == '.' || c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z'
 }
 
 // DiffLine is one line of a diff: Op is ' ' (in both), '-' (only in the

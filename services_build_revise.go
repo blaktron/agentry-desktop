@@ -28,6 +28,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,6 +61,10 @@ type RevisionView struct {
 	// Hosted says it was drafted In Agentry: Publish this version names
 	// its run (draftRun). One drafted on this computer names none.
 	Hosted bool `json:"hosted"`
+	// Key names this landing. Publish this version takes it back, so it
+	// publishes the revision on screen and no other (a later one may have
+	// landed since).
+	Key string `json:"key"`
 	// Diff is agent.yaml and the instruction file, the release's against
 	// the revision's, both as the form writes them.
 	Diff []build.DiffFile `json:"diff"`
@@ -68,6 +74,7 @@ type RevisionView struct {
 // copy, never the page's, so what is submitted with a run's id is the
 // draft as it landed.
 type landedRevision struct {
+	key   string
 	reg   string
 	runID string
 	model build.Model
@@ -185,6 +192,7 @@ func (b *BuildAPI) ReviseOnThisComputer(reg, ns, name, instructions, problems st
 			"AI Review (TypeSafe's Jev) reads your texts and the release's agent.yaml and "+rel.Path+" first, with your key, then every search result and page "+
 			"before the model does. It then checks the finished draft with the questions the pipeline asks at publish. "+
 			"Your texts and the release go to "+goes+" and the sites the Drafter reads, so they should hold no secret. "+
+			"The run's receipts, the revision and a copy of the release's two files are kept in your Downloads folder under agentry-out. "+
 			"A revision made here leaves no record in Agentry, so it is scanned as any new version is when you submit it. "+
 			"Nothing is submitted until you choose Publish this version. Continue?"); err != nil {
 		return nil, err
@@ -257,6 +265,15 @@ func stageRelease(ctx context.Context, url, token, ref, digest, dest string) (*d
 	return drafter.ReadRelease(scratch, dest, ref, digest)
 }
 
+// randomKey names one landed revision.
+func randomKey() (string, error) {
+	var b [12]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
 // revisionWords are the person's two texts as the draft's words: what the
 // summary's unmentioned hosts and the licence rule read.
 func revisionWords(instructions, problems string) string {
@@ -306,7 +323,12 @@ func (b *BuildAPI) landRevision(ctx context.Context, url, token string, v *Draft
 			build.LineDiff("agent.yaml", before.ManifestYAML(), after.ManifestYAML()),
 			build.LineDiff(label, before.Instructions, after.Instructions),
 		}}
-	landed := &landedRevision{reg: url, model: *after}
+	key, err := randomKey()
+	if err != nil {
+		return err
+	}
+	v.Revision.Key = key
+	landed := &landedRevision{key: key, reg: url, model: *after}
 	if hosted {
 		landed.runID = runID
 	}
@@ -314,13 +336,14 @@ func (b *BuildAPI) landRevision(ctx context.Context, url, token string, v *Draft
 	return nil
 }
 
-// PublishRevision is Publish this version: the revision that landed last,
-// as drafted (Go's copy, not the page's), saved into dir, which must be a
+// PublishThisVersion is Publish this version: the revision key names, as
+// drafted (Go's copy, not the page's), saved into dir, which must be a
 // folder the native picker gave that holds no QuickAgent yet, and submitted
 // as Submit submits, after the same native warning. A revision drafted In
 // Agentry names its run (draftRun); one drafted on this computer names
-// none.
-func (b *BuildAPI) PublishRevision(reg, dir string) (*build.PublishResult, error) {
+// none. Only the revision that landed last is kept: an earlier one's key is
+// refused, never answered with the later revision.
+func (b *BuildAPI) PublishThisVersion(reg, dir, key string) (*build.PublishResult, error) {
 	if dir == "" {
 		return nil, errors.New("choose a folder to save the revision into first")
 	}
@@ -332,8 +355,11 @@ func (b *BuildAPI) PublishRevision(reg, dir string) (*build.PublishResult, error
 		return nil, err
 	}
 	cur := b.revised.get()
-	if cur == nil {
+	switch {
+	case cur == nil:
 		return nil, errors.New("there is no revision to publish: Edit with AI first")
+	case key == "" || cur.key != key:
+		return nil, errors.New("this is not the revision that landed last, which is the one this app keeps: open the last one, or Edit with AI again")
 	}
 	if settings.Normalize(reg) != cur.reg {
 		return nil, fmt.Errorf("the revision was drafted against %s, not %s", originOf(cur.reg), originOf(reg))

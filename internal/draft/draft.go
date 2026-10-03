@@ -286,9 +286,13 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 			return nil, err
 		}
 	}
-	_, _ = fmt.Fprintf(logw, "AI Review passed the description. The Drafter runs on this computer against the model your runner policy names (%s), for no credits. %s "+
+	passed := "the description"
+	if p.Revision != nil {
+		passed = "your texts and the release"
+	}
+	_, _ = fmt.Fprintf(logw, "AI Review passed %s. The Drafter runs on this computer against the model your runner policy names (%s), for no credits. %s "+
 		"Every result goes to AI Review with your key before the model reads it, and this computer reads each page from its site. It submits nothing.\n",
-		p.ModelName(), SearchSentence(p.Search, p.Policy))
+		passed, p.ModelName(), SearchSentence(p.Search, p.Policy))
 
 	// A pack not scanned in Agentry is scanned now, after the description
 	// and before the Drafter starts, and what AI Review flags in any pack

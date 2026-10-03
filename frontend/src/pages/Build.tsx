@@ -49,7 +49,7 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // every tab change, and the form is not a file until the first save, so
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
-let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null } | null = null;
+let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null; revisionShown: boolean } | null = null;
 
 type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -241,7 +241,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [editing, setEditing] = useState<Editing | null>(kept?.editing ?? null);
   // A landed revision shows its diff and Publish this version until the
   // person opens it in the form (agentry-desktop#501).
-  const [revisionShown, setRevisionShown] = useState(false);
+  const [revisionShown, setRevisionShown] = useState(kept?.revisionShown ?? false);
   // A draft still being made is followed on Describe it.
   const [view, setView] = useState<View>(draftInFlight() ? "describe" : initialView);
   const [serverChecks, setServerChecks] = useState<Record<string, mcpvuln.Status>>({});
@@ -310,10 +310,10 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
-    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing };
+    if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing, revisionShown };
     // What the QuickAgent page's Edit says it replaces (agentry-desktop#500).
     noteHeldForm(kept ? kept.model.name || "a QuickAgent with no name yet" : null);
-  }, [model, dir, view, touched, drafted, editing]);
+  }, [model, dir, view, touched, drafted, editing, revisionShown]);
 
   useEffect(() => EventsOn("build:publish-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
@@ -444,10 +444,6 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setResult(await BuildAPI.Validate(d));
     });
 
-  // Submit is public (agentry-desktop#425): the Go side first asks, in a
-  // native dialog, whether to spend the submission's credits, and says
-  // whether it becomes public or, existing private, stays so; a No returns
-  // nothing and sends nothing.
   // Publish this version (agentry-desktop#501): an empty folder from the
   // native picker, and Go saves and submits the revision as drafted.
   const publishRevision = () =>
@@ -461,11 +457,15 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setLog([]);
       setPubResult(null);
       setLocalInstall(null);
-      const r = await BuildAPI.PublishRevision(registry, d);
+      const r = await BuildAPI.PublishThisVersion(registry, d, drafted?.revision?.key ?? "");
       setDir(d);
       if (r) setPubResult(r);
     });
 
+  // Submit is public (agentry-desktop#425): the Go side first asks, in a
+  // native dialog, whether to spend the submission's credits, and says
+  // whether it becomes public or, existing private, stays so; a No returns
+  // nothing and sends nothing.
   const publish = () =>
     wrap("submit", async () => {
       const d = await ensureDir();

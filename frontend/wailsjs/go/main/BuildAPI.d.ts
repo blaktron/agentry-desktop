@@ -31,7 +31,7 @@ export function Load(arg1:string):Promise<build.Model>;
 
 export function NewModel(arg1:string):Promise<build.Model>;
 
-export function PublishRevision(arg1:string,arg2:string):Promise<build.PublishResult>;
+export function PublishThisVersion(arg1:string,arg2:string,arg3:string):Promise<build.PublishResult>;
 
 export function ReviewLocally(arg1:string,arg2:string):Promise<main.ReviewView>;
 

@@ -193,6 +193,8 @@ export function startRevision(registry: string, w: Where, ns: string, name: stri
  *  the corner card: App asks as it starts, and Describe it as it opens. */
 export function attachHosted(registry: string) {
   if (hosted || hostedStarting) return;
+  // What the registry says it is decides how the flow names it.
+  revising = null;
   listenHosted();
   BuildAPI.AttachHostedDraft(registry)
     .then((v) => {

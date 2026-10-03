@@ -1766,6 +1766,7 @@ export namespace main {
 	    from: string;
 	    version: string;
 	    hosted: boolean;
+	    key: string;
 	    diff: build.DiffFile[];
 	
 	    static createFrom(source: any = {}) {
@@ -1779,6 +1780,7 @@ export namespace main {
 	        this.from = source["from"];
 	        this.version = source["version"];
 	        this.hosted = source["hosted"];
+	        this.key = source["key"];
 	        this.diff = this.convertValues(source["diff"], build.DiffFile);
 	    }
 	

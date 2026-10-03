@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 	pkgarchive "github.com/blaktron/agentry/pkg/archive"
 
 	"github.com/blaktron/agentry-desktop/internal/registry"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 const editDigest = "sha256:" + "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"
@@ -32,6 +34,13 @@ const editDigest = "sha256:" + "ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12
 // what a submit of the next version needs. It returns the draftRun field
 // of every upload, "" for none.
 func serveRelease(t *testing.T, f *draftFake) *[]string {
+	t.Helper()
+	return serveReleaseAt(t, f, editDigest)
+}
+
+// serveReleaseAt is serveRelease with the archive digest the registry
+// records for 1.2.0.
+func serveReleaseAt(t *testing.T, f *draftFake, digest string) *[]string {
 	t.Helper()
 	uploads := &[]string{}
 	mux := f.mux
@@ -43,7 +52,7 @@ func serveRelease(t *testing.T, f *draftFake) *[]string {
 	mux.HandleFunc("GET /api/v1/agents/chris/meeting-actions/versions", func(w http.ResponseWriter, _ *http.Request) {
 		hostedJSON(w, http.StatusOK, []map[string]any{
 			{"version": "1.4.0", "status": "needs_review", "channel": "stable", "createdAt": "2026-10-02T00:00:00Z"},
-			{"version": "1.2.0", "status": "published", "channel": "stable", "createdAt": "2026-09-30T00:00:00Z", "archiveDigest": editDigest},
+			{"version": "1.2.0", "status": "published", "channel": "stable", "createdAt": "2026-09-30T00:00:00Z", "archiveDigest": digest},
 		})
 	})
 	mux.HandleFunc("GET /api/v1/agents/chris/meeting-actions/versions/1.2.0/manifest", func(w http.ResponseWriter, _ *http.Request) {
@@ -165,12 +174,12 @@ func TestARevisionInAgentryLandsUnderTheQuickAgentsNameAndPublishesWithItsRun(t 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.PublishRevision(f.url, dir); err == nil || !strings.Contains(err.Error(), "file dialog") {
+	if _, err := b.PublishThisVersion(f.url, dir, r.Key); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("a folder the picker did not give: %v", err)
 	}
 	b.app.markPicked(dir)
 	b.app.confirm = func(context.Context, string, string) (bool, error) { return true, nil }
-	res, err := b.PublishRevision(f.url, dir)
+	res, err := b.PublishThisVersion(f.url, dir, r.Key)
 	if err != nil || res == nil || res.Status != "published" {
 		t.Fatalf("publish %+v %v", res, err)
 	}
@@ -183,7 +192,7 @@ func TestARevisionInAgentryLandsUnderTheQuickAgentsNameAndPublishesWithItsRun(t 
 		t.Fatalf("saved agent.yaml:\n%s", yml)
 	}
 	// A folder that holds a QuickAgent is not written over.
-	if _, err := b.PublishRevision(f.url, dir); err == nil || !strings.Contains(err.Error(), "already holds") {
+	if _, err := b.PublishThisVersion(f.url, dir, r.Key); err == nil || !strings.Contains(err.Error(), "already holds") {
 		t.Fatalf("a second publish into the same folder: %v", err)
 	}
 }
@@ -207,7 +216,20 @@ func TestARevisionOnThisComputerPublishesWithNoRun(t *testing.T) {
 	dir := t.TempDir()
 	b.app.markPicked(dir)
 	b.app.confirm = func(context.Context, string, string) (bool, error) { return true, nil }
-	if _, err := b.PublishRevision(f.url, dir); err != nil {
+	first := v.Revision.Key
+	// A second revision lands: the first one's key no longer publishes
+	// anything, and never the second revision in its place.
+	v2 := &DraftView{Description: "Give every action a date."}
+	if err := b.landRevision(context.Background(), f.url, hostedTestToken, v2, &d, "chris/meeting-actions@1.2.0", "", false); err != nil {
+		t.Fatal(err)
+	}
+	if v2.Revision.Key == "" || v2.Revision.Key == first {
+		t.Fatalf("keys %q %q", first, v2.Revision.Key)
+	}
+	if _, err := b.PublishThisVersion(f.url, dir, first); err == nil || !strings.Contains(err.Error(), "landed last") {
+		t.Fatalf("an earlier revision's key: %v", err)
+	}
+	if _, err := b.PublishThisVersion(f.url, dir, v2.Revision.Key); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(*uploads, []string{""}) {
@@ -221,7 +243,10 @@ func TestARevisionOnThisComputerPublishesWithNoRun(t *testing.T) {
 	}
 }
 
-func TestTheReleaseIsStagedFromItsArchiveHeldToItsDigest(t *testing.T) {
+// releaseArchive packs chris/meeting-actions@1.2.0 as the registry holds
+// it, with PROMPT.md its instruction file, as editManifest names it.
+func releaseArchive(t *testing.T) []byte {
+	t.Helper()
 	pkg := t.TempDir()
 	for name, body := range map[string]string{
 		"agent.yaml": "schemaVersion: \"2\"\nname: meeting-actions\nnamespace: chris\nversion: 1.2.0\nsummary: Turns notes into actions.\nlicense: MIT\nmodes: [autonomous]\n" +
@@ -241,16 +266,27 @@ func TestTheReleaseIsStagedFromItsArchiveHeldToItsDigest(t *testing.T) {
 	if _, err := pkgarchive.BuildArchive(pkg, files, &archive); err != nil {
 		t.Fatalf("pack: %v", err)
 	}
-	digest := registry.Digest(archive.Bytes())
-	f := newDraftFake(t)
-	served := digest
+	return archive.Bytes()
+}
+
+// serveArchive adds resolve and the archive's download to the fake;
+// *served is the digest resolve answers.
+func serveArchive(f *draftFake, archive []byte, served *string) {
 	f.mux.HandleFunc("GET /api/v1/resolve", func(w http.ResponseWriter, _ *http.Request) {
 		hostedJSON(w, http.StatusOK, map[string]any{"namespace": "chris", "name": "meeting-actions", "version": "1.2.0",
-			"digest": served, "archiveUrl": "/archive/meeting-actions-1.2.0.tar.zst", "manifest": map[string]any{}})
+			"digest": *served, "archiveUrl": "/archive/meeting-actions-1.2.0.tar.zst", "manifest": map[string]any{}})
 	})
 	f.mux.HandleFunc("GET /archive/meeting-actions-1.2.0.tar.zst", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(archive.Bytes())
+		_, _ = w.Write(archive)
 	})
+}
+
+func TestTheReleaseIsStagedFromItsArchiveHeldToItsDigest(t *testing.T) {
+	archive := releaseArchive(t)
+	digest := registry.Digest(archive)
+	f := newDraftFake(t)
+	served := digest
+	serveArchive(f, archive, &served)
 	signIn(t, f.url)
 	dest := filepath.Join(t.TempDir(), drafter.ReviseInput)
 	rev, err := stageRelease(context.Background(), f.url, hostedTestToken, "chris/meeting-actions@1.2.0", digest, dest)
@@ -285,5 +321,67 @@ func TestTheReleaseIsStagedFromItsArchiveHeldToItsDigest(t *testing.T) {
 	served = editDigest
 	if _, err := stageRelease(context.Background(), f.url, hostedTestToken, "chris/meeting-actions@1.2.0", editDigest, filepath.Join(t.TempDir(), "revise")); err == nil || !strings.Contains(err.Error(), "digest mismatch") {
 		t.Fatalf("an archive that is not the digest: %v", err)
+	}
+}
+
+// Edit with AI on this computer, through the binding (agentry-desktop#501):
+// asked in a native dialog, then under the run lock the release is
+// downloaded, held to its digest and staged under the run's revise/, AI
+// Review reads the texts and both of its files before the Drafter runs,
+// the Drafter is given them under /inputs/revise with a task naming them
+// and the person's texts, and the draft lands as a revision drafted here.
+func TestARevisionOnThisComputerStagesTheReleaseForTheDrafter(t *testing.T) {
+	f := newDescribeFixture(t)
+	saveDescribeKey(t)
+	archive := releaseArchive(t)
+	digest := registry.Digest(archive)
+	reg := newDraftFake(t)
+	serveReleaseAt(t, reg, digest)
+	serveArchive(reg, archive, &digest)
+	s, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Upsert(settings.Registry{URL: settings.Normalize(reg.url), Token: hostedTestToken})
+	if err := settings.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	f.result = `{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
+		"summary": "Turns meeting notes into dated actions.", "license": "Apache-2.0", "modes": ["autonomous"], "entrypoints": {"instruction": "AGENT.md"},
+		"capabilities": {"network": {"egress": "none"}, "filesystem": {"read": "none", "write": "none"}, "exec": "none"},
+		"publish": {"include": ["agent.yaml", "AGENT.md", "README.md", "LICENSE"]}},
+		"matches": [], "sources": [], "openQuestions": []}`
+	v, err := f.b.ReviseOnThisComputer(reg.url, "chris", "meeting-actions", "Give every action a date.", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(f.asked, []string{"Edit chris/meeting-actions with AI on this computer?"}) {
+		t.Fatalf("asked %v", f.asked)
+	}
+	if len(f.runs) == 0 {
+		t.Fatal("the Drafter did not run")
+	}
+	first := f.runs[0]
+	revise := filepath.Join(first.OutDir, drafter.ReviseInput)
+	if !slices.Equal(first.Inputs, []string{revise}) {
+		t.Fatalf("inputs %v, want the staged release %s", first.Inputs, revise)
+	}
+	for _, name := range []string{"agent.yaml", "PROMPT.md"} {
+		if _, err := os.Stat(filepath.Join(revise, name)); err != nil {
+			t.Fatalf("the release's %s was not staged: %v", name, err)
+		}
+	}
+	task, _ := io.ReadAll(first.Task)
+	if !strings.Contains(string(task), "/inputs/revise/PROMPT.md") || !strings.Contains(string(task), "Give every action a date.") {
+		t.Fatalf("task:\n%s", task)
+	}
+	// AI Review read the task, then the release's files (in the pack scan's
+	// chunks: two small files are one), before the Drafter ran.
+	if f.scan.read < 2 {
+		t.Fatalf("AI Review read %d texts before the Drafter, want the task and the release", f.scan.read)
+	}
+	r := v.Revision
+	if r == nil || r.Hosted || r.From != "1.2.0" || r.Version != "1.5.0" || r.Key == "" || v.Model.Name != "meeting-actions" || v.Model.Namespace != "chris" {
+		t.Fatalf("revision %+v, model %s/%s", r, v.Model.Namespace, v.Model.Name)
 	}
 }
