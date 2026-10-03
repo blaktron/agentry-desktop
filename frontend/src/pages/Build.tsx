@@ -22,13 +22,14 @@
 // Since #344 (plan builder-simplify.md M5, D3, D4, D7, D10) a draft lands on
 // the summary (BuildSummary.tsx): how it works and what it needs, then
 // Submit, private unless switched, with the folder asked through the native
-// picker at its first save (D-030). Both form views end on the same summary
+// picker at its first save (D-030; since #585 Go makes it under the default
+// output folder, no dialog, D-060). Both form views end on the same summary
 // through Continue to submit, so it is the one publish page, and Review
 // keeps the Drafter's notes folded under "How it was drafted".
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { ChooseDirectory, ChooseSaveFolder, OpenExternal } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
@@ -410,18 +411,14 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       if (view === "start" || view === "describe") setView("advanced");
     });
 
-  // The folder is chosen at the first save (D-030: it comes from the native
-  // picker). A folder that already holds a different QuickAgent is not
-  // written over: open it instead.
+  // The folder is made at the first save, with no file dialog
+  // (agentry-desktop#585, D-060): Go makes a new folder named for the
+  // QuickAgent under the default output folder (Settings → Run defaults, else
+  // ~/Downloads/agentry-out), so the page still names no path (D-030) and
+  // nothing already there is written over. Later saves reuse it.
   async function ensureDir(): Promise<string> {
     if (dir) return dir;
-    // The picker opens in the person's Documents folder (agentry-desktop#425).
-    const d = await ChooseSaveFolder("Choose where to save the QuickAgent");
-    if (!d) return "";
-    if (await BuildAPI.Exists(d)) {
-      setError(`${d} already holds an agent.yaml. Open it with "Open folder…" to edit it, or choose an empty folder.`);
-      return "";
-    }
+    const d = await BuildAPI.NewSaveFolder(m?.name ?? "");
     setDir(d);
     return d;
   }
@@ -444,16 +441,13 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setResult(await BuildAPI.Validate(d));
     });
 
-  // Publish this version (agentry-desktop#501): an empty folder from the
-  // native picker, and Go saves and submits the revision as drafted.
+  // Publish this version (agentry-desktop#501): a new folder Go makes under
+  // the default output folder (#585), and Go saves and submits the revision
+  // as drafted.
   const publishRevision = () =>
     wrap("submit", async () => {
-      const d = await ChooseSaveFolder("Choose an empty folder for the revision");
-      if (!d) return;
-      if (await BuildAPI.Exists(d)) {
-        setError(`${d} already holds an agent.yaml. Choose an empty folder for the revision.`);
-        return;
-      }
+      const rev = drafted?.revision;
+      const d = await BuildAPI.NewSaveFolder(rev ? `${rev.name}-${rev.version}` : "");
       setLog([]);
       setPubResult(null);
       setLocalInstall(null);
@@ -563,7 +557,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A draft made by Describe it: into the form, with no folder yet (the
-  // first save asks, D-030), and open on the summary (plan
+  // first save makes it, D-060), and open on the summary (plan
   // builder-simplify.md §4.1), private unless switched (D3).
   function takeDraft(v: main.DraftView) {
     if (!v.model) return;
@@ -585,7 +579,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A release opened by Edit: into the form under its own name at the next
-  // minor, with no folder yet (the first save asks, D-030), on the summary,
+  // minor, with no folder yet (the first save makes it, D-060), on the summary,
   // as a draft opens. What the Builder cannot hold was dropped in Go,
   // without a word (D6).
   function takeEdit(v: main.EditView) {
@@ -984,7 +978,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         <Button variant="primary" disabled={!!busy} onClick={() => switchTo("summary")}>Continue to submit</Button>
       </div>
       <p className="muted small">
-        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : "The first save asks where the workspace goes: an empty folder, or open an existing one."}
+        {dir ? <>Saves into <span className="mono selectable">{dir}</span>.</> : <>The first save writes it to a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder). To edit one you already have, open its folder.</>}
       </p>
       {result && <ValidateCard result={result} />}
     </>

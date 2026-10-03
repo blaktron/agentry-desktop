@@ -24,26 +24,19 @@ type App struct {
 	// things stand between a claim and an action: a consent is asked
 	// again in a native dialog the page cannot answer (confirm), and a
 	// filesystem path is accepted only when a native picker in this
-	// process returned it (picked).
+	// process returned it, or Go made it for the Build tab's Save (D-060)
+	// (picked).
 	confirm func(ctx context.Context, title, message string) (bool, error)
 	// pickDirectory is the native directory picker ("" when cancelled);
 	// a test substitutes one, the way it does for confirm.
 	pickDirectory func(ctx context.Context, title string) (string, error)
-	// pickDirectoryIn is the same picker opened in a given folder; nil
-	// falls back to pickDirectory, which is what a test substitutes.
-	pickDirectoryIn func(ctx context.Context, title, start string) (string, error)
-	mu              sync.Mutex
-	picked          map[string]bool
+	mu            sync.Mutex
+	picked        map[string]bool
 }
 
 // NewApp creates the application struct.
 func NewApp() *App {
-	return &App{confirm: nativeConfirm, pickDirectory: nativePickDirectory, pickDirectoryIn: nativePickDirectoryIn}
-}
-
-// nativePickDirectoryIn is the OS directory dialog opened in start.
-func nativePickDirectoryIn(ctx context.Context, title, start string) (string, error) {
-	return runtime.OpenDirectoryDialog(ctx, runtime.OpenDialogOptions{Title: title, DefaultDirectory: start})
+	return &App{confirm: nativeConfirm, pickDirectory: nativePickDirectory}
 }
 
 // nativePickDirectory is the OS directory dialog.
@@ -200,20 +193,6 @@ func (a *App) AppVersion() string {
 // path ("" when the user cancelled).
 func (a *App) ChooseDirectory(title string) (string, error) {
 	return a.chooseDirectory(title)
-}
-
-// ChooseSaveFolder is ChooseDirectory opened in the person's Documents
-// folder: where the Build tab's Save asks where a QuickAgent goes
-// (agentry-desktop#425). What it returns is marked picked the same way.
-func (a *App) ChooseSaveFolder(title string) (string, error) {
-	if a.pickDirectoryIn == nil {
-		return a.chooseDirectory(title)
-	}
-	dir, err := a.pickDirectoryIn(a.ctx, title, documentsDir())
-	if err == nil {
-		a.markPicked(dir)
-	}
-	return dir, err
 }
 
 // chooseDirectory is the picker behind ChooseDirectory and behind the

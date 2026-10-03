@@ -4,8 +4,8 @@
 // (both written by the form's own writer, so it is what Publish sends), and
 // the two actions the site gives (agentry-web#862):
 //   - Publish this version: Go saves the revision as drafted (its own copy,
-//     never the form's) into an empty folder the native picker gives and
-//     submits it, naming the run when it was drafted In Agentry;
+//     never the form's) into a new folder Go makes under the default output
+//     folder (#585) and submits it, naming the run when it was drafted In Agentry;
 //   - Open in the Builder: the form, where it is the person's own change and
 //     Submit names no run.
 // Every text the Drafter or the registry wrote is drawn as text, invisible
@@ -78,7 +78,7 @@ export function RevisionView({
         <Button disabled={!!busy} onClick={onOpenInBuilder}>Open in the Builder</Button>
       </div>
       <ul className="small">
-        <li><strong>Publish this version</strong> saves it as drafted into an empty folder you choose and submits {r.namespace}/{r.name}@{r.version} to the security pipeline. It first says what the submission costs, and sends nothing until you agree.</li>
+        <li><strong>Publish this version</strong> saves it as drafted into a new folder in your output folder and submits {r.namespace}/{r.name}@{r.version} to the security pipeline. It first says what the submission costs, and sends nothing until you agree.</li>
         <li><strong>Open in the Builder</strong> puts it in the form to change before you save or submit it.</li>
       </ul>
       {outcome}
