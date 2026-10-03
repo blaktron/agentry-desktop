@@ -78,10 +78,24 @@ cp -f "$bin" build/linux/stage/agentry-desktop
 chmod 0755 build/linux/stage/agentry-desktop
 trap 'rm -rf build/linux/stage' EXIT
 
+# The agentry CLI, when the build carries it (build/cli/agentry, which
+# scripts/fetch-cli.sh brings in; agentry-desktop#580): /usr/bin/agentry,
+# from a copy of the description with that one entry added after the app's,
+# so a PR build packages exactly what it did. Still no maintainer script.
+desc=build/nfpm/nfpm.yaml
+if [ -f build/cli/agentry ]; then
+  cp -f build/cli/agentry build/linux/stage/agentry
+  chmod 0755 build/linux/stage/agentry
+  desc=build/linux/stage/nfpm.yaml
+  awk '{print} /^    dst: \/usr\/bin\/agentry-desktop$/{getline; print; getline; print; print "  - src: build/linux/stage/agentry\n    dst: /usr/bin/agentry\n    file_info:\n      mode: 0755"}' build/nfpm/nfpm.yaml >"$desc"
+  grep -q '^    dst: /usr/bin/agentry$' "$desc" || { echo "package-linux: could not add /usr/bin/agentry to the description" >&2; exit 1; }
+  echo "package-linux: carrying the agentry CLI as /usr/bin/agentry ($(sed -n 's/^version=//p' build/cli/CLI-BUILD-INFO 2>/dev/null || echo 'version unknown'))"
+fi
+
 for fmt in deb rpm; do
   out="build/linux/agentry-desktop-${VERSION}-linux-amd64.${fmt}"
-  DESKTOP_VERSION="$PKG_VERSION" nfpm package -f build/nfpm/nfpm.yaml -p "$fmt" -t "$out" >/dev/null
+  DESKTOP_VERSION="$PKG_VERSION" nfpm package -f "$desc" -p "$fmt" -t "$out" >/dev/null
   echo "package-linux: $out"
-  DESKTOP_VERSION=0.0.0 nfpm package -f build/nfpm/nfpm.yaml -p "$fmt" -t "build/linux/smoke/agentry-desktop-previous.${fmt}" >/dev/null
+  DESKTOP_VERSION=0.0.0 nfpm package -f "$desc" -p "$fmt" -t "build/linux/smoke/agentry-desktop-previous.${fmt}" >/dev/null
 done
 echo "package-linux: build/linux/smoke/agentry-desktop-previous.{deb,rpm} at 0.0.0, for the upgrade smoke only"

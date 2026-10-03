@@ -18,6 +18,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"github.com/blaktron/agentry-desktop/internal/applog"
+	"github.com/blaktron/agentry-desktop/internal/clipath"
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/hostpath"
 	"github.com/blaktron/agentry-desktop/internal/install"
@@ -45,6 +46,12 @@ func main() {
 	// (agentry-desktop#424).
 	if len(os.Args) > 1 && os.Args[1] == uninstall.ImagesFlag {
 		os.Exit(uninstall.ImagesMain(os.Stderr, dockerimages.NewCLI()))
+	}
+	// The installer puts the agentry CLI it carries on the user Path, and
+	// the uninstaller takes it off, through the app rather than NSIS, which
+	// would cut a long Path short (internal/clipath; agentry-desktop#580).
+	if len(os.Args) > 1 && (os.Args[1] == clipath.AddFlag || os.Args[1] == clipath.RemoveFlag) {
+		os.Exit(clipath.Main(os.Stderr, os.Args[1]))
 	}
 	app := NewApp()
 	settingsAPI := &SettingsAPI{app: app}

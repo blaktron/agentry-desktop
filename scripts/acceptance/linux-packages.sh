@@ -56,6 +56,9 @@ rm -rf "$stage"; mkdir -p "$stage"
 trap 'rm -rf "$stage"' EXIT
 cp "$deb" "$stage/pkg.deb"; cp "$rpm" "$stage/pkg.rpm"; cp "$bin" "$stage/agentry-desktop.bin"
 cp "$prev_deb" "$stage/previous.deb"; cp "$prev_rpm" "$stage/previous.rpm"
+# The agentry CLI the packages carry when the build has one (build/cli,
+# scripts/fetch-cli.sh; agentry-desktop#580): /usr/bin/agentry must be it.
+[ ! -f build/cli/agentry ] || cp build/cli/agentry "$stage/agentry.cli"
 
 # The part every container runs after installing the previous package.
 # $1 is the family (deb or rpm); $2 is "strict" where the owners check runs.
@@ -113,6 +116,16 @@ if printf '%s\n' "$files" | grep -v -E '^/usr$|^/usr/(bin|share)(/|$)'; then fai
 [ -z "$scripts" ] || fail "the package carries maintainer scripts or triggers: $scripts"
 echo "ok ($fam): owns $(printf '%s\n' "$files" | grep -c -v -E '/$') paths under /usr, no scripts, valid desktop entry"
 
+# 2b. The agentry CLI, when the build carries one: /usr/bin/agentry is that
+#     release byte for byte, and runs; without one, the package has none.
+if [ -f /pkg/agentry.cli ]; then
+  cmp /usr/bin/agentry /pkg/agentry.cli || fail "/usr/bin/agentry differs from the CLI the build carried"
+  agentry --version >/tmp/cli.out 2>&1 || { cat /tmp/cli.out >&2; fail "agentry --version failed"; }
+  echo "ok ($fam): /usr/bin/agentry is the carried CLI, on PATH: $(head -1 /tmp/cli.out)"
+else
+  [ ! -e /usr/bin/agentry ] || fail "the package carries /usr/bin/agentry but the build carried no CLI"
+fi
+
 # 3. The same binary as the bare artifact.
 cmp "$bin" /pkg/agentry-desktop.bin || fail "the installed binary differs from the bare artifact"
 echo "ok ($fam): installed binary is byte-identical to the bare artifact"
@@ -162,6 +175,7 @@ case "$fam" in
 esac
 [ ! -e "$bin" ] || fail "$bin survived the removal"
 [ ! -e /usr/share/applications/agentry-desktop.desktop ] || fail "the desktop entry survived the removal"
+[ ! -e /usr/bin/agentry ] || fail "/usr/bin/agentry survived the removal"
 after=$(snapshot)
 [ "$before" = "$after" ] || { diff <(echo "$before") <(echo "$after") >&2; fail "removing changed the home"; }
 echo "ok ($fam): upgrade and removal left every configuration byte in place"
