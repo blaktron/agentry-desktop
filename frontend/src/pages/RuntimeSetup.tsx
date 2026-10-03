@@ -49,6 +49,8 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   onOpenPrereqs?: () => void;
 } = {}) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
+  const [checkingDocker, setCheckingDocker] = useState(true);
+  const dockerCheckPending = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -74,8 +76,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   const logRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => {
+    let live = true;
     RunAPI.SetupStatus()
       .then((s) => {
+        if (!live) return;
         setStatus(s);
         setProvider(s.provider || "anthropic");
         setModel(s.model);
@@ -89,7 +93,9 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         setKeyMode(advanced && s.apiKeySource === "env" ? "env" : "keyring");
         setKeyNotice(s.keyNotice ?? null);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => { if (live) setError(String(e)); })
+      .finally(() => { if (live) setCheckingDocker(false); });
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,6 +109,22 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [log]);
+
+  async function checkDockerAgain() {
+    if (dockerCheckPending.current) return;
+    dockerCheckPending.current = true;
+    setCheckingDocker(true);
+    setError(null);
+    try {
+      // Refresh readiness only; provider fields may hold unsaved edits.
+      setStatus(await RunAPI.SetupStatus());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      dockerCheckPending.current = false;
+      setCheckingDocker(false);
+    }
+  }
 
   function pickProvider(id: string) {
     setProvider(id);
@@ -238,13 +260,13 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       <ErrorBox error={error} />
       {notice && <Notice tone="ok">{notice}</Notice>}
 
-      {status && !status.dockerOk && onOpenPrereqs && (
+      {status && !status.dockerOk && !checkingDocker && onOpenPrereqs && (
         <Notice tone="warn">
           Docker is not ready on this computer, so runs cannot start and the images cannot be prepared.{" "}
           <Button variant="link" onClick={onOpenPrereqs}>Run defaults</Button> sets it up.
         </Notice>
       )}
-      {status && !status.dockerOk && !onOpenPrereqs && (
+      {status && !status.dockerOk && !checkingDocker && !onOpenPrereqs && (
         <PrereqCard
           onDone={async () => {
             try { setStatus(await RunAPI.SetupStatus()); } catch { /* badge stays */ }
@@ -252,9 +274,13 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         />
       )}
 
+      {checkingDocker && <Spinner label="Checking Docker…" />}
+      {(!status || (!status.dockerOk && onOpenPrereqs)) && !checkingDocker && (
+        <Button onClick={checkDockerAgain} disabled={!!busy}>Check again</Button>
+      )}
       {status && (
         <div className="row" style={{ marginBottom: 10 }}>
-          {status.dockerOk
+          {checkingDocker ? <span className="badge">checking Docker</span> : status.dockerOk
             ? <span className="badge ok">docker available</span>
             : <span className="badge bad" title={status.dockerErr}>docker unavailable</span>}
           {status.dockerOk && (status.imagesReady
@@ -364,7 +390,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
           </Button>
           <Button
             variant="primary"
-            disabled={!canSave || !status?.dockerOk}
+            disabled={!canSave || !status?.dockerOk || checkingDocker}
             title={!status?.dockerOk ? "docker must be available first" : saveHint}
             onClick={() => apply(true)}
           >
@@ -397,8 +423,37 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [deferred, setDeferred] = useState(false);
 
-  const refresh = () => RunAPI.PrereqStatus().then(setPrereq).catch((e) => setError(String(e)));
-  useEffect(() => { refresh(); }, []);
+  const checkPending = useRef(false);
+  useEffect(() => {
+    let live = true;
+    setBusy("Checking Docker…");
+    RunAPI.PrereqStatus()
+      .then(async (p) => {
+        if (!live) return;
+        setPrereq(p);
+        if (p.dockerOk) await onDone();
+      })
+      .catch((e) => { if (live) setError(String(e)); })
+      .finally(() => { if (live) setBusy(null); });
+    return () => { live = false; };
+  }, []);
+
+  async function checkAgain() {
+    if (checkPending.current) return;
+    checkPending.current = true;
+    setBusy("Checking Docker…");
+    setError(null);
+    try {
+      const p = await RunAPI.PrereqStatus();
+      setPrereq(p);
+      if (p.dockerOk) await onDone();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      checkPending.current = false;
+      setBusy(null);
+    }
+  }
 
   async function act(label: string, call: () => Promise<main.PrereqView>) {
     setBusy(label);
@@ -431,7 +486,12 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
     setDeferred(true);
   }
 
-  if (!prereq || prereq.state === "ready") return null;
+  if (!prereq) return <Card>
+    <strong>Docker engine</strong>
+    <ErrorBox error={error} />
+    {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Check again</Button>}
+  </Card>;
+  if (prereq.state === "ready") return null;
   return (
     <Card>
       <strong>Docker engine</strong>
@@ -503,9 +563,9 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
             </>
           ) : (
             <>
-              Automatic installation is not available on this system ({prereq.os}
-              {prereq.distro ? `/${prereq.distro}` : ""}). Install docker with the official
-              instructions, then come back:{" "}
+              Docker did not answer on this system ({prereq.os}
+              {prereq.distro ? `/${prereq.distro}` : ""}). If it is installed, open it and check again. Otherwise, follow the official
+              installation instructions:{" "}
               <Button variant="link" onClick={() => OpenExternal(prereq.downloadUrl)}>
                 {prereq.downloadUrl}
               </Button>
@@ -514,7 +574,8 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
         </p>
       )}
 
-      {busy && <Spinner label={busy} />}
+      {prereq.dockerErr && !prereq.engineInstalled && <p className="small mono">{prereq.dockerErr}</p>}
+      {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Check again</Button>}
 
       {confirmRestart && (
         <Modal title="Restart this machine now?" onClose={() => setConfirmRestart(false)}>

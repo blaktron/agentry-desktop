@@ -330,3 +330,15 @@ window's, and `expectGlow` fails a state whose edge does not cover the
 window, sits under a dialog's backdrop, takes clicks, or has no badge saying
 "Unsafe Mode" beside it. The native confirmation is the Go host's and is not
 in the harness: `TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog` holds it.
+
+Docker detection's explicit re-check (`agentry-desktop#594`) is exercised
+through the real Provider settings and prerequisite components. With the
+harness running on port 5199, run:
+
+```sh
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node harness/docker-recheck.mjs
+```
+
+It holds the re-check pending to assert Checking, then confirms recovery
+without replacing unsaved provider, endpoint or key fields, and verifies
+that a successful prerequisite re-check clears its failure card.

@@ -249,8 +249,10 @@ func isolateRunEnv(t *testing.T) string {
 func withFakeDocker(t *testing.T, d dockerx.Client) {
 	t.Helper()
 	old := newDockerClient
+	oldInterval := dockerRetryInterval
+	dockerRetryInterval = 0
 	newDockerClient = func() dockerx.Client { return d }
-	t.Cleanup(func() { newDockerClient = old })
+	t.Cleanup(func() { newDockerClient = old; dockerRetryInterval = oldInterval })
 }
 
 // cataloguedPolicy is the default policy plus the one line the fixture
