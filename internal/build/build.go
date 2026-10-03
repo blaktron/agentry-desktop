@@ -623,7 +623,8 @@ func q(s string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// seq is a flow sequence of quoted values.
+// seq is a flow sequence of quoted values, each quoted for flow context
+// (qFlow).
 func seq(items []string) string { return "[" + strings.Join(quoteAll(items), ", ") + "]" }
 
 // The manifest's blocks, each as the lines manifestYAML writes for it, so a
@@ -929,7 +930,24 @@ func fsValue(mode string, paths []string) string {
 func quoteAll(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, s := range in {
-		out = append(out, q(s))
+		out = append(out, qFlow(s))
+	}
+	return out
+}
+
+// qFlow quotes a scalar for a flow sequence: q's rules, then double quotes
+// whenever the plain form holds a flow indicator. A plain scalar may hold a
+// comma or a bracket in block context, which is where q's yaml.Marshal
+// judges it, but inside [...] the comma ends the item: "CSV, TSV or JSON
+// lines." read back as two (agentry-desktop#567).
+func qFlow(s string) string {
+	out := q(s)
+	if out != "" && (out[0] == '"' || out[0] == '\'') {
+		return out
+	}
+	if strings.ContainsAny(out, ",[]{}") {
+		j, _ := json.Marshal(s)
+		return string(j)
 	}
 	return out
 }

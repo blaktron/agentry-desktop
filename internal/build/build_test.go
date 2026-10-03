@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -878,5 +879,34 @@ func TestSaveWritesTheLicenceTheManifestDeclares(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, "LICENSE")); string(b) != "my own text\n" {
 		t.Fatalf("an existing LICENSE was replaced: %q", b)
+	}
+}
+
+// A list item holding a comma, a bracket or a brace is one item after a
+// save and a load (agentry-desktop#567): inside a flow sequence a plain
+// scalar ends at the comma, so such an item is written double-quoted.
+func TestAListItemWithACommaIsOneItemAfterASave(t *testing.T) {
+	m := model()
+	m.Guide.Overview = "Profiles a dataset."
+	m.Guide.Prepare = []string{"The data file as CSV, TSV or JSON lines.", "Rules [if any], {as a list}", "plain"}
+	m.Intake = []IntakeRow{{ID: "format", Prompt: "Which format?", Type: "choice", Choices: []string{"CSV, comma separated", "TSV", "a [bracketed] one"}}}
+	dir := t.TempDir()
+	if err := Save(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got.Guide.Prepare, m.Guide.Prepare) {
+		t.Fatalf("prepare %q, want %q", got.Guide.Prepare, m.Guide.Prepare)
+	}
+	if len(got.Intake) != 1 || !slices.Equal(got.Intake[0].Choices, m.Intake[0].Choices) {
+		t.Fatalf("choices %+v", got.Intake)
+	}
+	// A plain item stays plain, so files the form wrote before read the same.
+	raw, _ := os.ReadFile(filepath.Join(dir, "agent.yaml"))
+	if !strings.Contains(string(raw), `"The data file as CSV, TSV or JSON lines."`) || !strings.Contains(string(raw), "plain]") {
+		t.Fatalf("written:\n%s", raw)
 	}
 }
