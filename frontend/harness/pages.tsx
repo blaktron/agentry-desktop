@@ -375,9 +375,8 @@ g.go = { main: {
     },
   },
   // The native folder picker, as Build's first save asks it (D-030).
-  // Save's picker opens in Documents (agentry-desktop#425).
   App: {
-    ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer", ChooseSaveFolder: async () => "/home/me/Documents/incident-summarizer",
+    ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer",
     // What the app asked the system browser to open, for shots.mjs to read
     // (expectOpened): the TypeSafe link's one address (agentry-desktop#461).
     OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); },
@@ -388,6 +387,7 @@ g.go = { main: {
       return buildModel;
     },
     Exists: async () => false,
+    NewSaveFolder: async (name: string) => `/home/me/Downloads/agentry-out/${name || "quickagent"}`,
     Check: async () => (buildHash === "summary-public"
       // A folder whose publish.include leaves out README.md (V7): Submit
       // waits for it, and Save and Install do not (agentry-desktop#425).

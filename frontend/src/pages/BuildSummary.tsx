@@ -11,7 +11,8 @@
 // mode) stays in the form views.
 //
 // It ends on three actions (agentry-desktop#425, reversing D3's private
-// Submit): Save writes the QuickAgent to a folder; Install puts it on this
+// Submit): Save writes the QuickAgent to a folder (a new one under the
+// default output folder, no dialog, since #585); Install puts it on this
 // computer only, local and unsigned, with no registry and no credit; Submit
 // sends it to the registry publicly, after a native warning that names what
 // it costs. The two dialogs are the Go side's, which the page cannot answer.
@@ -170,14 +171,14 @@ export function SummaryView({
       </div>
       <ul className="muted small build-summary-actions">
         <li>
-          <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : "a folder you choose, an empty one"}.
+          <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : <>a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder)</>}.
         </li>
         <li>
-          <strong>Install</strong> puts it on this computer only, in Installed: private, unsigned, with no registry and no
-          credit. Every run asks you to accept that it is unsigned.
+          <strong>Install</strong> saves it there too, then puts it on this computer only, in Installed: private, unsigned, with no
+          registry and no credit. Every run asks you to accept that it is unsigned.
         </li>
         <li>
-          <strong>Submit</strong> sends it to <RevealText text={registry.replace(/^https?:\/\//, "")} /> for the security pipeline and
+          <strong>Submit</strong> saves it there too, then sends it to <RevealText text={registry.replace(/^https?:\/\//, "")} /> for the security pipeline and
           makes it <strong>public</strong> (one that already exists private stays private). It first says what the submission
           costs, and sends nothing until you agree.
         </li>
