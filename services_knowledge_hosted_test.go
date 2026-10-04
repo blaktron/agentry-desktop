@@ -50,6 +50,9 @@ type buildFake struct {
 	scanning int
 	// hold keeps a create waiting until it is closed, to race a second.
 	hold chan struct{}
+	// briefs makes the registry one since agentry-enterprise#296: a build
+	// takes a brief without documents, and may search the web.
+	briefs bool
 }
 
 const buildID = "33333333-3333-3333-3333-333333333333"
@@ -99,10 +102,16 @@ func newBuildFake(t *testing.T) *buildFake {
 	mux.HandleFunc("GET /api/v1/x/runs/status", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		kb := map[string]any{"enabled": f.enabled, "holdCredits": 100, "scanCredits": 1}
+		if f.briefs {
+			kb["documentsRequired"], kb["maxBriefBytes"] = false, 8192
+			kb["web"] = map[string]any{"enabled": true, "maxSearches": 30, "creditsPerSearch": 1, "maxPages": 60, "aiReviewCredits": 1,
+				"note": "Searching the web can raise the credits a build uses: each search costs 1 credit, inside the build's hold."}
+		}
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"enabled": true, "workersOnline": 0, "hostsOnline": 1, "queued": 0,
 			"inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
-			"knowledgeBuild": map[string]any{"enabled": f.enabled, "holdCredits": 100, "scanCredits": 1},
+			"knowledgeBuild": kb,
 			"caller": map[string]any{
 				"tier": "pro", "caps": map[string]any{"timeoutSeconds": 900, "maxTurns": 60, "maxTokens": 5000000},
 				"holdCredits": 200, "inputTokensPerCredit": 50000, "outputTokensPerCredit": 25000,
@@ -146,7 +155,7 @@ func newBuildFake(t *testing.T) *buildFake {
 		}
 		f.run = &hostedrun.Run{
 			ID: buildID, Kind: hostedrun.KindKnowledgeBuild, Ref: "agentry/knowledge-creator@1.0.0", Digest: "builtin",
-			Mode: "autonomous", Status: hostedrun.StatusQueued, QueuePosition: 1, HoldCredits: 100, Inputs: inputs,
+			Mode: "autonomous", Status: hostedrun.StatusQueued, QueuePosition: 1, HoldCredits: 100, Inputs: inputs, Task: req.Brief,
 			Caps: hostedrun.Caps{TimeoutSeconds: 3600, MaxTurns: 300}, CreatedAt: time.Now().UTC(),
 			Build: &hostedrun.KnowledgeBuild{Pack: "55555555-5555-5555-5555-555555555555", Name: name},
 		}
@@ -361,7 +370,7 @@ func TestHostedBuildCreatesPollsWaitsForTheScanAndDownloads(t *testing.T) {
 	k, ev := hostedBuildAPI(t, f)
 	dir := docs(t, k)
 
-	start, err := k.StartHostedBuild(f.url, "runbooks", "", []string{dir})
+	start, err := k.StartHostedBuild(f.url, "runbooks", "", []string{dir}, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +387,7 @@ func TestHostedBuildCreatesPollsWaitsForTheScanAndDownloads(t *testing.T) {
 	if strings.Join(uploads, ",") != "backups.md,oncall.md" {
 		t.Fatalf("uploaded %v; a hidden file is not a document", uploads)
 	}
-	if _, err := k.StartHostedBuild(f.url, "other", "", []string{dir}); err == nil || !strings.Contains(err.Error(), "already in progress") {
+	if _, err := k.StartHostedBuild(f.url, "other", "", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("a second build while one is followed: %v", err)
 	}
 
@@ -428,7 +437,7 @@ func TestHostedBuildContinuesOneThatStoppedShort(t *testing.T) {
 	f := newBuildFake(t)
 	k, ev := hostedBuildAPI(t, f)
 	dir := docs(t, k)
-	if _, err := k.StartHostedBuild(f.url, "runbooks", "", []string{dir}); err != nil {
+	if _, err := k.StartHostedBuild(f.url, "runbooks", "", []string{dir}, "", false); err != nil {
 		t.Fatal(err)
 	}
 	f.finish("budget", false, "nothing", 1)
@@ -479,19 +488,19 @@ func TestHostedBuildRefusesWhatCouldNotComeBack(t *testing.T) {
 	if _, err := s.Keep(context.Background(), knowledgetest.Make(t, "handbook", nil).Dir); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "handbook", "", []string{dir}); err == nil || !strings.Contains(err.Error(), "already kept") {
+	if _, err := k.StartHostedBuild(f.url, "handbook", "", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "already kept") {
 		t.Fatalf("a name kept here: %v", err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "Bad Name", "", []string{dir}); err == nil || !strings.Contains(err.Error(), "lowercase") {
+	if _, err := k.StartHostedBuild(f.url, "Bad Name", "", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "lowercase") {
 		t.Fatalf("a bad name: %v", err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "", "handbook", []string{dir}); err == nil || !strings.Contains(err.Error(), "Upload to Agentry first") {
+	if _, err := k.StartHostedBuild(f.url, "", "handbook", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "Upload to Agentry first") {
 		t.Fatalf("add to a pack not in Agentry: %v", err)
 	}
 	if _, _, err := s.Upload(context.Background(), "handbook"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "", "handbook", []string{dir}); err != nil {
+	if _, err := k.StartHostedBuild(f.url, "", "handbook", []string{dir}, "", false); err != nil {
 		t.Fatalf("add to a pack kept in Agentry as it is here: %v", err)
 	}
 	f.mu.Lock()
@@ -515,7 +524,7 @@ func TestHostedBuildRefusesWhatCouldNotComeBack(t *testing.T) {
 			"detail": "This account has 40 credits; a build holds 100.", "balance": 40, "hold": 100, "resetsAt": "2026-10-11T00:00:00Z", "tier": "standard"})
 	}
 	f.mu.Unlock()
-	v, err := k.StartHostedBuild(f.url, "notes", "", []string{dir})
+	v, err := k.StartHostedBuild(f.url, "notes", "", []string{dir}, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +542,7 @@ func TestHostedBuildDocumentsComeFromThePickerAndARunDoesNotAttachToABuild(t *te
 	if err := os.WriteFile(typed, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{typed}); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{typed}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("a typed path: %v", err)
 	}
 	f.mu.Lock()
@@ -582,7 +591,7 @@ func TestHostedBuildASecondStartIsRefusedBeforeItUploads(t *testing.T) {
 	f.mu.Unlock()
 	done := make(chan error, 1)
 	go func() {
-		_, err := k.StartHostedBuild(f.url, "runbooks", "", []string{dir})
+		_, err := k.StartHostedBuild(f.url, "runbooks", "", []string{dir}, "", false)
 		done <- err
 	}()
 	deadline := time.Now().Add(5 * time.Second)
@@ -595,7 +604,7 @@ func TestHostedBuildASecondStartIsRefusedBeforeItUploads(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if _, err := k.StartHostedBuild(f.url, "other", "", []string{dir}); err == nil || !strings.Contains(err.Error(), "already in progress") {
+	if _, err := k.StartHostedBuild(f.url, "other", "", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "already in progress") {
 		t.Fatalf("a second start: %v", err)
 	}
 	f.mu.Lock()
@@ -628,7 +637,7 @@ func TestHostedBuildRefusesALinkOutOfAPickedFolder(t *testing.T) {
 	}
 	k.app.markPicked(picked)
 	through := filepath.Join(picked, "link", "id_rsa")
-	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{through}); err == nil || !strings.Contains(err.Error(), "through a link") {
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{through}, "", false); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("a file reached through a link: %v", err)
 	}
 	f.mu.Lock()
@@ -641,7 +650,7 @@ func TestHostedBuildRefusesALinkOutOfAPickedFolder(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(picked, "notes.md"), []byte("# Notes\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{picked}); err != nil {
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{picked}, "", false); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
@@ -669,5 +678,133 @@ func TestARunInAgentryRefusesANameTwoCopiesHold(t *testing.T) {
 	packs = append(packs, knowledge.Pack{Name: "handbook", InAgentry: true, AgentryID: "b", Shared: true, Org: "acme"})
 	if n := inAgentryNamed(packs, "handbook"); n != 2 {
 		t.Fatalf("a personal and a shared copy count %d", n)
+	}
+}
+
+// A brief alone builds In Agentry (agentry-desktop#498; plan
+// knowledge-and-drafter.md D15, D16): the availability carries the
+// registry's brief bound and its web note, nothing is uploaded, the create
+// carries the brief and the Search the web choice as made, and the build's
+// last word says what its record counted of its searches.
+func TestHostedBuildFromABriefAloneSendsTheBriefAndTheWebChoice(t *testing.T) {
+	f := newBuildFake(t)
+	k, ev := hostedBuildAPI(t, f)
+	if v, err := k.HostedAvailability(f.url); err != nil || v.TakesBrief || v.Web {
+		t.Fatalf("a registry from before briefs: %+v, %v", v, err)
+	}
+	f.mu.Lock()
+	f.briefs = true
+	f.mu.Unlock()
+	v, err := k.HostedAvailability(f.url)
+	if err != nil || !v.TakesBrief || v.MaxBriefBytes != 8192 || !v.Web || !strings.Contains(v.WebNote, "can raise the credits") {
+		t.Fatalf("availability = %+v, %v", v, err)
+	}
+
+	if _, err := k.StartHostedBuild(f.url, "espresso", "", nil, "  ", true); err == nil || !strings.Contains(err.Error(), "write a brief") {
+		t.Fatalf("neither documents nor a brief: %v", err)
+	}
+	if _, err := k.StartHostedBuild(f.url, "espresso", "", nil, strings.Repeat("a", 8193), true); err == nil || !strings.Contains(err.Error(), "8 KiB") {
+		t.Fatalf("a brief past 8 KiB: %v", err)
+	}
+	f.mu.Lock()
+	refusedCreates := len(f.created)
+	f.mu.Unlock()
+	if refusedCreates != 0 || k.hostedCurrent() != nil {
+		t.Fatalf("a refused build created %d builds or kept the slot", refusedCreates)
+	}
+
+	start, err := k.StartHostedBuild(f.url, "espresso", "", nil, " Espresso machine care, for new café staff. ", true)
+	if err != nil || start.Build == nil {
+		t.Fatalf("start = %+v, %v", start, err)
+	}
+	f.mu.Lock()
+	created, uploads := f.created, f.uploads
+	f.mu.Unlock()
+	if len(uploads) != 0 || len(created) != 1 || len(created[0].Inputs) != 0 || created[0].Brief != "Espresso machine care, for new café staff." ||
+		created[0].Web == nil || !*created[0].Web || created[0].Name != "espresso" {
+		t.Fatalf("uploaded %v, created %+v", uploads, created)
+	}
+	if start.Build.Brief != "Espresso machine care, for new café staff." || len(start.Build.Documents) != 0 {
+		t.Fatalf("the build's view: %+v", start.Build)
+	}
+	f.apply(t, "espresso")
+	f.mu.Lock()
+	f.run.Build.Web = &hostedrun.BuildWeb{Searched: 14, Pages: 20, Scanned: 20, Withheld: 1}
+	f.mu.Unlock()
+	f.finish("succeeded", true, "", 75)
+	final := ev.final(t)
+	if final.WebLine != "This build searched the web 14 times, and the registry let through 20 page reads. AI Review read 20 texts from the web before the Creator did, and withheld 1." {
+		t.Fatalf("web line = %q", final.WebLine)
+	}
+}
+
+// Search the web off is sent as off, so the registry's default never
+// stands in for the choice the step showed; Add documents takes a brief
+// alone too.
+func TestHostedBuildSendsSearchTheWebOffAsMade(t *testing.T) {
+	f := newBuildFake(t)
+	f.briefs = true
+	k, _ := hostedBuildAPI(t, f)
+	s, err := k.env().Store(f.url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Keep(context.Background(), knowledgetest.Make(t, "handbook", nil).Dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Upload(context.Background(), "handbook"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.StartHostedBuild(f.url, "", "handbook", nil, "Add the winter schedule.", false); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	created := f.created
+	f.mu.Unlock()
+	if len(created) != 1 || created[0].Pack == "" || created[0].Web == nil || *created[0].Web || created[0].Brief != "Add the winter schedule." {
+		t.Fatalf("created %+v", created)
+	}
+}
+
+func TestBuildWebLineSaysOnlyWhatTheRecordCounted(t *testing.T) {
+	for _, c := range []struct {
+		w    *hostedrun.BuildWeb
+		want string
+	}{
+		{nil, ""},
+		{&hostedrun.BuildWeb{}, "This build could search the web and made no searches."},
+		{&hostedrun.BuildWeb{Searched: 1, Pages: 1}, "This build searched the web once, and the registry let through 1 page read."},
+		{&hostedrun.BuildWeb{Searched: 2, Pages: 3, Scanned: 1}, "This build searched the web 2 times, and the registry let through 3 page reads. AI Review read 1 text from the web before the Creator did, and withheld none."},
+	} {
+		if got := buildWebLine(c.w); got != c.want {
+			t.Errorf("buildWebLine(%+v) = %q, want %q", c.w, got, c.want)
+		}
+	}
+}
+
+// Go holds the create to the registry's own terms, not the page's: against
+// a registry from before briefs a brief is refused before anything is
+// uploaded, and Search the web is sent off whatever the page asked.
+func TestHostedBuildHoldsTheBriefAndTheWebToTheRegistrysTerms(t *testing.T) {
+	f := newBuildFake(t)
+	k, _ := hostedBuildAPI(t, f)
+	dir := docs(t, k)
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{dir}, "and the winter rota", false); err == nil || !strings.Contains(err.Error(), "documents only, without a brief") {
+		t.Fatalf("a brief to a registry from before briefs: %v", err)
+	}
+	f.mu.Lock()
+	uploaded := len(f.uploads)
+	f.mu.Unlock()
+	if uploaded != 0 || k.hostedCurrent() != nil {
+		t.Fatalf("a refused build uploaded %d documents or kept the slot", uploaded)
+	}
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{dir}, "", true); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	created := f.created
+	f.mu.Unlock()
+	if len(created) != 1 || created[0].Web == nil || *created[0].Web {
+		t.Fatalf("Search the web reached a registry that does not search for a build: %+v", created)
 	}
 }

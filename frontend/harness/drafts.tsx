@@ -89,6 +89,7 @@ g.go = { main: {
     AttachHostedBuild: async () => ({}),
     DocumentsSize: async () => ({ bytes: 2_411_724, localMaxBytes: 1 << 30, agentryMaxBytes: 10 << 20 }),
     StopBuild: async () => undefined,
+    CreatorWeb: async () => ({ ready: true, provider: "Brave" }),
   },
   RunAPI: { SetupStatus: async () => ({ dockerOk: true, dockerErr: "", imagesReady: true, policyExists: true, provider: "openai", model: "qwen3.8-flash-next" }) },
   SettingsAPI: { OpenUpgrade: async () => undefined },

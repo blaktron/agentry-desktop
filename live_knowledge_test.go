@@ -85,7 +85,7 @@ func TestLiveKnowledge(t *testing.T) {
 		t.Fatal(err)
 	}
 	app.markPicked(docs)
-	res, err := k.Create(reg, name, []string{docs})
+	res, err := k.Create(reg, name, []string{docs}, "", false)
 	if err != nil {
 		t.Fatalf("Create knowledge: %v\n%s", err, strings.Join(log, "\n"))
 	}

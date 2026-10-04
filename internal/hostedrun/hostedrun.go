@@ -120,6 +120,32 @@ type BuildPrice struct {
 	Enabled     bool  `json:"enabled"`
 	HoldCredits int64 `json:"holdCredits"`
 	ScanCredits int64 `json:"scanCredits"`
+	// DocumentsRequired is false since agentry-enterprise#296 (plan
+	// knowledge-and-drafter.md D15): a build takes documents, a brief, or
+	// both. Absent (nil) from a registry that predates it, which needs
+	// documents.
+	DocumentsRequired *bool `json:"documentsRequired,omitempty"`
+	// MaxBriefBytes is a brief's bound there, beside DocumentsRequired.
+	MaxBriefBytes int `json:"maxBriefBytes,omitempty"`
+	// Web is Search the web on a build (D16, D18), nil from a registry
+	// that predates it.
+	Web *BuildWebTerms `json:"web,omitempty"`
+}
+
+// TakesBrief reports whether the registry builds without documents.
+func (p *BuildPrice) TakesBrief() bool {
+	return p != nil && p.DocumentsRequired != nil && !*p.DocumentsRequired
+}
+
+// BuildWebTerms is the status route's Search the web terms for a build:
+// whether this deployment searches for one, the bounds and price of its
+// searches, and the note a client shows beside the choice.
+type BuildWebTerms struct {
+	Enabled          bool   `json:"enabled"`
+	MaxSearches      int    `json:"maxSearches"`
+	CreditsPerSearch int64  `json:"creditsPerSearch"`
+	MaxPages         int    `json:"maxPages"`
+	Note             string `json:"note"`
 }
 
 // Status is GET /x/runs/status: whether this deployment takes hosted runs,
@@ -210,6 +236,19 @@ type KnowledgeBuild struct {
 	Bytes       int64  `json:"bytes,omitempty"`
 	ScanCredits int64  `json:"scanCredits,omitempty"`
 	Note        string `json:"note,omitempty"`
+	// Web is a build that could search the web's record of it
+	// (agentry-enterprise#296); nil for a build without the web.
+	Web *BuildWeb `json:"web,omitempty"`
+}
+
+// BuildWeb is what a web build's record counts: the searches the provider
+// answered, the page reads the registry let through, and AI Review's reads
+// of what came back and what it withheld.
+type BuildWeb struct {
+	Searched int `json:"searched"`
+	Pages    int `json:"pages"`
+	Scanned  int `json:"scanned"`
+	Withheld int `json:"withheld"`
 }
 
 // Run is one hosted run as the account reads it (x-runs.yaml `Run`).
@@ -321,6 +360,11 @@ type CreateRequest struct {
 	Op    string `json:"op,omitempty"`
 	Brief string `json:"brief,omitempty"`
 	Note  string `json:"note,omitempty"`
+	// Web is a knowledge build's Search the web choice
+	// (agentry-enterprise#296); nil leaves it to the registry's default, on
+	// for a new pack with no documents and off otherwise. A knowledge
+	// build's Brief is what the pack should cover and for whom.
+	Web *bool `json:"web,omitempty"`
 	// Revises, Instructions and Problems make a draft a revision of a
 	// QuickAgent's current release (agentry-enterprise#297, R3; Edit with
 	// AI, agentry-desktop#501): Revises is its ref, ns/name@version, and a
