@@ -219,7 +219,7 @@ func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
 	if err := f.k.DeleteFromAgentry(f.reg.URL, id); err != nil {
 		t.Fatal(err)
 	}
-	if p := inAgentry(); p.InAgentry || !p.Local || p.AgentryID != "" {
+	if p := inAgentry(); p.InAgentry || !p.Local || p.AgentryID != "" || p.Note != "Agentry no longer keeps its copy of this pack: Copy to Cloud keeps one there again." {
 		t.Fatalf("after deleting Agentry's copy: %+v", p)
 	}
 	if _, err := f.env.Find(f.reg.URL, "handbook"); err != nil {

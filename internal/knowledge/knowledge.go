@@ -319,10 +319,12 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 				p.agentryCopy(r, en.Manifest.SHA256)
 			} else {
 				// The record says Agentry keeps a copy, and Agentry's own
-				// list says it does not (deleted from the site, or by the
-				// CLI on another computer).
+				// list says it does not (deleted from the Cloud Knowledge
+				// page, the site, or by the CLI on another computer). The
+				// copy here may have been uploaded or copied here, so the
+				// note says neither.
 				p.InAgentry, p.Changed, p.AgentryID = false, false, ""
-				p.Where, p.Note = whereLocal, "Agentry no longer keeps the copy this computer uploaded."
+				p.Where, p.Note = whereLocal, "Agentry no longer keeps its copy of this pack: Copy to Cloud keeps one there again."
 			}
 		}
 		out.Packs = append(out.Packs, p)
