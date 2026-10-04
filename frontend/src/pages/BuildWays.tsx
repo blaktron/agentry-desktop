@@ -33,7 +33,9 @@ export function BuildWays({ onDescribe, onSteps, onAdvanced }: { onDescribe: () 
   );
 }
 
-function WayCard({ title, blurb, figure, onOpen, children }: { title: string; blurb: string; figure: ReactNode; onOpen: () => void; children?: ReactNode }) {
+// WayCard is one way in, shared with the Voice page's cards (Voice.tsx,
+// agentry-desktop#610).
+export function WayCard({ title, blurb, figure, onOpen, children }: { title: string; blurb: string; figure: ReactNode; onOpen: () => void; children?: ReactNode }) {
   return (
     <div className="card build-way">
       <div className="build-way-figure">{figure}</div>
@@ -48,12 +50,14 @@ function WayCard({ title, blurb, figure, onOpen, children }: { title: string; bl
 
 const W = 320;
 const H = 150;
-const ACCENT = "var(--color-accent)";
-const SKY = "#38bdf8";
-const VIOLET = "#a78bfa";
-const AMBER = "#fbbf24";
+// The figures' lights and parts, shared with the Voice page's figures
+// (VoiceFigures.tsx).
+export const ACCENT = "var(--color-accent)";
+export const SKY = "#38bdf8";
+export const VIOLET = "#a78bfa";
+export const AMBER = "#fbbf24";
 
-function Figure({ glow, children }: { glow: string; children: ReactNode }) {
+export function Figure({ glow, children }: { glow: string; children: ReactNode }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true" focusable="false" className="convergence">
       <defs>
@@ -67,7 +71,7 @@ function Figure({ glow, children }: { glow: string; children: ReactNode }) {
 }
 
 // One light line: its glow, the stroke, and a spark fitted to its length.
-function Beam({ d, color, glow, length, delay = 0 }: { d: string; color: string; glow: string; length: number; delay?: number }) {
+export function Beam({ d, color, glow, length, delay = 0 }: { d: string; color: string; glow: string; length: number; delay?: number }) {
   const timing = { animationDelay: `${delay}s` } as CSSProperties;
   return (
     <>
@@ -78,7 +82,7 @@ function Beam({ d, color, glow, length, delay = 0 }: { d: string; color: string;
   );
 }
 
-function Part({ x, y, w, h, color, label, glow, delay }: { x: number; y: number; w: number; h: number; color: string; label: string; glow: string; delay: number }) {
+export function Part({ x, y, w, h, color, label, glow, delay }: { x: number; y: number; w: number; h: number; color: string; label: string; glow: string; delay: number }) {
   return (
     <g style={{ "--cv-c": color } as CSSProperties}>
       <rect x={x} y={y} width={w} height={h} rx="7" className="cv-box-glow" style={{ animationDelay: `${delay}s` }} filter={`url(#${glow})`} />
@@ -122,16 +126,26 @@ export function DrafterFigure() {
       {OUT.map((b) => (
         <Beam key={b.y} d={`M ${x} ${y} C 198 ${y}, 200 ${b.y + BOX.h / 2}, ${BOX.x} ${b.y + BOX.h / 2}`} color={b.color} glow={glow} length={b.length} delay={b.delay} />
       ))}
+      <Star x={x} y={y} glow={glow} />
+      {OUT.map((b) => (
+        <Part key={b.label} x={BOX.x} y={b.y} w={BOX.w} h={BOX.h} color={b.color} label={b.label} glow={glow} delay={b.delay} />
+      ))}
+    </Figure>
+  );
+}
+
+// A figure's point of light with four rays: the Drafter here, the Voice
+// Writer on the Voice page (the site's WayStar).
+export function Star({ x, y, glow }: { x: number; y: number; glow: string }) {
+  return (
+    <>
       <circle cx={x} cy={y} r="15" className="cv-node-glow" style={{ fill: ACCENT }} filter={`url(#${glow})`} />
       <path
         d={`M ${x} ${y - 13} Q ${x + 2} ${y - 2} ${x + 13} ${y} Q ${x + 2} ${y + 2} ${x} ${y + 13} Q ${x - 2} ${y + 2} ${x - 13} ${y} Q ${x - 2} ${y - 2} ${x} ${y - 13} Z`}
         className="cv-node"
         style={{ fill: ACCENT }}
       />
-      {OUT.map((b) => (
-        <Part key={b.label} x={BOX.x} y={b.y} w={BOX.w} h={BOX.h} color={b.color} label={b.label} glow={glow} delay={b.delay} />
-      ))}
-    </Figure>
+    </>
   );
 }
 

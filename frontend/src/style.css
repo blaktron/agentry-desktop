@@ -1017,6 +1017,13 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .convergence .cv-step-next .cv-step-dot { fill: var(--color-bg); stroke: var(--color-border-strong); stroke-width: 1.4; }
 .convergence .cv-step-next .cv-label { fill: var(--color-muted); }
 .convergence .cv-caret { stroke: var(--color-fg); stroke-width: 1.6; animation: cv-blink 1.1s steps(1, end) infinite; }
+/* The Voice page's figures (VoiceFigures.tsx, agentry-desktop#610): the
+   padlock that seals this computer's voice, and AI Review's mark. */
+.convergence .cv-lock-shackle { fill: none; stroke: var(--color-accent); stroke-width: 2; stroke-linecap: round; }
+.convergence .cv-lock-body { fill: var(--color-bg); stroke: var(--color-accent); stroke-width: 1.6; }
+.convergence .cv-lock-hole { fill: var(--color-accent); }
+.convergence .cv-mark { fill: var(--color-bg); stroke: var(--color-accent); stroke-width: 1.6; }
+.convergence .cv-check { fill: none; stroke: var(--color-accent); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 @keyframes cv-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.95; } }
 @keyframes cv-travel-fit {
   0% { stroke-dashoffset: 14; opacity: 0; }
@@ -1129,3 +1136,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .review-action { margin-top: 12px; }
 .review-action p { margin: 6px 0 0; }
 .review-report .card h3 { font-size: 15px; }
+
+/* The Local Voice page's three buttons, each with its line under it
+   (agentry-desktop#610). */
+.voice-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; margin: 12px 0; }
+.voice-action { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.voice-action p { margin: 0; }

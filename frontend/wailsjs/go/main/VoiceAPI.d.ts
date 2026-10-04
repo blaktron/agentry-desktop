@@ -28,3 +28,5 @@ export function UseAccount(arg1:string):Promise<main.VoiceSaveView>;
 export function View(arg1:string):Promise<main.VoiceView>;
 
 export function Write(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<voice.BuildResult>;
+
+export function WriteWithAI(arg1:string,arg2:string,arg3:Array<string>):Promise<voice.BuildResult>;
