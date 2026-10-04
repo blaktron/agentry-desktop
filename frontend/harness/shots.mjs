@@ -26,6 +26,11 @@ const base = `http://localhost:${port}`;
 // The AI Review key's recommendation, word for word as the operator decided
 // it (plan desktop-review-key-and-run-cards.md D1): spelled out here, not
 // imported, so a change to the app's sentence fails the states that show it.
+// The Build start page's words (agentry-desktop#598), the operator's, on
+// both clients: BuildWays.tsx and agentry-web components/builder.tsx.
+const BUILD_TAGLINE = "Use our AI Powered QuickAgent Drafter or Build one to your exact requirements.";
+const DESCRIBE_COPY = "Build a QuickAgent using the AI Drafter - just tell it what you want an agent to do and it will figure out what tools and servers it needs to do that job and build it out in the correct format.";
+const BY_HAND_COPY = "Build a QuickAgent manually so that it does exactly what you want with exactly the tools you want. This is useful if you already have a workflow to bring over, or if you know precisely how you want the agent to behave.";
 const KEY_RECOMMENDATION = "Agentry's AI Review is powered by TypeSafe AI's Jev System One. We highly recommend signing up with TypeSafe and getting an API key if you want to build shareable QuickAgents or submit them to Agentry.";
 
 // One entry per state the panel can be in, as the issue lists them.
@@ -257,12 +262,15 @@ const states = [
   { name: "page-browse", url: "/pages.html", note: "Browse under the shell: Validate is not listed outside Build (agentry-desktop#422)", locator: '[data-preview="browse"]', expectOrder: ['[data-preview="browse"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Settings"]] },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell", locator: '[data-preview="agent"]' },
   { name: "page-installed", url: "/pages.html", note: "Installed under the shell, with a QuickAgent installed from a folder: local and unsigned, Run in place of Details (agentry-desktop#425)", locator: '[data-preview="installed"]', expectText: ["me/csv-quality-check", "local, unsigned", "from a folder on this computer; no registry holds it"] },
-  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page, Describe it first as on the site, then Step by step and Advanced (agentry-desktop#421)", locator: '[data-preview="build"]', expectText: "Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.", expectOrder: [
-    ['[data-preview="build"] .build-way strong', ["Describe it", "Step by step", "Advanced"]],
-    // Validate is Build's sub-item, shown while Build is open (agentry-desktop#422).
+  { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page's two cards, Describe it to AI first, then Build it by hand, with the operator's words and the tagline, as the site's /build (agentry-desktop#598)", locator: '[data-preview="build"]', expectText: [BUILD_TAGLINE, DESCRIBE_COPY, BY_HAND_COPY, "Switch to Advanced"], expectOrder: [
+    ['[data-preview="build"] .build-way-main', ["Describe it to AI", "Build it by hand"]],
     ['[data-preview="build"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
   ] },
+  // The cards open their views (#598): a press anywhere on Build it by hand
+  // opens Step by step, and its Switch to Advanced opens Advanced.
+  { name: "page-build-by-hand", url: "/pages.html", note: "Build it by hand pressed in the middle of the card: Step by step on Basics", locator: '[data-preview="build"]', click: '[data-preview="build"] .build-way:nth-child(2)', expectText: "Step 1 of 8: Basics" },
+  { name: "page-build-by-hand-advanced", url: "/pages.html", note: "Build it by hand's Switch to Advanced: every section at once", locator: '[data-preview="build"]', click: '[data-preview="build"] .build-way-part', expectText: "Switch to step by step" },
   // The Build tab's views (plan builder-rework.md §5, agentry-desktop#280):
   // a step with its reach summary and the lines it writes, the preview of
   // what a person sees before a run, Review's recap, and Advanced.

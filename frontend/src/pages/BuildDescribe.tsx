@@ -1,6 +1,6 @@
-// Describe it (plan builder-rework.md §7.1, D5, D11, D22, D25): the Build
-// tab's third way in. A description and three optional hints, the site's,
-// then a draft made in one of two places:
+// Describe it (plan builder-rework.md §7.1, D5, D11, D22, D25): what the
+// Build tab's first card, Describe it to AI, opens (#598). A description and
+// three optional hints, the site's, then a draft made in one of two places:
 //   - In Agentry (#281): the built-in Drafter on a sandbox host against the
 //     platform's model, for credits, with AI Review reading every text
 //     through the registry. It needs an account; the page states the hold,

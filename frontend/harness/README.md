@@ -76,8 +76,10 @@ its punycode).
 
 The Build tab has a start page and two views since agentry-desktop#280
 (plan builder-rework.md M2). `pages.html` opens it on the start page,
-whose ways in `shots.mjs` holds to the site's order, Describe it first
-(`expectOrder`, agentry-desktop#421);
+whose two cards `shots.mjs` holds to the site's order and words, Describe it
+to AI first (`expectOrder`, agentry-desktop#421, #598); `page-build-by-hand`
+presses Build it by hand in the middle of its card and lands on Step by
+step, `page-build-by-hand-advanced` presses the card's Switch to Advanced;
 `#build-steps`, `#build-tools`, `#build-guide` and `#build-review` open Step
 by step on Basics, Tools and web access (the reach summary and a server's
 configuration), Before a run (its preview) and Review; `#build-advanced` is

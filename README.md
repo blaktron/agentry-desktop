@@ -165,8 +165,10 @@ The product never claims an agent is "safe". The language is always:
   publication pipeline runs (D-12 local/remote parity by construction), with
   the rule bundle embedded in the binary.
 - **Build** — author a QuickAgent, validate it, and publish it over the same
-  upload path the CLI uses. The tab opens on a start page with three ways in,
-  in the site's order:
+  upload path the CLI uses. The tab opens on a start page of two cards, as
+  the site's `/build` (agentry-desktop#598): **Describe it to AI**, which
+  opens Describe it, and **Build it by hand**, which opens Step by step and
+  offers Advanced from the card. Each card can be pressed anywhere on it.
   - **Describe it** drafts one from a plain description, with the site's
     three optional hints (the services or sites it works with, how it runs,
     an example of the output). The built-in Drafter (the one `agentry draft`
