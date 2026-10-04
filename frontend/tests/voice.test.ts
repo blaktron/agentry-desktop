@@ -46,7 +46,7 @@ test("a finding says the question in words, and the cost is the registry's", () 
 const NOON = "2026-10-04T12:00:00Z";
 const live = { review: "passed", digest: "sha256:live", createdAt: "2026-10-03T12:00:00Z" };
 const signedIn = { signedIn: true, accountOffered: true };
-const same = { downloadSame: false, uploadSame: false, localAfterLive: false, accountAfterLocal: false, inReview: false };
+const noSync = { downloadSame: false, uploadSame: false, localAfterLive: false, accountAfterLocal: false, inReview: false };
 
 test("the Local Voice card says whether a voice is kept here, when it was saved and whether runs use it", () => {
   assert.equal(localStatus(null), "No voice on this computer yet.");
@@ -72,8 +72,8 @@ test("the Cloud Voice card says the account's voice in the site's words, and sig
 test("Download and Upload say Already the same and cannot be pressed when the digests match", () => {
   const local = { exists: true, alwaysAttach: true, updated: NOON };
   const account = { exists: true, alwaysAttach: true, live };
-  const d = downloadButton({ ...signedIn, local, account, sync: { ...same, downloadSame: true, uploadSame: true } });
-  const u = uploadButton({ ...signedIn, local, account, sync: { ...same, downloadSame: true, uploadSame: true }, reviewCredits: 1 });
+  const d = downloadButton({ ...signedIn, local, account, sync: { ...noSync, downloadSame: true, uploadSame: true } });
+  const u = uploadButton({ ...signedIn, local, account, sync: { ...noSync, downloadSame: true, uploadSame: true }, reviewCredits: 1 });
   assert.deepEqual(d, { disabled: true, line: `${ALREADY_THE_SAME}.` });
   assert.deepEqual(u, { disabled: true, line: `${ALREADY_THE_SAME}.` });
 });
@@ -81,24 +81,24 @@ test("Download and Upload say Already the same and cannot be pressed when the di
 test("Download says it asks first over a newer voice here, and that a newer version is in review", () => {
   const local = { exists: true, alwaysAttach: true, updated: NOON };
   const account = { exists: true, alwaysAttach: true, live };
-  const d = downloadButton({ ...signedIn, local, account, sync: { ...same, localAfterLive: true, inReview: true } });
+  const d = downloadButton({ ...signedIn, local, account, sync: { ...noSync, localAfterLive: true, inReview: true } });
   assert.equal(d.disabled, false);
   assert.match(d.line, /^Replaces the voice on this computer with your account's live one\. The voice here was saved after it, so you are asked first\. A newer version is in review and is not live yet\.$/);
-  assert.equal(downloadButton({ ...signedIn, local: { exists: false, alwaysAttach: false }, account, sync: same }).line, "Keeps your account's live voice on this computer.");
-  assert.deepEqual(downloadButton({ ...signedIn, local, account: { exists: true, alwaysAttach: false }, sync: same }), { disabled: true, line: "Your account has no live voice yet." });
-  assert.equal(downloadButton({ signedIn: false, accountOffered: false, local, sync: same }).disabled, true);
+  assert.equal(downloadButton({ ...signedIn, local: { exists: false, alwaysAttach: false }, account, sync: noSync }).line, "Keeps your account's live voice on this computer.");
+  assert.deepEqual(downloadButton({ ...signedIn, local, account: { exists: true, alwaysAttach: false }, sync: noSync }), { disabled: true, line: "Your account has no live voice yet." });
+  assert.equal(downloadButton({ signedIn: false, accountOffered: false, local, sync: noSync }).disabled, true);
 });
 
 test("Upload says what AI Review costs, and that it asks first after a newer version in the account", () => {
   const local = { exists: true, alwaysAttach: true, updated: NOON };
   const account = { exists: true, alwaysAttach: true, live };
-  const u = uploadButton({ ...signedIn, local, account, sync: { ...same, accountAfterLocal: true }, reviewCredits: 1 });
+  const u = uploadButton({ ...signedIn, local, account, sync: { ...noSync, accountAfterLocal: true }, reviewCredits: 1 });
   assert.equal(u.disabled, false);
   assert.equal(u.line, "Sends this computer's voice to AI Review for 1 credit. It goes live in your account when it passes. Your account's version was set after this one, so you are asked first.");
-  assert.equal(uploadButton({ ...signedIn, local, account, sync: same, reviewCredits: 0 }).line, "Sends this computer's voice to AI Review. It goes live in your account when it passes.");
-  assert.deepEqual(uploadButton({ ...signedIn, local: { exists: false, alwaysAttach: false }, account, sync: same, reviewCredits: 1 }), { disabled: true, line: "This computer keeps no voice to upload yet." });
-  assert.equal(uploadButton({ ...signedIn, local: { ...local, problem: "x" }, account, sync: same, reviewCredits: 1 }).disabled, true);
-  assert.equal(uploadButton({ signedIn: false, accountOffered: false, local, sync: same, reviewCredits: 1 }).line, "Sign in to move your voice to or from your account.");
+  assert.equal(uploadButton({ ...signedIn, local, account, sync: noSync, reviewCredits: 0 }).line, "Sends this computer's voice to AI Review. It goes live in your account when it passes.");
+  assert.deepEqual(uploadButton({ ...signedIn, local: { exists: false, alwaysAttach: false }, account, sync: noSync, reviewCredits: 1 }), { disabled: true, line: "This computer keeps no voice to upload yet." });
+  assert.equal(uploadButton({ ...signedIn, local: { ...local, problem: "x" }, account, sync: noSync, reviewCredits: 1 }).disabled, true);
+  assert.equal(uploadButton({ signedIn: false, accountOffered: false, local, sync: noSync, reviewCredits: 1 }).line, "Sign in to move your voice to or from your account.");
 });
 
 test("Edit with AI asks what should change over a voice, and samples where there is none", () => {

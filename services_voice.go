@@ -83,7 +83,7 @@ type VoiceView struct {
 	Sync voice.Sync `json:"sync"`
 }
 
-// View is the panel for reg.
+// View is the Voice page for reg.
 func (v *VoiceAPI) View(reg string) (*VoiceView, error) {
 	reg = settings.Normalize(reg)
 	ctx := v.app.ctx
@@ -104,7 +104,9 @@ func (v *VoiceAPI) View(reg string) (*VoiceView, error) {
 	default:
 		out.AccountOffered, out.Account, out.Sync = true, a, voice.SyncOf(local, a)
 	}
-	if out.AccountOffered {
+	// The token is found by host alone: the status route is asked only at a
+	// URL Settings' rule admits (agentry-desktop#307's lesson).
+	if out.AccountOffered && settings.ValidateURL(reg) == nil {
 		if st, err := hostedrun.New(reg, e.TokenFor(reg)).Status(ctx); err == nil && st.VoiceBuild != nil {
 			out.ReviewCredits, out.AttachEnabled = st.VoiceBuild.AIReviewCredits, st.VoiceBuild.Attach.Enabled
 		}
@@ -192,7 +194,7 @@ func uploadWarning(here *voice.Local, a *voice.Account, s voice.Sync, credits in
 	t, _ := here.UpdatedAt()
 	cost := "It goes to AI Review."
 	if credits > 0 {
-		cost = "It goes to AI Review for " + creditsPhrase(credits) + "."
+		cost = "It goes to AI Review for " + creditsText(credits) + "."
 	}
 	return "Upload this computer's voice?",
 		fmt.Sprintf("The cloud version was set after the one on this computer (%s against %s). Upload this computer's voice anyway? %s",
@@ -206,51 +208,36 @@ func uploadWarning(here *voice.Local, a *voice.Account, s voice.Sync, credits in
 // in review in the account.
 func downloadWarning(here *voice.Local, a *voice.Account, s voice.Sync) (title, msg string, ask bool) {
 	replaces := here.Exists && !s.DownloadSame
-	if !replaces && !s.InReview {
-		return "", "", false
-	}
-	var b strings.Builder
-	switch {
-	case s.LocalAfterLive:
-		t, _ := here.UpdatedAt()
-		fmt.Fprintf(&b, "The voice on this computer was saved after the cloud version (%s against %s).",
-			confirmStamp(t), confirmStamp(a.Live.CreatedAt))
-	case replaces:
-		b.WriteString("This replaces the Writing Voice kept on this computer with your account's live one.")
-	}
+	inReview := ""
 	if s.InReview {
-		if b.Len() > 0 {
-			b.WriteString(" ")
-		}
-		b.WriteString("A newer version is in review in your account and is not live yet.")
+		inReview = " A newer version is in review in your account and is not live yet."
 	}
 	switch {
 	case replaces && s.LocalAfterLive:
-		b.WriteString(" Replace it with the cloud version? The one here cannot be recovered.")
+		t, _ := here.UpdatedAt()
+		return "Replace this computer's voice?", fmt.Sprintf("The voice on this computer was saved after the cloud version (%s against %s).%s "+
+			"Replace it with the cloud version? The one here cannot be recovered.", confirmStamp(t), confirmStamp(a.Live.CreatedAt), inReview), true
 	case replaces:
-		b.WriteString(" The one here cannot be recovered. Continue?")
-	default:
-		b.WriteString(" Download the live version anyway?")
-		return "Download the cloud version?", b.String(), true
+		return "Replace this computer's voice?", "This replaces the Writing Voice kept on this computer with your account's live one." + inReview +
+			" The one here cannot be recovered. Continue?", true
+	case s.InReview:
+		return "Download the cloud version?", strings.TrimSpace(inReview) + " Download the live version anyway?", true
 	}
-	return "Replace this computer's voice?", b.String(), true
+	return "", "", false
 }
 
 // confirmStamp is a version's time in a native confirm: "4 Oct 14:02",
 // this computer's local time.
 func confirmStamp(t time.Time) string { return t.Local().Format("2 Jan 15:04") }
 
-func creditsPhrase(n int64) string {
-	if n == 1 {
-		return "1 credit"
-	}
-	return fmt.Sprintf("%d credits", n)
-}
-
 // reviewCredits is what AI Review of a voice costs at reg (the runs status
 // route's voiceBuild.aiReviewCredits); 0 where it charges nothing or did
-// not say.
+// not say. The token is found by host alone, so the URL is held to
+// Settings' rule before it is looked up (agentry-desktop#307's lesson).
 func (v *VoiceAPI) reviewCredits(ctx context.Context, reg string) int64 {
+	if settings.ValidateURL(reg) != nil {
+		return 0
+	}
 	st, err := hostedrun.New(reg, v.env().TokenFor(reg)).Status(ctx)
 	if err != nil || st.VoiceBuild == nil {
 		return 0

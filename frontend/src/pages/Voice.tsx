@@ -19,7 +19,7 @@
 // native pickers, a replace, an upload over a newer version and a delete
 // are asked in a native dialog, and a Voice Writer run here takes the run
 // lock.
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { main, voice } from "../../wailsjs/go/models";
@@ -37,16 +37,13 @@ import {
 
 export type VoiceView = "start" | "local" | "cloud";
 
-export default function Voice({ registry, onOpenSettings, initialView = "start", initialDialog = false }: {
+export default function Voice({ registry, onOpenSettings }: {
   registry: string;
   /** Opens Settings at the voice's switch: "here" (Run defaults),
    *  "account" (Profile), or "sign-in" (Registry settings). */
   onOpenSettings: (which: "here" | "account" | "sign-in") => void;
-  /** The harness opens a page, or the Local page's dialog, directly. */
-  initialView?: VoiceView;
-  initialDialog?: boolean;
 }) {
-  const [page, setPage] = useState<VoiceView>(initialView);
+  const [page, setPage] = useState<VoiceView>("start");
   const [view, setView] = useState<main.VoiceView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -100,7 +97,6 @@ export default function Voice({ registry, onOpenSettings, initialView = "start",
         busy={busy}
         act={act}
         messages={messages}
-        initialDialog={initialDialog}
         onBack={() => open("start")}
         onDone={(msg) => { setError(null); setNotice(msg); refresh(); }}
       />
@@ -143,17 +139,16 @@ export default function Voice({ registry, onOpenSettings, initialView = "start",
 // LocalVoice is the Local Voice page (plan §4.2): this computer's voice,
 // Download Cloud version, Upload to Cloud and Edit with AI above its
 // editor, the switch, and Delete at the foot.
-function LocalVoice({ view, registry, busy, act, messages, initialDialog, onBack, onDone }: {
+function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
   view: main.VoiceView;
   registry: string;
   busy: string | null;
   act: (what: string, call: () => Promise<string | void>) => void;
-  messages: React.ReactNode;
-  initialDialog: boolean;
+  messages: ReactNode;
   onBack: () => void;
   onDone: (msg: string) => void;
 }) {
-  const [dialog, setDialog] = useState(initialDialog);
+  const [dialog, setDialog] = useState(false);
   const local = view.local;
   const exists = !!local?.exists;
   const opens = exists && !local.problem;
@@ -353,7 +348,10 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
               </ul>
             )}
           </div>
-          <p className="small">Free, on this computer: it runs on {model} for no credits, and the voice it writes is kept here, not reviewed.</p>
+          <p className="small">
+            Free, on this computer: it runs on {model} for no credits, and the voice it writes is kept here, not reviewed.
+            {hasVoice && " When it ends, it replaces the voice on this computer."}
+          </p>
           <ErrorBox error={error} />
           <div className="row gap" style={{ justifyContent: "flex-end" }}>
             <Button onClick={onClose}>Cancel</Button>

@@ -348,8 +348,6 @@ const states = [
     expectText: ["How do you want to sound? (optional)", "Samples of your writing", "Free, on this computer"] },
   { name: "page-voice-cloud", url: "/pages.html", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")'], note: "the Cloud Voice page (today's account card, moved; M6 agentry-desktop#611 reshapes it): the flagged version with its finding, the live voice, no Download here (D7)", locator: '[data-preview="voice"]',
     expectText: ["Cloud Voice", "Flagged", "It asks for more than a way of writing"], expectNoText: ["Use Agentry's voice here", "Download Cloud version"] },
-  { name: "page-voice-standard", url: "/pages.html#voice-standard", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")'], note: "the Cloud Voice page for a Standard account: no Voice Writer card any more (Edit with AI In Agentry comes with M6, agentry-desktop#611)", locator: '[data-preview="voice"]',
-    expectText: ["Cloud Voice", "Live:"], expectNoText: ["Start the Voice Writer", "this cycle's runs are used"] },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it (agentry-desktop#422)", locator: '[data-preview="validate"]', expectOrder: [
     ['[data-preview="validate"] .sidebar .nav-item', ["Browse", "Installed", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "Validate"]],

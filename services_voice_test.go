@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -397,5 +400,35 @@ func TestTheVoiceWriterInAgentrySendsNoTokenToAURLSettingsRefuses(t *testing.T) 
 	f.v.app.markPicked(sample)
 	if _, err := f.v.StartHosted("http://example.com", "create", []string{sample}, ""); err == nil || !strings.Contains(err.Error(), "registry") {
 		t.Fatalf("a start at a refused URL: %v", err)
+	}
+}
+
+// The Voice page reads AI Review's price from the runs status route with
+// the token Settings keeps by host, so it asks only at a URL Settings'
+// rule admits. http://0.0.0.0:<port> is refused by the rule (plain http
+// off loopback) yet reaches this test's server, so a request is seen when
+// a guard is missing.
+func TestTheVoicePageAsksTheStatusRouteOnlyAtAnAdmittedURL(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		http.Error(w, "no", http.StatusNotFound)
+	}))
+	defer srv.Close()
+	refused := "http://0.0.0.0:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+	if _, err := hostedrun.New(refused, "agy_test").Status(context.Background()); err != nil && hits.Load() == 0 {
+		t.Skipf("%s does not reach the test server on this system: %v", refused, err)
+	}
+	hits.Store(0)
+	f := newVoiceFixture(t, true)
+	f.v.run.knowledgeEnv.TokenFor = func(string) string { return "agy_test" }
+	if n := f.v.reviewCredits(context.Background(), refused); n != 0 || hits.Load() != 0 {
+		t.Fatalf("reviewCredits at a refused URL: %d credits, %d requests", n, hits.Load())
+	}
+	if _, err := f.v.View(refused); err != nil {
+		t.Logf("View at a refused URL: %v", err)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("View sent %d requests to a URL Settings refuses", hits.Load())
 	}
 }

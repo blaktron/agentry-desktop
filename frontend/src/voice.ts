@@ -7,6 +7,21 @@
 // A run on this computer writes in this computer's; a run In Agentry in the
 // account's live one.
 
+/** "1 credit", "20 credits". voice.ts imports no values, so node's test
+ *  runner loads it alone (subscription.ts has the same phrase). */
+function credits(n: number): string {
+  return n === 1 ? "1 credit" : `${n} credits`;
+}
+
+/** A day as the Voice cards say it: "4 October 2026", the UTC day the
+ *  site's Voice page says too (agentry-web lib/voice-view.ts dayOf). */
+export function voiceDay(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 /** The most a VOICE.md holds (plan D3). */
 export const MAX_VOICE_BYTES = 32 * 1024;
 
@@ -90,7 +105,9 @@ export function voiceTextProblem(text: string): string | null {
 }
 
 /** What one Voice Writer run In Agentry costs this payer, from the
- *  registry's numbers. */
+ *  registry's numbers. No page shows it between the Voice Writer card's
+ *  removal (agentry-desktop#610) and the Cloud Voice page's Edit with AI
+ *  In Agentry (M6, agentry-desktop#611), which says it again. */
 export function hostedVoiceCost(a: { credits: number; holdCredits: number; limited: boolean; max: number; left: number }): string {
   if (a.holdCredits === 0) return "It costs no credits: the organization that pays for your runs is not metered.";
   const cost = `It costs ${a.credits} credits, AI Review included. If no voice comes out, the credits are refunded.`;
@@ -106,18 +123,11 @@ export function timesACycle(max: number): string {
 
 /** The line beside the account's Save and Submit: AI Review reads it
  *  first, for the registry's credit where it charges one. */
-export function reviewCostLine(credits: number, live: boolean): string {
-  const cost = credits > 0 ? `, for ${credits === 1 ? "1 credit" : `${credits} credits`}` : "";
+export function reviewCostLine(n: number, live: boolean): string {
+  const cost = n > 0 ? `, for ${credits(n)}` : "";
   return live
     ? `Save sends it to AI Review${cost}. Your live voice stays live until the new version passes.`
     : `Save sends it to AI Review${cost}. It goes live when it passes.`;
-}
-
-/** The line beside Submit to Agentry: the account's review, for the
- *  registry's credit where it charges one; nothing here changes. */
-export function submitCostLine(credits: number): string {
-  const cost = credits > 0 ? `, for ${credits === 1 ? "1 credit" : `${credits} credits`}` : "";
-  return `Submit sends this computer's voice to your account, where AI Review reads it${cost} before it is live. Nothing on this computer changes.`;
 }
 
 // The Voice page's two cards and the Local Voice page (plan
@@ -137,14 +147,6 @@ export const CLOUD_CARD_BLURB =
  *  defaults (D4). */
 export const LOCAL_SWITCH_LABEL = "Use this voice for every run on this computer";
 
-/** A day as the cards say it: "4 October 2026", this computer's day. */
-export function dayOf(iso?: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-}
-
 interface LocalFacts {
   exists: boolean;
   alwaysAttach: boolean;
@@ -156,7 +158,7 @@ interface LocalFacts {
 export function localStatus(l: LocalFacts | null | undefined): string {
   if (!l?.exists) return "No voice on this computer yet.";
   const parts = ["Voice set"];
-  if (l.updated) parts.push(`updated ${dayOf(l.updated)}`);
+  if (l.updated) parts.push(`updated ${voiceDay(l.updated)}`);
   parts.push(l.alwaysAttach ? "used by default" : "not used by default");
   if (l.problem) parts.push("it did not open");
   return parts.join(" · ") + ".";
@@ -192,7 +194,7 @@ export function cloudStatus(v: ViewFacts): string {
   const a = v.account;
   if (!a?.live && !a?.pending) return "No voice in your account yet.";
   const parts: string[] = [];
-  if (a.live) parts.push(`Live since ${dayOf(a.live.reviewedAt ?? a.live.createdAt)}`);
+  if (a.live) parts.push(`Live since ${voiceDay(a.live.reviewedAt ?? a.live.createdAt)}`);
   else parts.push("Not live yet");
   if (a.pending?.review === "flagged") parts.push("a new version was flagged by AI Review");
   else if (a.pending) parts.push("a new version is in review");
@@ -247,7 +249,7 @@ export function uploadButton(v: ViewFacts & { local?: LocalFacts | null; sync?: 
   const off = accountUnreachable(v);
   if (off) return { disabled: true, line: off };
   if (v.sync?.uploadSame) return { disabled: true, line: `${ALREADY_THE_SAME}.` };
-  const cost = v.reviewCredits > 0 ? ` for ${v.reviewCredits === 1 ? "1 credit" : `${v.reviewCredits} credits`}` : "";
+  const cost = v.reviewCredits > 0 ? ` for ${credits(v.reviewCredits)}` : "";
   const parts = [`Sends this computer's voice to AI Review${cost}. It goes live in your account when it passes.`];
   if (v.sync?.accountAfterLocal) parts.push("Your account's version was set after this one, so you are asked first.");
   return { disabled: false, line: parts.join(" ") };
