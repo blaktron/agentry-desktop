@@ -231,6 +231,15 @@ type Pack struct {
 	// (agentry-desktop#619).
 	Updated        string `json:"updated,omitempty"`
 	AgentryUpdated string `json:"agentryUpdated,omitempty"`
+	// AgentryScan, AgentryScanState, AgentryPages and AgentryBytes are
+	// Agentry's copy as its list says it, for the Cloud Knowledge page: the
+	// same as Scan, ScanState, Pages and Bytes for a pack kept only there or
+	// unchanged here, and the older copy's for one changed here since it
+	// was copied. Empty for a pack Agentry does not keep.
+	AgentryScan      string `json:"agentryScan,omitempty"`
+	AgentryScanState string `json:"agentryScanState,omitempty"`
+	AgentryPages     int    `json:"agentryPages,omitempty"`
+	AgentryBytes     int64  `json:"agentryBytes,omitempty"`
 
 	// agentryRegistry is the registry a kept copy's record names for its
 	// copy in Agentry, for matching it against that registry's list.
@@ -476,6 +485,7 @@ func localScanState(sc kn.Scan) string {
 func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 	p.InAgentry, p.AgentryReady = true, r.State == store.StateReady
 	p.AgentryUpdated = stamp(r.Updated, r.Created)
+	p.agentryFacts(r)
 	if r.State == store.StateReady && r.Digest != localDigest {
 		return
 	}
@@ -491,7 +501,14 @@ func remotePack(r store.Remote) Pack {
 		Where: whereAgentry, AgentryUpdated: stamp(r.Updated, r.Created),
 	}
 	p.Scan, p.ScanState, _ = remoteScan(r)
+	p.agentryFacts(r)
 	return p
+}
+
+// agentryFacts records what Agentry's list says of its copy.
+func (p *Pack) agentryFacts(r store.Remote) {
+	p.AgentryScan, p.AgentryScanState, _ = remoteScan(r)
+	p.AgentryPages, p.AgentryBytes = r.Pages, r.Bytes
 }
 
 // remoteScan is what Agentry's state for a pack says of its scan; ok is

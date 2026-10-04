@@ -86,8 +86,10 @@ jobs:
           package-manager-cache: false
       # main.go embeds frontend/dist, so every Go tool — including the lint
       # typecheck below — needs the bundle built first on a fresh tree.
+      # The design harness is type-checked with the app, so a page's props
+      # cannot drift from the states that render it (agentry-desktop#485).
       - name: Build the embedded frontend bundle
-        run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vite build
+        run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build
       # The frontend's pure modules under node's own test runner
       # (agentry-desktop#415): no browser, no extra dependency.
       - name: Frontend unit tests

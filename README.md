@@ -138,8 +138,15 @@ The product never claims an agent is "safe". The language is always:
   wraps it instead, until your next sign-in moves it. **Create knowledge** and
   **Add documents** run the Creator on this computer against your runner
   policy's model, for no credits, and say before the build that nothing they
-  read or write is scanned; **Upload to Agentry** keeps a copy there, where it
-  is scanned, and **Download** brings one back. **Export unencrypted…** asks
+  read or write is scanned. Since agentry-desktop#619 (D-064) the page is two
+  cards, as Voice's: **Local Knowledge** lists the packs kept here and
+  **Cloud Knowledge** the ones your account keeps in Agentry, with your
+  organizations' shared packs grouped by organization. Each card and page has
+  Create knowledge, its Where step preset to that place. **Copy to Cloud**
+  keeps a copy in Agentry, where it is scanned, and **Copy to Local** brings
+  one here; neither removes the copy it starts from. A pack kept in both
+  places is on both pages, and Delete on a page removes that place's copy
+  alone. **Export unencrypted…** asks
   in a native dialog, then writes the pack into a folder you pick and shows
   that folder. A run's setup has a Knowledge step: an attached pack is mounted
   read-only for the run's tools, and the receipt names it.

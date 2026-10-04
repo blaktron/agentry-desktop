@@ -299,6 +299,18 @@ func TestTheListSaysWhereEachPackIsAndWhatHoldsItsKey(t *testing.T) {
 		}
 	}
 
+	// Agentry's own copy as the Cloud Knowledge page shows it: its scan, its
+	// pages and its size, also for a pack whose copy here changed since it
+	// was copied, where the pack's own Scan stays this computer's.
+	for _, name := range []string{"both", "remote-only"} {
+		if p := byName[name]; p.AgentryScanState != ScanScanned || p.AgentryScan != "scanned in Agentry, 0 findings" || p.AgentryBytes == 0 {
+			t.Errorf("%s: Agentry's copy %q %q %d bytes", name, p.AgentryScanState, p.AgentryScan, p.AgentryBytes)
+		}
+	}
+	if p := byName["local-only"]; p.AgentryScan != "" || p.AgentryScanState != "" || p.AgentryBytes != 0 {
+		t.Errorf("local-only says something of a copy in Agentry: %+v", p)
+	}
+
 	// Signed out, the kept packs are listed and Agentry says why not.
 	out := e
 	out.TokenFor = func(string) string { return "" }

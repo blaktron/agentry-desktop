@@ -1099,6 +1099,9 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .knowledge-facts dt { color: var(--color-muted); }
 .knowledge-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .knowledge-row-actions { margin-top: 10px; flex-wrap: wrap; gap: 6px; }
+/* The Cloud Knowledge page's organization groups (agentry-desktop#619, plan knowledge-cards.md D6). */
+.knowledge-shared { margin-top: 24px; }
+.knowledge-shared-title { font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
 
 /* Settings as five cards (agentry-desktop#346, settings-cards.md D3, D12):
    each card is one link — its title's button stretched over the card — and

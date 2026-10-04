@@ -38,6 +38,10 @@ export function Delete(arg1, arg2, arg3) {
   return window['go']['main']['KnowledgeAPI']['Delete'](arg1, arg2, arg3);
 }
 
+export function DeleteFromAgentry(arg1, arg2, arg3) {
+  return window['go']['main']['KnowledgeAPI']['DeleteFromAgentry'](arg1, arg2, arg3);
+}
+
 export function DocumentsSize(arg1) {
   return window['go']['main']['KnowledgeAPI']['DocumentsSize'](arg1);
 }

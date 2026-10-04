@@ -2,7 +2,7 @@
 // agentry-desktop#273, D-039). The packs are the local store's, which the
 // CLI shares (internal/knowledge over agentry-cli's pkg/knowledge/store):
 // list, Create knowledge and Add documents with the built-in Knowledge
-// Creator on this computer, Upload to Agentry and Download, Export
+// Creator on this computer, Copy to Cloud and Copy to Local (Upload and Download), Export
 // unencrypted…, Delete, and a page preview. The gates are the run
 // surface's (D-030): documents come only from the native picker, an export
 // and a delete are asked in a native dialog, an export's folder is the
