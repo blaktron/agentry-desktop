@@ -3661,6 +3661,7 @@ export namespace main {
 	    chatIdleTimeoutSeconds: number;
 	    unsafeMode: boolean;
 	    unsafeImage?: string;
+	    builtinNoTimeout: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunDefaultsView(source);
@@ -3676,6 +3677,7 @@ export namespace main {
 	        this.chatIdleTimeoutSeconds = source["chatIdleTimeoutSeconds"];
 	        this.unsafeMode = source["unsafeMode"];
 	        this.unsafeImage = source["unsafeImage"];
+	        this.builtinNoTimeout = source["builtinNoTimeout"];
 	    }
 	}
 	export class RunOutputsView {

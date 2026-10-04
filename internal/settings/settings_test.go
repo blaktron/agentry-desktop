@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // isolate points the config dir at a fresh temp dir so a test never reads or
@@ -130,5 +133,72 @@ func TestCodingAgentExportIsOffByDefault(t *testing.T) {
 	}
 	if !again.InstallIntoCodingAgent || again.CodingAgentProjectDir != "/home/me/work/oncall" {
 		t.Fatalf("round trip: %+v", again)
+	}
+}
+
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): off,
+// every built-in starts from the CLI's LocalBudgets, its timeout floor over
+// the policy's; on, every one of them has no timeout, and the turn and cost
+// caps are the policy's either way. A settings file that cannot be read
+// keeps the floor.
+func TestTheBuiltinAgentsSwitchTakesAwayTheTimeoutOfEveryBuiltinAndNothingElse(t *testing.T) {
+	isolate(t)
+	pol := policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}
+	if len(localrun.Builtins()) != 4 {
+		t.Fatalf("%d built-ins: the switch's sentence in Run defaults names four", len(localrun.Builtins()))
+	}
+	for _, b := range localrun.Builtins() {
+		if got, want := BuiltinBudgets(b, pol), b.LocalBudgets(pol); got != want || got.TimeoutSeconds < 1800 {
+			t.Errorf("%s with the switch off (no file): %+v, want the floor %+v", b.Ref(), got, want)
+		}
+	}
+
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.BuiltinNoTimeout = true
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range localrun.Builtins() {
+		if got, want := BuiltinBudgets(b, pol), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 2}); got != want {
+			t.Errorf("%s with the switch on: %+v, want %+v", b.Ref(), got, want)
+		}
+	}
+	// Another setting's save keeps it.
+	if s, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	s.RunWhere = RunWhereAgentry
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Load(); err != nil || !s.BuiltinNoTimeout {
+		t.Fatal("saving another setting turned the switch off")
+	}
+
+	// A file that cannot be parsed keeps the floor.
+	path, err := Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("builtinNoTimeout: true\n: [\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range localrun.Builtins() {
+		if got := BuiltinBudgets(b, pol); got != b.LocalBudgets(pol) {
+			t.Errorf("%s with an unreadable desktop.yaml: %+v, want the floor", b.Ref(), got)
+		}
+	}
+
+	s = Settings{BuiltinNoTimeout: false}
+	if err := write(s); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range localrun.Builtins() {
+		if got := BuiltinBudgets(b, pol); got != b.LocalBudgets(pol) {
+			t.Errorf("%s with the switch turned off again: %+v", b.Ref(), got)
+		}
 	}
 }

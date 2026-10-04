@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/configdir"
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/knowledgetest"
@@ -21,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 
 	"github.com/blaktron/agentry-desktop/internal/progress"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // fakeCreator stands in for the Creator run (pkg/knowledge/build is the
@@ -157,6 +159,7 @@ func TestAddResealsUnderTheSameKey(t *testing.T) {
 // (agentry-desktop#458, the CLI's DR-54); it was this app's own 30 minutes
 // before (agentry-desktop#352). No budget of a build counts tokens.
 func TestCreatorBudgetsGiveABuildAtLeastSixtyMinutes(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
 	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}
 	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 3600, MaxTurns: 60, MaxCostUSD: 2}); b != want {
 		t.Fatalf("default policy: %+v, want %+v", b, want)
@@ -328,5 +331,47 @@ func TestABuildsProgressIsOneFlatObjectWithItsPages(t *testing.T) {
 	want := `{"startedAt":1,"timeoutSeconds":2,"maxTurns":3,"turns":4,"inputTokens":5,"outputTokens":6,"pages":7}`
 	if string(b) != want {
 		t.Fatalf("%s, want %s", b, want)
+	}
+}
+
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
+// it is on, a build on this computer runs with no timeout, for a local
+// model that cannot draft a pack in the Creator's 60 minutes; the turn and
+// cost caps stay the policy's, and the build's log says so rather than "up
+// to 0 minutes".
+func TestTheBuiltinAgentsSwitchGivesABuildNoTimeout(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.BuiltinNoTimeout = true
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}
+	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 2}); b != want {
+		t.Fatalf("with the switch on: %+v, want %+v", b, want)
+	}
+
+	ctx := context.Background()
+	reg := knowledgetest.NewRegistry(t)
+	e := testEnv(t, reg, reg.Token("ana"), newKeys())
+	t.Setenv(policy.HomeEnv, homeOf(t, e))
+	var seen build.Options
+	var log strings.Builder
+	var reports []Progress
+	if _, err := e.Create(ctx, BuildRequest{Registry: reg.URL, Name: "handbook", Documents: documents(t), RunID: "run-606",
+		Build: fakeCreator(t, &seen, nil), Log: &log, Progress: func(p Progress) { reports = append(reports, p) }}); err != nil {
+		t.Fatal(err)
+	}
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns == 0 {
+		t.Fatalf("the Creator ran under %+v, want no timeout and the policy's turns", seen.Budgets)
+	}
+	if !strings.Contains(log.String(), "no time limit") || strings.Contains(log.String(), "up to 0 minutes") {
+		t.Fatalf("the log did not say the build has no time limit: %q", log.String())
+	}
+	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 {
+		t.Fatalf("the building view was told %+v, want no time limit", reports)
 	}
 }
