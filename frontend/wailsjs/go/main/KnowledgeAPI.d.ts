@@ -3,7 +3,7 @@
 import {knowledge} from '../models';
 import {main} from '../models';
 
-export function Add(arg1:string,arg2:string,arg3:Array<string>):Promise<knowledge.BuildResult>;
+export function Add(arg1:string,arg2:string,arg3:Array<string>,arg4:string,arg5:boolean):Promise<knowledge.BuildResult>;
 
 export function AttachHostedBuild(arg1:string):Promise<main.KnowledgeHostedStartView>;
 
@@ -11,11 +11,13 @@ export function CancelHostedBuild():Promise<main.KnowledgeHostedBuildView>;
 
 export function ContinueHostedBuild(arg1:string,arg2:string):Promise<main.KnowledgeHostedStartView>;
 
-export function Create(arg1:string,arg2:string,arg3:Array<string>):Promise<knowledge.BuildResult>;
+export function Create(arg1:string,arg2:string,arg3:Array<string>,arg4:string,arg5:boolean):Promise<knowledge.BuildResult>;
 
 export function CreatorBudget():Promise<main.CreatorBudgetView>;
 
 export function CreatorModel():Promise<string>;
+
+export function CreatorWeb():Promise<main.CreatorWebView>;
 
 export function Delete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
@@ -35,7 +37,7 @@ export function Preview(arg1:string,arg2:string):Promise<knowledge.Preview>;
 
 export function ReadPage(arg1:string,arg2:string,arg3:string):Promise<knowledge.Page>;
 
-export function StartHostedBuild(arg1:string,arg2:string,arg3:string,arg4:Array<string>):Promise<main.KnowledgeHostedStartView>;
+export function StartHostedBuild(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:boolean):Promise<main.KnowledgeHostedStartView>;
 
 export function StopBuild():Promise<void>;
 

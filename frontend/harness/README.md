@@ -131,6 +131,8 @@ page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.
 Since agentry-desktop#354 `#create-documents-large` (48 MB: the warning), `#create-documents-huge` (past 1 GB: Next refused) and `#hosted-where-large` (In Agentry not choosable) show the two caps, and `#knowledge` lists a 220 MB pack kept here with no Upload.
 
+Since agentry-desktop#498 a build takes documents, a brief, or both, with Search the web: `#create-documents-brief` (a brief alone: the warning, louder, and Search the web on by default with this computer's keys), `#create-documents-noweb` (no search key here: a build here runs without the web, and where to add one), `#create-empty` (neither: Next refused), `#create-review-brief` and `#hosted-review-brief` (the review on each side), and `#hosted-done-brief` (what the build's record counted of its searches).
+
 A draft's progress (agentry-desktop#410) has its own entry, `drafts.html`
 (`drafts.tsx`), over Describe it: the page starts a draft on load and the
 dialog App mounts follows it. `#draft-local` is a draft on this computer under

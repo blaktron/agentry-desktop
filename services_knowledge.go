@@ -16,10 +16,14 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/blaktron/agentry-cli/pkg/drafter"
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
+	"github.com/blaktron/agentry-desktop/internal/draft"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -95,17 +99,56 @@ func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
 	return CreatorBudgetView{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns}
 }
 
-// Create makes a new pack named name from the documents with the
-// Knowledge Creator on this computer and keeps it sealed. Every document
-// must be one the native picker returned. The build takes the run lock;
-// its progress streams as knowledge:build-log.
-func (k *KnowledgeAPI) Create(reg, name string, documents []string) (*knowledge.BuildResult, error) {
-	return k.runBuild(reg, name, documents, false)
+// Create makes a new pack named name with the Knowledge Creator on this
+// computer and keeps it sealed, from the documents, the brief, or both
+// (agentry-desktop#498), searching the web when web is set and this
+// computer has the keys for it. Every document must be one the native
+// picker returned. The build takes the run lock; its progress streams as
+// knowledge:build-log.
+func (k *KnowledgeAPI) Create(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
+	return k.runBuild(reg, name, documents, brief, web, false)
 }
 
-// Add extends the kept pack name with the documents, under the key it had.
-func (k *KnowledgeAPI) Add(reg, name string, documents []string) (*knowledge.BuildResult, error) {
-	return k.runBuild(reg, name, documents, true)
+// Add extends the kept pack name with the documents, the brief, or both,
+// under the key it had.
+func (k *KnowledgeAPI) Add(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
+	return k.runBuild(reg, name, documents, brief, web, true)
+}
+
+// CreatorWebView is whether a build on this computer can search the web,
+// for the Documents step's Search the web choice (agentry-desktop#498,
+// plan knowledge-and-drafter.md D16): it takes the person's own AI Review
+// key, which reads every result first, and a search provider with its key.
+// Ready says both are there; otherwise Why says what is missing, and the
+// step says the build runs without the web. Answered from presence alone:
+// no key is read.
+type CreatorWebView struct {
+	Ready    bool   `json:"ready"`
+	Why      string `json:"why,omitempty"`
+	Provider string `json:"provider,omitempty"`
+}
+
+// CreatorWeb answers CreatorWebView for the policy this app's runs obey.
+func (k *KnowledgeAPI) CreatorWeb() (*CreatorWebView, error) {
+	st, err := draft.GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	pol, err := run.PolicyIfPresent()
+	if err != nil {
+		return nil, err
+	}
+	if pol == nil {
+		pol = policy.Default()
+	}
+	return creatorWebView(st.Key.Ready(), st.Search, pol), nil
+}
+
+// creatorWebView is CreatorWeb's rule, apart from the keychain and the
+// policy file: knowledge.WebReason, the words the build itself says.
+func creatorWebView(jev bool, search drafter.SearchState, pol *policy.Policy) *CreatorWebView {
+	why := knowledge.WebReason(pol, jev, search)
+	return &CreatorWebView{Ready: why == "", Why: why, Provider: pol.WebSearch.ProviderName()}
 }
 
 // knowledgeRunRef names a Creator build as the run in flight: what quitting
@@ -129,7 +172,7 @@ func (k *KnowledgeAPI) StopBuild() error {
 	return nil
 }
 
-func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) (*knowledge.BuildResult, error) {
+func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, brief string, web, add bool) (*knowledge.BuildResult, error) {
 	for _, p := range documents {
 		if err := k.app.requirePicked("document", p); err != nil {
 			return nil, err
@@ -140,7 +183,7 @@ func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, add bool) 
 	var res *knowledge.BuildResult
 	err := k.run.asRun(jobBuild, "a knowledge build by the Knowledge Creator", knowledgeRunRef, eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
 		req := knowledge.BuildRequest{
-			Registry: reg, Name: name, Documents: documents, RunID: runID, Build: k.build, Log: logw,
+			Registry: reg, Name: name, Documents: documents, Brief: brief, Web: web, RunID: runID, Build: k.build, Log: logw,
 			Progress: func(p knowledge.Progress) { emitEvent(k.app, eventKnowledgeProgress, p) },
 		}
 		var err error

@@ -107,6 +107,9 @@ const hostedState = hash.startsWith("hosted-");
 const availability = {
   offered: hostedState, available: hostedState, holdCredits: 100, scanCredits: 1, timeoutSeconds: 3600, maxTurns: 300,
   balance: 494, balanceKnown: true, unmetered: false, maxInputFiles: 20, maxInputBytes: 10 << 20,
+  // A registry since agentry-enterprise#296: a brief alone, and the web.
+  takesBrief: true, maxBriefBytes: 8192, web: true,
+  webNote: "Searching the web can raise the credits a build uses: each search costs 1 credit, inside the build's hold. It is on by default for a new pack with no documents, and off with them.",
   ...(hash === "hosted-where-pro"
     ? {
         available: false,
@@ -123,12 +126,27 @@ const hostedRunning = {
   documents: [{ name: "storage-guide.pdf", bytes: 412000 }, { name: "buckets.md", bytes: 3100 }], canContinue: false,
   downloaded: false, final: false,
 };
+// A brief alone (agentry-desktop#498): the #*-brief states, and #*-noweb
+// where this computer has no search key.
+const briefState = hash.includes("-brief") || hash.endsWith("-noweb");
+const brief = "How to look after the café's espresso machine, for new staff: daily cleaning, descaling, grind and dose, and what to do when a shot runs fast.";
+const localWeb = hash.endsWith("-noweb")
+  ? { ready: false, provider: "Brave", why: "no Brave key was found: add one under Settings → Provider settings → Web search" }
+  : { ready: true, provider: "Brave" };
 const hostedDone = {
   ...hostedRunning, status: "finished", state: "done — pass", statusLine: "", outcome: "succeeded",
   outcomeLine: "The Knowledge Creator finished.", outcomeTone: "ok", settledCredits: 2, settled: true, scanCredits: 1,
   applied: true, pages: 4, bytes: 5300, turns: 10, downloaded: true,
   kept: "Downloaded handbook: 4 pages, kept on this computer, encrypted to your account's key, which Agentry holds.",
   scanState: "scanned", scan: "scanned, 1 finding (medium)", final: true,
+  ...(briefState
+    ? {
+        documents: [], brief, name: "espresso-care", pages: 20, bytes: 41200, holdCredits: 201, settledCredits: 126,
+        kept: "Downloaded espresso-care: 20 pages, kept on this computer, encrypted to your account's key, which Agentry holds.",
+        scan: "scanned, no findings",
+        webLine: "This build searched the web 17 times, and the registry let through 16 page reads. AI Review read 16 texts from the web before the Creator did, and withheld none.",
+      }
+    : {}),
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,6 +174,7 @@ g.go = { main: {
     ContinueHostedBuild: async () => new Promise(() => {}),
     CancelHostedBuild: async () => hostedRunning,
     StopBuild: async () => undefined,
+    CreatorWeb: async () => localWeb,
   },
   RunAPI: {
     SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" }),
@@ -214,7 +233,7 @@ const create = hash.startsWith("create-") || hash === "add-review" || hostedStat
 const step =
   hash === "create-name" ? "name"
   : hash === "hosted-where" || hash === "hosted-where-pro" || hash === "hosted-where-large" ? "where"
-  : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" ? "review"
+  : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" || hash === "create-review-brief" || hash === "hosted-review-brief" ? "review"
   : "documents";
 
 createRoot(document.getElementById("root")!).render(
@@ -233,7 +252,9 @@ createRoot(document.getElementById("root")!).render(
         onClose={() => {}}
         onPreview={() => {}}
         initialStep={step}
-        initialDocuments={hash.startsWith("create-documents") || step !== "documents" ? docs : []}
+        initialDocuments={briefState ? [] : hash.startsWith("create-documents") || step !== "documents" ? docs : []}
+        initialBrief={briefState ? brief : undefined}
+        initialWeb={localWeb}
         initialName={hash === "add-review" ? undefined : "handbook"}
         minimized={card}
         onMinimize={() => {}}
@@ -241,8 +262,8 @@ createRoot(document.getElementById("root")!).render(
         initialBuilding={hash === "create-building" || hash === "card-building"}
         initialResult={hash === "create-done" || hash === "card-done" ? (result as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
-        initialWhere={hash === "hosted-review" || hash === "hosted-where" ? "agentry" : undefined}
-        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" ? (hostedDone as never) : undefined}
+        initialWhere={hash === "hosted-review" || hash === "hosted-where" || hash === "hosted-review-brief" ? "agentry" : undefined}
+        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : undefined}
       />
     )}
   </div>,
