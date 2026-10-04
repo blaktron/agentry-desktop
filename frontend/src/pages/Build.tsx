@@ -19,6 +19,10 @@
 // computer, decoded into the Model and opened on Review with the Drafter's
 // notes beside it and Describe again under them.
 //
+// Since #598 (DEV-201) the start page is two cards, as the site's /build:
+// Describe it to AI, which opens Describe it, and Build it by hand, which
+// opens Step by step and offers Advanced (BuildWays.tsx).
+//
 // Since #344 (plan builder-simplify.md M5, D3, D4, D7, D10) a draft lands on
 // the summary (BuildSummary.tsx): how it works and what it needs, then
 // Submit, private unless switched, with the folder asked through the native
@@ -38,6 +42,7 @@ import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest,
 import { startReview } from "../reviews";
 import { SummaryView } from "./BuildSummary";
 import { RevisionView } from "./BuildRevision";
+import { BUILD_TAGLINE, BuildWays } from "./BuildWays";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
 import { advisoryWords } from "../advisory";
@@ -995,7 +1000,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const header = (
     <PageHeader
       title="Build"
-      sub={<>Author a QuickAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
+      sub={view === "start"
+        ? BUILD_TAGLINE
+        : <>Author a QuickAgent, run the registry&apos;s own checks on it, and publish it. The form edits a real workspace (<span className="mono">agent.yaml</span> + instructions) that the <span className="mono">agentry</span> CLI and git work on too.</>}
       actions={
         <>
           {view === "steps" && <Button onClick={() => switchTo("advanced")}>Switch to Advanced</Button>}
@@ -1080,22 +1087,11 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       <div>
         {header}
         {notices}
-        {/* Describe it first, in the site's order (agentry-desktop#421);
-            its sentence is the operator's own words, on both clients. */}
-        <div className="build-ways">
-          <button className="card build-way" onClick={() => switchTo("describe")}>
-            <strong>Describe it</strong>
-            <span className="muted small">Say what it should do, and the AI Drafter creates it in Agentry. Uses credits for Cloud Runs only.</span>
-          </button>
-          <button className="card build-way" onClick={() => switchTo("steps")}>
-            <strong>Step by step</strong>
-            <span className="muted small">One section at a time, with the least access already chosen and a review before you save or publish.</span>
-          </button>
-          <button className="card build-way" onClick={() => switchTo("advanced")}>
-            <strong>Advanced</strong>
-            <span className="muted small">Every field on one page, for when you know the manifest. It is the same form, and you can switch at any time.</span>
-          </button>
-        </div>
+        {/* Two cards since #598 (DEV-201), the site's /build's: Describe it
+            to AI first, then Build it by hand, which opens Step by step and
+            offers Advanced. Their sentences are the operator's own words,
+            on both clients. */}
+        <BuildWays onDescribe={() => switchTo("describe")} onSteps={() => switchTo("steps")} onAdvanced={() => switchTo("advanced")} />
         {touched && (
           <p className="small">
             {m.name ? <><span className="mono">{m.name}</span> is still in the form{dir ? <> (saving into <span className="mono">{dir}</span>)</> : ""}.</> : "The form still holds your work."}{" "}
