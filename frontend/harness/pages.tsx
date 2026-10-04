@@ -310,12 +310,13 @@ const g = window as any;
 // every run here and the same as the account's live one, which has a
 // flagged new version beside it (so Download is "Already the same" and
 // Upload asks first); #voice-none has neither, #voice-signed-out is signed
-// out. The shots open the Local and Cloud pages and the dialog by
+// out, #voice-failed has none here and its Write with AI fails after a few
+// log lines. The shots open the Local and Cloud pages and the dialog by
 // clicking, as a person does.
 const voiceHash = window.location.hash;
 const VOICE_MD = "# My Writing Voice\n\nWrite in short, plain sentences. Name who does what.\n\n- Prefer concrete words to abstract ones.\n- No exclamation marks.\n";
 const voiceNoSync = { downloadSame: false, uploadSame: false, localAfterLive: false, accountAfterLocal: false, inReview: false };
-const voiceView = voiceHash === "#voice-none"
+const voiceView = voiceHash === "#voice-none" || voiceHash === "#voice-failed"
   ? { registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5", local: { exists: false }, account: { exists: false, alwaysAttach: false }, sync: voiceNoSync }
   : voiceHash === "#voice-signed-out"
   ? { registry: "https://dev.secureagentry.net", signedIn: false, accountOffered: false, model: "anthropic claude-sonnet-5-5", local: { exists: false }, sync: voiceNoSync }
@@ -346,7 +347,11 @@ g.go = { main: {
     SetAccountAttach: async () => voiceView.account,
     DeleteLocal: async () => undefined,
     Write: async () => new Promise(() => {}),
-    WriteWithAI: async () => new Promise(() => {}),
+    WriteWithAI: async () => {
+      if (voiceHash !== "#voice-failed") return new Promise(() => {});
+      for (const line of ["The Voice Writer runs on this computer against the model your runner policy names (openai qwen3.8-flash-next).", "decode: 1 files"]) emitPage("voice:write-log", line);
+      throw new Error("the Voice Writer wrote no VOICE.md");
+    },
     StartHosted: async () => new Promise(() => {}),
     StopWrite: async () => undefined,
   },

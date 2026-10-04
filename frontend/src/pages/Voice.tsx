@@ -353,6 +353,8 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
             {hasVoice && " When it ends, it replaces the voice on this computer."}
           </p>
           <ErrorBox error={error} />
+          {/* A run that failed keeps its log, so the person can see why. */}
+          {log.length > 0 && <FoldedLog label="The last run's log" lines={log} />}
           <div className="row gap" style={{ justifyContent: "flex-end" }}>
             <Button onClick={onClose}>Cancel</Button>
             <Button variant="primary" disabled={problem !== null} onClick={start}>Start</Button>
