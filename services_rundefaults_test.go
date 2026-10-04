@@ -346,7 +346,7 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 	}
 }
 
-// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): off by
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): off by
 // default, written to desktop.yaml by its own binding, read back in the
 // view, and never in the runner policy the CLI shares.
 func TestTheBuiltinAgentsSwitchIsSavedInDesktopYAMLOnly(t *testing.T) {

@@ -121,7 +121,7 @@ export type BuildProgress = JobProgress & { pages: number };
 
 /** The warning the review step gives before a build on this computer: it
  *  is long work, and how long it may run. A timeout of 0 is Run defaults'
- *  Built-in agents switch (agentry-desktop#606): no time limit. */
+ *  no-time-limit switch for the built-in agents (agentry-desktop#606). */
 export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): string {
   const minutes = Math.round(timeoutSeconds / 60);
   const limit =

@@ -83,7 +83,7 @@ type Progress struct {
 // CLI's DR-54), not a figure kept here, so a build gets the same time from
 // this app as from `agentry knowledge create`. It is a timeout alone: the
 // turn and cost caps are the policy's, and no budget of a build counts
-// tokens. Run defaults' Built-in agents switch takes the timeout away
+// tokens. Run defaults' no-time-limit switch for the built-in agents takes the timeout away
 // (settings.BuiltinBudgets, D-062).
 func CreatorBudgets(pol *policy.Policy) spec.Budgets {
 	var b policy.Budgets

@@ -334,7 +334,7 @@ func TestABuildsProgressIsOneFlatObjectWithItsPages(t *testing.T) {
 	}
 }
 
-// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): while
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
 // it is on, a build on this computer runs with no timeout, for a local
 // model that cannot draft a pack in the Creator's 60 minutes; the turn and
 // cost caps stay the policy's, and the build's log says so rather than "up

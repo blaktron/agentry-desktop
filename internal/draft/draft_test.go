@@ -712,7 +712,7 @@ func (f scannerFunc) Scan(ctx context.Context, src webscan.Source, text string) 
 	return f(ctx, src, text)
 }
 
-// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): while
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
 // it is on, the Drafter runs on this computer with no timeout, for a local
 // model slower than its 30 minutes; its turn and cost caps stay the
 // policy's, and the repair turn keeps its own bound, so a draft still ends.

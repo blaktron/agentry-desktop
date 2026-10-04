@@ -257,7 +257,7 @@ func TestTheVoiceWriterOnThisComputerKeepsWhatItWrote(t *testing.T) {
 	}
 }
 
-// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): while
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
 // it is on, the Voice Writer runs on this computer with no timeout; off, it
 // has its floor. The turn and cost caps are the policy's either way.
 func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeout(t *testing.T) {

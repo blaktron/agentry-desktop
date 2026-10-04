@@ -74,7 +74,7 @@ type Plan struct {
 // (localrun.Builtin.LocalBudgets, the CLI's DR-54), so a draft gets the
 // same time here as from `agentry draft`. It is a timeout alone: the turn and cost
 // caps are the policy's, and no budget of a draft counts tokens. Run
-// defaults' Built-in agents switch takes the timeout away
+// defaults' no-time-limit switch for the built-in agents takes the timeout away
 // (settings.BuiltinBudgets, D-062).
 func (p *Plan) Budgets() spec.Budgets {
 	return settings.BuiltinBudgets(localrun.Drafter(), p.Policy.Budgets)

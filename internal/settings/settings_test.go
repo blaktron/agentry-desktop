@@ -136,7 +136,7 @@ func TestCodingAgentExportIsOffByDefault(t *testing.T) {
 	}
 }
 
-// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): off,
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): off,
 // every built-in starts from the CLI's LocalBudgets, its timeout floor over
 // the policy's; on, every one of them has no timeout, and the turn and cost
 // caps are the policy's either way. A settings file that cannot be read
@@ -167,12 +167,14 @@ func TestTheBuiltinAgentsSwitchTakesAwayTheTimeoutOfEveryBuiltinAndNothingElse(t
 		}
 	}
 	// Another setting's save keeps it.
-	s, _ = Load()
+	if s, err = Load(); err != nil {
+		t.Fatal(err)
+	}
 	s.RunWhere = RunWhereAgentry
 	if err := Save(s); err != nil {
 		t.Fatal(err)
 	}
-	if s, _ = Load(); !s.BuiltinNoTimeout {
+	if s, err = Load(); err != nil || !s.BuiltinNoTimeout {
 		t.Fatal("saving another setting turned the switch off")
 	}
 

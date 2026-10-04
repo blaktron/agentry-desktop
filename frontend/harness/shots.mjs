@@ -405,7 +405,7 @@ const states = [
   // The built-in agents' switch (agentry-desktop#606, D-062): off by default
   // beside the timeout it lifts, then on.
   { name: "settings-builtin-no-timeout-off", url: "/pages.html?settings=run-defaults", note: "Run defaults → Timeout and turns: the built-in agents' no-time-limit switch, off", locator: '[data-preview="settings"] #settings-part-budgets',
-    expectSection: "run-defaults", expectText: ["No time limit for the built-in agents", "drafts, knowledge builds, local", "Your QuickAgents keep the timeout above"] },
+    expectSection: "run-defaults", expectText: ["No time limit for the built-in agents", "drafts, knowledge builds, local", "until it finishes or you stop", "keeps its own 5 minutes", "Your QuickAgents keep the timeout above"] },
   { name: "settings-builtin-no-timeout-on", url: "/pages.html?settings=run-defaults", note: "the switch turned on: drafts, builds, reviews and voices on this computer run until they finish", locator: '[data-preview="settings"] #settings-part-budgets',
     click: '[data-preview="settings"] input[data-builtin-no-timeout]', expectSection: "run-defaults", expectText: "No time limit for the built-in agents", expectChecked: '[data-preview="settings"] input[data-builtin-no-timeout]' },
   // Unsafe Mode (agentry-desktop#418): the switch off and on in Run defaults,

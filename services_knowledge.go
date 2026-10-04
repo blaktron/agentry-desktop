@@ -93,7 +93,8 @@ type CreatorBudgetView struct {
 }
 
 // CreatorBudget answers the budgets a build on this computer runs under:
-// the runner policy's, with at least 60 minutes.
+// the runner policy's, with at least 60 minutes, or no timeout while Run
+// defaults' switch for the built-in agents is on (D-062).
 func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
 	b := knowledge.PolicyBudgets()
 	return CreatorBudgetView{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns}

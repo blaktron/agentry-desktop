@@ -242,7 +242,7 @@ func TestAReviewIsWrittenOnlyToAFreshFolder(t *testing.T) {
 	}
 }
 
-// Run defaults' Built-in agents switch (agentry-desktop#606, D-062) takes
+// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062) takes
 // the Examiner's timeout away, and only its timeout: off, a review on this
 // computer has the Examiner's floor, as `agentry review` gives it.
 func TestTheBuiltinAgentsSwitchGivesAReviewNoTimeout(t *testing.T) {

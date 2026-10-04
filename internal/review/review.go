@@ -58,8 +58,8 @@ type Plan struct {
 
 // Budgets are the review's: the runner policy's, with the Examiner's own
 // timeout floor (30 minutes, since one rubric review may take 15), as
-// `agentry review` gives it, or none while Run defaults' Built-in agents
-// switch is on (settings.BuiltinBudgets, D-062).
+// `agentry review` gives it, or none while Run defaults' no-time-limit
+// switch for the built-in agents is on (settings.BuiltinBudgets, D-062).
 func (p *Plan) Budgets() spec.Budgets {
 	return settings.BuiltinBudgets(localrun.Examiner(), p.Policy.Budgets)
 }

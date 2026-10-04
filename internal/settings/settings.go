@@ -118,7 +118,8 @@ type Settings struct {
 	// after a native confirmation and the image's pull (D-030: the page
 	// cannot turn it on, and no other setting's save can carry it).
 	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
-	// BuiltinNoTimeout is Settings → Run defaults → Built-in agents
+	// BuiltinNoTimeout is Settings → Run defaults → Timeout and turns → "No
+	// time limit for the built-in agents"
 	// (agentry-desktop#606, D-062): while it is on, a run on this computer of
 	// a built-in package (the Drafter, the Knowledge Creator, the Examiner
 	// and the Voice Writer) has no whole-run timeout, for a person whose
@@ -132,7 +133,7 @@ type Settings struct {
 
 // BuiltinBudgets are the budgets a run of the built-in b on this computer
 // starts from: the CLI's b.LocalBudgets over the runner policy's p (its
-// timeout floor, DR-54), with no timeout while Run defaults' Built-in
+// timeout floor, DR-54), with no timeout while Run defaults' no-time-limit switch for the built-in
 // agents switch is on (D-062). Every built-in the app runs here takes its
 // budgets from this, so the four cannot drift apart. A settings file that
 // cannot be read keeps the floor: nothing loses its timeout by failing.

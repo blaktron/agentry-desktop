@@ -35,7 +35,7 @@ type RunDefaultsView struct {
 	// default.
 	UnsafeMode  bool   `json:"unsafeMode"`
 	UnsafeImage string `json:"unsafeImage,omitempty"`
-	// BuiltinNoTimeout is the Built-in agents switch (desktop.yaml's
+	// BuiltinNoTimeout is the no-time-limit switch for the built-in agents (desktop.yaml's
 	// builtinNoTimeout, D-062): the built-in agents' runs on this computer
 	// have no timeout while it is on.
 	BuiltinNoTimeout bool `json:"builtinNoTimeout"`
@@ -89,7 +89,7 @@ func (s *SettingsAPI) SetChatIdleTimeout(seconds int) (*RunDefaultsView, error) 
 	return runDefaultsView()
 }
 
-// SetBuiltinNoTimeout turns the Built-in agents switch on or off
+// SetBuiltinNoTimeout turns the no-time-limit switch for the built-in agents on or off
 // (agentry-desktop#606, D-062): while it is on, the Drafter, the Knowledge
 // Creator, the Examiner and the Voice Writer run on this computer with no
 // timeout. It asks no confirmation: it gives no run a reach it lacked, the
