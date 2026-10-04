@@ -348,7 +348,9 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // folder it fills in; and the Docker engine's prerequisites. None of them is
 // a consent: every run still asks what it asks. Unsafe Mode's switch is here
 // too (agentry-desktop#418): the page asks Go to turn it on, and Go asks the
-// person in a native dialog and pulls the image before it reads on.
+// person in a native dialog and pulls the image before it reads on. The
+// built-in agents' switch (agentry-desktop#606, D-062) sits with the
+// timeout it lifts, for drafts, builds, reviews and voices on this computer.
 function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
@@ -465,6 +467,17 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 computer has at least 30 minutes and a knowledge build at least 60, however short the timeout here.
               </p>
               {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
+              <label className="check-row" style={{ margin: "12px 0 0" }}>
+                <input type="checkbox" role="switch" checked={defaults.builtinNoTimeout} disabled={busy} data-builtin-no-timeout
+                  onChange={(e) => void act(() => SettingsAPI.SetBuiltinNoTimeout(e.target.checked))} />
+                <span><strong>No time limit for the built-in agents</strong></span>
+              </label>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                For a model on this computer too slow to finish in time. While this is on, drafts, knowledge builds, local
+                reviews and Writing Voice runs on this computer run until they finish. The max turns above still stops
+                them, unless it is 0. Your QuickAgents keep the timeout above, and nothing changes for the{" "}
+                <span className="mono">agentry</span> CLI or for anything run In Agentry. It applies from the next one you start.
+              </p>
             </Card>
           </PartSection>
           <PartSection id="chats" title="Chat idle timeout">

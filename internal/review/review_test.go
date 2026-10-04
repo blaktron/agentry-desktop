@@ -28,10 +28,12 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 const testKey = "jev-review-test-key-77c1"
@@ -237,5 +239,32 @@ func TestAReviewIsWrittenOnlyToAFreshFolder(t *testing.T) {
 	}
 	if err := fresh(t.TempDir()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Run defaults' Built-in agents switch (agentry-desktop#606, D-062) takes
+// the Examiner's timeout away, and only its timeout: off, a review on this
+// computer has the Examiner's floor, as `agentry review` gives it.
+func TestTheBuiltinAgentsSwitchGivesAReviewNoTimeout(t *testing.T) {
+	isolate(t)
+	storeKey(t)
+	p, err := Prepare(quickAgent(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Policy.Budgets = policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}
+	if got, want := p.Budgets(), localrun.Examiner().LocalBudgets(p.Policy.Budgets); got != want || got.TimeoutSeconds == 0 {
+		t.Fatalf("with the switch off: %+v, want the floor %+v", got, want)
+	}
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.BuiltinNoTimeout = true
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := p.Budgets(), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 2}); got != want {
+		t.Fatalf("with the switch on: %+v, want %+v", got, want)
 	}
 }

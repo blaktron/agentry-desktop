@@ -345,3 +345,36 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 		t.Fatalf("the refused chat reached the engine: %v", got)
 	}
 }
+
+// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): off by
+// default, written to desktop.yaml by its own binding, read back in the
+// view, and never in the runner policy the CLI shares.
+func TestTheBuiltinAgentsSwitchIsSavedInDesktopYAMLOnly(t *testing.T) {
+	_, s := runDefaultsApp(t, "")
+	v, err := s.RunDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.BuiltinNoTimeout {
+		t.Fatal("the switch is on by default")
+	}
+	before, _ := os.ReadFile(filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml"))
+	if v, err = s.SetBuiltinNoTimeout(true); err != nil || !v.BuiltinNoTimeout {
+		t.Fatalf("turning it on: %+v, %v", v, err)
+	}
+	if st, _ := settings.Load(); !st.BuiltinNoTimeout {
+		t.Fatal("desktop.yaml does not hold the switch")
+	}
+	if after, _ := os.ReadFile(filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml")); string(after) != string(before) {
+		t.Fatal("the switch changed the runner policy")
+	}
+	if v.TimeoutSeconds != policy.Default().Budgets.TimeoutSeconds {
+		t.Fatalf("the policy's run timeout reads %d, want it unchanged", v.TimeoutSeconds)
+	}
+	if v, err = s.SetRunWhere(settings.RunWhereAgentry); err != nil || !v.BuiltinNoTimeout {
+		t.Fatalf("another setting's save: %+v, %v", v, err)
+	}
+	if v, err = s.SetBuiltinNoTimeout(false); err != nil || v.BuiltinNoTimeout {
+		t.Fatalf("turning it off: %+v, %v", v, err)
+	}
+}

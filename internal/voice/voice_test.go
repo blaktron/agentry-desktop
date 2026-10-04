@@ -10,14 +10,17 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/knowledgetest"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/voice/build"
 	"github.com/blaktron/agentry-cli/pkg/voice/remote"
+	"github.com/blaktron/agentry-cli/pkg/voice/writer"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // The desktop's two voices (plan writing-voice.md D6, D11; agentry-desktop
@@ -251,5 +254,43 @@ func TestTheVoiceWriterOnThisComputerKeepsWhatItWrote(t *testing.T) {
 	}
 	if got, _ := e.Local(ctx, reg.URL); got.Source != "ai-edit" {
 		t.Fatalf("after the edit: %+v", got)
+	}
+}
+
+// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): while
+// it is on, the Voice Writer runs on this computer with no timeout; off, it
+// has its floor. The turn and cost caps are the policy's either way.
+func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeout(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	e, reg := testEnv(t, false)
+	ctx := context.Background()
+	home, _ := e.Home()
+	t.Setenv(policy.HomeEnv, home)
+	var seen build.Options
+	fake := func(_ context.Context, _ dockerx.Client, o build.Options) (*build.Result, error) {
+		seen = o
+		return &build.Result{Text: []byte("# Voice by the Writer\n\nKeep it plain.\n"), Samples: []string{"a.txt"}}, nil
+	}
+	if _, err := e.Build(ctx, BuildRequest{Registry: reg.URL, Job: build.Create, Samples: []string{"a.txt"}, Build: fake}); err != nil {
+		t.Fatal(err)
+	}
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < writer.LocalTimeoutFloorSeconds {
+		t.Fatalf("with the switch off the Writer ran under %+v, want at least its floor", seen.Budgets)
+	}
+	turns := seen.Budgets.MaxTurns
+
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.BuiltinNoTimeout = true
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Build(ctx, BuildRequest{Registry: reg.URL, Job: build.Edit, Brief: "shorter", Build: fake}); err != nil {
+		t.Fatal(err)
+	}
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns != turns {
+		t.Fatalf("with the switch on the Writer ran under %+v, want no timeout and %d turns", seen.Budgets, turns)
 	}
 }

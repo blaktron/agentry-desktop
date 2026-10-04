@@ -27,6 +27,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
 // DefaultRegistryURL is the production registry (§1: base URLs must stay
@@ -115,6 +118,30 @@ type Settings struct {
 	// after a native confirmation and the image's pull (D-030: the page
 	// cannot turn it on, and no other setting's save can carry it).
 	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
+	// BuiltinNoTimeout is Settings → Run defaults → Built-in agents
+	// (agentry-desktop#606, D-062): while it is on, a run on this computer of
+	// a built-in package (the Drafter, the Knowledge Creator, the Examiner
+	// and the Voice Writer) has no whole-run timeout, for a person whose
+	// local model cannot finish inside the built-ins' floors. A plain bool
+	// because it defaults OFF. The turn and cost caps still apply. It lives
+	// in this file and never in the runner policy, so the CLI, a QuickAgent's
+	// run and a run In Agentry cannot read it, and no installed package can
+	// claim it. Read it through BuiltinBudgets.
+	BuiltinNoTimeout bool `yaml:"builtinNoTimeout,omitempty" json:"builtinNoTimeout,omitempty"`
+}
+
+// BuiltinBudgets are the budgets a run of the built-in b on this computer
+// starts from: the CLI's b.LocalBudgets over the runner policy's p (its
+// timeout floor, DR-54), with no timeout while Run defaults' Built-in
+// agents switch is on (D-062). Every built-in the app runs here takes its
+// budgets from this, so the four cannot drift apart. A settings file that
+// cannot be read keeps the floor: nothing loses its timeout by failing.
+func BuiltinBudgets(b localrun.Builtin, p policy.Budgets) spec.Budgets {
+	out := b.LocalBudgets(p)
+	if st, err := Load(); err == nil && st.BuiltinNoTimeout {
+		out.TimeoutSeconds = 0
+	}
+	return out
 }
 
 // MaxChatIdleTimeoutSeconds is the longest Chat idle timeout, a week: a

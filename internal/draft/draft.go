@@ -37,6 +37,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -72,8 +73,12 @@ type Plan struct {
 // allows more keeps its own. The floor is the CLI's
 // (localrun.Builtin.LocalBudgets, the CLI's DR-54), so a draft gets the
 // same time here as from `agentry draft`. It is a timeout alone: the turn and cost
-// caps are the policy's, and no budget of a draft counts tokens.
-func (p *Plan) Budgets() spec.Budgets { return localrun.Drafter().LocalBudgets(p.Policy.Budgets) }
+// caps are the policy's, and no budget of a draft counts tokens. Run
+// defaults' Built-in agents switch takes the timeout away
+// (settings.BuiltinBudgets, D-062).
+func (p *Plan) Budgets() spec.Budgets {
+	return settings.BuiltinBudgets(localrun.Drafter(), p.Policy.Budgets)
+}
 
 // ModelName names the model the runner policy gives the Drafter.
 func (p *Plan) ModelName() string { return modelName(p.Policy) }

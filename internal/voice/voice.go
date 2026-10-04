@@ -386,7 +386,7 @@ func (e Env) Build(ctx context.Context, req BuildRequest) (*BuildResult, error) 
 	if b == nil {
 		b = build.Build
 	}
-	budgets := localrun.VoiceWriter().LocalBudgets(pol.Budgets)
+	budgets := settings.BuiltinBudgets(localrun.VoiceWriter(), pol.Budgets)
 	res, err := b(ctx, dockerx.New(), build.Options{
 		Job: req.Job, Samples: req.Samples, Brief: strings.TrimSpace(req.Brief), Current: current,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile, Build: version.Build(),

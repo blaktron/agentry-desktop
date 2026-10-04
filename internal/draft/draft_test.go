@@ -27,6 +27,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/progress"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 const (
@@ -709,4 +710,65 @@ type scannerFunc func(context.Context, webscan.Source, string) webscan.Result
 
 func (f scannerFunc) Scan(ctx context.Context, src webscan.Source, text string) webscan.Result {
 	return f(ctx, src, text)
+}
+
+// Run defaults' Built-in agents switch (agentry-desktop#606, D-062): while
+// it is on, the Drafter runs on this computer with no timeout, for a local
+// model slower than its 30 minutes; its turn and cost caps stay the
+// policy's, and the repair turn keeps its own bound, so a draft still ends.
+func TestTheBuiltinAgentsSwitchGivesADraftNoTimeout(t *testing.T) {
+	isolate(t)
+	saveKey(t)
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.BuiltinNoTimeout = true
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Prepare("https://registry.example", "Summarize my meeting notes.", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Policy.Budgets = policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 3}
+	want := spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 3}
+	if got := p.Budgets(); got != want {
+		t.Fatalf("the plan's budgets are %+v, want %+v", got, want)
+	}
+	var runs []localrun.Run
+	first := fakeRun(t, &runs, refused, nil)
+	second := fakeRun(t, &runs, repaired, nil)
+	checks := &fakeChecker{answers: []*drafter.Check{passCheck()}}
+	var reports []Progress
+	_, err = Run(context.Background(), Request{Plan: p, RunID: "run-606", Namespace: "alice",
+		Progress: func(pr Progress) { reports = append(reports, pr) },
+		Scanner: func(string) (webscan.Scanner, error) {
+			return &fakeScan{res: webscan.Result{Verdict: webscan.Pass}}, nil
+		},
+		Runner: func(ctx context.Context, r localrun.Run) (*receipt.Envelope, error) {
+			if len(runs) == 0 {
+				// Two hours: past every floor a built-in has.
+				env, err := first(ctx, r)
+				env.Usage = receipt.Usage{Turns: 3, WallMS: 7_200_000}
+				return env, err
+			}
+			return second(ctx, r)
+		},
+		Checker: checks.build})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 2 || runs[0].Budgets == nil || runs[1].Budgets == nil {
+		t.Fatalf("%d run(s), want the draft and its repair turn, each with budgets", len(runs))
+	}
+	if got := *runs[0].Budgets; got != want {
+		t.Errorf("the Drafter ran under %+v, want %+v", got, want)
+	}
+	if got := *runs[1].Budgets; got.TimeoutSeconds != drafter.RepairTimeoutSeconds || got.MaxTurns > drafter.RepairMaxTurns {
+		t.Errorf("the repair turn ran under %+v, want %d seconds at most %d tool calls", got, drafter.RepairTimeoutSeconds, drafter.RepairMaxTurns)
+	}
+	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 {
+		t.Errorf("the progress dialog was told %+v, want no time limit", reports)
+	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 
 	"github.com/blaktron/agentry-desktop/internal/progress"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -82,13 +83,14 @@ type Progress struct {
 // CLI's DR-54), not a figure kept here, so a build gets the same time from
 // this app as from `agentry knowledge create`. It is a timeout alone: the
 // turn and cost caps are the policy's, and no budget of a build counts
-// tokens.
+// tokens. Run defaults' Built-in agents switch takes the timeout away
+// (settings.BuiltinBudgets, D-062).
 func CreatorBudgets(pol *policy.Policy) spec.Budgets {
 	var b policy.Budgets
 	if pol != nil {
 		b = pol.Budgets
 	}
-	return localrun.KnowledgeCreator().LocalBudgets(b)
+	return settings.BuiltinBudgets(localrun.KnowledgeCreator(), b)
 }
 
 // PolicyBudgets is CreatorBudgets for the policy this app's runs obey,
@@ -287,7 +289,14 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	if budgets.MaxTurns > 0 {
 		turns = fmt.Sprintf(" and %d turns", budgets.MaxTurns)
 	}
-	logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", budgets.TimeoutSeconds/60, turns)
+	switch {
+	case budgets.TimeoutSeconds > 0:
+		logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", budgets.TimeoutSeconds/60, turns)
+	case budgets.MaxTurns > 0:
+		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time limit, so it runs until it is done or reaches %d turns.", budgets.MaxTurns)
+	default:
+		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time limit, so it runs until it is done.")
+	}
 	if total := DocumentsBytes(req.Documents); total > kn.MaxBytes {
 		logf(req.Log, "The documents come to %.1f MB. A build that size can take a very long time, and the pack will stay on this computer: Agentry keeps packs of at most %s.",
 			float64(total)/(1<<20), kn.FormatCap(kn.MaxBytes))
