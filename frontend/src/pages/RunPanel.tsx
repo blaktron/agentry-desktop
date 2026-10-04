@@ -887,7 +887,7 @@ export default function RunPanel({
                       {inAgentry
                         ? inAgentryLine(p)
                         : !attachable(p)
-                          ? "kept in Agentry only: download it on the Knowledge page to attach it to a run here"
+                          ? "kept in Agentry only: Copy to Local on the Cloud Knowledge page to attach it to a run here"
                           : p.opensOffline ? "opens offline" : `opens after ${p.registry} unwraps its key`}
                     </span>
                     {inAgentry && p.local && !p.shared && (!p.inAgentry || p.changed || (!p.agentryReady && p.scanState !== "scanning")) && (
@@ -899,7 +899,7 @@ export default function RunPanel({
                           void uploadForAgentry(p.name);
                         }}
                       >
-                        {uploading === p.name ? "Uploading…" : "Upload to Agentry"}
+                        {uploading === p.name ? "Copying…" : "Copy to Cloud"}
                       </Button>
                     )}
                   </span>

@@ -34,8 +34,12 @@ export function CreatorWeb() {
   return window['go']['main']['KnowledgeAPI']['CreatorWeb']();
 }
 
-export function Delete(arg1, arg2, arg3) {
-  return window['go']['main']['KnowledgeAPI']['Delete'](arg1, arg2, arg3);
+export function Delete(arg1, arg2) {
+  return window['go']['main']['KnowledgeAPI']['Delete'](arg1, arg2);
+}
+
+export function DeleteFromAgentry(arg1, arg2) {
+  return window['go']['main']['KnowledgeAPI']['DeleteFromAgentry'](arg1, arg2);
 }
 
 export function DocumentsSize(arg1) {

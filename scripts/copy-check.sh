@@ -86,7 +86,7 @@ strip_allowed() {
 # knowledge_file <path>: whether the file is the Knowledge panel's copy.
 knowledge_file() {
   case "${1#"$ROOT"/}" in
-    frontend/src/knowledge.ts | frontend/src/pages/Knowledge*.tsx | services_knowledge.go | internal/knowledge/*) return 0 ;;
+    frontend/src/knowledge.ts | frontend/src/knowledgeCards.ts | frontend/src/pages/Knowledge*.tsx | services_knowledge.go | internal/knowledge/*) return 0 ;;
   esac
   return 1
 }

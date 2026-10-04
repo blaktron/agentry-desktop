@@ -72,7 +72,7 @@
 //   #runpanel-hosted-knowledge          the Knowledge step In Agentry: packs
 //                                       kept and scanned in Agentry can be
 //                                       ticked; one kept only here offers
-//                                       Upload to Agentry; one being scanned
+//                                       Copy to Cloud; one being scanned
 //                                       there says so
 //   (a run In Agentry that is over is the run's flow's since
 //   agentry-desktop#466: runs.html#hosted-finished shows its knowledge line)

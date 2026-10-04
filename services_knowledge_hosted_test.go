@@ -494,7 +494,7 @@ func TestHostedBuildRefusesWhatCouldNotComeBack(t *testing.T) {
 	if _, err := k.StartHostedBuild(f.url, "Bad Name", "", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "lowercase") {
 		t.Fatalf("a bad name: %v", err)
 	}
-	if _, err := k.StartHostedBuild(f.url, "", "handbook", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "Upload to Agentry first") {
+	if _, err := k.StartHostedBuild(f.url, "", "handbook", []string{dir}, "", false); err == nil || !strings.Contains(err.Error(), "Copy to Cloud first") {
 		t.Fatalf("add to a pack not in Agentry: %v", err)
 	}
 	if _, _, err := s.Upload(context.Background(), "handbook"); err != nil {

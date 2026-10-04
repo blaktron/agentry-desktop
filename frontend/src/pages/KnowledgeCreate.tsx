@@ -43,6 +43,14 @@
 // registry searches, and its note says searching can raise the credits a
 // build uses. The choice is sent as made either way.
 //
+// The Local and Cloud Knowledge pages each open this flow preset to their
+// place (plan knowledge-cards.md §4.5, D5; agentry-desktop#619): `place`
+// chooses the Where step's answer, which the person can still change. Where
+// In Agentry cannot be chosen (Standard, DEV-162; signed out; a registry
+// that builds nothing; documents past its cap), the answer falls back to
+// this computer, the Where step says why, and a pack made here from the
+// Cloud page is offered Copy to Cloud when it is done.
+//
 // A running build does not take over the app (agentry-desktop#353): App
 // mounts this flow above the pages, and closing the dialog while a build
 // runs, or Run in the background, shrinks it to a card in the bottom-right
@@ -78,12 +86,14 @@ const LABEL: Record<Step, string> = {
 };
 
 export default function KnowledgeCreate({
-  registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  registry, addTo, place, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
   initialBrief, initialWeb,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
   addTo?: string;
+  /** Which page opened the flow: its place presets the Where step. */
+  place?: "local" | "agentry";
   onClose: () => void;
   onPreview: (name: string) => void;
   /** Shown as the corner card rather than the dialog; App owns it. */
@@ -110,7 +120,9 @@ export default function KnowledgeCreate({
   initialWeb?: LocalWeb;
 }) {
   const [avail, setAvail] = useState<main.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
-  const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? "local");
+  const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? place ?? "local");
+  // availRead: the registry's answer on In Agentry has come, or failed.
+  const [availRead, setAvailRead] = useState(!!initialAvailability);
   const [hosted, setHosted] = useState<main.KnowledgeHostedBuildView | null>(initialHosted ?? null);
   const [refusal, setRefusal] = useState<string | null>(null);
   // starting: a build In Agentry's documents are uploading and the build
@@ -156,7 +168,11 @@ export default function KnowledgeCreate({
     KnowledgeAPI.CreatorBudget().then(setBudget).catch(() => setBudget(null));
     RunAPI.SetupStatus().then(setSetup).catch(() => setSetup(null));
     if (!initialWeb) KnowledgeAPI.CreatorWeb().then(setLocalWeb).catch(() => setLocalWeb(null));
-    if (!initialAvailability) KnowledgeAPI.HostedAvailability(registry).then(setAvail).catch(() => setAvail(null));
+    if (!initialAvailability)
+      KnowledgeAPI.HostedAvailability(registry)
+        .then(setAvail)
+        .catch(() => setAvail(null))
+        .finally(() => setAvailRead(true));
     // A build In Agentry already in flight is followed rather than started
     // again: the registry takes one at a time.
     if (!initialHosted && !initialResult && !initialBuilding) {
@@ -193,6 +209,16 @@ export default function KnowledgeCreate({
   // The warning follows whether the build will search, where it runs: a
   // ticked box on a computer without the keys does not search.
   const warning = sourcesWarning(docs.length, searches(webOn, where, localWeb, agentryWeb));
+  // In Agentry preset where it cannot be chosen falls back to this
+  // computer, as its radio is disabled then (D5).
+  const agentryChoosable = !!avail?.offered && avail.available && !pastAgentry && !agentryNoBrief;
+  // Add documents from the Cloud page does not fall back: the pack may not
+  // be kept here, and documents added here would change only this
+  // computer's copy, so In Agentry stays chosen and the reason blocks it.
+  useEffect(() => {
+    if (!addTo && where === "agentry" && availRead && !agentryChoosable) setWhere("local");
+  }, [addTo, where, availRead, agentryChoosable]);
+  const fellBack = place === "agentry" && where === "local" && availRead && !agentryChoosable;
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
   useEffect(() => {
@@ -235,7 +261,8 @@ export default function KnowledgeCreate({
   const blockers: string[] = [];
   const inAgentry = where === "agentry";
   if (inAgentry) {
-    if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
+    if (availRead && !avail?.offered) blockers.push("This registry does not build knowledge In Agentry.");
+    else if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
     if (agentryNoBrief) blockers.push(AGENTRY_NO_BRIEF);
   } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
@@ -443,7 +470,7 @@ export default function KnowledgeCreate({
                     <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry || agentryNoBrief} onChange={() => setWhere("agentry")} />
                     <span>
                       <strong>In Agentry</strong>{" "}
-                      <span className="muted">— on the platform, for credits; the pack is kept in Agentry and scanned, then kept here</span>
+                      <span className="muted">— on the platform, for credits; the pack is kept in Agentry and scanned, then copied here</span>
                     </span>
                   </label>
                 </div>
@@ -490,6 +517,12 @@ export default function KnowledgeCreate({
                   ]}
                 />
                 {docs.length === 0 && <Notice tone="warn">{warning.text}</Notice>}
+                {fellBack && !avail?.offered && (
+                  <Notice tone="info">
+                    This registry does not build knowledge In Agentry, so the pack is made on this computer. Copy to Cloud keeps a copy in
+                    your account once it is made.
+                  </Notice>
+                )}
                 {inAgentry && avail ? (
                   <>
                     <Notice tone="info">{inAgentryNote(registry, docs.length, hasBrief)}</Notice>
@@ -552,7 +585,15 @@ export default function KnowledgeCreate({
         </>
       )}
 
-      {!building && result && <BuildDone result={result} added={!!addTo} onClose={onClose} onPreview={() => onPreview(result.name)} />}
+      {!building && result && (
+        <BuildDone
+          result={result}
+          added={!!addTo}
+          onClose={onClose}
+          onPreview={() => onPreview(result.name)}
+          copyToCloud={place === "agentry" && !addTo ? () => KnowledgeAPI.Upload(registry, result.name) : undefined}
+        />
+      )}
 
       {refusal && !hosted && (
         <>
@@ -695,8 +736,30 @@ function HostedDone({ v, onContinue, onClose, onPreview }: {
   );
 }
 
-function BuildDone({ result, added, onClose, onPreview }: { result: knowledge.BuildResult; added: boolean; onClose: () => void; onPreview: () => void }) {
+function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
+  result: knowledge.BuildResult;
+  added: boolean;
+  onClose: () => void;
+  onPreview: () => void;
+  /** Offered when the Cloud page opened the flow and the pack was made
+   *  here (plan knowledge-cards.md D5): keeps a copy in the account. */
+  copyToCloud?: () => Promise<string>;
+}) {
   const docs = result.documents ?? [];
+  const [copying, setCopying] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  async function copy() {
+    setCopying(true);
+    setCopyError(null);
+    try {
+      setCopied(await copyToCloud!());
+    } catch (e) {
+      setCopyError(String(e));
+    } finally {
+      setCopying(false);
+    }
+  }
   return (
     <div>
       <h3 className={`run-outcome run-outcome-${result.stopped ? "warn" : "ok"}`}>
@@ -714,7 +777,7 @@ function BuildDone({ result, added, onClose, onPreview }: { result: knowledge.Bu
       {(result.rewrapped ?? []).length > 0 && (
         <p className="muted small">Moved off this computer&apos;s key, to one this registry keeps for your account, first: {result.rewrapped!.join(", ")}.</p>
       )}
-      {result.agentryStale && <p className="muted small">Agentry still keeps the copy from before this build; Upload to Agentry sends this one.</p>}
+      {result.agentryStale && <p className="muted small">Agentry still keeps the copy from before this build; Copy to Cloud sends this one.</p>}
       <dl className="knowledge-facts">
         <dt>Documents read</dt>
         <dd><span className="mono small">{docs.join(", ") || "none"}</span></dd>
@@ -734,8 +797,13 @@ function BuildDone({ result, added, onClose, onPreview }: { result: knowledge.Bu
           </>
         )}
       </dl>
+      {copied && <Notice tone="ok">{copied}</Notice>}
+      <ErrorBox error={copyError} />
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <Button onClick={onPreview}>Preview</Button>
+        {copyToCloud && !copied && (
+          <Button busy={copying} busyLabel="Copying…" onClick={copy}>Copy to Cloud</Button>
+        )}
         <Button variant="primary" onClick={onClose}>Done</Button>
       </div>
     </div>

@@ -19,7 +19,9 @@ export function CreatorModel():Promise<string>;
 
 export function CreatorWeb():Promise<main.CreatorWebView>;
 
-export function Delete(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+export function Delete(arg1:string,arg2:string):Promise<void>;
+
+export function DeleteFromAgentry(arg1:string,arg2:string):Promise<void>;
 
 export function DocumentsSize(arg1:Array<string>):Promise<main.DocumentsView>;
 

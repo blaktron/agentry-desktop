@@ -9,7 +9,7 @@ import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
-import Knowledge from "./pages/Knowledge";
+import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
 import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
@@ -48,7 +48,7 @@ export type Route =
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app
 // (agentry-desktop#353). One at a time, as the run lock allows one build.
-type KnowledgeFlow = { registry: string; addTo?: string };
+type KnowledgeFlow = { registry: string; addTo?: string; place?: KnowledgePlace };
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ page: "browse" });
@@ -269,11 +269,12 @@ export default function App() {
             <Knowledge
               registry={registry}
               onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.knowledgeSignIn })}
-              onCreate={(addTo) => {
+              onCreate={(addTo, place) => {
                 // A build in flight is brought back rather than a second
                 // started (one build at a time); a flow that is over, or not
-                // yet started, gives way to the one asked for.
-                if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, addTo });
+                // yet started, gives way to the one asked for, preset to the
+                // place whose page asked (plan knowledge-cards.md D5).
+                if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, addTo, place });
                 setFlowMinimized(false);
               }}
               rev={knowledgeRev}
@@ -321,6 +322,7 @@ export default function App() {
           <KnowledgeCreate
             registry={knowledgeFlow.registry}
             addTo={knowledgeFlow.addTo}
+            place={knowledgeFlow.place}
             minimized={flowMinimized}
             onMinimize={() => setFlowMinimized(true)}
             onRestore={() => setFlowMinimized(false)}

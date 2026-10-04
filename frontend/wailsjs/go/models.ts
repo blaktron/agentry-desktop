@@ -1117,6 +1117,12 @@ export namespace knowledge {
 	    org?: string;
 	    exportable: boolean;
 	    canExport: boolean;
+	    updated?: string;
+	    agentryUpdated?: string;
+	    agentryScan?: string;
+	    agentryScanState?: string;
+	    agentryPages?: number;
+	    agentryBytes?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Pack(source);
@@ -1145,6 +1151,12 @@ export namespace knowledge {
 	        this.org = source["org"];
 	        this.exportable = source["exportable"];
 	        this.canExport = source["canExport"];
+	        this.updated = source["updated"];
+	        this.agentryUpdated = source["agentryUpdated"];
+	        this.agentryScan = source["agentryScan"];
+	        this.agentryScanState = source["agentryScanState"];
+	        this.agentryPages = source["agentryPages"];
+	        this.agentryBytes = source["agentryBytes"];
 	    }
 	}
 	export class List {

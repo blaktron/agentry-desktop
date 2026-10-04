@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/knowledgetest"
@@ -277,6 +278,37 @@ func TestTheListSaysWhereEachPackIsAndWhatHoldsItsKey(t *testing.T) {
 	// Agentry keeps and has scanned, never a pack kept only here.
 	if !byName["both"].AgentryReady || !byName["remote-only"].AgentryReady || byName["local-only"].AgentryReady {
 		t.Errorf("agentryReady: both %v, remote-only %v, local-only %v", byName["both"].AgentryReady, byName["remote-only"].AgentryReady, byName["local-only"].AgentryReady)
+	}
+
+	// The dates the Local and Cloud Knowledge pages show (plan
+	// knowledge-cards.md §4.2, §4.3; agentry-desktop#619): when the copy
+	// here last changed, from its manifest, and when Agentry's did, from
+	// its list. A pack kept in one place has only that place's date.
+	for name, want := range map[string][2]bool{"local-only": {true, false}, "both": {true, true}, "remote-only": {false, true}} {
+		p := byName[name]
+		if (p.Updated != "") != want[0] || (p.AgentryUpdated != "") != want[1] {
+			t.Errorf("%s: updated %q, agentryUpdated %q", name, p.Updated, p.AgentryUpdated)
+		}
+		for _, d := range []string{p.Updated, p.AgentryUpdated} {
+			if d == "" {
+				continue
+			}
+			if at, err := time.Parse(time.RFC3339, d); err != nil || at.IsZero() {
+				t.Errorf("%s: date %q is not an RFC 3339 time (%v)", name, d, err)
+			}
+		}
+	}
+
+	// Agentry's own copy as the Cloud Knowledge page shows it: its scan, its
+	// pages and its size, also for a pack whose copy here changed since it
+	// was copied, where the pack's own Scan stays this computer's.
+	for _, name := range []string{"both", "remote-only"} {
+		if p := byName[name]; p.AgentryScanState != ScanScanned || p.AgentryScan != "scanned in Agentry, 0 findings" || p.AgentryBytes == 0 {
+			t.Errorf("%s: Agentry's copy %q %q %d bytes", name, p.AgentryScanState, p.AgentryScan, p.AgentryBytes)
+		}
+	}
+	if p := byName["local-only"]; p.AgentryScan != "" || p.AgentryScanState != "" || p.AgentryBytes != 0 {
+		t.Errorf("local-only says something of a copy in Agentry: %+v", p)
 	}
 
 	// Signed out, the kept packs are listed and Agentry says why not.
