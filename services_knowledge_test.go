@@ -183,6 +183,82 @@ func TestKnowledgeDeleteAsksNatively(t *testing.T) {
 	}
 }
 
+// Delete on the Cloud Knowledge page removes Agentry's copy alone (plan
+// knowledge-cards.md §4.3, D3; agentry-desktop#619), after a native dialog
+// that says whether a copy stays here; the copy here is untouched, and Copy
+// to Cloud keeps it in Agentry again.
+func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
+	f := newKnowledgeFixture(t)
+	if _, err := f.env.Upload(f.k.app.ctx, f.reg.URL, "handbook"); err != nil {
+		t.Fatal(err)
+	}
+	inAgentry := func() knowledge.Pack {
+		t.Helper()
+		l, err := f.env.List(f.k.app.ctx, f.reg.URL)
+		if err != nil || len(l.Packs) != 1 {
+			t.Fatalf("list = %+v, %v", l, err)
+		}
+		return l.Packs[0]
+	}
+	id := inAgentry().AgentryID
+	if id == "" {
+		t.Fatal("the upload left no copy in Agentry")
+	}
+	msg := ""
+	f.k.app.confirm = func(_ context.Context, _, m string) (bool, error) { msg = m; return false, nil }
+	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", id); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("delete answered No: %v", err)
+	}
+	if !strings.Contains(msg, "Agentry's copy of handbook") || !strings.Contains(msg, "The copy on this computer stays") {
+		t.Fatalf("the dialog says %q", msg)
+	}
+	if !inAgentry().InAgentry {
+		t.Fatal("a delete answered No removed Agentry's copy")
+	}
+	f.k.app.confirm = func(context.Context, string, string) (bool, error) { return true, nil }
+	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", id); err != nil {
+		t.Fatal(err)
+	}
+	if p := inAgentry(); p.InAgentry || !p.Local || p.AgentryID != "" {
+		t.Fatalf("after deleting Agentry's copy: %+v", p)
+	}
+	if _, err := f.env.Find(f.reg.URL, "handbook"); err != nil {
+		t.Fatalf("deleting Agentry's copy touched this computer's: %v", err)
+	}
+	// Copy to Cloud keeps it in Agentry again, as a new copy.
+	if _, err := f.k.Upload(f.reg.URL, "handbook"); err != nil {
+		t.Fatal(err)
+	}
+	if p := inAgentry(); !p.InAgentry || p.AgentryID == "" || p.AgentryID == id {
+		t.Fatalf("after Copy to Cloud: %+v", p)
+	}
+
+	// A pack Agentry alone keeps: the dialog says it is the only copy.
+	if err := f.env.Delete(f.k.app.ctx, f.reg.URL, "handbook", false); err != nil {
+		t.Fatal(err)
+	}
+	only := inAgentry()
+	if only.Local {
+		t.Fatalf("still here: %+v", only)
+	}
+	f.k.app.confirm = func(_ context.Context, _, m string) (bool, error) { msg = m; return true, nil }
+	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", only.AgentryID); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(msg, "It is the only copy") {
+		t.Fatalf("the dialog for Agentry's only copy says %q", msg)
+	}
+	if l, err := f.env.List(f.k.app.ctx, f.reg.URL); err != nil || len(l.Packs) != 0 {
+		t.Fatalf("after deleting the only copy: %+v, %v", l, err)
+	}
+	// An id that is not one of the account's packs is refused before anything is asked.
+	asked := false
+	f.k.app.confirm = func(context.Context, string, string) (bool, error) { asked = true; return true, nil }
+	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", "../../user"); err == nil || asked {
+		t.Fatalf("a bad id: %v (asked %v)", err, asked)
+	}
+}
+
 // Create and Add take documents only from the native picker; a path the
 // page typed is refused before anything is built.
 func TestKnowledgeDocumentsMustComeFromTheNativePicker(t *testing.T) {

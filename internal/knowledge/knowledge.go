@@ -28,11 +28,14 @@ package knowledge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/remote"
@@ -221,6 +224,13 @@ type Pack struct {
 	// shared one they administer or an admin marked exportable (D26). The
 	// registry decides again when it is asked.
 	CanExport bool `json:"canExport"`
+	// Updated is when the copy kept here last changed (its manifest's
+	// updated, else created), AgentryUpdated when Agentry's copy did, as
+	// its list says; RFC 3339, or "" for a place the pack is not kept. The
+	// Local and Cloud Knowledge pages each show their own
+	// (agentry-desktop#619).
+	Updated        string `json:"updated,omitempty"`
+	AgentryUpdated string `json:"agentryUpdated,omitempty"`
 
 	// agentryRegistry is the registry a kept copy's record names for its
 	// copy in Agentry, for matching it against that registry's list.
@@ -396,6 +406,7 @@ func localPack(s *store.Store, en store.Entry) Pack {
 		Local: true, Where: whereLocal,
 		Key: KeyHolder(en), Wrapper: string(en.Key.Wrapper),
 		Shared: en.Key.Org != "", Org: en.Key.Org, CanExport: en.Key.Org == "",
+		Updated: stamp(m.Updated, m.Created),
 	}
 	if a := en.Key.Agentry; a != nil {
 		p.InAgentry, p.Where, p.AgentryID, p.agentryRegistry = true, whereBoth, a.ID, a.Registry
@@ -464,6 +475,7 @@ func localScanState(sc kn.Scan) string {
 // as it is.
 func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 	p.InAgentry, p.AgentryReady = true, r.State == store.StateReady
+	p.AgentryUpdated = stamp(r.Updated, r.Created)
 	if r.State == store.StateReady && r.Digest != localDigest {
 		return
 	}
@@ -474,7 +486,10 @@ func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 
 // remotePack is a pack Agentry keeps and this computer does not.
 func remotePack(r store.Remote) Pack {
-	p := Pack{Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, AgentryReady: r.State == store.StateReady, Where: whereAgentry}
+	p := Pack{
+		Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, AgentryReady: r.State == store.StateReady,
+		Where: whereAgentry, AgentryUpdated: stamp(r.Updated, r.Created),
+	}
 	p.Scan, p.ScanState, _ = remoteScan(r)
 	return p
 }
@@ -511,6 +526,18 @@ func scannedInAgentry(report json.RawMessage) string {
 	default:
 		return fmt.Sprintf("scanned in Agentry, %d findings", n)
 	}
+}
+
+// stamp is a pack's date for the panel: when it last changed, else when it
+// was made, in RFC 3339; "" when neither is known.
+func stamp(updated, created time.Time) string {
+	if updated.IsZero() {
+		updated = created
+	}
+	if updated.IsZero() {
+		return ""
+	}
+	return updated.UTC().Format(time.RFC3339)
 }
 
 func findRemote(rs []store.Remote, id string) (store.Remote, bool) {
@@ -597,6 +624,34 @@ func (e Env) Delete(ctx context.Context, current, name string, everywhere bool) 
 	_, err = s.Delete(ctx, name, everywhere)
 	return err
 }
+
+// DeleteFromAgentry deletes the account's copy id in Agentry and nothing
+// on this computer (plan knowledge-cards.md §4.3, D3; agentry-desktop#619):
+// the Cloud Knowledge page's Delete. A copy kept here keeps its record of
+// the deleted copy; the list then says Agentry no longer keeps it, and an
+// upload makes a new copy, as the store does for any copy Agentry lost. A
+// copy already gone is not an error. An organization's shared pack is not
+// in the account's own list, so its id is refused there (a member never
+// deletes one, D6).
+func (e Env) DeleteFromAgentry(ctx context.Context, current, id string) error {
+	if !IsAgentryID(id) {
+		return fmt.Errorf("%q is not the id of a pack in Agentry", id)
+	}
+	c, err := e.registry(settings.Normalize(current))
+	if err != nil {
+		return err
+	}
+	if err := c.Delete(ctx, id); err != nil && !errors.Is(err, store.ErrRemoteNotFound) {
+		return fmt.Errorf("delete Agentry's copy: %w", err)
+	}
+	return nil
+}
+
+// IsAgentryID says id is the form a registry names a pack by, a UUID; any
+// other string is refused before a registry is asked.
+func IsAgentryID(id string) bool { return agentryID.MatchString(id) }
+
+var agentryID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // Find is the kept pack name, for the bindings' dialogs.
 func (e Env) Find(current, name string) (store.Entry, error) {

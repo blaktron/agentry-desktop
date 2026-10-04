@@ -276,12 +276,32 @@ func (k *KnowledgeAPI) Delete(reg, name string, everywhere bool) error {
 	case en.Key.Agentry == nil:
 		msg += " It is the only copy: Agentry keeps none, and it cannot be recovered."
 	default:
-		msg += " Agentry keeps its copy, which Download brings back."
+		msg += " Agentry keeps its copy, which Copy to Local brings back."
 	}
 	if err := k.app.askConsent("Delete "+name+"?", msg+" Continue?"); err != nil {
 		return err
 	}
 	return k.env().Delete(k.app.ctx, reg, name, everywhere)
+}
+
+// DeleteFromAgentry deletes Agentry's copy of the pack, id, after a native
+// dialog, and leaves this computer's copy as it is (plan knowledge-cards.md
+// §4.3, D3; agentry-desktop#619). The dialog says whether a copy stays here
+// by this computer's own record, not the page's word.
+func (k *KnowledgeAPI) DeleteFromAgentry(reg, name, id string) error {
+	if !knowledge.IsAgentryID(id) {
+		return fmt.Errorf("%q is not the id of a pack in Agentry", id)
+	}
+	msg := "This deletes Agentry's copy of " + name + " and its scan report."
+	if en, err := k.env().Find(reg, name); err == nil && en.Key.Agentry != nil && en.Key.Agentry.ID == id {
+		msg += " The copy on this computer stays, and Copy to Cloud keeps it in Agentry again."
+	} else {
+		msg += " It is the only copy: this computer keeps none, and it cannot be recovered."
+	}
+	if err := k.app.askConsent("Delete "+name+" from Agentry?", msg+" Continue?"); err != nil {
+		return err
+	}
+	return k.env().DeleteFromAgentry(k.app.ctx, reg, id)
 }
 
 // Preview is the pack's index and the pages it has, for the preview. The
