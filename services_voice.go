@@ -1,17 +1,23 @@
-// VoiceAPI: the Voice panel (plan writing-voice.md §8, D6, D11, D12;
-// agentry-desktop#510, D-054). A person keeps a Writing Voice in two places,
-// never synced on their own: this computer's (the CLI's local store, free,
-// never reviewed) and, signed in, the account's (reviewed by AI Review
-// before it is live). Submit sends this computer's up for review; Use keeps
-// the account's live one here. The Voice Writer writes or rewrites a voice
-// on this computer for no credits, or In Agentry as a hosted run at the
-// registry's flat price (agentry-enterprise#306).
+// VoiceAPI: the Voice page (plan writing-voice.md §8, D6, D11, D12;
+// agentry-desktop#510, D-054; reshaped by plan voice-page-redesign.md §4,
+// §7, §8, agentry-desktop#610, D-063). A person keeps a Writing Voice in
+// two places, never synced on their own: this computer's (the CLI's local
+// store, free, never reviewed) and, signed in, the account's (reviewed by
+// AI Review before it is live). Upload to Cloud (Submit) sends this
+// computer's up for review; Download Cloud version (UseAccount) keeps the
+// account's live one here, each warning first when it would put an older
+// voice over a newer one (D2). Edit with AI (WriteWithAI) runs the Voice
+// Writer on this computer for no credits: an AI Edit with a note and
+// optional samples, or a Create where this computer keeps no voice. The
+// Voice Writer also runs In Agentry as a hosted run at the registry's flat
+// price (agentry-enterprise#306).
 //
 // The gates are the Knowledge panel's (D-030): samples come only from the
-// native pickers; Use, which puts the account's voice over a different one
-// here, and Delete are asked in a native dialog (a Save or a Voice Writer
-// run replaces this computer's voice at the person's own press, as the
-// panel says beside it); and a Voice Writer run here takes the run lock.
+// native pickers; a download over a different voice here, an upload after
+// a newer version in the account, and Delete are asked in a native dialog
+// (a Save or a Voice Writer run replaces this computer's voice at the
+// person's own press, as the page says beside it); and a Voice Writer run
+// here takes the run lock.
 package main
 
 import (
@@ -20,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/voice/build"
 	"github.com/blaktron/agentry-cli/pkg/voice/remote"
@@ -39,7 +46,7 @@ const eventVoiceHosted = "voice:hosted"
 // voiceRunRef names a Voice Writer run as the run in flight.
 const voiceRunRef = "the Voice Writer"
 
-// VoiceAPI is the Voice panel's bound surface.
+// VoiceAPI is the Voice page's bound surface.
 type VoiceAPI struct {
 	app *App
 	run *RunAPI
@@ -71,6 +78,9 @@ type VoiceView struct {
 	// Agentry may write in the account's voice here (voiceBuild.attach).
 	ReviewCredits int64 `json:"reviewCredits"`
 	AttachEnabled bool  `json:"attachEnabled"`
+	// Sync is how this computer's voice stands against the account's, for
+	// Download Cloud version and Upload to Cloud (D2).
+	Sync voice.Sync `json:"sync"`
 }
 
 // View is the panel for reg.
@@ -92,7 +102,7 @@ func (v *VoiceAPI) View(reg string) (*VoiceView, error) {
 	case err != nil:
 		out.AccountOffered, out.AccountError = true, "Your account's voice could not be read: "+err.Error()
 	default:
-		out.AccountOffered, out.Account = true, a
+		out.AccountOffered, out.Account, out.Sync = true, a, voice.SyncOf(local, a)
 	}
 	if out.AccountOffered {
 		if st, err := hostedrun.New(reg, e.TokenFor(reg)).Status(ctx); err == nil && st.VoiceBuild != nil {
@@ -141,14 +151,116 @@ func (v *VoiceAPI) SaveAccount(reg, text string) (*voice.Account, error) {
 	return v.env().SaveAccount(v.app.ctx, settings.Normalize(reg), text)
 }
 
-// Submit sends this computer's voice to the account for review. Nothing on
+// ErrAlreadyTheSame is a download or an upload of the voice the other
+// place already keeps.
+var ErrAlreadyTheSame = errors.New("already the same: this computer and your account keep this voice")
+
+// Submit is Upload to Cloud: it sends this computer's voice to the account
+// for review, asking first in a native dialog when the account's newest
+// version was set after this computer's voice was saved (D2). Nothing on
 // this computer changes.
 func (v *VoiceAPI) Submit(reg string) (*voice.Account, error) {
-	return v.env().Submit(v.app.ctx, settings.Normalize(reg))
+	reg = settings.Normalize(reg)
+	ctx := v.app.ctx
+	e := v.env()
+	here, err := e.Local(ctx, reg)
+	if err != nil {
+		return nil, err
+	}
+	a, err := e.Account(ctx, reg)
+	if err != nil {
+		return nil, err
+	}
+	s := voice.SyncOf(here, a)
+	if s.UploadSame {
+		return nil, ErrAlreadyTheSame
+	}
+	if title, msg, ask := uploadWarning(here, a, s, v.reviewCredits(ctx, reg)); ask {
+		if err := v.app.askConsent(title, msg); err != nil {
+			return nil, err
+		}
+	}
+	return e.Submit(ctx, reg)
 }
 
-// UseAccount keeps the account's live voice on this computer, asking first
-// in a native dialog when it replaces a different one here.
+// uploadWarning is Upload to Cloud's native confirm (plan §8, D2): asked
+// only when the account's newest version is the newer one.
+func uploadWarning(here *voice.Local, a *voice.Account, s voice.Sync, credits int64) (title, msg string, ask bool) {
+	if !s.AccountAfterLocal {
+		return "", "", false
+	}
+	t, _ := here.UpdatedAt()
+	cost := "It goes to AI Review."
+	if credits > 0 {
+		cost = "It goes to AI Review for " + creditsPhrase(credits) + "."
+	}
+	return "Upload this computer's voice?",
+		fmt.Sprintf("The cloud version was set after the one on this computer (%s against %s). Upload this computer's voice anyway? %s",
+			confirmStamp(a.Newest().CreatedAt), confirmStamp(t), cost), true
+}
+
+// downloadWarning is Download Cloud version's native confirm (plan §8, D2),
+// which folds in the confirm Use always asked before it replaced a
+// different voice here: asked when it would replace one, worded for a voice
+// here saved after the live version, and saying so when a newer version is
+// in review in the account.
+func downloadWarning(here *voice.Local, a *voice.Account, s voice.Sync) (title, msg string, ask bool) {
+	replaces := here.Exists && !s.DownloadSame
+	if !replaces && !s.InReview {
+		return "", "", false
+	}
+	var b strings.Builder
+	switch {
+	case s.LocalAfterLive:
+		t, _ := here.UpdatedAt()
+		fmt.Fprintf(&b, "The voice on this computer was saved after the cloud version (%s against %s).",
+			confirmStamp(t), confirmStamp(a.Live.CreatedAt))
+	case replaces:
+		b.WriteString("This replaces the Writing Voice kept on this computer with your account's live one.")
+	}
+	if s.InReview {
+		if b.Len() > 0 {
+			b.WriteString(" ")
+		}
+		b.WriteString("A newer version is in review in your account and is not live yet.")
+	}
+	switch {
+	case replaces && s.LocalAfterLive:
+		b.WriteString(" Replace it with the cloud version? The one here cannot be recovered.")
+	case replaces:
+		b.WriteString(" The one here cannot be recovered. Continue?")
+	default:
+		b.WriteString(" Download the live version anyway?")
+		return "Download the cloud version?", b.String(), true
+	}
+	return "Replace this computer's voice?", b.String(), true
+}
+
+// confirmStamp is a version's time in a native confirm: "4 Oct 14:02",
+// this computer's local time.
+func confirmStamp(t time.Time) string { return t.Local().Format("2 Jan 15:04") }
+
+func creditsPhrase(n int64) string {
+	if n == 1 {
+		return "1 credit"
+	}
+	return fmt.Sprintf("%d credits", n)
+}
+
+// reviewCredits is what AI Review of a voice costs at reg (the runs status
+// route's voiceBuild.aiReviewCredits); 0 where it charges nothing or did
+// not say.
+func (v *VoiceAPI) reviewCredits(ctx context.Context, reg string) int64 {
+	st, err := hostedrun.New(reg, v.env().TokenFor(reg)).Status(ctx)
+	if err != nil || st.VoiceBuild == nil {
+		return 0
+	}
+	return st.VoiceBuild.AIReviewCredits
+}
+
+// UseAccount is Download Cloud version: it keeps the account's live voice
+// on this computer, asking first in a native dialog when it replaces a
+// different one here or a newer version is in review (downloadWarning).
 func (v *VoiceAPI) UseAccount(reg string) (*VoiceSaveView, error) {
 	reg = settings.Normalize(reg)
 	ctx := v.app.ctx
@@ -164,9 +276,8 @@ func (v *VoiceAPI) UseAccount(reg string) (*VoiceSaveView, error) {
 	if err != nil {
 		return nil, err
 	}
-	if here.Exists && here.Digest != a.Live.Digest {
-		if err := v.app.askConsent("Replace this computer's voice?",
-			"This replaces the Writing Voice kept on this computer with your account's live one. The one here cannot be recovered. Continue?"); err != nil {
+	if title, msg, ask := downloadWarning(here, a, voice.SyncOf(here, a)); ask {
+		if err := v.app.askConsent(title, msg); err != nil {
 			return nil, err
 		}
 	}
@@ -197,13 +308,12 @@ func voiceJob(job string) (build.Job, error) {
 }
 
 // checkVoiceJob holds a job's samples and brief to the rule both places
-// share: Create and Improve take samples, an AI Edit a note and none, and a
+// share: Create and Improve take samples, an AI Edit a note and samples if
+// the person adds some (agentry-cli#605, agentry-enterprise#388), and a
 // brief or a note is at most 4 KiB. Every sample is one a native picker
 // returned.
 func (v *VoiceAPI) checkVoiceJob(job build.Job, samples []string, brief string) error {
 	switch {
-	case job == build.Edit && len(samples) > 0:
-		return errors.New("an AI Edit takes a note, not samples")
 	case job == build.Edit && strings.TrimSpace(brief) == "":
 		return errors.New("say what should change in your voice")
 	case job != build.Edit && len(samples) == 0:
@@ -254,6 +364,30 @@ func (v *VoiceAPI) Write(reg, job string, samples []string, brief string) (*voic
 		return err
 	})
 	return res, err
+}
+
+// WriteWithAI is the Edit with AI dialog on the Local Voice page (plan
+// voice-page-redesign.md §7, D3): the Voice Writer on this computer, for no
+// credits. Where this computer keeps a voice it is an AI Edit, the text
+// being what should change and the samples optional; where it keeps none it
+// is a Create, the samples required and the text read as the brief.
+func (v *VoiceAPI) WriteWithAI(reg, text string, samples []string) (*voice.BuildResult, error) {
+	reg = settings.Normalize(reg)
+	here, err := v.env().Local(v.app.ctx, reg)
+	if err != nil {
+		return nil, err
+	}
+	return v.Write(reg, dialogJob(here), samples, text)
+}
+
+// dialogJob is the Voice Writer's job behind Edit with AI: Edit over a
+// voice kept here, even one that will not open (the Edit then says why
+// rather than a Create writing over it), Create where there is none.
+func dialogJob(here *voice.Local) string {
+	if here != nil && here.Exists {
+		return hostedrun.VoiceEdit
+	}
+	return hostedrun.VoiceCreate
 }
 
 // StopWrite stops the Voice Writer run on this computer, never a run or a
@@ -438,6 +572,10 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 		req.Note = strings.TrimSpace(brief)
 	} else {
 		req.Brief = strings.TrimSpace(brief)
+	}
+	// An AI Edit's samples are optional (agentry-enterprise#388); Create's
+	// and Improve's were checked present above.
+	if len(samples) > 0 {
 		files, err := hostedrun.StageDocuments(samples)
 		if err != nil {
 			return nil, err
@@ -497,7 +635,7 @@ func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
 				if gerr == nil {
 					out = voiceHostedView(last, true)
 				}
-				out.Error = "lost touch with the registry while the Voice Writer ran (" + err.Error() + "); open the Voice panel again to see your account's voice"
+				out.Error = "lost touch with the registry while the Voice Writer ran (" + err.Error() + "); open the Voice page again to see your account's voice"
 				emitEvent(v.app, eventVoiceHosted, out)
 				return
 			}

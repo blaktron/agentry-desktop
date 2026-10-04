@@ -119,3 +119,149 @@ export function submitCostLine(credits: number): string {
   const cost = credits > 0 ? `, for ${credits === 1 ? "1 credit" : `${credits} credits`}` : "";
   return `Submit sends this computer's voice to your account, where AI Review reads it${cost} before it is live. Nothing on this computer changes.`;
 }
+
+// The Voice page's two cards and the Local Voice page (plan
+// voice-page-redesign.md §4, §7, §8, D2, D6; agentry-desktop#610).
+
+/** The start page's line under its title, in the style of BUILD_TAGLINE. */
+export const VOICE_TAGLINE =
+  "Your Writing Voice is the instructions a run follows to write the way you do. Keep one on this computer, one in your Agentry account, or both.";
+
+/** The cards' words (D6). */
+export const LOCAL_CARD_BLURB =
+  "The voice kept on this computer. Edit it by hand or with AI for free, and move it to or from your Agentry account.";
+export const CLOUD_CARD_BLURB =
+  "The voice kept in your Agentry account. AI Review checks every version before it goes live, and your runs In Agentry use it.";
+
+/** The Local Voice page's switch: the same setting as Settings → Run
+ *  defaults (D4). */
+export const LOCAL_SWITCH_LABEL = "Use this voice for every run on this computer";
+
+/** A day as the cards say it: "4 October 2026", this computer's day. */
+export function dayOf(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+interface LocalFacts {
+  exists: boolean;
+  alwaysAttach: boolean;
+  updated?: string;
+  problem?: string;
+}
+
+/** The Local Voice card's status (§4.1). */
+export function localStatus(l: LocalFacts | null | undefined): string {
+  if (!l?.exists) return "No voice on this computer yet.";
+  const parts = ["Voice set"];
+  if (l.updated) parts.push(`updated ${dayOf(l.updated)}`);
+  parts.push(l.alwaysAttach ? "used by default" : "not used by default");
+  if (l.problem) parts.push("it did not open");
+  return parts.join(" · ") + ".";
+}
+
+interface VersionFacts {
+  review: string;
+  digest?: string;
+  createdAt: string;
+  reviewedAt?: string;
+}
+
+interface AccountFacts {
+  exists: boolean;
+  alwaysAttach: boolean;
+  live?: VersionFacts | null;
+  pending?: VersionFacts | null;
+}
+
+interface ViewFacts {
+  signedIn: boolean;
+  accountOffered: boolean;
+  accountError?: string;
+  account?: AccountFacts | null;
+}
+
+/** The Cloud Voice card's status (§4.1), in the site's words (agentry-web
+ *  lib/voice-view.ts cloudStatus). */
+export function cloudStatus(v: ViewFacts): string {
+  if (!v.signedIn) return "Sign in to keep a voice in your account.";
+  if (!v.accountOffered) return "This registry keeps no Writing Voices.";
+  if (v.accountError) return "Your account's voice could not be read.";
+  const a = v.account;
+  if (!a?.live && !a?.pending) return "No voice in your account yet.";
+  const parts: string[] = [];
+  if (a.live) parts.push(`Live since ${dayOf(a.live.reviewedAt ?? a.live.createdAt)}`);
+  else parts.push("Not live yet");
+  if (a.pending?.review === "flagged") parts.push("a new version was flagged by AI Review");
+  else if (a.pending) parts.push("a new version is in review");
+  if (a.live && a.alwaysAttach) parts.push("used by default");
+  return parts.join(" · ") + ".";
+}
+
+interface SyncFacts {
+  downloadSame: boolean;
+  uploadSame: boolean;
+  localAfterLive: boolean;
+  accountAfterLocal: boolean;
+  inReview: boolean;
+}
+
+/** A Local Voice page button: whether it can be pressed, and the line
+ *  under it. */
+export interface SyncButton {
+  disabled: boolean;
+  line: string;
+}
+
+export const ALREADY_THE_SAME = "Already the same";
+
+function accountUnreachable(v: ViewFacts): string | null {
+  if (!v.signedIn) return "Sign in to move your voice to or from your account.";
+  if (!v.accountOffered) return "This registry keeps no Writing Voices.";
+  if (v.accountError) return "Your account's voice could not be read.";
+  return null;
+}
+
+/** Download Cloud version (§4.2, §8, D2): the account's live version kept
+ *  here; it asks first in a native dialog when it would replace a voice
+ *  saved here after the live version, or a newer version is in review. */
+export function downloadButton(v: ViewFacts & { local?: LocalFacts | null; sync?: SyncFacts | null }): SyncButton {
+  const off = accountUnreachable(v);
+  if (off) return { disabled: true, line: off };
+  if (!v.account?.live) return { disabled: true, line: "Your account has no live voice yet." };
+  if (v.sync?.downloadSame) return { disabled: true, line: `${ALREADY_THE_SAME}.` };
+  const parts = [v.local?.exists ? "Replaces the voice on this computer with your account's live one." : "Keeps your account's live voice on this computer."];
+  if (v.sync?.localAfterLive) parts.push("The voice here was saved after it, so you are asked first.");
+  if (v.sync?.inReview) parts.push("A newer version is in review and is not live yet.");
+  return { disabled: false, line: parts.join(" ") };
+}
+
+/** Upload to Cloud (§4.2, §8, D2): this computer's voice sent to AI Review
+ *  for the registry's credit; it asks first when the account's newest
+ *  version was set after this computer's voice was saved. */
+export function uploadButton(v: ViewFacts & { local?: LocalFacts | null; sync?: SyncFacts | null; reviewCredits: number }): SyncButton {
+  if (!v.local?.exists) return { disabled: true, line: "This computer keeps no voice to upload yet." };
+  if (v.local.problem) return { disabled: true, line: "This computer's voice does not open, so it cannot be uploaded." };
+  const off = accountUnreachable(v);
+  if (off) return { disabled: true, line: off };
+  if (v.sync?.uploadSame) return { disabled: true, line: `${ALREADY_THE_SAME}.` };
+  const cost = v.reviewCredits > 0 ? ` for ${v.reviewCredits === 1 ? "1 credit" : `${v.reviewCredits} credits`}` : "";
+  const parts = [`Sends this computer's voice to AI Review${cost}. It goes live in your account when it passes.`];
+  if (v.sync?.accountAfterLocal) parts.push("Your account's version was set after this one, so you are asked first.");
+  return { disabled: false, line: parts.join(" ") };
+}
+
+/** The most an Edit with AI note or a brief holds (the registry's 4 KiB). */
+export const MAX_VOICE_NOTE_BYTES = 4 * 1024;
+
+/** The Edit with AI dialog's check before Start (§7, D3): with a voice
+ *  here it is an AI Edit and says what should change, samples optional;
+ *  with none it is a Create, samples required, the text its brief. */
+export function editWithAIProblem(hasVoice: boolean, text: string, samples: number): string | null {
+  if (hasVoice && text.trim() === "") return "Say what should change in your voice.";
+  if (!hasVoice && samples === 0) return "Add samples of your writing: the Voice Writer writes your voice from them.";
+  if (new TextEncoder().encode(text.trim()).length > MAX_VOICE_NOTE_BYTES) return "What you write here is at most 4 KiB.";
+  return null;
+}

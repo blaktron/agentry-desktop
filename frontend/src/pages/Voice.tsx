@@ -1,37 +1,52 @@
-// The Voice panel (plan writing-voice.md §8, D6, D11, D12; agentry-desktop
-// #510, D-054): the Writing Voice kept on this computer and, signed in, the
-// one the account keeps in Agentry. Two places, never synced on their own:
-// Submit to Agentry sends this computer's for review, and Use Agentry's
-// voice keeps the account's live one here, asking first in a native dialog
-// when it replaces a different one.
+// The Voice page (plan writing-voice.md §8, D6, D11, D12; agentry-desktop
+// #510, D-054; reshaped by plan voice-page-redesign.md §4, §7, §8,
+// agentry-desktop#610, D-063): two cards, as the Build page's (DEV-201).
+// Local Voice opens this computer's voice: its editor, Download Cloud
+// version and Upload to Cloud (each warning in a native dialog when it
+// would put an older voice over a newer one, D2), Edit with AI, the switch
+// Settings' Run defaults also shows (D4), and Delete. Cloud Voice opens the
+// account's voice, AI Review's status and its editor.
 //
 // The editor is a monospace textarea the person writes in and saves from,
 // with a Preview tab beside it, never instead of it (the operator's
-// condition on D12). Saving this computer's voice is free and immediate;
-// saving the account's makes a version AI Review reads before it is live.
-// The Voice Writer writes or rewrites a voice on this computer for no
-// credits, or In Agentry at the registry's price.
+// condition on D12; plan voice-page-redesign.md M7 replaces it). Saving this
+// computer's voice is free and immediate; saving the account's makes a
+// version AI Review reads before it is live. Edit with AI is one dialog:
+// the Voice Writer on this computer for no credits, an AI Edit with a note
+// and optional samples, or a Create where this computer keeps no voice.
 //
 // Every gate is in Go (services_voice.go): samples come only from the
-// native pickers, a replace or a delete is asked in a native dialog, and a
-// Voice Writer run here takes the run lock.
+// native pickers, a replace, an upload over a newer version and a delete
+// are asked in a native dialog, and a Voice Writer run here takes the run
+// lock.
 import { useCallback, useEffect, useState } from "react";
 import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
-import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
+import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { main, voice } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { Button, Card, EmptyState, ErrorBox, Notice, PageHeader, Spinner, Textarea, fmtDate } from "../ui";
+import { Button, Card, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, Textarea } from "../ui";
 import { AgentMarkdown } from "../AgentMarkdown";
-import { MAX_VOICE_BYTES, VOICE_ON, accountSource, findingText, hostedVoiceCost, reviewCostLine, reviewWord, submitCostLine, voiceTextProblem } from "../voice";
+import { FoldedLog, StopButton } from "../progress";
+import { WayCard } from "./BuildWays";
+import { CloudVoiceFigure, LocalVoiceFigure } from "./VoiceFigures";
+import {
+  CLOUD_CARD_BLURB, LOCAL_CARD_BLURB, LOCAL_SWITCH_LABEL, MAX_VOICE_BYTES, MAX_VOICE_NOTE_BYTES, VOICE_ON, VOICE_TAGLINE,
+  accountSource, cloudStatus, downloadButton, editWithAIProblem, findingText, localStatus, reviewCostLine, reviewWord,
+  uploadButton, voiceTextProblem,
+} from "../voice";
 
-type Job = "create" | "improve" | "edit";
+export type VoiceView = "start" | "local" | "cloud";
 
-export default function Voice({ registry, onOpenSettings }: {
+export default function Voice({ registry, onOpenSettings, initialView = "start", initialDialog = false }: {
   registry: string;
   /** Opens Settings at the voice's switch: "here" (Run defaults),
    *  "account" (Profile), or "sign-in" (Registry settings). */
   onOpenSettings: (which: "here" | "account" | "sign-in") => void;
+  /** The harness opens a page, or the Local page's dialog, directly. */
+  initialView?: VoiceView;
+  initialDialog?: boolean;
 }) {
+  const [page, setPage] = useState<VoiceView>(initialView);
   const [view, setView] = useState<main.VoiceView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -63,98 +78,291 @@ export default function Voice({ registry, onOpenSettings }: {
       setBusy(null);
     }
   }
+  function open(next: VoiceView) {
+    setNotice(null);
+    setError(null);
+    setPage(next);
+  }
 
   if (!view) return error ? <ErrorBox error={error} /> : <Spinner label="Reading your voice…" />;
+  const messages = (
+    <>
+      <ErrorBox error={error} />
+      {notice && <Notice tone="ok">{notice}</Notice>}
+    </>
+  );
+
+  if (page === "local") {
+    return (
+      <LocalVoice
+        view={view}
+        registry={registry}
+        busy={busy}
+        act={act}
+        messages={messages}
+        initialDialog={initialDialog}
+        onBack={() => open("start")}
+        onDone={(msg) => { setError(null); setNotice(msg); refresh(); }}
+      />
+    );
+  }
+  if (page === "cloud") {
+    return (
+      <div className="voice-page">
+        <PageHeader title="Cloud Voice" sub={CLOUD_CARD_BLURB} actions={<Button onClick={() => open("start")}>Back to Voice</Button>} />
+        {messages}
+        {!view.signedIn ? (
+          <Notice tone="info">
+            Sign in to <span className="mono">{registry}</span> to keep a voice in your account, reviewed by AI Review, which runs In Agentry write in.{" "}
+            <Button variant="link" onClick={() => onOpenSettings("sign-in")}>Registry settings</Button>
+          </Notice>
+        ) : !view.accountOffered ? (
+          <Notice tone="info">This registry keeps no Writing Voices, so your voice stays on this computer.</Notice>
+        ) : (
+          <AccountVoice view={view} account={view.account} busy={busy} onOpenSettings={() => onOpenSettings("account")} act={act} registry={registry} />
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="voice-page">
+      <PageHeader title="Voice" sub={VOICE_TAGLINE} />
+      {messages}
+      <div className="build-ways">
+        <WayCard title="Local Voice" blurb={LOCAL_CARD_BLURB} figure={<LocalVoiceFigure />} onOpen={() => open("local")}>
+          {localStatus(view.local)}
+        </WayCard>
+        <WayCard title="Cloud Voice" blurb={CLOUD_CARD_BLURB} figure={<CloudVoiceFigure />} onOpen={() => open("cloud")}>
+          {cloudStatus(view)}
+        </WayCard>
+      </div>
+    </div>
+  );
+}
+
+// LocalVoice is the Local Voice page (plan §4.2): this computer's voice,
+// Download Cloud version, Upload to Cloud and Edit with AI above its
+// editor, the switch, and Delete at the foot.
+function LocalVoice({ view, registry, busy, act, messages, initialDialog, onBack, onDone }: {
+  view: main.VoiceView;
+  registry: string;
+  busy: string | null;
+  act: (what: string, call: () => Promise<string | void>) => void;
+  messages: React.ReactNode;
+  initialDialog: boolean;
+  onBack: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [dialog, setDialog] = useState(initialDialog);
+  const local = view.local;
+  const exists = !!local?.exists;
+  const opens = exists && !local.problem;
+  const download = downloadButton(view);
+  const upload = uploadButton(view);
   const saveHere = (text: string) =>
     act("save-here", async () => {
       const r = await VoiceAPI.SaveLocal(registry, text);
       return r.created ? `Saved on this computer. ${VOICE_ON}` : "Saved on this computer.";
     });
-  const local = view.local;
-  const account = view.account;
-
   return (
     <div className="voice-page">
-      <PageHeader
-        title="Voice"
-        sub="Your Writing Voice is one VOICE.md: the instructions a run follows to write the way you do. A run that writes in it is told the voice changes how it writes, never what it does."
-      />
-      <ErrorBox error={error} />
-      {notice && <Notice tone="ok">{notice}</Notice>}
+      <PageHeader title="Local Voice" sub={LOCAL_CARD_BLURB} actions={<Button onClick={onBack}>Back to Voice</Button>} />
+      {messages}
+      <p className="muted small">{localStatus(local)} Kept sealed in the runner home and never reviewed.</p>
+      {local?.problem && <Notice tone="warn">{local.problem}</Notice>}
+
+      <div className="voice-actions">
+        <div className="voice-action">
+          <Button
+            disabled={download.disabled}
+            busy={busy === "download"}
+            busyLabel="Downloading…"
+            onClick={() => act("download", async () => {
+              const r = await VoiceAPI.UseAccount(registry);
+              return r.created ? `Your account's live voice is kept on this computer. ${VOICE_ON}` : "Your account's live voice is kept on this computer.";
+            })}
+          >
+            Download Cloud version
+          </Button>
+          <p className="muted small">{download.line}</p>
+        </div>
+        <div className="voice-action">
+          <Button
+            disabled={upload.disabled}
+            busy={busy === "upload"}
+            busyLabel="Uploading…"
+            onClick={() => act("upload", async () => {
+              await VoiceAPI.Submit(registry);
+              return "Uploaded to your account. AI Review reads it before it is live there; this computer's voice is unchanged.";
+            })}
+          >
+            Upload to Cloud
+          </Button>
+          <p className="muted small">{upload.line}</p>
+        </div>
+        <div className="voice-action">
+          <Button variant="primary" disabled={exists && !opens} onClick={() => setDialog(true)}>
+            {exists ? "Edit with AI" : "Write with AI"}
+          </Button>
+          <p className="muted small">
+            {exists ? "Tell the Voice Writer what should change. Free, on this computer." : "The Voice Writer writes your voice from samples of your writing. Free, on this computer."}
+          </p>
+        </div>
+      </div>
+
+      {opens && (
+        <label className="check-row mt">
+          <input
+            type="checkbox"
+            checked={local.alwaysAttach}
+            disabled={busy === "attach"}
+            onChange={(e) => {
+              const on = e.target.checked;
+              act("attach", async () => {
+                await VoiceAPI.SetLocalAttach(registry, on);
+                return on ? "Every run on this computer writes in your voice unless its setup says otherwise." : "Runs on this computer write in your voice only when their setup says so.";
+              });
+            }}
+          />
+          <span>
+            {LOCAL_SWITCH_LABEL}
+            <span className="muted small"> — the same switch as Settings → Run defaults. Every run's setup shows Write in my voice, ticked from it.</span>
+          </span>
+        </label>
+      )}
 
       <Card>
-        <div className="row spread">
-          <h2>On this computer</h2>
-          {local?.exists && <span className="badge kind">{local.alwaysAttach ? "On for every run here" : "Off by default"}</span>}
-        </div>
-        <p className="muted small">Kept sealed in the runner home and never reviewed. Making and changing it here costs no credits.</p>
-        {local?.problem && <Notice tone="warn">{local.problem}</Notice>}
-        {local?.exists && !local.problem ? (
-          <>
-            <p className="muted small">
-              {local.phrase[0].toUpperCase() + local.phrase.slice(1)}, {local.bytes.toLocaleString("en-GB")} bytes, updated {fmtDate(local.updated)}.{" "}
-              <Button variant="link" onClick={() => onOpenSettings("here")}>Run defaults</Button>
-            </p>
-            <VoiceEditor
-              key={`here:${local.digest}`}
-              initial={local.text}
-              note="Save keeps it on this computer at once, for no credits."
-              busy={busy === "save-here"}
-              onSave={saveHere}
-            />
-            {view.accountOffered && <p className="muted small">{submitCostLine(view.reviewCredits)}</p>}
-            <div className="row gap mt">
-              {view.accountOffered && (
-                <Button busy={busy === "submit"} busyLabel="Submitting…" onClick={() => act("submit", async () => {
-                  await VoiceAPI.Submit(registry);
-                  return "Submitted to Agentry. AI Review reads it before it is live in your account; this computer's voice is unchanged.";
-                })}>
-                  Submit to Agentry
-                </Button>
-              )}
-              <Button variant="danger" busy={busy === "delete-here"} onClick={() => act("delete-here", async () => {
-                await VoiceAPI.DeleteLocal(registry);
-                return "This computer's voice is deleted.";
-              })}>
-                Delete
-              </Button>
-            </div>
-          </>
-        ) : !local?.exists ? (
+        {opens ? (
+          <VoiceEditor key={`here:${local.digest}`} initial={local.text} note="Save keeps it on this computer at once, for no credits." busy={busy === "save-here"} onSave={saveHere} />
+        ) : !exists ? (
           <>
             <EmptyState title="No voice on this computer yet.">
-              Have the Voice Writer write one from samples of your writing, below, or write one by hand here.
+              Write with AI from samples of your writing, download your account's, or write one by hand here.
             </EmptyState>
-            <VoiceEditor
-              initial=""
-              note="Save keeps it on this computer at once, for no credits."
-              busy={busy === "save-here"}
-              onSave={saveHere}
-            />
+            <VoiceEditor initial="" note="Save keeps it on this computer at once, for no credits." busy={busy === "save-here"} onSave={saveHere} />
           </>
         ) : null}
       </Card>
 
-      {!view.signedIn ? (
-        <Notice tone="info">
-          Sign in to <span className="mono">{registry}</span> to keep a voice in your account, reviewed by AI Review, which runs In Agentry write in.{" "}
-          <Button variant="link" onClick={() => onOpenSettings("sign-in")}>Registry settings</Button>
-        </Notice>
-      ) : !view.accountOffered ? (
-        <Notice tone="info">This registry keeps no Writing Voices, so your voice stays on this computer.</Notice>
-      ) : (
-        <AccountVoice
-          view={view}
-          account={account}
-          busy={busy}
-          onOpenSettings={() => onOpenSettings("account")}
-          act={act}
-          registry={registry}
-        />
+      {exists && (
+        <div className="row gap mt">
+          <Button variant="danger" busy={busy === "delete-here"} onClick={() => act("delete-here", async () => {
+            await VoiceAPI.DeleteLocal(registry);
+            return "This computer's voice is deleted.";
+          })}>
+            Delete this computer's voice
+          </Button>
+        </div>
       )}
 
-      <VoiceWriter view={view} registry={registry} onDone={(msg) => { if (msg) setNotice(msg); refresh(); }} />
+      {dialog && (
+        <EditWithAI
+          registry={registry}
+          hasVoice={exists}
+          model={view.model}
+          onClose={() => setDialog(false)}
+          onDone={(msg) => { setDialog(false); onDone(msg); }}
+        />
+      )}
     </div>
+  );
+}
+
+// EditWithAI is the one dialog of plan §7 (D3) on this computer: what
+// should change and optional samples from the native pickers for an AI
+// Edit, or samples and an optional brief for a Create where there is no
+// voice here. It shows the run's progress and Stop, and the page reloads
+// the voice into the editor when it ends.
+function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
+  registry: string;
+  hasVoice: boolean;
+  model: string;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [samples, setSamples] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [log, setLog] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => EventsOn("voice:write-log", (line: string) => setLog((p) => [...p.slice(-199), line])), []);
+
+  async function pickFiles() {
+    const picked = await ChooseFiles("Samples of your writing");
+    if (picked?.length) setSamples((d) => [...d, ...picked.filter((p) => !d.includes(p))]);
+  }
+  async function pickFolder() {
+    const dir = await ChooseDirectory("A folder of your writing");
+    if (dir) setSamples((d) => (d.includes(dir) ? d : [...d, dir]));
+  }
+  async function start() {
+    setError(null);
+    setLog([]);
+    setStopping(false);
+    setRunning(true);
+    try {
+      const res = await VoiceAPI.WriteWithAI(registry, text, samples);
+      onDone(res.created ? `The Voice Writer kept your voice on this computer. ${VOICE_ON}` : "The Voice Writer kept your new voice on this computer.");
+    } catch (e) {
+      setRunning(false);
+      const s = String(e);
+      if (!s.includes("not confirmed")) setError(s);
+    }
+  }
+
+  const problem = editWithAIProblem(hasVoice, text, samples.length);
+  return (
+    <Modal title={hasVoice ? "Edit with AI" : "Write with AI"} onClose={running ? () => {} : onClose}>
+      {running ? (
+        <>
+          <Spinner label="The Voice Writer is running on this computer…" />
+          <p className="muted small">It reads {hasVoice ? "your voice, what should change" : "your samples"}{hasVoice && samples.length > 0 ? " and your samples" : ""}, then writes VOICE.md. When it ends, the voice here is replaced with what it wrote.</p>
+          {log.length > 0 && <FoldedLog label="The Voice Writer's log" lines={log} />}
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <StopButton stopping={stopping} onStop={() => { setStopping(true); VoiceAPI.StopWrite().catch(() => setStopping(false)); }} />
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="muted small">
+            {hasVoice
+              ? "Tell the Voice Writer what should change in your voice. Add samples of your writing if they help it."
+              : "The Voice Writer reads samples of your writing and writes your voice as instructions an LLM can follow."}
+          </p>
+          <div className="field">
+            <label className="field-label" htmlFor="voice-ai-text">{hasVoice ? "What should change?" : "How do you want to sound? (optional)"}</label>
+            <Textarea
+              id="voice-ai-text"
+              rows={4}
+              value={text}
+              maxLength={MAX_VOICE_NOTE_BYTES}
+              placeholder={hasVoice ? "Shorter sentences, and no exclamation marks." : "Plain and direct; leave out the jokes."}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <div className="field-label">{hasVoice ? "Add writing samples (optional)" : "Samples of your writing"}</div>
+            <div className="row gap">
+              <Button onClick={pickFiles}>Choose files…</Button>
+              <Button onClick={pickFolder}>Choose a folder…</Button>
+            </div>
+            {samples.length > 0 && (
+              <ul className="small mono selectable">
+                {samples.map((s) => <li key={s}>{s} <Button variant="link" onClick={() => setSamples((d) => d.filter((x) => x !== s))}>Remove</Button></li>)}
+              </ul>
+            )}
+          </div>
+          <p className="small">Free, on this computer: it runs on {model} for no credits, and the voice it writes is kept here, not reviewed.</p>
+          <ErrorBox error={error} />
+          <div className="row gap" style={{ justifyContent: "flex-end" }}>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant="primary" disabled={problem !== null} onClick={start}>Start</Button>
+          </div>
+          {problem && (text.trim() !== "" || samples.length > 0) && <p className="muted small">{problem}</p>}
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -195,7 +403,7 @@ function AccountVoice({ view, account, busy, onOpenSettings, act, registry }: {
               ? live ? "AI Review flagged your new version, so your live voice stays live. Edit it and save it again." : "AI Review flagged this version, so it is not live. Edit it and save it again."
               : pending.verdict === "incomplete"
                 ? "AI Review did not finish reading this version; Agentry tries again on its own."
-                : "AI Review is reading this version. Reopen the panel to see its outcome."}
+                : "AI Review is reading this version. Reopen this page to see its outcome."}
           </p>
           {pending.review === "flagged" && (pending.findings?.length ?? 0) > 0 && (
             <ul className="small">
@@ -218,7 +426,7 @@ function AccountVoice({ view, account, busy, onOpenSettings, act, registry }: {
           </details>
         </>
       ) : !pending ? (
-        <p className="muted">Your account keeps no Writing Voice yet. Submit this computer's, write one below, or have the Voice Writer write it In Agentry.</p>
+        <p className="muted">Your account keeps no Writing Voice yet. Upload this computer's from the Local Voice page, or write one below.</p>
       ) : null}
       <VoiceEditor
         key={`account:${pending?.digest ?? live?.digest ?? "none"}`}
@@ -230,16 +438,6 @@ function AccountVoice({ view, account, busy, onOpenSettings, act, registry }: {
           return "Sent to AI Review. It goes live in your account when it passes.";
         })}
       />
-      {live && (
-        <div className="row gap mt">
-          <Button busy={busy === "use"} busyLabel="Keeping it here…" onClick={() => act("use", async () => {
-            const r = await VoiceAPI.UseAccount(registry);
-            return r.created ? `Your account's live voice is kept on this computer. ${VOICE_ON}` : "Your account's live voice is kept on this computer.";
-          })}>
-            Use Agentry's voice here
-          </Button>
-        </div>
-      )}
     </Card>
   );
 }
@@ -301,171 +499,6 @@ function VoiceEditor({ initial, note, busy, onSave }: {
   );
 }
 
-// VoiceWriter starts the Voice Writer: Create, Improve or AI Edit, on this
-// computer (free) or In Agentry (the registry's price).
-function VoiceWriter({ view, registry, onDone }: { view: main.VoiceView; registry: string; onDone: (msg?: string) => void }) {
-  const hasHere = !!view.local?.exists && !view.local.problem;
-  const hasThere = !!view.account?.exists;
-  const [job, setJob] = useState<Job>(hasHere || hasThere ? "improve" : "create");
-  const [where, setWhere] = useState<"here" | "agentry">("here");
-  const [samples, setSamples] = useState<string[]>([]);
-  const [brief, setBrief] = useState("");
-  const [avail, setAvail] = useState<main.VoiceHostedAvailabilityView | null>(null);
-  const [running, setRunning] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
-  const [hosted, setHosted] = useState<main.VoiceHostedView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => EventsOn("voice:write-log", (line: string) => setLog((p) => [...p.slice(-199), line])), []);
-  useEffect(() => EventsOn("voice:hosted", (v: main.VoiceHostedView) => {
-    setHosted(v);
-    if (v.final) {
-      setRunning(false);
-      onDone(v.applied ? undefined : v.note || v.outcomeLine);
-    }
-  }), [onDone]);
-  useEffect(() => {
-    if (!view.signedIn) return;
-    VoiceAPI.HostedAvailability(registry, job).then(setAvail).catch(() => setAvail(null));
-  }, [registry, job, view.signedIn]);
-
-  const needsVoice = job !== "create";
-  const hereOk = !needsVoice || hasHere;
-  const agentryOk = !!avail?.available;
-  const offered = !!avail?.offered;
-
-  async function pickFiles() {
-    const picked = await ChooseFiles("Samples of your writing");
-    if (picked?.length) setSamples((d) => [...d, ...picked.filter((p) => !d.includes(p))]);
-  }
-  async function pickFolder() {
-    const dir = await ChooseDirectory("A folder of your writing");
-    if (dir) setSamples((d) => (d.includes(dir) ? d : [...d, dir]));
-  }
-
-  async function start() {
-    setError(null);
-    setLog([]);
-    setHosted(null);
-    setRunning(true);
-    try {
-      if (where === "here") {
-        const res = await VoiceAPI.Write(registry, job, job === "edit" ? [] : samples, brief);
-        setRunning(false);
-        onDone(res.created ? `The Voice Writer kept your voice on this computer. ${VOICE_ON}` : "The Voice Writer kept your voice on this computer.");
-      } else {
-        const r = await VoiceAPI.StartHosted(registry, job, job === "edit" ? [] : samples, brief);
-        if (r.refusal) {
-          setRunning(false);
-          setError(r.detail || r.refusal);
-        } else if (r.run) {
-          setHosted(r.run);
-        }
-      }
-    } catch (e) {
-      setRunning(false);
-      setError(String(e));
-    }
-  }
-
-  return (
-    <Card>
-      <h2>The Voice Writer</h2>
-      <p className="muted small">
-        It reads samples of your writing and writes your voice as instructions an LLM can follow. On this computer it runs on{" "}
-        {view.model} for no credits; In Agentry it runs on Agentry's model and its voice waits for AI Review.
-      </p>
-      <div className="tabs" role="tablist" aria-label="What the Voice Writer does">
-        {(["create", "improve", "edit"] as Job[]).map((j) => (
-          <button key={j} role="tab" aria-selected={job === j} className={`tab ${job === j ? "active" : ""}`} onClick={() => setJob(j)}>
-            {j === "create" ? "Create" : j === "improve" ? "Improve" : "AI Edit"}
-          </button>
-        ))}
-      </div>
-      <div className="mt" role="radiogroup" aria-label="Where the Voice Writer runs">
-        <div className="field-label">Where</div>
-        <label className="check-row">
-          <input type="radio" name="voice-where" checked={where === "here"} disabled={!hereOk} onChange={() => setWhere("here")} />
-          <span>
-            <strong>On this computer</strong>{" "}
-            <span className="muted">— against your runner policy's model; no credits, and the voice is kept here, not reviewed</span>
-            {!hereOk && <span className="muted"> (this computer keeps no voice to {job === "edit" ? "edit" : "improve"})</span>}
-          </span>
-        </label>
-        {offered && (
-          <label className="check-row">
-            <input type="radio" name="voice-where" checked={where === "agentry"} disabled={!agentryOk} onChange={() => setWhere("agentry")} />
-            <span>
-              <strong>In Agentry</strong>{" "}
-              <span className="muted">— on the platform, for credits; the voice goes to your account and waits for AI Review</span>
-            </span>
-          </label>
-        )}
-        {offered && avail && !avail.available && (
-          <p className="muted small">
-            {avail.reason} {avail.remedy}{" "}
-            {avail.upgradeUrl && <Button variant="link" onClick={() => OpenExternal(avail.upgradeUrl!)}>Upgrade</Button>}
-          </p>
-        )}
-        {where === "agentry" && avail?.available && <p className="small">{hostedVoiceCost(avail)}</p>}
-      </div>
-      {job !== "edit" ? (
-        <div className="field">
-          <div className="field-label">{job === "create" ? "Samples of your writing" : "More samples of your writing"}</div>
-          <div className="row gap">
-            <Button onClick={pickFiles}>Choose files…</Button>
-            <Button onClick={pickFolder}>Choose a folder…</Button>
-          </div>
-          {samples.length > 0 && (
-            <ul className="small mono selectable">
-              {samples.map((s) => <li key={s}>{s} <Button variant="link" onClick={() => setSamples((d) => d.filter((x) => x !== s))}>Remove</Button></li>)}
-            </ul>
-          )}
-        </div>
-      ) : null}
-      <div className="field">
-        <label className="field-label" htmlFor="voice-brief">{job === "edit" ? "What should change?" : "A brief (optional)"}</label>
-        <Textarea
-          id="voice-brief"
-          rows={3}
-          value={brief}
-          maxLength={4096}
-          placeholder={job === "edit" ? "Shorter sentences, and no exclamation marks." : "How you want to sound, or what to leave out."}
-          onChange={(e) => setBrief(e.target.value)}
-        />
-      </div>
-      <ErrorBox error={error} />
-      <div className="row gap">
-        <Button
-          variant="primary"
-          busy={running}
-          busyLabel={where === "here" ? "The Voice Writer is running…" : "Running In Agentry…"}
-          disabled={(job !== "edit" && samples.length === 0) || (job === "edit" && !brief.trim()) || (where === "here" ? !hereOk : !agentryOk)}
-          onClick={start}
-        >
-          {job === "create" ? "Start the Voice Writer" : job === "improve" ? "Start Improve" : "Start AI Edit"}
-        </Button>
-        {running && where === "here" && <Button onClick={() => VoiceAPI.StopWrite().catch(() => {})}>Stop</Button>}
-        {running && where === "agentry" && hosted && !hosted.final && (
-          <Button onClick={() => VoiceAPI.CancelHosted().then(setHosted).catch((e) => setError(String(e)))}>Cancel run</Button>
-        )}
-      </div>
-      {hosted && (
-        <p className="small mt">
-          {hosted.final ? hosted.outcomeLine || hosted.note || hosted.statusLine : hosted.statusLine}
-          {hosted.final && hosted.settled && ` ${hosted.settledCredits} credits were settled.`}
-        </p>
-      )}
-      {log.length > 0 && (
-        <details className="knowledge-log" open={running}>
-          <summary className="small">The Voice Writer's log</summary>
-          <pre className="run-log">{log.join("\n")}</pre>
-        </details>
-      )}
-    </Card>
-  );
-}
-
 // VoiceSwitch is a voice's always-attach switch, for Settings: this
 // computer's under Run defaults, the account's under Profile (D11).
 export function VoiceSwitch({ registry, place }: { registry: string; place: "here" | "account" }) {
@@ -486,7 +519,7 @@ export function VoiceSwitch({ registry, place }: { registry: string; place: "her
   const on = here ? !!view.local?.alwaysAttach : !!view.account?.alwaysAttach;
   if (!here && !view.accountOffered) return <p className="muted small">This registry keeps no Writing Voices.</p>;
   if (!exists) {
-    return <p className="muted small">{here ? "This computer keeps no Writing Voice yet." : "Your account keeps no Writing Voice yet."} Make one in the Voice panel.</p>;
+    return <p className="muted small">{here ? "This computer keeps no Writing Voice yet." : "Your account keeps no Writing Voice yet."} Make one on the Voice page.</p>;
   }
   async function set(next: boolean) {
     setError(null);

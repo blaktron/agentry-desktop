@@ -144,19 +144,26 @@ The product never claims an agent is "safe". The language is always:
   that folder. A run's setup has a Knowledge step: an attached pack is mounted
   read-only for the run's tools, and the receipt names it.
 - **Voice** — the Writing Voice, the instructions a run follows to write the
-  way you do (plan `writing-voice.md` V6, agentry-desktop#510, D-054). Two
-  places, never synced on their own: **this computer's**, kept sealed in the
-  runner home by the CLI's store, free and never reviewed, and, signed in,
-  **the account's**, which AI Review reads before a version is live. Each is
-  edited in place (a monospace textarea with Save, and a Preview tab beside
-  it). **Submit to Agentry** sends this computer's for review; **Use
-  Agentry's voice here** keeps the account's live one, asking first when it
-  replaces a different one. The **Voice Writer** creates, improves or edits a
-  voice on this computer for no credits, or In Agentry at the registry's
-  flat price, with Standard's one run a cycle said before a start. Each
-  voice has an always-attach switch (Settings → Run defaults for this
-  computer's, Profile for the account's), and every run setup's Review shows
-  **Write in my voice**, ticked from the switch of the voice that run uses.
+  way you do (plan `writing-voice.md` V6, agentry-desktop#510, D-054; since
+  agentry-desktop#610, D-063, two cards as the Build page has). Two places,
+  never synced on their own. **Local Voice** is this computer's, kept sealed
+  in the runner home by the CLI's store, free and never reviewed: its page
+  has the editor (a monospace textarea with Save, and a Preview tab beside
+  it), **Download Cloud version**, **Upload to Cloud** (AI Review, for the
+  registry's credit), **Edit with AI**, the switch that puts it on every run
+  here, and Delete. Download and Upload say "Already the same" when the two
+  voices match, and ask first in a native dialog when they would put an
+  older voice over a newer one: equal digests are the same voice, otherwise
+  this computer's last save is weighed against when the account's version
+  was set. **Edit with AI** is one dialog, what should change and optional
+  writing samples from the native pickers, and runs the Voice Writer on this
+  computer for no credits; with no voice here it is **Write with AI** and
+  writes one from samples. **Cloud Voice** is the account's, which AI Review
+  reads before a version is live, with its status and its editor. Each voice
+  has an always-attach switch (Settings → Run defaults for this computer's,
+  shown on the Local Voice page too; Profile for the account's), and every
+  run setup's Review shows **Write in my voice**, ticked from the switch of
+  the voice that run uses.
 - **Validate** — under Build in the sidebar, shown while Build is open
   (#422): an author drop-zone. Point it at a local QuickAgent folder and
   it runs the manifest rules, the S1 inventory (content-sniffed binaries,
