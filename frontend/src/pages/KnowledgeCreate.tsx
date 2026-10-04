@@ -31,6 +31,18 @@
 // can take a very long time and that its pack stays on this computer, and
 // refuses past 1 GB; past 10 MB In Agentry is not choosable.
 //
+// A build needs no documents since agentry-desktop#498 (plan
+// knowledge-and-drafter.md §7, D15, D16): the Documents step takes
+// documents, a brief (what the pack should cover and for whom, at most
+// 8 KiB), or both, with the plan's warning that specific documents make the
+// best knowledge, louder when none is chosen. Its Search the web choice is
+// on by default for a new pack with no documents and off otherwise, and
+// follows the documents until the person sets it. On this computer it takes
+// the person's own AI Review key and a search key (Go's CreatorWeb), and the
+// step says when a build here would run without the web; In Agentry the
+// registry searches, and its note says searching can raise the credits a
+// build uses. The choice is sent as made either way.
+//
 // A running build does not take over the app (agentry-desktop#353): App
 // mounts this flow above the pages, and closing the dialog while a build
 // runs, or Run in the background, shrinks it to a card in the bottom-right
@@ -47,11 +59,14 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { knowledge, main } from "../../wailsjs/go/models";
-import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, fmtBytes } from "../ui";
+import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, Textarea, fmtBytes } from "../ui";
 import type { Tone } from "../jobProgress";
 import { buildHoldLine, creatorUseLine } from "../usage";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
+import {
+  MAX_BRIEF_BYTES, agentryWebLine, documentsRecap, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap, type LocalWeb,
+} from "../knowledgeSources";
 
 type Step = "documents" | "name" | "where" | "review";
 
@@ -64,6 +79,7 @@ const LABEL: Record<Step, string> = {
 
 export default function KnowledgeCreate({
   registry, addTo, onClose, onPreview, minimized, onMinimize, onRestore, onInFlight, initialStep, initialDocuments, initialName, initialResult, initialBuilding, initialAvailability, initialHosted, initialWhere,
+  initialBrief, initialWeb,
 }: {
   registry: string;
   /** Add documents to this kept pack; unset makes a new one. */
@@ -89,6 +105,9 @@ export default function KnowledgeCreate({
   initialAvailability?: main.KnowledgeHostedAvailabilityView;
   initialHosted?: main.KnowledgeHostedBuildView;
   initialWhere?: "local" | "agentry";
+  /** Harness-only: the brief, and this computer's answer on the web. */
+  initialBrief?: string;
+  initialWeb?: LocalWeb;
 }) {
   const [avail, setAvail] = useState<main.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
   const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? "local");
@@ -101,6 +120,11 @@ export default function KnowledgeCreate({
   const [at, setAt] = useState(Math.max(0, steps.indexOf(initialStep ?? "documents")));
   const [docs, setDocs] = useState<string[]>(initialDocuments ?? []);
   const [name, setName] = useState(initialName ?? addTo ?? "");
+  const [brief, setBrief] = useState(initialBrief ?? "");
+  // webChoice is Search the web as the person set it; null follows the
+  // default, which follows the documents.
+  const [webChoice, setWebChoice] = useState<boolean | null>(null);
+  const [localWeb, setLocalWeb] = useState<LocalWeb | null>(initialWeb ?? null);
   const [problem, setProblem] = useState<string | null>(null);
   const [model, setModel] = useState("");
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
@@ -131,6 +155,7 @@ export default function KnowledgeCreate({
     KnowledgeAPI.CreatorModel().then(setModel).catch(() => setModel("none configured"));
     KnowledgeAPI.CreatorBudget().then(setBudget).catch(() => setBudget(null));
     RunAPI.SetupStatus().then(setSetup).catch(() => setSetup(null));
+    if (!initialWeb) KnowledgeAPI.CreatorWeb().then(setLocalWeb).catch(() => setLocalWeb(null));
     if (!initialAvailability) KnowledgeAPI.HostedAvailability(registry).then(setAvail).catch(() => setAvail(null));
     // A build In Agentry already in flight is followed rather than started
     // again: the registry takes one at a time.
@@ -157,6 +182,11 @@ export default function KnowledgeCreate({
   }, [docs]);
   const pastAgentry = !!size && size.bytes > size.agentryMaxBytes;
   const pastLocal = !!size && size.bytes > size.localMaxBytes;
+  const hasBrief = brief.trim() !== "";
+  const webOn = webChoice ?? webDefault(!!addTo, docs.length);
+  const agentryWeb = !!avail?.web;
+  // A registry from before briefs builds In Agentry from documents only.
+  const agentryNeedsDocs = docs.length === 0 && !avail?.takesBrief;
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
   useEffect(() => {
@@ -170,9 +200,7 @@ export default function KnowledgeCreate({
   };
   function next() {
     const p =
-      step === "documents" && docs.length === 0 ? "Add at least one document or folder."
-      : step === "documents" && sizing ? "Still adding up the documents' size; try again in a moment."
-      : step === "documents" && pastLocal ? `The documents come to ${fmtBytes(size!.bytes)}; a knowledge pack made on this computer, its documents included, is at most ${fmtCap(size!.localMaxBytes)}. Remove some.`
+      step === "documents" ? sourcesProblem(docs.length, brief, avail?.maxBriefBytes || MAX_BRIEF_BYTES) ?? documentsProblem()
       : step === "name" ? nameProblem(name)
       : null;
     if (p) {
@@ -181,6 +209,11 @@ export default function KnowledgeCreate({
       return;
     }
     goTo(at + 1);
+  }
+  function documentsProblem(): string | null {
+    return docs.length > 0 && sizing ? "Still adding up the documents' size; try again in a moment."
+      : pastLocal ? `The documents come to ${fmtBytes(size!.bytes)}; a knowledge pack made on this computer, its documents included, is at most ${fmtCap(size!.localMaxBytes)}. Remove some.`
+      : null;
   }
 
   async function addFiles() {
@@ -198,6 +231,7 @@ export default function KnowledgeCreate({
   if (inAgentry) {
     if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
+    if (agentryNeedsDocs) blockers.push(AGENTRY_NEEDS_DOCS);
   } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
   if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
 
@@ -206,7 +240,7 @@ export default function KnowledgeCreate({
     setRefusal(null);
     setStarting(true);
     try {
-      const v = await KnowledgeAPI.StartHostedBuild(registry, addTo ? "" : name, addTo ?? "", docs);
+      const v = await KnowledgeAPI.StartHostedBuild(registry, addTo ? "" : name, addTo ?? "", docs, brief, searches(webOn, "agentry", localWeb, agentryWeb));
       if (v.build) setHosted(v.build);
       else setRefusal(v.detail || v.refusal || "The registry refused the build.");
     } catch (e) {
@@ -253,7 +287,7 @@ export default function KnowledgeCreate({
     setLog([]);
     setProgress(null);
     try {
-      setResult(addTo ? await KnowledgeAPI.Add(registry, addTo, docs) : await KnowledgeAPI.Create(registry, name, docs));
+      setResult(addTo ? await KnowledgeAPI.Add(registry, addTo, docs, brief, webOn) : await KnowledgeAPI.Create(registry, name, docs, brief, webOn));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -321,12 +355,13 @@ export default function KnowledgeCreate({
 
             {step === "documents" && (
               <>
+                <p className="small">Choose documents, write a brief, or both.</p>
                 <p className="muted small">
                   Markdown, text, HTML, CSV, JSON, YAML and source files are read as they are; PDF, DOCX, ODT, EPUB, RTF, PPTX
                   and XLSX, and PNG, JPEG, TIFF or WebP images, as the text decoded from them on this computer first. The
                   documents are kept in the pack beside its pages. A pack made on this computer holds up to 1 GB, documents included; one built In
                   Agentry, 10 MB.
-                  {addTo && <> The Creator reads {addTo} as it stands and rewrites the pages the new documents touch.</>}
+                  {addTo && <> The Creator reads {addTo} as it stands and rewrites the pages the new documents or the brief touch.</>}
                 </p>
                 {docs.length > 0 ? (
                   <div>
@@ -346,9 +381,38 @@ export default function KnowledgeCreate({
                   </p>
                 )}
                 {pastAgentry && !pastLocal && <Notice tone="warn">{largeDocumentsWarning(size!.bytes, size!.agentryMaxBytes)}</Notice>}
-                <div className="row">
+                <div className="row" style={{ marginBottom: 16 }}>
                   <Button onClick={addFiles}>Add files…</Button>
                   <Button onClick={addFolder}>Add folder…</Button>
+                </div>
+                <Field
+                  label={<>A brief <span className="muted">(optional with documents)</span></>}
+                  htmlFor="knowledge-brief"
+                  hint={<>What the pack should cover, and for whom. It is kept in the pack as <span className="mono">sources/brief.md</span>, up to {(avail?.maxBriefBytes || MAX_BRIEF_BYTES) >> 10} KiB.</>}
+                >
+                  <Textarea
+                    id="knowledge-brief"
+                    rows={4}
+                    value={brief}
+                    placeholder={addTo ? "What the pack should add, and for whom." : "What the pack should cover, and for whom."}
+                    onChange={(e) => setBrief(e.target.value)}
+                  />
+                </Field>
+                <Notice tone={sourcesWarning(docs.length, webOn).tone}>{sourcesWarning(docs.length, webOn).text}</Notice>
+                <label className="check-row">
+                  <input type="checkbox" checked={webOn} onChange={(e) => setWebChoice(e.target.checked)} aria-describedby="knowledge-web-note" />
+                  <span>
+                    <strong>Search the web</strong>{" "}
+                    <span className="muted">— {addTo ? "off unless you tick it" : "on by default only without documents"}</span>
+                  </span>
+                </label>
+                <div id="knowledge-web-note" className="muted small">
+                  <p>
+                    The Creator is told to search only for what your documents and the pack do not hold, and the searches are
+                    drawn from them and the brief. Searching can raise what a build costs.
+                  </p>
+                  {webOn && <p>{localWebLine(localWeb)}</p>}
+                  {webOn && avail?.offered && <p>{agentryWebLine(agentryWeb, avail.webNote)}</p>}
                 </div>
               </>
             )}
@@ -370,7 +434,7 @@ export default function KnowledgeCreate({
                     </span>
                   </label>
                   <label className="check-row">
-                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry} onChange={() => setWhere("agentry")} />
+                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry || agentryNeedsDocs} onChange={() => setWhere("agentry")} />
                     <span>
                       <strong>In Agentry</strong>{" "}
                       <span className="muted">— on the platform, for credits; the pack is kept in Agentry and scanned, then kept here</span>
@@ -382,6 +446,7 @@ export default function KnowledgeCreate({
                     In Agentry takes at most {fmtCap(size!.agentryMaxBytes)} of documents; these come to {fmtBytes(size!.bytes)}, so this pack is built on this computer.
                   </p>
                 )}
+                {avail.available && agentryNeedsDocs && <p className="muted small">{AGENTRY_NEEDS_DOCS}</p>}
                 {!avail.available && avail.reason && (
                   <p className="muted small">
                     In Agentry is not available: {avail.reason}
@@ -407,7 +472,9 @@ export default function KnowledgeCreate({
               <>
                 <Recap
                   rows={[
-                    { label: "Documents", value: docs.length === 1 ? docs[0] : `${docs.length} files and folders`, onEdit: () => goTo(steps.indexOf("documents")) },
+                    { label: "Documents", value: documentsRecap(docs), onEdit: () => goTo(steps.indexOf("documents")) },
+                    ...(hasBrief ? [{ label: "Brief", value: clip(brief.trim(), 280), onEdit: () => goTo(steps.indexOf("documents")) }] : []),
+                    { label: "Search the web", value: webRecap(webOn, where, localWeb, agentryWeb), onEdit: () => goTo(steps.indexOf("documents")) },
                     ...(addTo ? [] : [{ label: "Name", value: name, onEdit: () => goTo(steps.indexOf("name")) }]),
                     {
                       label: "Where",
@@ -416,9 +483,10 @@ export default function KnowledgeCreate({
                     },
                   ]}
                 />
+                {docs.length === 0 && <Notice tone="warn">{sourcesWarning(0, searches(webOn, where, localWeb, agentryWeb)).text}</Notice>}
                 {inAgentry && avail ? (
                   <>
-                    <Notice tone="info">{inAgentryNote(registry)}</Notice>
+                    <Notice tone="info">{inAgentryNote(registry, docs.length, hasBrief)}</Notice>
                     <HostedCost avail={avail} />
                   </>
                 ) : (
@@ -449,7 +517,7 @@ export default function KnowledgeCreate({
         <RunningView
           spinner={addTo ? `Adding documents to ${addTo}…` : `Building ${name}…`}
           about={<>
-            The Knowledge Creator is decoding the documents and writing the pages. This can take a long time; the pages it has
+            The Knowledge Creator is reading {readsLine(docs.length, hasBrief)} and writing the pages. This can take a long time; the pages it has
             written count up as it goes, and are checked when it finishes, which may drop some.
           </>}
           actions={<>
@@ -495,7 +563,7 @@ export default function KnowledgeCreate({
         <>
           <Spinner label={hosted.statusLine || hosted.state} />
           <p className="muted small">
-            The Knowledge Creator runs In Agentry on {hosted.documents?.length ?? 0} documents. Run in the background keeps it in a card
+            The Knowledge Creator runs In Agentry on {readsLine(hosted.documents?.length ?? 0, !!hosted.brief)}. Run in the background keeps it in a card
             in the corner while you use the rest of the app; the build goes on in Agentry either way.
           </p>
           <p className="small">{buildCreditsLine(hosted)}</p>
@@ -522,6 +590,15 @@ export default function KnowledgeCreate({
     </Modal>
   );
 }
+
+// clip shortens a long text for a recap row.
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+}
+
+// AGENTRY_NEEDS_DOCS is why In Agentry cannot take a brief alone: the
+// registry predates briefs (agentry-enterprise#296).
+const AGENTRY_NEEDS_DOCS = "This registry builds In Agentry from documents only: add some, or build it on this computer.";
 
 // BuildProgressView is how far a build on this computer has got: the shared
 // view, with the pages the Creator has written so far as its own fact. The
@@ -589,6 +666,7 @@ function HostedDone({ v, onContinue, onClose, onPreview }: {
       {v.applied && v.outcomeLine && <p className="muted small">{v.outcomeLine}</p>}
       {v.note && <p>{v.note}</p>}
       {v.error && <ErrorBox error={v.error} />}
+      {v.webLine && <p className="small">{v.webLine}</p>}
       <p className="small">{buildCreditsLine(v)}</p>
       {v.downloaded && (
         <p>
@@ -597,7 +675,10 @@ function HostedDone({ v, onContinue, onClose, onPreview }: {
       )}
       {v.downloadError && <Notice tone="warn">{v.downloadError}</Notice>}
       {v.canContinue && (
-        <Notice tone="info">This build stopped before it finished. Continue starts a new build from the pack as it is now, with these documents.</Notice>
+        <Notice tone="info">
+          This build stopped before it finished. Continue starts a new build from the pack as it is now, with {v.brief ? "this brief and " : ""}these
+          documents{v.webLine ? ", searching the web as this one could" : ""}.
+        </Notice>
       )}
       <div className="row" style={{ justifyContent: "flex-end" }}>
         {v.canContinue && <Button onClick={onContinue}>Continue</Button>}
@@ -616,6 +697,8 @@ function BuildDone({ result, added, onClose, onPreview }: { result: knowledge.Bu
         {added ? `Added ${docs.length === 1 ? "1 document" : `${docs.length} documents`} to ${result.name}` : `Made ${result.name}`}: {pagesOf(result.pages)}, {fmtBytes(result.bytes)}
       </h3>
       <p>Kept on this computer, encrypted to {result.key}. It is not scanned.</p>
+      {result.searched && <p className="muted small">The Creator could search the web, AI Review reading every result first with your AI Review key.</p>}
+      {result.withoutWeb && <Notice tone="info">You asked for the web, and this build ran without it: {result.withoutWeb}.</Notice>}
       {result.stopped && (
         <Notice tone="warn">
           The Creator run stopped before it finished ({result.stopped}). The pack holds what it wrote; Add documents with the

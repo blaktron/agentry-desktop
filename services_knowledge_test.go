@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/drafter"
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/knowledgetest"
@@ -192,10 +193,10 @@ func TestKnowledgeDocumentsMustComeFromTheNativePicker(t *testing.T) {
 		return nil, errors.New("not reached")
 	}
 	typed := filepath.Join(t.TempDir(), "typed.txt")
-	if _, err := f.k.Create(f.reg.URL, "notes", []string{typed}); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if _, err := f.k.Create(f.reg.URL, "notes", []string{typed}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("create with a typed path: %v", err)
 	}
-	if _, err := f.k.Add(f.reg.URL, "handbook", []string{typed}); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
+	if _, err := f.k.Add(f.reg.URL, "handbook", []string{typed}, "", false); err == nil || !strings.Contains(err.Error(), "not chosen through the file dialog") {
 		t.Fatalf("add with a typed path: %v", err)
 	}
 	if built {
@@ -228,12 +229,12 @@ func TestKnowledgeBuildIsARunUnderTheRunLock(t *testing.T) {
 	}
 
 	f.k.run.mu.Lock()
-	if _, err := f.k.Create(f.reg.URL, "notes", []string{doc}); !errors.Is(err, errBusy) {
+	if _, err := f.k.Create(f.reg.URL, "notes", []string{doc}, "", false); !errors.Is(err, errBusy) {
 		t.Fatalf("create while a run holds the lock: %v", err)
 	}
 	f.k.run.mu.Unlock()
 
-	res, err := f.k.Create(f.reg.URL, "notes", []string{doc})
+	res, err := f.k.Create(f.reg.URL, "notes", []string{doc}, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +281,7 @@ func TestStopBuildStopsOnlyAKnowledgeBuild(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := f.k.Create(f.reg.URL, "notes", []string{doc})
+		_, err := f.k.Create(f.reg.URL, "notes", []string{doc}, "", false)
 		done <- err
 	}()
 	<-started
@@ -391,5 +392,35 @@ func TestDocumentsSizeSizesOnlyPickedDocuments(t *testing.T) {
 	}
 	if v.Bytes != 8 || v.LocalMaxBytes != kn.MaxLocalBytes || v.AgentryMaxBytes != kn.MaxBytes {
 		t.Fatalf("view = %+v", v)
+	}
+}
+
+// The Documents step's Search the web status (agentry-desktop#498): the
+// runtime first, then the AI Review key, then a search provider and its
+// key; ready only with all of them, and otherwise a reason that names
+// where to fix it.
+func TestCreatorWebViewSaysWhatIsMissingInOrder(t *testing.T) {
+	pol := policy.Default()
+	pol.WebSearch.Provider = "brave"
+	for _, c := range []struct {
+		name    string
+		runtime string
+		jev     bool
+		search  drafter.SearchState
+		ready   bool
+		why     string
+	}{
+		{"all there", "", true, drafter.SearchOn, true, ""},
+		{"no jev", "", false, drafter.SearchOn, false, "AI Review key"},
+		{"no provider", "", true, drafter.SearchNoProvider, false, "no search provider"},
+		{"no key", "", true, drafter.SearchNoKey, false, "no Brave key was found"},
+		{"runsc", "runsc", true, drafter.SearchOn, false, "docker.resolvers"},
+	} {
+		p := *pol
+		p.Docker.Runtime = c.runtime
+		v := creatorWebView(c.jev, c.search, &p)
+		if v.Ready != c.ready || !strings.Contains(v.Why, c.why) {
+			t.Errorf("%s: %+v", c.name, v)
+		}
 	}
 }

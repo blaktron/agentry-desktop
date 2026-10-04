@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
@@ -126,6 +127,16 @@ type KnowledgeHostedAvailabilityView struct {
 
 	MaxInputFiles int   `json:"maxInputFiles"`
 	MaxInputBytes int64 `json:"maxInputBytes"`
+
+	// TakesBrief says the registry builds from a brief without documents
+	// (agentry-enterprise#296), with MaxBriefBytes its bound; a registry
+	// from before needs documents. Web says it searches the web for a
+	// build, and WebNote is its words beside the choice: searching can
+	// raise the credits a build uses (plan knowledge-and-drafter.md D16).
+	TakesBrief    bool   `json:"takesBrief"`
+	MaxBriefBytes int    `json:"maxBriefBytes"`
+	Web           bool   `json:"web"`
+	WebNote       string `json:"webNote,omitempty"`
 }
 
 // KnowledgeHostedBuildView is one build In Agentry as the panel shows it:
@@ -164,6 +175,11 @@ type KnowledgeHostedBuildView struct {
 	Turns int `json:"turns"`
 
 	Documents []HostedArtefactView `json:"documents"`
+	// Brief is what the pack should cover, when the build was given one
+	// (a build's task, agentry-enterprise#296); WebLine is what its record
+	// says of its searches, "" for a build without the web.
+	Brief   string `json:"brief,omitempty"`
+	WebLine string `json:"webLine,omitempty"`
 	// CanContinue says Continue is offered: the build stopped short.
 	CanContinue bool `json:"canContinue"`
 
@@ -213,8 +229,17 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 	client := hostedrun.New(reg, token)
 	if st, err := client.Status(ctx); err == nil {
 		f.StatusKnown, f.Price = true, st.KnowledgeBuild
-		if st.KnowledgeBuild != nil {
-			v.HoldCredits, v.ScanCredits = st.KnowledgeBuild.HoldCredits, st.KnowledgeBuild.ScanCredits
+		if kb := st.KnowledgeBuild; kb != nil {
+			v.HoldCredits, v.ScanCredits = kb.HoldCredits, kb.ScanCredits
+			if kb.TakesBrief() {
+				v.TakesBrief, v.MaxBriefBytes = true, kb.MaxBriefBytes
+				if v.MaxBriefBytes <= 0 {
+					v.MaxBriefBytes = build.MaxBriefBytes
+				}
+				if kb.Web != nil && kb.Web.Enabled {
+					v.Web, v.WebNote = true, kb.Web.Note
+				}
+			}
 		}
 		if st.Caller != nil && st.Caller.Build != nil {
 			v.HoldCredits = st.Caller.Build.HoldCredits
@@ -242,10 +267,11 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 }
 
 // StartHostedBuild builds In Agentry: into a new pack named name, or, with
-// addTo, into that pack's copy in Agentry. The documents are files and
-// folders a native picker returned; nothing is created until they are
-// staged and uploaded.
-func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []string) (*KnowledgeHostedStartView, error) {
+// addTo, into that pack's copy in Agentry, from the documents, the brief,
+// or both (agentry-desktop#498), searching the web when web is set. The
+// documents are files and folders a native picker returned; nothing is
+// created until they are staged and uploaded.
+func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []string, brief string, web bool) (*KnowledgeHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := k.app.ctx
 	token := k.env().TokenFor(reg)
@@ -256,6 +282,13 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 		if err := k.app.requirePickedResolved("document", p); err != nil {
 			return nil, err
 		}
+	}
+	brief = strings.TrimSpace(brief)
+	if err := build.CheckBrief(documents, brief); err != nil {
+		if errors.Is(err, build.ErrNothingToBuild) {
+			return nil, errors.New("choose documents, write a brief that says what the pack should cover, or both")
+		}
+		return nil, err
 	}
 	// The slot is claimed before anything is uploaded, so a second Start
 	// (a double click) is refused here rather than after its upload.
@@ -268,25 +301,28 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 			k.releaseHosted()
 		}
 	}()
-	req := hostedrun.CreateRequest{Kind: hostedrun.KindKnowledgeBuild}
+	// The choice is sent as made, so the registry's default never stands
+	// in for what the step showed.
+	req := hostedrun.CreateRequest{Kind: hostedrun.KindKnowledgeBuild, Brief: brief, Web: &web}
 	target, err := k.hostedTarget(ctx, reg, name, addTo)
 	if err != nil {
 		return nil, err
 	}
 	req.Name, req.Pack = target.name, target.pack
-	files, err := hostedrun.StageDocuments(documents)
-	if err != nil {
-		return nil, err
-	}
-	client := hostedrun.New(reg, token)
-	ids, err := client.UploadInputs(ctx, files)
-	if err != nil {
-		if refusal := hostedrun.RefusalOf(err); refusal != nil {
-			return hostedRefusal(refusal), nil
+	if len(documents) > 0 {
+		files, err := hostedrun.StageDocuments(documents)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+		ids, err := hostedrun.New(reg, token).UploadInputs(ctx, files)
+		if err != nil {
+			if refusal := hostedrun.RefusalOf(err); refusal != nil {
+				return hostedRefusal(refusal), nil
+			}
+			return nil, err
+		}
+		req.Inputs = ids
 	}
-	req.Inputs = ids
 	v, err := k.createHosted(ctx, reg, token, target.label, req)
 	claimed = v == nil || v.Build == nil
 	return v, err
@@ -621,8 +657,48 @@ func hostedBuildView(r *hostedrun.Run, final bool) *KnowledgeHostedBuildView {
 			v.ScanCredits = b.ScanCredits
 		}
 		v.Note = hostedrun.NoteSentence(b.Note)
+		v.WebLine = buildWebLine(b.Web)
+	}
+	if r.IsBuild() {
+		v.Brief = strings.TrimSpace(r.Task)
 	}
 	return v
+}
+
+// buildWebLine is what a build's record says of its searches, as the
+// site's run page says it: nothing for a build without the web, and only
+// what the record counted otherwise. Pages are the reads the registry let
+// through, not pages known to have been read.
+func buildWebLine(w *hostedrun.BuildWeb) string {
+	if w == nil {
+		return ""
+	}
+	if w.Searched == 0 && w.Pages == 0 {
+		return "This build could search the web and made no searches."
+	}
+	times := fmt.Sprintf("%d times", w.Searched)
+	if w.Searched == 1 {
+		times = "once"
+	}
+	line := fmt.Sprintf("This build searched the web %s, and the registry let through %s.", times, countOf(w.Pages, "page read", "page reads"))
+	if w.Scanned > 0 {
+		line += fmt.Sprintf(" AI Review read %s from the web before the Creator did, and withheld %s.", countOf(w.Scanned, "text", "texts"), withheldCount(w.Withheld))
+	}
+	return line
+}
+
+func countOf(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
+}
+
+func withheldCount(n int) string {
+	if n == 0 {
+		return "none"
+	}
+	return fmt.Sprint(n)
 }
 
 // regHost is a registry's host, for sentences.

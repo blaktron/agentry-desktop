@@ -1043,6 +1043,8 @@ export namespace knowledge {
 	    documents: string[];
 	    skipped?: string[];
 	    dropped?: Dropped[];
+	    withoutWeb?: string;
+	    searched?: boolean;
 	    stopped?: string;
 	    key: string;
 	    agentryStale?: boolean;
@@ -1063,6 +1065,8 @@ export namespace knowledge {
 	        this.documents = source["documents"];
 	        this.skipped = source["skipped"];
 	        this.dropped = this.convertValues(source["dropped"], Dropped);
+	        this.withoutWeb = source["withoutWeb"];
+	        this.searched = source["searched"];
 	        this.stopped = source["stopped"];
 	        this.key = source["key"];
 	        this.agentryStale = source["agentryStale"];
@@ -1518,6 +1522,22 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.timeoutSeconds = source["timeoutSeconds"];
 	        this.maxTurns = source["maxTurns"];
+	    }
+	}
+	export class CreatorWebView {
+	    ready: boolean;
+	    why?: string;
+	    provider?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreatorWebView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ready = source["ready"];
+	        this.why = source["why"];
+	        this.provider = source["provider"];
 	    }
 	}
 	
@@ -2584,6 +2604,10 @@ export namespace main {
 	    unmetered: boolean;
 	    maxInputFiles: number;
 	    maxInputBytes: number;
+	    takesBrief: boolean;
+	    maxBriefBytes: number;
+	    web: boolean;
+	    webNote?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new KnowledgeHostedAvailabilityView(source);
@@ -2606,6 +2630,10 @@ export namespace main {
 	        this.unmetered = source["unmetered"];
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
+	        this.takesBrief = source["takesBrief"];
+	        this.maxBriefBytes = source["maxBriefBytes"];
+	        this.web = source["web"];
+	        this.webNote = source["webNote"];
 	    }
 	}
 	export class KnowledgeHostedBuildView {
@@ -2630,6 +2658,8 @@ export namespace main {
 	    note?: string;
 	    turns: number;
 	    documents: HostedArtefactView[];
+	    brief?: string;
+	    webLine?: string;
 	    canContinue: boolean;
 	    downloaded: boolean;
 	    kept?: string;
@@ -2665,6 +2695,8 @@ export namespace main {
 	        this.note = source["note"];
 	        this.turns = source["turns"];
 	        this.documents = this.convertValues(source["documents"], HostedArtefactView);
+	        this.brief = source["brief"];
+	        this.webLine = source["webLine"];
 	        this.canContinue = source["canContinue"];
 	        this.downloaded = source["downloaded"];
 	        this.kept = source["kept"];

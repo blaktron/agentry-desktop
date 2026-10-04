@@ -106,9 +106,10 @@ export function buildCreditsLine(v: { holdCredits: number; settledCredits: numbe
 
 /** Before a build In Agentry: what goes where, what runs it, and what
  *  comes back. */
-export function inAgentryNote(registry: string): string {
+export function inAgentryNote(registry: string, documents = 1, brief = false): string {
+  const what = documents === 0 ? "The brief goes" : brief ? "The documents and the brief go" : "The documents go";
   return (
-    `The documents go to ${registry}, where the Knowledge Creator runs against the platform's model, for credits. ` +
+    `${what} to ${registry}, where the Knowledge Creator runs against the platform's model, for credits. ` +
     "The pack is kept in Agentry, encrypted under a key of its own, and scanned there; once the scan ends, it is downloaded and kept on this computer too."
   );
 }

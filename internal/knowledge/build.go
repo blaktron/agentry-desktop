@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/drafter"
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/build"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
@@ -39,6 +41,16 @@ type BuildRequest struct {
 	// Documents are the files and folders to ingest, each one the native
 	// picker returned (the binding checks).
 	Documents []string
+	// Brief is what the pack should cover and for whom, in the person's
+	// words, at most build.MaxBriefBytes: a build takes documents, a brief
+	// or both (agentry-desktop#498; plan knowledge-and-drafter.md D15). The
+	// CLI keeps it in the pack as sources/brief.md.
+	Brief string
+	// Web is the person's Search the web choice (D16): the Creator may
+	// search, every result read by AI Review first with the person's own
+	// Jev key. Without that key or a search key the build runs without the
+	// web and says why, rather than failing.
+	Web bool
 	// RunID names the Creator run's containers, so quitting can sweep them.
 	RunID string
 	// Build is the Creator seam; nil is pkg/knowledge/build.
@@ -94,6 +106,12 @@ type BuildResult struct {
 	Skipped []string `json:"skipped,omitempty"`
 	// Dropped are pages the apply step dropped (or kept) with its reason.
 	Dropped []Dropped `json:"dropped,omitempty"`
+	// WithoutWeb says why a build asked to search the web ran without it:
+	// no Jev key, no search provider or key, or a sandboxed runtime with no
+	// name servers for the tools.
+	WithoutWeb string `json:"withoutWeb,omitempty"`
+	// Searched says the Creator was given the web tools.
+	Searched bool `json:"searched,omitempty"`
 	// Stopped is the Creator run's own failure when it stopped before it
 	// finished and the pack holds what it wrote: Add documents with the
 	// same documents continues it.
@@ -225,9 +243,13 @@ func sealContext(ctx context.Context) (context.Context, context.CancelFunc) {
 
 // runBuild runs the Creator over dir against the runner policy's model,
 // the budgets the policy sets, as `agentry knowledge create` does.
-func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir string) (*build.Result, error) {
-	if len(req.Documents) == 0 {
-		return nil, errors.New("choose the documents to ingest first")
+func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir string) (*built, error) {
+	req.Brief = strings.TrimSpace(req.Brief)
+	if err := build.CheckBrief(req.Documents, req.Brief); err != nil {
+		if errors.Is(err, build.ErrNothingToBuild) {
+			return nil, errors.New("choose documents, write a brief that says what the pack should cover, or both")
+		}
+		return nil, err
 	}
 	home, err := e.Home()
 	if err != nil {
@@ -245,6 +267,20 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	// step (plan D19).
 	logf(req.Log, "The Knowledge Creator runs on this computer against the model your runner policy names (%s). "+
 		"It costs no credits, and nothing it reads or writes is scanned.", CreatorModel(pol))
+	if len(req.Documents) == 0 {
+		logf(req.Log, "%s", NoDocumentsWarning)
+	}
+	web, withoutWeb, err := creatorWeb(pol, req.Web)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case web != nil:
+		logf(req.Log, "The Creator may search the web with %s and your key; AI Review reads every result first, with your Jev key. "+
+			"Searching can raise what a build costs. It searches only for what the documents and the pack do not hold.", pol.WebSearch.ProviderName())
+	case withoutWeb != "":
+		logf(req.Log, "The Creator builds without the web: %s.", withoutWeb)
+	}
 	b := req.Build
 	if b == nil {
 		b = build.Build
@@ -263,7 +299,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	stop := prog.watch()
 	defer stop()
 	res, err := b(ctx, dockerx.New(), build.Options{
-		PackDir: dir, Name: name, Documents: req.Documents,
+		PackDir: dir, Name: name, Documents: req.Documents, Brief: req.Brief, Web: web,
 		Home: home, Policy: pol, PolicySHA: polSHA, PolicyFile: &polFile,
 		Build: version.Build(), Now: time.Now(), OutDir: outDir,
 		Budgets: &budgets,
@@ -280,7 +316,74 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		}
 		return nil, err
 	}
-	return res, nil
+	return &built{Result: res, withoutWeb: withoutWeb, searched: web != nil}, nil
+}
+
+// built is one build's result with what became of its Search the web
+// choice.
+type built struct {
+	*build.Result
+	withoutWeb string
+	searched   bool
+}
+
+// NoDocumentsWarning is what a build with no documents is told, in the log
+// as on the Documents step (plan knowledge-and-drafter.md §7).
+const NoDocumentsWarning = "Specific documents make the best knowledge. Without them the Creator researches the web and its own knowledge, which can be wrong or out of date."
+
+// localWeb is pkg/drafter's LocalWeb, the person's own keys as work on
+// this computer reads them; a test substitutes one.
+var localWeb = drafter.LocalWeb
+
+// creatorWeb is a build's web configuration (the CLI's knowledgeWeb, in
+// its package main, which this cannot import): nil when the person did not
+// ask for the web, and nil with the reason when they did and this computer
+// cannot give it — no Jev key to scan every result with, no search provider
+// or key, or a sandboxed runtime with no name servers for the tools. Only a
+// policy or keychain fault is an error.
+func creatorWeb(pol *policy.Policy, search bool) (*engine.WebRun, string, error) {
+	if !search {
+		return nil, "", nil
+	}
+	if why := WebUnavailable(pol); why != "" {
+		return nil, why, nil
+	}
+	w, state, err := localWeb(pol, "")
+	switch {
+	case errors.Is(err, drafter.ErrNoJevKey):
+		return nil, noJevKey, nil
+	case err != nil:
+		return nil, "", err
+	case state == drafter.SearchNoProvider:
+		return nil, noSearchProvider, nil
+	case state == drafter.SearchNoKey:
+		return nil, noSearchKey(pol), nil
+	}
+	return w, "", nil
+}
+
+// The reasons a build asked to search the web runs without it, as the log,
+// the Documents step and the result say them.
+const (
+	noJevKey         = "AI Review reads every result first, which takes your own TypeSafe Jev key, and none was found (Settings → Provider settings → AI Review key)"
+	noSearchProvider = "your runner policy names no search provider (Settings → Provider settings → Web search)"
+)
+
+func noSearchKey(pol *policy.Policy) string {
+	return fmt.Sprintf("no %s key was found ($%s, or Settings → Provider settings → Web search)", pol.WebSearch.ProviderName(), pol.WebSearch.KeyEnv())
+}
+
+// WebUnavailable is why the runtime alone keeps a build here off the web,
+// "" when it does not: under a sandboxed runtime the web tools need the
+// host's name servers in the runner policy's docker.resolvers.
+func WebUnavailable(pol *policy.Policy) string {
+	if pol == nil {
+		return ""
+	}
+	if rt := pol.Docker.Runtime; rt != "" && len(pol.Docker.Resolvers) == 0 {
+		return fmt.Sprintf("under the %s runtime the web tools need the host's name servers in your runner policy's docker.resolvers", rt)
+	}
+	return ""
 }
 
 // CreatorModel names the model the policy gives the Creator, as the review
@@ -313,10 +416,11 @@ func loadPolicy() *policy.Policy {
 	return pol
 }
 
-func buildResult(res *build.Result, en store.Entry) *BuildResult {
+func buildResult(res *built, en store.Entry) *BuildResult {
 	out := &BuildResult{
 		Name: en.Name(), Pages: en.Manifest.Pages, Bytes: en.Manifest.Bytes,
 		Documents: append([]string{}, res.Documents...), Skipped: res.Skipped, Key: KeyHolder(en),
+		WithoutWeb: res.withoutWeb, Searched: res.searched,
 	}
 	if res.Applied != nil {
 		for _, d := range res.Applied.Dropped {
