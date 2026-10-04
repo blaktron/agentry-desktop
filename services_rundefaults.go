@@ -35,6 +35,10 @@ type RunDefaultsView struct {
 	// default.
 	UnsafeMode  bool   `json:"unsafeMode"`
 	UnsafeImage string `json:"unsafeImage,omitempty"`
+	// BuiltinNoTimeout is the no-time-limit switch for the built-in agents (desktop.yaml's
+	// builtinNoTimeout, D-062): the built-in agents' runs on this computer
+	// have no timeout while it is on.
+	BuiltinNoTimeout bool `json:"builtinNoTimeout"`
 }
 
 // RunDefaults reads the defaults. With no policy yet the budgets are
@@ -79,6 +83,24 @@ func (s *SettingsAPI) SetChatIdleTimeout(seconds int) (*RunDefaultsView, error) 
 		return nil, err
 	}
 	st.ChatIdleTimeoutSeconds = seconds
+	if err := settings.Save(st); err != nil {
+		return nil, err
+	}
+	return runDefaultsView()
+}
+
+// SetBuiltinNoTimeout turns the no-time-limit switch for the built-in agents on or off
+// (agentry-desktop#606, D-062): while it is on, the Drafter, the Knowledge
+// Creator, the Examiner and the Voice Writer run on this computer with no
+// timeout. It asks no confirmation: it gives no run a reach it lacked, the
+// turn and cost caps still hold, and a run that has started keeps the
+// budgets it started with.
+func (s *SettingsAPI) SetBuiltinNoTimeout(on bool) (*RunDefaultsView, error) {
+	st, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	st.BuiltinNoTimeout = on
 	if err := settings.Save(st); err != nil {
 		return nil, err
 	}
@@ -163,6 +185,6 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	return &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
 		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
-		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(),
+		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoTimeout: st.BuiltinNoTimeout,
 	}, nil
 }

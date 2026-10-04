@@ -300,11 +300,12 @@ export function codingStatus(v: main.CodingAgentsView): string {
   return `Install also writes each QuickAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
 }
 
-// The Run defaults card's line: the timeout and where runs go, and Docker
-// when it is what stands in the way.
+// The Run defaults card's line: the timeout and where runs go, the built-in
+// agents' switch when it is on, and Docker when it is what stands in the way.
 export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusView | null): string {
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
-  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}. ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
+  const builtins = d.builtinNoTimeout ? " The built-in agents have no time limit here." : "";
+  const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${builtins} ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
 }
 
@@ -348,7 +349,9 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // folder it fills in; and the Docker engine's prerequisites. None of them is
 // a consent: every run still asks what it asks. Unsafe Mode's switch is here
 // too (agentry-desktop#418): the page asks Go to turn it on, and Go asks the
-// person in a native dialog and pulls the image before it reads on.
+// person in a native dialog and pulls the image before it reads on. The
+// built-in agents' switch (agentry-desktop#606, D-062) sits with the
+// timeout it lifts, for drafts, builds, reviews and voices on this computer.
 function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
@@ -462,9 +465,22 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 A run stops when it reaches either. These are the runner policy&apos;s
                 (<span className="mono selectable">{defaults.policyPath}</span>), so the <span className="mono">agentry</span> CLI
                 runs with them too. A run&apos;s own fields under Advanced apply to that run only. A draft made on this
-                computer has at least 30 minutes and a knowledge build at least 60, however short the timeout here.
+                computer has at least 30 minutes and a knowledge build at least 60, however short the timeout here, or no
+                limit with the switch below.
               </p>
               {saved && <p className="small" role="status" style={{ marginBottom: 0 }}>{saved}</p>}
+              <label className="check-row" style={{ margin: "12px 0 0" }}>
+                <input type="checkbox" role="switch" checked={defaults.builtinNoTimeout} disabled={busy} data-builtin-no-timeout
+                  onChange={(e) => void act(() => SettingsAPI.SetBuiltinNoTimeout(e.target.checked))} />
+                <span><strong>No time limit for the built-in agents</strong></span>
+              </label>
+              <p className="muted small" style={{ marginBottom: 0 }}>
+                For a model on this computer too slow to finish in time. While this is on, drafts, knowledge builds, local
+                reviews and Writing Voice runs on this computer have no timeout: each runs until it finishes or you stop
+                it. The max turns above and the runner policy&apos;s cost cap still apply, unless they are 0, and the short
+                repair turn a draft sometimes needs keeps its own 5 minutes. Your QuickAgents keep the timeout above, and nothing changes for the{" "}
+                <span className="mono">agentry</span> CLI or for anything run In Agentry. It applies from the next one you start.
+              </p>
             </Card>
           </PartSection>
           <PartSection id="chats" title="Chat idle timeout">

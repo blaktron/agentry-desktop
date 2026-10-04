@@ -37,6 +37,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/progress"
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -57,8 +58,11 @@ type Plan struct {
 
 // Budgets are the review's: the runner policy's, with the Examiner's own
 // timeout floor (30 minutes, since one rubric review may take 15), as
-// `agentry review` gives it.
-func (p *Plan) Budgets() spec.Budgets { return localrun.Examiner().LocalBudgets(p.Policy.Budgets) }
+// `agentry review` gives it, or none while Run defaults' no-time-limit
+// switch for the built-in agents is on (settings.BuiltinBudgets, D-062).
+func (p *Plan) Budgets() spec.Budgets {
+	return settings.BuiltinBudgets(localrun.Examiner(), p.Policy.Budgets)
+}
 
 // ModelName names the model the runner policy gives the Examiner, as the
 // dialog says it (the Drafter's words for its own, draft.Plan.ModelName).
