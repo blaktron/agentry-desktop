@@ -115,3 +115,23 @@ func TestDockerDetectionBoundsUnresponsiveProbes(t *testing.T) {
 		}
 	})
 }
+
+// Each probe first gives the process a fresh PATH, so a Docker installed
+// or moved since the app started is found by the next check
+// (agentry-desktop#624).
+func TestEachDockerProbeRefreshesThePathFirst(t *testing.T) {
+	isolateRunEnv(t)
+	d := &wakingDocker{Fake: readyImagesFake(), failures: 1}
+	var refreshes []int
+	old := refreshPath
+	refreshPath = func() { refreshes = append(refreshes, len(d.attempts)) }
+	t.Cleanup(func() { refreshPath = old })
+	synctest.Test(t, func(t *testing.T) {
+		if err := dockerAvailable(t.Context(), d); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if len(refreshes) != 2 || refreshes[0] != 0 || refreshes[1] != 1 {
+		t.Fatalf("refreshes before attempts %v, want [0 1]: one before each probe", refreshes)
+	}
+}
