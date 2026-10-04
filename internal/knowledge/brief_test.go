@@ -121,7 +121,7 @@ func TestSearchTheWebUsesThePersonsKeysOrSaysWhyNot(t *testing.T) {
 		err   error
 		want  string
 	}{
-		{"no-jev", "", drafter.ErrNoJevKey, "Jev key"},
+		{"no-jev", "", drafter.ErrNoJevKey, "AI Review key"},
 		{"no-provider", drafter.SearchNoProvider, nil, "no search provider"},
 		{"no-key", drafter.SearchNoKey, nil, "key was found"},
 	} {

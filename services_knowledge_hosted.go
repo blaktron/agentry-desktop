@@ -28,6 +28,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -231,6 +232,9 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 		f.StatusKnown, f.Price = true, st.KnowledgeBuild
 		if kb := st.KnowledgeBuild; kb != nil {
 			v.HoldCredits, v.ScanCredits = kb.HoldCredits, kb.ScanCredits
+			// The brief and the web came to the registry together
+			// (agentry-enterprise#296); a registry that states web terms
+			// without taking a brief is not one this app knows.
 			if kb.TakesBrief() {
 				v.TakesBrief, v.MaxBriefBytes = true, kb.MaxBriefBytes
 				if v.MaxBriefBytes <= 0 {
@@ -284,10 +288,7 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 		}
 	}
 	brief = strings.TrimSpace(brief)
-	if err := build.CheckBrief(documents, brief); err != nil {
-		if errors.Is(err, build.ErrNothingToBuild) {
-			return nil, errors.New("choose documents, write a brief that says what the pack should cover, or both")
-		}
+	if err := knowledge.CheckSources(documents, brief); err != nil {
 		return nil, err
 	}
 	// The slot is claimed before anything is uploaded, so a second Start
@@ -301,6 +302,18 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 			k.releaseHosted()
 		}
 	}()
+	// The registry's own terms decide what the build may take, not the
+	// page: a brief only where it builds from one, the web only where it
+	// searches for a build (D-030's rule, that a page does not decide).
+	client := hostedrun.New(reg, token)
+	terms, err := client.Status(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if brief != "" && !terms.KnowledgeBuild.TakesBrief() {
+		return nil, errors.New("this registry builds In Agentry from documents only, without a brief: leave the brief out, or build it on this computer")
+	}
+	web = web && terms.KnowledgeBuild.TakesBrief() && terms.KnowledgeBuild.Web != nil && terms.KnowledgeBuild.Web.Enabled
 	// The choice is sent as made, so the registry's default never stands
 	// in for what the step showed.
 	req := hostedrun.CreateRequest{Kind: hostedrun.KindKnowledgeBuild, Brief: brief, Web: &web}
@@ -314,7 +327,7 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 		if err != nil {
 			return nil, err
 		}
-		ids, err := hostedrun.New(reg, token).UploadInputs(ctx, files)
+		ids, err := client.UploadInputs(ctx, files)
 		if err != nil {
 			if refusal := hostedrun.RefusalOf(err); refusal != nil {
 				return hostedRefusal(refusal), nil

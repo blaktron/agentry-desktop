@@ -413,7 +413,7 @@ func TestCreatorWebViewSaysWhatIsMissingInOrder(t *testing.T) {
 		{"all there", "", true, drafter.SearchOn, true, ""},
 		{"no jev", "", false, drafter.SearchOn, false, "AI Review key"},
 		{"no provider", "", true, drafter.SearchNoProvider, false, "no search provider"},
-		{"no key", "", true, drafter.SearchNoKey, false, "no Brave key was found"},
+		{"no key", "", true, drafter.SearchNoKey, false, "no Brave key was found ($BRAVE_API_KEY)"},
 		{"runsc", "runsc", true, drafter.SearchOn, false, "docker.resolvers"},
 	} {
 		p := *pol

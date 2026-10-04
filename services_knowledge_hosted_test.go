@@ -781,3 +781,30 @@ func TestBuildWebLineSaysOnlyWhatTheRecordCounted(t *testing.T) {
 		}
 	}
 }
+
+// Go holds the create to the registry's own terms, not the page's: against
+// a registry from before briefs a brief is refused before anything is
+// uploaded, and Search the web is sent off whatever the page asked.
+func TestHostedBuildHoldsTheBriefAndTheWebToTheRegistrysTerms(t *testing.T) {
+	f := newBuildFake(t)
+	k, _ := hostedBuildAPI(t, f)
+	dir := docs(t, k)
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{dir}, "and the winter rota", false); err == nil || !strings.Contains(err.Error(), "documents only, without a brief") {
+		t.Fatalf("a brief to a registry from before briefs: %v", err)
+	}
+	f.mu.Lock()
+	uploaded := len(f.uploads)
+	f.mu.Unlock()
+	if uploaded != 0 || k.hostedCurrent() != nil {
+		t.Fatalf("a refused build uploaded %d documents or kept the slot", uploaded)
+	}
+	if _, err := k.StartHostedBuild(f.url, "notes", "", []string{dir}, "", true); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	created := f.created
+	f.mu.Unlock()
+	if len(created) != 1 || created[0].Web == nil || *created[0].Web {
+		t.Fatalf("Search the web reached a registry that does not search for a build: %+v", created)
+	}
+}

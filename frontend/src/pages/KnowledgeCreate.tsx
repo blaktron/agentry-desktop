@@ -185,8 +185,14 @@ export default function KnowledgeCreate({
   const hasBrief = brief.trim() !== "";
   const webOn = webChoice ?? webDefault(!!addTo, docs.length);
   const agentryWeb = !!avail?.web;
-  // A registry from before briefs builds In Agentry from documents only.
-  const agentryNeedsDocs = docs.length === 0 && !avail?.takesBrief;
+  // A registry from before briefs builds In Agentry from documents only,
+  // and takes no brief beside them either.
+  const agentryNoBrief = !!avail && !avail.takesBrief && (docs.length === 0 || hasBrief);
+  // The brief's bound: 8 KiB, or less where the registry says so.
+  const maxBrief = Math.min(MAX_BRIEF_BYTES, avail?.maxBriefBytes || MAX_BRIEF_BYTES);
+  // The warning follows whether the build will search, where it runs: a
+  // ticked box on a computer without the keys does not search.
+  const warning = sourcesWarning(docs.length, searches(webOn, where, localWeb, agentryWeb));
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
   useEffect(() => {
@@ -200,7 +206,7 @@ export default function KnowledgeCreate({
   };
   function next() {
     const p =
-      step === "documents" ? sourcesProblem(docs.length, brief, avail?.maxBriefBytes || MAX_BRIEF_BYTES) ?? documentsProblem()
+      step === "documents" ? sourcesProblem(docs.length, brief, maxBrief) ?? documentsProblem()
       : step === "name" ? nameProblem(name)
       : null;
     if (p) {
@@ -231,7 +237,7 @@ export default function KnowledgeCreate({
   if (inAgentry) {
     if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
-    if (agentryNeedsDocs) blockers.push(AGENTRY_NEEDS_DOCS);
+    if (agentryNoBrief) blockers.push(AGENTRY_NO_BRIEF);
   } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
   if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
 
@@ -388,7 +394,7 @@ export default function KnowledgeCreate({
                 <Field
                   label={<>A brief <span className="muted">(optional with documents)</span></>}
                   htmlFor="knowledge-brief"
-                  hint={<>What the pack should cover, and for whom. It is kept in the pack as <span className="mono">sources/brief.md</span>, up to {(avail?.maxBriefBytes || MAX_BRIEF_BYTES) >> 10} KiB.</>}
+                  hint={<>What the pack should cover, and for whom. It is kept in the pack as <span className="mono">sources/brief.md</span>, up to {maxBrief >> 10} KiB.</>}
                 >
                   <Textarea
                     id="knowledge-brief"
@@ -398,7 +404,7 @@ export default function KnowledgeCreate({
                     onChange={(e) => setBrief(e.target.value)}
                   />
                 </Field>
-                <Notice tone={sourcesWarning(docs.length, webOn).tone}>{sourcesWarning(docs.length, webOn).text}</Notice>
+                <Notice tone={warning.tone}>{warning.text}</Notice>
                 <label className="check-row">
                   <input type="checkbox" checked={webOn} onChange={(e) => setWebChoice(e.target.checked)} aria-describedby="knowledge-web-note" />
                   <span>
@@ -434,7 +440,7 @@ export default function KnowledgeCreate({
                     </span>
                   </label>
                   <label className="check-row">
-                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry || agentryNeedsDocs} onChange={() => setWhere("agentry")} />
+                    <input type="radio" name="knowledge-where" checked={inAgentry} disabled={!avail.available || pastAgentry || agentryNoBrief} onChange={() => setWhere("agentry")} />
                     <span>
                       <strong>In Agentry</strong>{" "}
                       <span className="muted">— on the platform, for credits; the pack is kept in Agentry and scanned, then kept here</span>
@@ -446,7 +452,7 @@ export default function KnowledgeCreate({
                     In Agentry takes at most {fmtCap(size!.agentryMaxBytes)} of documents; these come to {fmtBytes(size!.bytes)}, so this pack is built on this computer.
                   </p>
                 )}
-                {avail.available && agentryNeedsDocs && <p className="muted small">{AGENTRY_NEEDS_DOCS}</p>}
+                {avail.available && agentryNoBrief && <p className="muted small">{AGENTRY_NO_BRIEF}</p>}
                 {!avail.available && avail.reason && (
                   <p className="muted small">
                     In Agentry is not available: {avail.reason}
@@ -483,7 +489,7 @@ export default function KnowledgeCreate({
                     },
                   ]}
                 />
-                {docs.length === 0 && <Notice tone="warn">{sourcesWarning(0, searches(webOn, where, localWeb, agentryWeb)).text}</Notice>}
+                {docs.length === 0 && <Notice tone="warn">{warning.text}</Notice>}
                 {inAgentry && avail ? (
                   <>
                     <Notice tone="info">{inAgentryNote(registry, docs.length, hasBrief)}</Notice>
@@ -596,9 +602,9 @@ function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
 }
 
-// AGENTRY_NEEDS_DOCS is why In Agentry cannot take a brief alone: the
-// registry predates briefs (agentry-enterprise#296).
-const AGENTRY_NEEDS_DOCS = "This registry builds In Agentry from documents only: add some, or build it on this computer.";
+// AGENTRY_NO_BRIEF is why In Agentry cannot take the brief: the registry
+// predates briefs (agentry-enterprise#296), and Go refuses one to it too.
+const AGENTRY_NO_BRIEF = "This registry builds In Agentry from documents only, without a brief: leave the brief out, or build it on this computer.";
 
 // BuildProgressView is how far a build on this computer has got: the shared
 // view, with the pages the Creator has written so far as its own fact. The

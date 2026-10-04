@@ -145,22 +145,10 @@ func (k *KnowledgeAPI) CreatorWeb() (*CreatorWebView, error) {
 }
 
 // creatorWebView is CreatorWeb's rule, apart from the keychain and the
-// policy file: the runtime first, then the Jev key, then search.
+// policy file: knowledge.WebReason, the words the build itself says.
 func creatorWebView(jev bool, search drafter.SearchState, pol *policy.Policy) *CreatorWebView {
-	v := &CreatorWebView{Provider: pol.WebSearch.ProviderName()}
-	switch {
-	case knowledge.WebUnavailable(pol) != "":
-		v.Why = knowledge.WebUnavailable(pol)
-	case !jev:
-		v.Why = "AI Review reads every result first, and that takes your own AI Review key: add one under Settings → Provider settings → AI Review key"
-	case search == drafter.SearchNoProvider:
-		v.Why = "no search provider is set up: choose one under Settings → Provider settings → Web search"
-	case search == drafter.SearchNoKey:
-		v.Why = "no " + pol.WebSearch.ProviderName() + " key was found: add one under Settings → Provider settings → Web search"
-	default:
-		v.Ready = true
-	}
-	return v
+	why := knowledge.WebReason(pol, jev, search)
+	return &CreatorWebView{Ready: why == "", Why: why, Provider: pol.WebSearch.ProviderName()}
 }
 
 // knowledgeRunRef names a Creator build as the run in flight: what quitting

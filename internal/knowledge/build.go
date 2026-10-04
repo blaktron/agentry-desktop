@@ -245,10 +245,7 @@ func sealContext(ctx context.Context) (context.Context, context.CancelFunc) {
 // the budgets the policy sets, as `agentry knowledge create` does.
 func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir string) (*built, error) {
 	req.Brief = strings.TrimSpace(req.Brief)
-	if err := build.CheckBrief(req.Documents, req.Brief); err != nil {
-		if errors.Is(err, build.ErrNothingToBuild) {
-			return nil, errors.New("choose documents, write a brief that says what the pack should cover, or both")
-		}
+	if err := CheckSources(req.Documents, req.Brief); err != nil {
 		return nil, err
 	}
 	home, err := e.Home()
@@ -276,7 +273,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	}
 	switch {
 	case web != nil:
-		logf(req.Log, "The Creator may search the web with %s and your key; AI Review reads every result first, with your Jev key. "+
+		logf(req.Log, "The Creator may search the web with %s and your key; AI Review reads every result first, with your AI Review key. "+
 			"Searching can raise what a build costs. It searches only for what the documents and the pack do not hold.", pol.WebSearch.ProviderName())
 	case withoutWeb != "":
 		logf(req.Log, "The Creator builds without the web: %s.", withoutWeb)
@@ -327,6 +324,17 @@ type built struct {
 	searched   bool
 }
 
+// CheckSources refuses a build given neither documents nor a brief, or a
+// brief past build.MaxBriefBytes (agentry-desktop#498), on this computer and
+// In Agentry alike, in the words the Documents step uses.
+func CheckSources(documents []string, brief string) error {
+	err := build.CheckBrief(documents, strings.TrimSpace(brief))
+	if errors.Is(err, build.ErrNothingToBuild) {
+		return errors.New("choose documents, write a brief that says what the pack should cover, or both")
+	}
+	return err
+}
+
 // NoDocumentsWarning is what a build with no documents is told, in the log
 // as on the Documents step (plan knowledge-and-drafter.md §7).
 const NoDocumentsWarning = "Specific documents make the best knowledge. Without them the Creator researches the web and its own knowledge, which can be wrong or out of date."
@@ -351,26 +359,33 @@ func creatorWeb(pol *policy.Policy, search bool) (*engine.WebRun, string, error)
 	w, state, err := localWeb(pol, "")
 	switch {
 	case errors.Is(err, drafter.ErrNoJevKey):
-		return nil, noJevKey, nil
+		return nil, WebReason(pol, false, state), nil
 	case err != nil:
 		return nil, "", err
-	case state == drafter.SearchNoProvider:
-		return nil, noSearchProvider, nil
-	case state == drafter.SearchNoKey:
-		return nil, noSearchKey(pol), nil
+	}
+	if why := WebReason(pol, true, state); why != "" {
+		return nil, why, nil
 	}
 	return w, "", nil
 }
 
-// The reasons a build asked to search the web runs without it, as the log,
-// the Documents step and the result say them.
-const (
-	noJevKey         = "AI Review reads every result first, which takes your own TypeSafe Jev key, and none was found (Settings → Provider settings → AI Review key)"
-	noSearchProvider = "your runner policy names no search provider (Settings → Provider settings → Web search)"
-)
-
-func noSearchKey(pol *policy.Policy) string {
-	return fmt.Sprintf("no %s key was found ($%s, or Settings → Provider settings → Web search)", pol.WebSearch.ProviderName(), pol.WebSearch.KeyEnv())
+// WebReason is why a build on this computer runs without the web, "" when
+// it can search: the runtime first, then the person's own AI Review key
+// (jev), which reads every result first, then a search provider and its
+// key (search). The build's log and result and the Documents step
+// (KnowledgeAPI.CreatorWeb, from presence alone) say the same words.
+func WebReason(pol *policy.Policy, jev bool, search drafter.SearchState) string {
+	switch {
+	case WebUnavailable(pol) != "":
+		return WebUnavailable(pol)
+	case !jev:
+		return "AI Review reads every result first, and that takes your own AI Review key: add one under Settings → Provider settings → AI Review key"
+	case search == drafter.SearchNoProvider:
+		return "no search provider is set up: choose one under Settings → Provider settings → Web search"
+	case search == drafter.SearchNoKey:
+		return fmt.Sprintf("no %s key was found ($%s): add one under Settings → Provider settings → Web search", pol.WebSearch.ProviderName(), pol.WebSearch.KeyEnv())
+	}
+	return ""
 }
 
 // WebUnavailable is why the runtime alone keeps a build here off the web,
