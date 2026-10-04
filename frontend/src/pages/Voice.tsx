@@ -75,10 +75,14 @@ export default function Voice({ registry, onOpenSettings }: {
       setBusy(null);
     }
   }
+  // Each page reads both voices again: the account's can change elsewhere
+  // (the site, the CLI, a review that passed), and the buttons' lines are
+  // only as true as the last read.
   function open(next: VoiceView) {
     setNotice(null);
     setError(null);
     setPage(next);
+    refresh();
   }
 
   if (!view) return error ? <ErrorBox error={error} /> : <Spinner label="Reading your voice…" />;
