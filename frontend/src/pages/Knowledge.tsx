@@ -207,7 +207,7 @@ export default function Knowledge({
                 busy={is("delete", p.name)}
                 busyLabel="Deleting…"
                 onClick={() => act("delete", p.name, async () => {
-                  await KnowledgeAPI.Delete(registry, p.name, false);
+                  await KnowledgeAPI.Delete(registry, p.name);
                   return `Deleted ${p.name} from this computer.${p.inAgentry && !p.shared ? " Agentry keeps its copy." : ""}`;
                 })}
               >
@@ -217,7 +217,10 @@ export default function Knowledge({
           />
         ))}
         {list && here.length > 0 && (
-          <p className="muted small">Copy to Cloud keeps a copy in your Agentry account, where it is scanned; the copy here stays.</p>
+          <p className="muted small">
+            Copy to Cloud keeps a copy in your Agentry account, where AI Review scans it and it counts toward your storage there; the copy here
+            stays.
+          </p>
         )}
         {previewModal}
       </div>
@@ -269,7 +272,7 @@ export default function Knowledge({
                 busy={is("delete-agentry", p.name)}
                 busyLabel="Deleting…"
                 onClick={() => act("delete-agentry", p.name, async () => {
-                  await KnowledgeAPI.DeleteFromAgentry(registry, p.name, p.agentryId!);
+                  await KnowledgeAPI.DeleteFromAgentry(registry, p.agentryId!);
                   return `Deleted ${p.name} from Agentry.${p.local ? " The copy on this computer stays." : ""}`;
                 })}
               >

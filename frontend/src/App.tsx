@@ -9,7 +9,7 @@ import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
 import Installed from "./pages/Installed";
-import Knowledge from "./pages/Knowledge";
+import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
 import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
@@ -48,7 +48,7 @@ export type Route =
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app
 // (agentry-desktop#353). One at a time, as the run lock allows one build.
-type KnowledgeFlow = { registry: string; addTo?: string; place?: "local" | "agentry" };
+type KnowledgeFlow = { registry: string; addTo?: string; place?: KnowledgePlace };
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ page: "browse" });

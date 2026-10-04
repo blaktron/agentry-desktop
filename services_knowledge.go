@@ -2,8 +2,9 @@
 // agentry-desktop#273, D-039). The packs are the local store's, which the
 // CLI shares (internal/knowledge over agentry-cli's pkg/knowledge/store):
 // list, Create knowledge and Add documents with the built-in Knowledge
-// Creator on this computer, Copy to Cloud and Copy to Local (Upload and Download), Export
-// unencrypted…, Delete, and a page preview. The gates are the run
+// Creator on this computer, Copy to Cloud and Copy to Local (Upload and
+// Download), Export unencrypted…, Delete here or in Agentry, and a page
+// preview. The gates are the run
 // surface's (D-030): documents come only from the native picker, an export
 // and a delete are asked in a native dialog, an export's folder is the
 // picker's by construction, and a build takes the run lock, so it waits
@@ -261,44 +262,47 @@ func (k *KnowledgeAPI) Export(reg, name string) (*ExportView, error) {
 }
 
 // Delete removes the pack from this computer — the sealed tree, its
-// wrapped key and the key the keychain caches — after a native dialog;
-// with everywhere, Agentry's copy too. The dialog says when this
-// computer's copy is the only one.
-func (k *KnowledgeAPI) Delete(reg, name string, everywhere bool) error {
+// wrapped key and the key the keychain caches — after a native dialog.
+// Agentry's copy is left as it is: each page deletes its own place's copy
+// (plan knowledge-cards.md D3, agentry-desktop#619), and Agentry's goes
+// through DeleteFromAgentry. The dialog says when this computer's copy is
+// the only one.
+func (k *KnowledgeAPI) Delete(reg, name string) error {
 	en, err := k.env().Find(reg, name)
 	if err != nil {
 		return err
 	}
 	msg := "This deletes the knowledge pack " + name + " from this computer."
-	switch {
-	case everywhere && en.Key.Agentry != nil:
-		msg = "This deletes the knowledge pack " + name + " from this computer and from Agentry. Neither copy can be recovered."
-	case en.Key.Agentry == nil:
+	if en.Key.Agentry == nil {
 		msg += " It is the only copy: Agentry keeps none, and it cannot be recovered."
-	default:
+	} else {
 		msg += " Agentry keeps its copy, which Copy to Local brings back."
 	}
 	if err := k.app.askConsent("Delete "+name+"?", msg+" Continue?"); err != nil {
 		return err
 	}
-	return k.env().Delete(k.app.ctx, reg, name, everywhere)
+	return k.env().Delete(k.app.ctx, reg, name, false)
 }
 
-// DeleteFromAgentry deletes Agentry's copy of the pack, id, after a native
+// DeleteFromAgentry deletes the account's pack id in Agentry after a native
 // dialog, and leaves this computer's copy as it is (plan knowledge-cards.md
-// §4.3, D3; agentry-desktop#619). The dialog says whether a copy stays here
-// by this computer's own record, not the page's word.
-func (k *KnowledgeAPI) DeleteFromAgentry(reg, name, id string) error {
-	if !knowledge.IsAgentryID(id) {
-		return fmt.Errorf("%q is not the id of a pack in Agentry", id)
+// §4.3, D3; agentry-desktop#619). The pack is found by its id in the
+// account's own list first, and the dialog names it from there, never from
+// the page; an id that list does not hold (an organization's shared pack,
+// another account's, one already gone) is refused before anything is
+// asked. Whether a copy stays here is this computer's own record's to say.
+func (k *KnowledgeAPI) DeleteFromAgentry(reg, id string) error {
+	r, err := k.env().AgentryPack(k.app.ctx, reg, id)
+	if err != nil {
+		return err
 	}
-	msg := "This deletes Agentry's copy of " + name + " and its scan report."
-	if en, err := k.env().Find(reg, name); err == nil && en.Key.Agentry != nil && en.Key.Agentry.ID == id {
+	msg := "This deletes Agentry's copy of " + r.Name + " and its scan report."
+	if en, err := k.env().Find(reg, r.Name); err == nil && en.Key.Agentry != nil && en.Key.Agentry.ID == id {
 		msg += " The copy on this computer stays, and Copy to Cloud keeps it in Agentry again."
 	} else {
 		msg += " It is the only copy: this computer keeps none, and it cannot be recovered."
 	}
-	if err := k.app.askConsent("Delete "+name+" from Agentry?", msg+" Continue?"); err != nil {
+	if err := k.app.askConsent("Delete "+r.Name+" from Agentry?", msg+" Continue?"); err != nil {
 		return err
 	}
 	return k.env().DeleteFromAgentry(k.app.ctx, reg, id)

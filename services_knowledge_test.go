@@ -165,7 +165,7 @@ func TestKnowledgeDeleteAsksNatively(t *testing.T) {
 	f := newKnowledgeFixture(t)
 	msg := ""
 	f.k.app.confirm = func(_ context.Context, _, m string) (bool, error) { msg = m; return false, nil }
-	if err := f.k.Delete(f.reg.URL, "handbook", false); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+	if err := f.k.Delete(f.reg.URL, "handbook"); err == nil || !strings.Contains(err.Error(), "not confirmed") {
 		t.Fatalf("delete answered No: %v", err)
 	}
 	if !strings.Contains(msg, "It is the only copy") {
@@ -175,7 +175,7 @@ func TestKnowledgeDeleteAsksNatively(t *testing.T) {
 		t.Fatalf("a delete answered No removed the pack: %v", err)
 	}
 	f.k.app.confirm = func(context.Context, string, string) (bool, error) { return true, nil }
-	if err := f.k.Delete(f.reg.URL, "handbook", false); err != nil {
+	if err := f.k.Delete(f.reg.URL, "handbook"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.env.Find(f.reg.URL, "handbook"); !errors.Is(err, store.ErrNotFound) {
@@ -206,7 +206,7 @@ func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
 	}
 	msg := ""
 	f.k.app.confirm = func(_ context.Context, _, m string) (bool, error) { msg = m; return false, nil }
-	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", id); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+	if err := f.k.DeleteFromAgentry(f.reg.URL, id); err == nil || !strings.Contains(err.Error(), "not confirmed") {
 		t.Fatalf("delete answered No: %v", err)
 	}
 	if !strings.Contains(msg, "Agentry's copy of handbook") || !strings.Contains(msg, "The copy on this computer stays") {
@@ -216,7 +216,7 @@ func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
 		t.Fatal("a delete answered No removed Agentry's copy")
 	}
 	f.k.app.confirm = func(context.Context, string, string) (bool, error) { return true, nil }
-	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", id); err != nil {
+	if err := f.k.DeleteFromAgentry(f.reg.URL, id); err != nil {
 		t.Fatal(err)
 	}
 	if p := inAgentry(); p.InAgentry || !p.Local || p.AgentryID != "" {
@@ -242,7 +242,7 @@ func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
 		t.Fatalf("still here: %+v", only)
 	}
 	f.k.app.confirm = func(_ context.Context, _, m string) (bool, error) { msg = m; return true, nil }
-	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", only.AgentryID); err != nil {
+	if err := f.k.DeleteFromAgentry(f.reg.URL, only.AgentryID); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(msg, "It is the only copy") {
@@ -251,11 +251,16 @@ func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
 	if l, err := f.env.List(f.k.app.ctx, f.reg.URL); err != nil || len(l.Packs) != 0 {
 		t.Fatalf("after deleting the only copy: %+v, %v", l, err)
 	}
-	// An id that is not one of the account's packs is refused before anything is asked.
+	// An id that is not a pack id, or not one of the account's own packs in
+	// Agentry (gone, another account's, an organization's shared pack), is
+	// refused before anything is asked: the dialog names only a pack Go
+	// found by that id.
 	asked := false
 	f.k.app.confirm = func(context.Context, string, string) (bool, error) { asked = true; return true, nil }
-	if err := f.k.DeleteFromAgentry(f.reg.URL, "handbook", "../../user"); err == nil || asked {
-		t.Fatalf("a bad id: %v (asked %v)", err, asked)
+	for _, bad := range []string{"../../user", only.AgentryID, "00000000-0000-4000-8000-000000000000"} {
+		if err := f.k.DeleteFromAgentry(f.reg.URL, bad); err == nil || asked {
+			t.Fatalf("id %q: %v (asked %v)", bad, err, asked)
+		}
 	}
 }
 

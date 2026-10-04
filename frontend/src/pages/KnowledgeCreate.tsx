@@ -212,9 +212,12 @@ export default function KnowledgeCreate({
   // In Agentry preset where it cannot be chosen falls back to this
   // computer, as its radio is disabled then (D5).
   const agentryChoosable = !!avail?.offered && avail.available && !pastAgentry && !agentryNoBrief;
+  // Add documents from the Cloud page does not fall back: the pack may not
+  // be kept here, and documents added here would change only this
+  // computer's copy, so In Agentry stays chosen and the reason blocks it.
   useEffect(() => {
-    if (where === "agentry" && availRead && !agentryChoosable) setWhere("local");
-  }, [where, availRead, agentryChoosable]);
+    if (!addTo && where === "agentry" && availRead && !agentryChoosable) setWhere("local");
+  }, [addTo, where, availRead, agentryChoosable]);
   const fellBack = place === "agentry" && where === "local" && availRead && !agentryChoosable;
   useEffect(() => EventsOn("knowledge:build-log", (line: string) => setLog((p) => [...p, line])), []);
   useEffect(() => EventsOn("knowledge:build-progress", (p: BuildProgress) => setProgress(p)), []);
@@ -258,7 +261,8 @@ export default function KnowledgeCreate({
   const blockers: string[] = [];
   const inAgentry = where === "agentry";
   if (inAgentry) {
-    if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
+    if (availRead && !avail?.offered) blockers.push("This registry does not build knowledge In Agentry.");
+    else if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
     if (agentryNoBrief) blockers.push(AGENTRY_NO_BRIEF);
   } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);

@@ -664,6 +664,28 @@ func (e Env) DeleteFromAgentry(ctx context.Context, current, id string) error {
 	return nil
 }
 
+// AgentryPack is the account's own pack id in Agentry, as its list says it
+// now, for the bindings' dialogs: they name only a pack found by its id.
+// An organization's shared pack is not in that list, nor is another
+// account's or one already gone; each is refused (ErrRemoteNotFound).
+func (e Env) AgentryPack(ctx context.Context, current, id string) (store.Remote, error) {
+	if !IsAgentryID(id) {
+		return store.Remote{}, fmt.Errorf("%q is not the id of a pack in Agentry", id)
+	}
+	c, err := e.registry(settings.Normalize(current))
+	if err != nil {
+		return store.Remote{}, err
+	}
+	rs, err := c.List(ctx)
+	if err != nil {
+		return store.Remote{}, fmt.Errorf("list your packs in Agentry: %w", err)
+	}
+	if r, ok := findRemote(rs, id); ok {
+		return r, nil
+	}
+	return store.Remote{}, fmt.Errorf("no pack of yours in Agentry has the id %s: %w", id, store.ErrRemoteNotFound)
+}
+
 // IsAgentryID says id is the form a registry names a pack by, a UUID; any
 // other string is refused before a registry is asked.
 func IsAgentryID(id string) bool { return agentryID.MatchString(id) }
