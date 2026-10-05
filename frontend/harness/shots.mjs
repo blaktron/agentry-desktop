@@ -530,6 +530,16 @@ const states = [
     click: '[data-preview="settings"] .settings-card:has-text("Provider settings") .settings-card-link', expectSection: "provider", expectText: ["Model provider", "Save provider settings", "Your own TypeSafe Jev key"] },
   { name: "settings-part-link", url: "/pages.html", note: "a part's link on the landing opens its section at that part", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card-parts button:has-text("AI Review key")', expectSection: "provider", expectPart: "ai-review-key" },
+  // A deep link to a part a section's own read renders, or one that read
+  // pushes down, lands at the part once the page has filled in
+  // (agentry-desktop#673): Home's Recent runs card and the Voice page's two
+  // links (the sidebar's Unsafe Mode badge is settings-deeplink-unsafe, below).
+  { name: "settings-deeplink-run-history", url: "/pages.html", note: "Home's Recent runs card opens Run defaults at Recent runs (agentry-desktop#673)", locator: '[data-preview="settings"]',
+    click: '[data-deeplink="homeRunHistory"]', expectSection: "run-defaults", expectPart: "history" },
+  { name: "settings-deeplink-voice-here", url: "/pages.html", note: "the Voice page's link for this computer opens Run defaults at Writing Voice, below the parts Run defaults' read adds (agentry-desktop#673)", locator: '[data-preview="settings"]',
+    click: '[data-deeplink="voiceHere"]', expectSection: "run-defaults", expectPart: "voice" },
+  { name: "settings-deeplink-voice-account", url: "/pages.html", note: "the Voice page's link for the account opens Profile at Writing Voice, below the parts the profile's read adds (agentry-desktop#673)", locator: '[data-preview="settings"]',
+    click: '[data-deeplink="voiceAccount"]', expectSection: "profile", expectPart: "account-voice" },
   { name: "settings-back-registry", url: "/pages.html?settings=registry", note: "← Settings on Registry settings returns to the cards", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
   { name: "settings-back-updates", url: "/pages.html?settings=updates", note: "← Settings on Update settings returns to the cards", locator: '[data-preview="settings"]',
@@ -815,12 +825,22 @@ try {
         if (at !== state.expectSection) throw new Error(`${state.name}: Settings shows "${at}", not "${state.expectSection}"`);
       }
       if (state.expectPart) {
-        // A part the link named is scrolled into view.
-        const seen = await page.locator(`#settings-part-${state.expectPart}`).evaluate((el) => {
+        // A part the link named is scrolled to: its top at the top of the
+        // view (less its scroll margin), or as near as a page that cannot
+        // scroll further allows (agentry-desktop#673). Merely "in view"
+        // passed a part near the top that the scroll never reached. Read
+        // after the page settles, since a section's own reads render its
+        // parts after the route changes.
+        // The tolerances are for rounding at a 1.5 device scale, not layout.
+        await page.waitForTimeout(400);
+        const where = await page.locator(`#settings-part-${state.expectPart}`).evaluate((el) => {
           const r = el.getBoundingClientRect();
-          return r.top < window.innerHeight && r.bottom > 0;
+          const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+          const s = document.scrollingElement;
+          const atBottom = s.scrollTop + window.innerHeight >= s.scrollHeight - 2;
+          return { off: Math.round(r.top - margin), atBottom, inView: r.top < window.innerHeight && r.bottom > 0 };
         });
-        if (!seen) throw new Error(`${state.name}: the part ${state.expectPart} is not in view`);
+        if (!where.inView || (Math.abs(where.off) > 4 && !where.atBottom)) throw new Error(`${state.name}: the part ${state.expectPart} is not scrolled to (${where.off}px from where it should be)`);
       }
       if (state.expectCards) {
         const n = await page.locator('[data-preview="settings"] .settings-card').count();

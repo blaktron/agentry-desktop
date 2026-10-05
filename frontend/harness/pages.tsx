@@ -884,6 +884,11 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
     <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
+    {/* Room below the last preview, so a deep link to a part near the end of
+        a Settings page can still be scrolled to the top of the view and a
+        shot can tell when it was not (agentry-desktop#673). Outside every
+        preview, so no locator's shot grows. */}
+    <div aria-hidden style={{ height: "100vh" }} />
   </div>,
 );
 if (landedDraft) {
