@@ -9,15 +9,17 @@
 // voice over a newer one (D2). Edit with AI (WriteWithAI) runs the Voice
 // Writer on this computer for no credits: an AI Edit with a note and
 // optional samples, or a Create where this computer keeps no voice. The
-// Voice Writer also runs In Agentry as a hosted run at the registry's flat
-// price (agentry-enterprise#306).
+// Cloud Voice page (agentry-desktop#611) is the site's Voice settings page:
+// the account's editor, Discard of a pending version, Restore previous,
+// Delete, and Edit with AI run In Agentry (HostedWithAI) as a hosted run at
+// the registry's flat price (agentry-enterprise#306).
 //
 // The gates are the Knowledge panel's (D-030): samples come only from the
 // native pickers; a download over a different voice here, an upload after
-// a newer version in the account, and Delete are asked in a native dialog
-// (a Save or a Voice Writer run replaces this computer's voice at the
-// person's own press, as the page says beside it); and a Voice Writer run
-// here takes the run lock.
+// a newer version in the account, a Discard and both Deletes are asked in
+// a native dialog (a Save or a Voice Writer run replaces this computer's
+// voice at the person's own press, as the page says beside it); and a
+// Voice Writer run here takes the run lock.
 package main
 
 import (
@@ -279,6 +281,48 @@ func (v *VoiceAPI) UseAccount(reg string) (*VoiceSaveView, error) {
 // voice (Profile).
 func (v *VoiceAPI) SetAccountAttach(reg string, on bool) (*voice.Account, error) {
 	return v.env().SetAccountAttach(v.app.ctx, settings.Normalize(reg), on)
+}
+
+// DiscardAccount drops the account's pending version, in review or
+// flagged, after a native dialog (the Cloud Voice page's Discard, plan
+// voice-page-redesign.md §5.2, D5). The live voice stays live.
+func (v *VoiceAPI) DiscardAccount(reg string) (*voice.Account, error) {
+	if err := v.app.askConsent("Discard your new version?",
+		"This drops the version of your voice waiting in your account, in review or flagged by AI Review. Your live voice, if you have one, stays live. "+
+			"The discarded text cannot be recovered. Continue?"); err != nil {
+		return nil, err
+	}
+	return v.env().DiscardAccount(v.app.ctx, settings.Normalize(reg))
+}
+
+// VoiceRestoreView is the account after Restore previous, and whether the
+// restored version went to AI Review again rather than live at once.
+type VoiceRestoreView struct {
+	Account  *voice.Account `json:"account"`
+	InReview bool           `json:"inReview"`
+}
+
+// RestoreAccount puts the account's previous version back (Restore
+// previous). It is asked nowhere, as on the site: the line beside it says
+// whether it goes live at once or to AI Review, and a swap is undone by
+// restoring again.
+func (v *VoiceAPI) RestoreAccount(reg string) (*VoiceRestoreView, error) {
+	a, inReview, err := v.env().RestoreAccount(v.app.ctx, settings.Normalize(reg))
+	if err != nil {
+		return nil, err
+	}
+	return &VoiceRestoreView{Account: a, InReview: inReview}, nil
+}
+
+// DeleteAccount deletes the account's voice, every version and its key,
+// after a native dialog. This computer's voice is not touched.
+func (v *VoiceAPI) DeleteAccount(reg string) error {
+	if err := v.app.askConsent("Delete your account's voice?",
+		"This deletes your Writing Voice in Agentry: the live version, any version waiting for AI Review, the previous one, and its key. "+
+			"Runs In Agentry no longer write in it. It cannot be undone. The voice kept on this computer is not touched. Continue?"); err != nil {
+		return err
+	}
+	return v.env().DeleteAccount(v.app.ctx, settings.Normalize(reg))
 }
 
 // voiceJob reads the panel's word for a Voice Writer job.
@@ -596,6 +640,32 @@ func voiceRefusal(r *hostedrun.Refusal) *VoiceHostedStartView {
 	return out
 }
 
+// HostedWithAI is Edit with AI on the Cloud Voice page (plan
+// voice-page-redesign.md §4.3, §7, D3): the Voice Writer In Agentry at the
+// registry's flat price. Where the account keeps a voice it is an AI Edit
+// of its newest version, the text being what should change and the samples
+// optional; where it keeps none it is a Create, the samples required and
+// the text read as the brief (accountJob).
+func (v *VoiceAPI) HostedWithAI(reg, text string, samples []string) (*VoiceHostedStartView, error) {
+	reg = settings.Normalize(reg)
+	a, err := v.env().Account(v.app.ctx, reg)
+	if err != nil {
+		return nil, err
+	}
+	return v.StartHosted(reg, accountJob(a), samples, text)
+}
+
+// accountJob is the Voice Writer's job behind Edit with AI In Agentry:
+// Edit over a live or a pending version (a first version in review or
+// flagged is the voice to edit, as on the site), Create where there is
+// neither.
+func accountJob(a *voice.Account) string {
+	if a != nil && (a.Live != nil || a.Pending != nil) {
+		return hostedrun.VoiceEdit
+	}
+	return hostedrun.VoiceCreate
+}
+
 // followHosted watches the run in the background and reports every status
 // change as voice:hosted. Its voice lands in the account, not here: the
 // panel reads the account again when the run is over.
@@ -630,6 +700,50 @@ func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
 		}
 		emitEvent(v.app, eventVoiceHosted, voiceHostedView(final, true))
 	}()
+}
+
+// AttachHosted follows this account's Voice Writer run In Agentry in
+// flight, if it has one, so a Cloud Voice page opened again (left and
+// reopened, or after a restart) shows it and its Cancel rather than
+// offering a second. The URL is held to Settings' rule before its token is
+// looked up (agentry-desktop#307's lesson).
+func (v *VoiceAPI) AttachHosted(reg string) (*VoiceHostedStartView, error) {
+	reg = settings.Normalize(reg)
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, fmt.Errorf("the registry: %w", err)
+	}
+	token := v.env().TokenFor(reg)
+	if token == "" {
+		return &VoiceHostedStartView{}, nil
+	}
+	client := hostedrun.New(reg, token)
+	if cur := v.hosted.current(); cur != nil {
+		if cur.id == "" {
+			// A start holds the slot; its own events report the run.
+			return &VoiceHostedStartView{}, nil
+		}
+		if fresh, err := client.Get(v.app.ctx, cur.id); err == nil {
+			return &VoiceHostedStartView{Run: voiceHostedView(fresh, false)}, nil
+		}
+		return &VoiceHostedStartView{}, nil
+	}
+	if err := v.hosted.claim("busy"); err != nil {
+		return &VoiceHostedStartView{}, nil //nolint:nilerr // a start took the slot first
+	}
+	runs, err := client.List(v.app.ctx)
+	if err != nil {
+		v.hosted.release()
+		return &VoiceHostedStartView{}, nil //nolint:nilerr // no list, nothing to follow
+	}
+	for i := range runs {
+		r := &runs[i]
+		if r.IsVoiceBuild() && hostedrun.Active(r.Status) {
+			v.followHosted(reg, token, r)
+			return &VoiceHostedStartView{Run: voiceHostedView(r, false)}, nil
+		}
+	}
+	v.hosted.release()
+	return &VoiceHostedStartView{}, nil
 }
 
 // CancelHosted asks the registry to cancel the Voice Writer run In Agentry

@@ -6,7 +6,10 @@
 // account's is the registry's (the core's /api/v1/voice, V2, through
 // agentry-cli's pkg/voice/remote, V3): reviewed by AI Review before it is
 // live. Submit sends this computer's up for review; Use keeps the account's
-// live one here.
+// live one here. Discard, Restore and Delete in the account go to the
+// core's routes through its generated client, since the CLI's client does
+// not speak them (agentry-desktop#611, D-063); every account they answer is
+// read again through the CLI's client, which holds it to its digests.
 //
 // The wiring is the Knowledge panel's (internal/knowledge.Env): the runner
 // home the CLI shares, the OS keychain, and the sign-in Settings keeps. A
@@ -16,13 +19,17 @@ package voice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/blaktron/agentry/pkg/apiclient"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
@@ -34,6 +41,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/voice/remote"
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
@@ -154,6 +162,10 @@ type Version struct {
 	Findings   []remote.Finding `json:"findings,omitempty"`
 	CreatedAt  time.Time        `json:"createdAt"`
 	ReviewedAt *time.Time       `json:"reviewedAt,omitempty"`
+	// QuestionSet is the AI Review question set the version was reviewed
+	// under; a previous version under the account's current set is
+	// restored at once, under another it is reviewed again.
+	QuestionSet string `json:"questionSet,omitempty"`
 }
 
 // Account is the account's voice as the panel shows it. Exists is false
@@ -164,6 +176,8 @@ type Account struct {
 	Live         *Version `json:"live,omitempty"`
 	Pending      *Version `json:"pending,omitempty"`
 	Previous     *Version `json:"previous,omitempty"`
+	// QuestionSet is the set AI Review asks now.
+	QuestionSet string `json:"questionSet,omitempty"`
 }
 
 func versionOf(v *remote.Version) *Version {
@@ -172,29 +186,168 @@ func versionOf(v *remote.Version) *Version {
 	}
 	return &Version{
 		Review: string(v.Review), Source: v.Source, Digest: v.Digest, Bytes: v.Bytes, Text: v.Text,
-		Verdict: v.Verdict, Findings: v.Findings, CreatedAt: v.CreatedAt, ReviewedAt: v.ReviewedAt,
+		Verdict: v.Verdict, Findings: v.Findings, CreatedAt: v.CreatedAt, ReviewedAt: v.ReviewedAt, QuestionSet: v.QuestionSet,
 	}
 }
 
 func accountOf(a remote.Account) *Account {
-	return &Account{Exists: true, AlwaysAttach: a.AlwaysAttach, Live: versionOf(a.Live), Pending: versionOf(a.Pending), Previous: versionOf(a.Previous)}
+	return &Account{
+		Exists: true, AlwaysAttach: a.AlwaysAttach, Live: versionOf(a.Live), Pending: versionOf(a.Pending), Previous: versionOf(a.Previous),
+		QuestionSet: a.QuestionSet,
+	}
 }
 
 // client is the signed-in client of the account at reg, or
 // remote.ErrSignedOut.
 func (e Env) client(reg string) (*remote.Client, error) {
+	reg, token, err := e.signedIn(reg)
+	if err != nil {
+		return nil, err
+	}
+	return remote.New(reg, token, e.HTTP)
+}
+
+// signedIn is reg held to Settings' URL rule, then its token: the token is
+// found by host alone, so the rule comes first.
+func (e Env) signedIn(reg string) (string, string, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
-		return nil, fmt.Errorf("the registry: %w", err)
+		return "", "", fmt.Errorf("the registry: %w", err)
 	}
 	token := ""
 	if e.TokenFor != nil {
 		token = e.TokenFor(reg)
 	}
 	if token == "" {
-		return nil, fmt.Errorf("%s: %w (sign in to it in Settings)", reg, remote.ErrSignedOut)
+		return "", "", fmt.Errorf("%s: %w (sign in to it in Settings)", reg, remote.ErrSignedOut)
 	}
-	return remote.New(reg, token, e.HTTP)
+	return reg, token, nil
+}
+
+// api is the core's generated client at reg, signed in, for the voice
+// routes the CLI's client does not speak: Discard, Restore and Delete
+// (plan voice-page-redesign.md §4.3; agentry-desktop#611, D-063).
+func (e Env) api(reg string) (*apiclient.ClientWithResponses, error) {
+	reg, token, err := e.signedIn(reg)
+	if err != nil {
+		return nil, err
+	}
+	hc := e.HTTP
+	if hc == nil {
+		hc = registry.HTTPClient
+	}
+	return apiclient.NewClientWithResponses(reg+"/api/v1",
+		apiclient.WithHTTPClient(hc),
+		apiclient.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
+			req.Header.Set("Authorization", "Bearer "+token)
+			return nil
+		}))
+}
+
+// voiceProblem is a refused voice call in the registry's words, made
+// printable on one line and cut as the CLI's voice client cuts them (a
+// title at 120 characters, a detail at 400).
+func voiceProblem(op string, res *http.Response, p *apiclient.Problem, body []byte) error {
+	status := 0
+	if res != nil {
+		status = res.StatusCode
+	}
+	if status == http.StatusUnauthorized {
+		return fmt.Errorf("%s: %w (sign in to it again in Settings)", op, remote.ErrSignedOut)
+	}
+	// A status the spec declares (409, 404) is not parsed as a problem by
+	// the generated client; its body still is one.
+	if p == nil && len(body) > 0 {
+		var parsed apiclient.Problem
+		if json.Unmarshal(body, &parsed) == nil && parsed.Title != "" {
+			p = &parsed
+		}
+	}
+	if p != nil {
+		clean := apiclient.Problem{Title: printable(p.Title, 120)}
+		if p.Detail != nil {
+			d := printable(*p.Detail, 400)
+			clean.Detail = &d
+		}
+		return registry.Problem(op, status, &clean, nil)
+	}
+	return registry.Problem(op, status, nil, []byte(printable(string(body), 300)))
+}
+
+// printable is s with every control character a space, cut at n
+// characters.
+func printable(s string, n int) string {
+	s = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(s, ""))
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
+}
+
+// DiscardAccount drops the account's pending version, in review or
+// flagged: DELETE /voice/pending. The live voice stays live. The account
+// is read again through the CLI's client, which holds every version to its
+// digest and to plain text.
+func (e Env) DiscardAccount(ctx context.Context, reg string) (*Account, error) {
+	c, err := e.api(reg)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.DiscardVoicePendingWithResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, voiceProblem("discard your new version", res.HTTPResponse, res.ApplicationproblemJSONDefault, res.Body)
+	}
+	return e.Account(ctx, reg)
+}
+
+// RestoreAccount puts the previous version back: POST /voice/restore. One
+// reviewed under the set AI Review asks now trades places with the live one
+// at once; one reviewed under another becomes the pending version and is
+// reviewed again, which inReview says (and which the registry may charge
+// for, as any review).
+func (e Env) RestoreAccount(ctx context.Context, reg string) (a *Account, inReview bool, err error) {
+	c, err := e.api(reg)
+	if err != nil {
+		return nil, false, err
+	}
+	res, err := c.RestoreVoiceWithResponse(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	switch {
+	case res.JSON200 != nil:
+	case res.JSON202 != nil:
+		inReview = true
+	default:
+		return nil, false, voiceProblem("restore your previous version", res.HTTPResponse, res.ApplicationproblemJSONDefault, res.Body)
+	}
+	a, err = e.Account(ctx, reg)
+	return a, inReview, err
+}
+
+// DeleteAccount deletes the account's voice, every version of it and its
+// data key: DELETE /voice. This computer's voice is not touched.
+func (e Env) DeleteAccount(ctx context.Context, reg string) error {
+	c, err := e.api(reg)
+	if err != nil {
+		return err
+	}
+	res, err := c.DeleteVoiceWithResponse(ctx)
+	if err != nil {
+		return err
+	}
+	if res.StatusCode() != http.StatusNoContent {
+		return voiceProblem("delete your account's voice", res.HTTPResponse, res.ApplicationproblemJSONDefault, res.Body)
+	}
+	return nil
 }
 
 // Account reads the account's voice at reg. An account that keeps none is

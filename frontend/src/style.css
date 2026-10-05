@@ -1145,3 +1145,12 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .voice-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; margin: 12px 0; }
 .voice-action { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .voice-action p { margin: 0; }
+
+/* The Cloud Voice page (agentry-desktop#611): Edit with AI under the
+   editor, and Restore previous and Delete at the foot, each with its line. */
+.voice-cloud-ai { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--color-border); }
+.voice-cloud-ai p { margin: 0; }
+.voice-foot-item { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.voice-foot-item + .voice-foot-item { margin-top: 14px; }
+.voice-foot-item p { margin: 0; }
+.voice-pending h3 { font-size: 14px; margin: 12px 0 4px; }
