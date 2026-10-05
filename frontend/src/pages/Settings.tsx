@@ -33,7 +33,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key";
+  | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -61,10 +61,10 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "run-defaults", title: "Run defaults",
-    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, and the Docker engine runs on this computer use, with Agentry's images on it.",
+    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, which runs are remembered, and the Docker engine runs on this computer use, with Agentry's images on it.",
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
-      { id: "output", label: "Output folder" }, { id: "unsafe", label: "Unsafe Mode" },
+      { id: "output", label: "Output folder" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
       { id: "docker", label: "Docker engine" }, { id: "images", label: "Docker images" }, { id: "voice", label: "Writing Voice" },
     ],
   },
@@ -89,6 +89,8 @@ export const SETTINGS_FOR = {
   homeProfile: { section: "profile" },
   homeSignIn: { section: "registry", part: "registries" },
   homeRunDefaults: { section: "run-defaults" },
+  // Home's Recent runs card (agentry-desktop#659)
+  homeRunHistory: { section: "run-defaults", part: "history" },
   // Knowledge's "Not signed in" notice
   knowledgeSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
@@ -313,6 +315,14 @@ export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusVi
   const builtins = d.builtinNoTimeout ? " The built-in agents have no time limit here." : "";
   const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${builtins} ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
+}
+
+// historyLine says what the run history holds (D-068).
+function historyLine(d: main.RunDefaultsView): string {
+  if (!d.rememberRuns) return "Off: no run is remembered.";
+  if (d.runHistoryCount < 0) return "On. The run history cannot be read; Clear run history starts it again.";
+  if (d.runHistoryCount === 0) return "On. No run is remembered yet.";
+  return `On. ${d.runHistoryCount} run${d.runHistoryCount === 1 ? " is" : "s are"} remembered.`;
 }
 
 // A chat on this computer has no limit but the Chat idle timeout, none by
@@ -551,6 +561,25 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 Chosen here, through the file dialog. The run setup fills it in and you can pick another for one run.
                 Each run writes into a folder of its own inside it. A run never reads from it unless you add it as an input.
               </p>
+            </Card>
+          </PartSection>
+          <PartSection id="history" title="Recent runs">
+            <Card>
+              <label className="check-row" style={{ margin: 0 }}>
+                <input type="checkbox" role="switch" checked={defaults.rememberRuns} disabled={busy} data-remember-runs
+                  onChange={(e) => void act(() => SettingsAPI.SetRememberRuns(e.target.checked))} />
+                <span><strong>Remember recent runs</strong></span>
+              </label>
+              <p className="small" data-run-history-state>{historyLine(defaults)}</p>
+              <p className="muted small">
+                Agentry Desktop keeps the last 50 runs on this computer, drafts, reviews and knowledge and voice builds
+                included, so Home&apos;s Recent runs can list them and open each one&apos;s result again. For each it keeps
+                the QuickAgent, when it ran, how it ended and its output folder, never the task, your inputs, the result or
+                the log. Turning this off forgets them all and keeps nothing from then on. Neither removes a run&apos;s folder.
+              </p>
+              {defaults.rememberRuns && defaults.runHistoryCount !== 0 && (
+                <Button disabled={busy} data-clear-run-history onClick={() => act(SettingsAPI.ClearRunHistory)}>Clear run history</Button>
+              )}
             </Card>
           </PartSection>
           <PartSection id="unsafe" title="Unsafe Mode">

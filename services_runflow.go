@@ -3,8 +3,8 @@
 // D16): the page's store follows the run by its id through
 // runner:run-progress and runner:run-line, Stop ends it (StopRun, which
 // stops a run and nothing else), the busy refusal and InFlight say which
-// job holds the run lock, and Dismiss makes the app forget the run
-// (ForgetRun).
+// job holds the run lock, and Dismiss removes the run's card (ForgetRun;
+// the run history keeps the run since D-068).
 package main
 
 import (
@@ -211,10 +211,13 @@ func (r *RunAPI) StopRun() error {
 	return nil
 }
 
-// ForgetRun makes the app forget a run on this computer once its card is
-// dismissed (D7): its folder is dropped, so RunOutputs and ShowRunFolder
-// refuse its id afterwards. The folder itself, its receipts included, is
-// not touched. Quitting forgets every run, since nothing of one is kept.
+// ForgetRun is Dismiss on a run's card: this process's memory of the run's
+// folder is dropped, and the folder itself, its receipts included, is not
+// touched. Since D-068 (revising plan D7) the run history keeps a run that
+// has ended, so while Remember recent runs is on RunOutputs and
+// ShowRunFolder still read its id through the history, for the run page;
+// with it off they refuse the id afterwards, as before, and quitting
+// forgets every run.
 func (r *RunAPI) ForgetRun(runID string) {
 	r.foldersMu.Lock()
 	delete(r.folders, runID)

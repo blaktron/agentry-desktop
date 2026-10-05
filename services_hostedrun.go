@@ -731,18 +731,20 @@ func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, 
 		}
 		final = last
 	}
-	r.deliver(client, final, outDir)
+	r.deliver(client, reg, final, outDir)
 }
 
 // deliver brings a finished run's artefacts down into the folder the person
 // picked and reports the run's last word, from which the receipt and the
 // result render.
-func (r *RunAPI) deliver(client *hostedrun.Client, final *hostedrun.Run, outDir string) {
+func (r *RunAPI) deliver(client *hostedrun.Client, reg string, final *hostedrun.Run, outDir string) {
 	got, derr := client.DownloadOutputs(context.Background(), final, outDir)
-	// Whatever landed is this run's folder, for the result view. The id
-	// is the registry's, so it is remembered only when it is an id.
+	// Whatever landed is this run's folder, for the result view and the
+	// run history (D-068). The id is the registry's, so it is remembered
+	// only when it is an id.
 	if validRunID(final.ID) {
 		r.rememberFolder(final.ID, outDir)
+		recordHosted(reg, final, outDir)
 	}
 	msg := ""
 	if derr != nil {

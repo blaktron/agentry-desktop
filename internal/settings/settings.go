@@ -129,6 +129,13 @@ type Settings struct {
 	// run and a run In Agentry cannot read it, and no installed package can
 	// claim it. Read it through BuiltinBudgets.
 	BuiltinNoTimeout bool `yaml:"builtinNoTimeout,omitempty" json:"builtinNoTimeout,omitempty"`
+	// RememberRuns is Settings → Run defaults → Remember recent runs (plan
+	// desktop-home-and-library.md §4.6, D1; D-068; agentry-desktop#659):
+	// while it is on, Go keeps the last 50 runs on this computer in
+	// runs.yaml (internal/runhistory) for Home's Recent runs and the run
+	// page. A POINTER because the default is on: absent means on. Read it
+	// through RememberRunsEnabled. Turning it off clears the history.
+	RememberRuns *bool `yaml:"rememberRuns,omitempty" json:"rememberRuns,omitempty"`
 
 	// Home is the Home page's cards, in order (plan
 	// desktop-home-and-library.md §4.4, D-067; home.go). Absent means the
@@ -177,6 +184,12 @@ const (
 // still be told a release exists.
 func (s Settings) UpdateCheckEnabled() bool {
 	return s.CheckForUpdates == nil || *s.CheckForUpdates
+}
+
+// RememberRunsEnabled says whether Go keeps a history of runs on this
+// computer. Unset means yes (D1).
+func (s Settings) RememberRunsEnabled() bool {
+	return s.RememberRuns == nil || *s.RememberRuns
 }
 
 // Path returns the settings file path.

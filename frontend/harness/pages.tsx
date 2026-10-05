@@ -307,7 +307,7 @@ const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
 const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
-let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoTimeout: false };
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoTimeout: false, rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7 };
 // The harness's event bus: only the Unsafe Mode pull emits on this entry.
 const pageListeners: Record<string, ((v: any) => void)[]> = {};
 const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[name] ?? []) cb(v); };
@@ -371,6 +371,28 @@ const voiceAvail = voiceHash === "#voice-standard"
   ? { offered: true, available: false, reason: "On Standard you can run the Voice Writer in Agentry once a billing cycle, and this cycle's runs are used. The next is yours on 28 October 2026.", remedy: "Edit your voice by hand, or run the Voice Writer on this computer for no credits; or upgrade to Pro.", upgradeUrl: "https://dev.secureagentry.net/settings/subscription?upgrade=pro", credits: 20, holdCredits: 20, limited: true, max: 1, left: 0, aiReviewCredits: 1, balance: 30, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 }
   : { offered: true, available: true, credits: 20, holdCredits: 20, limited: false, max: 0, left: 0, aiReviewCredits: 1, balance: 3977, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 };
 const voiceHostedRun = { id: "run-7f3a", op: "create", status: "queued", state: "queued", statusLine: "Queued: waiting for a sandbox host.", cancelRequested: false, holdCredits: 20, settledCredits: 0, settled: false, applied: false, final: false };
+
+// Home's Recent runs (agentry-desktop#659), relative to now so the card
+// reads the same on any day.
+const REG_DEFAULT = "https://secureagentry.net";
+const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+const localRuns = [
+  { id: "7c1e4a90", kind: "run", where: "here", registry: REG_DEFAULT, ref: "demo1/incident-summarizer@1.2.0", startedAt: ago(14), endedAt: ago(12), outcome: "ok", tone: "ok", kept: true, source: "local" },
+  { id: "0192a3b4", kind: "draft", where: "here", startedAt: ago(200), endedAt: ago(180), outcome: "ok", tone: "ok", kept: true, source: "local" },
+  { id: "5e1f0004", kind: "review", where: "here", startedAt: ago(60 * 26), endedAt: ago(60 * 25), outcome: "error", tone: "bad", kept: true, source: "local" },
+  { id: "9a8b7c6d", kind: "run", where: "here", registry: REG_DEFAULT, ref: "acme/pr-triage@0.4.1", startedAt: ago(60 * 75), endedAt: ago(60 * 74), outcome: "stopped", tone: "warn", kept: true, source: "local" },
+];
+const hostedRuns = [
+  { id: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42", kind: "run", where: "agentry", registry: REG_DEFAULT, ref: "demo1/incident-summarizer@1.2.0", startedAt: ago(45), endedAt: ago(41), outcome: "succeeded", state: "done — pass", tone: "ok", kept: false, source: "hosted" },
+  { id: "0199b2c4-0000-7c31-9a55-2f0f7f0b1d43", kind: "knowledge", where: "agentry", registry: REG_DEFAULT, startedAt: ago(2), outcome: "running", state: "running", tone: "warn", kept: false, source: "hosted" },
+];
+const byTime = (a: { endedAt?: string; startedAt: string }, b: { endedAt?: string; startedAt: string }) => ((b.endedAt || b.startedAt) > (a.endedAt || a.startedAt) ? 1 : -1);
+function recentRunsView(signedOut: boolean) {
+  if (location.hash === "#home-runs-empty") return { runs: [], remember: true, signedIn: !signedOut };
+  if (location.hash === "#home-runs-off") return { runs: signedOut ? [] : hostedRuns, remember: false, signedIn: !signedOut };
+  const runs = signedOut ? localRuns : [...localRuns, ...hostedRuns].sort(byTime);
+  return { runs: runs.slice(0, 5), remember: true, signedIn: !signedOut };
+}
 
 // Home's layout (agentry-desktop#658): #home-hidden hides the Installed
 // QuickAgents card, #home-newer is a layout a newer app arranged and
@@ -530,6 +552,9 @@ g.go = { main: {
     // would, and the picker "returns" a folder.
     RunDefaults: async () => runDefaultsView,
     SetBuiltinNoTimeout: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoTimeout: on }),
+    // Remember recent runs (agentry-desktop#659): off forgets them all.
+    SetRememberRuns: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, rememberRuns: on, runHistoryCount: on ? runDefaultsView.runHistoryCount : 0 }),
+    ClearRunHistory: async () => (runDefaultsView = { ...runDefaultsView, runHistoryCount: 0 }),
     SetRunBudgets: async (t: number, m: number) => (runDefaultsView = { ...runDefaultsView, timeoutSeconds: t, maxTurns: m }),
     SetRunWhere: async (w: string) => (runDefaultsView = { ...runDefaultsView, where: w }),
     SetChatIdleTimeout: async (sec: number) => (runDefaultsView = { ...runDefaultsView, chatIdleTimeoutSeconds: sec }),
@@ -559,6 +584,11 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    // Home's Recent runs (agentry-desktop#659): #home-runs-empty has none,
+    // #home-runs-off has Remember recent runs off; signed out (?active=anon)
+    // the history alone; otherwise this computer's runs and built-in jobs
+    // merged with the account's runs In Agentry.
+    RecentRuns: async (reg: string) => recentRunsView(reg !== REG_DEFAULT),
     // Run on a folder installed QuickAgent in the Library opens RunPanel
     // over the page; it asks for its own tool surface and the key profile
     // as it mounts, and without them the preview went blank.
@@ -828,6 +858,8 @@ function HomePreview() {
       banner={homeHash === "#home-setup" ? <Notice tone="warn"><strong>Setup isn't finished.</strong> (App's notice)</Notice> : undefined}
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
+        runHistory: mark("run-history"),
+        run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },
       }}
     />
@@ -862,7 +894,7 @@ if (landedDraft) {
   // invariant 4): only Home is drawn, and every binding but the reads Home
   // makes throws and names itself on the body, which the shot checks is
   // never marked.
-  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile"]);
+  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns"]);
   for (const api of Object.values(g.go.main) as Record<string, unknown>[]) {
     for (const k of Object.keys(api)) {
       if (reads.has(k)) continue;

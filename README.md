@@ -20,7 +20,13 @@ The product never claims an agent is "safe". The language is always:
   provider was set up, and the AI Review key's row never counts toward it.
 - **Home** — the page the app opens on (agentry-desktop#658, D-067): a card
   per thing that is yours, in the Build, Voice and Knowledge cards'
-  language. **Installed QuickAgents** counts what is on this computer and
+  language. **Recent runs** (agentry-desktop#659, D-068) lists the last
+  five runs, chats and built-in jobs (drafts, reviews, knowledge and voice
+  builds) on this computer and, signed in, In Agentry, newest first; a row
+  opens the **run page**: how it ended, its result and files, or for a run
+  In Agentry whose output is not here **Download output** (no credits), and
+  for a built-in's job a button to Build, Knowledge or Voice.
+  **Installed QuickAgents** counts what is on this computer and
   what has an update, and names the newest five; **Profile** shows who is
   signed in, the plan and the credit balance (a **Sign in** card when not
   signed in); **Run defaults** shows where runs go, their time and turn
@@ -88,8 +94,15 @@ The product never claims an agent is "safe". The language is always:
   **Run in the background** shrinks it to a card in the corner while the
   rest of the app stays usable; **Stop** ends it with its receipts written as
   far as it got; once over, the dialog is its result, **Back to the setup**
-  reopens the setup as you left it, and **Dismiss** makes the app forget the
-  run (its folder stays). One local job runs at a time: a run, a chat, a
+  reopens the setup as you left it, and **Dismiss** removes its card (its
+  folder stays). Since D-068 the app keeps a **run history** of the last 50
+  runs on this computer, the built-ins' jobs included, in `runs.yaml` beside
+  `desktop.yaml` (0600): each run's id, release, times, how it ended (from
+  the engine's own result) and its folder, never the task, inputs, result or
+  log. Home's Recent runs and the run page read it, and only by run id;
+  Settings → Run defaults → **Remember recent runs** (on by default) turns
+  it off, which forgets every run as before, and **Clear run history**
+  empties it. One local job runs at a time: a run, a chat, a
   draft, a knowledge build or a review started meanwhile is refused with
   what is running. What a run needs while it is live
   (its containers, volumes and networks, and a scratch directory under the
@@ -352,7 +365,8 @@ The product never claims an agent is "safe". The language is always:
     Submit, and its answer is the one that counts.
   - `report.json` and the run's receipts are kept in
     `~/Downloads/agentry-out/agentry-examiner-<run id>`, a folder no earlier
-    run wrote. **Dismiss** makes the app forget it; the folder stays.
+    run wrote. **Dismiss** removes its card; the folder stays, and the run
+    history keeps the review for Recent runs (D-068).
 
   A rule the form still fails is named with **Fix it**, and Install and
   Submit wait for it. **See it in the form** opens Step by step on Review,

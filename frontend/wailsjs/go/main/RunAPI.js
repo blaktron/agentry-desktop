@@ -50,6 +50,10 @@ export function DiscardHostedSecrets(arg1) {
   return window['go']['main']['RunAPI']['DiscardHostedSecrets'](arg1);
 }
 
+export function DownloadHostedOutput(arg1, arg2) {
+  return window['go']['main']['RunAPI']['DownloadHostedOutput'](arg1, arg2);
+}
+
 export function EndHostedSession(arg1) {
   return window['go']['main']['RunAPI']['EndHostedSession'](arg1);
 }
@@ -94,6 +98,10 @@ export function HostedAvailability(arg1, arg2) {
   return window['go']['main']['RunAPI']['HostedAvailability'](arg1, arg2);
 }
 
+export function HostedRecord(arg1, arg2) {
+  return window['go']['main']['RunAPI']['HostedRecord'](arg1, arg2);
+}
+
 export function HybridKeyStatus() {
   return window['go']['main']['RunAPI']['HybridKeyStatus']();
 }
@@ -126,8 +134,24 @@ export function ProfileStatus(arg1, arg2) {
   return window['go']['main']['RunAPI']['ProfileStatus'](arg1, arg2);
 }
 
+export function RecentRuns(arg1, arg2) {
+  return window['go']['main']['RunAPI']['RecentRuns'](arg1, arg2);
+}
+
+export function RecordedReview(arg1) {
+  return window['go']['main']['RunAPI']['RecordedReview'](arg1);
+}
+
+export function RecordedRun(arg1) {
+  return window['go']['main']['RunAPI']['RecordedRun'](arg1);
+}
+
 export function RemoveAgentryImages() {
   return window['go']['main']['RunAPI']['RemoveAgentryImages']();
+}
+
+export function RemoveRecordedRun(arg1) {
+  return window['go']['main']['RunAPI']['RemoveRecordedRun'](arg1);
 }
 
 export function ReplayHostedSession() {

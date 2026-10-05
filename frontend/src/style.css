@@ -1002,6 +1002,10 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .home-card-cell { display: flex; }
 .home-card-cell > .card { flex: 1; }
 .home-card-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.recent-runs li { display: flex; flex-direction: column; align-items: flex-start; }
+.recent-run-end.tone-ok { color: var(--color-ok); }
+.recent-run-end.tone-bad { color: var(--color-sev-high); }
+.recent-run-end.tone-warn { color: var(--color-sev-medium); }
 .home-card-facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; }
 .home-card-facts dt { color: var(--color-muted); }
 .home-card-facts dd { margin: 0; overflow-wrap: anywhere; }
