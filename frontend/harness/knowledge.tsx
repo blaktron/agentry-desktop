@@ -31,6 +31,8 @@
 //   #create-stopped-brief a brief-only build that stopped at its turn budget:
 //                         continued with the same brief, never documents
 //                         (agentry-desktop#600)
+//   #hosted-stopped-brief the same In Agentry: Continue starts from this
+//                         brief (agentry-desktop#600)
 //   #card-building        a build shrunk to its corner card over the page,
 //                         its progress counting up (agentry-desktop#353)
 //   #card-done            the card once the build is over: how it ended
@@ -185,6 +187,15 @@ const hostedDone = {
     : {}),
 };
 
+// A brief-only build In Agentry stopped at its turn limit: Continue starts
+// again from this brief, never documents it did not have
+// (agentry-desktop#600).
+const hostedStoppedBrief = {
+  ...hostedDone, state: "done — budget", outcome: "budget", outcomeLine: "Stopped at its turn or cost limit.", outcomeTone: "warn",
+  canContinue: true, pages: 11, bytes: 22_600, settledCredits: 201,
+  kept: "Downloaded espresso-care: 11 pages, kept on this computer, encrypted to your account's key, which Agentry holds.",
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
 g.go = { main: {
@@ -310,7 +321,7 @@ createRoot(document.getElementById("root")!).render(
         initialResult={hash === "create-done" || hash === "create-done-cloud" || hash === "card-done" ? (result as never) : hash === "create-stopped-brief" ? (stoppedBrief as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" || hash === "hosted-review-brief" ? "agentry" : undefined}
-        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : undefined}
+        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : hash === "hosted-stopped-brief" ? (hostedStoppedBrief as never) : undefined}
       />
     )}
   </div>,
