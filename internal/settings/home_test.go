@@ -238,6 +238,10 @@ func TestHomeUnreadableNeverBreaksTheFile(t *testing.T) {
 		"cards as a map":     "home:\n  cards: {a: 1}\n",
 		"a card as a scalar": "home:\n  cards: [x]\n",
 		"an object size":     "home:\n  version: 1\n  cards:\n    - kind: installed\n      size: {w: 2}\n",
+		// A Pinned card's pins (agentry-desktop#660), malformed three ways.
+		"pins as a scalar":  "home:\n  version: 1\n  cards:\n    - kind: pinned\n      pins: x\n",
+		"a pin as a scalar": "home:\n  version: 1\n  cards:\n    - kind: pinned\n      pins: [x]\n",
+		"an object ref":     "home:\n  version: 1\n  cards:\n    - kind: pinned\n      pins:\n        - ref: {a: 1}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			isolate(t)

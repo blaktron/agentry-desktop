@@ -387,11 +387,11 @@ const hostedRuns = [
   { id: "0199b2c4-0000-7c31-9a55-2f0f7f0b1d43", kind: "knowledge", where: "agentry", registry: REG_DEFAULT, startedAt: ago(2), outcome: "running", state: "running", tone: "warn", kept: false, source: "hosted" },
 ];
 const byTime = (a: { endedAt?: string; startedAt: string }, b: { endedAt?: string; startedAt: string }) => ((b.endedAt || b.startedAt) > (a.endedAt || a.startedAt) ? 1 : -1);
-function recentRunsView(signedOut: boolean) {
+function recentRunsView(signedOut: boolean, limit = 5) {
   if (location.hash === "#home-runs-empty") return { runs: [], remember: true, signedIn: !signedOut };
   if (location.hash === "#home-runs-off") return { runs: signedOut ? [] : hostedRuns, remember: false, signedIn: !signedOut };
   const runs = signedOut ? localRuns : [...localRuns, ...hostedRuns].sort(byTime);
-  return { runs: runs.slice(0, 5), remember: true, signedIn: !signedOut };
+  return { runs: runs.slice(0, limit), remember: true, signedIn: !signedOut };
 }
 
 // Home's layout (agentry-desktop#658): #home-hidden hides the Installed
@@ -399,14 +399,53 @@ function recentRunsView(signedOut: boolean) {
 // #home-unreadable one this app cannot decode (the defaults are drawn for
 // both), #home-broken a settings file that cannot be read at all.
 const homeHash = window.location.hash;
-const homeCards = [{ kind: "recent-runs" }, { kind: "installed", hidden: homeHash === "#home-hidden" }, { kind: "profile" }, { kind: "run-defaults" }];
+// Pins (agentry-desktop#660), four to a Pinned card as Go places them:
+// #home-pin-one, #home-pin-never (one pin of a QuickAgent never run),
+// #home-pins-four (one card: a run that finished, one stopped, one never
+// run, a folder install), #home-pins-five (a second card, holding a pin whose QuickAgent
+// is no longer on this computer), #home-pins-sixteen (Home full: the
+// Library's Pin held, with its sentence).
+const SA = "https://secureagentry.net";
+const pinOf = (ref: string, registry = SA) => ({ ref, registry });
+const fourPins = [pinOf("demo1/incident-summarizer"), pinOf("acme/pr-triage"), pinOf("agentry/changelog-from-git"), pinOf("me/csv-quality-check", "")];
+const pinSets: Record<string, { ref: string; registry: string }[][]> = {
+  "#home-pin-one": [[pinOf("demo1/incident-summarizer")]],
+  "#home-pin-never": [[pinOf("agentry/changelog-from-git")]],
+  "#home-pins-four": [fourPins],
+  "#home-pins-five": [fourPins, [pinOf("acme/release-notes")]],
+  "#home-pins-sixteen": [
+    fourPins.slice(0, 3).concat(pinOf("acme/q01")),
+    ...[0, 1, 2].map((c) => [1, 2, 3, 4].map((i) => pinOf(`acme/q${String(c * 4 + i + 1).padStart(2, "0")}`))),
+  ],
+};
+let homeCards: any[] = [{ kind: "recent-runs" }, { kind: "installed", hidden: homeHash === "#home-hidden" }, { kind: "profile" }, { kind: "run-defaults" },
+  ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins }))];
+// Pin and Unpin as Go places them: the first Pinned card with room, a new
+// one after it, an emptied one removed (D11).
+const homeView = () => ({ cards: homeCards, newer: homeHash === "#home-newer", unreadable: homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4 });
+function harnessPin(ref: string, registry: string) {
+  const pin = { ref, registry };
+  const room = homeCards.find((c) => c.kind === "pinned" && c.pins.length < 4);
+  if (room) room.pins = [...room.pins, pin];
+  else homeCards = [...homeCards, { kind: "pinned", size: "large", pins: [pin] }];
+  homeCards = [...homeCards];
+  return homeView();
+}
+function harnessUnpin(ref: string, registry: string) {
+  homeCards = homeCards
+    .map((c) => (c.kind === "pinned" ? { ...c, pins: c.pins.filter((p: any) => !(p.ref === ref && (p.registry ?? "") === registry)) } : c))
+    .filter((c) => c.kind !== "pinned" || c.pins.length > 0);
+  return homeView();
+}
 
 g.go = { main: {
   HomeAPI: {
     Layout: async () => {
       if (homeHash === "#home-broken") throw new Error("parse ~/.config/agentry/desktop.yaml: yaml: line 4: did not find expected key");
-      return { cards: homeCards, newer: homeHash === "#home-newer", unreadable: homeHash === "#home-unreadable" };
+      return homeView();
     },
+    Pin: async (ref: string, registry: string) => harnessPin(ref, registry),
+    Unpin: async (ref: string, registry: string) => harnessUnpin(ref, registry),
   },
   VoiceAPI: {
     View: async () => voiceView,
@@ -588,7 +627,7 @@ g.go = { main: {
     // #home-runs-off has Remember recent runs off; signed out (?active=anon)
     // the history alone; otherwise this computer's runs and built-in jobs
     // merged with the account's runs In Agentry.
-    RecentRuns: async (reg: string) => recentRunsView(reg !== REG_DEFAULT),
+    RecentRuns: async (reg: string, limit?: number) => recentRunsView(reg !== REG_DEFAULT, limit),
     // Run on a folder installed QuickAgent in the Library opens RunPanel
     // over the page; it asks for its own tool surface and the key profile
     // as it mounts, and without them the preview went blank.
@@ -859,6 +898,7 @@ function HomePreview() {
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
         runHistory: mark("run-history"),
+        runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },
       }}
@@ -871,7 +911,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
     {/* #browse-query: Browse as the Library's search opens it, searched for
         what was typed there (agentry-desktop#657). */}
     <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
+    <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see
         the query it hands to Browse (agentry-desktop#657). */}
     {/* Home (agentry-desktop#658). ?active=anon makes the anonymous
