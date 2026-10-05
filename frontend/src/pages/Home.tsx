@@ -14,8 +14,9 @@ import { RunDefaultsCard } from "./home/RunDefaultsCard";
 import { RecentRunsCard } from "./home/RecentRunsCard";
 
 // Home (plan desktop-home-and-library.md §4.3, D2, D4, D9, D-067;
-// agentry-desktop#658; Recent runs, D-068, agentry-desktop#659): the page the app opens on, a card per thing that
-// is the person's own, in the start pages' card language. Go keeps which
+// agentry-desktop#658; Recent runs, D-068, agentry-desktop#659): the page
+// the app opens on, a card per thing that is the person's own, in the start
+// pages' card language. Go keeps which
 // cards and in what order (HomeAPI); each card reads its own bindings and a
 // read that fails says so in its card, never the page's. Home starts
 // nothing: no run, install, update or spend happens on load, and every

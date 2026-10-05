@@ -226,30 +226,32 @@ func load() ([]Entry, error) {
 			runs = append(runs, e)
 		}
 	}
+	return newest(runs), nil
+}
+
+// newest is runs newest first by end time, at most Max.
+func newest(runs []Entry) []Entry {
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].EndedAt.After(runs[j].EndedAt) })
 	if len(runs) > Max {
 		runs = runs[:Max]
 	}
-	return runs, nil
+	return runs
 }
 
 // save writes the newest Max entries, 0600, through a file beside it that
 // is renamed into place, so a reader never sees half a file.
 func save(runs []Entry) error {
-	sort.SliceStable(runs, func(i, j int) bool { return runs[i].EndedAt.After(runs[j].EndedAt) })
-	if len(runs) > Max {
-		runs = runs[:Max]
-	}
+	runs = newest(runs)
 	path, err := Path()
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
+		return fmt.Errorf("write the run history: %w", err)
 	}
 	raw, err := yaml.Marshal(file{Version: version, Runs: runs})
 	if err != nil {
-		return err
+		return fmt.Errorf("write the run history: %w", err)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".runs-*.yaml")
 	if err != nil {

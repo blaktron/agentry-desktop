@@ -18,11 +18,13 @@ import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, PageHeader, Spinner } from "../ui";
 import { RunResultView } from "./RunResult";
 import { HostedResult } from "./HostedRun";
-import { builtinPlace, headline, howItEnded, isBuiltin, rowLine, versionOf, whatRan } from "../recentRuns";
+import { type BuiltinPage, builtinPlace, headline, howItEnded, isBuiltin, rowLine, versionOf, whatRan } from "../recentRuns";
+import type { Tone as JobTone } from "../jobProgress";
+import { ReviewReport } from "./ReviewFlow";
 
 export type RunPageSource = "local" | "hosted";
 
-type Tone = "ok" | "bad" | "warn";
+type Tone = Exclude<JobTone, "">;
 const tone = (t?: string): Tone => (t === "ok" || t === "bad" ? t : "warn");
 
 export default function RunPage({ source, id, registry, backLabel, onBack, onOpenPlace }: {
@@ -32,7 +34,7 @@ export default function RunPage({ source, id, registry, backLabel, onBack, onOpe
   registry: string;
   backLabel: string;
   onBack: () => void;
-  onOpenPlace: (page: "build" | "knowledge" | "voice") => void;
+  onOpenPlace: (page: BuiltinPage) => void;
 }) {
   return source === "hosted"
     ? <HostedRunPage id={id} registry={registry} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} />
@@ -43,7 +45,7 @@ function Back({ label, onBack }: { label: string; onBack: () => void }) {
   return <Button variant="link" onClick={onBack}>{label}</Button>;
 }
 
-function PlaceButton({ kind, onOpenPlace }: { kind: string; onOpenPlace: (page: "build" | "knowledge" | "voice") => void }) {
+function PlaceButton({ kind, onOpenPlace }: { kind: string; onOpenPlace: (page: BuiltinPage) => void }) {
   const place = builtinPlace(kind);
   return place ? <Button data-run-place={place.page} onClick={() => onOpenPlace(place.page)}>{place.label}</Button> : null;
 }
@@ -69,13 +71,22 @@ function LocalRunPage({ id, backLabel, onBack, onOpenPlace }: {
   id: string;
   backLabel: string;
   onBack: () => void;
-  onOpenPlace: (page: "build" | "knowledge" | "voice") => void;
+  onOpenPlace: (page: BuiltinPage) => void;
 }) {
   const [view, setView] = useState<main.RecordedRunView | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // An Examiner review's report, which is the review's page (D13).
+  const [report, setReport] = useState<main.ReviewView | null>(null);
+  const [reportErr, setReportErr] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    RunAPI.RecordedRun(id).then((v) => live && setView(v)).catch((e) => live && setErr(String(e)));
+    RunAPI.RecordedRun(id).then((v) => {
+      if (!live) return;
+      setView(v);
+      if (v.run.kind === "review" && v.folderState === "present") {
+        RunAPI.RecordedReview(id).then((r) => live && setReport(r)).catch((e) => live && setReportErr(String(e)));
+      }
+    }).catch((e) => live && setErr(String(e)));
     return () => { live = false; };
   }, [id]);
   if (err) {
@@ -96,7 +107,17 @@ function LocalRunPage({ id, backLabel, onBack, onOpenPlace }: {
       <Back label={backLabel} onBack={onBack} />
       <PageHeader title={whatRan(row)} sub={rowLine(row, new Date())} actions={<PlaceButton kind={row.kind} onOpenPlace={onOpenPlace} />} />
       {view.folderState === "gone" && <GoneFolder id={row.id} error={view.folderError} onRemoved={onBack} />}
-      {view.folderState === "present" ? (
+      <ErrorBox error={reportErr} />
+      {report ? (
+        <>
+          <h3 className={`run-outcome run-outcome-${tone(row.tone)}`}>{headline(row)}</h3>
+          <ReviewReport v={report} log={[]} />
+          <details className="advanced run-details">
+            <summary className="muted small">Run details: the run and its folder</summary>
+            <RunFacts row={row} version={version} folder={view.folder} />
+          </details>
+        </>
+      ) : view.folderState === "present" ? (
         <RunResultView runId={row.id} headline={hostedLine ?? headline(row)} tone={tone(row.tone)} resultJson={view.resultJson ?? ""}>
           <RunFacts row={row} version={version} folder={view.folder} />
         </RunResultView>
@@ -136,7 +157,7 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace }: {
   registry: string;
   backLabel: string;
   onBack: () => void;
-  onOpenPlace: (page: "build" | "knowledge" | "voice") => void;
+  onOpenPlace: (page: BuiltinPage) => void;
 }) {
   const [view, setView] = useState<main.HostedRecordView | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -186,6 +207,7 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace }: {
         <>
           <Card>
             <h3 className={`run-outcome run-outcome-${tone(run.outcomeTone)}`}>{line}</h3>
+            {view.noOutput && <p className="small" data-no-output>{view.noOutput.charAt(0).toUpperCase() + view.noOutput.slice(1)}.</p>}
             {view.downloadable && (
               <>
                 <p className="small">

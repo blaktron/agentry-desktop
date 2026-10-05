@@ -47,6 +47,8 @@
 //                           Open in Knowledge
 //   #runpage-hosted         a run In Agentry whose output is not here:
 //                           Download output
+//   #runpage-hosted-expired one whose output the registry no longer holds:
+//                           no Download output, and why
 //   #runpage-hosted-kept    one whose output was downloaded: the result view
 //   #runpage-hosted-draft   a draft In Agentry: Open in Build, no download
 //
@@ -218,6 +220,10 @@ function hostedRecord(kept: boolean) {
   if (hash === "runpage-hosted-draft") {
     return { run: { ...hosted.finished, ref: "agentry/drafter@1.8.0", outputs: [], resultJson: "", outDir: "" }, kind: "draft", kept: false, folderState: "none", downloadable: false, followed: false };
   }
+  if (hash === "runpage-hosted-expired") {
+    return { run: { ...hosted.finished, outDir: "", resultJson: "", outputs: [] }, kind: "run", kept: false, folderState: "none", downloadable: false, followed: false,
+      noOutput: "the registry holds no output for this run: it wrote none, or the 30 days it is kept have passed" };
+  }
   return kept
     ? { run: hosted.finished, kind: "run", kept: true, folderState: "present", downloadable: false, followed: false }
     : { run: { ...hosted.finished, outDir: "", resultJson: "", outputs: [{ name: "output.tar", bytes: 4096 }] }, kind: "run", kept: false, folderState: "none", downloadable: true, followed: false };
@@ -283,6 +289,17 @@ g.go = { main: {
     HostedRecord: async () => hostedRecord(hash === "runpage-hosted-kept"),
     DownloadHostedOutput: async () => { document.body.dataset.downloaded = "1"; return hostedRecord(true); },
     RemoveRecordedRun: async () => { document.body.dataset.removed = "1"; },
+    // A review's report as Go reads it back from its folder (D13).
+    RecordedReview: async () => ({
+      runId: RUN_ID, outDir: "/home/chris/Downloads/agentry-out/agentry-examiner-5e1f0004", ref: "me/release-notes@0.1.0", files: 4,
+      outcome: "published", outcomeWords: "published", reason: "It has no finding the gate weighs, so the gate would be expected to publish it.",
+      assumes: "a public version, as the manifest rules check it", policyFromRegistry: true, publishesUpTo: "low", aiCounted: true,
+      examinerModel: "openai/qwen3.8-flash-next", notice: "The registry scans again at Submit, and its answer is the one that counts.",
+      rules: { manifest: [], findings: [], bundleVersion: "0.3.2", bundleSource: "embedded", servers: [] },
+      aiReview: { ran: true, model: "jev-1.13.0", rubricHash: "sha256:9c1e", findings: [], files: 4, notRead: 0 },
+      reading: { summary: "Read the 4 files.", findings: [], notRead: [], withheld: [] },
+      notRunHere: ["the registry's secrets stage (S2)"],
+    }),
   },
   BuildAPI: {
     DescribeInAgentry: async () => ({ draft: { id: "01a0e424-0000-0000-0000-000000000000", status: "running", state: "running",

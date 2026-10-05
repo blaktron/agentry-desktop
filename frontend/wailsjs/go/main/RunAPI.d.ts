@@ -71,6 +71,8 @@ export function ProfileStatus(arg1:string,arg2:string):Promise<main.ProfileStatu
 
 export function RecentRuns(arg1:string,arg2:number):Promise<main.RecentRunsView>;
 
+export function RecordedReview(arg1:string):Promise<main.ReviewView>;
+
 export function RecordedRun(arg1:string):Promise<main.RecordedRunView>;
 
 export function RemoveAgentryImages():Promise<dockerimages.Report>;

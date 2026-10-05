@@ -118,9 +118,12 @@ type RunAPI struct {
 	// folders are the run folders of the results Go produced, by run id,
 	// for the result view's two bindings (services_outputs.go); openFolder
 	// is the file-manager seam a test substitutes.
-	foldersMu  sync.Mutex
-	folders    map[string]string
-	openFolder func(dir string) error
+	foldersMu sync.Mutex
+	folders   map[string]string
+	// downloading holds the runs In Agentry whose Download output is under
+	// way, so a second click is refused (services_history.go).
+	downloading sync.Map
+	openFolder  func(dir string) error
 }
 
 // localSession is the engine's interactive session on this computer as the
@@ -291,7 +294,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	if l := r.current(); l != nil {
 		// A chat's end is how the person ends it, not a stop: its outcome
 		// is the engine's.
-		recordLocal(context.Background(), runhistory.KindChat, l, l.registry, s.Ref(), res)
+		recordLocal(context.Background(), runhistory.KindChat, l, s.Ref(), res)
 		l.cancel()
 		r.endRun(l)
 	}
@@ -996,6 +999,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		return nil, err
 	}
 	defer r.endRun(live)
+	live.registry = reg
 	// A run that read the switch on is an Unsafe Mode run from here until
 	// its compile says otherwise (agentry-desktop#479).
 	r.setUnsafeLive(live, unsafe)
@@ -1039,7 +1043,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		Unsafe:             unsafe,
 		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
 	}, logw)
-	recordLocal(ctx, runhistory.KindRun, live, reg, ref, res)
+	recordLocal(ctx, runhistory.KindRun, live, ref, res)
 	if err != nil {
 		return nil, err
 	}

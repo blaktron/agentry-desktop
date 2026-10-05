@@ -30,12 +30,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/examiner"
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/review"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/runhistory"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -94,13 +95,13 @@ func localOutcome(ctx context.Context, res *run.Result) (string, int) {
 // recordLocal records a QuickAgent's run or chat on this computer from the
 // engine's result as Go read it (res is nil when the engine never wrote an
 // envelope).
-func recordLocal(ctx context.Context, kind string, l *liveRun, reg, ref string, res *run.Result) {
+func recordLocal(ctx context.Context, kind string, l *liveRun, ref string, res *run.Result) {
 	if l == nil {
 		return
 	}
 	outcome, code := localOutcome(ctx, res)
 	e := runhistory.Entry{
-		ID: l.id, Kind: kind, Where: runhistory.WhereHere, Registry: settings.Normalize(reg), Ref: refOrEmpty(ref),
+		ID: l.id, Kind: kind, Where: runhistory.WhereHere, Registry: settings.Normalize(l.registry), Ref: refOrEmpty(ref),
 		StartedAt: l.started, EndedAt: time.Now().UTC(), Outcome: outcome, ExitCode: code,
 	}
 	if res != nil {
@@ -172,7 +173,7 @@ func hostedKind(h *hostedrun.Run) string {
 		return runhistory.KindKnowledge
 	case h.IsDraft():
 		return runhistory.KindDraft
-	case h.Kind == hostedrun.KindVoiceBuild:
+	case h.IsVoiceBuild():
 		return runhistory.KindVoice
 	case h.IsSession():
 		return runhistory.KindChat
@@ -204,6 +205,8 @@ func recordHosted(reg string, h *hostedrun.Run, dir string) {
 	})
 }
 
+// cleanAbs is dir made absolute and clean, as the history keeps a folder;
+// "" for none, or for one that cannot be made absolute.
 func cleanAbs(dir string) string {
 	if dir == "" {
 		return ""
@@ -217,26 +220,42 @@ func cleanAbs(dir string) string {
 
 var errRunFolderGone = errors.New("the run's folder is no longer there: it was deleted or moved")
 
-// recordedFolder is a history entry's folder, checked again now: still
-// there, a directory, and not a link (a folder replaced by a link since the
-// run is not followed).
+// recordedFolder is a history entry's folder, checked again now
+// (checkRunFolder).
 func recordedFolder(e runhistory.Entry) (string, error) {
 	if e.Folder == "" {
 		return "", errUnknownRun
 	}
-	info, err := os.Lstat(e.Folder)
+	return checkRunFolder(e.Folder)
+}
+
+// checkRunFolder is dir when it is still there, a directory, and not a link:
+// a folder replaced by a link since the run is not followed, and one that
+// has gone is never looked for.
+func checkRunFolder(dir string) (string, error) {
+	info, err := os.Lstat(dir)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return "", errRunFolderGone
 	case err != nil:
 		return "", fmt.Errorf("the run's folder cannot be read: %w", err)
 	case info.Mode()&fs.ModeSymlink != 0:
-		return "", fmt.Errorf("the run's folder %s is now a link, so it is not read", e.Folder)
+		return "", fmt.Errorf("the run's folder %s is now a link, so it is not read", dir)
 	case !info.IsDir():
-		return "", fmt.Errorf("the run's folder %s is now a file, so it is not read", e.Folder)
+		return "", fmt.Errorf("the run's folder %s is now a file, so it is not read", dir)
 	}
-	return e.Folder, nil
+	return dir, nil
 }
+
+// Where the run page reads a run, and what its folder is now.
+const (
+	sourceLocal  = "local"
+	sourceHosted = "hosted"
+
+	folderPresent = "present"
+	folderGone    = "gone"
+	folderNone    = "none"
+)
 
 // historyFolder is the folder the history keeps for runID, checked.
 func historyFolder(runID string) (string, error) {
@@ -291,6 +310,7 @@ type RecentRunsView struct {
 	HistoryError string `json:"historyError,omitempty"`
 }
 
+// localTone is a run on this computer's outcome as the page's tone.
 func localTone(outcome string) string {
 	switch outcome {
 	case runhistory.OutcomeOK:
@@ -301,11 +321,14 @@ func localTone(outcome string) string {
 	return "bad"
 }
 
+// entryView is a history entry as a row. A run In Agentry's entry keeps the
+// registry's outcome word, so its state and tone are said as the
+// registry's record of a finished (or cancelled) run would say them.
 func entryView(e runhistory.Entry) RecentRunView {
 	v := RecentRunView{
 		ID: e.ID, Kind: e.Kind, Where: e.Where, Registry: e.Registry, Ref: e.Ref,
 		StartedAt: rfc3339(e.StartedAt), EndedAt: rfc3339(e.EndedAt),
-		Outcome: e.Outcome, ExitCode: e.ExitCode, ExitClass: e.ExitClass, Kept: e.Folder != "", Source: "local",
+		Outcome: e.Outcome, ExitCode: e.ExitCode, ExitClass: e.ExitClass, Kept: e.Folder != "", Source: sourceLocal,
 	}
 	if e.Where == runhistory.WhereAgentry {
 		h := &hostedrun.Run{Status: hostedrun.StatusFinished, Outcome: e.Outcome}
@@ -319,11 +342,12 @@ func entryView(e runhistory.Entry) RecentRunView {
 	return v
 }
 
+// hostedRowView is a run In Agentry, read live from reg, as a row.
 func hostedRowView(reg string, h *hostedrun.Run) RecentRunView {
 	v := RecentRunView{
 		ID: h.ID, Kind: hostedKind(h), Where: runhistory.WhereAgentry, Registry: reg, Ref: refOrEmpty(h.Ref),
 		StartedAt: rfc3339(h.CreatedAt), Outcome: h.Outcome, ExitClass: h.ExitClass,
-		State: hostedrun.State(h), Tone: hostedrun.Read(h).Tone, Source: "hosted",
+		State: hostedrun.State(h), Tone: hostedrun.Read(h).Tone, Source: sourceHosted,
 	}
 	if h.StartedAt != nil {
 		v.StartedAt = rfc3339(*h.StartedAt)
@@ -416,7 +440,7 @@ type RecordedRunView struct {
 // RecordedRun is a run the history keeps, by its id: the run page's local
 // source. An id the history does not hold is refused.
 func (r *RunAPI) RecordedRun(runID string) (*RecordedRunView, error) {
-	if !historyOn() || !runhistory.ValidID(runID) {
+	if !historyOn() || !validRunID(runID) {
 		return nil, errUnknownRun
 	}
 	e, ok, err := runhistory.Find(runID)
@@ -426,16 +450,16 @@ func (r *RunAPI) RecordedRun(runID string) (*RecordedRunView, error) {
 	if !ok {
 		return nil, errUnknownRun
 	}
-	v := &RecordedRunView{Run: entryView(e), Folder: e.Folder, FolderState: "none"}
+	v := &RecordedRunView{Run: entryView(e), Folder: e.Folder, FolderState: folderNone}
 	if e.Folder == "" {
 		return v, nil
 	}
 	dir, err := recordedFolder(e)
 	if err != nil {
-		v.FolderState, v.FolderError = "gone", err.Error()
+		v.FolderState, v.FolderError = folderGone, err.Error()
 		return v, nil
 	}
-	v.FolderState = "present"
+	v.FolderState = folderPresent
 	v.ResultJSON = recordedResult(dir)
 	return v, nil
 }
@@ -445,21 +469,8 @@ func (r *RunAPI) RecordedRun(runID string) (*RecordedRunView, error) {
 // envelope's status and exit code are not passed on, so nothing the agent
 // could have written there says how the run ended. "" when there is none.
 func recordedResult(dir string) string {
-	p := filepath.Join(dir, "result.json")
-	before, err := os.Lstat(p)
-	if err != nil || !before.Mode().IsRegular() || before.Size() > maxResultBytes {
-		return ""
-	}
-	f, err := openNoFollow(p)
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = f.Close() }()
-	if after, err := f.Stat(); err != nil || !os.SameFile(before, after) {
-		return ""
-	}
-	b, err := io.ReadAll(io.LimitReader(f, maxResultBytes+1))
-	if err != nil || len(b) > maxResultBytes {
+	b, ok := readRegular(filepath.Join(dir, "result.json"), maxResultBytes)
+	if !ok {
 		return ""
 	}
 	var env struct {
@@ -471,11 +482,69 @@ func recordedResult(dir string) string {
 	return string(env.Result)
 }
 
+// readRegular reads p as a run's output file is read: a regular file, of at
+// most limit bytes, opened without following a link and checked to be the
+// file the Lstat saw.
+func readRegular(p string, limit int64) ([]byte, bool) {
+	before, err := os.Lstat(p)
+	if err != nil || !before.Mode().IsRegular() || before.Size() > limit {
+		return nil, false
+	}
+	f, err := openNoFollow(p)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = f.Close() }()
+	if after, err := f.Stat(); err != nil || !os.SameFile(before, after) {
+		return nil, false
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil || int64(len(b)) > limit {
+		return nil, false
+	}
+	return b, true
+}
+
+// RecordedReview is an Examiner review the history keeps, for its run page
+// (D13): its report as the review wrote it once the Examiner's run was over
+// (review.Run writes report.json then, into a folder it refuses if a report
+// is already there), read as readRegular reads and drawn through the view
+// the review's own dialog uses, which holds every verdict word to the
+// report's vocabulary.
+func (r *RunAPI) RecordedReview(runID string) (*ReviewView, error) {
+	if !historyOn() || !validRunID(runID) {
+		return nil, errUnknownRun
+	}
+	e, ok, err := runhistory.Find(runID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errUnknownRun
+	}
+	if e.Kind != runhistory.KindReview {
+		return nil, errors.New("that run is not a review by the Examiner")
+	}
+	dir, err := recordedFolder(e)
+	if err != nil {
+		return nil, err
+	}
+	b, ok := readRegular(filepath.Join(dir, examiner.ReportFile), maxResultBytes)
+	if !ok {
+		return nil, errors.New("the review's report is not in its folder")
+	}
+	var rep examiner.Report
+	if err := json.Unmarshal(b, &rep); err != nil {
+		return nil, fmt.Errorf("the review's report cannot be read: %w", err)
+	}
+	return reviewView(runID, &review.Result{Report: &rep, OutDir: dir}), nil
+}
+
 // RemoveRecordedRun drops a run from the history, as the run page offers
 // when its folder has gone; the folder, wherever it is, is not touched or
 // looked for.
 func (r *RunAPI) RemoveRecordedRun(runID string) error {
-	if !runhistory.ValidID(runID) {
+	if !validRunID(runID) {
 		return errUnknownRun
 	}
 	r.foldersMu.Lock()
@@ -499,6 +568,9 @@ type HostedRecordView struct {
 	Downloadable bool `json:"downloadable"`
 	// Followed says this app is following the run now: its card has it.
 	Followed bool `json:"followed"`
+	// NoOutput says why a run that is over offers no download: the
+	// registry holds no output for it.
+	NoOutput string `json:"noOutput,omitempty"`
 }
 
 // hostedClient is reg's runs client for the run page, under Settings' URL
@@ -535,36 +607,54 @@ func (r *RunAPI) HostedRecord(reg, runID string) (*HostedRecordView, error) {
 	return r.hostedRecordView(h), nil
 }
 
+// hostedRecordView is a run In Agentry for the run page: the registry's
+// record, the folder its output is in when the history (or this process)
+// keeps one that is still there, and whether Download output is offered.
 func (r *RunAPI) hostedRecordView(h *hostedrun.Run) *HostedRecordView {
-	v := &HostedRecordView{Kind: hostedKind(h), FolderState: "none"}
+	v := &HostedRecordView{Kind: hostedKind(h), FolderState: folderNone}
 	dir := ""
 	result := ""
 	if historyOn() {
 		if e, ok, err := runhistory.Find(h.ID); err == nil && ok && e.Where == runhistory.WhereAgentry && e.Folder != "" {
 			if d, err := recordedFolder(e); err != nil {
-				v.FolderState, v.FolderError = "gone", err.Error()
+				v.FolderState, v.FolderError = folderGone, err.Error()
 			} else {
-				dir, v.Kept, v.FolderState = d, true, "present"
+				dir, v.Kept, v.FolderState = d, true, folderPresent
 				result = recordedResult(d)
 			}
 		}
 	}
-	if !v.Kept {
-		if d, err := r.folderOf(h.ID); err == nil {
-			dir, v.Kept, v.FolderState = d, true, "present"
-			result = recordedResult(d)
+	// A run downloaded in this process and not kept in the history (the
+	// switch off) is read from memory, checked as a history folder is; a
+	// history that says its folder has gone is not overruled by memory.
+	if !v.Kept && v.FolderState != folderGone {
+		r.foldersMu.Lock()
+		d, ok := r.folders[h.ID]
+		r.foldersMu.Unlock()
+		if ok {
+			if d, err := checkRunFolder(d); err != nil {
+				v.FolderState, v.FolderError = folderGone, err.Error()
+			} else {
+				dir, v.Kept, v.FolderState = d, true, folderPresent
+				result = recordedResult(d)
+			}
 		}
 	}
 	if cur := r.hostedCurrent(); cur != nil && cur.id == h.ID {
 		v.Followed = true
 	}
 	v.Run = hostedRunView(h, dir, nil, result, "", h.Terminal())
-	v.Downloadable = !v.Kept && !v.Followed && h.Terminal() && (v.Kind == runhistory.KindRun || v.Kind == runhistory.KindChat) && len(h.Outputs) > 0
+	if !v.Kept && !v.Followed && h.Terminal() && (v.Kind == runhistory.KindRun || v.Kind == runhistory.KindChat) {
+		if len(h.Outputs) > 0 {
+			v.Downloadable = true
+		} else {
+			v.NoOutput = errNoHostedOutput.Error()
+		}
+	}
 	return v
 }
 
-// downloading guards a run's Download output against a second click.
-var downloading sync.Map
+var errNoHostedOutput = errors.New("the registry holds no output for this run: it wrote none, or the 30 days it is kept have passed")
 
 // DownloadHostedOutput brings a finished run In Agentry's output down to
 // this computer (D7): the existing download, which spends no credits, into
@@ -576,10 +666,10 @@ func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, err
 	if !validRunID(runID) {
 		return nil, errUnknownRun
 	}
-	if _, busy := downloading.LoadOrStore(runID, true); busy {
+	if _, busy := r.downloading.LoadOrStore(runID, true); busy {
 		return nil, errors.New("this run's output is already being downloaded")
 	}
-	defer downloading.Delete(runID)
+	defer r.downloading.Delete(runID)
 	client, err := hostedClient(reg)
 	if err != nil {
 		return nil, err
@@ -602,7 +692,7 @@ func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, err
 		return nil, errors.New("a built-in's job In Agentry is opened in its own place, not downloaded here")
 	}
 	if len(h.Outputs) == 0 {
-		return nil, errors.New("the registry holds no output for this run: it wrote none, or the 30 days it is kept have passed")
+		return nil, errNoHostedOutput
 	}
 	saved := ""
 	if st, err := settings.Load(); err == nil {
@@ -610,6 +700,12 @@ func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, err
 	}
 	dir, err := hostedOutDir(saved, h)
 	if err != nil {
+		return nil, err
+	}
+	// The run's folder name is fixed by its id, so an earlier download's
+	// folder may have been replaced since: nothing is written through a
+	// link or into a file.
+	if _, err := checkRunFolder(dir); err != nil {
 		return nil, err
 	}
 	if _, err := client.DownloadOutputs(ctx, h, dir); err != nil {

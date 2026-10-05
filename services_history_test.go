@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
+	"github.com/blaktron/agentry-cli/pkg/examiner"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+	"github.com/zalando/go-keyring"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -446,4 +448,124 @@ func TestDownloadOutputBringsAHostedRunHere(t *testing.T) {
 	if _, err := r.HostedRecord("http://192.0.2.1:1", f.run.ID); err == nil {
 		t.Fatal("HostedRecord asked a registry it holds no token for")
 	}
+}
+
+// A review's run page is its report, read back from its folder (D13): a
+// regular file, never through a link, drawn through the review's own view;
+// any other kind of run has none.
+func TestARecordedReviewIsItsReport(t *testing.T) {
+	freshConfig(t)
+	dir := t.TempDir()
+	rep := &examiner.Report{Package: examiner.Package{Ref: "me/notes@0.1.0", Files: 4}}
+	rep.Expected.Outcome = examiner.OutcomeUndetermined
+	if _, err := examiner.Write(dir, rep); err != nil {
+		t.Fatal(err)
+	}
+	add := func(id, kind string) {
+		t.Helper()
+		if err := runhistory.Add(runhistory.Entry{ID: id, Kind: kind, Where: runhistory.WhereHere, Outcome: "ok", EndedAt: time.Now(), Folder: dir}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("rev00001", runhistory.KindReview)
+	add("run00001", runhistory.KindRun)
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	v, err := r.RecordedReview("rev00001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Ref != "me/notes@0.1.0" || v.Files != 4 || v.Outcome != examiner.OutcomeUndetermined || v.OutDir != dir {
+		t.Fatalf("the report %+v", v)
+	}
+	if _, err := r.RecordedReview("run00001"); err == nil {
+		t.Fatal("a run that is not a review gave a report")
+	}
+	if _, err := r.RecordedReview("nothere1"); err == nil {
+		t.Fatal("an id the history does not hold gave a report")
+	}
+	if runtime.GOOS != "windows" {
+		elsewhere := filepath.Join(t.TempDir(), "report.json")
+		raw, _ := os.ReadFile(filepath.Join(dir, examiner.ReportFile))
+		writeRunFile(t, elsewhere, string(raw))
+		_ = os.Remove(filepath.Join(dir, examiner.ReportFile))
+		if err := os.Symlink(elsewhere, filepath.Join(dir, examiner.ReportFile)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.RecordedReview("rev00001"); err == nil {
+			t.Fatal("a report that is a link was read")
+		}
+	}
+}
+
+// The run page's reads of a run In Agentry send the token only to an address
+// Settings' URL rule accepts, as Recent runs does.
+func TestTheRunPagesHostedReadsHoldToTheURLRule(t *testing.T) {
+	keyring.MockInit()
+	freshConfig(t)
+	reg := "http://registry.example.test"
+	s, _ := settings.Load()
+	s.Upsert(settings.Registry{URL: reg, Token: hostedTestToken})
+	if err := settings.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if settings.TokenFor(reg) == "" {
+		t.Fatal("the test's token was not kept")
+	}
+	r := &RunAPI{app: &App{ctx: context.Background()}}
+	id := "22222222-2222-2222-2222-222222222222"
+	for name, call := range map[string]func() error{
+		"HostedRecord":         func() error { _, err := r.HostedRecord(reg, id); return err },
+		"DownloadHostedOutput": func() error { _, err := r.DownloadHostedOutput(reg, id); return err },
+	} {
+		if err := call(); err == nil || !strings.Contains(err.Error(), "must use https") {
+			t.Errorf("%s with an http registry off this machine: %v", name, err)
+		}
+	}
+	if v, _ := r.RecentRuns(reg, 5); v.SignedIn || v.HostedError != "" {
+		t.Fatalf("Recent runs asked an http registry off this machine: %+v", v)
+	}
+}
+
+// Download output writes nothing through a run folder that is now a link,
+// and a history that says a folder has gone is not overruled by memory.
+func TestDownloadOutputWritesNothingThroughALink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks")
+	}
+	f := &hostedFake{enabled: true, outputs: map[string]string{"result.json": hostedEnvelope}}
+	f.run = &hostedrun.Run{ID: "22222222-2222-2222-2222-222222222222", Ref: "acme/reporter@1.0.0", Mode: "autonomous", CreatedAt: time.Now().UTC()}
+	reg := f.start(t)
+	home, _ := signIn(t, reg)
+	t.Setenv(policy.HomeEnv, t.TempDir())
+	f.finish(hostedrun.OutcomeSucceeded, "ok", 2)
+	r, _ := newRunAPI(t)
+	want, err := hostedOutDir("", f.run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(want)
+	elsewhere := t.TempDir()
+	if err := os.Symlink(elsewhere, want); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.DownloadHostedOutput(reg, f.run.ID); err == nil {
+		t.Fatal("Download output wrote through a link")
+	}
+	if entries, _ := os.ReadDir(elsewhere); len(entries) != 0 {
+		t.Fatalf("the link's target got %v", entries)
+	}
+	// Memory and the history both name the folder; the history says it has
+	// gone (a link), and the page is told so, not shown it.
+	r.rememberFolder(f.run.ID, want)
+	if err := runhistory.Add(runhistory.Entry{ID: f.run.ID, Kind: runhistory.KindRun, Where: runhistory.WhereAgentry, Outcome: "succeeded", EndedAt: time.Now(), Folder: want}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := r.HostedRecord(reg, f.run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Kept || v.FolderState != folderGone || v.Run.ResultJSON != "" {
+		t.Fatalf("a folder that is now a link: %+v", v)
+	}
+	_ = home
 }

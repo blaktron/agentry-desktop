@@ -50,7 +50,7 @@ type liveRun struct {
 	// is the folder a built-in's flow kept for it (keepFolder).
 	started time.Time
 	folder  string
-	// registry is a chat's, for its history entry.
+	// registry is a run's or a chat's, for its history entry.
 	registry string
 	// turns are the run ids of the run's later turns: a draft's one repair
 	// turn runs under its own id (drafter.PostStep, #395), so the crash

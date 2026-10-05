@@ -2423,6 +2423,7 @@ export namespace main {
 	    folderError?: string;
 	    downloadable: boolean;
 	    followed: boolean;
+	    noOutput?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedRecordView(source);
@@ -2437,6 +2438,7 @@ export namespace main {
 	        this.folderError = source["folderError"];
 	        this.downloadable = source["downloadable"];
 	        this.followed = source["followed"];
+	        this.noOutput = source["noOutput"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

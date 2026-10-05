@@ -138,6 +138,10 @@ export function RecentRuns(arg1, arg2) {
   return window['go']['main']['RunAPI']['RecentRuns'](arg1, arg2);
 }
 
+export function RecordedReview(arg1) {
+  return window['go']['main']['RunAPI']['RecordedReview'](arg1);
+}
+
 export function RecordedRun(arg1) {
   return window['go']['main']['RunAPI']['RecordedRun'](arg1);
 }

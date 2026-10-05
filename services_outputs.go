@@ -9,11 +9,11 @@ package main
 //
 //   - The page names a run, never a path. A run's folder is known here only
 //     because Go produced the run's result itself (RunAgent, EndSession, a
-//     hosted run's download) and remembered its folder under its run id, in
-//     memory and, while Remember recent runs is on, in the run history Go
-//     alone writes (services_history.go, D-068); any other id is refused. So a page that has been
-//     made to call these bindings can list or reveal a run's folder, and
-//     nothing else on the machine.
+//     hosted run's download) and remembered its folder under its run id,
+//     in memory and, while Remember recent runs is on, in the run history
+//     Go alone writes (services_history.go, D-068); any other id is
+//     refused. So a page that has been made to call these bindings can
+//     list or reveal a run's folder, and nothing else on the machine.
 //   - Nothing an agent wrote is opened. A file is read for its preview,
 //     through no link, and only when it is a regular file inside the folder;
 //     ShowRunFolder opens the run's folder itself in the file manager, never
@@ -28,13 +28,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	goruntime "runtime"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/runhistory"
 )
 
 // Caps on what a listing reads: a preview is never larger than this, and a
@@ -47,12 +47,10 @@ const (
 	maxPreviewTotal = 4 << 20
 )
 
-// runIDPattern is what a run id looks like, a local one (hex) or the
-// registry's (a UUID): an id the registry sends is used as a folder name
-// and a map key, so anything else is not remembered.
-var runIDPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z-]{3,63}$`)
-
-func validRunID(id string) bool { return runIDPattern.MatchString(id) }
+// validRunID is what a run id looks like, a local one (hex) or the
+// registry's (a UUID), the run history's rule: an id the registry sends is
+// used as a folder name and a map key, so anything else is not remembered.
+func validRunID(id string) bool { return runhistory.ValidID(id) }
 
 // OutputFileView is one file a run wrote. Path is relative to the run
 // folder, "/"-separated; Preview is the file's text when PreviewKind is

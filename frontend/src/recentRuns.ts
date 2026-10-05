@@ -3,7 +3,8 @@
 // agentry-desktop#659). Pure and self-contained, so the node tests can
 // import it: Go gives the rows (RunAPI.RecentRuns), this says them.
 
-export type RunKind = "run" | "chat" | "draft" | "review" | "knowledge" | "voice";
+/** A built-in's own place, which its run page links to (D13). */
+export type BuiltinPage = "build" | "knowledge" | "voice";
 
 export type RunRow = {
   id: string;
@@ -97,7 +98,7 @@ export function rowLine(row: RunRow, now: Date): string {
 
 /** A built-in's own place, which its run page links to (D13); none for a
  *  review, whose report is on the run page itself, and for a QuickAgent. */
-export function builtinPlace(kind: string): { label: string; page: "build" | "knowledge" | "voice" } | null {
+export function builtinPlace(kind: string): { label: string; page: BuiltinPage } | null {
   switch (kind) {
     case "draft": return { label: "Open in Build", page: "build" };
     case "knowledge": return { label: "Open in Knowledge", page: "knowledge" };
