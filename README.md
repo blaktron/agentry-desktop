@@ -155,8 +155,7 @@ The product never claims an agent is "safe". The language is always:
   agentry-desktop#610, D-063, two cards as the Build page has). Two places,
   never synced on their own. **Local Voice** is this computer's, kept sealed
   in the runner home by the CLI's store, free and never reviewed: its page
-  has the editor (a monospace textarea with Save, and a Preview tab beside
-  it), **Download Cloud version**, **Upload to Cloud** (AI Review, for the
+  has the editor, **Download Cloud version**, **Upload to Cloud** (AI Review, for the
   registry's credit), **Edit with AI**, the switch that puts it on every run
   here, and Delete. Download and Upload say "Already the same" when the two
   voices match, and ask first in a native dialog when they would put an
@@ -179,7 +178,19 @@ The product never claims an agent is "safe". The language is always:
   has an always-attach switch (Settings → Run defaults for this computer's,
   shown on the Local Voice page too; Profile for the account's), and every
   run setup's Review shows **Write in my voice**, ticked from the switch of
-  the voice that run uses.
+  the voice that run uses. Both pages' editor is WYSIWYG since
+  agentry-desktop#612 (plan `voice-page-redesign.md` §6, D1): Tiptap v3
+  reads `VOICE.md` as Markdown and saves Markdown, in one view, with a small
+  toolbar (heading, bold, italic, lists, quote, code), the Markdown input
+  rules and shortcuts. A Voice Writer's output comes back byte for byte;
+  Save sends nothing when the voice is as it was opened (on the Cloud page
+  it would spend a credit), and checks 32 KiB on the Markdown it would send.
+  Raw HTML, an image's Markdown and any link but an absolute http(s) or
+  mailto one stay text; a link is drawn with no address, so no click in the
+  editor opens it; invisible characters show as their code points. A voice
+  with a table, a definition or a task list, which the editor cannot hold,
+  opens as Markdown text in a plain box instead, so no edit can drop that
+  part. Tiptap is loaded only when an editor is drawn, in a chunk of its own.
 - **Validate** — under Build in the sidebar, shown while Build is open
   (#422): an author drop-zone. Point it at a local QuickAgent folder and
   it runs the manifest rules, the S1 inventory (content-sniffed binaries,

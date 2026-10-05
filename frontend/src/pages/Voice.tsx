@@ -10,11 +10,11 @@
 // findings and Discard, the editor, Edit with AI run In Agentry, the
 // switch Settings' Profile also shows, and Restore previous and Delete.
 //
-// The editor is a monospace textarea the person writes in and saves from,
-// with a Preview tab beside it, never instead of it (the operator's
-// condition on D12; plan voice-page-redesign.md M7 replaces it). Saving this
-// computer's voice is free and immediate; saving the account's makes a
-// version AI Review reads before it is live. Edit with AI is one dialog on
+// The editor is WYSIWYG: it reads VOICE.md as Markdown and saves Markdown,
+// in one view (plan voice-page-redesign.md §6, D1, agentry-desktop#612,
+// reversing D12's textarea and Preview). Saving this computer's voice is
+// free and immediate; saving the account's makes a version AI Review reads
+// before it is live, and an untouched editor saves nothing on either. Edit with AI is one dialog on
 // each page: an AI Edit with a note and optional samples, or a Create where
 // that place keeps no voice; on the Local page the Voice Writer runs on
 // this computer for no credits, on the Cloud page In Agentry at the
@@ -24,15 +24,16 @@
 // native pickers, a replace, an upload over a newer version, a discard and
 // a delete are asked in a native dialog, and a Voice Writer run here takes
 // the run lock.
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
+import type { JSONContent } from "@tiptap/core";
 import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
 import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
 import { main, voice } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, Textarea } from "../ui";
-import { AgentMarkdown } from "../AgentMarkdown";
 import { FoldedLog, StopButton } from "../progress";
 import { WayCard } from "./BuildWays";
+import type { VoiceWysiwygHandle } from "../VoiceWysiwyg.tsx";
 import { CloudVoiceFigure, LocalVoiceFigure } from "./VoiceFigures";
 import {
   CLOUD_CARD_BLURB, CLOUD_SWITCH_LABEL, LOCAL_CARD_BLURB, LOCAL_SWITCH_LABEL, MAX_VOICE_BYTES, MAX_VOICE_NOTE_BYTES, NOT_LIVE,
@@ -730,62 +731,125 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
   );
 }
 
-// VoiceEditor is a monospace textarea with Save on it, and Preview beside
-// it, rendered with the hostile-markdown renderer (D12).
+// VoiceEditor is the voice's editor (plan voice-page-redesign.md §6, D1,
+// reversing writing-voice D12; agentry-desktop#612): a WYSIWYG editor that
+// reads VOICE.md as Markdown and saves Markdown, in one view, with no
+// Preview. Tiptap is loaded with import() once the editor is drawn
+// (VoiceWysiwyg.tsx), so the app's main bundle does not carry it. Until it
+// has loaded, and for a voice its schema cannot hold (a table, a definition,
+// a task list), the editor is a plain textarea. Save sends the editor's
+// Markdown, checked at 32 KiB on its bytes, and sends nothing when the
+// person has not changed the voice they opened (voiceMarkdown.ts's
+// voiceSave): on the Cloud page that would be a credit spent on nothing.
 function VoiceEditor({ initial, note, busy, onSave }: {
   initial: string;
   note: string;
   busy: boolean;
   onSave: (text: string) => void;
 }) {
-  const [tab, setTab] = useState<"write" | "preview">("write");
   const [text, setText] = useState(initial);
+  const [bytes, setBytes] = useState(() => voiceBytes(initial));
+  const [wysiwyg, setWysiwyg] = useState<Wysiwyg | null>(null);
+  // The editor could not open this voice (or did not load): the textarea is
+  // the editor, not a stand-in while it loads.
+  const [plain, setPlain] = useState<"unheld" | "unloaded" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const bytes = new TextEncoder().encode(text).length;
+  const [unchanged, setUnchanged] = useState(false);
+  const handle = useRef<VoiceWysiwygHandle | null>(null);
+  const typed = useRef(initial);
+  const id = useId();
+
+  // Load the editor once drawn. What was typed in the textarea meanwhile is
+  // what the editor opens with; Save still compares with the voice opened.
+  useEffect(() => {
+    let live = true;
+    import("../VoiceWysiwyg.tsx")
+      .then((m) => {
+        if (!live) return;
+        const doc = m.voiceToDoc(typed.current);
+        if (doc) setWysiwyg({ View: m.default, doc });
+        else setPlain("unheld");
+      })
+      .catch(() => {
+        // The textarea stays: it saves as it did before the editor.
+        if (live) setPlain("unloaded");
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const onReady = useCallback((h: VoiceWysiwygHandle) => {
+    handle.current = h;
+  }, []);
+  const onBytes = useCallback((n: number) => {
+    setBytes(n);
+    setProblem(null);
+    setUnchanged(false);
+  }, []);
+
+  function save() {
+    setProblem(null);
+    setUnchanged(false);
+    if (wysiwyg) {
+      // Still starting: nothing to say what to send yet.
+      if (!handle.current) return;
+      const s = handle.current.save();
+      if (s.kind === "unchanged") setUnchanged(true);
+      else if (s.kind === "problem") setProblem(s.message);
+      else onSave(s.text);
+      return;
+    }
+    if (text === initial) {
+      setUnchanged(true);
+      return;
+    }
+    const p = voiceTextProblem(text);
+    if (p) {
+      setProblem(p);
+      return;
+    }
+    onSave(text);
+  }
+
   return (
-    <div className="voice-editor">
-      <div className="tabs" role="tablist" aria-label="The voice editor">
-        <button role="tab" aria-selected={tab === "write"} className={`tab ${tab === "write" ? "active" : ""}`} onClick={() => setTab("write")}>Write</button>
-        <button role="tab" aria-selected={tab === "preview"} className={`tab ${tab === "preview" ? "active" : ""}`} onClick={() => setTab("preview")}>Preview</button>
-      </div>
-      {tab === "write" ? (
-        <>
-          <Textarea
-            className="mono"
-            rows={14}
-            spellCheck={false}
-            aria-label="VOICE.md"
-            value={text}
-            onChange={(e) => { setText(e.target.value); setProblem(null); }}
-          />
-          <div className="muted small">{Math.ceil(bytes / 1024)} KiB of {MAX_VOICE_BYTES / 1024} KiB</div>
-        </>
+    <div className="voice-editor" data-editor={wysiwyg ? "wysiwyg" : plain ? "plain" : "loading"}>
+      {wysiwyg ? (
+        <wysiwyg.View opened={initial} doc={wysiwyg.doc} describedBy={`${id}-size`} onReady={onReady} onBytes={onBytes} />
       ) : (
-        <div className="readme selectable">
-          {text.trim() ? <AgentMarkdown text={text} /> : <p className="muted">Nothing to preview yet.</p>}
-        </div>
+        <Textarea
+          className="mono"
+          rows={14}
+          spellCheck={false}
+          aria-label="VOICE.md"
+          aria-describedby={`${id}-size`}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            typed.current = e.target.value;
+            setBytes(voiceBytes(e.target.value));
+            setProblem(null);
+            setUnchanged(false);
+          }}
+        />
       )}
+      {plain === "unheld" && (
+        <p className="muted small">This voice holds a part the editor cannot show (a table, a definition or a task list), so it opens as Markdown text, and Save keeps every part.</p>
+      )}
+      <div id={`${id}-size`} className="muted small" aria-live="polite">{Math.ceil(bytes / 1024)} KiB of {MAX_VOICE_BYTES / 1024} KiB</div>
       {problem && <p className="run-step-problem" role="alert">{problem}</p>}
+      {unchanged && <p className="small" role="status">Nothing to save: the voice is as it was.</p>}
       <p className="muted small">{note}</p>
-      <Button
-        variant="primary"
-        busy={busy}
-        busyLabel="Saving…"
-        onClick={() => {
-          const p = voiceTextProblem(text);
-          if (p) {
-            setTab("write");
-            setProblem(p);
-            return;
-          }
-          onSave(text);
-        }}
-      >
+      <Button variant="primary" busy={busy} busyLabel="Saving…" onClick={save}>
         Save
       </Button>
     </div>
   );
 }
+
+type Wysiwyg = { View: typeof import("../VoiceWysiwyg.tsx").default; doc: JSONContent };
+
+const voiceBytes = (text: string) => new TextEncoder().encode(text).length;
 
 // VoiceSwitch is a voice's always-attach switch, for Settings: this
 // computer's under Run defaults, the account's under Profile (D11).

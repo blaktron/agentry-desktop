@@ -314,10 +314,21 @@ const g = window as any;
 // log lines; #voice-reviewing's account has a first version in review and
 // nothing live, and #voice-standard a Standard account whose Voice Writer
 // run In Agentry this cycle is used, and on #voice-attached an AI Edit In
-// Agentry is already running when the Cloud page opens (agentry-desktop#611). The shots open
-// the Local and Cloud pages and the dialogs by clicking, as a person does.
+// Agentry is already running when the Cloud page opens (agentry-desktop#611).
+// The editor is WYSIWYG since agentry-desktop#612: on #voice-hostile this
+// computer's voice carries raw HTML, a script, an image, a javascript: link
+// and invisible characters (a right-to-left override among them), all kept
+// as text; on #voice-table it holds a table, which the editor's schema
+// cannot hold, so the plain textarea stays. The shots open the Local and
+// Cloud pages and the dialogs by clicking, as a person does.
 const voiceHash = window.location.hash;
 const VOICE_MD = "# My Writing Voice\n\nWrite in short, plain sentences. Name who does what.\n\n- Prefer concrete words to abstract ones.\n- No exclamation marks.\n";
+const VOICE_HOSTILE_MD =
+  "# A voice with markup in it\n\nKeep <b onclick=\"x()\">bold</b> and <script>alert(1)</script> as text. R&D stays R&D.\n\n" +
+  "![tracking pixel](https://evil.example/p.gif) [run me](javascript:alert(1)) and [the style guide](https://example.com/style).\n\n" +
+  "- Hidden: zero\u200bwidth, \u202eesrever\u202c and a tag\u{e0041}.\n- **Bold**, *italic* and `code`.\n\n> A quoted rule.\n";
+const VOICE_TABLE_MD = "# A voice with a table\n\n| Say | Not |\n| --- | --- |\n| use | utilize |\n\nShort sentences.\n";
+const localVoiceMD = voiceHash === "#voice-hostile" ? VOICE_HOSTILE_MD : voiceHash === "#voice-table" ? VOICE_TABLE_MD : VOICE_MD;
 const voiceNoSync = { downloadSame: false, uploadSame: false, localAfterLive: false, accountAfterLocal: false, inReview: false };
 const voiceView = voiceHash === "#voice-none" || voiceHash === "#voice-failed"
   ? { registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5", local: { exists: false }, account: { exists: false, alwaysAttach: false }, sync: voiceNoSync }
@@ -334,7 +345,7 @@ const voiceView = voiceHash === "#voice-none" || voiceHash === "#voice-failed"
     }
   : {
       registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5", reviewCredits: 1,
-      local: { exists: true, text: VOICE_MD, digest: "sha256:4fa1067f", bytes: 120, source: "create", phrase: "made by the Voice Writer", alwaysAttach: true, created: "2026-10-01T22:10:00Z", updated: "2026-10-01T22:10:00Z" },
+      local: { exists: true, text: localVoiceMD, digest: "sha256:4fa1067f", bytes: 120, source: "create", phrase: "made by the Voice Writer", alwaysAttach: true, created: "2026-10-01T22:10:00Z", updated: "2026-10-01T22:10:00Z" },
       account: {
         exists: true, alwaysAttach: true, questionSet: "sha256:set-now",
         live: { review: "passed", source: "ai-edit", digest: "sha256:4fa1067f", bytes: 316, text: VOICE_MD, createdAt: "2026-10-01T22:20:00Z", reviewedAt: "2026-10-01T22:21:00Z", questionSet: "sha256:set-now" },
