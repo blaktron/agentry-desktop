@@ -4276,6 +4276,38 @@ export namespace main {
 		}
 	}
 	
+	export class VoiceRestoreView {
+	    account?: voice.Account;
+	    inReview: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new VoiceRestoreView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.account = this.convertValues(source["account"], voice.Account);
+	        this.inReview = source["inReview"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class VoiceSaveView {
 	    voice?: voice.Local;
 	    created: boolean;
@@ -4801,6 +4833,7 @@ export namespace voice {
 	    createdAt: any;
 	    // Go type: time
 	    reviewedAt?: any;
+	    questionSet?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Version(source);
@@ -4817,6 +4850,7 @@ export namespace voice {
 	        this.findings = this.convertValues(source["findings"], remote.Finding);
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	        this.reviewedAt = this.convertValues(source["reviewedAt"], null);
+	        this.questionSet = source["questionSet"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4843,6 +4877,7 @@ export namespace voice {
 	    live?: Version;
 	    pending?: Version;
 	    previous?: Version;
+	    questionSet?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Account(source);
@@ -4855,6 +4890,7 @@ export namespace voice {
 	        this.live = this.convertValues(source["live"], Version);
 	        this.pending = this.convertValues(source["pending"], Version);
 	        this.previous = this.convertValues(source["previous"], Version);
+	        this.questionSet = source["questionSet"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

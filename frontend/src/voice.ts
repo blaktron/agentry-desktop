@@ -105,9 +105,8 @@ export function voiceTextProblem(text: string): string | null {
 }
 
 /** What one Voice Writer run In Agentry costs this payer, from the
- *  registry's numbers. No page shows it between the Voice Writer card's
- *  removal (agentry-desktop#610) and the Cloud Voice page's Edit with AI
- *  In Agentry (M6, agentry-desktop#611), which says it again. */
+ *  registry's numbers: the Cloud Voice page's Edit with AI says it
+ *  (agentry-desktop#611). */
 export function hostedVoiceCost(a: { credits: number; holdCredits: number; limited: boolean; max: number; left: number }): string {
   if (a.holdCredits === 0) return "It costs no credits: the organization that pays for your runs is not metered.";
   const cost = `It costs ${a.credits} credits, AI Review included. If no voice comes out, the credits are refunded.`;
@@ -266,4 +265,86 @@ export function editWithAIProblem(hasVoice: boolean, text: string, samples: numb
   if (!hasVoice && samples === 0) return "Add samples of your writing: the Voice Writer writes your voice from them.";
   if (new TextEncoder().encode(text.trim()).length > MAX_VOICE_NOTE_BYTES) return "What you write here is at most 4 KiB.";
   return null;
+}
+
+// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, §7, D3, D5;
+// agentry-desktop#611): the site's Voice settings page in the desktop, in
+// its words (agentry-web lib/voice-view.ts).
+
+/** The Cloud Voice page's switch: the same setting as Settings → Profile
+ *  (D4). */
+export const CLOUD_SWITCH_LABEL = "Use this voice for every run In Agentry";
+
+/** A voice not live yet (the site's NOT_LIVE_SENTENCE). */
+export const NOT_LIVE = "Your voice is not live yet, so no run writes in it until AI Review passes it.";
+
+/** Where the registry runs no Voice Writer In Agentry (the site's
+ *  NO_WRITER_SENTENCE, from the desktop). */
+export const NO_HOSTED_WRITER =
+  "This registry does not run the Voice Writer In Agentry. The Local Voice page runs it on this computer for no credits, and Upload to Cloud sends what it writes here.";
+
+/** The line on a version waiting in the account (the site's
+ *  pendingSentence): the page follows a version in review on its own. */
+export function pendingLine(p: { review: string; verdict?: string }, live: boolean): string {
+  if (p.review === "flagged") {
+    return live
+      ? "AI Review flagged this version, so your live voice stays live. Edit it and save it again, or discard it."
+      : "AI Review flagged this version, so it is not live. Edit it and save it again, or discard it.";
+  }
+  if (p.verdict === "incomplete") {
+    return "AI Review did not finish reading this version, so it is still in review. Agentry tries again on its own.";
+  }
+  return live
+    ? "AI Review is reading this version. It replaces your live voice when it passes, and this page updates itself."
+    : "AI Review is reading this version. It goes live when it passes, and this page updates itself.";
+}
+
+/** An instant as the site's version lines say it: "2026-10-01 22:20 UTC"
+ *  (agentry-web lib/format.ts fmtUTC). */
+export function voiceStamp(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+}
+
+/** One account version's line: how it was made, when, when AI Review read
+ *  it, and its size (the site's VersionLine). */
+export function versionLine(v: { source: string; createdAt: string; reviewedAt?: string | null; bytes: number }): string {
+  const how = accountSource(v.source);
+  const reviewed = v.reviewedAt ? `, reviewed ${voiceStamp(v.reviewedAt)}` : "";
+  return `${how[0].toUpperCase()}${how.slice(1)}, ${voiceStamp(v.createdAt)}${reviewed}. ${v.bytes.toLocaleString("en-GB")} bytes.`;
+}
+
+/** What Restore previous does (the site's restoreSentence): a previous
+ *  version reviewed under the question set AI Review asks now trades
+ *  places with the live one at once; one reviewed under another goes to
+ *  AI Review again, for the registry's credit. */
+export function restoreLine(a: { questionSet?: string; previous?: { questionSet?: string } | null }, reviewCredits: number): string {
+  const set = a.previous?.questionSet ?? "";
+  if (set !== "" && set === a.questionSet) {
+    return "Restore makes the previous version live again at once, and your live one becomes the previous version.";
+  }
+  return reviewCredits > 0
+    ? `AI Review has changed since the previous version passed, so Restore sends it to AI Review again, for ${credits(reviewCredits)}.`
+    : "AI Review has changed since the previous version passed, so Restore sends it to AI Review again.";
+}
+
+/** The Voice Writer's job behind Edit with AI In Agentry, as Go's
+ *  accountJob decides it: an Edit of the account's newest version, live or
+ *  pending, and a Create where it keeps neither. */
+export function accountJob(a: { live?: unknown | null; pending?: unknown | null } | null | undefined): "edit" | "create" {
+  return a?.live || a?.pending ? "edit" : "create";
+}
+
+/** The hosted dialog's cost: the price, Standard's cycle, and a balance
+ *  short of what the run holds, which the registry would refuse (the site
+ *  says the same above its button). */
+export function hostedCostLine(a: {
+  credits: number; holdCredits: number; limited: boolean; max: number; left: number; balance: number; balanceKnown: boolean;
+}): string {
+  const cost = hostedVoiceCost(a);
+  if (!a.balanceKnown || a.holdCredits === 0 || a.balance >= a.holdCredits) return cost;
+  return `${cost} This account has ${a.balance.toLocaleString("en-GB")} credits, fewer than the Voice Writer costs, so the registry will refuse it.`;
 }

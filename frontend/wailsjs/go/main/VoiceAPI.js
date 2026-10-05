@@ -6,12 +6,28 @@ export function CancelHosted() {
   return window['go']['main']['VoiceAPI']['CancelHosted']();
 }
 
+export function DeleteAccount(arg1) {
+  return window['go']['main']['VoiceAPI']['DeleteAccount'](arg1);
+}
+
 export function DeleteLocal(arg1) {
   return window['go']['main']['VoiceAPI']['DeleteLocal'](arg1);
 }
 
+export function DiscardAccount(arg1) {
+  return window['go']['main']['VoiceAPI']['DiscardAccount'](arg1);
+}
+
 export function HostedAvailability(arg1, arg2) {
   return window['go']['main']['VoiceAPI']['HostedAvailability'](arg1, arg2);
+}
+
+export function HostedWithAI(arg1, arg2, arg3) {
+  return window['go']['main']['VoiceAPI']['HostedWithAI'](arg1, arg2, arg3);
+}
+
+export function RestoreAccount(arg1) {
+  return window['go']['main']['VoiceAPI']['RestoreAccount'](arg1);
 }
 
 export function SaveAccount(arg1, arg2) {

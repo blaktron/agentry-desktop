@@ -432,3 +432,77 @@ func TestTheVoicePageAsksTheStatusRouteOnlyAtAnAdmittedURL(t *testing.T) {
 		t.Fatalf("View sent %d requests to a URL Settings refuses", hits.Load())
 	}
 }
+
+// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, D5;
+// agentry-desktop#611): Discard and Delete act on the account only after
+// the person's Yes in a native dialog; Restore is asked nowhere, as the
+// site's, and its line says what it does. Edit with AI In Agentry is an
+// AI Edit over the account's newest version and a Create where it keeps
+// none.
+
+func TestDiscardAndDeleteInTheAccountAskFirstAndTouchNothingHere(t *testing.T) {
+	f := newVoiceFixture(t, true)
+	if _, err := f.v.SaveLocal(f.reg.URL, voiceText); err != nil {
+		t.Fatal(err)
+	}
+	// The CLI's fake serves GET and PUT /voice only; these two reach the
+	// fake's not-found answer, so a Yes is proven by the call's refusal
+	// naming the route, and a No by no call at all.
+	f.answer = false
+	if _, err := f.v.DiscardAccount(f.reg.URL); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("a Discard answered No: %v", err)
+	}
+	if err := f.v.DeleteAccount(f.reg.URL); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("a Delete answered No: %v", err)
+	}
+	if got := strings.Join(f.steps, "|"); got != "ask: Discard your new version?|ask: Delete your account's voice?" {
+		t.Fatalf("asked %v", got)
+	}
+	if !strings.Contains(f.msgs[1], "not touched") {
+		t.Fatalf("the Delete dialog does not say this computer's voice stays: %q", f.msgs[1])
+	}
+	f.answer = true
+	if _, err := f.v.DiscardAccount(f.reg.URL); err == nil || !strings.Contains(err.Error(), "discard your new version") {
+		t.Fatalf("a Discard answered Yes did not reach the registry: %v", err)
+	}
+	if view, _ := f.v.View(f.reg.URL); view.Local.Text != voiceText {
+		t.Fatal("an account action touched this computer's voice")
+	}
+}
+
+func TestEditWithAIInAgentryIsAnEditOverTheAccountsNewestVersionAndACreateWithout(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		a    *voice.Account
+		want string
+	}{
+		{"no voice", &voice.Account{}, hostedrun.VoiceCreate},
+		{"unread", nil, hostedrun.VoiceCreate},
+		{"live", &voice.Account{Exists: true, Live: &voice.Version{}}, hostedrun.VoiceEdit},
+		// A first version still in review or flagged is the voice to edit:
+		// the site's Edit mode is the same (agentry-web#1069).
+		{"pending only", &voice.Account{Exists: true, Pending: &voice.Version{Review: "flagged"}}, hostedrun.VoiceEdit},
+	} {
+		if got := accountJob(c.a); got != c.want {
+			t.Errorf("%s: %s, want %s", c.name, got, c.want)
+		}
+	}
+
+	f := newVoiceFixture(t, true)
+	// No voice in the account: a Create, so samples are required, as the
+	// dialog says.
+	if _, err := f.v.HostedWithAI(f.reg.URL, "plain and direct", nil); err == nil || !strings.Contains(err.Error(), "samples") {
+		t.Fatalf("a Create In Agentry with no samples: %v", err)
+	}
+	if _, err := f.v.SaveAccount(f.reg.URL, voiceText); err != nil {
+		t.Fatal(err)
+	}
+	// A voice in the account: an AI Edit, so the note is required.
+	if _, err := f.v.HostedWithAI(f.reg.URL, "  ", nil); err == nil || !strings.Contains(err.Error(), "what should change") {
+		t.Fatalf("an AI Edit In Agentry with no note: %v", err)
+	}
+	// Samples come only from the native pickers.
+	if _, err := f.v.HostedWithAI(f.reg.URL, "shorter", []string{t.TempDir()}); err == nil {
+		t.Fatal("an AI Edit In Agentry took a sample no picker returned")
+	}
+}

@@ -4,7 +4,10 @@
 // holds a voice to the format's rule; the price is the registry's.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ALREADY_THE_SAME, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedVoiceCost, localStatus, reviewCostLine, uploadButton, voiceChoice, voiceTextProblem } from "../src/voice.ts";
+import {
+  ALREADY_THE_SAME, accountJob, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedVoiceCost, localStatus, pendingLine,
+  restoreLine, reviewCostLine, uploadButton, versionLine, voiceChoice, voiceTextProblem,
+} from "../src/voice.ts";
 
 test("a run on this computer is offered this computer's voice, ticked from its switch", () => {
   assert.deepEqual(voiceChoice(null, false), { offered: false, ticked: false });
@@ -108,4 +111,50 @@ test("Edit with AI asks what should change over a voice, and samples where there
   assert.match(editWithAIProblem(false, "plain", 0) ?? "", /samples of your writing/);
   assert.equal(editWithAIProblem(false, "", 1), null);
   assert.match(editWithAIProblem(true, "é".repeat(2049), 0) ?? "", /at most 4 KiB/);
+});
+
+// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, D5;
+// agentry-desktop#611): the site's Voice settings page in the desktop, in
+// its words (agentry-web lib/voice-view.ts).
+
+test("the pending version's line says whether it is flagged, unfinished or being read, and that the page follows it", () => {
+  assert.match(pendingLine({ review: "flagged" }, true), /^AI Review flagged this version, so your live voice stays live\. Edit it and save it again, or discard it\.$/);
+  assert.match(pendingLine({ review: "flagged" }, false), /so it is not live\./);
+  assert.match(pendingLine({ review: "reviewing", verdict: "incomplete" }, true), /did not finish reading this version/);
+  assert.match(pendingLine({ review: "reviewing" }, true), /replaces your live voice when it passes, and this page updates itself\./);
+  assert.match(pendingLine({ review: "reviewing" }, false), /goes live when it passes/);
+});
+
+test("a version's line says how it was made, when, when it was reviewed and its size, in UTC as the site does", () => {
+  assert.equal(
+    versionLine({ source: "ai-edit", createdAt: "2026-10-01T22:20:00Z", reviewedAt: "2026-10-01T22:21:30Z", bytes: 1316 }),
+    "An AI Edit, 2026-10-01 22:20 UTC, reviewed 2026-10-01 22:21 UTC. 1,316 bytes.",
+  );
+  assert.equal(versionLine({ source: "edit", createdAt: "2026-10-02T00:19:00Z", bytes: 180 }), "Edited by hand, 2026-10-02 00:19 UTC. 180 bytes.");
+});
+
+test("Restore says it goes live at once under the same question set, and to AI Review with its credit under another", () => {
+  const same = { questionSet: "sha256:now", previous: { questionSet: "sha256:now" } };
+  assert.match(restoreLine(same, 1), /live again at once/);
+  assert.match(restoreLine({ questionSet: "sha256:now", previous: { questionSet: "sha256:before" } }, 1), /sends it to AI Review again, for 1 credit\.$/);
+  // A previous version never reviewed under a set says the same, with no
+  // figure where the registry names none.
+  assert.match(restoreLine({ questionSet: "sha256:now", previous: { questionSet: "" } }, 0), /sends it to AI Review again\.$/);
+});
+
+test("the Voice Writer In Agentry is Edit over the account's newest version and Create where it keeps none", () => {
+  assert.equal(accountJob(null), "create");
+  assert.equal(accountJob({ live: null, pending: null }), "create");
+  assert.equal(accountJob({ live: { digest: "a" } }), "edit");
+  assert.equal(accountJob({ pending: { digest: "b" } }), "edit");
+});
+
+test("the hosted dialog's cost says the price and warns of a balance short of it", () => {
+  const avail = { credits: 20, holdCredits: 20, limited: false, max: 0, left: 0, balance: 3977, balanceKnown: true };
+  assert.match(hostedCostLine(avail), /^It costs 20 credits, AI Review included\./);
+  assert.doesNotMatch(hostedCostLine(avail), /fewer credits/);
+  assert.match(hostedCostLine({ ...avail, balance: 12 }), /This account has 12 credits, fewer than the Voice Writer costs, so the registry will refuse it\.$/);
+  // An unmetered organization: no shortage to warn of.
+  assert.doesNotMatch(hostedCostLine({ ...avail, holdCredits: 0, balance: 0 }), /fewer credits/);
+  assert.doesNotMatch(hostedCostLine({ ...avail, balance: 0, balanceKnown: false }), /fewer credits/);
 });
