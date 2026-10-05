@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_BRIEF_BYTES, agentryWebLine, briefBytes, documentsRecap, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap,
+  MAX_BRIEF_BYTES, agentryWebLine, briefBytes, continuedFrom, continuesWith, documentsRead, documentsRecap, keptWith, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap,
 } from "../src/knowledgeSources.ts";
 
 test("a build takes documents, a brief, or both, and a brief of at most 8 KiB", () => {
@@ -64,4 +64,27 @@ test("what a build reads, in words", () => {
   assert.equal(readsLine(0, true), "your brief");
   assert.equal(readsLine(1, true), "1 document and your brief");
   assert.equal(readsLine(3, false), "3 documents");
+});
+
+// What continues a build that stopped short: what it was given, never
+// documents it did not have (agentry-desktop#600).
+test("a stopped build is continued with what it was given", () => {
+  assert.equal(continuesWith(0, true), "the same brief");
+  assert.equal(continuesWith(2, false), "the same documents");
+  assert.equal(continuesWith(1, true), "the same documents and brief");
+  assert.equal(continuedFrom(0, true), "this brief");
+  assert.equal(continuedFrom(2, false), "these documents");
+  assert.equal(continuedFrom(1, true), "this brief and these documents");
+  assert.equal(keptWith(0, true), "its brief");
+  assert.equal(keptWith(2, false), "its documents");
+  assert.equal(keptWith(1, true), "its documents and brief");
+});
+
+// A result lists the brief among its documents, as brief.md: the
+// documents it read are the rest.
+test("a result's documents without its brief", () => {
+  assert.equal(documentsRead(["brief.md"], true), 0);
+  assert.equal(documentsRead(["a.pdf", "brief.md"], true), 1);
+  assert.equal(documentsRead(["a.pdf", "b.md"], false), 2);
+  assert.equal(documentsRead([], true), 0);
 });

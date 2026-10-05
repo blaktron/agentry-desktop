@@ -72,7 +72,7 @@ export default function KnowledgePreview({ registry, name, onClose }: { registry
             {empty && (
               <p className="muted small">
                 The Knowledge Creator kept no page in this pack besides its index: the build stopped, or the pages it wrote
-                were dropped. Run Add documents with the same documents to build it again.
+                were dropped. Run Add documents with the same documents or brief to build it again.
               </p>
             )}
             {loading && <Spinner />}

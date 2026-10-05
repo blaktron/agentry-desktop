@@ -86,7 +86,7 @@ func TestCreateKeepsThePackSealedAndLeavesNoPageInTheClear(t *testing.T) {
 		t.Fatalf("the log did not say the build is not scanned: %q", log.String())
 	}
 	if res.Name != "handbook" || res.Pages != 1 || len(res.Skipped) != 1 || len(res.Dropped) != 1 || res.InputTokens != 1200 ||
-		!strings.Contains(res.Key, "keeps for your account") || res.Stopped != "" {
+		!strings.Contains(res.Key, "keeps for your account") || res.Stopped != "" || res.Brief {
 		t.Fatalf("result = %+v", res)
 	}
 	l, err := e.List(ctx, reg.URL)
