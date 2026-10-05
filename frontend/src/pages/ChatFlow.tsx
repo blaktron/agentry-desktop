@@ -20,7 +20,7 @@ import {
 } from "../runs";
 import { working, type ChatRecord } from "../sessionChat";
 import { Button, ErrorBox, Modal } from "../ui";
-import { HostedResult } from "./HostedRun";
+import { HostedResult, StarAsk } from "./HostedRun";
 import { LocalRunDetails, RunResultView } from "./RunResult";
 import SessionChat from "./SessionChat";
 
@@ -150,6 +150,7 @@ function ChatResult({ c }: { c: ChatRecord }) {
         error={run.downloadError || undefined}
         resultJson={run.resultJson ?? ""}
         knowledge={run.knowledgeLine || undefined}
+        ask={<StarAsk registry={c.registry} run={run} />}
       >
         <HostedResult run={run} />
       </RunResultView>

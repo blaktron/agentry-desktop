@@ -25,7 +25,7 @@ import { knowledge, main, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
-import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, SessionCredits, SessionUnavailable } from "./HostedRun";
+import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice";
 import { GuideText, connectHelp } from "../GuideText";
@@ -710,6 +710,7 @@ export default function RunPanel({
                         operator policy for it.
                       </p>
                       <SessionCredits hosted={hosted} />
+                      <PublisherEarnsLine hosted={hosted} />
                       <HostedSecretsNote hosted={hosted} />
                     </>
                   )}
@@ -721,6 +722,7 @@ export default function RunPanel({
                         docker engine and no operator policy for it.
                       </p>
                       <HostedCredits hosted={hosted} />
+                      <PublisherEarnsLine hosted={hosted} />
                       <HostedSecretsNote hosted={hosted} />
                       {unsigned && (
                         <Notice tone="warn">
@@ -1141,6 +1143,7 @@ export default function RunPanel({
               )}
               {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
               {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
+              {(mode === "hosted" || sessionInAgentry) && hosted && <PublisherEarnsLine hosted={hosted} />}
               <h4>Output</h4>
               {mode === "hosted" && (
                 <p className="muted small" style={{ margin: "2px 0 6px" }}>

@@ -119,6 +119,9 @@ type hostedFake struct {
 	// onCreate runs as the create is answered: what else happens in the
 	// app while the registry creates the run.
 	onCreate func()
+	// earns is the Publisher Earnings program's answer for acme, whose
+	// reporter is public and read by someone else (agentry-desktop#613).
+	earns bool
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -174,6 +177,15 @@ func (f *hostedFake) start(t *testing.T) string {
 			"manifest": hostedManifestDoc(t, f.modes, f.secrets), "namespace": "acme", "name": "reporter",
 			"version": "1.0.0", "yanked": false,
 		})
+	})
+	mux.HandleFunc("GET /api/v1/x/billing/earnings/publishers/acme", func(w http.ResponseWriter, _ *http.Request) {
+		hostedJSON(w, http.StatusOK, map[string]any{"handle": "acme", "earns": f.earns})
+	})
+	mux.HandleFunc("GET /api/v1/agents/acme/reporter", func(w http.ResponseWriter, _ *http.Request) {
+		hostedJSON(w, http.StatusOK, map[string]any{"namespace": "acme", "name": "reporter", "visibility": "public"})
+	})
+	mux.HandleFunc("GET /api/v1/user", func(w http.ResponseWriter, _ *http.Request) {
+		hostedJSON(w, http.StatusOK, map[string]any{"handle": "pat", "displayName": "Pat", "email": "pat@example.com"})
 	})
 	mux.HandleFunc("GET /api/v1/x/billing/account", func(w http.ResponseWriter, r *http.Request) {
 		// The registry names where its subscription is managed
