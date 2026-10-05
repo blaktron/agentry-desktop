@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { install, installed, trust } from "../../wailsjs/go/models";
 import {
-  AgentRow, Button, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, fmtDate,
+  AgentRow, Button, EmptyState, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar, fmtDate,
 } from "../ui";
+import { filterInstalled, registryQuery, registrySearchLabel } from "../library";
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
 
@@ -19,14 +20,18 @@ function keyOf(r: { registry: string; namespace: string; name: string; target: s
   return [r.registry, r.namespace, r.name, r.target, r.dir].join(" ");
 }
 
-export default function Installed({
+// The Library (plan desktop-home-and-library.md D3; agentry-desktop#657):
+// the QuickAgents installed on this computer, which was the Installed page,
+// with a search that filters them and always leads on to Browse for more.
+export default function Library({
   registry, onBrowse, onOpenAgent,
 }: {
   /** The app's registry: a local install's run lists its knowledge packs
    * and asks the vulnerability verdicts of its declared MCP servers there,
    * as any run does; the release itself is never fetched from it. */
   registry: string;
-  onBrowse: () => void;
+  /** Browse, searched for the query when there is one. */
+  onBrowse: (q?: string) => void;
   onOpenAgent: (registry: string, ns: string, name: string) => void;
 }) {
   const [records, setRecords] = useState<install.Item[] | null>(null);
@@ -45,6 +50,9 @@ export default function Installed({
   // A QuickAgent installed from a folder (agentry-desktop#425) has no
   // registry page to open, so it runs from here.
   const [running, setRunning] = useState<install.Item | null>(null);
+  // What the search field holds: it filters the list as it is typed, and
+  // the button beside it carries it to Browse.
+  const [search, setSearch] = useState("");
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
@@ -148,9 +156,14 @@ export default function Installed({
     return bits.length ? bits.join(" · ") : "no capabilities accepted";
   }
 
-  const managed = (records ?? []).filter((r) => r.manageable && r.present);
-  const consents = (records ?? []).filter((r) => !r.manageable && r.present);
-  const gone = (records ?? []).filter((r) => !r.present);
+  const canManage = (r: install.Item) => r.manageable && r.present;
+  const query = registryQuery(search);
+  const shown = filterInstalled(records ?? [], search);
+  const managed = shown.filter(canManage);
+  const consents = shown.filter((r) => !r.manageable && r.present);
+  const gone = shown.filter((r) => !r.present);
+  const toRegistry = () => onBrowse(query);
+  const registryButton = <Button variant="primary" onClick={toRegistry}>{registrySearchLabel(search)}</Button>;
 
   function section(title: string, items: install.Item[], row: (rec: install.Item) => ReactNode, empty?: string) {
     return (
@@ -165,18 +178,36 @@ export default function Installed({
   return (
     <div>
       <PageHeader
-        title="Installed"
-        sub={<>The QuickAgents this machine has accepted. The <span className="mono">agentry</span> CLI reads and writes the same record (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
-        actions={<Button onClick={checkUpdates} busy={checking} busyLabel="Checking…" disabled={managed.length === 0}>Check for updates</Button>}
+        title="Library"
+        sub={<>The QuickAgents installed on this computer. The <span className="mono">agentry</span> CLI reads and writes the same record (<span className="mono">~/.config/agentry/installed.yaml</span>).</>}
+        actions={<Button onClick={checkUpdates} busy={checking} busyLabel="Checking…" disabled={!(records ?? []).some(canManage)}>Check for updates</Button>}
       />
+
+      <Toolbar>
+        <Input
+          type="search"
+          className="grow"
+          placeholder="Search your QuickAgents…"
+          aria-label="Search the QuickAgents installed on this computer"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && toRegistry()}
+        />
+        {registryButton}
+      </Toolbar>
 
       <ErrorBox error={error} />
       {notice && <Notice tone="info">{notice}</Notice>}
       {warning && <Notice tone="warn">{warning}</Notice>}
       {!records && <Spinner />}
       {records && records.length === 0 && (
-        <EmptyState title="Nothing installed yet" action={<Button variant="primary" onClick={onBrowse}>Browse the registry</Button>}>
+        <EmptyState title="Nothing installed on this computer yet" action={registryButton}>
           Install a QuickAgent from the registry to see it here.
+        </EmptyState>
+      )}
+      {records && records.length > 0 && shown.length === 0 && (
+        <EmptyState title={`Nothing installed on this computer matches “${query}”`} action={registryButton}>
+          The registry may have it.
         </EmptyState>
       )}
 
@@ -184,10 +215,10 @@ export default function Installed({
           the runner home's installs among them since D-031 — records of a
           target this app does not know (shown, not managed), and records
           whose directory is gone (Forget removes the line). */}
-      {records && records.length > 0 && (
+      {records && shown.length > 0 && (
         <>
           {section(
-            "Installed here",
+            "Installed on this computer",
             managed,
             (rec) => {
               if (rec.local) {
@@ -231,7 +262,9 @@ export default function Installed({
                 />
               );
             },
-            "This app has installed nothing. Records the CLI wrote, and records whose directory is gone, are listed below.",
+            // Under a search, an empty section says nothing: the records
+            // were filtered out, not missing.
+            query ? undefined : "This app has installed nothing. Records the CLI wrote, and records whose directory is gone, are listed below.",
           )}
           {consents.length > 0 && section(
             "Recorded by the CLI",

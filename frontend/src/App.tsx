@@ -8,7 +8,7 @@ import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import AgentPage from "./pages/AgentPage";
-import Installed from "./pages/Installed";
+import Library from "./pages/Library";
 import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
 import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
@@ -32,11 +32,14 @@ import { Button, Notice, Wordmark } from "./ui";
 import { requestEdit, sameRegistry } from "./edit";
 
 export type Route =
-  | { page: "browse" }
+  // The Library: what is installed on this computer, with Browse beneath it
+  // (plan desktop-home-and-library.md D3).
+  | { page: "library" }
+  // q: the Library's search, carried to Browse and searched there.
+  | { page: "browse"; q?: string }
   // registry: an installed record's own registry may differ from the active
   // one; back: where the ← link returns to.
-  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "installed" }
-  | { page: "installed" }
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" }
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
@@ -80,7 +83,7 @@ export default function App() {
   const [newer, setNewer] = useState<main.SelfUpdateView | null>(null);
   // How many installed QuickAgents have a newer version, from the launch
   // check and the agent page's own checks (agentry-desktop#147, D8): the
-  // number on Installed. Reading it never starts a check.
+  // number on Library. Reading it never starts a check.
   const [installedUpdates, setBriefUpdates] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
   // The "nothing set up" reminder (plan desktop-installers.md D10): raised
@@ -231,14 +234,16 @@ export default function App() {
               </div>
             )}
             {route.page === "browse" && (
-              <Browse registry={registry} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
+              // Browse takes its query only when it mounts, so the key gives
+              // a new search from the Library a fresh Browse.
+              <Browse key={route.q ?? ""} registry={registry} initialQuery={route.q} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} />
             )}
             {route.page === "agent" && (
               <AgentPage
                 registry={route.registry ?? registry}
                 ns={route.ns}
                 name={route.name}
-                backLabel={route.back === "installed" ? "← back to installed" : "← back to search"}
+                backLabel={route.back === "library" ? "← back to Library" : "← back to Browse"}
                 onBack={() => nav({ page: route.back ?? "browse" })}
                 // Edit opens in the Build tab, which submits to the app's
                 // registry: offered only for that registry's QuickAgents.
@@ -250,11 +255,11 @@ export default function App() {
                 }}
               />
             )}
-            {route.page === "installed" && (
-              <Installed
+            {route.page === "library" && (
+              <Library
                 registry={registry}
-                onBrowse={() => nav({ page: "browse" })}
-                onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "installed" })}
+                onBrowse={(q) => nav({ page: "browse", q })}
+                onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "library" })}
               />
             )}
             {route.page === "voice" && (
@@ -283,7 +288,7 @@ export default function App() {
             />
           )}
             {route.page === "build" && (
-              <Build registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenInstalled={() => nav({ page: "installed" })} />
+              <Build registry={registry} openDraftRev={openDraftRev} openEditRev={openEditRev} onOpenAgent={(ns, name) => nav({ page: "agent", ns, name })} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.describeKey })} onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} onOpenLibrary={() => nav({ page: "library" })} />
             )}
             {route.page === "validate" && <Validate registry={registry} onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })} />}
             {route.page === "settings" && (

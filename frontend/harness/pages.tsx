@@ -40,7 +40,7 @@ const report = {
 const prov = unscanned
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
   : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified", rulesetVersion: "2026.09.1", judgeModel: "claude-sonnet-4-5" };
-// The Installed page's three sections (agentry-desktop#63): two installs this
+// The Library's three sections (agentry-desktop#63): two installs this
 // app manages, a run consent the CLI wrote into the same file, and a record
 // whose directory is gone.
 const installedRecs = [
@@ -67,7 +67,7 @@ const agentInstalledOlder = window.location.hash === "#agent-installed-older";
 // Update stays disabled and the page says why (agentry-desktop#147).
 const agentInstalledUnreachable = window.location.hash === "#agent-installed-unreachable";
 // #installed-updates: the launch check found two newer versions — the
-// number on Installed in the sidebar (agentry-desktop#147).
+// number on Library in the sidebar (agentry-desktop#147).
 const installedUpdates = window.location.hash === "#installed-updates" ? 2 : 0;
 // #installed-update-warning: the runner-home record has a newer version,
 // and its Update completes with a warning — the policy it could not read
@@ -399,7 +399,12 @@ g.go = { main: {
     StopWrite: async () => undefined,
   },
   BrowseAPI: {
-    Search: async () => (fresh ? { results: hits } : { total: hits.length, results: hits }),
+    // The query narrows the hits, so a state can show which search was made.
+    Search: async (_registry: string, query?: { q?: string }) => {
+      const q = (query?.q ?? "").toLowerCase();
+      const found = q ? hits.filter((h: any) => `${h.namespace}/${h.name} ${h.summary}`.toLowerCase().includes(q)) : hits;
+      return fresh ? { results: found } : { total: found.length, results: found };
+    },
     Agent: async () => detail,
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
     Report: async () => (unscanned ? { versionStatus: "published", scanStatus: "skipped", verdict: "unscanned", findings: [] } : report),
@@ -669,7 +674,7 @@ g.runtime = {
 
 import Browse from "../src/pages/Browse";
 import AgentPage from "../src/pages/AgentPage";
-import Installed from "../src/pages/Installed";
+import Library from "../src/pages/Library";
 import Build from "../src/pages/Build";
 import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
@@ -793,10 +798,14 @@ function SettingsPreview() {
 
 const render = () => createRoot(document.getElementById("root")!).render(
   <div>
-    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="agent"><Shell active="browse"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
-    <div data-preview="installed"><Shell active="installed"><Installed registry={REG} onBrowse={() => {}} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenInstalled={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
+    {/* #browse-query: Browse as the Library's search opens it, searched for
+        what was typed there (agentry-desktop#657). */}
+    <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
+    {/* Where the Library would lead, marked on the body so a shot can see
+        the query it hands to Browse (agentry-desktop#657). */}
+    <div data-preview="library"><Shell active="library"><Library registry={REG} onBrowse={(q) => { document.body.dataset.browse = q ?? ""; }} onOpenAgent={() => {}} /></Shell></div>
+    <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenLibrary={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
     <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>

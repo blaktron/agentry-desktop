@@ -37,7 +37,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack, backLabel = "← back to search", onEdit, onOpenReviewKey,
+  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey,
 }: {
   registry: string;
   ns: string;
@@ -95,7 +95,7 @@ export default function AgentPage({
     InstallAPI.ListInstalled()
       // Only what this app can uninstall and that is still on disk — the
       // runner-home install among them since D-031; gone directories
-      // belong to the Installed page's other section (agentry-desktop#63).
+      // belong to the Library's other section (agentry-desktop#63).
       .then((all) => setInstalls(all.filter((r) => r.namespace === ns && r.name === name && r.manageable && r.present)))
       .catch(() => setInstalls([])),
   [ns, name]);
