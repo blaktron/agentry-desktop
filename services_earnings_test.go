@@ -28,6 +28,8 @@ type earningsFake struct {
 	notEarning  bool
 	earnsStatus int
 	private     bool
+	// builtin marks the agent one of the packages the CLI embeds.
+	builtin bool
 	// handle and orgs are the reader's; orgs map a handle to its state.
 	handle string
 	orgs   map[string]string
@@ -75,7 +77,7 @@ func (f *earningsFake) start(t *testing.T) string {
 		}
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"id": "00000000-0000-0000-0000-0000000000b1", "namespace": "acme", "name": "reporter", "visibility": vis,
-			"createdAt": "2026-01-01T00:00:00Z",
+			"builtin": f.builtin, "createdAt": "2026-01-01T00:00:00Z",
 		})
 	})
 	mux.HandleFunc("GET /api/v1/agents/acme/reporter/stats", func(w http.ResponseWriter, r *http.Request) {
@@ -88,8 +90,12 @@ func (f *earningsFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusOK, st)
 	})
 	mux.HandleFunc("GET /api/v1/user", func(w http.ResponseWriter, r *http.Request) {
-		if f.userStatus != 0 || r.Header.Get("Authorization") != "Bearer "+hostedTestToken {
-			w.WriteHeader(map[bool]int{true: f.userStatus, false: http.StatusUnauthorized}[f.userStatus != 0])
+		if f.userStatus != 0 {
+			w.WriteHeader(f.userStatus)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer "+hostedTestToken {
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		orgs := []map[string]any{}
@@ -161,17 +167,19 @@ func TestPublisherEarnsHere(t *testing.T) {
 // line under what a run In Agentry costs.
 func TestHostedAvailabilityCarriesTheEarningsLine(t *testing.T) {
 	for _, earns := range []bool{true, false} {
-		f := &hostedFake{enabled: true, earns: earns}
-		reg := f.start(t)
-		signIn(t, reg)
-		r, _ := newRunAPI(t)
-		v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if v.PublisherEarns != earns {
-			t.Fatalf("publisherEarns = %v with the publisher earning %v", v.PublisherEarns, earns)
-		}
+		t.Run(map[bool]string{true: "earning", false: "not earning"}[earns], func(t *testing.T) {
+			f := &hostedFake{enabled: true, earns: earns}
+			reg := f.start(t)
+			signIn(t, reg)
+			r, _ := newRunAPI(t)
+			v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.PublisherEarns != earns {
+				t.Fatalf("publisherEarns = %v with the publisher earning %v", v.PublisherEarns, earns)
+			}
+		})
 	}
 }
 
@@ -188,6 +196,7 @@ func TestStarAsk(t *testing.T) {
 		{"someone else's, not starred", func(*earningsFake) {}, true},
 		{"whatever the program says", func(f *earningsFake) { f.noBilling, f.notEarning = true, true }, true},
 		{"already starred", func(f *earningsFake) { f.starred = true }, false},
+		{"a built-in (a build, a draft, a Voice Writer run)", func(f *earningsFake) { f.builtin = true }, false},
 		{"the star not said", func(f *earningsFake) { f.noStarred = true }, false},
 		{"their own", func(f *earningsFake) { f.handle = "acme" }, false},
 		{"their organization's", func(f *earningsFake) { f.orgs = map[string]string{"acme": "active"} }, false},
@@ -256,6 +265,14 @@ func TestStarQuickAgent(t *testing.T) {
 	}
 	if len(f.stars) != 1 {
 		t.Fatalf("a refused name was sent: %q", f.stars)
+	}
+	// A registry Settings refuses (plain http off this machine) is never
+	// sent the token, whatever name is asked.
+	if err := r.StarQuickAgent("http://agentry.example", "acme/reporter"); err == nil {
+		t.Fatal("starred through plain http off this machine")
+	}
+	if len(f.stars) != 1 {
+		t.Fatalf("a refused registry was sent a star: %q", f.stars)
 	}
 	f.starStatus = http.StatusForbidden
 	err := r.StarQuickAgent(reg, "acme/reporter")

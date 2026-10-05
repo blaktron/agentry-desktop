@@ -339,7 +339,10 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	o := hostedrun.Decide(facts)
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
 	v.Session = sessionOffer(hostedrun.DecideSession(facts), terms)
-	if v.Offered {
+	// Its reads carry the token, so they are held to Settings' URL rule,
+	// which the rest of this function does not apply yet (agentry-desktop
+	// #307).
+	if v.Offered && settings.ValidateURL(reg) == nil {
 		v.PublisherEarns = publisherEarnsHere(ctx, reg, token, ref, exts)
 	}
 	return v, nil

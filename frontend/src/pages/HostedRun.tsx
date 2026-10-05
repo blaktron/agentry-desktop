@@ -80,18 +80,21 @@ export function StarAsk({ registry, run }: { registry: string; run: main.HostedR
     setErr(null);
     if (!wanted) return;
     let live = true;
-    // An ask that cannot be read is no ask: the result never waits on it.
+    // An ask that cannot be read is no ask, and the result never fails on
+    // it: the call is made inside the promise, so a binding that throws
+    // (a harness entry with no mock) is caught as a refusal is.
     Promise.resolve().then(() => RunAPI.StarAsk(registry, run.ref)).then((v) => { if (live) setAsk(v); }).catch(() => undefined);
     return () => { live = false; };
   }, [registry, run.ref, run.id, wanted]);
-  if (!ask?.ask || !ask.name) return null;
-  if (starred) return <p className="muted small" data-testid="star-ask">{starredSentence(ask.name)}</p>;
+  const name = ask?.ask ? ask.name : undefined;
+  if (!name) return null;
+  if (starred) return <p className="muted small" data-testid="star-ask">{starredSentence(name)}</p>;
 
-  async function star() {
+  async function star(name: string) {
     setBusy(true);
     setErr(null);
     try {
-      await RunAPI.StarQuickAgent(registry, ask!.name!);
+      await RunAPI.StarQuickAgent(registry, name);
       setStarred(true);
     } catch (e) {
       setErr(String(e));
@@ -103,8 +106,8 @@ export function StarAsk({ registry, run }: { registry: string; run: main.HostedR
     <section aria-label="Star this QuickAgent" data-testid="star-ask">
       <Card>
         <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
-          <p className="small grow" style={{ margin: 0 }}>{starAskSentence(ask.name)}</p>
-          <Button onClick={star} busy={busy} busyLabel="Starring…">Star this QuickAgent</Button>
+          <p className="small grow" style={{ margin: 0 }}>{starAskSentence(name)}</p>
+          <Button onClick={() => void star(name)} busy={busy} busyLabel="Starring…">Star this QuickAgent</Button>
         </div>
         <ErrorBox error={err} />
       </Card>

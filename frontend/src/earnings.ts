@@ -16,9 +16,9 @@ export function starAskSentence(name: string): string {
   return `If this run helped, star ${name}. Stars help other people find it.`;
 }
 
-/** What the result says once the ask was answered. */
+/** What the result says once the ask was answered: the site's flash. */
 export function starredSentence(name: string): string {
-  return `You starred ${name}.`;
+  return `Starred ${name}.`;
 }
 
 /** starAskWanted: whether a run In Agentry is one whose result may ask to

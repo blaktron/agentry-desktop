@@ -20,14 +20,16 @@ test("the run setup's line is the site's, with what you pay unchanged", () => {
 
 test("the star ask names the QuickAgent in the site's words", () => {
   assert.equal(starAskSentence("acme/reporter"), "If this run helped, star acme/reporter. Stars help other people find it.");
-  assert.equal(starredSentence("acme/reporter"), "You starred acme/reporter.");
+  assert.equal(starredSentence("acme/reporter"), "Starred acme/reporter.");
 });
 
 test("only a run that finished and succeeded asks to be starred", () => {
   const done = { status: "finished", outcome: "succeeded", final: true, ref: "acme/reporter@1.0.0" };
   assert.equal(starAskWanted(done), true);
-  // A closed session finishes as a run does.
-  assert.equal(starAskWanted({ ...done, ref: "acme/chatter@2.0.0" }), true);
+  // A closed session finishes as a run does, with its session's facts.
+  const closed = { ...done, ref: "acme/chatter@2.0.0", mode: "interactive", session: { idleSeconds: 300, transport: "" } };
+  assert.equal(starAskWanted(closed), true);
+  assert.equal(starAskWanted({ ...closed, outcome: "failed" }), false);
   for (const [why, run] of [
     ["failed", { ...done, outcome: "failed" }],
     ["errored", { ...done, outcome: "error" }],

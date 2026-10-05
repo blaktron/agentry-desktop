@@ -17,7 +17,6 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
-	"regexp"
 	"strings"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
@@ -95,7 +94,7 @@ func ownPublisher(ctx context.Context, client *apiclient.ClientWithResponses, ns
 	}
 	if u.Orgs != nil {
 		for _, o := range *u.Orgs {
-			if o.Handle == ns && (o.State == nil || string(*o.State) != "pending") {
+			if o.Handle == ns && (o.State == nil || *o.State != apiclient.MembershipStatePending) {
 				return true, true
 			}
 		}
@@ -112,57 +111,60 @@ type StarAskView struct {
 }
 
 // StarAsk reports whether the result of a hosted run or session of ref
-// asks the person to star the QuickAgent: it is not theirs or an
-// organization's they are an active member of, and the registry says they
-// have not starred it. The panel asks only once the run ended well
-// (starAskWanted, frontend/src/earnings.ts). It asks the same whether or
-// not the publisher earns (D10). Nothing signed in, a ref that is not one
-// and any read that does not answer ask nothing.
+// asks the person to star the QuickAgent: it is not a built-in (a build, a
+// draft or a Voice Writer run, which the site does not ask about either),
+// not theirs or an organization's they are an active member of, and the
+// registry says they have not starred it. The panel asks only once the run
+// ended well (starAskWanted, frontend/src/earnings.ts). It asks the same
+// whether or not the publisher earns (D10). Nothing signed in, a ref that
+// is not one and any read that does not answer ask nothing.
 func (r *RunAPI) StarAsk(reg, ref string) (*StarAskView, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, err
 	}
-	no := &StarAskView{}
+	noAsk := &StarAskView{}
 	token := settings.TokenFor(reg)
 	p, err := manifest.ParseRef(ref)
 	if token == "" || err != nil {
-		return no, nil
+		return noAsk, nil
 	}
 	ctx := r.ctx()
 	client, err := registry.New(reg, token)
 	if err != nil {
-		return no, nil
+		return noAsk, nil
 	}
 	if own, known := ownPublisher(ctx, client, p.Namespace); own || !known {
-		return no, nil
+		return noAsk, nil
+	}
+	a, err := client.GetAgentWithResponse(ctx, p.Namespace, p.Name)
+	if err != nil || a.JSON200 == nil || a.JSON200.Builtin {
+		return noAsk, nil
 	}
 	st, err := client.GetAgentStatsWithResponse(ctx, p.Namespace, p.Name)
 	if err != nil || st.JSON200 == nil || st.JSON200.Starred == nil || *st.JSON200.Starred {
-		return no, nil
+		return noAsk, nil
 	}
 	return &StarAskView{Ask: true, Name: p.Namespace + "/" + p.Name}, nil
 }
 
 // StarQuickAgent stars name ("ns/name", as StarAsk named it) for the
 // signed-in person: PUT /user/stars/{ns}/{name}, which the desktop's
-// agent:read grant may do. Anything but a bare ns/name is refused unsent.
+// agent:read grant may do. Anything but a bare ns/name, in the spec's
+// Namespace and AgentName patterns, is refused unsent, so no path, range
+// or dot segment reaches the star's URL.
 func (r *RunAPI) StarQuickAgent(reg, name string) error {
-	reg = settings.Normalize(reg)
-	if err := settings.ValidateURL(reg); err != nil {
-		return err
-	}
 	ns, n, ok := strings.Cut(name, "/")
-	if !ok || !starNamespaceRE.MatchString(ns) || !starNameRE.MatchString(n) {
+	if !ok || !manifest.ValidNamespace(ns) || !manifest.ValidName(n) {
 		return fmt.Errorf("%q is not a QuickAgent's name", name)
 	}
-	token := settings.TokenFor(reg)
-	if token == "" {
-		return fmt.Errorf("not signed in to %s", originOf(reg))
+	reg, token, err := storedCredential(reg)
+	if err != nil {
+		return err
 	}
 	client, err := registry.New(reg, token)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s is not a registry address this app can use", originOf(reg))
 	}
 	res, err := client.StarAgentWithResponse(r.ctx(), ns, n)
 	if err != nil {
@@ -173,10 +175,3 @@ func (r *RunAPI) StarQuickAgent(reg, name string) error {
 	}
 	return nil
 }
-
-// The spec's Namespace and AgentName patterns (schemas/openapi.yaml), so no
-// path, range or dot segment reaches the star's URL.
-var (
-	starNamespaceRE = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$`)
-	starNameRE      = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,63}[a-z0-9])?$`)
-)
