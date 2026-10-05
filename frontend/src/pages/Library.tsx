@@ -7,6 +7,7 @@ import {
 import { filterInstalled, registryQuery, registrySearchLabel } from "../library";
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
+import { PinButton, homeFullLine, useHomeLayout } from "./home/PinButton";
 
 type UpdateMap = Record<string, install.UpdateInfo>;
 
@@ -14,7 +15,7 @@ type UpdateMap = Record<string, install.UpdateInfo>;
 // holds the release to its integrity record and asks the consent again.
 // A plain object, not createFrom: the class carries a convertValues method
 // the production bundle's createFrom did not survive (agentry-desktop#441).
-const localAttestation = { state: "local", detail: "installed from a folder on this computer" } as trust.AttestationResult;
+export const localAttestation = { state: "local", detail: "installed from a folder on this computer" } as trust.AttestationResult;
 
 function keyOf(r: { registry: string; namespace: string; name: string; target: string; dir: string }): string {
   return [r.registry, r.namespace, r.name, r.target, r.dir].join(" ");
@@ -53,6 +54,9 @@ export default function Library({
   // What the search field holds: it filters the list as it is typed, and
   // the button beside it carries it to Browse.
   const [search, setSearch] = useState("");
+  // Home's pins (agentry-desktop#660): Pin to Home on each row this app
+  // manages; an uninstall removes the pin in Go, so the layout is read again.
+  const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
@@ -93,6 +97,7 @@ export default function Library({
       );
       setNotice(msg);
       refresh();
+      rereadHomeLayout();
     } catch (e) {
       setError(String(e));
     }
@@ -110,6 +115,7 @@ export default function Library({
       );
       setNotice(`Forgot ${rec.namespace}/${rec.name}; nothing on disk was touched.`);
       refresh();
+      rereadHomeLayout();
     } catch (e) {
       setError(String(e));
     }
@@ -199,6 +205,7 @@ export default function Library({
       <ErrorBox error={error} />
       {notice && <Notice tone="info">{notice}</Notice>}
       {warning && <Notice tone="warn">{warning}</Notice>}
+      {homeFullLine(homeLayout) && records && records.length > 0 && <p className="muted small" data-home-full>{homeFullLine(homeLayout)}</p>}
       {!records && <Spinner />}
       {records && records.length === 0 && (
         <EmptyState title="Nothing installed on this computer yet" action={registryButton}>
@@ -234,6 +241,7 @@ export default function Library({
                     meta={<>{capsSummary(rec)} · installed {fmtDate(rec.installedAt as unknown as string)} from a folder on this computer; no registry holds it</>}
                     actions={<>
                       <Button variant="primary" onClick={() => setRunning(rec)}>Run</Button>
+                      <PinButton agentRef={`${rec.namespace}/${rec.name}`} registry="" layout={homeLayout} onLayout={setHomeLayout} />
                       <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
                     </>}
                     onClick={() => setRunning(rec)}
@@ -256,6 +264,7 @@ export default function Library({
                   actions={<>
                     <Button onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}>Details</Button>
                     {u?.updateAvailable && <Button variant="primary" onClick={() => startUpdate(rec)} busy={updatingRunner === keyOf(rec)} busyLabel="Updating…">Update</Button>}
+                    <PinButton agentRef={`${rec.namespace}/${rec.name}`} registry={rec.origin} layout={homeLayout} onLayout={setHomeLayout} />
                     <Button variant="danger" onClick={() => setConfirmRemove(rec)}>Uninstall</Button>
                   </>}
                   onClick={() => onOpenAgent(rec.origin, rec.namespace, rec.name)}

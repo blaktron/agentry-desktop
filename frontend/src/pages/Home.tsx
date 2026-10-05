@@ -5,16 +5,21 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, main } from "../../wailsjs/go/models";
 import { Notice, PageHeader } from "../ui";
-import { cardsToDraw, type HomeCardKind, type LayoutCard } from "../homeCards";
+import { cardsToDraw, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
 import { greeting } from "../homeLines";
 import { signedInTo } from "./Settings";
 import { InstalledCard } from "./home/InstalledCard";
 import { ProfileCard } from "./home/ProfileCard";
 import { RunDefaultsCard } from "./home/RunDefaultsCard";
 import { RecentRunsCard } from "./home/RecentRunsCard";
+import { PinnedCard } from "./home/PinnedCard";
+import RunPanel from "./RunPanel";
+import { localAttestation } from "./Library";
+import type { Pin } from "../pins";
 
 // Home (plan desktop-home-and-library.md §4.3, D2, D4, D9, D-067;
-// agentry-desktop#658; Recent runs, D-068, agentry-desktop#659): the page
+// agentry-desktop#658; Recent runs, D-068, agentry-desktop#659; pins,
+// agentry-desktop#660): the page
 // the app opens on, a card per thing that is the person's own, in the start
 // pages' card language. Go keeps which
 // cards and in what order (HomeAPI); each card reads its own bindings and a
@@ -44,10 +49,16 @@ export type HomeOpen = {
   // Recent runs: a row's run page, and Run defaults' Recent runs part.
   run: (row: main.RecentRunView) => void;
   runHistory: () => void;
+  // A pin's Run for a QuickAgent from a registry: its page, with the run
+  // setup open (a folder install's opens here, as the Library's does).
+  runAgent: (registry: string, ns: string, name: string) => void;
 };
 
 // How many rows Recent runs shows (plan §4.3).
 const RECENT_ROWS = 5;
+// How many recent runs are read: enough to find each pin's latest run
+// (the history keeps 50, D1).
+const RUNS_READ = 50;
 
 export default function Home({ registry, settings, open, banner }: {
   registry: string;
@@ -58,7 +69,10 @@ export default function Home({ registry, settings, open, banner }: {
 }) {
   const [layout, setLayout] = useState<Got<main.HomeLayoutView>>(pending);
   const [records, setRecords] = useState<Got<install.Item[]>>(pending);
-  const [updates, setUpdates] = useState(0);
+  const [updates, setUpdates] = useState<install.UpdateInfo[]>([]);
+  const [updateCount, setUpdateCount] = useState(0);
+  // A folder install's Run, from its pin: the run setup, here.
+  const [runningLocal, setRunningLocal] = useState<install.Item | null>(null);
   const [profile, setProfile] = useState<Got<main.ProfileView>>(pending);
   const [defaults, setDefaults] = useState<Got<main.RunDefaultsView>>(pending);
   const [recent, setRecent] = useState<Got<main.RecentRunsView>>(pending);
@@ -71,7 +85,7 @@ export default function Home({ registry, settings, open, banner }: {
     HomeAPI.Layout().then(...put(setLayout));
     InstallAPI.ListInstalled().then(...put(setRecords));
     // The launch check's snapshot: reading it never starts a check.
-    InstallAPI.UpdatesStatus().then((v) => live && setUpdates(v.available)).catch(() => {});
+    InstallAPI.UpdatesStatus().then((v) => { if (live) { setUpdates(v.updates ?? []); setUpdateCount(v.available); } }).catch(() => {});
     SettingsAPI.RunDefaults().then(...put(setDefaults));
     return () => { live = false; };
   }, []);
@@ -82,7 +96,7 @@ export default function Home({ registry, settings, open, banner }: {
   useEffect(() => {
     if (signedIn === null) return;
     let live = true;
-    RunAPI.RecentRuns(registry, RECENT_ROWS).then(...settle(() => live)(setRecent));
+    RunAPI.RecentRuns(registry, RUNS_READ).then(...settle(() => live)(setRecent));
     return () => { live = false; };
   }, [registry, signedIn]);
 
@@ -93,12 +107,19 @@ export default function Home({ registry, settings, open, banner }: {
     return () => { live = false; };
   }, [registry, signedIn]);
 
-  const renderers: Partial<Record<HomeCardKind, () => ReactNode>> = {
+  // A pin whose QuickAgent is gone from this computer is unpinned from its
+  // card; Go answers with the layout as it now is.
+  const unpin = (pin: Pin) => {
+    HomeAPI.Unpin(pin.ref, pin.registry ?? "").then((v) => setLayout({ value: v, error: null })).catch(() => {});
+  };
+  // A plain object, not createFrom (agentry-desktop#441).
+  const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as main.RecentRunsView) : null;
+  const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
     "recent-runs": () => (
-      <RecentRunsCard view={recent.value} error={recent.error} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />
+      <RecentRunsCard view={recentView} error={recent.error} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />
     ),
     installed: () => (
-      <InstalledCard records={records.value} updates={updates} error={records.error}
+      <InstalledCard records={records.value} updates={updateCount} error={records.error}
         onOpenLibrary={open.library} onOpenBrowse={open.browse} onOpenAgent={open.agent} />
     ),
     profile: () => (
@@ -107,6 +128,12 @@ export default function Home({ registry, settings, open, banner }: {
         onTopUp={() => { SettingsAPI.OpenTopUp(registry).catch(() => {}); }} />
     ),
     "run-defaults": () => <RunDefaultsCard defaults={defaults.value} error={defaults.error} onOpen={open.runDefaults} />,
+    pinned: (c) => (
+      <PinnedCard pins={c.pins} records={records.value ?? (records.error ? [] : null)} updates={updates}
+        runs={recent.value?.runs ?? (recent.error ? [] : null)} now={new Date()}
+        onOpenLibrary={open.library} onOpenAgent={open.agent} onOpenRun={open.run} onUnpin={unpin}
+        onRun={(rec) => (rec.local ? setRunningLocal(rec) : open.runAgent(rec.origin, rec.namespace, rec.name))} />
+    ),
   };
   const cards = layout.value || layout.error
     ? cardsToDraw(layout.value?.cards ?? FALLBACK, new Set(Object.keys(renderers)))
@@ -129,8 +156,12 @@ export default function Home({ registry, settings, open, banner }: {
         </Notice>
       )}
       <div className="build-ways home-cards">
-        {cards.map((c) => <div key={c.key} className="home-card-cell" data-home-card={c.kind}>{renderers[c.kind]?.()}</div>)}
+        {cards.map((c) => <div key={c.key} className="home-card-cell" data-home-card={c.kind}>{renderers[c.kind]?.(c)}</div>)}
       </div>
+      {runningLocal && (
+        <RunPanel registry={registry} ns={runningLocal.namespace} name={runningLocal.name} version={runningLocal.version}
+          attestation={localAttestation} local onClose={() => setRunningLocal(null)} />
+      )}
     </div>
   );
 }

@@ -4,6 +4,10 @@ import {main} from '../models';
 
 export function Layout():Promise<main.HomeLayoutView>;
 
+export function Pin(arg1:string,arg2:string):Promise<main.HomeLayoutView>;
+
 export function Reset():Promise<main.HomeLayoutView>;
 
 export function SetShown(arg1:string,arg2:boolean):Promise<main.HomeLayoutView>;
+
+export function Unpin(arg1:string,arg2:string):Promise<main.HomeLayoutView>;

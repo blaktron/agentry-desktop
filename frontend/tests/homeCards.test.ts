@@ -20,9 +20,17 @@ test("a kind this app does not know, or has no renderer for yet, is skipped and 
 });
 
 test("a default card is drawn once however often the layout names it; a pinned card may repeat", () => {
-  const drawn = cardsToDraw([{ kind: "profile" }, { kind: "pinned" }, { kind: "profile" }, { kind: "pinned" }], all);
+  const pin = { ref: "acme/a", registry: "https://secureagentry.net" };
+  const drawn = cardsToDraw([{ kind: "profile" }, { kind: "pinned", pins: [pin] }, { kind: "profile" }, { kind: "pinned", pins: [pin] }], all);
   assert.deepEqual(kinds(drawn), ["profile", "pinned", "pinned"]);
   assert.equal(new Set(drawn.map((c) => c.key)).size, drawn.length, "each drawn card has its own key");
+  assert.deepEqual(drawn[1].pins, [pin]);
+  assert.deepEqual(drawn[0].pins, []);
+});
+
+test("a Pinned card is drawn only while it holds a pin (agentry-desktop#660)", () => {
+  const drawn = cardsToDraw([{ kind: "pinned" }, { kind: "pinned", pins: [] }, { kind: "installed" }], all);
+  assert.deepEqual(kinds(drawn), ["installed"]);
 });
 
 test("every card is Large today, whatever size the layout names", () => {

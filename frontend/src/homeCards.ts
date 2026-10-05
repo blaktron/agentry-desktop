@@ -29,24 +29,27 @@ import type { settings } from "../wailsjs/go/models";
 // The one size today, the Build, Voice and Knowledge cards' (D12).
 export type HomeCardSize = "large";
 
-export type LayoutCard = Pick<settings.HomeCard, "kind" | "hidden" | "size">;
-export type DrawnCard = { kind: HomeCardKind; key: string; size: HomeCardSize };
+export type LayoutCard = Pick<settings.HomeCard, "kind" | "hidden" | "size"> & { pins?: Pick<settings.HomePin, "ref" | "registry">[] };
+// pins: a Pinned card's, in their rows' order (D11); empty for every other kind.
+export type DrawnCard = { kind: HomeCardKind; key: string; size: HomeCardSize; pins: Pick<settings.HomePin, "ref" | "registry">[] };
 
 const isKind = (k: string): k is HomeCardKind => Object.prototype.hasOwnProperty.call(HOME_CARDS, k);
 
 /** The layout's cards the page draws, in the layout's order: not hidden,
  * of a kind this app knows and has a renderer for (drawable), a single
- * kind once. Every card is Large until smaller sizes exist. */
+ * kind once, a Pinned card only while it holds a pin. Every card is Large
+ * until smaller sizes exist. */
 export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>): DrawnCard[] {
   const out: DrawnCard[] = [];
   const seen = new Set<string>();
   cards.forEach((c, i) => {
     if (c.hidden || !isKind(c.kind) || !drawable.has(c.kind)) return;
+    if (c.kind === "pinned" && !c.pins?.length) return;
     if (!HOME_CARDS[c.kind].multiple) {
       if (seen.has(c.kind)) return;
       seen.add(c.kind);
     }
-    out.push({ kind: c.kind, key: HOME_CARDS[c.kind].multiple ? `${c.kind}-${i}` : c.kind, size: "large" });
+    out.push({ kind: c.kind, key: HOME_CARDS[c.kind].multiple ? `${c.kind}-${i}` : c.kind, size: "large", pins: c.pins ?? [] });
   });
   return out;
 }

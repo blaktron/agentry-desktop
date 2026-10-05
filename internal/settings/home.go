@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -76,10 +77,23 @@ func (l HomeLayout) MarshalYAML() (any, error) {
 // Voice and Knowledge cards (D12); smaller sizes come with later
 // customising. Rest keeps a card's keys this app does not know.
 type HomeCard struct {
-	Kind   string         `yaml:"kind" json:"kind"`
-	Hidden bool           `yaml:"hidden,omitempty" json:"hidden,omitempty"`
-	Size   string         `yaml:"size,omitempty" json:"size,omitempty"`
-	Rest   map[string]any `yaml:",inline" json:"-"`
+	Kind   string `yaml:"kind" json:"kind"`
+	Hidden bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
+	Size   string `yaml:"size,omitempty" json:"size,omitempty"`
+	// Pins are a Pinned card's QuickAgents, at most PinsPerCard (D5).
+	Pins []HomePin      `yaml:"pins,omitempty" json:"pins,omitempty"`
+	Rest map[string]any `yaml:",inline" json:"-"`
+}
+
+// HomePin is one pinned QuickAgent (agentry-desktop#660): its ref
+// (namespace/name, no version) and the registry it was installed from,
+// empty for a QuickAgent installed from a folder. A pin is kept on this
+// computer only and is not a star (D5). Rest keeps a pin's keys this app
+// does not know.
+type HomePin struct {
+	Ref      string         `yaml:"ref" json:"ref"`
+	Registry string         `yaml:"registry,omitempty" json:"registry,omitempty"`
+	Rest     map[string]any `yaml:",inline" json:"-"`
 }
 
 // What the stored layout is to this app: usable, of a newer version, or a
@@ -185,4 +199,155 @@ func ResetHome() error {
 	}
 	s.Home = nil
 	return Save(s)
+}
+
+// Pins (plan desktop-home-and-library.md D5, D11, D12; agentry-desktop#660):
+// four to a Pinned card, at most four Pinned cards, so at most 16 pins. Go
+// places them: a new pin joins the first Pinned card with room, and a new
+// card, Large, is added after every other card only when each one holds
+// four. An unpin leaves its gap for the next pin and moves no other pin
+// between cards; a card it empties is removed.
+const (
+	PinsPerCard    = 4
+	MaxPinnedCards = 4
+	MaxPins        = PinsPerCard * MaxPinnedCards
+	// HomeLarge is the one card size, the Build, Voice and Knowledge cards'.
+	HomeLarge = "large"
+)
+
+// ErrHomeFull refuses a pin past the 16th.
+var ErrHomeFull = fmt.Errorf("this Home holds %d pinned QuickAgents, %d to a Pinned card, and every one is full; unpin one to pin another", MaxPins, PinsPerCard)
+
+// validPinRef reports whether ref is namespace/name: two non-empty parts,
+// no version, no space.
+func validPinRef(ref string) bool {
+	ns, name, ok := strings.Cut(ref, "/")
+	return ok && ns != "" && name != "" && !strings.ContainsAny(ref, "@ \t\n") && !strings.Contains(name, "/")
+}
+
+func (p HomePin) is(ref, registry string) bool {
+	return p.Ref == ref && Normalize(p.Registry) == Normalize(registry)
+}
+
+// usableHome loads the settings and the layout a change may be made to.
+func usableHome() (Settings, HomeLayout, error) {
+	s, err := Load()
+	if err != nil {
+		return Settings{}, HomeLayout{}, err
+	}
+	l, st := homeOf(s)
+	switch st {
+	case homeNewer:
+		return s, l, errNewerHome
+	case homeUnreadable:
+		return s, l, errUnreadableHome
+	}
+	return s, l, nil
+}
+
+func pinnedIn(l HomeLayout, ref, registry string) bool {
+	for _, c := range l.Cards {
+		if c.Kind != HomePinned {
+			continue
+		}
+		for _, p := range c.Pins {
+			if p.is(ref, registry) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsPinned reports whether ref from registry is pinned to Home. A layout
+// this app keeps rather than uses pins nothing.
+func IsPinned(ref, registry string) bool {
+	l, st, err := homeLayoutState()
+	return err == nil && st == homeOK && pinnedIn(l, ref, registry)
+}
+
+// PinToHome pins ref (namespace/name) from registry ("" for a folder
+// install). A pin already there is left as it is; the 17th is ErrHomeFull.
+// It writes only the settings file.
+func PinToHome(ref, registry string) error {
+	if !validPinRef(ref) {
+		return fmt.Errorf("%q is not a QuickAgent to pin: a pin names namespace/name", ref)
+	}
+	s, l, err := usableHome()
+	if err != nil {
+		return err
+	}
+	if pinnedIn(l, ref, registry) {
+		return nil
+	}
+	pin := HomePin{Ref: ref, Registry: Normalize(registry)}
+	cards := 0
+	for i := range l.Cards {
+		if l.Cards[i].Kind != HomePinned {
+			continue
+		}
+		cards++
+		if len(l.Cards[i].Pins) < PinsPerCard {
+			l.Cards[i].Pins = append(l.Cards[i].Pins, pin)
+			s.Home = &l
+			return Save(s)
+		}
+	}
+	if cards >= MaxPinnedCards {
+		return ErrHomeFull
+	}
+	l.Cards = append(l.Cards, HomeCard{Kind: HomePinned, Size: HomeLarge, Pins: []HomePin{pin}})
+	s.Home = &l
+	return Save(s)
+}
+
+// unpin removes the pins match picks and every Pinned card left empty,
+// and saves when anything went.
+func unpin(match func(HomePin) bool) error {
+	s, l, err := usableHome()
+	if err != nil {
+		return err
+	}
+	changed := false
+	cards := l.Cards[:0:0]
+	for _, c := range l.Cards {
+		if c.Kind == HomePinned {
+			kept := c.Pins[:0:0]
+			for _, p := range c.Pins {
+				if match(p) {
+					changed = true
+					continue
+				}
+				kept = append(kept, p)
+			}
+			if len(kept) == 0 && len(c.Pins) > 0 {
+				continue
+			}
+			c.Pins = kept
+		}
+		cards = append(cards, c)
+	}
+	if !changed {
+		return nil
+	}
+	l.Cards = cards
+	s.Home = &l
+	return Save(s)
+}
+
+// UnpinFromHome removes the pin of ref from registry; one not pinned is
+// left as it is.
+func UnpinFromHome(ref, registry string) error {
+	return unpin(func(p HomePin) bool { return p.is(ref, registry) })
+}
+
+// UnpinRef removes ref's pins from every registry, when its last install
+// on this computer goes (D5). A layout this app keeps rather than uses is
+// left alone, without an error: an uninstall never fails on Home.
+func UnpinRef(ref string) error {
+	err := unpin(func(p HomePin) bool { return p.Ref == ref })
+	if errors.Is(err, errNewerHome) || errors.Is(err, errUnreadableHome) {
+		return nil
+	}
+	return err
 }

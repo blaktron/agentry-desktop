@@ -2009,6 +2009,7 @@ export namespace main {
 	    cards: settings.HomeCard[];
 	    newer: boolean;
 	    unreadable: boolean;
+	    maxPins: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new HomeLayoutView(source);
@@ -2019,6 +2020,7 @@ export namespace main {
 	        this.cards = this.convertValues(source["cards"], settings.HomeCard);
 	        this.newer = source["newer"];
 	        this.unreadable = source["unreadable"];
+	        this.maxPins = source["maxPins"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4866,10 +4868,25 @@ export namespace selfupdate {
 
 export namespace settings {
 	
+	export class HomePin {
+	    ref: string;
+	    registry?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HomePin(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.registry = source["registry"];
+	    }
+	}
 	export class HomeCard {
 	    kind: string;
 	    hidden?: boolean;
 	    size?: string;
+	    pins?: HomePin[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HomeCard(source);
@@ -4880,7 +4897,26 @@ export namespace settings {
 	        this.kind = source["kind"];
 	        this.hidden = source["hidden"];
 	        this.size = source["size"];
+	        this.pins = this.convertValues(source["pins"], HomePin);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

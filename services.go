@@ -1193,12 +1193,14 @@ func (i *InstallAPI) ListInstalled() ([]install.Item, error) {
 }
 
 // Forget drops a record whose directory is gone; nothing on disk is touched
-// (agentry-desktop#63).
+// (agentry-desktop#63). Its pin goes when no other install of it is left
+// (agentry-desktop#660).
 func (i *InstallAPI) Forget(k installed.Key) error {
 	if err := install.Forget(k); err != nil {
 		return err
 	}
 	i.refreshRow(k)
+	unpinIfGone(k.Namespace + "/" + k.Name)
 	return nil
 }
 
@@ -1213,11 +1215,13 @@ func (i *InstallAPI) CheckUpdates() ([]install.UpdateInfo, error) {
 	return infos, nil
 }
 
-// Uninstall removes one installation (managed dirs only; see engine docs).
+// Uninstall removes one installation (managed dirs only; see engine docs),
+// and its pin when no other install of it is left (agentry-desktop#660).
 func (i *InstallAPI) Uninstall(k installed.Key) (string, error) {
 	msg, err := install.Uninstall(k)
 	if err == nil {
 		i.refreshRow(k)
+		unpinIfGone(k.Namespace + "/" + k.Name)
 	}
 	return msg, err
 }

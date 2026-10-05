@@ -1003,6 +1003,10 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .home-card-cell > .card { flex: 1; }
 .home-card-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .recent-runs li { display: flex; flex-direction: column; align-items: flex-start; }
+/* A Pinned card's rows (agentry-desktop#660): the name, the latest run's
+   line, and its actions, four rows a card (D5). */
+.pinned-list { gap: 10px; }
+.pinned-actions { display: flex; gap: 12px; }
 .recent-run-end.tone-ok { color: var(--color-ok); }
 .recent-run-end.tone-bad { color: var(--color-sev-high); }
 .recent-run-end.tone-warn { color: var(--color-sev-medium); }
