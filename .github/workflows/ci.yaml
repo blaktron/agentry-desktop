@@ -91,7 +91,8 @@ jobs:
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build
       # The frontend's pure modules under node's own test runner
-      # (agentry-desktop#415): no browser, no extra dependency.
+      # (agentry-desktop#415): no browser. The voice editor's test runs a
+      # real Tiptap editor on jsdom, a dev dependency (agentry-desktop#612).
       - name: Frontend unit tests
         run: cd frontend && npm test
       - name: golangci-lint

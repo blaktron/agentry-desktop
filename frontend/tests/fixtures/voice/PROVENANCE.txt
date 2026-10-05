@@ -1,0 +1,20 @@
+The Writing Voice fixtures for frontend/tests/voiceEditor.test.ts (agentry-desktop#612), copied byte for byte from agentry-web lib/__tests__/fixtures/voice/ (agentry-web#1070), whose test they first served.
+
+writer-*.md are real Voice Writer outputs, kept byte for byte: the CLI built from
+agentry-cli dev at 1b5ca5e (agentry/voice-writer@1.1.0, agentry-cli#605) on
+2026-10-04, run on the workstation (agentry-dev) against Vultr Serverless
+Inference (openai/qwen3.8-flash-next). Each run wrote its VOICE.md to a file
+with --write, so no voice was kept on that machine:
+
+  writer-create-docs.md     voice create --file <three of the site's docs pages>
+  writer-create-casual.md   voice create --file <two blog posts and an email written
+                            for the fixture> --brief "Keep it friendly and a bit silly."
+  writer-create-formal.md   voice create --file <a report and a memo written for the
+                            fixture>
+  writer-edit-formal.md     voice edit --current writer-create-formal.md --file <the
+                            memo> --note "Allow contractions in internal memos, and add
+                            a short section on how to write an email to a colleague."
+
+The samples hold no one's private writing. hand-short.md is the hand-written voice
+of the CLI's attach check (agentry-cli#576); hand-every-node.md is written for this
+test and holds every block and mark the editor keeps.
