@@ -83,6 +83,9 @@ g.go = { main: {
     StopDraft: async () => undefined,
   },
   KnowledgeAPI: {
+    // Describe it lists the packs a draft may read as it mounts
+    // (agentry-desktop#497, knowledge-and-drafter.md K4); none here, so the form is the one the shots show.
+    List: async () => ({ packs: [], registry: REG, signedIn: true }),
     CreatorModel: async () => "openai qwen3.8-flash-next",
     CreatorBudget: async () => ({ timeoutSeconds: 3600, maxTurns: 60 }),
     HostedAvailability: async () => ({ offered: false, available: false }),
