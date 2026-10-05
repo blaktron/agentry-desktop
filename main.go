@@ -30,8 +30,10 @@ var assets embed.FS
 
 func main() {
 	// Opened from Finder, the app has launchd's PATH, which holds no
-	// docker: give it the usual install directories before anything looks
-	// a program up (agentry-desktop#573; internal/hostpath says why).
+	// docker; relaunched by a self-update on Windows, it has the first
+	// launch's: give it the PATH a terminal opened now would have before
+	// anything looks a program up (agentry-desktop#573, #624;
+	// internal/hostpath says why).
 	hostpath.ForGUI()
 	// The Windows uninstaller's "Also remove my Agentry settings and
 	// sign-in" runs this binary once more, headless, before deleting it

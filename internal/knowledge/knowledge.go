@@ -28,11 +28,14 @@ package knowledge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/knowledge/remote"
@@ -221,6 +224,22 @@ type Pack struct {
 	// shared one they administer or an admin marked exportable (D26). The
 	// registry decides again when it is asked.
 	CanExport bool `json:"canExport"`
+	// Updated is when the copy kept here last changed (its manifest's
+	// updated, else created), AgentryUpdated when Agentry's copy did, as
+	// its list says; RFC 3339, or "" for a place the pack is not kept. The
+	// Local and Cloud Knowledge pages each show their own
+	// (agentry-desktop#619).
+	Updated        string `json:"updated,omitempty"`
+	AgentryUpdated string `json:"agentryUpdated,omitempty"`
+	// AgentryScan, AgentryScanState, AgentryPages and AgentryBytes are
+	// Agentry's copy as its list says it, for the Cloud Knowledge page: the
+	// same as Scan, ScanState, Pages and Bytes for a pack kept only there or
+	// unchanged here, and the older copy's for one changed here since it
+	// was copied. Empty for a pack Agentry does not keep.
+	AgentryScan      string `json:"agentryScan,omitempty"`
+	AgentryScanState string `json:"agentryScanState,omitempty"`
+	AgentryPages     int    `json:"agentryPages,omitempty"`
+	AgentryBytes     int64  `json:"agentryBytes,omitempty"`
 
 	// agentryRegistry is the registry a kept copy's record names for its
 	// copy in Agentry, for matching it against that registry's list.
@@ -300,10 +319,12 @@ func (e Env) List(ctx context.Context, current string) (*List, error) {
 				p.agentryCopy(r, en.Manifest.SHA256)
 			} else {
 				// The record says Agentry keeps a copy, and Agentry's own
-				// list says it does not (deleted from the site, or by the
-				// CLI on another computer).
+				// list says it does not (deleted from the Cloud Knowledge
+				// page, the site, or by the CLI on another computer). The
+				// copy here may have been uploaded or copied here, so the
+				// note says neither.
 				p.InAgentry, p.Changed, p.AgentryID = false, false, ""
-				p.Where, p.Note = whereLocal, "Agentry no longer keeps the copy this computer uploaded."
+				p.Where, p.Note = whereLocal, "Agentry no longer keeps its copy of this pack: Copy to Cloud keeps one there again."
 			}
 		}
 		out.Packs = append(out.Packs, p)
@@ -396,6 +417,7 @@ func localPack(s *store.Store, en store.Entry) Pack {
 		Local: true, Where: whereLocal,
 		Key: KeyHolder(en), Wrapper: string(en.Key.Wrapper),
 		Shared: en.Key.Org != "", Org: en.Key.Org, CanExport: en.Key.Org == "",
+		Updated: stamp(m.Updated, m.Created),
 	}
 	if a := en.Key.Agentry; a != nil {
 		p.InAgentry, p.Where, p.AgentryID, p.agentryRegistry = true, whereBoth, a.ID, a.Registry
@@ -464,6 +486,8 @@ func localScanState(sc kn.Scan) string {
 // as it is.
 func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 	p.InAgentry, p.AgentryReady = true, r.State == store.StateReady
+	p.AgentryUpdated = stamp(r.Updated, r.Created)
+	p.agentryFacts(r)
 	if r.State == store.StateReady && r.Digest != localDigest {
 		return
 	}
@@ -474,9 +498,19 @@ func (p *Pack) agentryCopy(r store.Remote, localDigest string) {
 
 // remotePack is a pack Agentry keeps and this computer does not.
 func remotePack(r store.Remote) Pack {
-	p := Pack{Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, AgentryReady: r.State == store.StateReady, Where: whereAgentry}
+	p := Pack{
+		Name: r.Name, AgentryID: r.ID, Pages: r.Pages, Bytes: r.Bytes, InAgentry: true, AgentryReady: r.State == store.StateReady,
+		Where: whereAgentry, AgentryUpdated: stamp(r.Updated, r.Created),
+	}
 	p.Scan, p.ScanState, _ = remoteScan(r)
+	p.agentryFacts(r)
 	return p
+}
+
+// agentryFacts records what Agentry's list says of its copy.
+func (p *Pack) agentryFacts(r store.Remote) {
+	p.AgentryScan, p.AgentryScanState, _ = remoteScan(r)
+	p.AgentryPages, p.AgentryBytes = r.Pages, r.Bytes
 }
 
 // remoteScan is what Agentry's state for a pack says of its scan; ok is
@@ -511,6 +545,18 @@ func scannedInAgentry(report json.RawMessage) string {
 	default:
 		return fmt.Sprintf("scanned in Agentry, %d findings", n)
 	}
+}
+
+// stamp is a pack's date for the panel: when it last changed, else when it
+// was made, in RFC 3339; "" when neither is known.
+func stamp(updated, created time.Time) string {
+	if updated.IsZero() {
+		updated = created
+	}
+	if updated.IsZero() {
+		return ""
+	}
+	return updated.UTC().Format(time.RFC3339)
 }
 
 func findRemote(rs []store.Remote, id string) (store.Remote, bool) {
@@ -597,6 +643,56 @@ func (e Env) Delete(ctx context.Context, current, name string, everywhere bool) 
 	_, err = s.Delete(ctx, name, everywhere)
 	return err
 }
+
+// DeleteFromAgentry deletes the account's copy id in Agentry and nothing
+// on this computer (plan knowledge-cards.md §4.3, D3; agentry-desktop#619):
+// the Cloud Knowledge page's Delete. A copy kept here keeps its record of
+// the deleted copy; the list then says Agentry no longer keeps it, and an
+// upload makes a new copy, as the store does for any copy Agentry lost. A
+// copy already gone is not an error. An organization's shared pack is not
+// in the account's own list, so its id is refused there (a member never
+// deletes one, D6).
+func (e Env) DeleteFromAgentry(ctx context.Context, current, id string) error {
+	if !IsAgentryID(id) {
+		return fmt.Errorf("%q is not the id of a pack in Agentry", id)
+	}
+	c, err := e.registry(settings.Normalize(current))
+	if err != nil {
+		return err
+	}
+	if err := c.Delete(ctx, id); err != nil && !errors.Is(err, store.ErrRemoteNotFound) {
+		return fmt.Errorf("delete Agentry's copy: %w", err)
+	}
+	return nil
+}
+
+// AgentryPack is the account's own pack id in Agentry, as its list says it
+// now, for the bindings' dialogs: they name only a pack found by its id.
+// An organization's shared pack is not in that list, nor is another
+// account's or one already gone; each is refused (ErrRemoteNotFound).
+func (e Env) AgentryPack(ctx context.Context, current, id string) (store.Remote, error) {
+	if !IsAgentryID(id) {
+		return store.Remote{}, fmt.Errorf("%q is not the id of a pack in Agentry", id)
+	}
+	c, err := e.registry(settings.Normalize(current))
+	if err != nil {
+		return store.Remote{}, err
+	}
+	rs, err := c.List(ctx)
+	if err != nil {
+		return store.Remote{}, fmt.Errorf("list your packs in Agentry: %w", err)
+	}
+	if r, ok := findRemote(rs, id); ok {
+		return r, nil
+	}
+	return store.Remote{}, fmt.Errorf("no pack of yours in Agentry has the id %s: %w", id, store.ErrRemoteNotFound)
+}
+
+// IsAgentryID says id is the form a registry names a pack by, a UUID; any
+// other string is refused before a registry is asked.
+func IsAgentryID(id string) bool { return agentryID.MatchString(id) }
+
+var agentryID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // Find is the kept pack name, for the bindings' dialogs.
 func (e Env) Find(current, name string) (store.Entry, error) {

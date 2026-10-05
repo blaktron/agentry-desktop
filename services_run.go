@@ -1242,7 +1242,7 @@ func (r *RunAPI) voiceFor(ctx context.Context, reg string, want bool) (*engine.A
 		return nil, err
 	}
 	if v == nil {
-		return nil, errors.New("this run was asked to write in your voice, and this computer keeps no Writing Voice: untick Write in my voice, or make one in the Voice panel")
+		return nil, errors.New("this run was asked to write in your voice, and this computer keeps no Writing Voice: untick Write in my voice, or make one on the Voice page")
 	}
 	return v, nil
 }

@@ -12,6 +12,11 @@ import (
 // signed v0.6.43 ran with on the Mac build host (agentry-desktop#573).
 const launchdPath = "/usr/bin:/bin:/usr/sbin:/sbin"
 
+// darwin is the macOS rule for a person whose home is home.
+func darwin(home, path string, isDir func(string) bool) (string, bool) {
+	return extendFor("darwin", path, darwinCandidates(home), isDir)
+}
+
 func exists(set ...string) func(string) bool {
 	m := map[string]bool{}
 	for _, s := range set {
@@ -21,7 +26,7 @@ func exists(set ...string) func(string) bool {
 }
 
 func TestAMacLaunchedFromFinderGetsDockerDesktopsUserBin(t *testing.T) {
-	got, changed := extendFor("darwin", "/Users/p", launchdPath,
+	got, changed := darwin("/Users/p", launchdPath,
 		exists("/Users/p/.docker/bin", "/Applications/Docker.app/Contents/Resources/bin"))
 	want := launchdPath + ":/Users/p/.docker/bin:/Applications/Docker.app/Contents/Resources/bin"
 	if !changed || got != want {
@@ -30,7 +35,7 @@ func TestAMacLaunchedFromFinderGetsDockerDesktopsUserBin(t *testing.T) {
 }
 
 func TestOnlyDirectoriesThatExistAreAdded(t *testing.T) {
-	got, changed := extendFor("darwin", "/Users/p", launchdPath, exists())
+	got, changed := darwin("/Users/p", launchdPath, exists())
 	if changed || got != launchdPath {
 		t.Fatalf("got %q (changed %v), want the PATH untouched", got, changed)
 	}
@@ -40,7 +45,7 @@ func TestAPathFromATerminalKeepsItsOrderAndGainsNoDuplicate(t *testing.T) {
 	// Started from a shell: /usr/local/bin is already there, ahead of
 	// /usr/bin, and must stay where it is, once.
 	path := "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-	got, _ := extendFor("darwin", "/Users/p", path,
+	got, _ := darwin("/Users/p", path,
 		exists("/usr/local/bin", "/opt/homebrew/bin", "/Users/p/.rd/bin"))
 	want := path + ":/Users/p/.rd/bin"
 	if got != want {
@@ -51,7 +56,7 @@ func TestAPathFromATerminalKeepsItsOrderAndGainsNoDuplicate(t *testing.T) {
 func TestEveryKnownLocationInItsOrder(t *testing.T) {
 	all := exists("/Users/p/.docker/bin", "/usr/local/bin", "/opt/homebrew/bin",
 		"/Applications/Docker.app/Contents/Resources/bin", "/Users/p/.orbstack/bin", "/Users/p/.rd/bin")
-	got, _ := extendFor("darwin", "/Users/p", "/usr/bin", all)
+	got, _ := darwin("/Users/p", "/usr/bin", all)
 	want := "/usr/bin:/Users/p/.docker/bin:/usr/local/bin:/opt/homebrew/bin:" +
 		"/Applications/Docker.app/Contents/Resources/bin:/Users/p/.orbstack/bin:/Users/p/.rd/bin"
 	if got != want {
@@ -60,7 +65,7 @@ func TestEveryKnownLocationInItsOrder(t *testing.T) {
 }
 
 func TestNoHomeSkipsTheHomeRelativeLocations(t *testing.T) {
-	got, _ := extendFor("darwin", "", launchdPath, func(string) bool { return true })
+	got, _ := darwin("", launchdPath, func(string) bool { return true })
 	want := launchdPath + ":/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
@@ -68,18 +73,16 @@ func TestNoHomeSkipsTheHomeRelativeLocations(t *testing.T) {
 }
 
 func TestAnEmptyPathGetsTheLocationsAlone(t *testing.T) {
-	got, _ := extendFor("darwin", "/Users/p", "", exists("/Users/p/.docker/bin"))
+	got, _ := darwin("/Users/p", "", exists("/Users/p/.docker/bin"))
 	if got != "/Users/p/.docker/bin" {
 		t.Fatalf("got %q", got)
 	}
 }
 
-func TestLinuxAndWindowsAreLeftAlone(t *testing.T) {
-	for _, goos := range []string{"linux", "windows"} {
-		got, changed := extendFor(goos, "/home/p", launchdPath, func(string) bool { return true })
-		if changed || got != launchdPath {
-			t.Errorf("%s: got %q (changed %v), want the PATH untouched", goos, got, changed)
-		}
+func TestLinuxIsLeftAlone(t *testing.T) {
+	got, changed := extendFor("linux", launchdPath, []string{"/home/p/.docker/bin"}, func(string) bool { return true })
+	if changed || got != launchdPath {
+		t.Errorf("got %q (changed %v), want the PATH untouched", got, changed)
 	}
 }
 
@@ -88,7 +91,7 @@ func TestLinuxAndWindowsAreLeftAlone(t *testing.T) {
 // credential helper beside it that every pull execs.
 func TestForGUIFindsDockerAndItsCredentialHelperOnAMac(t *testing.T) {
 	if runtime.GOOS != "darwin" {
-		t.Skip("ForGUI changes nothing off macOS (TestLinuxAndWindowsAreLeftAlone)")
+		t.Skip("the macOS directories are only looked for on macOS")
 	}
 	home := t.TempDir()
 	bin := filepath.Join(home, ".docker", "bin")

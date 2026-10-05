@@ -1117,6 +1117,12 @@ export namespace knowledge {
 	    org?: string;
 	    exportable: boolean;
 	    canExport: boolean;
+	    updated?: string;
+	    agentryUpdated?: string;
+	    agentryScan?: string;
+	    agentryScanState?: string;
+	    agentryPages?: number;
+	    agentryBytes?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Pack(source);
@@ -1145,6 +1151,12 @@ export namespace knowledge {
 	        this.org = source["org"];
 	        this.exportable = source["exportable"];
 	        this.canExport = source["canExport"];
+	        this.updated = source["updated"];
+	        this.agentryUpdated = source["agentryUpdated"];
+	        this.agentryScan = source["agentryScan"];
+	        this.agentryScanState = source["agentryScanState"];
+	        this.agentryPages = source["agentryPages"];
+	        this.agentryBytes = source["agentryBytes"];
 	    }
 	}
 	export class List {
@@ -4306,6 +4318,7 @@ export namespace main {
 	    model: string;
 	    reviewCredits: number;
 	    attachEnabled: boolean;
+	    sync: voice.Sync;
 	
 	    static createFrom(source: any = {}) {
 	        return new VoiceView(source);
@@ -4322,6 +4335,7 @@ export namespace main {
 	        this.model = source["model"];
 	        this.reviewCredits = source["reviewCredits"];
 	        this.attachEnabled = source["attachEnabled"];
+	        this.sync = this.convertValues(source["sync"], voice.Sync);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4928,6 +4942,26 @@ export namespace voice {
 		}
 	}
 	
+	export class Sync {
+	    downloadSame: boolean;
+	    uploadSame: boolean;
+	    localAfterLive: boolean;
+	    accountAfterLocal: boolean;
+	    inReview: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Sync(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.downloadSame = source["downloadSame"];
+	        this.uploadSame = source["uploadSame"];
+	        this.localAfterLive = source["localAfterLive"];
+	        this.accountAfterLocal = source["accountAfterLocal"];
+	        this.inReview = source["inReview"];
+	    }
+	}
 
 }
 

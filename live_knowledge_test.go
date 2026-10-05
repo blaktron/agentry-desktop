@@ -189,8 +189,20 @@ func TestLiveKnowledge(t *testing.T) {
 	}
 	t.Logf("opened on a fresh runner home: %s, index %q", kn.CountPages(len(pv.Pages)), firstLine(pv.Index.Markdown))
 
-	// Delete it here, and everywhere.
-	if err := k.Delete(reg, name, true); err != nil {
+	// Delete Agentry's copy, then this computer's: each place's Delete
+	// removes its own copy (agentry-desktop#619).
+	l, err = env.List(context.Background(), reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range l.Packs {
+		if p.Name == name && p.AgentryID != "" {
+			if err := k.DeleteFromAgentry(reg, p.AgentryID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := k.Delete(reg, name); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := env.Find(reg, name); err == nil {

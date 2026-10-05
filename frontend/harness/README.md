@@ -112,10 +112,19 @@ and fail unless the app asked the system browser for exactly
 in `window.__opened`, and `expectOpened` reads it.
 
 The Knowledge panel (agentry-desktop#273) has its own entry, `knowledge.html`
-(`knowledge.tsx`): `#knowledge` is the list signed in (a pack kept here only,
-one in both places scanned in Agentry, one changed since its upload, one in
-Agentry only, one Agentry is still scanning), `#knowledge-signed-out` a pack
-under this computer's key, and `#knowledge-empty` none. Create knowledge's
+(`knowledge.tsx`). Since agentry-desktop#619 it is two places: `#knowledge` is
+the start page's Local Knowledge and Cloud Knowledge cards signed in,
+`#knowledge-local` the Local page (a pack kept here only, one in both places
+scanned in Agentry, one changed since it was copied, one past Agentry's cap,
+and acme's shared copy), `#knowledge-cloud` the Cloud page (the account's
+packs, the allocation, acme's shared group), `#knowledge-signed-out` the Local
+page signed out (a pack under this computer's key),
+`#knowledge-signed-out-start` the cards signed out, `#knowledge-empty` and
+`#knowledge-empty-cloud` none. `#hosted-where-pro-cloud` is Create knowledge
+opened from the Cloud page for a Standard account (On this computer
+selected), and `#create-done-cloud` a pack made here from it, offering Copy
+to Cloud. The harness is type-checked with the app (`tsconfig.harness.json`,
+agentry-desktop#485). Create knowledge's
 steps are `#create-documents`, `#create-name`, `#create-review` (the recap and
 the sentence that nothing the Creator reads or writes is scanned) and
 `#create-blocked` (docker not ready, Create greyed); since agentry-desktop#352
@@ -131,7 +140,7 @@ could close and Create knowledge followed it again), `#hosted-where`, `#hosted-r
 documents. `#preview` is a pack's index and pages, and `#preview-hostile` a
 page with raw HTML, a script, an image, a `javascript:` link and a
 right-to-left override, which `shots.mjs` fails if any of it becomes markup.
-Since agentry-desktop#354 `#create-documents-large` (48 MB: the warning), `#create-documents-huge` (past 1 GB: Next refused) and `#hosted-where-large` (In Agentry not choosable) show the two caps, and `#knowledge` lists a 220 MB pack kept here with no Upload.
+Since agentry-desktop#354 `#create-documents-large` (48 MB: the warning), `#create-documents-huge` (past 1 GB: Next refused) and `#hosted-where-large` (In Agentry not choosable) show the two caps, and `#knowledge-local` lists a 220 MB pack kept here with no Copy to Cloud.
 
 Since agentry-desktop#498 a build takes documents, a brief, or both, with Search the web: `#create-documents-brief` (a brief alone: the warning, louder, and Search the web on by default with this computer's keys), `#create-documents-noweb` (no search key here: a build here runs without the web, and where to add one), `#create-empty` (neither: Next refused), `#create-review-brief` and `#hosted-review-brief` (the review on each side), and `#hosted-done-brief` (what the build's record counted of its searches).
 

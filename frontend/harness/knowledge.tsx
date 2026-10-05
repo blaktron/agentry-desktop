@@ -1,13 +1,24 @@
 // The Knowledge panel's states (agentry-desktop#273, plan knowledge.md
-// §4.8), by location.hash, under the shell chrome, with the bindings
-// mocked (the pattern pages.tsx and modals.tsx use). Not shipped.
+// §4.8; the two places since agentry-desktop#619, plan knowledge-cards.md
+// §4), by location.hash, under the shell chrome, with the bindings mocked
+// (the pattern pages.tsx and modals.tsx use). Not shipped.
 //
-//   #knowledge            signed in: a pack kept here only (not scanned, opens
-//                         offline), one in both places (scanned in Agentry,
-//                         2 findings), one changed since its upload, one kept
-//                         in Agentry only, and one Agentry is still scanning
-//   #knowledge-signed-out not signed in: a pack under this computer's key
-//   #knowledge-empty      no pack yet
+//   #knowledge            signed in: the start page's two cards, Local
+//                         Knowledge and Cloud Knowledge, with their lines
+//   #knowledge-local      the Local Knowledge page: a pack kept here only
+//                         (not scanned, opens offline), one in both places
+//                         (scanned in Agentry, 2 findings), one changed since
+//                         it was copied, one past Agentry's cap, and acme's
+//                         shared pack kept here
+//   #knowledge-cloud      the Cloud Knowledge page: the account's packs (one
+//                         also here, one changed, one in Agentry only, one
+//                         being scanned), the allocation, and acme's shared
+//                         packs in their group
+//   #knowledge-signed-out not signed in, on the Local page: a pack under this
+//                         computer's key
+//   #knowledge-signed-out-start  not signed in: the cards
+//   #knowledge-empty      no pack yet: the cards say so
+//   #knowledge-empty-cloud  no pack in the account: Create knowledge
 //   #create-documents | #create-name | #create-review | #create-blocked
 //                         Create knowledge's steps (blocked: docker not ready)
 //   #create-documents-large  documents of 48 MB: the warning that the build
@@ -24,6 +35,9 @@
 //   #add-review           Add documents' review
 //   #hosted-where-pro     the Where step for a Standard account: In Agentry
 //                         not choosable, the Pro sentence and See Pro (DEV-162)
+//   #hosted-where-pro-cloud  the same, opened from the Cloud page: On this
+//                         computer selected (plan knowledge-cards.md D5)
+//   #create-done-cloud    a pack made here from the Cloud page: Copy to Cloud
 //   #preview              a pack's index and pages
 //   #preview-hostile      a page with raw HTML, a script, an image, a
 //                         javascript: link and a right-to-left override
@@ -37,31 +51,43 @@ import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 
 const hash = window.location.hash.replace(/^#/, "") || "knowledge";
-const signedOut = hash === "knowledge-signed-out";
+const signedOut = hash.startsWith("knowledge-signed-out");
+const view = hash === "knowledge-local" || hash === "knowledge-signed-out" ? "local" : hash === "knowledge-cloud" || hash === "knowledge-empty-cloud" ? "cloud" : "start";
 const REG = "https://secureagentry.net";
 const HOST = "secureagentry.net";
 
 const packs = signedOut
   ? [
-    { name: "field-notes", id: "kp_1f2e3d4c5b6a79881f2e3d4c5b6a7988", pages: 12, bytes: 184_320, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
+    { name: "field-notes", id: "kp_1f2e3d4c5b6a79881f2e3d4c5b6a7988", pages: 12, bytes: 184_320, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer", updated: "2026-10-02T08:30:00Z",
       key: "this computer's key, in its keychain (not portable; rewrapped to your account at your next sign-in)", wrapper: "machine", opensOffline: true },
   ]
-  : hash === "knowledge-empty" ? [] : [
-    { name: "handbook", id: "kp_0a1b2c3d4e5f60718293a4b5c6d7e8f9", pages: 48, bytes: 2_411_724, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
+  : hash.startsWith("knowledge-empty") ? [] : [
+    { updated: "2026-10-04T14:02:00Z", name: "handbook", id: "kp_0a1b2c3d4e5f60718293a4b5c6d7e8f9", pages: 48, bytes: 2_411_724, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
       key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: true },
-    { name: "incident-runbooks", id: "kp_9f8e7d6c5b4a39281f0e9d8c7b6a5948", agentryId: "3c7e1a52-5f7b-4f0e-9d0c-2b8a1f6e4d11", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry",
+    { updated: "2026-09-30T10:00:00Z", agentryUpdated: "2026-09-30T10:05:00Z", agentryScan: "scanned in Agentry, 2 findings", agentryScanState: "scanned", agentryPages: 131, agentryBytes: 6_902_112, name: "incident-runbooks", id: "kp_9f8e7d6c5b4a39281f0e9d8c7b6a5948", agentryId: "3c7e1a52-5f7b-4f0e-9d0c-2b8a1f6e4d11", pages: 131, bytes: 6_902_112, scan: "scanned in Agentry, 2 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry",
       key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: false },
-    { name: "pricing-2026", id: "kp_5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d", agentryId: "8d2f6a90-1b3c-4e5d-8f7a-6b5c4d3e2f10", pages: 9, bytes: 96_400, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: true, changed: true, where: "this computer and Agentry",
+    { updated: "2026-10-03T16:40:00Z", agentryUpdated: "2026-09-28T09:00:00Z", agentryScan: "scanned in Agentry, 0 findings", agentryScanState: "scanned", agentryPages: 7, agentryBytes: 81_200, name: "pricing-2026", id: "kp_5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d", agentryId: "8d2f6a90-1b3c-4e5d-8f7a-6b5c4d3e2f10", pages: 9, bytes: 96_400, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: true, changed: true, where: "this computer and Agentry",
       key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: true },
-    { name: "supplier-contracts", agentryId: "b1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
-    { name: "scanned-archive", id: "kp_7e6d5c4b3a2918f7e6d5c4b3a2918f7e", pages: 212, bytes: 231_000_000, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
+    { agentryUpdated: "2026-09-27T12:00:00Z", agentryScan: "scanned in Agentry, 0 findings", agentryScanState: "scanned", agentryPages: 27, agentryBytes: 1_203_000, name: "supplier-contracts", agentryId: "b1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f", pages: 27, bytes: 1_203_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
+    { updated: "2026-09-21T07:00:00Z", name: "scanned-archive", id: "kp_7e6d5c4b3a2918f7e6d5c4b3a2918f7e", pages: 212, bytes: 231_000_000, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
       key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: true },
-    { name: "vendor-faq", agentryId: "c2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f60", pages: 14, bytes: 402_000, scan: "being scanned in Agentry", scanState: "scanning", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
+    { agentryUpdated: "2026-10-04T15:10:00Z", agentryScan: "being scanned in Agentry", agentryScanState: "scanning", agentryPages: 14, agentryBytes: 402_000, name: "vendor-faq", agentryId: "c2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f60", pages: 14, bytes: 402_000, scan: "being scanned in Agentry", scanState: "scanning", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
+    // acme's shared knowledge (Knowledge M8): one kept here too, one in Agentry only.
+    { name: "acme-runbook", id: "kp_2b3c4d5e6f708192a3b4c5d6e7f80912", agentryId: "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f61", pages: 22, bytes: 512_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry",
+      key: `acme's organization key at ${HOST}, which Agentry holds; it opens the pack's key only for the organization's current members`, wrapper: "registry", registry: HOST, opensOffline: false,
+      shared: true, org: "acme", exportable: false, canExport: false, updated: "2026-10-01T11:00:00Z", agentryUpdated: "2026-09-29T11:00:00Z",
+      agentryScan: "scanned in Agentry, 0 findings", agentryScanState: "scanned", agentryPages: 22, agentryBytes: 512_000 },
+    { name: "acme-policies", agentryId: "e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a72", pages: 40, bytes: 1_048_576, scan: "scanned in Agentry, 1 finding", scanState: "scanned", local: false, inAgentry: true, changed: false, where: "Agentry",
+      opensOffline: false, shared: true, org: "acme", exportable: true, canExport: true, agentryUpdated: "2026-10-02T15:00:00Z",
+      agentryScan: "scanned in Agentry, 1 finding", agentryScanState: "scanned", agentryPages: 40, agentryBytes: 1_048_576 },
   ];
 const list = {
   packs, registry: REG, signedIn: !signedOut,
   agentry: signedOut ? `Not signed in to ${HOST}, so its copies in Agentry are not listed.` : "",
 };
+
+// The account's allocation, as Settings › Profile reads it.
+const allocation = { enabled: true, bytes: 8_701_000, max: 100 << 20 };
 
 const hostile = hash === "preview-hostile";
 const index = {
@@ -110,11 +136,11 @@ const availability = {
   // A registry since agentry-enterprise#296: a brief alone, and the web.
   takesBrief: true, maxBriefBytes: 8192, web: true,
   webNote: "Searching the web can raise the credits a build uses: each search costs 1 credit, inside the build's hold. It is on by default for a new pack with no documents, and off with them.",
-  ...(hash === "hosted-where-pro"
+  ...(hash.startsWith("hosted-where-pro")
     ? {
         available: false,
         reason: "Creating knowledge in Agentry is part of Pro, Business and Enterprise.",
-        remedy: "Create it on this computer with your own model provider, for no credits, then Upload to Agentry; or upgrade to Pro.",
+        remedy: "Create it on this computer with your own model provider, for no credits, then Copy to Cloud; or upgrade to Pro.",
         upgradeUrl: REG + "/settings/subscription?upgrade=pro",
       }
     : {}),
@@ -166,6 +192,8 @@ g.go = { main: {
     Add: async () => new Promise(() => {}),
     Upload: async () => "Uploaded handbook to secureagentry.net. Agentry is scanning it; the scan's findings show here once it ends.",
     Download: async () => "Downloaded supplier-contracts.",
+    DownloadShared: async () => "Downloaded acme-policies.",
+    DeleteFromAgentry: async () => undefined,
     Export: async () => ({ dir: "/home/me/Documents/handbook" }),
     Delete: async () => undefined,
     HostedAvailability: async () => availability,
@@ -180,6 +208,7 @@ g.go = { main: {
     SetupStatus: async () => ({ dockerOk: hash !== "create-blocked", dockerErr: hash === "create-blocked" ? "Cannot connect to the Docker daemon at unix:///var/run/docker.sock" : "", imagesReady: true, policyExists: true, provider: "anthropic", model: "claude-sonnet-4-5" }),
   },
   App: { ChooseFiles: async () => [], ChooseDirectory: async () => "", OpenExternal: async () => undefined },
+  SettingsAPI: { Profile: async () => ({ user: {}, subscription: { knowledge: allocation } }) },
 } };
 // The build's log, streamed as the Go side streams it. The app's EventsOn
 // goes through EventsOnMultiple (the wails runtime shim).
@@ -232,7 +261,7 @@ const card = hash.startsWith("card-");
 const create = hash.startsWith("create-") || hash === "add-review" || hostedState || card;
 const step =
   hash === "create-name" ? "name"
-  : hash === "hosted-where" || hash === "hosted-where-pro" || hash === "hosted-where-large" ? "where"
+  : hash === "hosted-where" || hash.startsWith("hosted-where-pro") || hash === "hosted-where-large" ? "where"
   : hash === "create-review" || hash === "create-blocked" || hash === "add-review" || hash === "hosted-review" || hash === "create-review-brief" || hash === "hosted-review-brief" ? "review"
   : "documents";
 
@@ -241,7 +270,14 @@ createRoot(document.getElementById("root")!).render(
     <Shell>
       <Recover subject="This page" onRecover={() => { faulty = false; }}>
         <MaybeBoom>
-          <Knowledge registry={REG} onOpenSettings={() => {}} initialPreview={hash.startsWith("preview") ? "handbook" : undefined} />
+          <Knowledge
+            registry={REG}
+            onOpenSettings={() => {}}
+            onCreate={() => {}}
+            initialView={view}
+            initialAllocation={signedOut ? null : allocation}
+            initialPreview={hash.startsWith("preview") ? "handbook" : undefined}
+          />
         </MaybeBoom>
       </Recover>
     </Shell>
@@ -249,6 +285,7 @@ createRoot(document.getElementById("root")!).render(
       <KnowledgeCreate
         registry={REG}
         addTo={hash === "add-review" ? "handbook" : undefined}
+        place={hash.endsWith("-cloud") ? "agentry" : undefined}
         onClose={() => {}}
         onPreview={() => {}}
         initialStep={step}
@@ -260,7 +297,7 @@ createRoot(document.getElementById("root")!).render(
         onMinimize={() => {}}
         onRestore={() => {}}
         initialBuilding={hash === "create-building" || hash === "card-building"}
-        initialResult={hash === "create-done" || hash === "card-done" ? (result as never) : undefined}
+        initialResult={hash === "create-done" || hash === "create-done-cloud" || hash === "card-done" ? (result as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" || hash === "hosted-review-brief" ? "agentry" : undefined}
         initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : undefined}

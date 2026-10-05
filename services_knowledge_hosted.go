@@ -483,11 +483,11 @@ func (k *KnowledgeAPI) hostedTarget(ctx context.Context, reg, name, addTo string
 			continue
 		}
 		if p.Changed {
-			return buildTarget{}, fmt.Errorf("%s changed on this computer since it was uploaded: Upload to Agentry first, so the build starts from the pages this computer holds", addTo)
+			return buildTarget{}, fmt.Errorf("%s changed on this computer since it was copied to the Cloud: Copy to Cloud first, so the build starts from the pages this computer holds", addTo)
 		}
 		return buildTarget{pack: p.AgentryID, label: addTo}, nil
 	}
-	return buildTarget{}, fmt.Errorf("%s is not kept in Agentry: Upload to Agentry first, then add documents In Agentry", addTo)
+	return buildTarget{}, fmt.Errorf("%s is not kept in Agentry: Copy to Cloud first, then add documents In Agentry", addTo)
 }
 
 // validPackName is the pack name rule the CLI and the registry hold a name
@@ -591,13 +591,13 @@ func (k *KnowledgeAPI) landHostedBuild(ctx context.Context, reg, name string, fi
 		} else if !errors.Is(err, store.ErrScanning) || time.Now().After(deadline) {
 			v.DownloadError = err.Error()
 			if errors.Is(err, store.ErrScanning) {
-				v.DownloadError = "Agentry is still scanning " + name + "; Download it from the Knowledge panel once the scan ends."
+				v.DownloadError = "Agentry is still scanning " + name + "; Copy to Local from the Cloud Knowledge page once the scan ends."
 			}
 			return v
 		}
 		select {
 		case <-ctx.Done():
-			v.DownloadError = "Stopped waiting for Agentry's scan of " + name + "; Download it from the Knowledge panel once the scan ends."
+			v.DownloadError = "Stopped waiting for Agentry's scan of " + name + "; Copy to Local from the Cloud Knowledge page once the scan ends."
 			return v
 		case <-time.After(hostedPoll):
 		}

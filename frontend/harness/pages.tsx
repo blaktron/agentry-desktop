@@ -306,16 +306,22 @@ const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
-// The Voice panel (agentry-desktop#510): this computer's voice, on for every
-// run here, and the account's live voice with a flagged new version beside
-// it; #voice-none has neither, #voice-standard a Standard account whose
-// Voice Writer run this cycle is used.
+// The Voice page (agentry-desktop#510, #610): this computer's voice, on for
+// every run here and the same as the account's live one, which has a
+// flagged new version beside it (so Download is "Already the same" and
+// Upload asks first); #voice-none has neither, #voice-signed-out is signed
+// out, #voice-failed has none here and its Write with AI fails after a few
+// log lines. The shots open the Local and Cloud pages and the dialog by
+// clicking, as a person does.
 const voiceHash = window.location.hash;
 const VOICE_MD = "# My Writing Voice\n\nWrite in short, plain sentences. Name who does what.\n\n- Prefer concrete words to abstract ones.\n- No exclamation marks.\n";
-const voiceView = voiceHash === "#voice-none"
-  ? { registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5", local: { exists: false }, account: { exists: false, alwaysAttach: false } }
+const voiceNoSync = { downloadSame: false, uploadSame: false, localAfterLive: false, accountAfterLocal: false, inReview: false };
+const voiceView = voiceHash === "#voice-none" || voiceHash === "#voice-failed"
+  ? { registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5", local: { exists: false }, account: { exists: false, alwaysAttach: false }, sync: voiceNoSync }
+  : voiceHash === "#voice-signed-out"
+  ? { registry: "https://dev.secureagentry.net", signedIn: false, accountOffered: false, model: "anthropic claude-sonnet-5-5", local: { exists: false }, sync: voiceNoSync }
   : {
-      registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5",
+      registry: "https://dev.secureagentry.net", signedIn: true, accountOffered: true, model: "anthropic claude-sonnet-5-5", reviewCredits: 1,
       local: { exists: true, text: VOICE_MD, digest: "sha256:4fa1067f", bytes: 120, source: "create", phrase: "made by the Voice Writer", alwaysAttach: true, created: "2026-10-01T22:10:00Z", updated: "2026-10-01T22:10:00Z" },
       account: {
         exists: true, alwaysAttach: true,
@@ -324,10 +330,10 @@ const voiceView = voiceHash === "#voice-none"
           findings: [{ scanner: "ai-review", severity: "high", title: "beyond_style", question: "beyond_style", score: 3, flags: true }], createdAt: "2026-10-02T00:19:00Z" },
         previous: { review: "passed", source: "build", digest: "sha256:1a2b", bytes: 300, text: VOICE_MD, createdAt: "2026-10-01T20:00:00Z" },
       },
+      sync: { ...voiceNoSync, downloadSame: true, accountAfterLocal: true },
     };
-const voiceAvail = voiceHash === "#voice-standard"
-  ? { offered: true, available: false, reason: "On Standard you can run the Voice Writer in Agentry once a billing cycle, and this cycle's runs are used. The next is yours on 28 October 2026.", remedy: "Edit your voice by hand, or run the Voice Writer on this computer for no credits; or upgrade to Pro.", upgradeUrl: "https://dev.secureagentry.net/settings/subscription?upgrade=pro", credits: 20, holdCredits: 20, limited: true, left: 0, aiReviewCredits: 1, balance: 30, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 }
-  : { offered: true, available: true, credits: 20, holdCredits: 20, limited: false, left: 0, aiReviewCredits: 1, balance: 3977, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 };
+// No page asks for the Voice Writer In Agentry until M6 (agentry-desktop#611).
+const voiceAvail = { offered: true, available: true, credits: 20, holdCredits: 20, limited: false, left: 0, aiReviewCredits: 1, balance: 3977, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 };
 
 g.go = { main: {
   VoiceAPI: {
@@ -341,6 +347,11 @@ g.go = { main: {
     SetAccountAttach: async () => voiceView.account,
     DeleteLocal: async () => undefined,
     Write: async () => new Promise(() => {}),
+    WriteWithAI: async () => {
+      if (voiceHash !== "#voice-failed") return new Promise(() => {});
+      for (const line of ["The Voice Writer runs on this computer against the model your runner policy names (openai qwen3.8-flash-next).", "decode: 1 files"]) emitPage("voice:write-log", line);
+      throw new Error("the Voice Writer wrote no VOICE.md");
+    },
     StartHosted: async () => new Promise(() => {}),
     StopWrite: async () => undefined,
   },
@@ -377,6 +388,8 @@ g.go = { main: {
   // The native folder picker, as Build's first save asks it (D-030).
   App: {
     ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer",
+    // The native file picker, as Edit with AI's samples ask it (agentry-desktop#610).
+    ChooseFiles: async () => ["/home/me/writing/launch-email.md", "/home/me/writing/essay.txt"],
     // What the app asked the system browser to open, for shots.mjs to read
     // (expectOpened): the TypeSafe link's one address (agentry-desktop#461).
     OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); },

@@ -83,7 +83,7 @@ func DecideBuild(f BuildFacts) Offer {
 		o.Remedy = "Build it on this computer, or try again later."
 	case f.Allowed != nil && !*f.Allowed:
 		o.Reason = BuildIsProSentence
-		o.Remedy = "Create it on this computer with your own model provider, for no credits, then Upload to Agentry; or upgrade to Pro."
+		o.Remedy = "Create it on this computer with your own model provider, for no credits, then Copy to Cloud; or upgrade to Pro."
 		o.Upgrade = true
 	case f.Active != nil:
 		o.Reason = "This account already has " + ActiveWhat(f.Active) + " In Agentry in flight. Agentry runs one at a time."
