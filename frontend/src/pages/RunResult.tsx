@@ -19,7 +19,7 @@ import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
 import { localUseLine } from "../usage";
 
 export function RunResultView({
-  runId, headline, tone, error, resultJson, knowledge, unsafeExec, children,
+  runId, headline, tone, error, resultJson, knowledge, unsafeExec, ask, children,
 }: {
   runId: string;
   headline: string;
@@ -33,6 +33,9 @@ export function RunResultView({
   /** The receipt's exec line of an Unsafe Mode run (agentry-desktop#418):
    *  what was installed from where, and what was not; unset otherwise. */
   unsafeExec?: string;
+  /** An ask after the result, before Run details: a hosted run's star ask
+   *  (agentry-desktop#613). */
+  ask?: React.ReactNode;
   /** Run details: what the view used to show first. */
   children?: React.ReactNode;
 }) {
@@ -133,6 +136,8 @@ export function RunResultView({
           </p>
         )}
       </section>
+
+      {ask}
 
       <details className="advanced run-details">
         <summary className="muted small">Run details: the badges, the usage, the receipt and the paths</summary>

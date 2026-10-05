@@ -13,6 +13,7 @@ import { OpenUpgrade } from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
 import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, sessionTermsSentence } from "../usage";
+import { PUBLISHER_EARNS_AFTER, PUBLISHER_EARNS_SENTENCE, starAskSentence, starAskWanted, starredSentence } from "../earnings";
 
 /** What a run In Agentry holds and what the account has, before anything
  *  is created: the hold in credits, the time and the turns, never tokens or
@@ -45,6 +46,69 @@ export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView
       {metered && (hosted.balanceKnown ? <>Your balance is <strong>{hosted.balance}</strong> credits. </> : "The balance could not be read. ")}
       It closes after {idleWords(s.idleSeconds)} with nothing said or done.
     </p>
+  );
+}
+
+/** The one line under what a run or session In Agentry costs where the
+ *  release's publisher is in Publisher Earnings (plan creator-monetization.md
+ *  D10; agentry-desktop#613): Go draws it for someone else's public
+ *  QuickAgent only, as the site does. */
+export function PublisherEarnsLine({ hosted }: { hosted: main.HostedAvailabilityView }) {
+  if (!hosted.publisherEarns) return null;
+  return (
+    <p className="muted small" style={{ margin: "4px 0" }} data-testid="publisher-earns">
+      {PUBLISHER_EARNS_SENTENCE} {PUBLISHER_EARNS_AFTER}
+    </p>
+  );
+}
+
+/** The ask on the result of a hosted run or a closed session of someone
+ *  else's QuickAgent that ended well: star it if it helped, with the star
+ *  button here (plan creator-monetization.md D10; agentry-desktop#613).
+ *  Nothing for one's own or one's organization's QuickAgent, nothing once
+ *  it is starred, and nothing where the registry does not say (Go's
+ *  RunAPI.StarAsk). Starring says so in place of the ask. */
+export function StarAsk({ registry, run }: { registry: string; run: main.HostedRunView }) {
+  const wanted = !!registry && starAskWanted(run);
+  const [ask, setAsk] = useState<main.StarAskView | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [starred, setStarred] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setAsk(null);
+    setStarred(false);
+    setErr(null);
+    if (!wanted) return;
+    let live = true;
+    // An ask that cannot be read is no ask: the result never waits on it.
+    Promise.resolve().then(() => RunAPI.StarAsk(registry, run.ref)).then((v) => { if (live) setAsk(v); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [registry, run.ref, run.id, wanted]);
+  if (!ask?.ask || !ask.name) return null;
+  if (starred) return <p className="muted small" data-testid="star-ask">{starredSentence(ask.name)}</p>;
+
+  async function star() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await RunAPI.StarQuickAgent(registry, ask!.name!);
+      setStarred(true);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section aria-label="Star this QuickAgent" data-testid="star-ask">
+      <Card>
+        <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+          <p className="small grow" style={{ margin: 0 }}>{starAskSentence(ask.name)}</p>
+          <Button onClick={star} busy={busy} busyLabel="Starring…">Star this QuickAgent</Button>
+        </div>
+        <ErrorBox error={err} />
+      </Card>
+    </section>
   );
 }
 

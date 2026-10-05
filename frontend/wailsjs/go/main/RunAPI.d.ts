@@ -91,6 +91,10 @@ export function SetupStatus():Promise<main.SetupStatusView>;
 
 export function ShowRunFolder(arg1:string):Promise<void>;
 
+export function StarAsk(arg1:string,arg2:string):Promise<main.StarAskView>;
+
+export function StarQuickAgent(arg1:string,arg2:string):Promise<void>;
+
 export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean):Promise<main.HostedStartView>;
 
 export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean):Promise<main.HostedStartView>;

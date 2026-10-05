@@ -140,6 +140,12 @@ type HostedAvailabilityView struct {
 	// interactive mode (agentry-desktop#403): whether it is offered, and
 	// the registry's terms for one. Nil where it is not offered.
 	Session *HostedSessionOfferView `json:"session,omitempty"`
+
+	// PublisherEarns says the release's publisher earns a share of the
+	// credits runs of it spend, which the run setup says under what a run
+	// costs (plan creator-monetization.md D10; agentry-desktop#613). Never
+	// for the reader's own QuickAgent or their organization's.
+	PublisherEarns bool `json:"publisherEarns"`
 }
 
 // HostedArtefactView is one artefact of a run and, once downloaded, where
@@ -271,8 +277,10 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		MaxInputBytes: hostedrun.MaxInputBytes,
 	}
 	facts := hostedrun.Facts{SignedIn: v.SignedIn}
+	var exts []string
 	if v.SignedIn {
-		exts, err := extensionsOf(ctx, reg)
+		var err error
+		exts, err = extensionsOf(ctx, reg)
 		if err == nil {
 			facts.Extension = hasString(exts, "runs")
 			facts.Vault = hasString(exts, "vault")
@@ -331,6 +339,9 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	o := hostedrun.Decide(facts)
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
 	v.Session = sessionOffer(hostedrun.DecideSession(facts), terms)
+	if v.Offered {
+		v.PublisherEarns = publisherEarnsHere(ctx, reg, token, ref, exts)
+	}
 	return v, nil
 }
 

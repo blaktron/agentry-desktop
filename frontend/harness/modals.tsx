@@ -6,6 +6,9 @@
 //   #runpanel              the mode choice, In Agentry offered
 //   #runpanel-hosted       In Agentry chosen: the hold, the balance, the caps
 //   #runpanel-unavailable  In Agentry offered, unavailable with the reason
+//   #runpanel-hosted-earns In Agentry chosen for a release whose publisher is
+//                          in Publisher Earnings: the line under the cost
+//                          (agentry-desktop#613)
 //   #runpanel-hosted-followed  Review and start In Agentry while a run In
 //                          Agentry is followed in its card: Run held, and
 //                          the line above it says why (agentry-desktop#466)
@@ -163,6 +166,7 @@ const unsafeShape = view.startsWith("runpanel-unsafe");
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished" || view === "runpanel-unsafe-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
 const hostedSecrets = view === "runpanel-hosted-secrets";
+const hostedEarns = view === "runpanel-hosted-earns";
 const sessionShape = view.startsWith("runpanel-session");
 // The first start of #runpanel-hosted-secrets is refused secret-missing;
 // the one after the ask is saved is queued.
@@ -277,6 +281,7 @@ const availability = {
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
   declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [],
+  publisherEarns: hostedEarns,
   // Talk to it In Agentry: offered on the sessions' own terms; a Standard
   // payer is offered it unavailable, with the way up.
   session: sessionShape
@@ -398,6 +403,8 @@ g.go = { main: {
       : { run: hostedRuns.queued }),
     SetHostedSecret: async () => {},
     DiscardHostedSecrets: async () => {},
+    StarAsk: async () => ({ ask: false }),
+    StarQuickAgent: async () => {},
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
     // A run on this computer is handed to the run's flow at Run
     // (agentry-desktop#465): Go's first report says it has begun, then its
@@ -543,7 +550,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets ? "hosted"
+        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
       />

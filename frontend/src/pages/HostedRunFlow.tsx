@@ -20,7 +20,7 @@ import {
   type RunSetup, backToHostedSetup, cancelHostedRun, dismissHostedRun, followHostedRunAgain, showHostedRun, useHostedRun,
 } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
-import { HostedResult } from "./HostedRun";
+import { HostedResult, StarAsk } from "./HostedRun";
 import { RunResultView } from "./RunResult";
 
 export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
@@ -133,6 +133,7 @@ export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
           error={r.downloadError || undefined}
           resultJson={r.resultJson ?? ""}
           knowledge={r.knowledgeLine || undefined}
+          ask={<StarAsk registry={s.registry} run={r} />}
         >
           <HostedResult run={r} />
         </RunResultView>

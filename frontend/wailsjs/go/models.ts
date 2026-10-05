@@ -2085,6 +2085,7 @@ export namespace main {
 	    maxInputBytes: number;
 	    declaredSecrets?: string[];
 	    session?: HostedSessionOfferView;
+	    publisherEarns: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedAvailabilityView(source);
@@ -2113,6 +2114,7 @@ export namespace main {
 	        this.maxInputBytes = source["maxInputBytes"];
 	        this.declaredSecrets = source["declaredSecrets"];
 	        this.session = this.convertValues(source["session"], HostedSessionOfferView);
+	        this.publisherEarns = source["publisherEarns"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4138,6 +4140,20 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class StarAskView {
+	    ask: boolean;
+	    name?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StarAskView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ask = source["ask"];
+	        this.name = source["name"];
+	    }
 	}
 	export class UnsafeNoticeView {
 	    on: boolean;

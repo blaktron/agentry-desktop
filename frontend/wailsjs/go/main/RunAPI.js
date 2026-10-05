@@ -178,6 +178,14 @@ export function ShowRunFolder(arg1) {
   return window['go']['main']['RunAPI']['ShowRunFolder'](arg1);
 }
 
+export function StarAsk(arg1, arg2) {
+  return window['go']['main']['RunAPI']['StarAsk'](arg1, arg2);
+}
+
+export function StarQuickAgent(arg1, arg2) {
+  return window['go']['main']['RunAPI']['StarQuickAgent'](arg1, arg2);
+}
+
 export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
   return window['go']['main']['RunAPI']['StartHostedRun'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
