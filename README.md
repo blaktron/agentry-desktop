@@ -18,6 +18,16 @@ The product never claims an agent is "safe". The language is always:
   keeps it in the keychain), Coding agent, and Done. Done lists what is set
   up and what is not; "nothing is set up yet" goes by whether a model
   provider was set up, and the AI Review key's row never counts toward it.
+- **Home** — the page the app opens on (agentry-desktop#658, D-067): a card
+  per thing that is yours, in the Build, Voice and Knowledge cards'
+  language. **Installed QuickAgents** counts what is on this computer and
+  what has an update, and names the newest five; **Profile** shows who is
+  signed in, the plan and the credit balance (a **Sign in** card when not
+  signed in); **Run defaults** shows where runs go, their time and turn
+  limits and the output folder. Each card opens its page and edits
+  nothing. Which cards Home shows, in what order, is the `home` key of
+  `desktop.yaml`: a versioned, ordered list Go owns, which keeps whatever a
+  newer app wrote there.
 - **Library** — the QuickAgents installed on this computer (the shared
   install state below), and **Browse** beneath it in the sidebar, shown
   while either is open (agentry-desktop#657, D-066). The Library's search

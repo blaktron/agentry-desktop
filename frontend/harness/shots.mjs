@@ -278,17 +278,47 @@ const states = [
   // change to the token table (agentry-desktop#49) is seen everywhere it
   // lands, not only in the states above.
   { name: "page-browse", url: "/pages.html", note: "Browse under the shell, a sub-item of Library shown only inside it; Validate is not listed outside Build (agentry-desktop#422, #657)", locator: '[data-preview="browse"]', expectOrder: [
-    ['[data-preview="browse"] .sidebar .nav-item', ["Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="browse"] .sidebar .nav-item', ["Home", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
     ['[data-preview="browse"] .sidebar .nav-item.active', ["Library", "Browse"]],
     ['[data-preview="browse"] .sidebar .nav-item[aria-current="page"]', ["Browse"]],
   ] },
   { name: "page-browse-query", url: "/pages.html#browse-query", note: "Browse opened from the Library's search: the words carried over and searched (agentry-desktop#657)", locator: '[data-preview="browse"]', expectValue: ['[data-preview="browse"] input[type="search"]', "triage"], expectText: ["1 result", "acme/pr-triage"], expectNoText: "demo1/incident-summarizer" },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell: Library lit, Browse not listed (agentry-desktop#657)", locator: '[data-preview="agent"]', expectOrder: [
-    ['[data-preview="agent"] .sidebar .nav-item', ["Library", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="agent"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]],
     ['[data-preview="agent"] .sidebar .nav-item.active', ["Library"]],
   ] },
+  // Home (plan desktop-home-and-library.md M2, agentry-desktop#658): the
+  // landing, its three cards in the layout's order, each card the start
+  // pages' card with a status line and live content in place of a figure.
+  { name: "page-home", url: "/pages.html", note: "Home under the shell: the lead line, then Installed QuickAgents, Profile and Run defaults in the layout's order, each opening its page (agentry-desktop#658)", locator: '[data-preview="home"]',
+    expectText: ["Hello, Chris.", "4 QuickAgents on this computer.", "me/csv-quality-check", "agentry/changelog-from-git", "Standard", "40 credits", "On this computer", "15 minutes", "~/Downloads/agentry-out"],
+    expectNoText: ["acme/release-notes", "Recent runs", "Top up credits"],
+    expectOrder: [
+      ['[data-preview="home"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]],
+      ['[data-preview="home"] .sidebar .nav-item[aria-current="page"]', ["Home"]],
+      ['[data-preview="home"] .build-way-main', ["Installed QuickAgents", "Profile", "Run defaults"]],
+    ] },
+  { name: "page-home-pro", url: "/pages.html#profile-pro", note: "a Pro account the registry offers packs to: its plan, its balance and Top up credits", locator: '[data-preview="home"]', expectText: ["Pro", "1,380 credits", "Top up credits"] },
+  { name: "page-home-updates", url: "/pages.html#installed-updates", note: "the launch check found newer versions: the Installed card counts them", locator: '[data-preview="home"]', expectText: "4 QuickAgents on this computer, 2 with an update." },
+  { name: "page-home-open-agent", url: "/pages.html", note: "a name on the Installed card opens its page, from the registry it was installed from", locator: '[data-preview="home"]', click: '[data-preview="home"] .home-card-list button:has-text("demo1/incident-summarizer")', expectSelector: 'body[data-open="agent:https://secureagentry.net/demo1/incident-summarizer"]' },
+  { name: "page-home-open-local", url: "/pages.html", note: "a QuickAgent installed from a folder has no page: its name opens the Library", locator: '[data-preview="home"]', click: '[data-preview="home"] .home-card-list button:has-text("me/csv-quality-check")', expectSelector: 'body[data-open="library"]' },
+  { name: "page-home-open-card", url: "/pages.html", note: "a press anywhere on the Run defaults card opens Settings → Run defaults", locator: '[data-preview="home"]', click: '[data-preview="home"] [data-home-card="run-defaults"] .build-way', expectSelector: 'body[data-open="run-defaults"]' },
+  { name: "page-home-signed-out", url: "/pages.html?active=anon", note: "signed out: no greeting, and the Profile card is a Sign in card", locator: '[data-preview="home"]', expectText: ["Sign in to agentry:8080", "What is installed on this computer", "4 QuickAgents on this computer.", "me/csv-quality-check", "On this computer", "15 minutes"], expectNoText: ["Hello,", "Reading your profile"],
+    expectOrder: [['[data-preview="home"] .build-way-main', ["Installed QuickAgents", "Sign in", "Run defaults"]]] },
+  { name: "page-home-hidden", url: "/pages.html#home-hidden", note: "a card hidden in the layout is not drawn; the others keep their order", locator: '[data-preview="home"]',
+    expectOrder: [['[data-preview="home"] .build-way-main', ["Profile", "Run defaults"]]] },
+  { name: "page-home-newer", url: "/pages.html#home-newer", note: "a layout a newer Agentry Desktop arranged: the default cards, and a line that it is kept", locator: '[data-preview="home"]', expectText: "Home was arranged by a newer Agentry Desktop.",
+    expectOrder: [['[data-preview="home"] .build-way-main', ["Installed QuickAgents", "Profile", "Run defaults"]]] },
+  { name: "page-home-broken", url: "/pages.html#home-broken", note: "a layout that cannot be read: the default cards, and the reason", locator: '[data-preview="home"]', expectText: "Home's layout could not be read, so the default cards are shown",
+    expectOrder: [['[data-preview="home"] .build-way-main', ["Installed QuickAgents", "Profile", "Run defaults"]]] },
+  { name: "page-home-unreadable", url: "/pages.html#home-unreadable", note: "a layout this app cannot decode: the default cards, and a line that the file is left as it is", locator: '[data-preview="home"]', expectText: "Home arrangement cannot be read by this Agentry Desktop",
+    expectOrder: [['[data-preview="home"] .build-way-main', ["Installed QuickAgents", "Profile", "Run defaults"]]] },
+  { name: "page-home-strict", url: "/pages.html#home-strict", note: "Home starts nothing on load: every binding but the reads it makes throws, and none is called (plan §3, invariant 4)", locator: '[data-preview="home"]', wait: 1500, expectText: ["4 QuickAgents on this computer.", "Standard", "15 minutes"], expectNone: "body[data-unexpected]" },
+  { name: "page-home-setup", url: "/pages.html#home-setup", note: "the setup notice App raises shows on Home, above the cards", locator: '[data-preview="home"]', expectText: "Setup isn't finished." },
+  { name: "page-home-empty", url: "/pages.html#fresh", note: "nothing installed on this computer: the way to Browse", locator: '[data-preview="home"]', expectText: ["Nothing installed on this computer yet.", "Find more QuickAgents"] },
+  { name: "page-home-unsafe", url: "/pages.html#unsafe-on", note: "Unsafe Mode on: the Run defaults card says so", locator: '[data-preview="home"]', expectText: "Unsafe Mode is on" },
   { name: "page-library", url: "/pages.html", note: "the Library under the shell (Installed and Browse in one section, agentry-desktop#657): what is installed on this computer, with a QuickAgent installed from a folder (local and unsigned, Run in place of Details, agentry-desktop#425), the search and the way on to Browse", locator: '[data-preview="library"]', expectText: ["The QuickAgents installed on this computer.", "Installed on this computer", "me/csv-quality-check", "local, unsigned", "from a folder on this computer; no registry holds it", "Find more QuickAgents"], expectOrder: [
-    ['[data-preview="library"] .sidebar .nav-item', ["Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="library"] .sidebar .nav-item', ["Home", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
     ['[data-preview="library"] .sidebar .nav-item[aria-current="page"]', ["Library"]],
   ] },
   { name: "page-library-run-local", url: "/pages.html", note: "Run on the QuickAgent installed from a folder opens its run setup over the Library, from its own contract (agentry-desktop#425)", locator: ".modal", click: '[data-preview="library"] button:text-is("Run")', expectText: ["Run me/csv-quality-check@0.1.0", "Step 1 of 4: Before you start", "It was installed from a folder on this computer"] },
@@ -300,7 +330,7 @@ const states = [
   { name: "page-library-empty", url: "/pages.html#fresh", note: "nothing installed on this computer: the way to Browse (agentry-desktop#657)", locator: '[data-preview="library"]', expectText: ["Nothing installed on this computer yet", "Find more QuickAgents"] },
   { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page's two cards, Describe it to AI first, then Build it by hand, with the operator's words and the tagline, as the site's /build (agentry-desktop#598)", locator: '[data-preview="build"]', expectText: [BUILD_TAGLINE, DESCRIBE_COPY, BY_HAND_COPY, "Switch to Advanced"], expectOrder: [
     ['[data-preview="build"] .build-way-main', ["Describe it to AI", "Build it by hand"]],
-    ['[data-preview="build"] .sidebar .nav-item', ["Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
+    ['[data-preview="build"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
   ] },
   // The cards open their views (#598): a press anywhere on Build it by hand
@@ -371,7 +401,7 @@ const states = [
   { name: "page-voice", url: "/pages.html", note: "the Voice page as two cards (agentry-desktop#610): Local Voice and Cloud Voice, each a figure over its words and its status line; no Voice Writer card", locator: '[data-preview="voice"]',
     expectText: ["Local Voice", "Cloud Voice", "The voice kept on this computer. Edit it by hand or with AI for free", "AI Review checks every version before it goes live", "Voice set · updated", "· used by default.", "Live since", "a new version was flagged by AI Review"],
     expectNoText: ["Start the Voice Writer", "Submit to Agentry"],
-    expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Library", "Knowledge", "Voice", "Build", "Settings"]] },
+    expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]] },
   { name: "page-voice-none", url: "/pages.html#voice-none", note: "the two cards with no voice in either place", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "No voice in your account yet."] },
   { name: "page-voice-signed-out", url: "/pages.html#voice-signed-out", note: "the two cards signed out: Cloud Voice asks for a sign-in", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "Sign in to keep a voice in your account."] },
   { name: "page-voice-local", url: "/pages.html", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")'], note: "the Local Voice page: Download is Already the same (the digests match), Upload says it asks first because the account's flagged version is newer and costs 1 credit, Edit with AI, the switch shared with Run defaults, the editor and Delete", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
@@ -412,7 +442,7 @@ const states = [
   { name: "page-voice-standard", url: "/pages.html#voice-standard", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")'], note: "the Cloud Voice page on Standard with this cycle's Voice Writer run used: Edit with AI held, the date the next is theirs, and the upgrade (brought back by agentry-desktop#611)", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
     expectText: ["this cycle's runs are used. The next is yours on 28 October 2026.", "Upgrade"] },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it (agentry-desktop#422)", locator: '[data-preview="validate"]', expectOrder: [
-    ['[data-preview="validate"] .sidebar .nav-item', ["Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
+    ['[data-preview="validate"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "Validate"]],
     ['[data-preview="validate"] .sidebar [aria-current="page"]', ["Validate"]],
   ] },
@@ -524,7 +554,7 @@ const states = [
   { name: "runpanel-chat-review", url: "/modals.html#runpanel-chat-review", note: "Review and start for a chat on this computer, Advanced open: no timeout (s), the line that says a chat here has no time limit, max turns kept (agentry-desktop#468)",
     click: "details.advanced > summary", expectText: ["Start session", "A chat here has no time limit.", "max turns (0 = unlimited)"], expectNone: 'details.advanced span:text-is("timeout (s)")', scrollTo: "[data-chat-limits]" },
   { name: "settings-deeplink-selfupdate", url: "/pages.html", note: "the sidebar's newer-version line opens Update settings", locator: '[data-preview="settings"]', click: '[data-deeplink="selfUpdate"]', expectSection: "updates", expectPart: "desktop" },
-  { name: "settings-deeplink-setup", url: "/pages.html", note: "Browse's setup notice opens Provider settings", locator: '[data-preview="settings"]', click: '[data-deeplink="setupNotice"]', expectSection: "provider" },
+  { name: "settings-deeplink-setup", url: "/pages.html", note: "Home's setup notice opens Provider settings", locator: '[data-preview="settings"]', click: '[data-deeplink="setupNotice"]', expectSection: "provider" },
   { name: "settings-deeplink-knowledge", url: "/pages.html", note: "Knowledge's Not signed in opens Registry settings at the registries", locator: '[data-preview="settings"]', click: '[data-deeplink="knowledgeSignIn"]', expectSection: "registry", expectPart: "registries" },
   { name: "settings-deeplink-describe", url: "/pages.html", note: "Build's Describe it without an AI Review key opens Provider settings at the key", locator: '[data-preview="settings"]', click: '[data-deeplink="describeKey"]', expectSection: "provider", expectPart: "ai-review-key" },
   { name: "settings-deeplink-unsafe", url: "/pages.html#unsafe-on", note: "the sidebar's Unsafe Mode badge opens Run defaults at the switch", locator: '[data-preview="settings"]', click: '[data-deeplink="unsafeMode"]', expectSection: "run-defaults", expectPart: "unsafe", expectUnsafeSwitch: true },

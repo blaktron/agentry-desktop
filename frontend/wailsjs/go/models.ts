@@ -2005,6 +2005,40 @@ export namespace main {
 	    }
 	}
 	
+	export class HomeLayoutView {
+	    cards: settings.HomeCard[];
+	    newer: boolean;
+	    unreadable: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HomeLayoutView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cards = this.convertValues(source["cards"], settings.HomeCard);
+	        this.newer = source["newer"];
+	        this.unreadable = source["unreadable"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class HostedArtefactView {
 	    name: string;
 	    bytes: number;
@@ -4662,6 +4696,27 @@ export namespace selfupdate {
 	        this.commit = source["commit"];
 	        this.signedBy = source["signedBy"];
 	        this.retired = source["retired"];
+	    }
+	}
+
+}
+
+export namespace settings {
+	
+	export class HomeCard {
+	    kind: string;
+	    hidden?: boolean;
+	    size?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HomeCard(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.hidden = source["hidden"];
+	        this.size = source["size"];
 	    }
 	}
 

@@ -12,6 +12,7 @@
 // nothing beyond it, so they are hidden from the accessibility tree. CSS
 // keyframes only, and still under prefers-reduced-motion.
 import type { CSSProperties, ReactNode } from "react";
+import { CardFrame } from "../cards";
 
 // The operator's words, on both clients.
 export const BUILD_TAGLINE = "Use our AI Powered QuickAgent Drafter or Build one to your exact requirements.";
@@ -33,19 +34,11 @@ export function BuildWays({ onDescribe, onSteps, onAdvanced }: { onDescribe: () 
   );
 }
 
-// WayCard is one way in, shared with the Voice page's cards (Voice.tsx,
-// agentry-desktop#610).
+// WayCard is one way in, shared with the Voice and Knowledge pages' cards
+// (Voice.tsx, agentry-desktop#610; Knowledge.tsx): the card frame Home's
+// cards use too (cards.tsx), with a figure and a sentence.
 export function WayCard({ title, blurb, figure, onOpen, children }: { title: string; blurb: string; figure: ReactNode; onOpen: () => void; children?: ReactNode }) {
-  return (
-    <div className="card build-way">
-      <div className="build-way-figure">{figure}</div>
-      <h2 className="build-way-title">
-        <button type="button" className="build-way-main" onClick={onOpen}>{title}</button>
-      </h2>
-      <p className="build-way-blurb">{blurb}</p>
-      {children && <p className="muted small build-way-foot">{children}</p>}
-    </div>
-  );
+  return <CardFrame title={title} blurb={blurb} figure={figure} onOpen={onOpen} foot={children} />;
 }
 
 const W = 320;

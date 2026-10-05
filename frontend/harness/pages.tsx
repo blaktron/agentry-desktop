@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
-import { Wordmark } from "../src/ui";
+import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 
@@ -372,7 +372,20 @@ const voiceAvail = voiceHash === "#voice-standard"
   : { offered: true, available: true, credits: 20, holdCredits: 20, limited: false, max: 0, left: 0, aiReviewCredits: 1, balance: 3977, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 };
 const voiceHostedRun = { id: "run-7f3a", op: "create", status: "queued", state: "queued", statusLine: "Queued: waiting for a sandbox host.", cancelRequested: false, holdCredits: 20, settledCredits: 0, settled: false, applied: false, final: false };
 
+// Home's layout (agentry-desktop#658): #home-hidden hides the Installed
+// QuickAgents card, #home-newer is a layout a newer app arranged and
+// #home-unreadable one this app cannot decode (the defaults are drawn for
+// both), #home-broken a settings file that cannot be read at all.
+const homeHash = window.location.hash;
+const homeCards = [{ kind: "recent-runs" }, { kind: "installed", hidden: homeHash === "#home-hidden" }, { kind: "profile" }, { kind: "run-defaults" }];
+
 g.go = { main: {
+  HomeAPI: {
+    Layout: async () => {
+      if (homeHash === "#home-broken") throw new Error("parse ~/.config/agentry/desktop.yaml: yaml: line 4: did not find expected key");
+      return { cards: homeCards, newer: homeHash === "#home-newer", unreadable: homeHash === "#home-unreadable" };
+    },
+  },
   VoiceAPI: {
     View: async () => voiceView,
     HostedAvailability: async () => voiceAvail,
@@ -680,6 +693,7 @@ g.runtime = {
 };
 
 import Browse from "../src/pages/Browse";
+import Home from "../src/pages/Home";
 import AgentPage from "../src/pages/AgentPage";
 import Library from "../src/pages/Library";
 import Build from "../src/pages/Build";
@@ -803,6 +817,23 @@ function SettingsPreview() {
   );
 }
 
+function HomePreview() {
+  const q = new URLSearchParams(window.location.search);
+  const mark = (what: string) => () => { document.body.dataset.open = what; };
+  return (
+    <Home
+      registry={q.get("active") === "anon" ? "http://agentry:8080" : REG}
+      settings={settingsView as any}
+      // #home-setup: the "Setup isn't finished" notice App hands Home.
+      banner={homeHash === "#home-setup" ? <Notice tone="warn"><strong>Setup isn't finished.</strong> (App's notice)</Notice> : undefined}
+      open={{
+        library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
+        agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },
+      }}
+    />
+  );
+}
+
 const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     {/* #browse-query: Browse as the Library's search opens it, searched for
@@ -811,6 +842,10 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see
         the query it hands to Browse (agentry-desktop#657). */}
+    {/* Home (agentry-desktop#658). ?active=anon makes the anonymous
+        registry the active one, so the Profile card is a Sign in card. What a
+        card opens is marked on the body (data-open) for a shot to see. */}
+    <div data-preview="home"><Shell active="home"><HomePreview /></Shell></div>
     <div data-preview="library"><Shell active="library"><Library registry={REG} onBrowse={(q) => { document.body.dataset.browse = q ?? ""; }} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenLibrary={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
@@ -822,4 +857,20 @@ const render = () => createRoot(document.getElementById("root")!).render(
 if (landedDraft) {
   startDraft(REG, "here", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
   setTimeout(render, 100);
+} else if (homeHash === "#home-strict") {
+  // Home starts nothing on load (plan desktop-home-and-library.md §3,
+  // invariant 4): only Home is drawn, and every binding but the reads Home
+  // makes throws and names itself on the body, which the shot checks is
+  // never marked.
+  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile"]);
+  for (const api of Object.values(g.go.main) as Record<string, unknown>[]) {
+    for (const k of Object.keys(api)) {
+      if (reads.has(k)) continue;
+      api[k] = async () => {
+        document.body.dataset.unexpected = `${document.body.dataset.unexpected ?? ""}${k} `;
+        throw new Error(`Home called ${k}`);
+      };
+    }
+  }
+  createRoot(document.getElementById("root")!).render(<div data-preview="home"><Shell active="home"><HomePreview /></Shell></div>);
 } else render();

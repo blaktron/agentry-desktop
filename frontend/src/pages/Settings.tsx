@@ -83,8 +83,12 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
 export const SETTINGS_FOR = {
   // the sidebar's line for a newer Agentry Desktop
   selfUpdate: { section: "updates", part: "desktop" },
-  // the "Setup isn't finished" notice on Browse
+  // the "Setup isn't finished" notice on Home
   setupNotice: { section: "provider" },
+  // Home's Profile, Sign in and Run defaults cards (agentry-desktop#658)
+  homeProfile: { section: "profile" },
+  homeSignIn: { section: "registry", part: "registries" },
+  homeRunDefaults: { section: "run-defaults" },
   // Knowledge's "Not signed in" notice
   knowledgeSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
@@ -272,7 +276,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
   );
 }
 
-const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
+export const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
 
 // signedInTo: whether the registry holds a token here, which is when the
 // Profile card is offered (agentry-desktop#423). Nothing when not signed in.

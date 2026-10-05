@@ -7,6 +7,7 @@ import { UnsafeLive } from "../wailsjs/go/main/RunAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
 import { main } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
+import Home from "./pages/Home";
 import AgentPage from "./pages/AgentPage";
 import Library from "./pages/Library";
 import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
@@ -32,6 +33,9 @@ import { Button, Notice, Wordmark } from "./ui";
 import { requestEdit, sameRegistry } from "./edit";
 
 export type Route =
+  // The page the app opens on: a card per thing that is the person's own
+  // (plan desktop-home-and-library.md D2; agentry-desktop#658).
+  | { page: "home" }
   // The Library: what is installed on this computer, with Browse beneath it
   // (plan desktop-home-and-library.md D3).
   | { page: "library" }
@@ -39,7 +43,7 @@ export type Route =
   | { page: "browse"; q?: string }
   // registry: an installed record's own registry may differ from the active
   // one; back: where the ← link returns to.
-  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" }
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" }
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
@@ -48,13 +52,16 @@ export type Route =
   // when absent; part: the anchor within it (settings-cards.md D12).
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
+// The agent page's way back, by where it was opened from.
+const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home" } as const;
+
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app
 // (agentry-desktop#353). One at a time, as the run lock allows one build.
 type KnowledgeFlow = { registry: string; addTo?: string; place?: KnowledgePlace };
 
 export default function App() {
-  const [route, setRoute] = useState<Route>({ page: "browse" });
+  const [route, setRoute] = useState<Route>({ page: "home" });
   const [knowledgeFlow, setKnowledgeFlow] = useState<KnowledgeFlow | null>(null);
   const [flowMinimized, setFlowMinimized] = useState(false);
   const [flowInFlight, setFlowInFlight] = useState(false);
@@ -87,7 +94,7 @@ export default function App() {
   const [installedUpdates, setBriefUpdates] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
   // The "nothing set up" reminder (plan desktop-installers.md D10): raised
-  // when the wizard closed with "I'll do it later", shown on Browse until
+  // when the wizard closed with "I'll do it later", shown on Home until
   // dismissed (opening Settings from it leaves it standing for the return
   // trip), and never persisted — the next launch starts clean, and D-019's
   // flag keeps the wizard closed.
@@ -168,6 +175,22 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
+  // Home shows it; Browse showed it while Browse was the landing.
+  const setupBanner = setupMissing && (
+    <div className="setup-banner">
+      <Notice tone="warn">
+        <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
+        it cannot sign in, run or build anything until it is:
+        <ul className="setup-banner-list">
+          {setupMissing.map((m) => <li key={m}>{m}</li>)}
+        </ul>
+        <div className="row">
+          <Button variant="primary" onClick={() => nav({ page: "settings", ...SETTINGS_FOR.setupNotice })}>Open Settings</Button>
+          <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
+        </div>
+      </Notice>
+    </div>
+  );
   const unsafeShown = !!settings?.unsafeMode || unsafeLive;
 
   return (
@@ -218,20 +241,20 @@ export default function App() {
           {/* A render fault shows its way back here, under a sidebar that
               still works (agentry-desktop#351). */}
           <Recover subject="This page" resetKey={JSON.stringify(route)}>
-            {route.page === "browse" && setupMissing && (
-              <div className="setup-banner">
-                <Notice tone="warn">
-                  <strong>Setup isn't finished.</strong> Agentry Desktop can browse a public registry, but
-                  it cannot sign in, run or build anything until it is:
-                  <ul className="setup-banner-list">
-                    {setupMissing.map((m) => <li key={m}>{m}</li>)}
-                  </ul>
-                  <div className="row">
-                    <Button variant="primary" onClick={() => nav({ page: "settings", ...SETTINGS_FOR.setupNotice })}>Open Settings</Button>
-                    <Button variant="ghost" onClick={() => setSetupMissing(null)}>Dismiss</Button>
-                  </div>
-                </Notice>
-              </div>
+            {route.page === "home" && (
+              <Home
+                registry={registry}
+                settings={settings}
+                banner={setupBanner}
+                open={{
+                  library: () => nav({ page: "library" }),
+                  browse: () => nav({ page: "browse" }),
+                  agent: (reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "home" }),
+                  profile: () => nav({ page: "settings", ...SETTINGS_FOR.homeProfile }),
+                  signIn: () => nav({ page: "settings", ...SETTINGS_FOR.homeSignIn }),
+                  runDefaults: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunDefaults }),
+                }}
+              />
             )}
             {route.page === "browse" && (
               // Browse takes its query only when it mounts, so the key gives
@@ -243,7 +266,7 @@ export default function App() {
                 registry={route.registry ?? registry}
                 ns={route.ns}
                 name={route.name}
-                backLabel={route.back === "library" ? "← back to Library" : "← back to Browse"}
+                backLabel={BACK_LABEL[route.back ?? "browse"]}
                 onBack={() => nav({ page: route.back ?? "browse" })}
                 // Edit opens in the Build tab, which submits to the app's
                 // registry: offered only for that registry's QuickAgents.
