@@ -432,3 +432,122 @@ func TestTheVoicePageAsksTheStatusRouteOnlyAtAnAdmittedURL(t *testing.T) {
 		t.Fatalf("View sent %d requests to a URL Settings refuses", hits.Load())
 	}
 }
+
+// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, D5;
+// agentry-desktop#611): Discard and Delete act on the account only after
+// the person's Yes in a native dialog; Restore is asked nowhere, as the
+// site's, and its line says what it does. Edit with AI In Agentry is an
+// AI Edit over the account's newest version and a Create where it keeps
+// none.
+
+func TestDiscardAndDeleteInTheAccountAskFirstAndTouchNothingHere(t *testing.T) {
+	f := newVoiceFixture(t, true)
+	if _, err := f.v.SaveLocal(f.reg.URL, voiceText); err != nil {
+		t.Fatal(err)
+	}
+	// The CLI's fake serves GET and PUT /voice only; these two reach the
+	// fake's not-found answer, so a Yes is proven by the call's refusal
+	// naming the route, and a No by no call at all.
+	f.answer = false
+	if _, err := f.v.DiscardAccount(f.reg.URL); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("a Discard answered No: %v", err)
+	}
+	if err := f.v.DeleteAccount(f.reg.URL); err == nil || !strings.Contains(err.Error(), "not confirmed") {
+		t.Fatalf("a Delete answered No: %v", err)
+	}
+	if got := strings.Join(f.steps, "|"); got != "ask: Discard your new version?|ask: Delete your account's voice?" {
+		t.Fatalf("asked %v", got)
+	}
+	if !strings.Contains(f.msgs[1], "not touched") {
+		t.Fatalf("the Delete dialog does not say this computer's voice stays: %q", f.msgs[1])
+	}
+	f.answer = true
+	if _, err := f.v.DiscardAccount(f.reg.URL); err == nil || !strings.Contains(err.Error(), "discard your new version") {
+		t.Fatalf("a Discard answered Yes did not reach the registry: %v", err)
+	}
+	if view, _ := f.v.View(f.reg.URL); view.Local.Text != voiceText {
+		t.Fatal("an account action touched this computer's voice")
+	}
+}
+
+func TestEditWithAIInAgentryIsAnEditOverTheAccountsNewestVersionAndACreateWithout(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		a    *voice.Account
+		want string
+	}{
+		{"no voice", &voice.Account{}, hostedrun.VoiceCreate},
+		{"unread", nil, hostedrun.VoiceCreate},
+		{"live", &voice.Account{Exists: true, Live: &voice.Version{}}, hostedrun.VoiceEdit},
+		// A first version still in review or flagged is the voice to edit:
+		// the site's Edit mode is the same (agentry-web#1069).
+		{"pending only", &voice.Account{Exists: true, Pending: &voice.Version{Review: "flagged"}}, hostedrun.VoiceEdit},
+	} {
+		if got := accountJob(c.a); got != c.want {
+			t.Errorf("%s: %s, want %s", c.name, got, c.want)
+		}
+	}
+
+	f := newVoiceFixture(t, true)
+	// No voice in the account: a Create, so samples are required, as the
+	// dialog says.
+	if _, err := f.v.HostedWithAI(f.reg.URL, "plain and direct", nil); err == nil || !strings.Contains(err.Error(), "samples") {
+		t.Fatalf("a Create In Agentry with no samples: %v", err)
+	}
+	if _, err := f.v.SaveAccount(f.reg.URL, voiceText); err != nil {
+		t.Fatal(err)
+	}
+	// A voice in the account: an AI Edit, so the note is required.
+	if _, err := f.v.HostedWithAI(f.reg.URL, "  ", nil); err == nil || !strings.Contains(err.Error(), "what should change") {
+		t.Fatalf("an AI Edit In Agentry with no note: %v", err)
+	}
+	// Samples come only from the native pickers.
+	if _, err := f.v.HostedWithAI(f.reg.URL, "shorter", []string{t.TempDir()}); err == nil {
+		t.Fatal("an AI Edit In Agentry took a sample no picker returned")
+	}
+}
+
+// A Cloud Voice page opened again while the Voice Writer runs In Agentry
+// (left and reopened, or after a restart) follows that run rather than
+// offering a second: AttachHosted finds the account's voice_build in flight
+// and never takes a build or a run of another kind for it.
+func TestTheCloudPageFollowsAVoiceWriterRunAlreadyInFlight(t *testing.T) {
+	f := &hostedFake{
+		enabled: true,
+		scopes:  []string{"agent:read", "user:profile", "run:read", "run:write", "voice:read", "voice:write"},
+		others:  []*hostedrun.Run{{ID: "kb-1", Kind: hostedrun.KindKnowledgeBuild, Status: "running"}},
+	}
+	reg := f.start(t)
+	signIn(t, reg)
+	fastPoll(t)
+	r, _ := newRunAPI(t)
+	v := &VoiceAPI{app: r.app, run: r}
+
+	none, err := v.AttachHosted(reg)
+	if err != nil || none.Run != nil {
+		t.Fatalf("a knowledge build was taken for a Voice Writer run: %+v, %v", none, err)
+	}
+	f.mu.Lock()
+	f.run = &hostedrun.Run{ID: "vw-1", Kind: hostedrun.KindVoiceBuild, Status: "running", VoiceBuild: &hostedrun.VoiceBuild{Op: hostedrun.VoiceEdit}}
+	f.mu.Unlock()
+	got, err := v.AttachHosted(reg)
+	if err != nil || got.Run == nil || got.Run.ID != "vw-1" || got.Run.Final {
+		t.Fatalf("the run in flight: %+v, %v", got, err)
+	}
+	// Followed now: a second attach reads the same run, and a start is
+	// refused rather than becoming a second run.
+	again, err := v.AttachHosted(reg)
+	if err != nil || again.Run == nil || again.Run.ID != "vw-1" {
+		t.Fatalf("attached again: %+v, %v", again, err)
+	}
+	if err := v.hosted.claim("busy"); err == nil {
+		t.Fatal("the slot was free while a run is followed")
+	}
+	if _, err := v.AttachHosted("http://example.com"); err == nil {
+		t.Fatal("an attach at a URL Settings refuses was asked")
+	}
+	if cur := v.hosted.current(); cur != nil {
+		cur.cancel()
+		<-cur.done
+	}
+}

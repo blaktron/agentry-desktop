@@ -3,11 +3,21 @@
 import {main} from '../models';
 import {voice} from '../models';
 
+export function AttachHosted(arg1:string):Promise<main.VoiceHostedStartView>;
+
 export function CancelHosted():Promise<main.VoiceHostedView>;
+
+export function DeleteAccount(arg1:string):Promise<void>;
 
 export function DeleteLocal(arg1:string):Promise<void>;
 
+export function DiscardAccount(arg1:string):Promise<voice.Account>;
+
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.VoiceHostedAvailabilityView>;
+
+export function HostedWithAI(arg1:string,arg2:string,arg3:Array<string>):Promise<main.VoiceHostedStartView>;
+
+export function RestoreAccount(arg1:string):Promise<main.VoiceRestoreView>;
 
 export function SaveAccount(arg1:string,arg2:string):Promise<voice.Account>;
 

@@ -166,7 +166,16 @@ The product never claims an agent is "safe". The language is always:
   writing samples from the native pickers, and runs the Voice Writer on this
   computer for no credits; with no voice here it is **Write with AI** and
   writes one from samples. **Cloud Voice** is the account's, which AI Review
-  reads before a version is live, with its status and its editor. Each voice
+  reads before a version is live (since agentry-desktop#611, the site's Voice
+  settings page in the desktop): a version waiting for AI Review is shown
+  above the editor, in review (the page follows it) or flagged with what AI
+  Review found, with **Discard**; the editor saves a new version for AI
+  Review; **Edit with AI** is the same dialog run **In Agentry** at the
+  registry's flat price (an AI Edit of the newest version with optional
+  samples, or a Create from samples where the account keeps none; Standard's
+  once-a-cycle limit and the upgrade are said in its place when used), and
+  what it writes waits for AI Review; then the account's switch, **Restore
+  previous** and **Delete**, the last behind a native dialog. Each voice
   has an always-attach switch (Settings → Run defaults for this computer's,
   shown on the Local Voice page too; Profile for the account's), and every
   run setup's Review shows **Write in my voice**, ticked from the switch of
