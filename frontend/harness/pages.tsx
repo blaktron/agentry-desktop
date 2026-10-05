@@ -546,6 +546,13 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
+    // Run on a folder installed QuickAgent in the Library opens RunPanel
+    // over the page; it asks for its own tool surface and the key profile
+    // as it mounts, and without them the preview went blank.
+    RunRequirements: async () => ({ toolRows: [], servers: [], declaredServers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
+    ProfileStatus: async (_registry: string, ref: string) => ({ ref, digest: "sha256:5565240b85d9c2f4", capabilityLines: ["network egress: none", "filesystem: read workspace, write workspace"],
+      declaredSecrets: [], storedSecretNames: [], exists: false, keep: true, modes: ["autonomous"], intake: [], opening: "", shipsKnowledge: [] }),
+    HostedAvailability: async () => ({ offered: false, available: false }),
     // Run defaults → Unsafe Mode (agentry-desktop#418). Off answers at once.
     // On is the Go host's: here the native Yes is taken as given, the pull's
     // lines arrive as runner:unsafe-progress, and #unsafe-pulling never
