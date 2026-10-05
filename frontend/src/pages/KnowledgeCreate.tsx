@@ -73,7 +73,7 @@ import { buildHoldLine, creatorUseLine } from "../usage";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { BuildProgress, fmtCap, largeDocumentsWarning, buildCreditsLine, buildTimeWarning, inAgentryNote, nameProblem, pagesOf, unscannedWarning } from "../knowledge";
 import {
-  MAX_BRIEF_BYTES, agentryWebLine, documentsRecap, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap, type LocalWeb,
+  MAX_BRIEF_BYTES, agentryWebLine, continuesWith, documentsOf, documentsRecap, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap, type LocalWeb,
 } from "../knowledgeSources";
 
 type Step = "documents" | "name" | "where" | "review";
@@ -746,6 +746,7 @@ function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
   copyToCloud?: () => Promise<string>;
 }) {
   const docs = result.documents ?? [];
+  const read = documentsOf(docs, !!result.brief);
   const [copying, setCopying] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -763,15 +764,15 @@ function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
   return (
     <div>
       <h3 className={`run-outcome run-outcome-${result.stopped ? "warn" : "ok"}`}>
-        {added ? `Added ${docs.length === 1 ? "1 document" : `${docs.length} documents`} to ${result.name}` : `Made ${result.name}`}: {pagesOf(result.pages)}, {fmtBytes(result.bytes)}
+        {added ? `Added ${readsLine(read, !!result.brief)} to ${result.name}` : `Made ${result.name}`}: {pagesOf(result.pages)}, {fmtBytes(result.bytes)}
       </h3>
       <p>Kept on this computer, encrypted to {result.key}. It is not scanned.</p>
       {result.searched && <p className="muted small">The Creator could search the web, AI Review reading every result first with your AI Review key.</p>}
       {result.withoutWeb && <Notice tone="info">You asked for the web, and this build ran without it: {result.withoutWeb}.</Notice>}
       {result.stopped && (
         <Notice tone="warn">
-          The Creator run stopped before it finished ({result.stopped}). The pack holds what it wrote; Add documents with the
-          same documents continues it.
+          The Creator run stopped before it finished ({result.stopped}). The pack holds what it wrote; Add documents with{" "}
+          {continuesWith(read, !!result.brief)} continues it.
         </Notice>
       )}
       {(result.rewrapped ?? []).length > 0 && (

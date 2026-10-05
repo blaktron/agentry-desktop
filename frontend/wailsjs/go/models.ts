@@ -1041,6 +1041,7 @@ export namespace knowledge {
 	    pages: number;
 	    bytes: number;
 	    documents: string[];
+	    brief?: boolean;
 	    skipped?: string[];
 	    dropped?: Dropped[];
 	    withoutWeb?: string;
@@ -1063,6 +1064,7 @@ export namespace knowledge {
 	        this.pages = source["pages"];
 	        this.bytes = source["bytes"];
 	        this.documents = source["documents"];
+	        this.brief = source["brief"];
 	        this.skipped = source["skipped"];
 	        this.dropped = this.convertValues(source["dropped"], Dropped);
 	        this.withoutWeb = source["withoutWeb"];

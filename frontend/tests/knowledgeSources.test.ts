@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_BRIEF_BYTES, agentryWebLine, briefBytes, documentsRecap, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap,
+  MAX_BRIEF_BYTES, agentryWebLine, briefBytes, continuesWith, documentsOf, documentsRecap, localWebLine, readsLine, searches, sourcesProblem, sourcesWarning, webDefault, webRecap,
 } from "../src/knowledgeSources.ts";
 
 test("a build takes documents, a brief, or both, and a brief of at most 8 KiB", () => {
@@ -64,4 +64,21 @@ test("what a build reads, in words", () => {
   assert.equal(readsLine(0, true), "your brief");
   assert.equal(readsLine(1, true), "1 document and your brief");
   assert.equal(readsLine(3, false), "3 documents");
+});
+
+// What continues a build that stopped short: what it was given, never
+// documents it did not have (agentry-desktop#600).
+test("a stopped build is continued with what it was given", () => {
+  assert.equal(continuesWith(0, true), "the same brief");
+  assert.equal(continuesWith(2, false), "the same documents");
+  assert.equal(continuesWith(1, true), "the same documents and brief");
+});
+
+// A result lists the brief among its documents, as brief.md: the
+// documents it read are the rest.
+test("a result's documents without its brief", () => {
+  assert.equal(documentsOf(["brief.md"], true), 0);
+  assert.equal(documentsOf(["a.pdf", "brief.md"], true), 1);
+  assert.equal(documentsOf(["a.pdf", "b.md"], false), 2);
+  assert.equal(documentsOf([], true), 0);
 });

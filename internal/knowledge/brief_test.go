@@ -46,6 +46,11 @@ func TestABriefAloneBuildsAPack(t *testing.T) {
 	if seen.Brief != "Espresso machine care, for a café's new staff." || len(seen.Documents) != 0 || seen.Web != nil {
 		t.Fatalf("the Creator ran with brief %q, documents %v, web %v", seen.Brief, seen.Documents, seen.Web)
 	}
+	// The result says a brief was given, so the panel can name it rather
+	// than call brief.md a document (agentry-desktop#600).
+	if !res.Brief {
+		t.Fatalf("a brief-only build's result does not say it had a brief: %+v", res)
+	}
 	if *calls != 0 || res.Searched || res.WithoutWeb != "" {
 		t.Fatalf("a build without the web asked for its keys (%d) or said %+v", *calls, res)
 	}
@@ -55,8 +60,12 @@ func TestABriefAloneBuildsAPack(t *testing.T) {
 	noPlaintextLeft(t, e)
 
 	log.Reset()
-	if _, err := e.Add(ctx, BuildRequest{Registry: reg.URL, Name: "espresso", Brief: "Add descaling.", Build: fakeCreator(t, &seen, nil), Log: &log}); err != nil {
+	added, err := e.Add(ctx, BuildRequest{Registry: reg.URL, Name: "espresso", Brief: "Add descaling.", Build: fakeCreator(t, &seen, nil), Log: &log})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !added.Brief {
+		t.Fatalf("a brief-only add's result does not say it had a brief: %+v", added)
 	}
 	if seen.Brief != "Add descaling." || len(seen.Documents) != 0 {
 		t.Fatalf("Add ran with brief %q, documents %v", seen.Brief, seen.Documents)

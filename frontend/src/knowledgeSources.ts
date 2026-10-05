@@ -93,3 +93,16 @@ export function readsLine(documents: number, brief: boolean): string {
   if (documents === 0) return brief ? "your brief" : "no documents";
   return brief ? `${docs} and your brief` : docs;
 }
+
+/** How many documents a finished build read: its result lists the brief
+ *  among them, as brief.md (agentry-desktop#600). */
+export function documentsOf(names: string[], brief: boolean): number {
+  return Math.max(0, names.length - (brief ? 1 : 0));
+}
+
+/** What continues a build that stopped short, in a sentence's words: what
+ *  it was given, never documents it did not have (agentry-desktop#600). */
+export function continuesWith(documents: number, brief: boolean): string {
+  if (documents === 0) return "the same brief";
+  return brief ? "the same documents and brief" : "the same documents";
+}

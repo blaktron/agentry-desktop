@@ -28,6 +28,9 @@
 //   #create-building      the build under way: time, turns, pages written
 //                         and tokens over its folded log (#352)
 //   #create-done          what the build made
+//   #create-stopped-brief a brief-only build that stopped at its turn budget:
+//                         continued with the same brief, never documents
+//                         (agentry-desktop#600)
 //   #card-building        a build shrunk to its corner card over the page,
 //                         its progress counting up (agentry-desktop#353)
 //   #card-done            the card once the build is over: how it ended
@@ -115,6 +118,13 @@ const result = {
   name: "handbook", pages: 48, bytes: 2_411_724, documents: ["storage-guide.pdf", "handbook/retention.docx", "handbook/keys.md"],
   skipped: ["handbook/scan-0042.heic"], dropped: [{ path: "wiki/topics/untitled.md", reason: "the page has no title in its frontmatter" }],
   key: `your account's key at ${HOST}, which Agentry holds`, inputTokens: 184_210, outputTokens: 41_088, costUsd: 0.1893,
+};
+// A build given only a brief, stopped at its turn budget with what it wrote
+// kept (agentry-desktop#600; seen in #498's real-window check).
+const stoppedBrief = {
+  name: "espresso", pages: 17, bytes: 96_400, documents: ["brief.md"], brief: true,
+  stopped: "turn budget exceeded (60 tool calls)",
+  key: `your account's key at ${HOST}, which Agentry holds`, inputTokens: 96_120, outputTokens: 22_410, costUsd: 0.0912,
 };
 const buildLog = [
   "The Knowledge Creator runs on this computer against the model your runner policy names (anthropic claude-sonnet-4-5). It costs no credits, and nothing it reads or writes is scanned.",
@@ -297,7 +307,7 @@ createRoot(document.getElementById("root")!).render(
         onMinimize={() => {}}
         onRestore={() => {}}
         initialBuilding={hash === "create-building" || hash === "card-building"}
-        initialResult={hash === "create-done" || hash === "create-done-cloud" || hash === "card-done" ? (result as never) : undefined}
+        initialResult={hash === "create-done" || hash === "create-done-cloud" || hash === "card-done" ? (result as never) : hash === "create-stopped-brief" ? (stoppedBrief as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" || hash === "hosted-review-brief" ? "agentry" : undefined}
         initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : undefined}
