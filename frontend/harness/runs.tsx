@@ -194,6 +194,10 @@ g.go = { main: {
       else if (hash === "run-stopped") stop = () => setTimeout(() => resolve(result), 40);
     }),
     StopRun: async () => stop?.(),
+    // The star ask after a run In Agentry that ended well, of someone
+    // else's QuickAgent not yet starred (agentry-desktop#613).
+    StarAsk: async () => ({ ask: true, name: "demo1/incident-summarizer" }),
+    StarQuickAgent: async () => {},
     StartHostedRun: async () => {
       const first = hash === "hosted-queued" ? hosted.queued : hosted.running;
       if (hash === "hosted-finished" || hash === "hosted-failed" || hash === "hosted-lost" || hash === "hosted-hostile") {
