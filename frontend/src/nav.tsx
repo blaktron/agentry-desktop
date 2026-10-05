@@ -6,18 +6,20 @@ import { Fragment } from "react";
 // Validate is a sub-item of Build, shown only while the person is in Build
 // or on Validate, and Build stays lit on both: the site's sub-menu
 // convention, where a section's children show only inside it
-// (panel-redesign D7).
+// (panel-redesign D7). Browse is a sub-item of Library the same way
+// (plan desktop-home-and-library.md D3; agentry-desktop#657).
 
 // The pages a sidebar item can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "browse" | "agent" | "installed" | "knowledge" | "voice" | "build" | "validate" | "settings";
+export type NavPage = "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "settings";
 
 type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[] };
 
 const ITEMS: Item[] = [
-  // An agent's page is reached from Browse, so Browse stays lit on it.
-  { label: "Browse", page: "browse", also: ["agent"] },
-  { label: "Installed", page: "installed" },
+  // The QuickAgents installed on this computer, with Browse beneath it for
+  // finding more. An agent's page is reached from either, so Library stays
+  // lit on it.
+  { label: "Library", page: "library", also: ["agent"], sub: [{ label: "Browse", page: "browse" }] },
   { label: "Knowledge", page: "knowledge" },
   // The Writing Voice (plan writing-voice.md §8; agentry-desktop#510).
   { label: "Voice", page: "voice" },
@@ -38,7 +40,7 @@ export function SidebarNav({ page, onNav, installedUpdates = 0 }: {
       onClick={() => onNav?.(item.page)}
     >
       {item.label}
-      {item.page === "installed" && installedUpdates > 0 && (
+      {item.page === "library" && installedUpdates > 0 && (
         <span className="badge warn nav-count" title={`${installedUpdates} installed QuickAgent${installedUpdates === 1 ? " has" : "s have"} a newer version`}>{installedUpdates}</span>
       )}
     </button>

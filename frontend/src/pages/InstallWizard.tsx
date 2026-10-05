@@ -22,7 +22,7 @@ export default function InstallWizard({
   onClose: () => void;
   // presetTarget and presetDir fill the first step: the agent page's
   // one-off link opens it on the export Settings → Coding agents implies
-  // and its folder (agentry-desktop#148); Installed's Update passes the
+  // and its folder (agentry-desktop#148); the Library's Update passes the
   // record's own and, with startAtReview, goes straight to Prepare.
   presetTarget?: string;
   presetDir?: string;
@@ -47,7 +47,7 @@ export default function InstallWizard({
   const effectiveTarget = target;
   const targetInfo = useMemo(() => TARGETS.find((t) => t.id === effectiveTarget) ?? TARGETS[0], [effectiveTarget]);
 
-  // An update from Installed goes straight to Prepare: its target and
+  // An update from the Library goes straight to Prepare: its target and
   // directory are the record's.
   useEffect(() => {
     if (startAtReview && presetTarget) void prepare(presetTarget, presetDir ?? "");
