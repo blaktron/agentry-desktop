@@ -2457,6 +2457,44 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class HybridKeyTestView {
+	    ok: boolean;
+	    message: string;
+	    from?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HybridKeyTestView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.message = source["message"];
+	        this.from = source["from"];
+	    }
+	}
+	export class HybridKeyView {
+	    stored: boolean;
+	    source?: string;
+	    envName: string;
+	    envSet: boolean;
+	    ready: boolean;
+	    keyStoreErr?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HybridKeyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stored = source["stored"];
+	        this.source = source["source"];
+	        this.envName = source["envName"];
+	        this.envSet = source["envSet"];
+	        this.ready = source["ready"];
+	        this.keyStoreErr = source["keyStoreErr"];
+	    }
+	}
 	export class ImageView {
 	    ref: string;
 	    size?: string;
@@ -3750,6 +3788,7 @@ export namespace main {
 	    policy?: receipt.Policy;
 	    knowledge?: string;
 	    unsafeExec?: string;
+	    decode?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -3776,6 +3815,7 @@ export namespace main {
 	        this.policy = this.convertValues(source["policy"], receipt.Policy);
 	        this.knowledge = source["knowledge"];
 	        this.unsafeExec = source["unsafeExec"];
+	        this.decode = source["decode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

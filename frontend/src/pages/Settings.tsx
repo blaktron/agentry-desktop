@@ -11,6 +11,7 @@ import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
+import { HybridAnalysisKeyCard } from "./HybridAnalysisKey";
 import { WebSearchKeyCard } from "./WebSearchKey";
 import { keyStanding } from "../keyRecommendation";
 import type { RunWhere } from "../runSetup";
@@ -32,7 +33,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search";
+  | "budgets" | "chats" | "where" | "output" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -69,10 +70,10 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "provider", title: "Provider settings",
-    sentence: "The AI provider and model runs use, your own AI Review key, and your own web search key.",
+    sentence: "The AI provider and model runs use, your own AI Review key, your own web search key, and your own Hybrid Analysis key.",
     parts: [
       { id: "provider", label: "Model provider" }, { id: "ai-review-key", label: "AI Review key" },
-      { id: "web-search", label: "Web search" },
+      { id: "web-search", label: "Web search" }, { id: "hybrid-analysis-key", label: "Hybrid Analysis key" },
     ],
   },
 ];
@@ -177,6 +178,7 @@ export default function Settings({
           </div>
           <PartSection id="ai-review-key" title="AI Review key"><AIReviewKeyCard /></PartSection>
           <PartSection id="web-search" title="Web search"><WebSearchKeyCard /></PartSection>
+          <PartSection id="hybrid-analysis-key" title="Hybrid Analysis key"><HybridAnalysisKeyCard /></PartSection>
         </>
       )}
     </div>

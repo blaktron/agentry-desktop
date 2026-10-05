@@ -268,6 +268,14 @@ const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "d
   : window.location.hash === "#aireview-env"
     ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true }
     : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
+// Settings → Provider settings → Hybrid Analysis key (agentry-desktop#530):
+// saved by default; #hybrid-none has none; #hybrid-env takes it from the
+// variable; #hybrid-refused answers Test key with the service's refusal.
+const hybridKeyView = window.location.hash === "#hybrid-none"
+  ? { stored: false, envName: "HYBRID_API_KEY", envSet: false, ready: false }
+  : window.location.hash === "#hybrid-env"
+    ? { stored: false, envName: "HYBRID_API_KEY", envSet: true, ready: true }
+    : { stored: true, source: "keyring", envName: "HYBRID_API_KEY", envSet: false, ready: true };
 // Settings → Provider settings → Web search (agentry-desktop#301): Brave
 // saved by default; #search-none has no provider; #search-env takes the
 // key from the variable; #search-refused answers Test key with a 401.
@@ -622,6 +630,12 @@ g.go = { main: {
     TestJevKey: async () => (window.location.hash === "#aireview-refused"
       ? { ok: false, message: "TypeSafe refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
       : { ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
+    HybridKeyStatus: async () => hybridKeyView,
+    StoreHybridKey: async () => ({ stored: true, source: "keyring", envName: "HYBRID_API_KEY", envSet: false, ready: true }),
+    ForgetHybridKey: async () => ({ stored: false, envName: "HYBRID_API_KEY", envSet: false, ready: false }),
+    TestHybridKey: async () => (window.location.hash === "#hybrid-refused"
+      ? { ok: false, message: "Hybrid Analysis refused the key. Check that you pasted the whole API key and that it has not been revoked.", from: "the keychain" }
+      : { ok: true, message: "The key works: Hybrid Analysis answered a lookup of the EICAR test file's fingerprint with it.", from: "the keychain" }),
     SearchKeyStatus: async () => searchKeyView,
     StoreSearchKey: async (provider: string) => {
       const p = searchProviders.find((x) => x.name === provider) ?? searchProviders[0];
