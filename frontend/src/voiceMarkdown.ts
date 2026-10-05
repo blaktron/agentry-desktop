@@ -16,12 +16,20 @@
 //   can open it (AgentMarkdown's rules, DEV-138, in an editor).
 // - Invisible characters (zero-width, bidi, tag, format) are shown beside
 //   themselves as their code points, as the hostile-markdown renderer shows
-//   them (reveal.tsx), and kept in the voice.
+//   them (reveal.tsx), and kept in the voice. What the editor would hold out
+//   of sight is shown too: a link's address and title beside its text, a
+//   code block's info string above it. A link whose address or title holds
+//   an invisible character stays text, where its chips show; a code block
+//   whose info string holds one keeps the voice out of the editor.
 // - The Voice Writer's own Markdown comes back byte for byte (invariant 4):
 //   a list item's wrapped lines keep their indent, the file keeps its final
 //   newline, and prose keeps its `&`, `<` and `>` as written, never as
 //   entities. Where the serializer writes a voice another way (`*` bullets,
-//   `_` emphasis), voiceSave sends nothing until the person edits. A voice
+//   `_` emphasis), voiceSave sends nothing until the person edits; once they
+//   do, every top-level block they did not change is written back as the
+//   bytes it was read from, so an edit to one paragraph puts no escape
+//   (`a \* b`, `snake\_case`) into another (agentry-desktop#612's review;
+//   the site writes the whole voice through the serializer). A voice
 //   holding what the schema has no place for (a table, a definition, a task
 //   list) is not opened at all, so no edit can send it without that part.
 //
@@ -37,26 +45,40 @@ import StarterKit from "@tiptap/starter-kit";
 import { Marked, Tokenizer } from "marked";
 
 import { isInvisible } from "./invisible.ts";
-import { voiceTextProblem } from "./voice.ts";
+import { voiceTextProblem, type VoiceSave } from "./voice.ts";
 
 // isAllowedVoiceHref is the one rule for a link in a voice: an absolute
 // http(s) or mailto address, as AgentMarkdown's. A control or space
 // character anywhere refuses it, so "java\tscript:" cannot pass as text the
-// browser would strip.
+// browser would strip, and so does an invisible one, which the address
+// shown beside the link could not reveal.
 export function isAllowedVoiceHref(href: string): boolean {
-  if (/[\u0000- \u007f-\u009f]/.test(href)) return false;
+  if (/[\u0000- \u007f-\u009f]/.test(href) || hasInvisible(href)) return false;
   return /^https?:\/\/[^/]/i.test(href) || /^mailto:[^/]/i.test(href);
 }
 
+function hasInvisible(text: string): boolean {
+  for (const ch of text) if (isInvisible(ch.codePointAt(0)!)) return true;
+  return false;
+}
+
 // A link mark that keeps only its address and title, and is drawn as an
-// <a> with the address in data-href: no href, no target, so neither a click
-// nor a modified click inside the editor opens anything. Pasted HTML gives
-// a link only for an allowed address.
+// <a> with the address in data-href and the title in data-title: no href,
+// no target, so neither a click nor a modified click inside the editor
+// opens anything, and voiceWysiwyg.css shows both beside the link's text.
+// Pasted HTML gives a link only for an allowed address, and a title only
+// with no invisible character in it.
 const VoiceLink = Link.extend({
   addAttributes() {
     return {
       href: { default: null, parseHTML: (el: HTMLElement) => el.getAttribute("href") ?? el.getAttribute("data-href") },
-      title: { default: null },
+      title: {
+        default: null,
+        parseHTML: (el: HTMLElement) => {
+          const title = el.hasAttribute("data-href") ? el.getAttribute("data-title") : el.getAttribute("title");
+          return title && !hasInvisible(title) ? title : null;
+        },
+      },
     };
   },
   parseHTML() {
@@ -72,11 +94,13 @@ const VoiceLink = Link.extend({
   },
   renderHTML({ mark }) {
     const href = String(mark.attrs.href ?? "");
-    return ["a", { "data-href": href, title: mark.attrs.title || href }, 0];
+    const title = mark.attrs.title ? String(mark.attrs.title) : null;
+    return ["a", { "data-href": href, "data-title": title, title: title || href }, 0];
   },
-  // Markdown's link to any other address stays the text it was written as.
+  // Markdown's link to any other address, or with an invisible character in
+  // its title, stays the text it was written as.
   parseMarkdown(token, helpers) {
-    if (!isAllowedVoiceHref(String(token.href ?? ""))) return { type: "text", text: String(token.raw ?? "") };
+    if (!isAllowedVoiceHref(String(token.href ?? "")) || hasInvisible(String(token.title ?? ""))) return { type: "text", text: String(token.raw ?? "") };
     return helpers.applyMark("link", helpers.parseInline(token.tokens || []), { href: token.href, title: token.title || null });
   },
 }).configure({
@@ -112,6 +136,10 @@ const RevealInvisible = Extension.create({
           decorations(state) {
             const chips: Decoration[] = [];
             state.doc.descendants((node, pos) => {
+              // A code block's info string, shown above it (voiceWysiwyg.css).
+              if (node.type.name === "codeBlock" && node.attrs.language) {
+                chips.push(Decoration.node(pos, pos + node.nodeSize, { "data-language": String(node.attrs.language) }));
+              }
               if (!node.isText || !node.text) return;
               let offset = 0;
               for (const ch of node.text) {
@@ -220,10 +248,12 @@ const KEPT_TOKENS = new Set([
   "link",
   "image",
 ]);
-type TokenTree = { type: string; task?: boolean; tokens?: TokenTree[]; items?: TokenTree[] };
+type TokenTree = { type: string; raw?: string; lang?: string; task?: boolean; tokens?: TokenTree[]; items?: TokenTree[] };
 function onlyKeptTokens(tokens: readonly TokenTree[] | undefined): boolean {
   return (tokens ?? []).every((token) => {
     if (!KEPT_TOKENS.has(token.type) || token.task) return false;
+    // An info string is shown as an attribute, where a chip cannot go.
+    if (token.type === "code" && token.lang && hasInvisible(token.lang)) return false;
     // A list's items, from marked or from the list extension's own
     // tokenizer, are list items whether or not they carry a type.
     if (token.items && !token.items.every((item) => !item.task && onlyKeptTokens(item.tokens))) return false;
@@ -299,31 +329,110 @@ export function voiceToDoc(text: string): JSONContent | null {
   }
 }
 
-// docToVoice writes the editor's document as VOICE.md, ending in one
-// newline.
-export function docToVoice(doc: JSONContent): string {
-  const text = voiceMarkdown().serialize(withoutEmptyParagraphs(doc));
-  return text.trim() === "" ? "" : text.replace(/\n*$/, "\n");
+// A voice's top-level blocks as it was read: each block's document node
+// (as JSON, to compare) and its source bytes, and the bytes between it and
+// the next. marked's tokens hold every byte of the source, and the parser
+// gives one top-level node per token that is not space; where they do not
+// line up, nothing is kept and the serializer writes the whole voice.
+type SourceBlock = { json: string; raw: string; gap: string };
+let lastSource: { text: string; blocks: SourceBlock[] | null } | undefined;
+function sourceBlocks(text: string): SourceBlock[] | null {
+  if (lastSource?.text === text) return lastSource.blocks;
+  let blocks: SourceBlock[] | null = null;
+  const doc = voiceToDoc(text);
+  if (doc && text.trim() !== "") {
+    const nodes = withoutEmptyParagraphs(doc).content ?? [];
+    const tokens = voiceMarkdown().instance.lexer(text) as unknown as TokenTree[];
+    const found: SourceBlock[] = [];
+    for (const token of tokens) {
+      const raw = String(token.raw ?? "");
+      if (token.type === "space") {
+        if (found.length) found[found.length - 1].gap += raw;
+        continue;
+      }
+      const body = raw.replace(/\n+$/, "");
+      found.push({ json: "", raw: body, gap: raw.slice(body.length) });
+    }
+    if (found.length === nodes.length) {
+      nodes.forEach((node, i) => (found[i].json = JSON.stringify(node)));
+      blocks = found;
+    }
+  }
+  lastSource = { text, blocks };
+  return blocks;
 }
 
-export type VoiceSave = { kind: "unchanged" } | { kind: "problem"; message: string } | { kind: "send"; text: string };
+function serializeBlocks(nodes: JSONContent[]): string {
+  return voiceMarkdown().serialize({ type: "doc", content: nodes }).replace(/\n+$/, "");
+}
+
+// docToVoice writes the editor's document as VOICE.md, ending in one
+// newline. Given the voice it was opened from, each top-level block equal to
+// one of that voice's, in order, is written as the bytes it was read from,
+// with the bytes that followed it when the next block is its neighbour
+// there too; the blocks between are written by the serializer.
+export function docToVoice(doc: JSONContent, opened?: string): string {
+  const clean = withoutEmptyParagraphs(doc);
+  const source = opened === undefined ? null : sourceBlocks(opened);
+  let text: string;
+  if (!source) {
+    text = voiceMarkdown().serialize(clean);
+  } else {
+    const nodes = clean.content ?? [];
+    const pieces: string[] = [];
+    let next = 0; // the first source block a later node may match
+    let prev = -1; // the source block the previous node matched, or -1
+    let run: JSONContent[] = []; // nodes waiting to be serialized together
+    const flush = () => {
+      if (!run.length) return;
+      if (pieces.length) pieces.push("\n\n");
+      pieces.push(serializeBlocks(run));
+      run = [];
+    };
+    for (const node of nodes) {
+      const json = JSON.stringify(node);
+      let at = -1;
+      for (let i = next; i < source.length; i++) {
+        if (source[i].json === json) {
+          at = i;
+          break;
+        }
+      }
+      if (at < 0) {
+        run.push(node);
+        prev = -1;
+        continue;
+      }
+      const neighbour = !run.length && prev >= 0 && at === prev + 1;
+      flush();
+      if (pieces.length) pieces.push(neighbour ? source[prev].gap : "\n\n");
+      pieces.push(source[at].raw);
+      prev = at;
+      next = at + 1;
+    }
+    flush();
+    text = pieces.join("");
+  }
+  return text.trim() === "" ? "" : text.replace(/\n*$/, "\n");
+}
 
 // voiceSave is Save's decision: nothing when the person has not changed the
 // voice they opened (however the serializer would write it), the size rule
 // on the Markdown that would be sent (invariant 5), else that Markdown.
-export function voiceSave(opened: string, doc: JSONContent, check: (text: string) => string | null = voiceTextProblem): VoiceSave {
-  const text = docToVoice(doc);
+export function voiceSave(opened: string, doc: JSONContent): VoiceSave {
+  const text = docToVoice(doc, opened);
   const before = voiceToDoc(opened);
-  if (text === opened || (before && text === docToVoice(before))) return { kind: "unchanged" };
-  const problem = check(text);
+  if (text === opened || (before && (text === docToVoice(before) || text === docToVoice(before, opened)))) return { kind: "unchanged" };
+  const problem = voiceTextProblem(text);
   return problem ? { kind: "problem", message: problem } : { kind: "send", text };
 }
 
 // voiceEditorOptions is the Editor's configuration, the page's and the
 // tests'. injectCSS is off: Tiptap would add a <style> element of its own,
-// so its few rules ship in style.css with the app's, and the window's
-// Content-Security-Policy (internal/webview) stays as it is (invariant 3).
-export function voiceEditorOptions(doc: JSONContent, label = "VOICE.md"): Partial<EditorOptions> {
+// so its few rules ship in voiceWysiwyg.css, in the editor's chunk, and the
+// window's Content-Security-Policy (internal/webview) stays as it is
+// (invariant 3).
+export function voiceEditorOptions(doc: JSONContent): Partial<EditorOptions> {
   return {
     extensions: voiceExtensions(),
     content: doc,
@@ -334,7 +443,7 @@ export function voiceEditorOptions(doc: JSONContent, label = "VOICE.md"): Partia
         class: "voice-wysiwyg readme",
         role: "textbox",
         "aria-multiline": "true",
-        "aria-label": label,
+        "aria-label": "VOICE.md",
         spellcheck: "true",
       },
     },

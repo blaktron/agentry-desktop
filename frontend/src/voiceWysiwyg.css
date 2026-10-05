@@ -24,6 +24,12 @@ img.ProseMirror-separator { display: inline !important; border: none !important;
 .voice-wysiwyg { min-height: 20rem; max-height: 60vh; overflow-y: auto; padding: 8px 12px; outline: none; }
 .voice-wysiwyg > :first-child { margin-top: 0; }
 .voice-wysiwyg a { cursor: text; }
+/* What the voice holds that the drawing would hide: a link's address and
+   title beside its text, a code block's info string above it
+   (voiceMarkdown.ts). The model reads them, so the person sees them. */
+.voice-wysiwyg a[data-href]::after { content: "<" attr(data-href) ">"; display: inline-block; margin-left: 0.25em; color: var(--color-muted); font-size: 0.85em; text-decoration: none; }
+.voice-wysiwyg a[data-href][data-title]::after { content: "<" attr(data-href) " \"" attr(data-title) "\">"; }
+.voice-wysiwyg pre[data-language]::before { content: attr(data-language); display: block; margin-bottom: 0.4em; color: var(--color-muted); font-size: 0.8em; }
 /* An invisible character alone in an isolate, so a bidi control in a voice
    reorders nothing beyond itself (voiceMarkdown.ts). */
 .voice-invisible { unicode-bidi: isolate; }

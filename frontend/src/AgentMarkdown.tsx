@@ -23,7 +23,8 @@ import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { OpenExternal } from "../wailsjs/go/main/App";
-import { RevealText, isInvisible } from "./reveal";
+import { isInvisible } from "./invisible";
+import { RevealText } from "./reveal";
 
 // webHref is the URL a link may keep, or null. A URL carrying a user name
 // or password is refused: "https://github.com@evil.example/" reads as one

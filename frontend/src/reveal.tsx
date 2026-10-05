@@ -1,9 +1,7 @@
 // The invisible-character reveal (the GlassWorm lesson; the list itself is
 // invisible.ts): every invisible character in text someone else wrote is
 // drawn as a chip naming its code point.
-import { isInvisible } from "./invisible.ts";
-
-export { isInvisible };
+import { isInvisible } from "./invisible";
 
 // RevealText renders text with every invisible character as a chip naming
 // its code point. React escapes the rest; nothing here emits markup.

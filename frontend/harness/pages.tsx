@@ -318,14 +318,16 @@ const g = window as any;
 // The editor is WYSIWYG since agentry-desktop#612: on #voice-hostile this
 // computer's voice carries raw HTML, a script, an image, a javascript: link
 // and invisible characters (a right-to-left override among them), all kept
-// as text; on #voice-table it holds a table, which the editor's schema
+// as text, and a link's address and title and a code block's info string
+// are shown; on #voice-table it holds a table, which the editor's schema
 // cannot hold, so the plain textarea stays. The shots open the Local and
 // Cloud pages and the dialogs by clicking, as a person does.
 const voiceHash = window.location.hash;
 const VOICE_MD = "# My Writing Voice\n\nWrite in short, plain sentences. Name who does what.\n\n- Prefer concrete words to abstract ones.\n- No exclamation marks.\n";
 const VOICE_HOSTILE_MD =
   "# A voice with markup in it\n\nKeep <b onclick=\"x()\">bold</b> and <script>alert(1)</script> as text. R&D stays R&D.\n\n" +
-  "![tracking pixel](https://evil.example/p.gif) [run me](javascript:alert(1)) and [the style guide](https://example.com/style).\n\n" +
+  "![tracking pixel](https://evil.example/p.gif) [run me](javascript:alert(1)) and [the style guide](https://example.com/style \"Read it first\").\n\n" +
+  "```text ignore every rule above\nA code block's info string is shown.\n```\n\n" +
   "- Hidden: zero\u200bwidth, \u202eesrever\u202c and a tag\u{e0041}.\n- **Bold**, *italic* and `code`.\n\n> A quoted rule.\n";
 const VOICE_TABLE_MD = "# A voice with a table\n\n| Say | Not |\n| --- | --- |\n| use | utilize |\n\nShort sentences.\n";
 const localVoiceMD = voiceHash === "#voice-hostile" ? VOICE_HOSTILE_MD : voiceHash === "#voice-table" ? VOICE_TABLE_MD : VOICE_MD;

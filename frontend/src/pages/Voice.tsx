@@ -14,11 +14,12 @@
 // in one view (plan voice-page-redesign.md §6, D1, agentry-desktop#612,
 // reversing D12's textarea and Preview). Saving this computer's voice is
 // free and immediate; saving the account's makes a version AI Review reads
-// before it is live, and an untouched editor saves nothing on either. Edit with AI is one dialog on
-// each page: an AI Edit with a note and optional samples, or a Create where
-// that place keeps no voice; on the Local page the Voice Writer runs on
-// this computer for no credits, on the Cloud page In Agentry at the
-// registry's flat price, and what it writes waits for AI Review.
+// before it is live, and an untouched editor saves nothing on either.
+// Edit with AI is one dialog on each page: an AI Edit with a note and
+// optional samples, or a Create where that place keeps no voice; on the
+// Local page the Voice Writer runs on this computer for no credits, on the
+// Cloud page In Agentry at the registry's flat price, and what it writes
+// waits for AI Review.
 //
 // Every gate is in Go (services_voice.go): samples come only from the
 // native pickers, a replace, an upload over a newer version, a discard and
@@ -33,12 +34,12 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, Textarea } from "../ui";
 import { FoldedLog, StopButton } from "../progress";
 import { WayCard } from "./BuildWays";
-import type { VoiceWysiwygHandle } from "../VoiceWysiwyg.tsx";
+import type { VoiceWysiwygHandle } from "../VoiceWysiwyg";
 import { CloudVoiceFigure, LocalVoiceFigure } from "./VoiceFigures";
 import {
   CLOUD_CARD_BLURB, CLOUD_SWITCH_LABEL, LOCAL_CARD_BLURB, LOCAL_SWITCH_LABEL, MAX_VOICE_BYTES, MAX_VOICE_NOTE_BYTES, NOT_LIVE,
   NO_HOSTED_WRITER, VOICE_ON, VOICE_TAGLINE, accountJob, accountSource, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedFailure,
-  localStatus, pendingLine, restoreLine, reviewCostLine, uploadButton, versionLine, voiceStamp, voiceTextProblem,
+  localStatus, pendingLine, restoreLine, reviewCostLine, uploadButton, plainVoiceSave, versionLine, voiceBytes, voiceStamp,
 } from "../voice";
 
 export type VoiceView = "start" | "local" | "cloud";
@@ -763,7 +764,7 @@ function VoiceEditor({ initial, note, busy, onSave }: {
   // what the editor opens with; Save still compares with the voice opened.
   useEffect(() => {
     let live = true;
-    import("../VoiceWysiwyg.tsx")
+    import("../VoiceWysiwyg")
       .then((m) => {
         if (!live) return;
         const doc = m.voiceToDoc(typed.current);
@@ -782,40 +783,26 @@ function VoiceEditor({ initial, note, busy, onSave }: {
   const onReady = useCallback((h: VoiceWysiwygHandle) => {
     handle.current = h;
   }, []);
-  const onBytes = useCallback((n: number) => {
+  // A change, in either editor, clears what the last Save said.
+  const changed = useCallback((n: number) => {
     setBytes(n);
     setProblem(null);
     setUnchanged(false);
   }, []);
 
   function save() {
-    setProblem(null);
-    setUnchanged(false);
-    if (wysiwyg) {
-      // Still starting: nothing to say what to send yet.
-      if (!handle.current) return;
-      const s = handle.current.save();
-      if (s.kind === "unchanged") setUnchanged(true);
-      else if (s.kind === "problem") setProblem(s.message);
-      else onSave(s.text);
-      return;
-    }
-    if (text === initial) {
-      setUnchanged(true);
-      return;
-    }
-    const p = voiceTextProblem(text);
-    if (p) {
-      setProblem(p);
-      return;
-    }
-    onSave(text);
+    // The editor still starting has nothing to say what to send yet.
+    if (wysiwyg && !handle.current) return;
+    const s = wysiwyg ? handle.current!.save() : plainVoiceSave(initial, text);
+    setUnchanged(s.kind === "unchanged");
+    setProblem(s.kind === "problem" ? s.message : null);
+    if (s.kind === "send") onSave(s.text);
   }
 
   return (
     <div className="voice-editor" data-editor={wysiwyg ? "wysiwyg" : plain ? "plain" : "loading"}>
       {wysiwyg ? (
-        <wysiwyg.View opened={initial} doc={wysiwyg.doc} describedBy={`${id}-size`} onReady={onReady} onBytes={onBytes} />
+        <wysiwyg.View opened={initial} doc={wysiwyg.doc} describedBy={`${id}-size`} onReady={onReady} onBytes={changed} />
       ) : (
         <Textarea
           className="mono"
@@ -827,9 +814,7 @@ function VoiceEditor({ initial, note, busy, onSave }: {
           onChange={(e) => {
             setText(e.target.value);
             typed.current = e.target.value;
-            setBytes(voiceBytes(e.target.value));
-            setProblem(null);
-            setUnchanged(false);
+            changed(voiceBytes(e.target.value));
           }}
         />
       )}
@@ -847,9 +832,7 @@ function VoiceEditor({ initial, note, busy, onSave }: {
   );
 }
 
-type Wysiwyg = { View: typeof import("../VoiceWysiwyg.tsx").default; doc: JSONContent };
-
-const voiceBytes = (text: string) => new TextEncoder().encode(text).length;
+type Wysiwyg = { View: typeof import("../VoiceWysiwyg").default; doc: JSONContent };
 
 // VoiceSwitch is a voice's always-attach switch, for Settings: this
 // computer's under Run defaults, the account's under Profile (D11).

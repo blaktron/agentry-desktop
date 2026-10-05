@@ -359,9 +359,11 @@ const states = [
     expectText: ["Nothing to save: the voice is as it was."] },
   { name: "page-voice-cloud-unchanged", url: "/pages.html", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")', '[data-preview="voice"] .voice-editor button:text-is("Save")'], note: "Save on the Cloud page's editor, untouched: nothing goes to AI Review and no credit is spent", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
     expectText: ["Nothing to save: the voice is as it was."] },
-  { name: "page-voice-local-hostile", url: "/pages.html#voice-hostile", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")'], note: "a voice holding raw HTML, a script, an image, a javascript: link and invisible characters: all of it text in the editor, the one https link drawn with no href, each invisible character a chip, the override isolated", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg a[data-href="https://example.com/style"]',
+  { name: "page-voice-local-hostile", url: "/pages.html#voice-hostile", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")'], note: "a voice holding raw HTML, a script, an image, a javascript: link and invisible characters: all of it text in the editor, the one https link drawn with no href, each invisible character a chip, the override isolated", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg a[data-href="https://example.com/style"][data-title="Read it first"]',
     expectText: ["<script>alert(1)</script>", '<b onclick="x()">bold</b>', "![tracking pixel](https://evil.example/p.gif)", "[run me](javascript:alert(1))", "R&D stays R&D.", "U+200B", "U+202E", "U+202C", "U+E0041"],
     expectNone: '[data-preview="voice"] .voice-wysiwyg :is(img, script, b, iframe, [href], [onclick])' },
+  { name: "page-voice-cloud-refresh", url: "/pages.html#voice-reviewing", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")'], type: [['[data-preview="voice"] .voice-wysiwyg', " Kept across a refresh."]], wait: 6000, note: "a version in review, the page reading the account every 5 seconds: what the person typed in the editor is still there after a refresh that changed nothing", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
+    expectText: ["Kept across a refresh."] },
   { name: "page-voice-local-table", url: "/pages.html#voice-table", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")'], note: "a voice holding a table, which the editor cannot hold: the plain textarea stays, so no edit can drop it", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-editor[data-editor="plain"] textarea[aria-label="VOICE.md"]',
     expectText: ["This voice holds a part the editor cannot show (a table, a definition or a task list), so it opens as Markdown text, and Save keeps every part."], expectNone: '[data-preview="voice"] .voice-wysiwyg' },
   { name: "page-voice-dialog", url: "/pages.html", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")', '[data-preview="voice"] button:has-text("Edit with AI")', '[data-preview="voice"] .modal button:has-text("Choose files")'], note: "Edit with AI: what should change, two samples from the native picker, the cost line, Start held until the note is written", locator: '[data-preview="voice"]',
@@ -590,6 +592,15 @@ try {
         await page.locator(sel).first().click();
         await page.waitForTimeout(400);
       }
+      // type: text typed into an element once the clicks are done, as a
+      // person types it, then wait: a pause for the page's own timers (the
+      // Cloud Voice page's 5-second refresh, agentry-desktop#612).
+      for (const [sel, text] of state.type ?? []) {
+        await page.locator(sel).first().click();
+        await page.keyboard.press("End");
+        await page.keyboard.type(text);
+      }
+      if (state.wait) await page.waitForTimeout(state.wait);
       // expectSelector: an element that must show, waited for, since it may
       // arrive with a chunk loaded by import() (the voice editor,
       // agentry-desktop#612).

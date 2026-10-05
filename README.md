@@ -184,10 +184,13 @@ The product never claims an agent is "safe". The language is always:
   toolbar (heading, bold, italic, lists, quote, code), the Markdown input
   rules and shortcuts. A Voice Writer's output comes back byte for byte;
   Save sends nothing when the voice is as it was opened (on the Cloud page
-  it would spend a credit), and checks 32 KiB on the Markdown it would send.
-  Raw HTML, an image's Markdown and any link but an absolute http(s) or
-  mailto one stay text; a link is drawn with no address, so no click in the
-  editor opens it; invisible characters show as their code points. A voice
+  it would spend a credit), writes every block the person did not change
+  back as the bytes it was read from, and checks 32 KiB on the Markdown it
+  would send. Raw HTML, an image's Markdown and any link but an absolute
+  http(s) or mailto one stay text; a link is drawn with no address to
+  follow, so no click in the editor opens it, and its address and title are
+  shown beside it, as a code block's info string is above it; invisible
+  characters show as their code points. A voice
   with a table, a definition or a task list, which the editor cannot hold,
   opens as Markdown text in a plain box instead, so no edit can drop that
   part. Tiptap is loaded only when an editor is drawn, in a chunk of its own.

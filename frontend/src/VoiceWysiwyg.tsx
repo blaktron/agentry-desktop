@@ -8,7 +8,8 @@
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import { useEffect } from "react";
-import { docToVoice, voiceEditorOptions, voiceSave, voiceToDoc, type VoiceSave } from "./voiceMarkdown.ts";
+import { voiceBytes, type VoiceSave } from "./voice";
+import { docToVoice, voiceEditorOptions, voiceSave, voiceToDoc } from "./voiceMarkdown";
 import "./voiceWysiwyg.css";
 
 export { voiceToDoc };
@@ -30,7 +31,7 @@ export default function VoiceWysiwyg({ opened, doc, describedBy, onReady, onByte
 }) {
   const editor = useEditor({
     ...voiceEditorOptions(doc),
-    onUpdate: ({ editor }) => onBytes(new TextEncoder().encode(docToVoice(editor.getJSON())).length),
+    onUpdate: ({ editor }) => onBytes(voiceBytes(docToVoice(editor.getJSON(), opened))),
   });
 
   useEffect(() => {
