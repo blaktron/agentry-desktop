@@ -104,6 +104,11 @@ type BuildResult struct {
 	Pages     int      `json:"pages"`
 	Bytes     int64    `json:"bytes"`
 	Documents []string `json:"documents"`
+	// Brief says the build was given a brief, which Documents lists by the
+	// name the pack cites it under (brief.md, or brief-N.md): the panel
+	// names it as the brief, never as one more document
+	// (agentry-desktop#600).
+	Brief bool `json:"brief,omitempty"`
 	// Skipped are documents no decoder could read.
 	Skipped []string `json:"skipped,omitempty"`
 	// Dropped are pages the apply step dropped (or kept) with its reason.
@@ -116,7 +121,7 @@ type BuildResult struct {
 	Searched bool `json:"searched,omitempty"`
 	// Stopped is the Creator run's own failure when it stopped before it
 	// finished and the pack holds what it wrote: Add documents with the
-	// same documents continues it.
+	// same documents, brief or both continues it.
 	Stopped string `json:"stopped,omitempty"`
 	// Key says what the pack's data key is wrapped to.
 	Key string `json:"key"`
@@ -182,7 +187,7 @@ func (e Env) Create(ctx context.Context, req BuildRequest) (*BuildResult, error)
 	if err != nil {
 		return nil, fmt.Errorf("the pack was built but could not be kept sealed, so it was not kept: %w", err)
 	}
-	out := buildResult(res, en)
+	out := buildResult(res, en, strings.TrimSpace(req.Brief) != "")
 	out.Rewrapped = rewrapped
 	return out, nil
 }
@@ -225,7 +230,7 @@ func (e Env) Add(ctx context.Context, req BuildRequest) (*BuildResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := buildResult(res, en)
+	out := buildResult(res, en, strings.TrimSpace(req.Brief) != "")
 	out.AgentryStale = en.Key.Agentry != nil
 	return out, nil
 }
@@ -440,10 +445,10 @@ func loadPolicy() *policy.Policy {
 	return pol
 }
 
-func buildResult(res *built, en store.Entry) *BuildResult {
+func buildResult(res *built, en store.Entry, brief bool) *BuildResult {
 	out := &BuildResult{
 		Name: en.Name(), Pages: en.Manifest.Pages, Bytes: en.Manifest.Bytes,
-		Documents: append([]string{}, res.Documents...), Skipped: res.Skipped, Key: KeyHolder(en),
+		Documents: append([]string{}, res.Documents...), Brief: brief, Skipped: res.Skipped, Key: KeyHolder(en),
 		WithoutWeb: res.withoutWeb, Searched: res.searched,
 	}
 	if res.Applied != nil {

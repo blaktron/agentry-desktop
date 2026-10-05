@@ -93,3 +93,31 @@ export function readsLine(documents: number, brief: boolean): string {
   if (documents === 0) return brief ? "your brief" : "no documents";
   return brief ? `${docs} and your brief` : docs;
 }
+
+/** How many documents a finished build read: its result lists the brief
+ *  among them, as brief.md (agentry-desktop#600). */
+export function documentsRead(names: string[], brief: boolean): number {
+  return Math.max(0, names.length - (brief ? 1 : 0));
+}
+
+/** What continues a build that stopped short, in a sentence's words: what
+ *  it was given, never documents it did not have (agentry-desktop#600). */
+export function continuesWith(documents: number, brief: boolean): string {
+  if (!brief) return "the same documents";
+  return documents > 0 ? "the same documents and brief" : "the same brief";
+}
+
+/** What a pack's size counts beside its pages, in a sentence's words: "its
+ *  documents", "its brief", "its documents and brief" (agentry-desktop#600). */
+export function keptWith(documents: number, brief: boolean): string {
+  if (!brief) return "its documents";
+  return documents > 0 ? "its documents and brief" : "its brief";
+}
+
+/** What a build In Agentry's Continue starts from again, in a sentence's
+ *  words: "this brief and these documents", "this brief", "these
+ *  documents" (agentry-desktop#600). */
+export function continuedFrom(documents: number, brief: boolean): string {
+  if (!brief) return "these documents";
+  return documents > 0 ? "this brief and these documents" : "this brief";
+}

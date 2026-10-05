@@ -28,6 +28,11 @@
 //   #create-building      the build under way: time, turns, pages written
 //                         and tokens over its folded log (#352)
 //   #create-done          what the build made
+//   #create-stopped-brief a brief-only build that stopped at its turn budget:
+//                         continued with the same brief, never documents
+//                         (agentry-desktop#600)
+//   #hosted-stopped-brief the same In Agentry: Continue starts from this
+//                         brief (agentry-desktop#600)
 //   #card-building        a build shrunk to its corner card over the page,
 //                         its progress counting up (agentry-desktop#353)
 //   #card-done            the card once the build is over: how it ended
@@ -116,6 +121,13 @@ const result = {
   skipped: ["handbook/scan-0042.heic"], dropped: [{ path: "wiki/topics/untitled.md", reason: "the page has no title in its frontmatter" }],
   key: `your account's key at ${HOST}, which Agentry holds`, inputTokens: 184_210, outputTokens: 41_088, costUsd: 0.1893,
 };
+// A build given only a brief, stopped at its turn budget with what it wrote
+// kept (agentry-desktop#600; seen in #498's real-window check).
+const stoppedBrief = {
+  name: "espresso", pages: 17, bytes: 96_400, documents: ["brief.md"], brief: true,
+  stopped: "turn budget exceeded (60 tool calls)",
+  key: `your account's key at ${HOST}, which Agentry holds`, inputTokens: 96_120, outputTokens: 22_410, costUsd: 0.0912,
+};
 const buildLog = [
   "The Knowledge Creator runs on this computer against the model your runner policy names (anthropic claude-sonnet-4-5). It costs no credits, and nothing it reads or writes is scanned.",
   "decode: storage-guide.pdf — pdftotext, 38 pages of text",
@@ -173,6 +185,15 @@ const hostedDone = {
         webLine: "This build searched the web 17 times, and the registry let through 16 page reads. AI Review read 16 texts from the web before the Creator did, and withheld none.",
       }
     : {}),
+};
+
+// A brief-only build In Agentry stopped at its turn limit: Continue starts
+// again from this brief, never documents it did not have
+// (agentry-desktop#600).
+const hostedStoppedBrief = {
+  ...hostedDone, state: "done — budget", outcome: "budget", outcomeLine: "Stopped at its turn or cost limit.", outcomeTone: "warn",
+  canContinue: true, pages: 11, bytes: 22_600, settledCredits: 201,
+  kept: "Downloaded espresso-care: 11 pages, kept on this computer, encrypted to your account's key, which Agentry holds.",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -297,10 +318,10 @@ createRoot(document.getElementById("root")!).render(
         onMinimize={() => {}}
         onRestore={() => {}}
         initialBuilding={hash === "create-building" || hash === "card-building"}
-        initialResult={hash === "create-done" || hash === "create-done-cloud" || hash === "card-done" ? (result as never) : undefined}
+        initialResult={hash === "create-done" || hash === "create-done-cloud" || hash === "card-done" ? (result as never) : hash === "create-stopped-brief" ? (stoppedBrief as never) : undefined}
         initialAvailability={hostedState ? (availability as never) : undefined}
         initialWhere={hash === "hosted-review" || hash === "hosted-where" || hash === "hosted-review-brief" ? "agentry" : undefined}
-        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : undefined}
+        initialHosted={hash === "hosted-running" || hash === "card-hosted" ? (hostedRunning as never) : hash === "hosted-done" || hash === "hosted-done-brief" ? (hostedDone as never) : hash === "hosted-stopped-brief" ? (hostedStoppedBrief as never) : undefined}
       />
     )}
   </div>,
