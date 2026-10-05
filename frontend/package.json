@@ -10,6 +10,14 @@
     "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test 'tests/**/*.test.ts'"
   },
   "dependencies": {
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-link": "^3.31.4",
+    "@tiptap/extension-list": "^3.31.4",
+    "@tiptap/markdown": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
+    "marked": "^17.0.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
@@ -19,6 +27,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "jsdom": "^30.1.2",
     "typescript": "^5.6.3",
     "vite": "^7.0.0"
   }

@@ -96,12 +96,30 @@ export function findingText(f: { title: string; question?: string; line?: number
   return f.line ? `${what} (line ${f.line})` : what;
 }
 
+/** A text's size in bytes as UTF-8, what the 32 KiB cap counts. */
+export function voiceBytes(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
 /** The editor's check before Save, the format's own rule (plan D3). */
 export function voiceTextProblem(text: string): string | null {
   if (text.trim() === "") return "Write the voice before you save it.";
-  const bytes = new TextEncoder().encode(text).length;
+  const bytes = voiceBytes(text);
   if (bytes > MAX_VOICE_BYTES) return `A voice is at most 32 KiB, and this text is ${Math.ceil(bytes / 1024)} KiB.`;
   return null;
+}
+
+/** Save's decision (plan voice-page-redesign.md §6, invariants 4-5): nothing
+ *  when the voice is as it was opened, the format's rule, else the text. */
+export type VoiceSave = { kind: "unchanged" } | { kind: "problem"; message: string } | { kind: "send"; text: string };
+
+/** Save's decision for the plain textarea, the editor's stand-in while it
+ *  loads and for a voice it cannot hold; the WYSIWYG editor's is
+ *  voiceMarkdown.ts's voiceSave, which also judges by what it would write. */
+export function plainVoiceSave(opened: string, text: string): VoiceSave {
+  if (text === opened) return { kind: "unchanged" };
+  const problem = voiceTextProblem(text);
+  return problem ? { kind: "problem", message: problem } : { kind: "send", text };
 }
 
 /** What one Voice Writer run In Agentry costs this payer, from the

@@ -17,6 +17,9 @@
     "moduleResolution": "Node",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // A module node's test runner imports (tests/*.test.ts) names the
+    // modules it imports with their .ts extension, which node needs.
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "jsx": "react-jsx"
   },
