@@ -496,7 +496,7 @@ import { SidebarNav } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 
 // #runpanel-local-install (agentry-desktop#425): a QuickAgent installed
-// from a folder on this computer, run from Installed.
+// from a folder on this computer, run from the Library.
 const localInstall = view === "runpanel-local-install";
 const att = (localInstall ? { state: "local", detail: "installed from a folder on this computer" }
   : hostedState === "unscanned" || hostedState === "default-agentry-unscanned" || view === "install-unscanned"

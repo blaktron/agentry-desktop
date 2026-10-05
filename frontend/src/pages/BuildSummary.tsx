@@ -174,7 +174,7 @@ export function SummaryView({
           <strong>Save</strong> writes it to {dir ? <span className="mono selectable">{dir}</span> : <>a new folder named for it in your output folder (Settings → Run defaults, or <span className="mono">agentry-out</span> in your Downloads folder)</>}.
         </li>
         <li>
-          <strong>Install</strong> saves it there too, then puts it on this computer only, in Installed: private, unsigned, with no
+          <strong>Install</strong> saves it there too, then puts it on this computer only, in your Library: private, unsigned, with no
           registry and no credit. Every run asks you to accept that it is unsigned.
         </li>
         <li>

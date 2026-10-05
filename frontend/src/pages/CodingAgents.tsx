@@ -258,7 +258,7 @@ export function CodingAgentsCard() {
           </label>
           <div className="muted small">
             Off, Install puts a QuickAgent in the runner home only, where runs read it. On, the same verified
-            release is also written as {exportLabel(x.target)}, with its own entry on Installed. A coding agent
+            release is also written as {exportLabel(x.target)}, with its own entry in the Library. A coding agent
             enforces none of a QuickAgent&apos;s contract; the runner does.
           </div>
         </>

@@ -213,7 +213,7 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
   );
 }
 
-export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, openEditRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenInstalled }: {
+export default function Build({ registry, initialView = "start", initialStep = 0, initialDraft = null, openDraftRev = 0, openEditRev = 0, onOpenAgent, onOpenSettings, onOpenReviewKey, onOpenLibrary }: {
   registry: string;
   /** Harness only: open on a view, and on a step of Step by step. */
   initialView?: View;
@@ -234,8 +234,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   /** Settings at the AI Review key, for Review Your QuickAgents locally
    *  (agentry-desktop#469). */
   onOpenReviewKey?: () => void;
-  /** Installed, where Install puts the QuickAgent (agentry-desktop#425). */
-  onOpenInstalled?: () => void;
+  /** The Library, where Install puts the QuickAgent (agentry-desktop#425, #657). */
+  onOpenLibrary?: () => void;
 }) {
   const [dir, setDir] = useState(kept?.dir ?? "");
   const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
@@ -993,7 +993,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     <Card className="mt">
       {log.length > 0 && <pre ref={logRef} className="run-log" style={{ maxHeight: 180, overflow: "auto" }}>{log.join("\n")}</pre>}
       {pubResult && <PublishOutcome pub={pubResult} m={m} registry={registry} onError={setError} />}
-      {localInstall && <LocalInstallOutcome v={localInstall} onOpenInstalled={onOpenInstalled} />}
+      {localInstall && <LocalInstallOutcome v={localInstall} onOpenLibrary={onOpenLibrary} />}
     </Card>
   ) : null;
 
@@ -1249,16 +1249,16 @@ function ValidateCard({ result }: { result: validate.Result }) {
   );
 }
 
-function LocalInstallOutcome({ v, onOpenInstalled }: { v: main.LocalInstallView; onOpenInstalled?: () => void }) {
+function LocalInstallOutcome({ v, onOpenLibrary }: { v: main.LocalInstallView; onOpenLibrary?: () => void }) {
   return (
     <div className="selectable">
       <strong>{v.repaired ? "laid down again" : "installed"} {v.ref} on this computer — local and unsigned</strong>
       <p className="muted small">
-        No registry holds it and nothing was submitted. It is in Installed, where Run starts it; every run asks you to
+        No registry holds it and nothing was submitted. It is in your Library, where Run starts it; every run asks you to
         accept that it is unsigned. Its archive digest is <span className="mono">{v.digest}</span>.
       </p>
       {(v.warnings ?? []).map((w, i) => <Notice key={i} tone="warn">{w}</Notice>)}
-      {onOpenInstalled && <p className="small"><Button onClick={onOpenInstalled}>Open Installed</Button></p>}
+      {onOpenLibrary && <p className="small"><Button onClick={onOpenLibrary}>Open Library</Button></p>}
     </div>
   );
 }

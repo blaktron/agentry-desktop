@@ -1,5 +1,5 @@
 // A run on this computer followed above the pages (agentry-desktop#465), by
-// location.hash, over the Installed page under the shell chrome, with the
+// location.hash, over the Library under the shell chrome, with the
 // bindings mocked (the pattern drafts.tsx uses). Not shipped.
 //
 //   #run-running      the dialog while the run goes: time against its limit,
@@ -261,11 +261,11 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        <SidebarNav page="installed" />
+        <SidebarNav page="library" />
         <div className="foot"><div>v0.6.29</div><div className="nowrap">{HOST}</div></div>
       </div>
       <div className="content">
-        <h1>Installed</h1>
+        <h1>Library</h1>
         <p className="muted">{children}</p>
       </div>
     </div>

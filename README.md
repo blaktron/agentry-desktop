@@ -18,6 +18,12 @@ The product never claims an agent is "safe". The language is always:
   keeps it in the keychain), Coding agent, and Done. Done lists what is set
   up and what is not; "nothing is set up yet" goes by whether a model
   provider was set up, and the AI Review key's row never counts toward it.
+- **Library** — the QuickAgents installed on this computer (the shared
+  install state below), and **Browse** beneath it in the sidebar, shown
+  while either is open (agentry-desktop#657, D-066). The Library's search
+  filters what is installed as you type; its button, **Search the registry
+  for "…"** (**Find more QuickAgents** when the field is empty), opens
+  Browse searched for those words.
 - **Browse** — search the connected registry, with filters for run mode and
   declared capability, and a sort order. An agent page shows the summary,
   capability badges, the public security report card (findings by severity,
@@ -123,7 +129,7 @@ The product never claims an agent is "safe". The language is always:
   there yet and says so. Sign-in asks for the `run:read` and `run:write`
   scopes; a token minted before that keeps working everywhere else, with In
   Agentry unavailable and the reason shown.
-- **Installed** — the shared install state
+- **The install state** — the Library lists the shared install state
   (`~/.config/agentry/installed.yaml`, the same file the `agentry` CLI
   writes), with per-item capabilities and update checks. Uninstall deletes
   client-managed directories only: a directory you picked is never deleted.
@@ -293,10 +299,10 @@ The product never claims an agent is "safe". The language is always:
   It ends on three actions (agentry-desktop#425):
   - **Save** writes the QuickAgent to a folder. The first save asks for one
     through the native picker, which opens in Documents.
-  - **Install** puts it on this computer only, in Installed. It is private
+  - **Install** puts it on this computer only, in the Library. It is private
     and local: no registry, no pipeline and no credit, through the CLI's
     local install. A native dialog shows the contract and says the install
-    is unsigned. Installed runs it, and every run asks for the unsigned
+    is unsigned. The Library runs it, and every run asks for the unsigned
     consent.
   - **Submit** sends it to the registry and makes it **public**. A native
     dialog first names what the submission costs, read from the account,

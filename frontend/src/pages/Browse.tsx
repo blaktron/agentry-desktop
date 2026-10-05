@@ -12,12 +12,16 @@ const SORTS = ["relevance", "installs", "newest", "updated"];
 
 export default function Browse({
   registry,
+  initialQuery = "",
   onOpenAgent,
 }: {
   registry: string;
+  /** What the Library's search held when it led here: searched at once
+   * (plan desktop-home-and-library.md D3; agentry-desktop#657). */
+  initialQuery?: string;
   onOpenAgent: (ns: string, name: string) => void;
 }) {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
   const [mode, setMode] = useState("");
   const [capability, setCapability] = useState("");
   const [sort, setSort] = useState("relevance");
