@@ -105,12 +105,14 @@ func (b *BuildAPI) ReviewLocally(reg, dir string) (*ReviewView, error) {
 		res, err = review.Run(ctx, review.Request{Plan: p, Registry: reg, RunID: id, Log: logw, HTTP: b.reviewHTTP, Runner: b.reviewRunner,
 			OnStaged: func(stage string) { b.run.recordStage(id, stage) },
 			Progress: func(p review.Progress) { emitEvent(b.app, eventReviewProgress, reviewProgressOf(id, p)) }})
+		if res != nil {
+			b.run.keepFolder(id, res.OutDir)
+		}
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	b.run.rememberFolder(runID, res.OutDir)
 	return reviewView(runID, res), nil
 }
 

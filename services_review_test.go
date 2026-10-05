@@ -32,6 +32,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/review"
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/runhistory"
 )
 
 const reviewJev = "jev-review-binding-key-3f90"
@@ -297,9 +298,11 @@ func TestStopReviewStopsOnlyAReview(t *testing.T) {
 }
 
 // While the Examiner runs, the crash path's record names the review's
-// staged copy; when it returns, both are gone, and its folder is the run's
-// until the page dismisses it.
+// staged copy; when it returns, both are gone, and its folder is the run's.
+// Dismiss leaves it to the run history, which keeps the review (D8, D-068);
+// with Remember recent runs off, Dismiss forgets it as before.
 func TestAReviewsStagedCopyIsOnItsRecordAndGoesWithIt(t *testing.T) {
+	freshConfig(t)
 	f := newReviewFixture(t)
 	f.withKey(t)
 	v, err := f.b.ReviewLocally(f.reg, f.dir)
@@ -326,8 +329,15 @@ func TestAReviewsStagedCopyIsOnItsRecordAndGoesWithIt(t *testing.T) {
 		t.Fatalf("the review's folder %q %v", dir, err)
 	}
 	f.b.run.ForgetRun(v.RunID)
+	if dir, err := f.b.run.folderOf(v.RunID); err != nil || dir != v.OutDir {
+		t.Fatalf("after Dismiss the history kept %q %v", dir, err)
+	}
+	if e, ok, _ := runhistory.Find(v.RunID); !ok || e.Kind != runhistory.KindReview || e.Outcome != runhistory.OutcomeOK {
+		t.Fatalf("the review's history entry %+v %v", e, ok)
+	}
+	setRemember(t, false)
 	if _, err := f.b.run.folderOf(v.RunID); err == nil {
-		t.Fatal("Dismiss left the review's folder known")
+		t.Fatal("with Remember recent runs off, Dismiss left the review's folder known")
 	}
 	if _, err := os.Stat(filepath.Join(v.OutDir, examiner.ReportFile)); err != nil {
 		t.Fatal("forgetting the review removed its report")

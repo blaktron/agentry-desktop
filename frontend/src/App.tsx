@@ -19,6 +19,7 @@ import ReviewFlow from "./pages/ReviewFlow";
 import HostedRunFlow from "./pages/HostedRunFlow";
 import ChatFlow from "./pages/ChatFlow";
 import RunPanel from "./pages/RunPanel";
+import RunPage, { type RunPageSource } from "./pages/RunPage";
 import { type RunSetup, attachHostedRun } from "./runs";
 import { CornerHost } from "./progress";
 import { attachHosted } from "./drafts";
@@ -44,6 +45,10 @@ export type Route =
   // registry: an installed record's own registry may differ from the active
   // one; back: where the ← link returns to.
   | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" }
+  // A run Recent runs lists, as a page (plan desktop-home-and-library.md
+  // §4.7, D7; agentry-desktop#659): read by its id, from the history Go
+  // keeps (local) or the registry (hosted).
+  | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" }
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
@@ -253,7 +258,19 @@ export default function App() {
                   profile: () => nav({ page: "settings", ...SETTINGS_FOR.homeProfile }),
                   signIn: () => nav({ page: "settings", ...SETTINGS_FOR.homeSignIn }),
                   runDefaults: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunDefaults }),
+                  run: (row) => nav({ page: "run", source: row.source === "hosted" ? "hosted" : "local", id: row.id, registry: row.registry, back: "home" }),
+                  runHistory: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunHistory }),
                 }}
+              />
+            )}
+            {route.page === "run" && (
+              <RunPage
+                source={route.source}
+                id={route.id}
+                registry={route.registry || registry}
+                backLabel={BACK_LABEL[route.back ?? "home"]}
+                onBack={() => nav({ page: route.back ?? "home" })}
+                onOpenPlace={(page) => nav({ page })}
               />
             )}
             {route.page === "browse" && (

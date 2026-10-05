@@ -455,6 +455,9 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs 
 		var err error
 		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
 			OnRepairTurn: b.run.addTurn, Progress: func(p draft.Progress) { emitEvent(b.app, eventDraftProgress, p) }})
+		if res != nil {
+			b.run.keepFolder(runID, res.OutDir)
+		}
 		return err
 	})
 	if err != nil {

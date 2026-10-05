@@ -22,6 +22,10 @@ export function ClearDefaultOutputDir() {
   return window['go']['main']['SettingsAPI']['ClearDefaultOutputDir']();
 }
 
+export function ClearRunHistory() {
+  return window['go']['main']['SettingsAPI']['ClearRunHistory']();
+}
+
 export function CodingAgents() {
   return window['go']['main']['SettingsAPI']['CodingAgents']();
 }
@@ -76,6 +80,10 @@ export function SetDisplayName(arg1, arg2) {
 
 export function SetInstallIntoCodingAgent(arg1) {
   return window['go']['main']['SettingsAPI']['SetInstallIntoCodingAgent'](arg1);
+}
+
+export function SetRememberRuns(arg1) {
+  return window['go']['main']['SettingsAPI']['SetRememberRuns'](arg1);
 }
 
 export function SetRunBudgets(arg1, arg2) {
