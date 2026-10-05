@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ALREADY_THE_SAME, accountJob, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedVoiceCost, localStatus, pendingLine,
+  ALREADY_THE_SAME, accountJob, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedFailure, hostedVoiceCost, localStatus, pendingLine,
   restoreLine, reviewCostLine, uploadButton, versionLine, voiceChoice, voiceTextProblem,
 } from "../src/voice.ts";
 
@@ -140,6 +140,16 @@ test("Restore says it goes live at once under the same question set, and to AI R
   // A previous version never reviewed under a set says the same, with no
   // figure where the registry names none.
   assert.match(restoreLine({ questionSet: "sha256:now", previous: { questionSet: "" } }, 0), /sends it to AI Review again\.$/);
+  // Sent to review, it takes the place of a version already waiting; a
+  // swap leaves that version where it is.
+  assert.match(restoreLine({ questionSet: "sha256:now", previous: { questionSet: "sha256:before" }, pending: { digest: "p" } }, 1), /takes the place of the version waiting above\.$/);
+  assert.doesNotMatch(restoreLine({ ...same, pending: { digest: "p" } }, 1), /takes the place/);
+});
+
+test("a run In Agentry that wrote no voice says why in the registry's words, the error first", () => {
+  assert.equal(hostedFailure({ error: "lost touch", note: "n", outcomeLine: "o", statusLine: "s" }), "lost touch");
+  assert.equal(hostedFailure({ note: "The Voice Writer wrote nothing usable.", statusLine: "Failed" }), "The Voice Writer wrote nothing usable.");
+  assert.equal(hostedFailure({ statusLine: "Cancelled" }), "Cancelled");
 });
 
 test("the Voice Writer In Agentry is Edit over the account's newest version and Create where it keeps none", () => {

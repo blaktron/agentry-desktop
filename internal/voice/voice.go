@@ -19,6 +19,7 @@ package voice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -243,7 +244,9 @@ func (e Env) api(reg string) (*apiclient.ClientWithResponses, error) {
 		}))
 }
 
-// voiceProblem is a refused voice call in the registry's words.
+// voiceProblem is a refused voice call in the registry's words, made
+// printable on one line and cut as the CLI's voice client cuts them (a
+// title at 120 characters, a detail at 400).
 func voiceProblem(op string, res *http.Response, p *apiclient.Problem, body []byte) error {
 	status := 0
 	if res != nil {
@@ -252,7 +255,38 @@ func voiceProblem(op string, res *http.Response, p *apiclient.Problem, body []by
 	if status == http.StatusUnauthorized {
 		return fmt.Errorf("%s: %w (sign in to it again in Settings)", op, remote.ErrSignedOut)
 	}
-	return registry.Problem(op, status, p, body)
+	// A status the spec declares (409, 404) is not parsed as a problem by
+	// the generated client; its body still is one.
+	if p == nil && len(body) > 0 {
+		var parsed apiclient.Problem
+		if json.Unmarshal(body, &parsed) == nil && parsed.Title != "" {
+			p = &parsed
+		}
+	}
+	if p != nil {
+		clean := apiclient.Problem{Title: printable(p.Title, 120)}
+		if p.Detail != nil {
+			d := printable(*p.Detail, 400)
+			clean.Detail = &d
+		}
+		return registry.Problem(op, status, &clean, nil)
+	}
+	return registry.Problem(op, status, nil, []byte(printable(string(body), 300)))
+}
+
+// printable is s with every control character a space, cut at n
+// characters.
+func printable(s string, n int) string {
+	s = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(s, ""))
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
 }
 
 // DiscardAccount drops the account's pending version, in review or

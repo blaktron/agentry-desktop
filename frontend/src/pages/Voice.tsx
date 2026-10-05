@@ -36,7 +36,7 @@ import { WayCard } from "./BuildWays";
 import { CloudVoiceFigure, LocalVoiceFigure } from "./VoiceFigures";
 import {
   CLOUD_CARD_BLURB, CLOUD_SWITCH_LABEL, LOCAL_CARD_BLURB, LOCAL_SWITCH_LABEL, MAX_VOICE_BYTES, MAX_VOICE_NOTE_BYTES, NOT_LIVE,
-  NO_HOSTED_WRITER, VOICE_ON, VOICE_TAGLINE, accountJob, accountSource, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine,
+  NO_HOSTED_WRITER, VOICE_ON, VOICE_TAGLINE, accountJob, accountSource, cloudStatus, downloadButton, editWithAIProblem, findingText, hostedCostLine, hostedFailure,
   localStatus, pendingLine, restoreLine, reviewCostLine, uploadButton, versionLine, voiceStamp, voiceTextProblem,
 } from "../voice";
 
@@ -74,7 +74,7 @@ export default function Voice({ registry, onOpenSettings }: {
       setError(null);
       setNotice(v.outcomeLine || "The Voice Writer wrote a new version of your voice. AI Review reads it before it is live.");
     } else {
-      setError(v.error || v.note || v.outcomeLine || v.statusLine);
+      setError(hostedFailure(v));
     }
     refresh();
   }), [refresh]);
@@ -403,6 +403,12 @@ function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
   const [avail, setAvail] = useState<main.VoiceHostedAvailabilityView | null>(null);
   const [availError, setAvailError] = useState(false);
   const [dialog, setDialog] = useState(false);
+  // A Voice Writer run In Agentry already in flight (started before the
+  // page was left, or before a restart) is followed again, not offered a
+  // second time.
+  useEffect(() => {
+    VoiceAPI.AttachHosted(registry).then((r) => { if (r.run) onHosted(r.run); }).catch(() => {});
+  }, [registry, onHosted]);
   useEffect(() => {
     setAvailError(false);
     VoiceAPI.HostedAvailability(registry, job).then(setAvail).catch(() => { setAvail(null); setAvailError(true); });
@@ -462,7 +468,7 @@ function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
           ) : (
             <>
               <Button disabled={!avail?.available || running} onClick={() => setDialog(true)}>
-                {has ? "Edit with AI" : "Write it with AI"}
+                {has ? "Edit with AI" : "Write with AI"}
               </Button>
               <span className="muted small">
                 {avail && !avail.available ? (
@@ -714,7 +720,7 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
         samples are deleted with the run.
       </p>
       <ErrorBox error={error} />
-      {hosted?.final && !hosted.applied && <p className="muted small">The last run: {hosted.error || hosted.note || hosted.outcomeLine || hosted.statusLine}</p>}
+      {hosted?.final && !hosted.applied && <p className="muted small">The last run: {hostedFailure(hosted)}</p>}
       <div className="row gap" style={{ justifyContent: "flex-end" }}>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={problem !== null} busy={starting} busyLabel="Starting…" onClick={start}>Start</Button>

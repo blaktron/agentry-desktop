@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {voice} from '../models';
 
+export function AttachHosted(arg1:string):Promise<main.VoiceHostedStartView>;
+
 export function CancelHosted():Promise<main.VoiceHostedView>;
 
 export function DeleteAccount(arg1:string):Promise<void>;

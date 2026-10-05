@@ -313,7 +313,8 @@ const g = window as any;
 // out, #voice-failed has none here and its Write with AI fails after a few
 // log lines; #voice-reviewing's account has a first version in review and
 // nothing live, and #voice-standard a Standard account whose Voice Writer
-// run In Agentry this cycle is used (agentry-desktop#611). The shots open
+// run In Agentry this cycle is used, and on #voice-attached an AI Edit In
+// Agentry is already running when the Cloud page opens (agentry-desktop#611). The shots open
 // the Local and Cloud pages and the dialogs by clicking, as a person does.
 const voiceHash = window.location.hash;
 const VOICE_MD = "# My Writing Voice\n\nWrite in short, plain sentences. Name who does what.\n\n- Prefer concrete words to abstract ones.\n- No exclamation marks.\n";
@@ -369,6 +370,7 @@ g.go = { main: {
     },
     StartHosted: async () => new Promise(() => {}),
     HostedWithAI: async () => ({ run: voiceHostedRun }),
+    AttachHosted: async () => (voiceHash === "#voice-attached" ? { run: { ...voiceHostedRun, op: "edit", status: "running", state: "running", statusLine: "Running: the Voice Writer is reading your voice and your samples." } } : {}),
     CancelHosted: async () => ({ ...voiceHostedRun, cancelRequested: true }),
     DiscardAccount: async () => voiceView.account,
     RestoreAccount: async () => ({ account: voiceView.account, inReview: true }),

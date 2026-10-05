@@ -321,14 +321,26 @@ export function versionLine(v: { source: string; createdAt: string; reviewedAt?:
  *  version reviewed under the question set AI Review asks now trades
  *  places with the live one at once; one reviewed under another goes to
  *  AI Review again, for the registry's credit. */
-export function restoreLine(a: { questionSet?: string; previous?: { questionSet?: string } | null }, reviewCredits: number): string {
+export function restoreLine(
+  a: { questionSet?: string; previous?: { questionSet?: string } | null; pending?: unknown | null },
+  reviewCredits: number,
+): string {
   const set = a.previous?.questionSet ?? "";
   if (set !== "" && set === a.questionSet) {
     return "Restore makes the previous version live again at once, and your live one becomes the previous version.";
   }
-  return reviewCredits > 0
+  const line = reviewCredits > 0
     ? `AI Review has changed since the previous version passed, so Restore sends it to AI Review again, for ${credits(reviewCredits)}.`
     : "AI Review has changed since the previous version passed, so Restore sends it to AI Review again.";
+  // Sent to review, it becomes the pending version, in place of one
+  // already waiting (the core's restore queues it as any new version).
+  return a.pending ? `${line} It takes the place of the version waiting above.` : line;
+}
+
+/** Why a Voice Writer run In Agentry that ended wrote no voice, in the
+ *  registry's words: its error, the run's note, or its outcome. */
+export function hostedFailure(v: { error?: string; note?: string; outcomeLine?: string; statusLine: string }): string {
+  return v.error || v.note || v.outcomeLine || v.statusLine;
 }
 
 /** The Voice Writer's job behind Edit with AI In Agentry, as Go's

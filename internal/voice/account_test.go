@@ -32,6 +32,8 @@ type voiceRoutes struct {
 	v     *apiclient.Voice
 	calls []string
 	auth  []string
+	// title, when set, is every refusal's title.
+	title string
 }
 
 func apiVersion(slot apiclient.VoiceVersionSlot, review apiclient.VoiceVersionReview, src apiclient.VoiceVersionSource, text, set string, at time.Time) *apiclient.VoiceVersion {
@@ -52,6 +54,9 @@ func (r *voiceRoutes) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		_ = json.NewEncoder(w).Encode(v)
 	}
 	refuse := func(status int, slug, title string) {
+		if r.title != "" {
+			title = r.title
+		}
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(map[string]any{"type": "https://agentry.dev/problems/" + slug, "title": title, "status": status})
@@ -199,5 +204,19 @@ func TestDiscardRestoreAndDeleteSendNoTokenSignedOutOrToARefusedURL(t *testing.T
 	}
 	if len(routes.calls) != 0 {
 		t.Fatalf("the registry was asked: %v", routes.calls)
+	}
+}
+
+func TestARefusalReachesThePageAsOnePrintableLine(t *testing.T) {
+	e, url, routes := accountEnv(t, questionSet)
+	routes.v.Previous = nil
+	routes.title = "No previous\x1b]0;owned\x07\nversion" + strings.Repeat("x", 300)
+	_, _, err := e.RestoreAccount(context.Background(), url)
+	if err == nil {
+		t.Fatal("a Restore with no previous version was not refused")
+	}
+	msg := err.Error()
+	if strings.ContainsAny(msg, "\x1b\x07\n") || !strings.Contains(msg, "No previous") || strings.Count(msg, "x") > 130 {
+		t.Fatalf("the refusal as the page gets it: %q", msg)
 	}
 }

@@ -506,3 +506,48 @@ func TestEditWithAIInAgentryIsAnEditOverTheAccountsNewestVersionAndACreateWithou
 		t.Fatal("an AI Edit In Agentry took a sample no picker returned")
 	}
 }
+
+// A Cloud Voice page opened again while the Voice Writer runs In Agentry
+// (left and reopened, or after a restart) follows that run rather than
+// offering a second: AttachHosted finds the account's voice_build in flight
+// and never takes a build or a run of another kind for it.
+func TestTheCloudPageFollowsAVoiceWriterRunAlreadyInFlight(t *testing.T) {
+	f := &hostedFake{
+		enabled: true,
+		scopes:  []string{"agent:read", "user:profile", "run:read", "run:write", "voice:read", "voice:write"},
+		others:  []*hostedrun.Run{{ID: "kb-1", Kind: hostedrun.KindKnowledgeBuild, Status: "running"}},
+	}
+	reg := f.start(t)
+	signIn(t, reg)
+	fastPoll(t)
+	r, _ := newRunAPI(t)
+	v := &VoiceAPI{app: r.app, run: r}
+
+	none, err := v.AttachHosted(reg)
+	if err != nil || none.Run != nil {
+		t.Fatalf("a knowledge build was taken for a Voice Writer run: %+v, %v", none, err)
+	}
+	f.mu.Lock()
+	f.run = &hostedrun.Run{ID: "vw-1", Kind: hostedrun.KindVoiceBuild, Status: "running", VoiceBuild: &hostedrun.VoiceBuild{Op: hostedrun.VoiceEdit}}
+	f.mu.Unlock()
+	got, err := v.AttachHosted(reg)
+	if err != nil || got.Run == nil || got.Run.ID != "vw-1" || got.Run.Final {
+		t.Fatalf("the run in flight: %+v, %v", got, err)
+	}
+	// Followed now: a second attach reads the same run, and a start is
+	// refused rather than becoming a second run.
+	again, err := v.AttachHosted(reg)
+	if err != nil || again.Run == nil || again.Run.ID != "vw-1" {
+		t.Fatalf("attached again: %+v, %v", again, err)
+	}
+	if err := v.hosted.claim("busy"); err == nil {
+		t.Fatal("the slot was free while a run is followed")
+	}
+	if _, err := v.AttachHosted("http://example.com"); err == nil {
+		t.Fatal("an attach at a URL Settings refuses was asked")
+	}
+	if cur := v.hosted.current(); cur != nil {
+		cur.cancel()
+		<-cur.done
+	}
+}

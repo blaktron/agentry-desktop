@@ -15,9 +15,11 @@ package main
 // on a second fresh home as Use does, and sets the account's switch off and
 // back. With AGENTRY_LIVE_VOICE_HOSTED it runs an AI Edit In Agentry and
 // waits for its version to be reviewed. Since agentry-desktop#611 it also
-// discards a version AI Review flags, runs the AI Edit through the Cloud
-// page's HostedWithAI with a picked sample, and restores the version before
-// it. The account keeps the last voice; its switch is put back as it was.
+// discards a version AI Review flags (an AI Review that costs the
+// registry's credit, and that drops any version already waiting in the
+// account), runs the AI Edit through the Cloud page's HostedWithAI with a
+// picked sample, and restores the version before it. The account keeps the
+// last voice; its switch is put back as it was.
 
 import (
 	"context"

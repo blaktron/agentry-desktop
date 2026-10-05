@@ -702,6 +702,50 @@ func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
 	}()
 }
 
+// AttachHosted follows this account's Voice Writer run In Agentry in
+// flight, if it has one, so a Cloud Voice page opened again (left and
+// reopened, or after a restart) shows it and its Cancel rather than
+// offering a second. The URL is held to Settings' rule before its token is
+// looked up (agentry-desktop#307's lesson).
+func (v *VoiceAPI) AttachHosted(reg string) (*VoiceHostedStartView, error) {
+	reg = settings.Normalize(reg)
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, fmt.Errorf("the registry: %w", err)
+	}
+	token := v.env().TokenFor(reg)
+	if token == "" {
+		return &VoiceHostedStartView{}, nil
+	}
+	client := hostedrun.New(reg, token)
+	if cur := v.hosted.current(); cur != nil {
+		if cur.id == "" {
+			// A start holds the slot; its own events report the run.
+			return &VoiceHostedStartView{}, nil
+		}
+		if fresh, err := client.Get(v.app.ctx, cur.id); err == nil {
+			return &VoiceHostedStartView{Run: voiceHostedView(fresh, false)}, nil
+		}
+		return &VoiceHostedStartView{}, nil
+	}
+	if err := v.hosted.claim("busy"); err != nil {
+		return &VoiceHostedStartView{}, nil //nolint:nilerr // a start took the slot first
+	}
+	runs, err := client.List(v.app.ctx)
+	if err != nil {
+		v.hosted.release()
+		return &VoiceHostedStartView{}, nil //nolint:nilerr // no list, nothing to follow
+	}
+	for i := range runs {
+		r := &runs[i]
+		if r.IsVoiceBuild() && hostedrun.Active(r.Status) {
+			v.followHosted(reg, token, r)
+			return &VoiceHostedStartView{Run: voiceHostedView(r, false)}, nil
+		}
+	}
+	v.hosted.release()
+	return &VoiceHostedStartView{}, nil
+}
+
 // CancelHosted asks the registry to cancel the Voice Writer run In Agentry
 // this app follows (D-022: the registry stops it; the app never drives it).
 // What it held is settled as the registry settles a cancelled run.
