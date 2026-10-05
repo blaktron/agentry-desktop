@@ -253,10 +253,13 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 	}
 }
 
-// Dismiss makes the app forget a run (D7): ForgetRun drops its folder, so
-// RunOutputs and ShowRunFolder refuse its id afterwards, and the folder, its
-// receipts included, is left as it was.
+// With Remember recent runs off, Dismiss makes the app forget a run as plan
+// D7 had it: ForgetRun drops its folder, so RunOutputs and ShowRunFolder
+// refuse its id afterwards, and the folder, its receipts included, is left
+// as it was. (With it on, the history keeps the run: services_history_test.go.)
 func TestAForgottenRunsFolderIsRefusedAndLeftAlone(t *testing.T) {
+	freshConfig(t)
+	setRemember(t, false)
 	out := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(out, "receipts"), 0o700); err != nil {
 		t.Fatal(err)

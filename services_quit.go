@@ -46,6 +46,12 @@ type liveRun struct {
 	// Stop stops only its own kind.
 	kind jobKind
 	ref  string
+	// started is when the run began, for its history entry (D-068); folder
+	// is the folder a built-in's flow kept for it (keepFolder).
+	started time.Time
+	folder  string
+	// registry is a chat's, for its history entry.
+	registry string
 	// turns are the run ids of the run's later turns: a draft's one repair
 	// turn runs under its own id (drafter.PostStep, #395), so the crash
 	// path records it and quitting sweeps it with the run's own.
@@ -79,7 +85,7 @@ func (r *RunAPI) beginRun(kind jobKind, ref string, cancel context.CancelFunc) (
 	if err != nil {
 		return nil, err
 	}
-	l := &liveRun{id: id, kind: kind, ref: ref, cancel: cancel, done: make(chan struct{})}
+	l := &liveRun{id: id, kind: kind, ref: ref, started: time.Now().UTC(), cancel: cancel, done: make(chan struct{})}
 	r.liveMu.Lock()
 	r.live = l
 	r.liveMu.Unlock()

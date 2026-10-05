@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
+import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, main } from "../../wailsjs/go/models";
 import { Notice, PageHeader } from "../ui";
@@ -10,9 +11,10 @@ import { signedInTo } from "./Settings";
 import { InstalledCard } from "./home/InstalledCard";
 import { ProfileCard } from "./home/ProfileCard";
 import { RunDefaultsCard } from "./home/RunDefaultsCard";
+import { RecentRunsCard } from "./home/RecentRunsCard";
 
 // Home (plan desktop-home-and-library.md §4.3, D2, D4, D9, D-067;
-// agentry-desktop#658): the page the app opens on, a card per thing that
+// agentry-desktop#658; Recent runs, D-068, agentry-desktop#659): the page the app opens on, a card per thing that
 // is the person's own, in the start pages' card language. Go keeps which
 // cards and in what order (HomeAPI); each card reads its own bindings and a
 // read that fails says so in its card, never the page's. Home starts
@@ -38,7 +40,13 @@ export type HomeOpen = {
   profile: () => void;
   signIn: () => void;
   runDefaults: () => void;
+  // Recent runs: a row's run page, and Run defaults' Recent runs part.
+  run: (row: main.RecentRunView) => void;
+  runHistory: () => void;
 };
+
+// How many rows Recent runs shows (plan §4.3).
+const RECENT_ROWS = 5;
 
 export default function Home({ registry, settings, open, banner }: {
   registry: string;
@@ -52,6 +60,7 @@ export default function Home({ registry, settings, open, banner }: {
   const [updates, setUpdates] = useState(0);
   const [profile, setProfile] = useState<Got<main.ProfileView>>(pending);
   const [defaults, setDefaults] = useState<Got<main.RunDefaultsView>>(pending);
+  const [recent, setRecent] = useState<Got<main.RecentRunsView>>(pending);
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
 
@@ -66,6 +75,16 @@ export default function Home({ registry, settings, open, banner }: {
     return () => { live = false; };
   }, []);
 
+  // Recent runs: this computer's history and, signed in, the account's runs
+  // In Agentry; read again when the registry or the sign-in changes. It
+  // reads, and starts nothing.
+  useEffect(() => {
+    if (signedIn === null) return;
+    let live = true;
+    RunAPI.RecentRuns(registry, RECENT_ROWS).then(...settle(() => live)(setRecent));
+    return () => { live = false; };
+  }, [registry, signedIn]);
+
   useEffect(() => {
     if (!signedIn) { setProfile(pending); return; }
     let live = true;
@@ -74,6 +93,9 @@ export default function Home({ registry, settings, open, banner }: {
   }, [registry, signedIn]);
 
   const renderers: Partial<Record<HomeCardKind, () => ReactNode>> = {
+    "recent-runs": () => (
+      <RecentRunsCard view={recent.value} error={recent.error} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />
+    ),
     installed: () => (
       <InstalledCard records={records.value} updates={updates} error={records.error}
         onOpenLibrary={open.library} onOpenBrowse={open.browse} onOpenAgent={open.agent} />
@@ -91,7 +113,7 @@ export default function Home({ registry, settings, open, banner }: {
 
   return (
     <div>
-      <PageHeader title="Home" sub={greeting(profile.value?.user ?? null) ?? "What is installed on this computer, your account and how your runs are set up."} />
+      <PageHeader title="Home" sub={greeting(profile.value?.user ?? null) ?? "Your recent runs, what is installed on this computer, your account and how your runs are set up."} />
       {banner}
       {layout.error && <Notice tone="warn">Home's layout could not be read, so the default cards are shown: {layout.error}</Notice>}
       {layout.value?.unreadable && (

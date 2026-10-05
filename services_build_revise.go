@@ -214,6 +214,13 @@ func (b *BuildAPI) ReviseOnThisComputer(reg, ns, name, instructions, problems st
 		_, _ = fmt.Fprintf(logw, "Read %s (%s) and staged its agent.yaml and %s for the Drafter.\n", rev.Ref, rev.Digest, rev.InstructionFile)
 		res, err = draft.Run(ctx, draft.Request{Plan: p, RunID: runID, Namespace: ns, Log: logw, Scanner: b.draftScanner, Runner: b.draftRunner, Checker: b.draftChecker,
 			OnRepairTurn: b.run.addTurn, Progress: func(p draft.Progress) { emitEvent(b.app, eventDraftProgress, p) }})
+		if res != nil {
+			b.run.keepFolder(runID, res.OutDir)
+		} else {
+			// The staged release is in the run's folder whatever the
+			// Drafter did.
+			b.run.keepFolder(runID, outDir)
+		}
 		return err
 	})
 	if err != nil {

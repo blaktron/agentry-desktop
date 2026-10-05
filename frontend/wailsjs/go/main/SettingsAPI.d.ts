@@ -12,6 +12,8 @@ export function ChooseDefaultOutputDir():Promise<main.RunDefaultsView>;
 
 export function ClearDefaultOutputDir():Promise<main.RunDefaultsView>;
 
+export function ClearRunHistory():Promise<main.RunDefaultsView>;
+
 export function CodingAgents():Promise<main.CodingAgentsView>;
 
 export function Get():Promise<main.SettingsView>;
@@ -39,6 +41,8 @@ export function SetDefault(arg1:string):Promise<main.SettingsView>;
 export function SetDisplayName(arg1:string,arg2:string):Promise<main.UserView>;
 
 export function SetInstallIntoCodingAgent(arg1:boolean):Promise<main.CodingAgentsView>;
+
+export function SetRememberRuns(arg1:boolean):Promise<main.RunDefaultsView>;
 
 export function SetRunBudgets(arg1:number,arg2:number):Promise<main.RunDefaultsView>;
 

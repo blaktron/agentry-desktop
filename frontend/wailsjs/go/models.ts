@@ -2415,6 +2415,49 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class HostedRecordView {
+	    run?: HostedRunView;
+	    kind: string;
+	    kept: boolean;
+	    folderState: string;
+	    folderError?: string;
+	    downloadable: boolean;
+	    followed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedRecordView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run = this.convertValues(source["run"], HostedRunView);
+	        this.kind = source["kind"];
+	        this.kept = source["kept"];
+	        this.folderState = source["folderState"];
+	        this.folderError = source["folderError"];
+	        this.downloadable = source["downloadable"];
+	        this.followed = source["followed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class HostedRunsTermsView {
 	    holdCredits: number;
 	    caps: HostedCapsView;
@@ -3383,6 +3426,120 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class RecentRunView {
+	    id: string;
+	    kind: string;
+	    where: string;
+	    registry?: string;
+	    ref?: string;
+	    startedAt?: string;
+	    endedAt?: string;
+	    outcome: string;
+	    exitCode?: number;
+	    exitClass?: string;
+	    state?: string;
+	    tone: string;
+	    kept: boolean;
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecentRunView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.where = source["where"];
+	        this.registry = source["registry"];
+	        this.ref = source["ref"];
+	        this.startedAt = source["startedAt"];
+	        this.endedAt = source["endedAt"];
+	        this.outcome = source["outcome"];
+	        this.exitCode = source["exitCode"];
+	        this.exitClass = source["exitClass"];
+	        this.state = source["state"];
+	        this.tone = source["tone"];
+	        this.kept = source["kept"];
+	        this.source = source["source"];
+	    }
+	}
+	export class RecentRunsView {
+	    runs: RecentRunView[];
+	    remember: boolean;
+	    signedIn: boolean;
+	    hostedError?: string;
+	    historyError?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecentRunsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runs = this.convertValues(source["runs"], RecentRunView);
+	        this.remember = source["remember"];
+	        this.signedIn = source["signedIn"];
+	        this.hostedError = source["hostedError"];
+	        this.historyError = source["historyError"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RecordedRunView {
+	    run: RecentRunView;
+	    folder?: string;
+	    folderState: string;
+	    folderError?: string;
+	    resultJson?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecordedRunView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.run = this.convertValues(source["run"], RecentRunView);
+	        this.folder = source["folder"];
+	        this.folderState = source["folderState"];
+	        this.folderError = source["folderError"];
+	        this.resultJson = source["resultJson"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class RegistryView {
 	    url: string;
 	    hasToken: boolean;
@@ -3750,6 +3907,8 @@ export namespace main {
 	    unsafeMode: boolean;
 	    unsafeImage?: string;
 	    builtinNoTimeout: boolean;
+	    rememberRuns: boolean;
+	    runHistoryCount: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunDefaultsView(source);
@@ -3766,6 +3925,8 @@ export namespace main {
 	        this.unsafeMode = source["unsafeMode"];
 	        this.unsafeImage = source["unsafeImage"];
 	        this.builtinNoTimeout = source["builtinNoTimeout"];
+	        this.rememberRuns = source["rememberRuns"];
+	        this.runHistoryCount = source["runHistoryCount"];
 	    }
 	}
 	export class RunOutputsView {

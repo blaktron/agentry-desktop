@@ -39,6 +39,11 @@ type RunDefaultsView struct {
 	// builtinNoTimeout, D-062): the built-in agents' runs on this computer
 	// have no timeout while it is on.
 	BuiltinNoTimeout bool `json:"builtinNoTimeout"`
+	// RememberRuns is Remember recent runs (desktop.yaml's rememberRuns,
+	// D-068), on unless turned off; RunHistoryCount how many runs the
+	// history keeps, -1 when it cannot be read.
+	RememberRuns    bool `json:"rememberRuns"`
+	RunHistoryCount int  `json:"runHistoryCount"`
 }
 
 // RunDefaults reads the defaults. With no policy yet the budgets are
@@ -186,5 +191,6 @@ func runDefaultsView() (*RunDefaultsView, error) {
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
 		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
 		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoTimeout: st.BuiltinNoTimeout,
+		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
 	}, nil
 }

@@ -34,6 +34,22 @@
 //                       landed in its card
 //   #hosted-card-stacked its card and a run on this computer's card
 //
+// The run page (agentry-desktop#659, D-068), opened from Home's Recent runs:
+//   #runpage-local          a run on this computer the history keeps: how it
+//                           ended (the history's), the result, the files
+//   #runpage-hostile        the same, its result and files carrying raw HTML,
+//                           a script, an image and a right-to-left override
+//   #runpage-gone           its folder has gone: said, Remove from Recent runs
+//   #runpage-draft          a draft by the Drafter: its result view and Open in
+//                           Build
+//   #runpage-review         a review by the Examiner: its report on the page
+//   #runpage-knowledge      a knowledge build, stopped, that keeps no folder:
+//                           Open in Knowledge
+//   #runpage-hosted         a run In Agentry whose output is not here:
+//                           Download output
+//   #runpage-hosted-kept    one whose output was downloaded: the result view
+//   #runpage-hosted-draft   a draft In Agentry: Open in Build, no download
+//
 // A chat, here and In Agentry, followed the same way (agentry-desktop#467):
 //   #chat-local           the dialog is the chat: the conversation, the strip
 //   #chat-local-working   its card while a message is out: working, turns
@@ -57,8 +73,9 @@ const HOST = "secureagentry.net";
 const REG = "https://secureagentry.net";
 const REF = "demo1/incident-summarizer@1.2.0";
 const RUN_ID = "7c1e4a90";
-const hostile = hash === "run-hostile" || hash === "hosted-hostile";
-const hostedOnly = (hash.startsWith("hosted-") && hash !== "hosted-card-stacked") || hash.startsWith("chat-");
+const hostile = hash === "run-hostile" || hash === "hosted-hostile" || hash === "runpage-hostile";
+const runPage = hash.startsWith("runpage-");
+const hostedOnly = (hash.startsWith("hosted-") && hash !== "hosted-card-stacked") || hash.startsWith("chat-") || runPage;
 const H_ID = "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42";
 const H_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-0199b2c4";
 const hostedBase = {
@@ -175,6 +192,37 @@ const outputs = {
   truncated: false,
 };
 
+// The run page's entries (agentry-desktop#659).
+const RP_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-7c1e4a90";
+const rpRow = (over: Record<string, unknown> = {}) => ({
+  id: RUN_ID, kind: "run", where: "here", registry: REG, ref: REF,
+  startedAt: new Date(Date.now() - 50 * 60_000).toISOString(), endedAt: new Date(Date.now() - 47 * 60_000).toISOString(),
+  outcome: "ok", tone: "ok", kept: true, source: "local", ...over,
+});
+function recordedRun() {
+  switch (hash) {
+    case "runpage-gone":
+      return { run: rpRow({ outcome: "error", exitCode: 3, tone: "bad" }), folder: RP_DIR, folderState: "gone", folderError: "the run's folder is no longer there: it was deleted or moved" };
+    case "runpage-draft":
+      return { run: rpRow({ kind: "draft", ref: "" }), folder: "/home/chris/Downloads/agentry-out/agentry-drafter-0192a3", folderState: "present",
+        resultJson: JSON.stringify("Drafted demo1/csv-quality-check: three tools, one intake question.") };
+    case "runpage-review":
+      return { run: rpRow({ kind: "review", ref: "" }), folder: "/home/chris/Downloads/agentry-out/agentry-examiner-5e1f0004", folderState: "present", resultJson: "" };
+    case "runpage-knowledge":
+      return { run: rpRow({ kind: "knowledge", ref: "", outcome: "stopped", tone: "warn" }), folderState: "none" };
+    default:
+      return { run: rpRow(), folder: RP_DIR, folderState: "present", resultJson: result.resultJson };
+  }
+}
+function hostedRecord(kept: boolean) {
+  if (hash === "runpage-hosted-draft") {
+    return { run: { ...hosted.finished, ref: "agentry/drafter@1.8.0", outputs: [], resultJson: "", outDir: "" }, kind: "draft", kept: false, folderState: "none", downloadable: false, followed: false };
+  }
+  return kept
+    ? { run: hosted.finished, kind: "run", kept: true, folderState: "present", downloadable: false, followed: false }
+    : { run: { ...hosted.finished, outDir: "", resultJson: "", outputs: [{ name: "output.tar", bytes: 4096 }] }, kind: "run", kept: false, folderState: "none", downloadable: true, followed: false };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -228,6 +276,13 @@ g.go = { main: {
     ForgetRun: async () => undefined,
     RunOutputs: async () => outputs,
     ShowRunFolder: async () => undefined,
+    // The run page's reads (agentry-desktop#659): the history's entry, and a
+    // run In Agentry read live; Download output answers as Go does once the
+    // output is down.
+    RecordedRun: async () => recordedRun(),
+    HostedRecord: async () => hostedRecord(hash === "runpage-hosted-kept"),
+    DownloadHostedOutput: async () => { document.body.dataset.downloaded = "1"; return hostedRecord(true); },
+    RemoveRecordedRun: async () => { document.body.dataset.removed = "1"; },
   },
   BuildAPI: {
     DescribeInAgentry: async () => ({ draft: { id: "01a0e424-0000-0000-0000-000000000000", status: "running", state: "running",
@@ -255,6 +310,26 @@ import DraftFlow from "../src/pages/DraftFlow";
 import { attachHostedRun, cancelHostedRun, followHostedChat, sendChat, startHostedRun, startLocalChat, startLocalRun, stopLocalRun } from "../src/runs";
 import { startDraft } from "../src/drafts";
 import { CornerHost } from "../src/progress";
+import RunPage from "../src/pages/RunPage";
+
+// The run page under the shell, Home lit (agentry-desktop#659); where Back
+// and a built-in's button lead is marked on the body (data-open).
+function RunPagePreview() {
+  return (
+    <div data-preview="runpage" className="shell" style={{ height: "auto", minHeight: "100vh" }}>
+      <div className="sidebar">
+        <div className="brand"><Wordmark sub="Desktop" /></div>
+        <SidebarNav page="run" />
+        <div className="foot"><div>v0.6.63</div><div className="nowrap">{HOST}</div></div>
+      </div>
+      <div className="content">
+        <RunPage source={hash.startsWith("runpage-hosted") ? "hosted" : "local"} id={hash.startsWith("runpage-hosted") ? H_ID : RUN_ID} registry={REG}
+          backLabel="← back to Home" onBack={() => { document.body.dataset.open = "home"; }}
+          onOpenPlace={(page) => { document.body.dataset.open = page; }} />
+      </div>
+    </div>
+  );
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -317,4 +392,4 @@ if (!hostedOnly) void startLocalRun(
   if (hash === "run-stopped") setTimeout(() => void stopLocalRun(), 120);
 });
 if (hash === "run-card-stacked") startDraft(REG, "agentry", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
-createRoot(document.getElementById("root")!).render(<Preview />);
+createRoot(document.getElementById("root")!).render(runPage ? <RunPagePreview /> : <Preview />);

@@ -368,6 +368,8 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 		v.DraftError = "the draft's output could not be downloaded (" + err.Error() + ")"
 		return v
 	}
+	b.run.rememberFolder(id, outDir)
+	recordHosted(reg, final, outDir)
 	ns := ""
 	if u, err := whoami(b.app, reg, token); err == nil {
 		ns = u.Handle

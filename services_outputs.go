@@ -9,8 +9,9 @@ package main
 //
 //   - The page names a run, never a path. A run's folder is known here only
 //     because Go produced the run's result itself (RunAgent, EndSession, a
-//     hosted run's download) and remembered its folder under its run id; an
-//     id this process did not produce is refused. So a page that has been
+//     hosted run's download) and remembered its folder under its run id, in
+//     memory and, while Remember recent runs is on, in the run history Go
+//     alone writes (services_history.go, D-068); any other id is refused. So a page that has been
 //     made to call these bindings can list or reveal a run's folder, and
 //     nothing else on the machine.
 //   - Nothing an agent wrote is opened. A file is read for its preview,
@@ -90,14 +91,17 @@ func (r *RunAPI) rememberFolder(runID, dir string) {
 	r.folders[runID] = filepath.Clean(dir)
 }
 
+// folderOf is the folder of a run this process produced, else the one the
+// run history keeps for it (D-068), checked again as it is read
+// (historyFolder). Any other id is refused.
 func (r *RunAPI) folderOf(runID string) (string, error) {
 	r.foldersMu.Lock()
-	defer r.foldersMu.Unlock()
 	dir, ok := r.folders[runID]
-	if !ok {
-		return "", errUnknownRun
+	r.foldersMu.Unlock()
+	if ok {
+		return dir, nil
 	}
-	return dir, nil
+	return historyFolder(runID)
 }
 
 // resultView flattens an engine result and remembers its folder.

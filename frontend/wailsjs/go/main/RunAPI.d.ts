@@ -27,6 +27,8 @@ export function DeleteHostedSecret(arg1:string,arg2:string):Promise<void>;
 
 export function DiscardHostedSecrets(arg1:string):Promise<void>;
 
+export function DownloadHostedOutput(arg1:string,arg2:string):Promise<main.HostedRecordView>;
+
 export function EndHostedSession(arg1:boolean):Promise<void>;
 
 export function EndSession(arg1:boolean):Promise<main.RunResultView>;
@@ -49,6 +51,8 @@ export function HarnessStatus():Promise<Array<main.HarnessView>>;
 
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedAvailabilityView>;
 
+export function HostedRecord(arg1:string,arg2:string):Promise<main.HostedRecordView>;
+
 export function HybridKeyStatus():Promise<main.HybridKeyView>;
 
 export function InFlight():Promise<main.InFlightView>;
@@ -65,7 +69,13 @@ export function PrereqStatus():Promise<main.PrereqView>;
 
 export function ProfileStatus(arg1:string,arg2:string):Promise<main.ProfileStatusView>;
 
+export function RecentRuns(arg1:string,arg2:number):Promise<main.RecentRunsView>;
+
+export function RecordedRun(arg1:string):Promise<main.RecordedRunView>;
+
 export function RemoveAgentryImages():Promise<dockerimages.Report>;
+
+export function RemoveRecordedRun(arg1:string):Promise<void>;
 
 export function ReplayHostedSession():Promise<void>;
 
