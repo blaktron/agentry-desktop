@@ -11,11 +11,13 @@ import { Fragment } from "react";
 
 // The pages a sidebar item can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "settings";
+export type NavPage = "home" | "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "settings";
 
 type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[] };
 
 const ITEMS: Item[] = [
+  // The page the app opens on (plan desktop-home-and-library.md D2).
+  { label: "Home", page: "home" },
   // The QuickAgents installed on this computer, with Browse beneath it for
   // finding more. An agent's page is reached from either, so Library stays
   // lit on it.
