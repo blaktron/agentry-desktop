@@ -18,6 +18,7 @@ import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
 import { DockerImagesCard } from "./DockerImages";
 import { VoiceSwitch } from "./Voice";
+import { followPart } from "../followPart";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
@@ -123,13 +124,15 @@ export default function Settings({
   // Opens a section (and a part of it), or the landing with none.
   onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
 }) {
-  // A part named by the landing's link is scrolled to once its section has
-  // rendered; the page's own scroll starts at the top otherwise.
+  // A part named by a link is scrolled to once its section has rendered, and
+  // followed while the section's own reads fill it in (agentry-desktop#673);
+  // the page's own scroll starts at the top otherwise. Only the view's first
+  // load counts, so a save that refreshes it does not pull the page back.
+  const loaded = !!settings;
   useEffect(() => {
-    if (!section || !settings) return;
-    const el = part ? document.getElementById(`settings-part-${part}`) : null;
-    if (el) el.scrollIntoView({ block: "start" });
-  }, [section, part, settings]);
+    if (!section || !loaded || !part) return;
+    return followPart(`settings-part-${part}`);
+  }, [section, part, loaded]);
 
   if (!settings) return <div className="empty">Loading settings…</div>;
 
