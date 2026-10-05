@@ -16,6 +16,7 @@ import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { heldForm, offersEdit } from "../edit";
 import ReviseDialog from "./ReviseDialog";
+import { PinButton, useHomeLayout } from "./home/PinButton";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -37,7 +38,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey,
+  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey, openRun = false,
 }: {
   registry: string;
   ns: string;
@@ -50,6 +51,9 @@ export default function AgentPage({
   onEdit?: () => void;
   /** Settings at the AI Review key, for Edit with AI on this computer. */
   onOpenReviewKey?: () => void;
+  /** Open with the run setup open, once the release is read: a pin's Run
+   *  on Home (agentry-desktop#660). */
+  openRun?: boolean;
 }) {
   const [detail, setDetail] = useState<main.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +78,15 @@ export default function AgentPage({
   // export it could not write): a page with no result screen says it here.
   const [installWarning, setInstallWarning] = useState<string | null>(null);
   const [runOpen, setRunOpen] = useState(false);
+  // A pin's Run opens the run setup once, when there is a version to run.
+  const [ranOnOpen, setRanOnOpen] = useState(false);
+  const runnable = !!detail?.latest;
+  useEffect(() => {
+    if (openRun && runnable && !ranOnOpen) { setRanOnOpen(true); setRunOpen(true); }
+  }, [openRun, runnable, ranOnOpen]);
+  // Pin to Home, offered while this QuickAgent is installed here
+  // (agentry-desktop#660, D5).
+  const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
   // Edit replaces the Build tab's unsaved form, so it asks first when the
   // tab holds one (as the site asks before replacing an unsent draft).
   const [confirmEdit, setConfirmEdit] = useState<string | null>(null);
@@ -108,6 +121,9 @@ export default function AgentPage({
   // app has (semver, through the record's origin) — never a string compare
   // against the version this page happens to show.
   const runnerInstall = installs.find((r) => r.target === "runner");
+  // The install a pin from this page names: the one from this page's
+  // registry, else the runner home's, else any (agentry-desktop#660).
+  const pinnable = installs.find((r) => !r.local && r.origin.replace(/\/+$/, "") === registry.replace(/\/+$/, "")) ?? runnerInstall ?? installs[0];
   const installedVersion = runnerInstall?.version;
   const [runnerUpdate, setRunnerUpdate] = useState<install.UpdateInfo | null>(null);
   const [runnerUpdateErr, setRunnerUpdateErr] = useState<string | null>(null);
@@ -154,6 +170,7 @@ export default function AgentPage({
       );
       setRemoveMsg(msg);
       refreshInstalls();
+      rereadHomeLayout();
     } catch (e) {
       setRemoveMsg(String(e));
     }
@@ -219,6 +236,7 @@ export default function AgentPage({
                 {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={() => setReviseOpen(true)} title={`Have the Drafter draft the next version of ${detail.latest}`}>Edit with AI</Button>}
                 {installButton}
+                {pinnable && <PinButton agentRef={`${ns}/${name}`} registry={pinnable.local ? "" : pinnable.origin} layout={homeLayout} onLayout={setHomeLayout} />}
               </>
             )
             : <span className="badge">no published version</span>}

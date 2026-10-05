@@ -44,7 +44,9 @@ export type Route =
   | { page: "browse"; q?: string }
   // registry: an installed record's own registry may differ from the active
   // one; back: where the ← link returns to.
-  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" }
+  // run: open the page with its run setup open (a pin's Run on Home,
+  // agentry-desktop#660).
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home"; run?: boolean }
   // A run Recent runs lists, as a page (plan desktop-home-and-library.md
   // §4.7, D7; agentry-desktop#659): read by its id, from the history Go
   // keeps (local) or the registry (hosted).
@@ -260,6 +262,7 @@ export default function App() {
                   runDefaults: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunDefaults }),
                   run: (row) => nav({ page: "run", source: row.source === "hosted" ? "hosted" : "local", id: row.id, registry: row.registry, back: "home" }),
                   runHistory: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunHistory }),
+                  runAgent: (reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "home", run: true }),
                 }}
               />
             )}
@@ -285,6 +288,7 @@ export default function App() {
                 name={route.name}
                 backLabel={BACK_LABEL[route.back ?? "browse"]}
                 onBack={() => nav({ page: route.back ?? "browse" })}
+                openRun={route.run}
                 // Edit opens in the Build tab, which submits to the app's
                 // registry: offered only for that registry's QuickAgents.
                 onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })}
