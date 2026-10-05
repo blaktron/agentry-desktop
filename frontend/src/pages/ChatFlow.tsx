@@ -166,6 +166,7 @@ function ChatResult({ c }: { c: ChatRecord }) {
         error={r.error || undefined}
         resultJson={r.resultJson}
         knowledge={r.knowledge}
+        decode={r.decode}
         unsafeExec={r.unsafeExec}
       >
         <LocalRunDetails result={r} log={c.log} />

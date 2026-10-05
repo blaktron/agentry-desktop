@@ -457,6 +457,10 @@ type Result struct {
 	// is the one a result shows under it.
 	Exec   string
 	Unsafe bool
+	// Decode is the receipt's decode line: how the run's input files were
+	// read, and what ClamAV and the Hybrid Analysis lookup made of them
+	// (agentry-cli#563, #564; #530); "" when the run had no files.
+	Decode string
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -786,6 +790,7 @@ func resultFromEnvelope(env *receipt.Envelope, plan *spec.Plan) *Result {
 		Policy:           env.Policy,
 		Knowledge:        env.CapabilitiesEnforced["knowledge"],
 		Exec:             env.CapabilitiesEnforced["exec"],
+		Decode:           env.CapabilitiesEnforced["decode"],
 	}
 }
 

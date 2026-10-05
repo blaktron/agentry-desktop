@@ -632,6 +632,84 @@ func (r *RunAPI) TestJevKey() (*JevKeyTestView, error) {
 	return &JevKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
 }
 
+// HybridKeyView is where the person's own Hybrid Analysis key stands
+// (#530; plan file-handling.md D8, D17): saved in this machine's keychain
+// or not, whether the policy reads it from there, and whether the variable
+// a run reads first is set. Never the key.
+type HybridKeyView struct {
+	Stored      bool   `json:"stored"`
+	Source      string `json:"source,omitempty"`
+	EnvName     string `json:"envName"`
+	EnvSet      bool   `json:"envSet"`
+	Ready       bool   `json:"ready"`
+	KeyStoreErr string `json:"keyStoreErr,omitempty"`
+}
+
+// HybridKeyStatus reports the Hybrid Analysis key's standing. Read-only: it
+// reads the keychain's presence marker, never the key, and creates no
+// policy.
+func (r *RunAPI) HybridKeyStatus() (*HybridKeyView, error) {
+	st, err := run.GetHybridKeyStatus()
+	if err != nil {
+		return nil, err
+	}
+	return &HybridKeyView{Stored: st.Stored, Source: st.Source, EnvName: st.EnvName, EnvSet: st.EnvSet, Ready: st.Ready(), KeyStoreErr: st.KeyStoreErr}, nil
+}
+
+// StoreHybridKey puts the person's Hybrid Analysis key into the OS keychain
+// and records the keychain as its source in the runner policy. It is the
+// one call that carries the key, kept to one argument as StoreJevKey is; a
+// keychain that cannot be reached is a named refusal, and the policy is
+// left as it was.
+func (r *RunAPI) StoreHybridKey(key string) (*HybridKeyView, error) {
+	if err := r.acquire(jobSetup, "a change to the Hybrid Analysis key"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.StoreHybridKey(key, logw); err != nil {
+		return nil, err
+	}
+	return r.HybridKeyStatus()
+}
+
+// ForgetHybridKey removes the Hybrid Analysis key from the keychain and the
+// keychain from the policy's sources.
+func (r *RunAPI) ForgetHybridKey() (*HybridKeyView, error) {
+	if err := r.acquire(jobSetup, "a change to the Hybrid Analysis key"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.ForgetHybridKey(logw); err != nil {
+		return nil, err
+	}
+	return r.HybridKeyStatus()
+}
+
+// HybridKeyTestView is Test key's answer in plain words, and which key it
+// tried: "the keychain" or the variable's name.
+type HybridKeyTestView struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+	From    string `json:"from,omitempty"`
+}
+
+// TestHybridKey looks up one known hash (the EICAR test file's) with the
+// key a run on this computer would use, and says the answer: it works,
+// Hybrid Analysis refused it, is limiting it, or could not be reached. The
+// hash and the key go to Hybrid Analysis and nowhere else; the answer
+// carries no key.
+func (r *RunAPI) TestHybridKey() (*HybridKeyTestView, error) {
+	res, err := run.TestHybridKey(r.app.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &HybridKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
+}
+
 // SearchProviderView is one web search provider a person may choose: its
 // name as the policy says it, as a person knows it, and the variable a draft
 // reads its key from first.
@@ -870,6 +948,10 @@ type RunResultView struct {
 	// what the image could not provide and what did not install; omitted
 	// for every other run.
 	UnsafeExec string `json:"unsafeExec,omitempty"`
+	// Decode is the receipt's decode line (#530): how the input files were
+	// read, and what ClamAV and the Hybrid Analysis lookup made of them;
+	// omitted for a run with no files.
+	Decode string `json:"decode,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -979,6 +1061,7 @@ func runResultView(res *run.Result) *RunResultView {
 		AttestationState: res.AttestationState,
 		Policy:           res.Policy,
 		Knowledge:        res.Knowledge,
+		Decode:           res.Decode,
 	}
 	if res.Unsafe {
 		v.UnsafeExec = res.Exec

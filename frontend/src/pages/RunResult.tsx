@@ -19,7 +19,7 @@ import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
 import { localUseLine } from "../usage";
 
 export function RunResultView({
-  runId, headline, tone, error, resultJson, knowledge, unsafeExec, ask, children,
+  runId, headline, tone, error, resultJson, knowledge, decode, unsafeExec, ask, children,
 }: {
   runId: string;
   headline: string;
@@ -30,6 +30,10 @@ export function RunResultView({
   /** The receipt's knowledge line: the packs this run could search, and how
    *  they were mounted (plan knowledge.md §4.5); unset when none was. */
   knowledge?: string;
+  /** The receipt's decode line (#530): how the input files were read, and
+   *  what ClamAV and the Hybrid Analysis lookup made of each; unset for a
+   *  run with no files. */
+  decode?: string;
   /** The receipt's exec line of an Unsafe Mode run (agentry-desktop#418):
    *  what was installed from where, and what was not; unset otherwise. */
   unsafeExec?: string;
@@ -69,6 +73,13 @@ export function RunResultView({
         <section aria-labelledby="run-result-knowledge">
           <h4 id="run-result-knowledge">Knowledge this run could search</h4>
           <p className="mono small selectable">{knowledge}</p>
+        </section>
+      )}
+
+      {decode && (
+        <section aria-labelledby="run-result-decode">
+          <h4 id="run-result-decode">How your files were read and checked</h4>
+          <p className="mono small selectable" data-decode>{decode}</p>
         </section>
       )}
 

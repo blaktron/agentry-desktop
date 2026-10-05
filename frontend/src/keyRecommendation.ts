@@ -22,10 +22,11 @@ export const GET_A_KEY_LABEL = "Get a key from TypeSafe";
 /** Where the person's key stands: "env" the variable the app was started
  *  with holds one, and goes first; "saved" the keychain holds one and the
  *  runner policy reads it there; "unread" the keychain holds one the policy
- *  does not read; "none". Go's JevKeyStatus.Ready is "env" or "saved". */
+ *  does not read; "none". Go's Ready (JevKeyStatus's, and since #530 HybridKeyStatus's,
+ *  which keyStanding reads the same way) is "env" or "saved". */
 export type KeyStanding = "env" | "saved" | "unread" | "none";
 
-export function keyStanding(k: main.JevKeyView): KeyStanding {
+export function keyStanding(k: Pick<main.JevKeyView, "envSet" | "stored" | "source">): KeyStanding {
   if (k.envSet) return "env";
   if (k.stored) return k.source === "keyring" ? "saved" : "unread";
   return "none";
