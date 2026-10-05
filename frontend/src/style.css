@@ -991,6 +991,20 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .build-way-blurb { margin: 0; color: var(--color-lead); font-size: 14px; line-height: 1.55; }
 .build-way-foot { margin: auto 0 0; }
 .build-way-part { position: relative; z-index: 1; }
+/* A card's status line and live content (cards.tsx), which Home's cards
+   carry in place of a figure and a sentence (agentry-desktop#658). */
+.build-way-status { margin: 0; color: var(--color-lead); }
+.build-way-body { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.build-way-body .link { text-align: left; }
+
+/* Home (plan desktop-home-and-library.md §4.3): the start pages' grid, a
+   card per cell, every card Large (D12) and as tall as its row. */
+.home-card-cell { display: flex; }
+.home-card-cell > .card { flex: 1; }
+.home-card-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.home-card-facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; }
+.home-card-facts dt { color: var(--color-muted); }
+.home-card-facts dd { margin: 0; overflow-wrap: anywhere; }
 
 /* The figures' light lines (BuildWays.tsx), the site's convergence
    language (agentry-web app/globals.css, .convergence): a beam pulses, a

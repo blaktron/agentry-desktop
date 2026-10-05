@@ -129,6 +129,12 @@ type Settings struct {
 	// run and a run In Agentry cannot read it, and no installed package can
 	// claim it. Read it through BuiltinBudgets.
 	BuiltinNoTimeout bool `yaml:"builtinNoTimeout,omitempty" json:"builtinNoTimeout,omitempty"`
+
+	// Home is the Home page's cards, in order (plan
+	// desktop-home-and-library.md §4.4, D-067; home.go). Absent means the
+	// defaults. Read it through HomeLayoutNow; it is written only by the
+	// Home setters, each of which changes one thing.
+	Home *HomeLayout `yaml:"home,omitempty" json:"-"`
 }
 
 // BuiltinBudgets are the budgets a run of the built-in b on this computer
