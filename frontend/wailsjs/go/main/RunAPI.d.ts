@@ -35,6 +35,8 @@ export function EndpointWarning(arg1:string):Promise<string>;
 
 export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
+export function ForgetHybridKey():Promise<main.HybridKeyView>;
+
 export function ForgetJevKey():Promise<main.JevKeyView>;
 
 export function ForgetRun(arg1:string):Promise<void>;
@@ -46,6 +48,8 @@ export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise
 export function HarnessStatus():Promise<Array<main.HarnessView>>;
 
 export function HostedAvailability(arg1:string,arg2:string):Promise<main.HostedAvailabilityView>;
+
+export function HybridKeyStatus():Promise<main.HybridKeyView>;
 
 export function InFlight():Promise<main.InFlightView>;
 
@@ -103,11 +107,15 @@ export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<stri
 
 export function StopRun():Promise<void>;
 
+export function StoreHybridKey(arg1:string):Promise<main.HybridKeyView>;
+
 export function StoreJevKey(arg1:string):Promise<main.JevKeyView>;
 
 export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusView>;
 
 export function StoreSearchKey(arg1:string,arg2:string):Promise<main.SearchKeyView>;
+
+export function TestHybridKey():Promise<main.HybridKeyTestView>;
 
 export function TestJevKey():Promise<main.JevKeyTestView>;
 

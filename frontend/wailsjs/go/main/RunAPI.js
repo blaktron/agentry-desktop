@@ -66,6 +66,10 @@ export function ForgetHarness(arg1) {
   return window['go']['main']['RunAPI']['ForgetHarness'](arg1);
 }
 
+export function ForgetHybridKey() {
+  return window['go']['main']['RunAPI']['ForgetHybridKey']();
+}
+
 export function ForgetJevKey() {
   return window['go']['main']['RunAPI']['ForgetJevKey']();
 }
@@ -88,6 +92,10 @@ export function HarnessStatus() {
 
 export function HostedAvailability(arg1, arg2) {
   return window['go']['main']['RunAPI']['HostedAvailability'](arg1, arg2);
+}
+
+export function HybridKeyStatus() {
+  return window['go']['main']['RunAPI']['HybridKeyStatus']();
 }
 
 export function InFlight() {
@@ -202,6 +210,10 @@ export function StopRun() {
   return window['go']['main']['RunAPI']['StopRun']();
 }
 
+export function StoreHybridKey(arg1) {
+  return window['go']['main']['RunAPI']['StoreHybridKey'](arg1);
+}
+
 export function StoreJevKey(arg1) {
   return window['go']['main']['RunAPI']['StoreJevKey'](arg1);
 }
@@ -212,6 +224,10 @@ export function StoreModelKey(arg1, arg2) {
 
 export function StoreSearchKey(arg1, arg2) {
   return window['go']['main']['RunAPI']['StoreSearchKey'](arg1, arg2);
+}
+
+export function TestHybridKey() {
+  return window['go']['main']['RunAPI']['TestHybridKey']();
 }
 
 export function TestJevKey() {

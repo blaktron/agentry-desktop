@@ -111,6 +111,7 @@ export default function RunFlow({ onBackToSetup, initialMinimized }: {
           error={res.error || undefined}
           resultJson={res.resultJson}
           knowledge={res.knowledge}
+          decode={res.decode}
           unsafeExec={res.unsafeExec}
         >
           <LocalRunDetails result={res} log={r.log} />
