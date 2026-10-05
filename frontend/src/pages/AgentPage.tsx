@@ -121,6 +121,9 @@ export default function AgentPage({
   // app has (semver, through the record's origin) — never a string compare
   // against the version this page happens to show.
   const runnerInstall = installs.find((r) => r.target === "runner");
+  // The install a pin from this page names: the one from this page's
+  // registry, else the runner home's, else any (agentry-desktop#660).
+  const pinnable = installs.find((r) => !r.local && r.origin.replace(/\/+$/, "") === registry.replace(/\/+$/, "")) ?? runnerInstall ?? installs[0];
   const installedVersion = runnerInstall?.version;
   const [runnerUpdate, setRunnerUpdate] = useState<install.UpdateInfo | null>(null);
   const [runnerUpdateErr, setRunnerUpdateErr] = useState<string | null>(null);
@@ -233,7 +236,7 @@ export default function AgentPage({
                 {onEdit && offersEdit(detail) && <Button onClick={edit} title={`Open ${detail.latest} in the Build tab, to publish its next version`}>Edit</Button>}
                 {onEdit && offersEdit(detail) && <Button onClick={() => setReviseOpen(true)} title={`Have the Drafter draft the next version of ${detail.latest}`}>Edit with AI</Button>}
                 {installButton}
-                {installs.length > 0 && <PinButton agentRef={`${ns}/${name}`} registry={installs[0].origin} layout={homeLayout} onLayout={setHomeLayout} />}
+                {pinnable && <PinButton agentRef={`${ns}/${name}`} registry={pinnable.local ? "" : pinnable.origin} layout={homeLayout} onLayout={setHomeLayout} />}
               </>
             )
             : <span className="badge">no published version</span>}

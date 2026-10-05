@@ -69,6 +69,9 @@ export default function Home({ registry, settings, open, banner }: {
 }) {
   const [layout, setLayout] = useState<Got<main.HomeLayoutView>>(pending);
   const [records, setRecords] = useState<Got<install.Item[]>>(pending);
+  // The launch check's snapshot: each record's answer for the Pinned
+  // cards, and the count of updates this app can apply, which the
+  // Installed card says (Go counts only rows it manages).
   const [updates, setUpdates] = useState<install.UpdateInfo[]>([]);
   const [updateCount, setUpdateCount] = useState(0);
   // A folder install's Run, from its pin: the run setup, here.

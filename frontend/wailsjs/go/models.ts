@@ -2010,6 +2010,7 @@ export namespace main {
 	    newer: boolean;
 	    unreadable: boolean;
 	    maxPins: number;
+	    pinsPerCard: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new HomeLayoutView(source);
@@ -2021,6 +2022,7 @@ export namespace main {
 	        this.newer = source["newer"];
 	        this.unreadable = source["unreadable"];
 	        this.maxPins = source["maxPins"];
+	        this.pinsPerCard = source["pinsPerCard"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as HomeAPI from "../../../wailsjs/go/main/HomeAPI";
 import { main } from "../../../wailsjs/go/models";
 import { Button } from "../../ui";
-import { pinOffer, pinsOf } from "../../pins";
+import { homeFullSentence, pinOffer } from "../../pins";
 
 // Pin to Home (plan desktop-home-and-library.md D5, D11; agentry-desktop#660),
 // on a Library row and on an installed QuickAgent's page. Go keeps the pins
@@ -27,10 +27,8 @@ export function useHomeLayout(): [main.HomeLayoutView | null, (v: main.HomeLayou
 /** The sentence a page shows while Home holds every pin it can (D5), so a
  * held Pin button is explained, not silent. */
 export function homeFullLine(layout: main.HomeLayoutView | null): string | null {
-  if (!layout || layout.newer || layout.unreadable || !layout.maxPins) return null;
-  return pinsOf(layout.cards).length >= layout.maxPins
-    ? `Home holds ${layout.maxPins} pinned QuickAgents, four to a Pinned card. Unpin one to pin another.`
-    : null;
+  if (!layout || layout.newer || layout.unreadable) return null;
+  return homeFullSentence(layout.cards, layout);
 }
 
 export function PinButton({ agentRef, registry, layout, onLayout }: {
@@ -45,7 +43,7 @@ export function PinButton({ agentRef, registry, layout, onLayout }: {
   const [err, setErr] = useState<string | null>(null);
   // A layout this app keeps rather than uses takes no pin (D-067).
   if (!layout || layout.newer || layout.unreadable) return null;
-  const offer = pinOffer(layout.cards, layout.maxPins, agentRef, registry);
+  const offer = pinOffer(layout.cards, layout, agentRef, registry);
   async function toggle() {
     setBusy(true);
     setErr(null);
@@ -62,7 +60,7 @@ export function PinButton({ agentRef, registry, layout, onLayout }: {
       <Button onClick={toggle} busy={busy} disabled={offer.full} title={offer.why} data-pin-button={offer.pinned ? "unpin" : offer.full ? "full" : "pin"}>
         {offer.pinned ? "Unpin from Home" : "Pin to Home"}
       </Button>
-      {err && <span className="small" role="alert" style={{ color: "var(--color-sev-high)" }}>{err}</span>}
+      {err && <span className="small step-problem" role="alert">{err}</span>}
     </>
   );
 }

@@ -57,6 +57,7 @@ export default function Library({
   // Home's pins (agentry-desktop#660): Pin to Home on each row this app
   // manages; an uninstall removes the pin in Go, so the layout is read again.
   const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
+  const homeFull = homeFullLine(homeLayout);
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
@@ -205,7 +206,7 @@ export default function Library({
       <ErrorBox error={error} />
       {notice && <Notice tone="info">{notice}</Notice>}
       {warning && <Notice tone="warn">{warning}</Notice>}
-      {homeFullLine(homeLayout) && records && records.length > 0 && <p className="muted small" data-home-full>{homeFullLine(homeLayout)}</p>}
+      {homeFull && records && records.length > 0 && <p className="muted small" data-home-full>{homeFull}</p>}
       {!records && <Spinner />}
       {records && records.length === 0 && (
         <EmptyState title="Nothing installed on this computer yet" action={registryButton}>

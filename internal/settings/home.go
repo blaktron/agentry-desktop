@@ -162,16 +162,9 @@ func SetHomeCardShown(kind string, shown bool) error {
 	if !slices.Contains(homeDefaults, kind) {
 		return fmt.Errorf("%q is not a Home card that can be shown or hidden", kind)
 	}
-	s, err := Load()
+	s, l, err := usableHome()
 	if err != nil {
 		return err
-	}
-	l, st := homeOf(s)
-	switch st {
-	case homeNewer:
-		return errNewerHome
-	case homeUnreadable:
-		return errUnreadableHome
 	}
 	found := false
 	for i := range l.Cards {
@@ -341,11 +334,13 @@ func UnpinFromHome(ref, registry string) error {
 	return unpin(func(p HomePin) bool { return p.is(ref, registry) })
 }
 
-// UnpinRef removes ref's pins from every registry, when its last install
-// on this computer goes (D5). A layout this app keeps rather than uses is
+// UnpinRef removes ref's pins when its last install of one kind goes from
+// this computer (D5): the folder install's pin (no registry) when fromFolder,
+// else its pins from any registry, since a runner record's origin follows
+// the app's default registry. A layout this app keeps rather than uses is
 // left alone, without an error: an uninstall never fails on Home.
-func UnpinRef(ref string) error {
-	err := unpin(func(p HomePin) bool { return p.Ref == ref })
+func UnpinRef(ref string, fromFolder bool) error {
+	err := unpin(func(p HomePin) bool { return p.Ref == ref && (p.Registry == "") == fromFolder })
 	if errors.Is(err, errNewerHome) || errors.Is(err, errUnreadableHome) {
 		return nil
 	}

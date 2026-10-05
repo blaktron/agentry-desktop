@@ -123,18 +123,27 @@ func TestUnpinLeavesTheGapTheNextPinFillsIt(t *testing.T) {
 	}
 }
 
-// UnpinRef removes a ref's pins from every registry, for an uninstall.
-func TestUnpinRefRemovesEveryRegistrysPin(t *testing.T) {
+// UnpinRef removes a ref's pins from every registry, for an uninstall,
+// or its folder install's pin alone.
+func TestUnpinRefRemovesEveryRegistrysPinOrTheFolders(t *testing.T) {
 	isolate(t)
 	pin(t, "a", "b")
-	if err := PinToHome("acme/a", "https://other.example"); err != nil {
+	for _, reg := range []string{"https://other.example", ""} {
+		if err := PinToHome("acme/a", reg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := UnpinRef("acme/a", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := UnpinRef("acme/a"); err != nil {
+	if got := pinCards(t); got != "b,a" || !IsPinned("acme/a", "") {
+		t.Fatalf("after UnpinRef from registries: %s", got)
+	}
+	if err := UnpinRef("acme/a", true); err != nil {
 		t.Fatal(err)
 	}
 	if got := pinCards(t); got != "b" {
-		t.Fatalf("after UnpinRef: %s", got)
+		t.Fatalf("after UnpinRef from a folder: %s", got)
 	}
 }
 
@@ -188,7 +197,7 @@ func TestPinsKeepWhatTheyDoNotKnowAndANewerLayoutTakesNone(t *testing.T) {
 	// An uninstall's unpin never fails on Home, and leaves a newer layout
 	// as it is.
 	before := readRaw(t)
-	if err := UnpinRef("acme/a"); err != nil {
+	if err := UnpinRef("acme/a", false); err != nil {
 		t.Fatalf("UnpinRef on a newer layout: %v", err)
 	}
 	if readRaw(t) != before {

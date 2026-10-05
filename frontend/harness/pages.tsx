@@ -422,7 +422,7 @@ let homeCards: any[] = [{ kind: "recent-runs" }, { kind: "installed", hidden: ho
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins }))];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
 // one after it, an emptied one removed (D11).
-const homeView = () => ({ cards: homeCards, newer: homeHash === "#home-newer", unreadable: homeHash === "#home-unreadable", maxPins: 16 });
+const homeView = () => ({ cards: homeCards, newer: homeHash === "#home-newer", unreadable: homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4 });
 function harnessPin(ref: string, registry: string) {
   const pin = { ref, registry };
   const room = homeCards.find((c) => c.kind === "pinned" && c.pins.length < 4);

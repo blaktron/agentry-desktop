@@ -11,6 +11,12 @@ import { howItEnded, whenRan, whereRan } from "../../recentRuns";
 // Open latest run opens the run page; Run opens the usual run setup. A pin
 // whose QuickAgent is no longer installed here says so and offers Unpin.
 // The card opens the Library. Nothing a run wrote is shown here.
+// The launch check's answer for one record: its whole key, as the Library
+// matches it.
+const updateFor = (updates: install.UpdateInfo[], rec: install.Item) =>
+  updates.find((u) => u.updateAvailable && u.key.registry === rec.registry && u.key.namespace === rec.namespace
+    && u.key.name === rec.name && u.key.target === rec.target && u.key.dir === rec.dir);
+
 export function PinnedCard({ pins, records, updates, runs, now, onOpenLibrary, onOpenAgent, onOpenRun, onRun, onUnpin }: {
   pins: Pin[];
   records: install.Item[] | null;
@@ -31,8 +37,8 @@ export function PinnedCard({ pins, records, updates, runs, now, onOpenLibrary, o
         <ul className="home-card-list pinned-list" data-pinned>
           {pins.map((pin) => {
             const rec = pinRecord(records, pin);
-            const run = runs ? latestRunFor(runs, pin.ref) : undefined;
-            const update = rec && updates.find((u) => u.updateAvailable && u.key.namespace === rec.namespace && u.key.name === rec.name && u.key.target === rec.target && u.key.dir === rec.dir);
+            const run = runs ? latestRunFor(runs, pin) : undefined;
+            const update = rec && updateFor(updates, rec);
             return (
               <li key={`${pin.registry ?? ""} ${pin.ref}`} data-pin={pin.ref}>
                 <div>

@@ -23,9 +23,10 @@ type HomeLayoutView struct {
 	Cards      []settings.HomeCard `json:"cards"`
 	Newer      bool                `json:"newer"`
 	Unreadable bool                `json:"unreadable"`
-	// MaxPins is how many pins Home holds (D5), so the Pin button says the
-	// limit Go enforces.
-	MaxPins int `json:"maxPins"`
+	// MaxPins and PinsPerCard are the limits Go enforces (D5), so the page
+	// says them rather than its own copy.
+	MaxPins     int `json:"maxPins"`
+	PinsPerCard int `json:"pinsPerCard"`
 }
 
 func homeView() (*HomeLayoutView, error) {
@@ -33,7 +34,7 @@ func homeView() (*HomeLayoutView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &HomeLayoutView{Cards: l.Cards, Newer: newer, Unreadable: unreadable, MaxPins: settings.MaxPins}, nil
+	return &HomeLayoutView{Cards: l.Cards, Newer: newer, Unreadable: unreadable, MaxPins: settings.MaxPins, PinsPerCard: settings.PinsPerCard}, nil
 }
 
 // Layout reads the layout; it never writes.
@@ -91,31 +92,48 @@ func installedHere(ref, registry string) (bool, error) {
 		return false, err
 	}
 	for _, it := range items {
-		if !it.Present || it.Namespace+"/"+it.Name != ref {
+		if !it.Present || refOf(it) != ref {
 			continue
 		}
-		if it.Local && registry == "" || !it.Local && registry != "" && settings.Normalize(it.Origin) == settings.Normalize(registry) {
+		if it.Local {
+			if registry == "" {
+				return true, nil
+			}
+		} else if registry != "" && settings.Normalize(it.Origin) == settings.Normalize(registry) {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-// unpinIfGone removes ref's pins once nothing of it is left on this
-// computer, after an uninstall or a Forget (D5). Another install of the
-// same QuickAgent keeps them. It never fails the removal that called it.
+// refOf is a record's QuickAgent as a pin names it, namespace/name.
+func refOf(it install.Item) string { return it.Namespace + "/" + it.Name }
+
+// unpinIfGone removes ref's pins once nothing of that kind of it is left
+// on this computer, after an uninstall or a Forget in this app (D5): the
+// folder pin when no folder install of it is left, the registry pins when no
+// install from a registry is. An uninstall by the CLI leaves the pin, which
+// Home then shows as no longer installed, with Unpin. It never fails the
+// removal that called it.
 func unpinIfGone(ref string) {
 	items, err := install.List()
 	if err != nil {
 		slog.Warn("home: pins not checked after a removal", "ref", ref, "err", err)
 		return
 	}
+	fromFolder, fromRegistry := false, false
 	for _, it := range items {
-		if it.Present && it.Namespace+"/"+it.Name == ref {
-			return
+		if it.Present && refOf(it) == ref {
+			fromFolder = fromFolder || it.Local
+			fromRegistry = fromRegistry || !it.Local
 		}
 	}
-	if err := settings.UnpinRef(ref); err != nil {
-		slog.Warn("home: the pin of a removed QuickAgent was not removed", "ref", ref, "err", err)
+	for _, folder := range []bool{true, false} {
+		if (folder && fromFolder) || (!folder && fromRegistry) {
+			continue
+		}
+		if err := settings.UnpinRef(ref, folder); err != nil {
+			slog.Warn("home: the pin of a removed QuickAgent was not removed", "ref", ref, "err", err)
+		}
 	}
 }

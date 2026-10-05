@@ -147,3 +147,34 @@ func TestUninstallAndForgetRemoveThePin(t *testing.T) {
 		t.Fatal("forgetting the last record left its pin")
 	}
 }
+
+// A folder install's pin and a registry install's pin of the same
+// QuickAgent are kept apart: removing the folder install takes only its pin
+// (the review of agentry-desktop#660).
+func TestRemovingAFolderInstallKeepsTheRegistryPin(t *testing.T) {
+	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	t.Setenv("HOME", t.TempDir())
+	const reg = "https://registry.test"
+	local := installed.Key{Registry: "runner", Namespace: "acme", Name: "triage", Target: "runner", Dir: filepath.Join(t.TempDir(), "gone")}
+	fromReg := installed.Key{Registry: reg, Namespace: "acme", Name: "triage", Target: "claude-skill", Dir: t.TempDir()}
+	var st installed.State
+	st.Upsert(local, "0.1.0", installed.CapSnapshot{}, true)
+	st.MarkLocal(local, "sha256:00")
+	st.Upsert(fromReg, "1.0.0", installed.CapSnapshot{}, true)
+	if err := installed.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []string{"", reg} {
+		if err := settings.PinToHome("acme/triage", r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	i := &InstallAPI{app: &App{ctx: context.Background()}, engine: install.NewEngine()}
+	if err := i.Forget(local); err != nil {
+		t.Fatal(err)
+	}
+	if settings.IsPinned("acme/triage", "") || !settings.IsPinned("acme/triage", reg) {
+		t.Fatalf("after forgetting the folder install: folder pin %v, registry pin %v",
+			settings.IsPinned("acme/triage", ""), settings.IsPinned("acme/triage", reg))
+	}
+}
