@@ -244,6 +244,7 @@ func TestARunIsUnsafeOnlyWhenItsRequestSaysSo(t *testing.T) {
 	log.Reset()
 	req := counted(request(regURL, filepath.Join(t.TempDir(), "out")))
 	req.Unsafe = true
+	toolsServerStarts(fake, req.OutDir)
 	res, err := Run(context.Background(), req, &log)
 	if err != nil {
 		t.Fatalf("with Unsafe Mode on: %v\nlog:\n%s", err, log.String())

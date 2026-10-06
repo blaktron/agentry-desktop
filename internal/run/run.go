@@ -461,6 +461,14 @@ type Result struct {
 	// read, and what ClamAV and the Hybrid Analysis lookup made of them
 	// (agentry-cli#563, #564; #530); "" when the run had no files.
 	Decode string
+	// ExitClass names ExitCode in the CLI's words (receipt.ExitClassName);
+	// Stage and Reason say where and why a failed run stopped, in the CLI's
+	// closed words (agentry-cli#332, #628), nil and "" when they do not.
+	// A blocked run's (#680) reason says whether the QuickAgent or the
+	// runner's tools stopped it.
+	ExitClass string
+	Stage     string
+	Reason    *receipt.Reason
 }
 
 // Run executes the whole §R6 lifecycle for one registry release. Progress
@@ -754,6 +762,11 @@ func Run(ctx context.Context, req Request, logw io.Writer) (*Result, error) {
 	if req.OnBudgets != nil {
 		req.OnBudgets(p.params.Budgets.TimeoutSeconds, p.params.Budgets.MaxTurns)
 	}
+	// A release's one-shot run ends blocked, not ok, when its QuickAgent
+	// could not do the task (agentry-cli#629, #680), as `agentry run` does.
+	// A session (StartSession) and a built-in's run (internal/draft and
+	// the others, through localrun) never take it.
+	p.params.EndBlocked = true
 	env, runErr := engine.Run(ctx, p.docker, p.params)
 	// The run completed its lifecycle (success or failure): apply the
 	// profile's keep/remove choice exactly like the CLI (§P2).
@@ -791,6 +804,9 @@ func resultFromEnvelope(env *receipt.Envelope, plan *spec.Plan) *Result {
 		Knowledge:        env.CapabilitiesEnforced["knowledge"],
 		Exec:             env.CapabilitiesEnforced["exec"],
 		Decode:           env.CapabilitiesEnforced["decode"],
+		ExitClass:        receipt.ExitClassName(env.ExitCode),
+		Stage:            env.Stage,
+		Reason:           env.Reason,
 	}
 }
 

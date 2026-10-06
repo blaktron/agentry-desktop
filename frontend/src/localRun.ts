@@ -72,7 +72,34 @@ export function stopAsked(r: LocalRun): LocalRun {
 export function headlineOf(result: main.RunResultView, stopped = false): { line: string; tone: Exclude<Tone, ""> } {
   if (stopped) return { line: "You stopped the run. Its receipts are written as far as it got.", tone: "warn" };
   if (result.status === "ok") return { line: "Finished.", tone: "ok" };
+  if (result.exitClass === "blocked") return { line: blockedLine(result), tone: "warn" };
   return { line: `It ended in an error (exit ${result.exitCode}).`, tone: "bad" };
+}
+
+/** The prefix the CLI puts before a QuickAgent's own end_blocked sentence
+ *  in the envelope's error (agentry-cli#629). */
+const AGENT_BLOCKED = "blocked: the agent could not do the task: ";
+
+/** blockedLine says why a run ended blocked (exit 18, agentry-desktop#680),
+ *  from the envelope's reason: the QuickAgent's own word, with its sentence,
+ *  which on this computer is the person's own run; or the runner's tools
+ *  failing it. A reason this does not know reads as the tools'. */
+export function blockedLine(result: Pick<main.RunResultView, "reason" | "error">): string {
+  if (result.reason?.code === "agent-blocked") {
+    const said = result.error?.startsWith(AGENT_BLOCKED) ? result.error.slice(AGENT_BLOCKED.length).trim() : "";
+    return said
+      ? `Blocked: the QuickAgent could not do the task with what this run had. It said: ${said}`
+      : "Blocked: the QuickAgent could not do the task with what this run had. Its output says why.";
+  }
+  switch (result.reason?.detail) {
+    case "tools-unrecorded":
+      return "Blocked: the runner's tools could not write this run's output folder, so the QuickAgent read no input and wrote no report.";
+    case "inputs-unread":
+      return "Blocked: the runner's tools could not read this run's inputs, so the QuickAgent could not do its task.";
+    case "report-unwritten":
+      return "Blocked: the runner's tools could not write this run's report, so the QuickAgent could not finish its task.";
+  }
+  return "Blocked: the runner's tools failed this run, so the QuickAgent could not do its task.";
 }
 
 /** How the run ended, in the card's line and tone; "" while it runs. A run

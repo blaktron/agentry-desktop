@@ -3990,6 +3990,9 @@ export namespace main {
 	    knowledge?: string;
 	    unsafeExec?: string;
 	    decode?: string;
+	    exitClass?: string;
+	    stage?: string;
+	    reason?: receipt.Reason;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunResultView(source);
@@ -4017,6 +4020,9 @@ export namespace main {
 	        this.knowledge = source["knowledge"];
 	        this.unsafeExec = source["unsafeExec"];
 	        this.decode = source["decode"];
+	        this.exitClass = source["exitClass"];
+	        this.stage = source["stage"];
+	        this.reason = this.convertValues(source["reason"], receipt.Reason);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4811,6 +4817,22 @@ export namespace receipt {
 	        this.path = source["path"];
 	        this.source = source["source"];
 	        this.sha256 = source["sha256"];
+	    }
+	}
+	export class Reason {
+	    code: string;
+	    names?: string[];
+	    detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Reason(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.names = source["names"];
+	        this.detail = source["detail"];
 	    }
 	}
 

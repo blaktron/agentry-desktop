@@ -29,6 +29,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/decode"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
@@ -351,6 +352,22 @@ func scriptDecode(f *dockerx.Fake) {
 // scriptHappyAgent scripts a clean run: probe passes, the agent makes two
 // tool calls, answers, and reports usage (NDJSON shapes from the CLI
 // engine tests).
+// toolsServerStarts makes the fake agent's run do what the real tools
+// server does when the gateway starts it: write the calls ledger's start
+// line under the run's output folder (agentry-cli#629). Without it a
+// release's one-shot run ends blocked, its tools having written nothing
+// (#680), as a real run whose tools cannot write the folder does. line,
+// when given, is appended after it, as the tools server records a call.
+func toolsServerStarts(f *dockerx.Fake, outDir string, lines ...string) {
+	f.Foreground["-agent"].Before = func(dockerx.RunSpec) {
+		ledger := `{"start":true}` + "\n"
+		for _, l := range lines {
+			ledger += l + "\n"
+		}
+		_ = os.WriteFile(filepath.Join(outDir, "receipts", engine.CallsLedgerFile), []byte(ledger), 0o644)
+	}
+}
+
 func scriptHappyAgent(f *dockerx.Fake) {
 	f.Foreground = map[string]*dockerx.FakeForeground{
 		"-probe": fakeProbe(),

@@ -54,12 +54,14 @@ func totalHits(f *fakeRunRegistry) int {
 }
 
 func TestRunOfALocalInstallAsksNoRegistry(t *testing.T) {
-	fr, regURL, _, home := runFixture(t)
+	fr, regURL, fd, home := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
 	installLocalFixture(t, home)
 
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	toolsServerStarts(fd, req.OutDir)
 	var log strings.Builder
-	res, err := Run(context.Background(), request(regURL, filepath.Join(t.TempDir(), "out")), &log)
+	res, err := Run(context.Background(), req, &log)
 	if err != nil {
 		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
 	}
