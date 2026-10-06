@@ -353,7 +353,7 @@ func TestGooglesStepsAreAgentrysAndCarryTheTestUsersStep(t *testing.T) {
 		Scopes: []string{"https://www.googleapis.com/auth/gmail.readonly"}}
 	g := OwnClientSteps("https://accounts.google.com/", gmail)
 	all := strings.Join(g.Steps, "\n")
-	for _, want := range []string{"Test users", "Desktop app", "the Gmail API and the Gmail MCP API", "gmail.readonly", "7 days", "Internal", "Publish app"} {
+	for _, want := range []string{"Test users", "Desktop app", "the Gmail API and the Gmail MCP API", "gmail.readonly", "7 days", "Internal", "Publish app", "Developer Preview", "workspace-mcp"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("Google's steps lack %q:\n%s", want, all)
 		}
@@ -363,8 +363,8 @@ func TestGooglesStepsAreAgentrysAndCarryTheTestUsersStep(t *testing.T) {
 	}
 	pkg := manifest.MCPServer{PyPI: "workspace-mcp", Egress: []string{"gmail.googleapis.com"},
 		OAuth: &manifest.MCPOAuth{Issuer: GoogleIssuer}}
-	if s := strings.Join(OwnClientSteps(GoogleIssuer, pkg).Steps, "\n"); !strings.Contains(s, "gmail.googleapis.com") {
-		t.Fatalf("a package server's steps do not name the hosts it reaches:\n%s", s)
+	if s := strings.Join(OwnClientSteps(GoogleIssuer, pkg).Steps, "\n"); !strings.Contains(s, "gmail.googleapis.com") || strings.Contains(s, "Developer Preview") {
+		t.Fatalf("a package server's steps must name the hosts it reaches and ask for no preview enrolment:\n%s", s)
 	}
 	if other := OwnClientSteps("https://auth.example.com", gmail); other.Known || other.Vendor != "" {
 		t.Fatalf("another vendor's steps claim to be Agentry's: %+v", other)

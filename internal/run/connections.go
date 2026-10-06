@@ -509,9 +509,9 @@ type OwnClientGuide struct {
 // googleProducts names, for each of Google's remote MCP servers, the API
 // and the MCP API its project enables.
 var googleProducts = map[string]string{
-	"gmailmcp.googleapis.com":    "the Gmail API and the Gmail MCP API",
-	"drivemcp.googleapis.com":    "the Google Drive API and the Drive MCP API",
-	"calendarmcp.googleapis.com": "the Google Calendar API and the Calendar MCP API",
+	"gmailmcp.googleapis.com":    "the Gmail API and the Gmail MCP API (gmailmcp.googleapis.com)",
+	"drivemcp.googleapis.com":    "the Google Drive API and the Drive MCP API (drivemcp.googleapis.com)",
+	"calendarmcp.googleapis.com": "the Google Calendar API and the Calendar MCP API (calendarmcp.googleapis.com)",
 }
 
 // OwnClientSteps are Agentry's steps for making one's own client for a
@@ -521,17 +521,25 @@ var googleProducts = map[string]string{
 // general shape.
 func OwnClientSteps(issuer string, srv manifest.MCPServer) OwnClientGuide {
 	if strings.TrimRight(issuer, "/") == GoogleIssuer {
+		steps := []string{
+			"In the Google Cloud console (console.cloud.google.com), create a project or pick one of yours.",
+			"APIs & Services → Library: enable " + googleAPIs(srv) + ".",
+		}
+		if googleRemote(srv) {
+			// Google's remote MCP servers answer a tool call only for a
+			// project enrolled in its Workspace Developer Preview (the
+			// operator's decision of 2026-10-06: ship the steps and say it).
+			steps = append(steps, "Google's remote MCP servers are in Google's Workspace Developer Preview: enrol this project at developers.google.com/workspace/preview. Google asks for a Google Workspace account and can take a couple of days. Until the project is enrolled, every tool call answers \"The caller does not have permission\". A QuickAgent that uses the workspace-mcp server instead reaches Gmail through the Gmail API and needs no enrolment.")
+		}
 		return OwnClientGuide{
 			Issuer: GoogleIssuer, Vendor: "Google", Known: true,
-			Steps: []string{
-				"In the Google Cloud console (console.cloud.google.com), create a project or pick one of yours.",
-				"APIs & Services → Library: enable " + googleAPIs(srv) + ".",
+			Steps: append(steps,
 				"Google Auth Platform → Branding: give the app a name and your email address.",
 				"Audience: choose Internal if your account is in a Google Workspace organization; otherwise External, then Publish app so it is In production. A client left in Testing gets sign-ins that stop working after 7 days.",
 				"If the app stays in Testing: Audience → Test users → Add users, and add the Google account you will sign in with. Google refuses the sign-in of any account a Testing app does not list.",
-				"Data Access → Add or remove scopes: add the scopes this QuickAgent asks for (" + scopeList(connectionScopes(srv)) + ").",
+				"Data Access → Add or remove scopes: add the scopes this QuickAgent asks for ("+scopeList(connectionScopes(srv))+").",
 				"Clients → Create client → Application type: Desktop app. Copy its client ID and client secret into the fields below.",
-			},
+			),
 			Note: "Google may show an \"unverified app\" screen when you sign in with a client of your own: the app is yours, and Google says so because it has not reviewed it. Every QuickAgent you connect to Google from this computer uses the client you keep here; each version still asks for its own consent.",
 			Docs: OwnClientDocs,
 		}
@@ -546,6 +554,15 @@ func OwnClientSteps(issuer string, srv manifest.MCPServer) OwnClientGuide {
 		},
 		Note: "Agentry has not written steps for this vendor. Every QuickAgent you connect there from this computer uses the client you keep here.",
 	}
+}
+
+// googleRemote says srv is one of Google's remote MCP servers.
+func googleRemote(srv manifest.MCPServer) bool {
+	if !srv.IsRemote() {
+		return false
+	}
+	u, err := url.Parse(srv.URL)
+	return err == nil && strings.HasSuffix(u.Hostname(), "mcp.googleapis.com")
 }
 
 // googleAPIs is what a Google project enables for srv: the product API and
