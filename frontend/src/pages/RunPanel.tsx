@@ -21,7 +21,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
-import { knowledge, main, trust } from "../../wailsjs/go/models";
+import { knowledge, main, run, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
@@ -31,6 +31,8 @@ import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice
 import { GuideText, connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
+import { ServerSignIns, asConns } from "./ConnectTools";
+import { connectionBlockers, signInRecap } from "../connections";
 
 export default function RunPanel({
   registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false, initialForm,
@@ -134,6 +136,26 @@ export default function RunPanel({
   // receipt), lets it through (agentry-desktop#459, D-055).
   const [mcp, setMcp] = useState<main.MCPView | null>(null);
   const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(f0?.allowVulnerableMCP ?? false);
+  // The release's servers that sign in by OAuth and the connection this
+  // version keeps for each (agentry-desktop#666): Connect tools makes them,
+  // and Run waits until each is connected. Null until read; a read that
+  // fails leaves the engine's own refusal, which names the server.
+  const [conns, setConns] = useState<run.ReleaseConnections | null>(null);
+  // The release the panel shows now: a late answer for another one is
+  // dropped rather than drawn.
+  const shown = useRef(agentRef);
+  shown.current = agentRef;
+  const readConns = () => {
+    const asked = agentRef;
+    // Through a promise, so a binding an older harness entry lacks is a
+    // read that did not answer, not a throw.
+    Promise.resolve()
+      .then(() => RunAPI.ReleaseConnections(registry, asked))
+      .then((c) => { if (shown.current === asked) setConns(c); })
+      .catch(() => { if (shown.current === asked) setConns(null); });
+  };
+  useEffect(readConns, [registry, agentRef]);
+  const signIns = asConns(conns?.servers);
 
   // Run state. running: a run on this computer is being handed to the
   // run's flow, from Run until Go reports that it has begun (the native
@@ -331,6 +353,7 @@ export default function RunPanel({
   if (unscanned && inAgentry) blockers.push("A run In Agentry is not offered for an unscanned release.");
   if (unscanned && !inAgentry && !acceptUnscanned) blockers.push("Tick \u201cRun an unscanned release\u201d.");
   if (vuln.blocker) blockers.push(vuln.blocker);
+  blockers.push(...connectionBlockers(signIns, inAgentry));
 
   // What the release says about knowledge (plan knowledge.md §4.6): the
   // packs it ships, mounted in every run on this computer, and what it asks
@@ -390,6 +413,10 @@ export default function RunPanel({
       return needsProfile
         ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
         : "Save the keys or cancel the change to go on.";
+    }
+    if (step === "tools" && !inAgentry) {
+      const c = connectionBlockers(signIns, false);
+      if (c.length > 0) return `${c[0]} The vendor's consent screen opens in your browser; this version's later runs reuse what you approve.`;
     }
     if (step === "knowledge" && needsOwnPack) {
       return "This release needs a knowledge pack of your own. Attach one to go on.";
@@ -647,7 +674,7 @@ export default function RunPanel({
               <ul className="run-need">
                 {(guide && guide.prepare.length > 0
                   ? guide.prepare
-                  : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0, files: guide?.files })
+                  : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0, files: guide?.files, signIns: signIns.length })
                 ).map((line, i) => <li key={i}><GuideText text={line} /></li>)}
               </ul>
               <h4>Where to run it</h4>
@@ -923,6 +950,18 @@ export default function RunPanel({
                   <DeclaredServersTable servers={mcp?.declaredServers} />
                 </>
               )}
+              {/* The servers that sign in by OAuth (agentry-desktop#666): on
+                  this computer, Connect; In Agentry, not yet (M9). */}
+              {conns && conns.servers.length > 0 && !inAgentry && (
+                <ServerSignIns registry={registry} agentRef={agentRef} release={conns} onChanged={readConns} />
+              )}
+              {conns && conns.servers.length > 0 && inAgentry && (
+                <Notice tone="warn">
+                  {conns.servers.length === 1 ? "A server this release declares signs in" : "Servers this release declares sign in"} by
+                  OAuth, which a run In Agentry cannot do for you yet. Run it on this computer, where this step connects{" "}
+                  {conns.servers.length === 1 ? "it" : "them"}.
+                </Notice>
+              )}
               {/* In Agentry the keys are the account's secrets there, asked
                   for at the start (agentry-desktop#300); the profile below
                   is this machine's. */}
@@ -993,7 +1032,7 @@ export default function RunPanel({
                   )}
                 </>
               )}
-              {profile && profile.declaredSecrets.length === 0 && (
+              {profile && profile.declaredSecrets.length === 0 && signIns.length === 0 && (
                 <p className="muted small">This release declares no key, so there is nothing to sign in to.</p>
               )}
             </>
@@ -1098,6 +1137,15 @@ export default function RunPanel({
                   <>
                     <dt>Knowledge</dt>
                     <dd><span className="muted small">{hosted.knowledgeNote}</span></dd>
+                  </>
+                )}
+                {signIns.length > 0 && !inAgentry && (
+                  <>
+                    <dt>Sign-ins</dt>
+                    <dd>
+                      <span>{signInRecap(signIns)}</span>
+                      <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit sign-ins">Edit</Button>
+                    </dd>
                   </>
                 )}
                 {profile && profile.declaredSecrets.length > 0 && (

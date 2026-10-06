@@ -22,6 +22,7 @@ import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
 import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
+import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
@@ -30,8 +31,10 @@ import { homeStatus } from "../homeCards";
 // before, moved unchanged, under a "← Settings" link back.
 // Profile (agentry-desktop#423) is a sixth, offered only while the active
 // registry holds a token. Home (agentry-desktop#661) is the last: which
-// cards Home shows, its pins, and Reset Home.
-export type SettingsSection = "profile" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "home";
+// cards Home shows, its pins, and Reset Home. Connections
+// (agentry-desktop#666) sits before Home: the OAuth connections kept on this
+// computer, with Disconnect, and the person's own OAuth clients.
+export type SettingsSection = "profile" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "home";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
@@ -39,6 +42,7 @@ export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
+  | "connections" | "own-clients"
   | "home-cards" | "pins" | "reset-home";
 type Part = { id: SettingsPart; label: string };
 
@@ -81,6 +85,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
       { id: "provider", label: "Model provider" }, { id: "ai-review-key", label: "AI Review key" },
       { id: "web-search", label: "Web search" }, { id: "hybrid-analysis-key", label: "Hybrid Analysis key" },
     ],
+  },
+  {
+    id: "connections", title: "Connections",
+    sentence: "The sign-ins to MCP servers kept on this computer, one per QuickAgent version, with Disconnect, and your own OAuth clients.",
+    parts: [{ id: "connections", label: "Connections" }, { id: "own-clients", label: "Your OAuth clients" }],
   },
   {
     id: "home", title: "Home",
@@ -203,6 +212,7 @@ export default function Settings({
           <PartSection id="hybrid-analysis-key" title="Hybrid Analysis key"><HybridAnalysisKeyCard /></PartSection>
         </>
       )}
+      {section === "connections" && <ConnectionsSettings />}
       {section === "home" && <HomeSettings />}
     </div>
   );
@@ -230,6 +240,7 @@ type Statuses = {
   jev?: main.JevKeyView | null;
   defaults?: main.RunDefaultsView | null;
   home?: main.HomeLayoutView | null;
+  connections?: main.KeptConnectionsView | null;
 };
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
@@ -248,6 +259,9 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     RunAPI.JevKeyStatus().then(put("jev")).catch(() => put("jev")(null));
     SettingsAPI.RunDefaults().then(put("defaults")).catch(() => put("defaults")(null));
     HomeAPI.Layout().then(put("home")).catch(() => put("home")(null));
+    // Through a promise, so a binding an older harness entry lacks drops
+    // the line, not the landing.
+    Promise.resolve().then(() => RunAPI.Connections()).then(put("connections")).catch(() => put("connections")(null));
     return () => { live = false; };
   }, []);
 
@@ -258,6 +272,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
     "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
+    connections: st.connections ? connectionsStatus(st.connections) : null,
     home: st.home ? homeStatus(st.home) : null,
   };
 

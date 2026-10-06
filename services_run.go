@@ -124,6 +124,9 @@ type RunAPI struct {
 	// way, so a second click is refused (services_history.go).
 	downloading sync.Map
 	openFolder  func(dir string) error
+	// openBrowser opens a consent address (services_connections.go); nil
+	// is the system browser. A test substitutes its own.
+	openBrowser func(url string) error
 }
 
 // localSession is the engine's interactive session on this computer as the

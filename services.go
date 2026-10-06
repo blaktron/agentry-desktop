@@ -1216,12 +1216,16 @@ func (i *InstallAPI) CheckUpdates() ([]install.UpdateInfo, error) {
 }
 
 // Uninstall removes one installation (managed dirs only; see engine docs),
-// and its pin when no other install of it is left (agentry-desktop#660).
+// and its pin when no other install of it is left (agentry-desktop#660),
+// and its connections when no runner install of it is (#666).
 func (i *InstallAPI) Uninstall(k installed.Key) (string, error) {
 	msg, err := install.Uninstall(k)
 	if err == nil {
 		i.refreshRow(k)
 		unpinIfGone(k.Namespace + "/" + k.Name)
+		// Its connections go with its last runner install, revoked at the
+		// vendor where it offers that (plan mcp-oauth-connections.md D17).
+		msg += removeConnectionsIfGone(k)
 	}
 	return msg, err
 }

@@ -35,6 +35,13 @@ type Server struct {
 	// Env is the server's plain env, sorted by name; empty when it
 	// declares none.
 	Env []EnvVar `json:"env"`
+	// Remote says it is a remote server, reached at its address
+	// (agentry-cli#663); ID is then that address.
+	Remote bool `json:"remote,omitempty"`
+	// SignsIn says it signs in by OAuth: a remote server's auth: oauth, or
+	// a package server's oauth block (plan mcp-oauth-connections.md). Its
+	// connection is made on the run setup's Connect tools step.
+	SignsIn bool `json:"signsIn,omitempty"`
 }
 
 // Of lists the declared servers of a capability block, in declaration
@@ -43,9 +50,14 @@ func Of(c manifest.Capabilities) []Server {
 	out := []Server{}
 	for _, srv := range c.MCPServers {
 		s := Server{
-			ID:    srv.SourceID() + "@" + srv.Version,
-			Tools: append([]string{}, srv.Tools...),
-			Env:   []EnvVar{},
+			ID:      srv.SourceID() + "@" + srv.Version,
+			Tools:   append([]string{}, srv.Tools...),
+			Env:     []EnvVar{},
+			SignsIn: srv.NeedsConnection(),
+		}
+		if srv.IsRemote() {
+			// A remote server has no package version: its address is it.
+			s.ID, s.Remote = srv.URL, true
 		}
 		for name, value := range srv.Env {
 			if slices.Contains(srv.Secrets, name) || slices.Contains(c.Secrets, name) {

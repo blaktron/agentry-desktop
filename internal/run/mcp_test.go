@@ -180,3 +180,13 @@ func TestDeclaredServerLinesPairWithTheDeclaredServers(t *testing.T) {
 		t.Errorf("tool filters: %q", lines)
 	}
 }
+
+// A remote server is named by its address, not as a package pin with an
+// empty version (agentry-desktop#666's live check).
+func TestARemoteServersCapabilityLineIsItsAddress(t *testing.T) {
+	c := manifest.Capabilities{MCPServers: []manifest.MCPServer{{URL: "https://gmailmcp.googleapis.com/mcp/v1", Auth: manifest.AuthOAuth}}}
+	lines := strings.Join(capabilityLines(c), "\n")
+	if !strings.Contains(lines, "mcpServer: https://gmailmcp.googleapis.com/mcp/v1 (remote, at its vendor; auth: oauth)") || strings.Contains(lines, "@") {
+		t.Fatalf("lines:\n%s", lines)
+	}
+}
