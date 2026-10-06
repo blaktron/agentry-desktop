@@ -1564,6 +1564,40 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class ConnectView {
+	    connection?: run.ServerConnection;
+	    needsOwnClient?: run.OwnClientGuide;
+	    cancelled?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connection = this.convertValues(source["connection"], run.ServerConnection);
+	        this.needsOwnClient = this.convertValues(source["needsOwnClient"], run.OwnClientGuide);
+	        this.cancelled = source["cancelled"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CreatorBudgetView {
 	    timeoutSeconds: number;
 	    maxTurns: number;
@@ -2751,6 +2785,38 @@ export namespace main {
 	    }
 	}
 	
+	export class KeptConnectionsView {
+	    connections: run.KeptConnection[];
+	    clients: run.KeptClient[];
+	
+	    static createFrom(source: any = {}) {
+	        return new KeptConnectionsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.connections = this.convertValues(source["connections"], run.KeptConnection);
+	        this.clients = this.convertValues(source["clients"], run.KeptClient);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class KnowledgeAcceptsView {
 	    prompt: string;
 	    required: boolean;
@@ -4785,6 +4851,8 @@ export namespace mcpview {
 	    id: string;
 	    tools: string[];
 	    env: EnvVar[];
+	    remote?: boolean;
+	    signsIn?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Server(source);
@@ -4795,6 +4863,8 @@ export namespace mcpview {
 	        this.id = source["id"];
 	        this.tools = source["tools"];
 	        this.env = this.convertValues(source["env"], EnvVar);
+	        this.remote = source["remote"];
+	        this.signsIn = source["signsIn"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4953,6 +5023,151 @@ export namespace remote {
 	        this.score = source["score"];
 	        this.flags = source["flags"];
 	    }
+	}
+
+}
+
+export namespace run {
+	
+	export class KeptClient {
+	    issuer: string;
+	    clientId: string;
+	    secretIn?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new KeptClient(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.issuer = source["issuer"];
+	        this.clientId = source["clientId"];
+	        this.secretIn = source["secretIn"];
+	    }
+	}
+	export class KeptConnection {
+	    ref: string;
+	    digest: string;
+	    server: string;
+	    issuer: string;
+	    client: string;
+	    scopes: string[];
+	    state: string;
+	    broken?: string;
+	    label?: string;
+	    createdAt: string;
+	    lastUsedAt?: string;
+	    keptIn: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new KeptConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.digest = source["digest"];
+	        this.server = source["server"];
+	        this.issuer = source["issuer"];
+	        this.client = source["client"];
+	        this.scopes = source["scopes"];
+	        this.state = source["state"];
+	        this.broken = source["broken"];
+	        this.label = source["label"];
+	        this.createdAt = source["createdAt"];
+	        this.lastUsedAt = source["lastUsedAt"];
+	        this.keptIn = source["keptIn"];
+	    }
+	}
+	export class OwnClientGuide {
+	    issuer: string;
+	    vendor?: string;
+	    known: boolean;
+	    steps: string[];
+	    note?: string;
+	    docs?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OwnClientGuide(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.issuer = source["issuer"];
+	        this.vendor = source["vendor"];
+	        this.known = source["known"];
+	        this.steps = source["steps"];
+	        this.note = source["note"];
+	        this.docs = source["docs"];
+	    }
+	}
+	export class ServerConnection {
+	    server: string;
+	    what: string;
+	    issuer?: string;
+	    scopes: string[];
+	    state: string;
+	    broken?: string;
+	    label?: string;
+	    client?: string;
+	    granted: string[];
+	    createdAt?: string;
+	    lastUsedAt?: string;
+	    unsupported?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.server = source["server"];
+	        this.what = source["what"];
+	        this.issuer = source["issuer"];
+	        this.scopes = source["scopes"];
+	        this.state = source["state"];
+	        this.broken = source["broken"];
+	        this.label = source["label"];
+	        this.client = source["client"];
+	        this.granted = source["granted"];
+	        this.createdAt = source["createdAt"];
+	        this.lastUsedAt = source["lastUsedAt"];
+	        this.unsupported = source["unsupported"];
+	    }
+	}
+	export class ReleaseConnections {
+	    ref: string;
+	    digest: string;
+	    servers: ServerConnection[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ReleaseConnections(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.digest = source["digest"];
+	        this.servers = this.convertValues(source["servers"], ServerConnection);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

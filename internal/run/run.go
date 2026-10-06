@@ -659,6 +659,23 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		return nil, err
 	}
 
+	// The connections of the servers that sign in by OAuth (plan
+	// mcp-oauth-connections.md §6, M5; agentry-desktop#666): made on the run
+	// setup's Connect tools step, never asked for here; each is refreshed
+	// under its lock before the sandbox starts, and a missing one refuses
+	// the run by name.
+	conns, err := openConnections(ctx, home, meta.Ref, meta.Digest, m)
+	if err != nil {
+		finishProfile(logw, prof, profDir, keep)
+		return nil, err
+	}
+	if conns.line != "" {
+		if plan.Enforcement == nil {
+			plan.Enforcement = map[string]string{}
+		}
+		plan.Enforcement["mcpServers.connections"] = conns.line
+	}
+
 	// The caller may choose the run id (the app does, so that quitting
 	// mid-run can sweep the run's label; agentry-desktop#125); else it is
 	// minted here.
@@ -745,6 +762,8 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			SecretOverrides: overrides,
 			ServersDir:      serversDir,
 			ExecPackages:    execPackages,
+			Connections:     conns.tokens,
+			RenewConnection: conns.renew,
 			Budgets:         budgets,
 			Attestation:     meta.Attestation,
 			RunID:           runID,
