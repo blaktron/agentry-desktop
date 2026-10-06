@@ -960,6 +960,13 @@ type RunResultView struct {
 	// read, and what ClamAV and the Hybrid Analysis lookup made of them;
 	// omitted for a run with no files.
 	Decode string `json:"decode,omitempty"`
+	// ExitClass names exitCode in the CLI's words; Stage and Reason say
+	// where and why a failed run stopped, in its closed words (#680, #642):
+	// a blocked run's reason says whether the QuickAgent or the runner's
+	// tools stopped it.
+	ExitClass string          `json:"exitClass,omitempty"`
+	Stage     string          `json:"stage,omitempty"`
+	Reason    *receipt.Reason `json:"reason,omitempty"`
 }
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
@@ -1072,6 +1079,9 @@ func runResultView(res *run.Result) *RunResultView {
 		Policy:           res.Policy,
 		Knowledge:        res.Knowledge,
 		Decode:           res.Decode,
+		ExitClass:        res.ExitClass,
+		Stage:            res.Stage,
+		Reason:           res.Reason,
 	}
 	if res.Unsafe {
 		v.UnsafeExec = res.Exec
