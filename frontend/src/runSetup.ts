@@ -208,7 +208,9 @@ export function goesWithoutSentence(
   const keys = (p.optionalSecrets ?? []).filter((k) => inAgentry || !stored.has(k));
   if (keys.length === 0) return "";
   const list = keys.join(", ");
+  const which = keys.length === 1 ? `the optional key ${list}` : `the optional keys ${list}`;
+  const it = keys.length === 1 ? "it" : "them";
   return inAgentry
-    ? `; optional, and it starts without ${list} unless your account keeps ${keys.length === 1 ? "it" : "them"}`
-    : `; optional, and it starts without ${list} unless this computer's environment holds ${keys.length === 1 ? "it" : "them"}`;
+    ? `; the run goes without ${which} unless your account keeps ${it}`
+    : `; the run goes without ${which} unless this computer's environment holds ${it}`;
 }

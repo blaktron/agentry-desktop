@@ -1000,8 +1000,12 @@ export default function RunPanel({
                       </p>
                       {profile.declaredSecrets.map((s) => (
                         <div key={s} className="run-key">
-                          <span className="mono">{s}</span>
-                          {optionalNames.includes(s) && <span className="muted small">optional</span>}
+                          {/* The key's name and its Optional mark share the grid's
+                              first column: the form is two columns, name and field. */}
+                          <span>
+                            <span className="mono">{s}</span>
+                            {optionalNames.includes(s) && <span className="muted small"> optional</span>}
+                          </span>
                           <input
                             type="password"
                             autoComplete="off"

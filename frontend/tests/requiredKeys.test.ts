@@ -36,9 +36,10 @@ test("RunPanel holds a run only for a required key, and says which optional ones
   const p = { declaredSecrets: ["OPT_KEY", "REQ_KEY"], optionalSecrets: ["OPT_KEY"], storedSecretNames: ["REQ_KEY"] };
   assert.deepEqual(requiredOf(p), ["REQ_KEY"]);
   assert.deepEqual(requiredOf({ declaredSecrets: ["A"] }), ["A"]);
-  assert.equal(goesWithoutSentence(p, false), "; optional, and it starts without OPT_KEY unless this computer's environment holds it");
+  assert.equal(goesWithoutSentence(p, false), "; the run goes without the optional key OPT_KEY unless this computer's environment holds it");
   assert.equal(goesWithoutSentence({ ...p, storedSecretNames: ["REQ_KEY", "OPT_KEY"] }, false), "");
-  assert.equal(goesWithoutSentence(p, true), "; optional, and it starts without OPT_KEY unless your account keeps it");
+  assert.equal(goesWithoutSentence(p, true), "; the run goes without the optional key OPT_KEY unless your account keeps it");
+  assert.equal(goesWithoutSentence({ optionalSecrets: ["A", "B"] }, true), "; the run goes without the optional keys A, B unless your account keeps them");
   assert.equal(goesWithoutSentence({ declaredSecrets: ["A"] }, true), "");
 });
 
