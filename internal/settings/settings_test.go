@@ -163,6 +163,11 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 		if got := BuiltinBudgets(b, policy.Budgets{TimeoutSeconds: 900, MaxTurns: 500}); got.Run.MaxTurns != 500 || got.Shown.MaxTurns != 0 {
 			t.Errorf("%s under a policy of 500 turns: %+v, want its 500 run and none shown", b.Ref(), got)
 		}
+		// A policy of 0 turns, unlimited, still gets the failsafe: no
+		// built-in runs here with no stop at all by default.
+		if got := BuiltinBudgets(b, policy.Budgets{TimeoutSeconds: 900, MaxTurns: 0}); got.Run.MaxTurns != BuiltinFailsafeTurns || got.Shown.MaxTurns != 0 {
+			t.Errorf("%s under a policy of unlimited turns: %+v, want the failsafe run and none shown", b.Ref(), got)
+		}
 	}
 
 	s, err := Load()

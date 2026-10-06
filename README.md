@@ -417,11 +417,12 @@ The product never claims an agent is "safe". The language is always:
       in the runner policy. While it is on, a draft (Describe it, Edit with
       AI), a knowledge build, a local review and a Writing Voice run on this
       computer have no timeout and no turn limit the app shows: each runs
-      until it finishes or you stop it. A failsafe of 200 turns
-      (`settings.BuiltinFailsafeTurns`, or the policy's max turns when that
-      is higher) still ends one that loops; no progress line or log names
-      it. The cost cap still applies (a model that hangs mid-turn meets
-      neither), and a draft's repair turn keeps the CLI's own 5 minutes.
+      until it finishes or you stop it. A hidden failsafe of 200 turns (or
+      the policy's max turns when that is higher, and 200 under a policy of
+      0, unlimited) still ends one that loops; no progress line or log names
+      it, and the receipt records it. The cost cap still applies, and a
+      draft's repair turn keeps the CLI's own 5 minutes. A model that hangs
+      mid-turn meets neither cap: Stop ends it.
       Turned off, the built-ins keep their floors above and the policy's max
       turns. Your QuickAgents' runs, the CLI and anything In Agentry keep
       their limits, and it applies from the next job started.

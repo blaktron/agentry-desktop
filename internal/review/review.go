@@ -193,9 +193,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if logw == nil {
 		logw = io.Discard
 	}
-	l := p.Budgets()
-	b := l.Run
-	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(l.Shown.TimeoutSeconds, l.Shown.MaxTurns)})
+	limits := p.Budgets()
+	b, shown := limits.Run, limits.Shown
+	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(shown.TimeoutSeconds, shown.MaxTurns)})
 	prog.Set(atStage(StageRules))
 	client := req.HTTP
 	if client == nil {

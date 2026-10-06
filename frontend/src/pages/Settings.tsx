@@ -387,8 +387,9 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // a consent: every run still asks what it asks. Unsafe Mode's switch is here
 // too (agentry-desktop#418): the page asks Go to turn it on, and Go asks the
 // person in a native dialog and pulls the image before it reads on. The
-// built-in agents' switch (agentry-desktop#606, D-062) sits with the
-// timeout it lifts, for drafts, builds, reviews and voices on this computer.
+// built-in agents' switch (agentry-desktop#606, D-062; on by default since
+// agentry-desktop#699) sits with the timeout and turns it lifts, for drafts,
+// builds, reviews and voices on this computer.
 function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);

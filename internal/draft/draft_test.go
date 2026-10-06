@@ -569,9 +569,10 @@ func TestARunReportsItsProgress(t *testing.T) {
 // TestADraftOnThisComputerGetsAtLeastThirtyMinutes (plan scan-and-run-tweaks.md
 // §6.1, D14; agentry-desktop#458, the CLI's DR-54): the Drafter's run is given the
 // longer of the runner policy's timeout and 1,800 seconds, the CLI's own
-// floor, where it took the policy's 900 before. The turn and cost caps stay
-// the policy's, no budget counts tokens, and the repair turn keeps its own
-// bound inside what the draft has left.
+// floor, where it took the policy's 900 before. With Run defaults' no-limit
+// switch off, as here, the turn and cost caps stay the policy's, no budget
+// counts tokens, and the repair turn keeps its own bound inside what the
+// draft has left.
 func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

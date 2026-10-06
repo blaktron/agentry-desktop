@@ -81,11 +81,12 @@ type Progress struct {
 // budget, 15 minutes by default, allows; a policy that allows more keeps
 // its own. The floor is the CLI's (localrun.Builtin.LocalBudgets, the
 // CLI's DR-54), not a figure kept here, so a build gets the same time from
-// this app as from `agentry knowledge create`. It is a timeout alone: the
-// turn and cost caps are the policy's, and no budget of a build counts
-// tokens. Run defaults' no-limit switch for the built-in agents, on by
-// default, takes the timeout and the shown turn cap away
-// (settings.BuiltinBudgets, D-062).
+// this app as from `agentry knowledge create`. No budget of a build
+// counts tokens. That is with Run defaults' no-limit switch for the
+// built-in agents off; on, the default, the build has no timeout and runs
+// to the hidden failsafe of turns, and Shown says no limit
+// (settings.BuiltinBudgets, D-062 and its addendum). The cost cap is the
+// policy's either way.
 func CreatorBudgets(pol *policy.Policy) settings.BuiltinLimits {
 	var b policy.Budgets
 	if pol != nil {
@@ -296,12 +297,9 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	if shown.MaxTurns > 0 {
 		turns = fmt.Sprintf(" and %d turns", shown.MaxTurns)
 	}
-	switch {
-	case shown.TimeoutSeconds > 0:
+	if shown.TimeoutSeconds > 0 {
 		logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", shown.TimeoutSeconds/60, turns)
-	case shown.MaxTurns > 0:
-		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time limit, so it runs until it is done or reaches %d turns.", shown.MaxTurns)
-	default:
+	} else {
 		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time or turn limit, so it runs until it is done or you stop it.")
 	}
 	if total := DocumentsBytes(req.Documents); total > kn.MaxBytes {
