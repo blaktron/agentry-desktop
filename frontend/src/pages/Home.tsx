@@ -4,8 +4,8 @@ import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, main } from "../../wailsjs/go/models";
-import { Notice, PageHeader } from "../ui";
-import { cardsToDraw, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
+import { Button, Notice, PageHeader } from "../ui";
+import { cardsToDraw, HOME_DEFAULTS, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
 import { greeting } from "../homeLines";
 import { signedInTo } from "./Settings";
 import { InstalledCard } from "./home/InstalledCard";
@@ -28,7 +28,7 @@ import type { Pin } from "../pins";
 // card's action opens the page that does it.
 
 // The default cards' places when the layout cannot be read at all.
-const FALLBACK: LayoutCard[] = [{ kind: "recent-runs" }, { kind: "installed" }, { kind: "profile" }, { kind: "run-defaults" }];
+const FALLBACK: LayoutCard[] = HOME_DEFAULTS.map((kind) => ({ kind }));
 
 type Got<T> = { value: T | null; error: string | null };
 const pending = <T,>(): Got<T> => ({ value: null, error: null });
@@ -52,6 +52,8 @@ export type HomeOpen = {
   // A pin's Run for a QuickAgent from a registry: its page, with the run
   // setup open (a folder install's opens here, as the Library's does).
   runAgent: (registry: string, ns: string, name: string) => void;
+  // Settings → Home: which cards, the pins, Reset (agentry-desktop#661).
+  settings: () => void;
 };
 
 // How many rows Recent runs shows (plan §4.3).
@@ -144,7 +146,8 @@ export default function Home({ registry, settings, open, banner }: {
 
   return (
     <div>
-      <PageHeader title="Home" sub={greeting(profile.value?.user ?? null) ?? "Your recent runs, what is installed on this computer, your account and how your runs are set up."} />
+      <PageHeader title="Home" sub={greeting(profile.value?.user ?? null) ?? "Your recent runs, what is installed on this computer, your account and how your runs are set up."}
+        actions={<Button variant="link" data-home-settings onClick={open.settings}>Home settings</Button>} />
       {banner}
       {layout.error && <Notice tone="warn">Home's layout could not be read, so the default cards are shown: {layout.error}</Notice>}
       {layout.value?.unreadable && (
@@ -157,6 +160,11 @@ export default function Home({ registry, settings, open, banner }: {
         <Notice tone="info">
           Home was arranged by a newer Agentry Desktop. This one shows the default cards and leaves that arrangement as it is.
         </Notice>
+      )}
+      {layout.value && cards.length === 0 && (
+        <p className="muted" data-home-none>
+          Every card is hidden. <Button variant="link" onClick={open.settings}>Home settings</Button> shows them again.
+        </p>
       )}
       <div className="build-ways home-cards">
         {cards.map((c) => <div key={c.key} className="home-card-cell" data-home-card={c.kind}>{renderers[c.kind]?.(c)}</div>)}

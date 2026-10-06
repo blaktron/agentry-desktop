@@ -204,3 +204,65 @@ func TestPinsKeepWhatTheyDoNotKnowAndANewerLayoutTakesNone(t *testing.T) {
 		t.Fatal("UnpinRef changed a newer layout")
 	}
 }
+
+// Settings → Home (agentry-desktop#661): hiding a default card between
+// Pinned cards keeps its place and leaves every pin where it was; showing
+// it puts it back there. A card hidden before a pin opened a Pinned card
+// stays ahead of it.
+func TestHidingACardKeepsItsPlaceAmongThePinnedCards(t *testing.T) {
+	isolate(t)
+	if err := SetHomeCardShown(HomeProfile, false); err != nil {
+		t.Fatal(err)
+	}
+	pin(t, "a", "b", "c", "d", "e")
+	if err := SetHomeCardShown(HomeRecentRuns, false); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _, _ := HomeLayoutNow()
+	if got, want := strings.Join(kinds(l), ","), "recent-runs(hidden),installed,profile(hidden),run-defaults,pinned,pinned"; got != want {
+		t.Fatalf("after hiding = %s, want %s", got, want)
+	}
+	if got := pinCards(t); got != "a,b,c,d|e" {
+		t.Fatalf("hiding moved the pins: %s", got)
+	}
+	for _, k := range []string{HomeRecentRuns, HomeProfile} {
+		if err := SetHomeCardShown(k, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, _, _, _ = HomeLayoutNow()
+	if got, want := strings.Join(kinds(l), ","), "recent-runs,installed,profile,run-defaults,pinned,pinned"; got != want {
+		t.Fatalf("after showing = %s, want %s", got, want)
+	}
+	if got := pinCards(t); got != "a,b,c,d|e" {
+		t.Fatalf("showing moved the pins: %s", got)
+	}
+}
+
+// Reset Home restores the four default cards, every one shown, and drops
+// every pin with the Pinned cards (agentry-desktop#661: the page says so
+// before it asks).
+func TestResetDropsEveryPin(t *testing.T) {
+	isolate(t)
+	pin(t, "a", "b", "c", "d", "e")
+	if err := SetHomeCardShown(HomeInstalled, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := ResetHome(); err != nil {
+		t.Fatal(err)
+	}
+	l, newer, unreadable, err := HomeLayoutNow()
+	if err != nil || newer || unreadable {
+		t.Fatalf("after Reset: err=%v newer=%v unreadable=%v", err, newer, unreadable)
+	}
+	if got, want := strings.Join(kinds(l), ","), "recent-runs,installed,profile,run-defaults"; got != want {
+		t.Fatalf("after Reset = %s, want %s", got, want)
+	}
+	if got := pinCards(t); got != "" || IsPinned("acme/a", pinReg) {
+		t.Fatalf("Reset kept pins: %q", got)
+	}
+	pin(t, "f")
+	if got := pinCards(t); got != "f" {
+		t.Fatalf("a pin after Reset: %q", got)
+	}
+}

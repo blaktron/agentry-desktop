@@ -1013,6 +1013,15 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .home-card-facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; }
 .home-card-facts dt { color: var(--color-muted); }
 .home-card-facts dd { margin: 0; overflow-wrap: anywhere; }
+/* Settings → Home (agentry-desktop#661): a switch per default card with
+   its line, and the pins grouped by Pinned card, each with Unpin. */
+.home-card-switch + .home-card-switch { margin-top: 10px; }
+.home-card-switch p { margin: 2px 0 0 28px; }
+.home-pins-card + .home-pins-card { margin-top: 14px; }
+.home-pins-card-title { margin: 0 0 6px; }
+.home-pins-card .home-card-list { gap: 10px; }
+.home-pins-card li { overflow-wrap: anywhere; }
+.home-said { margin: 8px 0 0; color: var(--color-ok); }
 
 /* The figures' light lines (BuildWays.tsx), the site's convergence
    language (agentry-web app/globals.css, .convergence): a beam pulses, a
