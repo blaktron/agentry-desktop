@@ -23,7 +23,7 @@ import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { knowledge, main, run, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
-import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey } from "../runSetup";
+import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
 import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
@@ -202,7 +202,7 @@ export default function RunPanel({
         setMode(initialMode ?? ((p.modes ?? []).includes("autonomous") || (p.modes ?? []).length === 0 ? "autonomous" : p.modes[0]));
         setKeep(p.keep);
         setKeepTouched(false);
-        if (p.declaredSecrets.length > 0 && !p.exists) setFormOpen(true);
+        if (requiredOf(p).length > 0 && !p.exists) setFormOpen(true);
       })
       .catch((e) => setProfileErr(String(e)));
   }, [registry, agentRef]);
@@ -263,7 +263,11 @@ export default function RunPanel({
   const unscanned = attestation?.state === "unscanned";
   const unverifiable = attestation != null && attestation.state !== "verified" && !unsigned && !unscanned;
   const refused = !!mcp?.refusal;
-  const needsProfile = !!profile && profile.declaredSecrets.length > 0 && !profile.exists;
+  // Only a key a run cannot start without holds the run until the keys are
+  // saved: an optional one (agentry-desktop#655) can be left out.
+  const requiredNames = profile ? requiredOf(profile) : [];
+  const optionalNames = profile?.optionalSecrets ?? [];
+  const needsProfile = !!profile && requiredNames.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
@@ -340,7 +344,7 @@ export default function RunPanel({
   if (!inAgentry && needsProfile && profile) {
     const servers = mcp?.servers ?? [];
     const server = servers.length === 1 ? servers[0] : "this release";
-    blockers.push(`Save the keys for ${server}: ${profile.declaredSecrets.join(", ")} (or leave them to the environment).`);
+    blockers.push(`Save the keys for ${server}: ${requiredNames.join(", ")} (or leave them to the environment).`);
   }
   if (intakeMissing.length > 0 && profile) {
     for (const q of profile.intake.filter((q) => intakeMissing.includes(q.id))) {
@@ -674,7 +678,7 @@ export default function RunPanel({
               <ul className="run-need">
                 {(guide && guide.prepare.length > 0
                   ? guide.prepare
-                  : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], servers: mcp?.declaredServers?.length ?? 0, files: guide?.files, signIns: signIns.length })
+                  : needList({ intake: profile?.intake ?? [], secrets: profile?.declaredSecrets ?? [], optional: optionalNames, servers: mcp?.declaredServers?.length ?? 0, files: guide?.files, signIns: signIns.length })
                 ).map((line, i) => <li key={i}><GuideText text={line} /></li>)}
               </ul>
               <h4>Where to run it</h4>
@@ -996,12 +1000,19 @@ export default function RunPanel({
                       </p>
                       {profile.declaredSecrets.map((s) => (
                         <div key={s} className="run-key">
-                          <span className="mono">{s}</span>
+                          {/* The key's name and its Optional mark share the grid's
+                              first column: the form is two columns, name and field. */}
+                          <span>
+                            <span className="mono">{s}</span>
+                            {optionalNames.includes(s) && <span className="muted small"> optional</span>}
+                          </span>
                           <input
                             type="password"
                             autoComplete="off"
                             aria-label={s}
-                            placeholder="empty = resolve from the environment at run time"
+                            placeholder={optionalNames.includes(s)
+                              ? "empty = from the environment, or the run starts without it"
+                              : "empty = resolve from the environment at run time"}
                             value={formValues[s] ?? ""}
                             onChange={(e) => setFormValues({ ...formValues, [s]: e.target.value })}
                           />
@@ -1154,8 +1165,11 @@ export default function RunPanel({
                     <dd>
                       <span>
                         {inAgentry
-                          ? "your account's secrets in Agentry; one it does not keep is asked for when you start"
+                          ? requiredNames.length > 0
+                            ? "your account's secrets in Agentry; a required one it does not keep is asked for when you start"
+                            : "your account's secrets in Agentry"
                           : profile.exists ? "saved for this release" : "not saved yet"}
+                        {goesWithoutSentence(profile, inAgentry)}
                       </span>
                       {!inAgentry && (
                         <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit keys">Edit</Button>

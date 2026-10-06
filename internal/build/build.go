@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -88,7 +89,13 @@ type Model struct {
 	FSWritePaths []string `json:"fsWritePaths"`
 	ExecCommands []string `json:"execCommands"`
 	Secrets      []string `json:"secrets"`
-	DataAccess   []string `json:"dataAccess"`
+	// RequiredSecrets are the declared keys, its own and its servers', the
+	// author marked Required (plan optional-secrets.md D2,
+	// agentry-desktop#655): a run cannot start without them. Every other
+	// declared key is written to capabilities.optionalSecrets, so a key the
+	// author attaches starts as Optional.
+	RequiredSecrets []string `json:"requiredSecrets"`
+	DataAccess      []string `json:"dataAccess"`
 	// MCPServers are the declared, version-pinned MCP servers (DEV-060);
 	// one structured row per server so the form never guesses at a
 	// line syntax.
@@ -216,7 +223,7 @@ func Default(namespace string) *Model {
 		InstructionFile: defaultInstructionFile, Intake: []IntakeRow{},
 		EgressMode: "none", FSRead: "workspace", FSWrite: "none",
 		Tags: []string{}, EgressHosts: []string{}, FSReadPaths: []string{}, FSWritePaths: []string{},
-		ExecCommands: []string{}, Secrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
+		ExecCommands: []string{}, Secrets: []string{}, RequiredSecrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
 		Authors: []AuthorRow{}, Guide: GuideModel{Prepare: []string{}, Connect: []ConnectRow{}},
 		RuntimeModels: []string{}, RuntimeInterfaces: []string{"claude-skill", "agents-md"},
 		Dependencies: []DependencyRow{}, PublishInclude: []string{},
@@ -298,6 +305,15 @@ func (m *Model) formProblems() []SectionProblem {
 	agentSecrets := map[string]bool{}
 	for _, s := range compact(m.Secrets) {
 		agentSecrets[s] = true
+	}
+	declared := map[string]bool{}
+	for _, s := range m.declaredSecrets() {
+		declared[s] = true
+	}
+	for _, s := range compact(m.RequiredSecrets) {
+		if !declared[s] {
+			add(SectionAccess, "%s is marked Required but is not a declared key", s)
+		}
 	}
 	seen := map[string]bool{}
 	for i, srv := range m.MCPServers {
@@ -701,7 +717,7 @@ func (m *Model) intakeLines() []string {
 		if qn.Type != "" && qn.Type != "text" {
 			out = append(out, "    type: "+qn.Type)
 		}
-		if qn.Required {
+		if m.questionRequired(qn) {
 			out = append(out, "    required: true")
 		}
 		if qn.Type == "choice" {
@@ -795,6 +811,67 @@ func (m *Model) serverLines() []string {
 		}
 	}
 	return out
+}
+
+// declaredSecrets is every key the QuickAgent declares, its own then each
+// server's, each once, in the form's order.
+func (m *Model) declaredSecrets() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(names []string) {
+		for _, n := range compact(names) {
+			if !seen[n] {
+				seen[n] = true
+				out = append(out, n)
+			}
+		}
+	}
+	add(m.Secrets)
+	for _, srv := range m.MCPServers {
+		add(srv.Secrets)
+	}
+	return out
+}
+
+// OptionalSecrets is the manifest's capabilities.optionalSecrets (DEV-212):
+// every declared key the author did not mark Required.
+func (m *Model) OptionalSecrets() []string {
+	required := map[string]bool{}
+	for _, s := range compact(m.RequiredSecrets) {
+		required[s] = true
+	}
+	out := []string{}
+	for _, s := range m.declaredSecrets() {
+		if !required[s] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// questionRequired is an intake question's `required`: a secret question
+// carried by a key of the QuickAgent's own follows that key's marking (plan
+// D7, the core's V10), so the two cannot disagree; any other follows its
+// box.
+func (m *Model) questionRequired(qn IntakeRow) bool {
+	if qn.Type != "secret" {
+		return qn.Required
+	}
+	key := strings.ToUpper(strings.TrimSpace(qn.ID))
+	if !slices.Contains(compact(m.Secrets), key) {
+		return qn.Required
+	}
+	return slices.Contains(compact(m.RequiredSecrets), key)
+}
+
+// optionalLines is capabilities.optionalSecrets. It follows mcpServers in
+// the written file because it may name a server's key, so a reader meets
+// each name before the line that marks it.
+func (m *Model) optionalLines() []string {
+	if opt := m.OptionalSecrets(); len(opt) > 0 {
+		return []string{"  optionalSecrets: " + seq(opt)}
+	}
+	return nil
 }
 
 func (m *Model) accessLines() []string {
@@ -908,7 +985,8 @@ func (m *Model) manifestYAML() string {
 	block(m.runtimeLines())
 	caps := append([]string{"capabilities:"}, m.networkLines()...)
 	caps = append(caps, m.accessLines()...)
-	block(append(caps, m.serverLines()...))
+	caps = append(caps, m.serverLines()...)
+	block(append(caps, m.optionalLines()...))
 	block(m.knowledgeLines())
 	block(m.dependencyLines())
 	block(m.publishLines())
@@ -1100,10 +1178,11 @@ func decodeManifest(raw []byte) (*Model, error) {
 				Read  yaml.Node `yaml:"read"`
 				Write yaml.Node `yaml:"write"`
 			} `yaml:"filesystem"`
-			Exec       yaml.Node `yaml:"exec"`
-			Secrets    []string  `yaml:"secrets"`
-			DataAccess []string  `yaml:"dataAccess"`
-			MCPServers []struct {
+			Exec            yaml.Node `yaml:"exec"`
+			Secrets         []string  `yaml:"secrets"`
+			OptionalSecrets []string  `yaml:"optionalSecrets"`
+			DataAccess      []string  `yaml:"dataAccess"`
+			MCPServers      []struct {
 				NPM     string            `yaml:"npm"`
 				PyPI    string            `yaml:"pypi"`
 				Version string            `yaml:"version"`
@@ -1196,6 +1275,19 @@ func decodeManifest(raw []byte) (*Model, error) {
 			row.Env = append(row.Env, EnvRow{Name: name, Value: srv.Env[name]})
 		}
 		m.MCPServers = append(m.MCPServers, row)
+	}
+	// The form holds the Required keys: every declared key the manifest does
+	// not list as optional, so one without optionalSecrets comes in with
+	// every key Required, as it runs.
+	optional := map[string]bool{}
+	for _, s := range doc.Capabilities.OptionalSecrets {
+		optional[s] = true
+	}
+	m.RequiredSecrets = []string{}
+	for _, s := range m.declaredSecrets() {
+		if !optional[s] {
+			m.RequiredSecrets = append(m.RequiredSecrets, s)
+		}
 	}
 	m.KnowledgePrompt, m.KnowledgeRequired = doc.Knowledge.Accepts.Prompt, doc.Knowledge.Accepts.Required
 	for _, sh := range doc.Knowledge.Ships {

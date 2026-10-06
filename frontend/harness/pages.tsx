@@ -113,7 +113,10 @@ const buildModel = {
   license: "Apache-2.0", summary: "Summarises an incident channel into a report card, redacting secrets first.",
   tags: ["oncall", "reporting"], instructionFile: "AGENT.md",
   egressMode: "hosts", egressHosts: window.location.hash === "#build-summary-hostile" ? ["api.pagerduty.com", "<img src=x onerror=alert(1)>\u202e"] : ["api.pagerduty.com"], fsRead: "workspace", fsReadPaths: [],
-  fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN"],
+  fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN", "STATUSPAGE_TOKEN"],
+  // PAGERDUTY_TOKEN marked Required; STATUSPAGE_TOKEN left Optional, as a
+  // newly attached key starts (agentry-desktop#655).
+  requiredSecrets: ["PAGERDUTY_TOKEN"],
   mcpServers: [{ source: "npm", package: "@cyanheads/osv-advisory-mcp-server", version: "0.1.13", tools: [], secrets: [], egress: ["api.osv.dev"], env: [{ name: "LOG_LEVEL", value: "info" }] }],
   dataAccess: ["tickets"], intake: [], opening: "", idleTimeoutSeconds: 0,
   guide: { overview: window.location.hash === "#build-summary-hostile"
@@ -240,10 +243,10 @@ const draftedView = buildHash.startsWith("drafted") || summaryDraft || landedDra
 function summaryFor(m: typeof buildModel, unmentioned: string[]) {
   const marked = new Set(unmentioned.map((h) => h.toLowerCase()));
   const host = (h: string) => ({ host: h, unnamed: marked.has(h.toLowerCase()) });
-  const keys: { name: string; help: string; usedBy: string[] }[] = [];
+  const keys: { name: string; help: string; usedBy: string[]; optional: boolean }[] = [];
   const need = (name: string, by: string) => {
     let k = keys.find((x) => x.name === name);
-    if (!k) { k = { name, help: m.guide.connect.find((c) => c.secret === name)?.help ?? "", usedBy: [] }; keys.push(k); }
+    if (!k) { k = { name, help: m.guide.connect.find((c) => c.secret === name)?.help ?? "", usedBy: [], optional: !m.requiredSecrets.includes(name) }; keys.push(k); }
     if (k.usedBy[k.usedBy.length - 1] !== by) k.usedBy.push(by);
   };
   m.secrets.forEach((k) => need(k, "the QuickAgent"));

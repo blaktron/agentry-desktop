@@ -49,7 +49,7 @@ export function signInNeed(count: number): string | null {
 // other questions by their own prompts, the task, which on this machine is
 // optional (the packaged instruction runs without one), and, where MCP
 // servers are declared with no key, that there is none to set up.
-export function needList(release: { intake: Question[]; secrets: string[]; servers?: number; files?: string; signIns?: number }): string[] {
+export function needList(release: { intake: Question[]; secrets: string[]; optional?: string[]; servers?: number; files?: string; signIns?: number }): string[] {
   const out: string[] = [];
   const fileQs = release.intake.filter((q) => q.type === "file");
   if (fileQs.length > 0) {
@@ -61,9 +61,13 @@ export function needList(release: { intake: Question[]; secrets: string[]; serve
     out.push("Any files the task is about. This is optional: a run can start with none.");
   }
   if (release.secrets.length > 0) {
+    // A key the release marks optional (agentry-desktop#655) can be left
+    // out altogether: the run starts without it.
+    const optional = (release.optional ?? []).filter((k) => release.secrets.includes(k));
     out.push(
       `The key${release.secrets.length === 1 ? "" : "s"} it declares: ${release.secrets.join(", ")}. ` +
-        "You can also leave a key to this machine's environment.",
+        "You can also leave a key to this machine's environment." +
+        (optional.length > 0 ? ` A run can start without ${optional.join(", ")}.` : ""),
     );
   }
   for (const q of release.intake) {
@@ -182,4 +186,31 @@ export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; 
     showRefusal: false,
     blocker: s.consented ? null : "Tick “Allow vulnerable MCP servers for this run”.",
   };
+}
+
+/** The declared keys a run cannot start without (agentry-desktop#655). */
+export function requiredOf(p: { declaredSecrets: string[]; optionalSecrets?: string[] }): string[] {
+  const optional = new Set(p.optionalSecrets ?? []);
+  return p.declaredSecrets.filter((k) => !optional.has(k));
+}
+
+/**
+ * What the review says of the optional keys a run may go without: on this
+ * computer, each one the saved profile holds no value for, which the run
+ * takes from the environment or starts without; In Agentry, each one, which
+ * the run carries only where the account keeps it. "" when there are none.
+ */
+export function goesWithoutSentence(
+  p: { optionalSecrets?: string[]; storedSecretNames?: string[] },
+  inAgentry: boolean,
+): string {
+  const stored = new Set(p.storedSecretNames ?? []);
+  const keys = (p.optionalSecrets ?? []).filter((k) => inAgentry || !stored.has(k));
+  if (keys.length === 0) return "";
+  const list = keys.join(", ");
+  const which = keys.length === 1 ? `the optional key ${list}` : `the optional keys ${list}`;
+  const it = keys.length === 1 ? "it" : "them";
+  return inAgentry
+    ? `; the run goes without ${which} unless your account keeps ${it}`
+    : `; the run goes without ${which} unless this computer's environment holds ${it}`;
 }

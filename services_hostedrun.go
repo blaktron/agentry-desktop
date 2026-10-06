@@ -135,6 +135,14 @@ type HostedAvailabilityView struct {
 	// used as it is, one it does not keep is asked for at the start
 	// (agentry-desktop#300).
 	DeclaredSecrets []string `json:"declaredSecrets,omitempty"`
+	// OptionalSecrets are those of DeclaredSecrets a run can start without
+	// (agentry-desktop#655): a run In Agentry carries one only where the
+	// account keeps it, and is never held for one.
+	OptionalSecrets []string `json:"optionalSecrets,omitempty"`
+	// Vault says the registry keeps an account's secrets for runs In
+	// Agentry: where it keeps none, a release offered here has only
+	// optional secrets, and its run goes without them.
+	Vault bool `json:"vault"`
 
 	// Session is Talk to it In Agentry, a hosted session of the release's
 	// interactive mode (agentry-desktop#403): whether it is offered, and
@@ -285,7 +293,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 			facts.Extension = hasString(exts, "runs")
 			facts.Vault = hasString(exts, "vault")
 		}
-		v.Extension = facts.Extension
+		v.Extension, v.Vault = facts.Extension, facts.Vault
 	}
 	// A registry with no runs extension, or nobody signed in: the mode is
 	// absent and nothing else is asked of the registry.
@@ -298,12 +306,12 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	// What the release declares, from the resolve alone: reading the
 	// operator policy or an MCP profile to answer this would make the mode
 	// depend on the machine it is offered on.
-	modes, secrets, err := run.Declared(ctx, reg, ref)
+	modes, secrets, optional, err := run.Declared(ctx, reg, ref)
 	if err != nil {
 		return nil, err
 	}
-	facts.Modes, facts.DeclaredSecrets = modes, secrets
-	v.DeclaredSecrets = secrets
+	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = modes, secrets, optional
+	v.DeclaredSecrets, v.OptionalSecrets = secrets, emptyNotNil(optional)
 
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
 

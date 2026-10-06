@@ -46,6 +46,7 @@ import { BUILD_TAGLINE, BuildWays } from "./BuildWays";
 import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFoot, StepHeading, StepList, Textarea } from "../ui";
 import { KeyHelpList } from "../KeyHelp";
 import { advisoryWords } from "../advisory";
+import { declaredKeys, optionalKeys, questionRequired, requiredKeys } from "../requiredKeys";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
 // The §19 instruction-file quota, as internal/build's maxInstructionBytes.
@@ -193,8 +194,50 @@ function localReach(m: build.Model): { what: string; value: string }[] {
     { what: "Writes", value: fs(m.fsWrite, m.fsWritePaths) },
     { what: "Commands", value: m.execCommands.join(", ") || "none" },
     { what: "Its own keys", value: m.secrets.join(", ") || "none" },
+    { what: "Optional keys", value: optionalKeys(m).join(", ") || "none" },
     { what: "Data it touches", value: m.dataAccess.join(", ") || "none declared" },
   ];
+}
+
+// RequiredBox is an intake question's required box. A secret question of
+// the QuickAgent's own key follows the key's Required/Optional choice (plan
+// D7): drawn from it, and not a box of its own.
+function RequiredBox({ m, q, onChange }: { m: build.Model; q: build.IntakeRow; onChange: (required: boolean) => void }) {
+  const r = questionRequired(m, q);
+  return (
+    <label className="check-row" style={{ margin: 0 }} title={r.follows ? "Follows its key's choice under Files, commands and data" : undefined}>
+      <input type="checkbox" checked={r.required} disabled={r.follows} onChange={(e) => onChange(e.target.checked)} />
+      <span>{r.follows ? "required (follows its key)" : "required"}</span>
+    </label>
+  );
+}
+
+// KeyChoices is a Required/Optional choice for each key the QuickAgent and
+// its servers declare (plan optional-secrets.md D2, agentry-desktop#655):
+// a key starts as Optional, and the model holds the Required ones.
+function KeyChoices({ m, onChange }: { m: build.Model; onChange: (required: string[]) => void }) {
+  const keys = declaredKeys(m);
+  if (keys.length === 0) return null;
+  const required = new Set(m.requiredSecrets ?? []);
+  return (
+    <fieldset className="small" style={{ marginTop: 8 }}>
+      <legend>does a run need each key?</legend>
+      <p className="muted small" style={{ margin: "0 0 6px" }}>
+        A run starts without an optional key, and the QuickAgent is told which keys it was not given. Mark a key required when the
+        QuickAgent cannot do its job without it.
+      </p>
+      {keys.map((k) => (
+        <div key={k} className="row small" style={{ gap: 6 }}>
+          <span className="mono">{k}</span>
+          <select aria-label={`Does a run need ${k}?`} value={required.has(k) ? "required" : "optional"}
+            onChange={(e) => onChange(requiredKeys(m, { name: k, required: e.target.value === "required" }))}>
+            <option value="optional">optional: a run starts without it</option>
+            <option value="required">required: a run cannot start without it</option>
+          </select>
+        </div>
+      ))}
+    </fieldset>
+  );
 }
 
 function ReachList({ title, rows }: { title: string; rows: { what: string; value: string }[] }) {
@@ -379,7 +422,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const set = (patch: Partial<build.Model>) => {
     if (!m) return;
     setTouched(true);
-    setModel(new build.Model({ ...m, ...patch }));
+    const next = { ...m, ...patch };
+    // A Required mark goes with its key (src/requiredKeys.ts).
+    setModel(new build.Model({ ...next, requiredSecrets: requiredKeys(next) }));
   };
 
   async function wrap(label: string, fn: () => Promise<void>) {
@@ -753,7 +798,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                 </div>
                 {(srv.secrets ?? []).length > 0 && (
                   <p className="muted small" style={{ margin: "6px 0 0" }}>
-                    It needs {srv.secrets.join(", ")}, so this QuickAgent runs on this computer, not in Agentry, until hosted runs carry keys.
+                    It needs {srv.secrets.join(", ")}: whoever runs the QuickAgent supplies {srv.secrets.length === 1 ? "it" : "them"}, on their computer or when they start it in Agentry. Under Files, commands and data you say whether a run can start without each.
                   </p>
                 )}
               </div>
@@ -798,6 +843,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         <label className="small" style={{ display: "block", marginTop: 8 }}>keys or tokens of its own (NAMES of environment variables, never values)
           <ListInput value={m.secrets} onChange={(v) => set({ secrets: v })} placeholder="MY_API_TOKEN" />
         </label>
+        <KeyChoices m={m} onChange={(requiredSecrets) => set({ requiredSecrets })} />
         <div className="small" style={{ marginTop: 8 }}>which kinds of data does it touch?
           <div className="row" style={{ flexWrap: "wrap" }}>
             {DATA_ACCESS.map((d) => (
@@ -842,10 +888,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                     <option value="secret">secret</option>
                   </select>
                 </label>
-                <label className="check-row" style={{ margin: 0 }}>
-                  <input type="checkbox" checked={q.required} onChange={(e) => patch({ required: e.target.checked })} />
-                  <span>required</span>
-                </label>
+                <RequiredBox m={m} q={q} onChange={(required) => patch({ required })} />
                 <Button type="button" onClick={() => set({ intake: m.intake.filter((_, j) => j !== i) })}>remove</Button>
               </div>
               {q.type === "choice" && (

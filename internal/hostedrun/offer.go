@@ -30,6 +30,11 @@ type Facts struct {
 	// DeclaredSecrets are the secrets the release declares — its own and
 	// its declared MCP servers' (D7).
 	DeclaredSecrets []string
+	// OptionalSecrets are those of DeclaredSecrets a run can start without
+	// (capabilities.optionalSecrets, agentry-desktop#655). A run carries
+	// one only where the account keeps it, so only the others ask anything
+	// of the registry or the token (plan optional-secrets.md D5).
+	OptionalSecrets []string
 	// Vault is true when the registry's /meta lists `vault`: it keeps an
 	// account's secrets for hosted runs (agentry-desktop#300).
 	Vault bool
@@ -141,11 +146,13 @@ func DecideSession(f Facts) Offer {
 // stored token: a reason and a remedy, or two empty strings when neither
 // stands in the way. what names the thing started ("a run", "a session").
 func tokenAndSecrets(f Facts, what string) (reason, remedy string) {
-	secrets := len(f.DeclaredSecrets) > 0
+	required := f.requiredSecrets()
+	secrets := len(required) > 0
 	switch {
 	case secrets && !f.Vault:
-		// D7: a registry without the vault holds no secret of anyone's.
-		return "This release declares " + secretList(f.DeclaredSecrets) +
+		// D7: a registry without the vault holds no secret of anyone's. A
+		// release whose secrets are all optional runs without them (D5).
+		return "This release requires " + secretList(required) +
 				", and this registry keeps no secrets for runs In Agentry.",
 			"Run it on this machine, where the key stays in the release's own profile."
 	case !f.ScopesKnown:
@@ -156,12 +163,24 @@ func tokenAndSecrets(f Facts, what string) (reason, remedy string) {
 				", which " + what + " In Agentry needs. It was minted before this app asked for them.",
 			"Sign in again from Settings to mint a token that carries them."
 	case secrets && !has(f.Scopes, ScopeSecretWrite):
-		return "This release declares " + secretList(f.DeclaredSecrets) +
+		return "This release requires " + secretList(required) +
 				", and the token stored for this registry does not carry " + ScopeSecretWrite +
 				", which " + what + " In Agentry needs to set a secret your account does not keep. It was minted before this app asked for it.",
 			"Sign in again from Settings to mint a token that carries it."
 	}
 	return "", ""
+}
+
+// requiredSecrets is every declared secret a run cannot start without: those
+// OptionalSecrets does not name.
+func (f Facts) requiredSecrets() []string {
+	var out []string
+	for _, s := range f.DeclaredSecrets {
+		if !has(f.OptionalSecrets, s) {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func declares(modes []string, want string) bool { return has(modes, want) }

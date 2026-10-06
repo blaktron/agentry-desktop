@@ -83,12 +83,14 @@ export default function ToolsPanel({
               {profile.declaredSecrets.map((s) => (
                 <Field
                   key={s}
-                  label={<span className="mono">{s}</span>}
+                  label={<span className="mono">{s}{(profile.optionalSecrets ?? []).includes(s) && <span className="muted small"> optional</span>}</span>}
                   hint={connectHelp(profile.guide?.connect, s) ? <AuthorHelp name={s} help={connectHelp(profile.guide?.connect, s)} /> : undefined}
                 >
                   <Input
                     type="password"
-                    placeholder="empty = resolve from the environment at run time"
+                    placeholder={(profile.optionalSecrets ?? []).includes(s)
+                      ? "empty = from the environment, or the run starts without it"
+                      : "empty = resolve from the environment at run time"}
                     value={values[s] ?? ""}
                     onChange={(e) => setValues({ ...values, [s]: e.target.value })}
                   />

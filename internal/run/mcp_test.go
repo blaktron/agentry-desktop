@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -188,5 +189,26 @@ func TestARemoteServersCapabilityLineIsItsAddress(t *testing.T) {
 	lines := strings.Join(capabilityLines(c), "\n")
 	if !strings.Contains(lines, "mcpServer: https://gmailmcp.googleapis.com/mcp/v1 (remote, at its vendor; auth: oauth)") || strings.Contains(lines, "@") {
 		t.Fatalf("lines:\n%s", lines)
+	}
+}
+
+// Optional secrets (DEV-212, agentry-desktop#655): the consent lines say
+// which declared secrets a run can start without, as the CLI's do, and
+// optionalSecretNames reads only names the release declares.
+func TestOptionalSecretsInTheConsentAndTheKeysForm(t *testing.T) {
+	m := &manifest.Manifest{Capabilities: manifest.Capabilities{
+		Secrets:         []string{"REQ_KEY", "OPT_KEY"},
+		OptionalSecrets: []string{"OPT_KEY", "SRV_KEY", "NOT_DECLARED"},
+		MCPServers:      []manifest.MCPServer{{NPM: "some-search-server", Version: "1.2.3", Secrets: []string{"SRV_KEY"}}},
+	}}
+	if got := optionalSecretNames(m); !slices.Equal(got, []string{"OPT_KEY", "SRV_KEY"}) {
+		t.Fatalf("optionalSecretNames = %v", got)
+	}
+	lines := strings.Join(capabilityLines(m.Capabilities), "\n")
+	if !strings.Contains(lines, "secrets: REQ_KEY, OPT_KEY") || !strings.Contains(lines, "optionalSecrets: OPT_KEY, SRV_KEY, NOT_DECLARED") {
+		t.Fatalf("consent lines:\n%s", lines)
+	}
+	if strings.Contains(strings.Join(capabilityLines(manifest.Capabilities{Secrets: []string{"A"}}), "\n"), "optionalSecrets") {
+		t.Fatal("a release without optional secrets has no optionalSecrets line")
 	}
 }
