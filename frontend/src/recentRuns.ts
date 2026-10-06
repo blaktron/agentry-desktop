@@ -58,6 +58,7 @@ export function howItEnded(row: Pick<RunRow, "where" | "outcome" | "exitCode" | 
   switch (row.outcome) {
     case "ok": return "Finished";
     case "stopped": return "Stopped";
+    case "blocked": return "Blocked";
     default: return row.exitCode ? `Ended in an error (exit ${row.exitCode})` : "Did not finish";
   }
 }
@@ -69,6 +70,7 @@ export function headline(row: Pick<RunRow, "kind" | "outcome" | "exitCode">): st
   switch (row.outcome) {
     case "ok": return "Finished.";
     case "stopped": return `${subject} was stopped.`;
+    case "blocked": return `${subject} was blocked: the QuickAgent could not do the task with what it had.`;
     default: return row.exitCode ? `${subject} ended in an error (exit ${row.exitCode}).` : `${subject} did not finish.`;
   }
 }

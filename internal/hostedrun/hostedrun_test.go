@@ -499,6 +499,28 @@ func TestVerdictPerOutcome(t *testing.T) {
 			t.Fatalf("a refusal must say the credits came back: %q", v.Line)
 		}
 	}
+	// A blocked run (DEV-216) says whether it was charged, by what the
+	// registry settled: the QuickAgent's own word, or the runner's tools.
+	one := int64(1)
+	zero := int64(0)
+	for _, b := range []struct {
+		settled *int64
+		ok      bool
+		says    string
+	}{
+		{&one, true, "the QuickAgent could not do the task"},
+		{&zero, false, "the runner's tools failed this run"},
+		{nil, false, "refunded"},
+	} {
+		v := Read(&Run{Status: StatusFinished, Outcome: OutcomeBlocked, SettledCredits: b.settled})
+		if v.Outcome != OutcomeBlocked || v.Tone != "warn" || v.Settled != b.ok || !strings.Contains(v.Line, b.says) || seen[v.Line] && b.settled != nil {
+			t.Fatalf("blocked, settled %v = %+v", b.settled, v)
+		}
+		seen[v.Line] = true
+		if State(&Run{Status: StatusFinished, Outcome: OutcomeBlocked}) != "done — fail" {
+			t.Fatal("a blocked run is a pass")
+		}
+	}
 	// The states a run passes through each say where it stands.
 	for _, s := range []struct{ status, says string }{
 		{StatusQueued, "queued"}, {StatusClaimed, "running"}, {StatusRunning, "running"},

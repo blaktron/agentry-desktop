@@ -569,3 +569,19 @@ func TestDownloadOutputWritesNothingThroughALink(t *testing.T) {
 	}
 	_ = home
 }
+
+// A run on this computer that ended blocked (the CLI's exit 18,
+// agentry-cli#629; #680) is recorded as blocked, never as an error, so the
+// history says so; any other failure is still the error it was.
+func TestALocalBlockedRunIsRecordedAsBlocked(t *testing.T) {
+	ctx := context.Background()
+	if o, code := localOutcome(ctx, &run.Result{Status: "error", ExitCode: 18, ExitClass: "blocked"}); o != runhistory.OutcomeBlocked || code != 18 {
+		t.Fatalf("blocked: %s %d", o, code)
+	}
+	if o, code := localOutcome(ctx, &run.Result{Status: "error", ExitCode: 14, ExitClass: "harness"}); o != runhistory.OutcomeError || code != 14 {
+		t.Fatalf("harness: %s %d", o, code)
+	}
+	if o, _ := localOutcome(ctx, &run.Result{Status: "ok", ExitClass: "ok"}); o != runhistory.OutcomeOK {
+		t.Fatalf("ok: %s", o)
+	}
+}

@@ -56,6 +56,10 @@ const (
 	OutcomeOK      = "ok"
 	OutcomeError   = "error"
 	OutcomeStopped = "stopped"
+	// OutcomeBlocked: the QuickAgent could not do its task with what the run
+	// had (the CLI's exit 18, agentry-cli#629; #680), by its own word or
+	// the runner's evidence.
+	OutcomeBlocked = "blocked"
 )
 
 // Entry is one run. Folder is absolute, or "" where the job kept none (a
