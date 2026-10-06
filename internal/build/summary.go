@@ -49,6 +49,9 @@ type SummaryKey struct {
 	// UsedBy is who asks for it: "the QuickAgent" for its own, and each
 	// server's reference.
 	UsedBy []string `json:"usedBy"`
+	// Optional says a run can start without it (`optionalSecrets`,
+	// agentry-desktop#655).
+	Optional bool `json:"optional"`
 }
 
 // SummaryHost is a host the QuickAgent or a server reaches.
@@ -100,12 +103,16 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	// Each key once, in the order the manifest declares them: the
 	// QuickAgent's own, then each server's.
 	keyAt := map[string]int{}
+	optional := map[string]bool{}
+	for _, k := range m.OptionalSecrets() {
+		optional[k] = true
+	}
 	need := func(name, by string) {
 		i, ok := keyAt[name]
 		if !ok {
 			i = len(s.Keys)
 			keyAt[name] = i
-			s.Keys = append(s.Keys, SummaryKey{Name: name, Help: m.keyHelp(name), UsedBy: []string{}})
+			s.Keys = append(s.Keys, SummaryKey{Name: name, Help: m.keyHelp(name), UsedBy: []string{}, Optional: optional[name]})
 		}
 		if u := s.Keys[i].UsedBy; len(u) == 0 || u[len(u)-1] != by {
 			s.Keys[i].UsedBy = append(u, by)

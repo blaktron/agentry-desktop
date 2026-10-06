@@ -817,9 +817,12 @@ func (r *RunAPI) TestSearchKey() (*SearchKeyTestView, error) {
 // ProfileStatusView is a QuickAgent signature's MCP-profile state (§P2).
 // Secret NAMES only — no surface ever returns a value.
 type ProfileStatusView struct {
-	Ref               string   `json:"ref"`
-	Digest            string   `json:"digest"`
-	DeclaredSecrets   []string `json:"declaredSecrets"`
+	Ref             string   `json:"ref"`
+	Digest          string   `json:"digest"`
+	DeclaredSecrets []string `json:"declaredSecrets"`
+	// OptionalSecrets are those of DeclaredSecrets a run can start without
+	// (agentry-desktop#655).
+	OptionalSecrets   []string `json:"optionalSecrets"`
 	Exists            bool     `json:"exists"`
 	Keep              bool     `json:"keep"`
 	StoredSecretNames []string `json:"storedSecretNames"`
@@ -879,6 +882,7 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		Ref:               p.Ref,
 		Digest:            p.Digest,
 		DeclaredSecrets:   emptyNotNil(p.DeclaredSecrets),
+		OptionalSecrets:   emptyNotNil(p.OptionalSecrets),
 		Exists:            p.Exists,
 		Keep:              p.Keep,
 		StoredSecretNames: emptyNotNil(p.StoredSecretNames),

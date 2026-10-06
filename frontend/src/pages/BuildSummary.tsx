@@ -103,7 +103,8 @@ export function SummaryView({
             {s.keys.map((k) => (
               <li key={k.name}>
                 <span className="mono selectable"><RevealText text={k.name} /></span>
-                <span className="muted">, for <RevealText text={k.usedBy.join(" and ")} /></span>
+                <span className="muted">, for <RevealText text={k.usedBy.join(" and ")} />
+                  {k.optional ? "; optional: a run starts without it" : "; required: a run cannot start without it"}</span>
                 {k.help ? <AuthorHelp name={k.name} help={k.help} /> : <div className="muted small">No help is written for this key.</div>}
               </li>
             ))}

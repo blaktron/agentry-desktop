@@ -149,8 +149,9 @@ func wantGrants(t *testing.T, s *Summary, want ...string) {
 	}
 }
 
-// Every key is listed once, with every place that asks for it and the
-// help the guide writes for it; the summary's own text is the model's.
+// Every key is listed once, with every place that asks for it, the help
+// the guide writes for it and whether a run can do without it
+// (agentry-desktop#655); the summary's own text is the model's.
 func TestTheSummarysKeysCarryTheirHelpAndWhoAsks(t *testing.T) {
 	m := bare()
 	m.Guide.Overview = "Reads the channel.\n\n- one\n- two"
@@ -160,14 +161,15 @@ func TestTheSummarysKeysCarryTheirHelpAndWhoAsks(t *testing.T) {
 		{Source: "npm", Package: "gh-extra", Version: "2.0.0", Secrets: []string{"GITHUB_PAT", "EXTRA_KEY"}},
 	}
 	m.Guide.Connect = []ConnectRow{{Secret: "GITHUB_PAT", Help: "1. Open **Settings**."}, {Secret: "GITHUB_PAT", Help: "a second row"}}
+	m.RequiredSecrets = []string{"GITHUB_PAT"}
 	s := m.Summarize(nil)
 	if s.Name != "bare" || s.Summary != "Declares nothing." || s.Overview != m.Guide.Overview {
 		t.Errorf("how it works = %q %q %q", s.Name, s.Summary, s.Overview)
 	}
 	want := []SummaryKey{
-		{Name: "SLACK_TOKEN", Help: "", UsedBy: []string{"the QuickAgent"}},
+		{Name: "SLACK_TOKEN", Help: "", UsedBy: []string{"the QuickAgent"}, Optional: true},
 		{Name: "GITHUB_PAT", Help: "1. Open **Settings**.", UsedBy: []string{"the QuickAgent", "npm:gh@1.0.0", "npm:gh-extra@2.0.0"}},
-		{Name: "EXTRA_KEY", Help: "", UsedBy: []string{"npm:gh-extra@2.0.0"}},
+		{Name: "EXTRA_KEY", Help: "", UsedBy: []string{"npm:gh-extra@2.0.0"}, Optional: true},
 	}
 	if !reflect.DeepEqual(s.Keys, want) {
 		t.Errorf("keys = %+v\nwant %+v", s.Keys, want)

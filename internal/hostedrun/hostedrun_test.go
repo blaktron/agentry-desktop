@@ -585,6 +585,16 @@ func TestOfferMatrix(t *testing.T) {
 		}), true, true, "", ""},
 		{"a declared secret, the vault, an old token", with(func(f *Facts) { f.DeclaredSecrets, f.Vault = []string{"PAGERDUTY_TOKEN"}, true }), true, false, ScopeSecretWrite, "Sign in again"},
 		{"no secret declared, no secret:write", with(func(f *Facts) { f.Vault = true }), true, true, "", ""},
+		// Optional secrets (plan optional-secrets.md D5, agentry-desktop#655):
+		// only a required secret asks anything of the registry or the token;
+		// a release whose secrets are all optional runs without them.
+		{"only optional secrets, no vault", with(func(f *Facts) { f.DeclaredSecrets, f.OptionalSecrets = []string{"OPT_KEY"}, []string{"OPT_KEY"} }), true, true, "", ""},
+		{"only optional secrets, the vault, an old token", with(func(f *Facts) {
+			f.DeclaredSecrets, f.OptionalSecrets, f.Vault = []string{"OPT_KEY"}, []string{"OPT_KEY"}, true
+		}), true, true, "", ""},
+		{"a required beside an optional secret, no vault", with(func(f *Facts) {
+			f.DeclaredSecrets, f.OptionalSecrets = []string{"OPT_KEY", "REQ_KEY"}, []string{"OPT_KEY"}
+		}), true, false, "requires the key REQ_KEY", "this machine"},
 		{"an old token", with(func(f *Facts) { f.Scopes = []string{"agent:read"} }), true, false, "run:read", "Sign in again"},
 		{"read but not write", with(func(f *Facts) { f.Scopes = []string{ScopeRunRead} }), true, false, "run:write", "Sign in again"},
 		{"scopes unreadable", with(func(f *Facts) { f.ScopesKnown = false; f.Scopes = nil }), true, false, "did not say what the stored token may do", "Sign in again"},
