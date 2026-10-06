@@ -167,8 +167,9 @@ export function HomeSettings() {
           <p>
             Home shows the {HOME_DEFAULTS.length} default cards again, in their first order
             {pins.length > 0
-              ? <>, and <strong>every pin is removed</strong>: {pins.length === 1 ? "the 1 QuickAgent" : `the ${pins.length} QuickAgents`} pinned
-                there stay installed, and Pin to Home puts them back</>
+              ? <>, and <strong>every pin is removed</strong>: {pins.length === 1
+                ? "the QuickAgent pinned there stays installed, and Pin to Home puts it back"
+                : `the ${pins.length} QuickAgents pinned there stay installed, and Pin to Home puts them back`}</>
               : null}
             {kept ? <>. The arrangement the settings file holds now is replaced, with any pins it holds</> : null}.
           </p>

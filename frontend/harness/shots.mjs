@@ -609,6 +609,8 @@ const states = [
     click: '[data-preview="settings"] [data-pin="acme/release-notes"] button:has-text("Unpin")', expectSection: "home", expectText: ["4 of 16 pinned", "Unpinned acme/release-notes."], expectNone: '[data-preview="settings"] [data-pins-card="1"]' },
   { name: "settings-home-reset-confirm", url: "/pages.html?settings=home#home-pins-five", note: "Reset Home asks first, and says every pin goes and nothing is uninstalled", locator: ".modal",
     click: '[data-preview="settings"] [data-reset-home]', expectText: ["Reset Home?", "every pin is removed", "the 5 QuickAgents pinned there stay installed"] },
+  { name: "settings-home-reset-confirm-one", url: "/pages.html?settings=home#home-pin-one", note: "Reset Home's confirm with one pin: the sentence in the singular", locator: ".modal",
+    click: '[data-preview="settings"] [data-reset-home]', expectText: "the QuickAgent pinned there stays installed, and Pin to Home puts it back" },
   { name: "settings-home-reset", url: "/pages.html?settings=home#home-pins-five", note: "Reset Home confirmed: the default cards, every one on, and no pin", locator: '[data-preview="settings"]',
     click: ['[data-preview="settings"] [data-reset-home]', '[data-preview="settings"] [data-reset-home-confirm]'], expectSection: "home", expectText: ["Home is back to its default cards.", "Nothing is pinned."],
     expectChecked: '[data-preview="settings"] [data-home-switch="installed"] input', expectNone: '[data-preview="settings"] .modal' },
