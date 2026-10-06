@@ -902,6 +902,14 @@ details.advanced[open] > summary { margin-bottom: 6px; }
    the field (agentry-desktop#228). */
 .run-key { display: grid; grid-template-columns: minmax(220px, auto) 1fr; column-gap: 10px; row-gap: 4px; align-items: center; margin-bottom: 8px; }
 .run-key-help { grid-column: 2; margin: 0; }
+/* Connect tools' sign-ins (agentry-desktop#666): one card per server that
+   signs in by OAuth, the consent's wait with its address and the paste
+   field, and the own-client steps and form. */
+.sign-ins { display: grid; gap: 8px; margin-bottom: 8px; }
+.consent-wait, .own-client { display: grid; gap: 6px; margin-top: 8px; }
+.consent-wait label, .own-client label { display: grid; gap: 4px; }
+.consent-url { overflow-wrap: anywhere; margin: 0; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 6px; }
+.own-client-steps { margin: 0 0 4px; padding-left: 1.4em; display: grid; gap: 4px; }
 /* A release guide's help for a key (DEV-167, agentry-desktop#343): markdown
    in a frame that names it as the author's, so nothing in it reads as the
    app's own field. */

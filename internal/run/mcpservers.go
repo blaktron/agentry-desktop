@@ -18,7 +18,12 @@ import (
 func ensureServerResolutions(ctx context.Context, logw io.Writer, serversDir string,
 	pol *policy.Policy, m *manifest.Manifest,
 ) ([]mcpinstall.Resolved, error) {
-	declared := m.Capabilities.MCPServers
+	// A remote server (agentry-cli#663) is neither resolved nor installed,
+	// as in the CLI.
+	declared := mcpinstall.Packages(m.Capabilities.MCPServers)
+	if len(declared) == 0 {
+		return nil, nil
+	}
 	stored := make([]mcpinstall.Resolved, 0, len(declared))
 	for _, srv := range declared {
 		meta, err := mcpinstall.LoadMeta(serversDir, mcpinstall.IDFor(srv))

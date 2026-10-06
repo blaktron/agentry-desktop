@@ -189,6 +189,11 @@ func capabilityLines(c manifest.Capabilities) []string {
 	}
 	for _, srv := range c.MCPServers {
 		line := "mcpServer: " + srv.SourceID() + "@" + srv.Version
+		if srv.IsRemote() {
+			// A remote server has no package version (agentry-cli#663): it
+			// is its address, at its vendor, signed in to as it declares.
+			line = "mcpServer: " + srv.URL + " (remote, at its vendor; auth: " + string(srv.Auth) + ")"
+		}
 		if len(srv.Egress) > 0 {
 			line += " (egress: " + renderList(srv.Egress) + ")"
 		}

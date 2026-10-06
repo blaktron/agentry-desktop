@@ -749,6 +749,25 @@ g.go = { main: {
       ? { ok: false, message: "TypeSafe refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
       : { ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
     HybridKeyStatus: async () => hybridKeyView,
+    // Settings → Connections (agentry-desktop#666): one connection made in
+    // the app, one made by the CLI's agentry connect that no longer works,
+    // and the person's own Google client. No release here signs in.
+    ReleaseConnections: async (_registry: string, ref: string) => ({ ref, digest: "sha256:5565240b85d9c2f4", servers: [] }),
+    Connections: async () => ({
+      connections: [
+        { ref: "acme/inbox-brief@0.1.0", digest: "sha256:7f3a2b9c1d4e5f60", server: "https://gmailmcp.googleapis.com/mcp/v1", issuer: "https://accounts.google.com", client: "own",
+          scopes: ["https://www.googleapis.com/auth/gmail.readonly"], state: "connected", createdAt: "2026-10-06T14:02:00Z", lastUsedAt: "2026-10-06T14:05:00Z", keptIn: "keychain",
+          sharesGrantWith: ["acme/mail-digest@1.0.0 → pypi:workspace-mcp"] },
+        { ref: "acme/mail-digest@1.0.0", digest: "sha256:3c4d5e6f7a8b9c0d", server: "pypi:workspace-mcp", issuer: "https://accounts.google.com", client: "own",
+          scopes: ["https://www.googleapis.com/auth/gmail.readonly"], state: "connected", createdAt: "2026-10-06T14:20:00Z", keptIn: "keychain",
+          sharesGrantWith: ["acme/inbox-brief@0.1.0 → https://gmailmcp.googleapis.com/mcp/v1"] },
+        { ref: "acme/team-digest@1.3.0", digest: "sha256:0b1c2d3e4f5a6b7c", server: "https://mcp.linear.app/mcp", issuer: "https://mcp.linear.app", client: "dcr",
+          scopes: ["read"], state: "broken", broken: "invalid_grant: the grant was revoked", createdAt: "2026-10-01T09:00:00Z", keptIn: "keychain", sharesGrantWith: [] },
+      ],
+      clients: [{ issuer: "https://accounts.google.com", clientId: "123-abc.apps.googleusercontent.com", secretIn: "keychain" }],
+    }),
+    Disconnect: async () => "revoked",
+    ForgetOwnClient: async () => true,
     StoreHybridKey: async () => ({ stored: true, source: "keyring", envName: "HYBRID_API_KEY", envSet: false, ready: true }),
     ForgetHybridKey: async () => ({ stored: false, envName: "HYBRID_API_KEY", envSet: false, ready: false }),
     TestHybridKey: async () => (window.location.hash === "#hybrid-refused"
@@ -775,6 +794,7 @@ if (window.location.hash === "#status-refused") {
   g.go.main.RunAPI.JevKeyStatus = refuse;
   g.go.main.SettingsAPI.RunDefaults = refuse;
   g.go.main.HomeAPI.Layout = refuse;
+  g.go.main.RunAPI.Connections = refuse;
 }
 // The generated runtime's EventsOn goes through EventsOnMultiple.
 const subscribePage = (name: string, cb: (v: any) => void) => {

@@ -30,6 +30,10 @@ export function AttachHostedRunAtStart(arg1) {
   return window['go']['main']['RunAPI']['AttachHostedRunAtStart'](arg1);
 }
 
+export function CancelConnect() {
+  return window['go']['main']['RunAPI']['CancelConnect']();
+}
+
 export function CancelHostedRun() {
   return window['go']['main']['RunAPI']['CancelHostedRun']();
 }
@@ -42,12 +46,24 @@ export function ChosenHarnesses() {
   return window['go']['main']['RunAPI']['ChosenHarnesses']();
 }
 
+export function Connect(arg1, arg2, arg3) {
+  return window['go']['main']['RunAPI']['Connect'](arg1, arg2, arg3);
+}
+
+export function Connections() {
+  return window['go']['main']['RunAPI']['Connections']();
+}
+
 export function DeleteHostedSecret(arg1, arg2) {
   return window['go']['main']['RunAPI']['DeleteHostedSecret'](arg1, arg2);
 }
 
 export function DiscardHostedSecrets(arg1) {
   return window['go']['main']['RunAPI']['DiscardHostedSecrets'](arg1);
+}
+
+export function Disconnect(arg1, arg2, arg3) {
+  return window['go']['main']['RunAPI']['Disconnect'](arg1, arg2, arg3);
 }
 
 export function DownloadHostedOutput(arg1, arg2) {
@@ -76,6 +92,10 @@ export function ForgetHybridKey() {
 
 export function ForgetJevKey() {
   return window['go']['main']['RunAPI']['ForgetJevKey']();
+}
+
+export function ForgetOwnClient(arg1) {
+  return window['go']['main']['RunAPI']['ForgetOwnClient'](arg1);
 }
 
 export function ForgetRun(arg1) {
@@ -118,12 +138,20 @@ export function JevKeyStatus() {
   return window['go']['main']['RunAPI']['JevKeyStatus']();
 }
 
+export function KeepOwnClient(arg1, arg2, arg3) {
+  return window['go']['main']['RunAPI']['KeepOwnClient'](arg1, arg2, arg3);
+}
+
 export function KeepsSecrets(arg1) {
   return window['go']['main']['RunAPI']['KeepsSecrets'](arg1);
 }
 
 export function ListModels(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['ListModels'](arg1, arg2, arg3);
+}
+
+export function PasteRedirect(arg1) {
+  return window['go']['main']['RunAPI']['PasteRedirect'](arg1);
 }
 
 export function PrereqStatus() {
@@ -144,6 +172,10 @@ export function RecordedReview(arg1) {
 
 export function RecordedRun(arg1) {
   return window['go']['main']['RunAPI']['RecordedRun'](arg1);
+}
+
+export function ReleaseConnections(arg1, arg2) {
+  return window['go']['main']['RunAPI']['ReleaseConnections'](arg1, arg2);
 }
 
 export function RemoveAgentryImages() {
