@@ -53,3 +53,39 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
   });
   return out;
 }
+
+// Settings → Home (plan desktop-home-and-library.md §4.5, D6;
+// agentry-desktop#661): a switch per default card, the pins, Reset Home.
+// Reordering and sizes come later; the stored list already carries both.
+
+/** The default cards, in their default order: Settings → Home's switches.
+ * Go shows or hides these by kind (HomeAPI.SetShown); a Pinned card goes
+ * by its pins. */
+export const HOME_DEFAULTS: HomeCardKind[] = ["recent-runs", "installed", "profile", "run-defaults"];
+
+export type CardSwitch = { kind: HomeCardKind; title: string; shown: boolean };
+
+/** Each default card and whether Home draws it, in the default order. A
+ * default the stored layout lacks is not drawn, so it reads as off; Go
+ * adds it at the end when it is turned on. */
+export function cardSwitches(cards: Pick<LayoutCard, "kind" | "hidden">[]): CardSwitch[] {
+  return HOME_DEFAULTS.map((kind) => ({
+    kind, title: HOME_CARDS[kind].title, shown: cards.some((c) => c.kind === kind && !c.hidden),
+  }));
+}
+
+type StatusView = { cards: Pick<LayoutCard, "kind" | "hidden" | "pins">[]; newer: boolean; unreadable: boolean };
+
+/** The Settings landing's line for the Home card: the default cards shown
+ * and the QuickAgents pinned, or why the stored layout is not the one
+ * drawn. It reads desktop.yaml only, through HomeAPI.Layout. */
+export function homeStatus(v: StatusView): string {
+  if (v.newer) return "Arranged by a newer Agentry Desktop; the default cards are shown.";
+  if (v.unreadable) return "The arrangement cannot be read; the default cards are shown.";
+  const total = HOME_DEFAULTS.length;
+  const shown = cardSwitches(v.cards).filter((s) => s.shown).length;
+  const pins = v.cards.filter((c) => c.kind === "pinned").reduce((n, c) => n + (c.pins?.length ?? 0), 0);
+  const cards = shown === total ? `All ${total} cards shown` : shown === 0 ? "No card shown" : `${shown} of ${total} cards shown`;
+  const pinned = pins === 0 ? "nothing pinned" : `${pins} QuickAgent${pins === 1 ? "" : "s"} pinned`;
+  return `${cards}, ${pinned}.`;
+}
