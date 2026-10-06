@@ -9,6 +9,7 @@ import "../src/style.css";
 import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
+import { HOME_DEFAULTS } from "../src/homeCards";
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -413,6 +414,9 @@ const pinSets: Record<string, { ref: string; registry: string }[][]> = {
   "#home-pin-never": [[pinOf("agentry/changelog-from-git")]],
   "#home-pins-four": [fourPins],
   "#home-pins-five": [fourPins, [pinOf("acme/release-notes")]],
+  // A pin whose origin carries userinfo: Settings → Home names its host
+  // alone (agentry-desktop#661).
+  "#home-pin-userinfo": [[pinOf("demo1/incident-summarizer", "https://chris:s3cret@registry.example")]],
   "#home-pins-sixteen": [
     fourPins.slice(0, 3).concat(pinOf("acme/q01")),
     ...[0, 1, 2].map((c) => [1, 2, 3, 4].map((i) => pinOf(`acme/q${String(c * 4 + i + 1).padStart(2, "0")}`))),
@@ -439,12 +443,14 @@ function harnessPin(ref: string, registry: string) {
 // Settings → Home (agentry-desktop#661) as Go does it: a switch flips its
 // card's hidden in place, and Reset is the four defaults, no pins.
 function harnessSetShown(kind: string, shown: boolean) {
-  homeCards = homeCards.map((c) => (c.kind === kind ? { ...c, hidden: !shown } : c));
+  homeCards = homeCards.some((c) => c.kind === kind)
+    ? homeCards.map((c) => (c.kind === kind ? { ...c, hidden: !shown } : c))
+    : [...homeCards, { kind, hidden: !shown }];
   return homeView();
 }
 function harnessReset() {
   homeReset = true;
-  homeCards = [{ kind: "recent-runs" }, { kind: "installed" }, { kind: "profile" }, { kind: "run-defaults" }];
+  homeCards = HOME_DEFAULTS.map((kind) => ({ kind }));
   return homeView();
 }
 function harnessUnpin(ref: string, registry: string) {

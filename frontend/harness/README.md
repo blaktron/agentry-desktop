@@ -231,7 +231,7 @@ Settings → Home (agentry-desktop#661) is `settings-landing-home*` (the card's
 line, with `#home-pins-five` and `#home-hidden`), `settings-open-home`,
 `settings-part-link-home`, `settings-deeplink-home`, `settings-back-home`,
 `settings-home-hide` / `-show` (a switch, answered by the mock as Go
-answers), `settings-home-pins` and `-unpin`, `settings-home-reset-confirm`
+answers), `settings-home-pins`, `-pin-userinfo` (only the host of an address with userinfo) and `-unpin`, `settings-home-reset-confirm`
 and `-reset`, and `settings-home-newer` (the switches held); on Home,
 `page-home-settings-link` and `page-home-all-hidden` (`#home-all-hidden`,
 every card hidden and nothing pinned).

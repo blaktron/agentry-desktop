@@ -16,6 +16,17 @@ type CardWithPins = { kind: string; pins?: Pin[] };
 const norm = (u = "") => u.trim().replace(/\/+$/, "");
 const sameOrigin = (a = "", b = ""): boolean => norm(a) === norm(b);
 
+/** A pin's registry as Settings → Home names it: the host and port only,
+ * never a userinfo part an origin may carry (the review of
+ * agentry-desktop#661), and nothing for a value that is not a URL. */
+export function registryHost(url: string): string {
+  try {
+    return new URL(norm(url)).host;
+  } catch {
+    return "";
+  }
+}
+
 /** Every pin, card by card, in the layout's order. */
 export function pinsOf(cards: CardWithPins[]): Pin[] {
   return cards.filter((c) => c.kind === "pinned").flatMap((c) => c.pins ?? []);

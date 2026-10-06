@@ -5,7 +5,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, main } from "../../wailsjs/go/models";
 import { Button, Notice, PageHeader } from "../ui";
-import { cardsToDraw, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
+import { cardsToDraw, HOME_DEFAULTS, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
 import { greeting } from "../homeLines";
 import { signedInTo } from "./Settings";
 import { InstalledCard } from "./home/InstalledCard";
@@ -28,7 +28,7 @@ import type { Pin } from "../pins";
 // card's action opens the page that does it.
 
 // The default cards' places when the layout cannot be read at all.
-const FALLBACK: LayoutCard[] = [{ kind: "recent-runs" }, { kind: "installed" }, { kind: "profile" }, { kind: "run-defaults" }];
+const FALLBACK: LayoutCard[] = HOME_DEFAULTS.map((kind) => ({ kind }));
 
 type Got<T> = { value: T | null; error: string | null };
 const pending = <T,>(): Got<T> => ({ value: null, error: null });

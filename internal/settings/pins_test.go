@@ -241,8 +241,7 @@ func TestHidingACardKeepsItsPlaceAmongThePinnedCards(t *testing.T) {
 
 // Reset Home restores the four default cards, every one shown, and drops
 // every pin with the Pinned cards (agentry-desktop#661: the page says so
-// before it asks). The QuickAgents themselves are not touched: a pin is
-// only the layout's.
+// before it asks).
 func TestResetDropsEveryPin(t *testing.T) {
 	isolate(t)
 	pin(t, "a", "b", "c", "d", "e")

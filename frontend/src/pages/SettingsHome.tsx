@@ -4,7 +4,7 @@ import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { install, main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
-import { pinRecord, pinsOf, type Pin } from "../pins";
+import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
 
 // Settings → Home (plan desktop-home-and-library.md §4.5, D6, D-067;
 // agentry-desktop#661): which default cards Home shows, the QuickAgents
@@ -15,23 +15,14 @@ import { pinRecord, pinsOf, type Pin } from "../pins";
 // to another card), and Reset drops every pin, which the page says before
 // it asks. Reordering and sizes are later (D6, D12).
 
-// What each default card holds, under its switch.
-const CARD_LINES: Record<string, string> = {
-  "recent-runs": "The last five runs, chats and built-in jobs, on this computer and In Agentry.",
-  installed: "How many QuickAgents are on this computer, how many have an update, and the newest five.",
-  profile: "Your name, plan and credits on the registry in use, or Sign in.",
-  "run-defaults": "Where runs go, their limits, the output folder, and Unsafe Mode while it is on.",
-};
-
 type HomePart = "cards" | "pins" | "reset";
+// What a change in a part answered: Go's refusal, or what was done.
+type Answer = { part: HomePart; text: string; error?: boolean };
 
-// What a change in this part answered: Go's refusal, or what was done.
-function Said({ said, part }: { said: { part: HomePart; text: string; error?: boolean } | null; part: HomePart }) {
+function Said({ said, part }: { said: Answer | null; part: HomePart }) {
   if (!said || said.part !== part) return null;
   return said.error ? <ErrorBox error={said.text} /> : <p className="small home-said" role="status">{said.text}</p>;
 }
-
-const hostOf = (url: string) => url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 
 export function HomeSettings() {
   const [view, setView] = useState<main.HomeLayoutView | null>(null);
@@ -40,7 +31,7 @@ export function HomeSettings() {
   // The read's error; a change's answer or refusal is said in the part
   // where it was asked, next to what was clicked.
   const [err, setErr] = useState<string | null>(null);
-  const [said, setSaid] = useState<{ part: HomePart; text: string; error?: boolean } | null>(null);
+  const [said, setSaid] = useState<Answer | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -69,8 +60,9 @@ export function HomeSettings() {
   if (!view) return err ? <ErrorBox error={`Home's layout could not be read: ${err}`} /> : <div className="empty">Reading Home's layout…</div>;
 
   // A layout a newer app arranged, or one this app cannot decode, is drawn
-  // as the defaults and kept: Go refuses a change to it, so the switches and
-  // Unpin are held, and Reset is the way to start again.
+  // as the defaults and kept: Go refuses a change to it, so the switches
+  // read what Home draws (the defaults) and are held, its pins are not
+  // listed, and Reset is the way to start again.
   const kept = view.newer || view.unreadable;
   const switches = cardSwitches(view.cards);
   const pinCards = kept ? [] : view.cards.filter((c) => c.kind === "pinned" && (c.pins?.length ?? 0) > 0);
@@ -100,11 +92,11 @@ export function HomeSettings() {
           {switches.map((s) => (
             <div key={s.kind} className="home-card-switch" data-home-switch={s.kind}>
               <label className="check-row" style={{ margin: 0 }}>
-                <input type="checkbox" role="switch" checked={!kept && s.shown} disabled={busy || kept}
+                <input type="checkbox" role="switch" checked={s.shown} disabled={busy || kept}
                   onChange={(e) => void act("cards", () => HomeAPI.SetShown(s.kind, e.target.checked))} />
                 <span><strong>{s.title}</strong></span>
               </label>
-              <p className="muted small">{CARD_LINES[s.kind]}</p>
+              <p className="muted small">{s.line}</p>
             </div>
           ))}
           <Said said={said} part="cards" />
@@ -137,7 +129,7 @@ export function HomeSettings() {
                         <li key={`${pin.registry ?? ""} ${pin.ref}`} data-pin={pin.ref}>
                           <div>
                             <span className="mono">{pin.ref}</span>
-                            <span className="muted small"> {pin.registry ? `from ${hostOf(pin.registry)}` : "from a folder"}</span>
+                            <span className="muted small"> {pin.registry ? (registryHost(pin.registry) ? `from ${registryHost(pin.registry)}` : "") : "from a folder"}</span>
                             {rec && <span className="muted small"> · v{rec.version}</span>}
                           </div>
                           {records && !rec && <div className="muted small">No longer installed on this computer.</div>}
@@ -178,7 +170,7 @@ export function HomeSettings() {
               ? <>, and <strong>every pin is removed</strong>: {pins.length === 1 ? "the 1 QuickAgent" : `the ${pins.length} QuickAgents`} pinned
                 there stay installed, and Pin to Home puts them back</>
               : null}
-            {kept ? <>. The arrangement the settings file holds now is replaced</> : null}.
+            {kept ? <>. The arrangement the settings file holds now is replaced, with any pins it holds</> : null}.
           </p>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
