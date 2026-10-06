@@ -163,8 +163,21 @@ export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityV
       {names.map((n, i) => (
         <span key={n}>{i > 0 ? ", " : ""}<code>{n}</code></span>
       ))}
-      . A secret your account keeps in Agentry is used as it is. One it does not keep is asked for when you start,
-      and Agentry removes it when the run ends unless you tick Keep it for later runs.
+      .{" "}
+      {hosted.vault ? (
+        <>
+          A secret your account keeps in Agentry is used as it is. A required one it does not keep is asked for when you start,
+          and Agentry removes it when the run ends unless you tick Keep it for later runs.
+          {(hosted.optionalSecrets ?? []).length > 0 && (
+            <>
+              {" "}A run can start without {(hosted.optionalSecrets ?? []).join(", ")}: an optional secret your account does not
+              keep is not asked for, and the run goes without it. To give one, keep it on the site&apos;s Secrets page.
+            </>
+          )}
+        </>
+      ) : (
+        <>This registry keeps no secrets for runs In Agentry, and each of these is optional, so the run goes without them.</>
+      )}
     </p>
   );
 }

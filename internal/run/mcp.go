@@ -187,6 +187,11 @@ func capabilityLines(c manifest.Capabilities) []string {
 		"secrets: " + renderList(c.Secrets),
 		"dataAccess: " + renderDataAccess(c.DataAccess),
 	}
+	// The declared secrets a run can start without (DEV-212), as the CLI's
+	// own consent lines say them (cmd/agentry/caps.go).
+	if len(c.OptionalSecrets) > 0 {
+		lines = append(lines, "optionalSecrets: "+renderList(c.OptionalSecrets))
+	}
 	for _, srv := range c.MCPServers {
 		line := "mcpServer: " + srv.SourceID() + "@" + srv.Version
 		if srv.IsRemote() {
@@ -227,6 +232,19 @@ func allSecretNames(m *manifest.Manifest) []string {
 		out = append(out, n)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// optionalSecretNames is the declared names a run can start without
+// (capabilities.optionalSecrets, DEV-212; agentry-desktop#655), sorted. A
+// name nothing declares is no secret of the release's, so it is left out.
+func optionalSecretNames(m *manifest.Manifest) []string {
+	out := []string{}
+	for _, n := range allSecretNames(m) {
+		if m.Capabilities.IsOptionalSecret(n) {
+			out = append(out, n)
+		}
+	}
 	return out
 }
 

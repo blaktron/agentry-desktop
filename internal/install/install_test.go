@@ -29,6 +29,7 @@ import (
 
 	pkgarchive "github.com/blaktron/agentry/pkg/archive"
 	"github.com/blaktron/agentry/pkg/attest"
+	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/installed"
@@ -939,5 +940,40 @@ func TestRunnerInstallWarnsOnAnUnreadablePolicy(t *testing.T) {
 	meta, ok := installdir.Load(plan.Paths.ReleaseDir, plan.Digest)
 	if !ok || meta.Export != "agents-md" || meta.Attestation.Consent != "" {
 		t.Fatalf("install.json: %+v ok=%v", meta, ok)
+	}
+}
+
+// The consent names every declared secret, the release's own and its
+// servers', whatever its marking, and says which a run can start without
+// (plan optional-secrets.md D6, agentry-desktop#655).
+func TestTheConsentNamesEveryDeclaredSecret(t *testing.T) {
+	m := &manifest.Manifest{Capabilities: manifest.Capabilities{
+		Secrets:         []string{"REQ_KEY", "OPT_KEY"},
+		OptionalSecrets: []string{"OPT_KEY", "SRV_KEY"},
+		MCPServers:      []manifest.MCPServer{{NPM: "some-search-server", Version: "1.2.3", Secrets: []string{"SRV_KEY", "REQ_KEY"}}},
+	}}
+	if got := declaredSecrets(m); !slices.Equal(got, []string{"REQ_KEY", "OPT_KEY", "SRV_KEY"}) {
+		t.Fatalf("declaredSecrets = %v", got)
+	}
+	if got := optionalSecrets(m); !slices.Equal(got, []string{"OPT_KEY", "SRV_KEY"}) {
+		t.Fatalf("optionalSecrets = %v", got)
+	}
+	if got := optionalSecrets(&manifest.Manifest{Capabilities: manifest.Capabilities{Secrets: []string{"A"}}}); len(got) != 0 {
+		t.Fatalf("a release without optional secrets: %v", got)
+	}
+}
+
+// D6: moving a secret between optional and required changes nothing the
+// install record holds, so an update that only flips one asks for no new
+// consent; a newly declared secret, optional or not, still does.
+func TestAFlipBetweenOptionalAndRequiredAsksNoNewConsent(t *testing.T) {
+	before := manifest.Capabilities{Secrets: []string{"A", "B"}, OptionalSecrets: []string{"B"}}
+	flipped := manifest.Capabilities{Secrets: []string{"A", "B"}, OptionalSecrets: []string{"A"}}
+	if d := installed.DiffCapabilities(installed.Snapshot(before), installed.Snapshot(flipped)); d.HasWidened() {
+		t.Fatalf("a flip widened the contract: %+v", d)
+	}
+	added := manifest.Capabilities{Secrets: []string{"A", "B", "C"}, OptionalSecrets: []string{"B", "C"}}
+	if d := installed.DiffCapabilities(installed.Snapshot(before), installed.Snapshot(added)); !d.HasWidened() {
+		t.Fatalf("a new optional secret did not widen the contract: %+v", d)
 	}
 }

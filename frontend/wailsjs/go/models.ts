@@ -285,6 +285,7 @@ export namespace build {
 	    fsWritePaths: string[];
 	    execCommands: string[];
 	    secrets: string[];
+	    requiredSecrets: string[];
 	    dataAccess: string[];
 	    mcpServers: MCPServerRow[];
 	    knowledgePrompt: string;
@@ -326,6 +327,7 @@ export namespace build {
 	        this.fsWritePaths = source["fsWritePaths"];
 	        this.execCommands = source["execCommands"];
 	        this.secrets = source["secrets"];
+	        this.requiredSecrets = source["requiredSecrets"];
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = this.convertValues(source["mcpServers"], MCPServerRow);
 	        this.knowledgePrompt = source["knowledgePrompt"];
@@ -442,6 +444,7 @@ export namespace build {
 	    name: string;
 	    help: string;
 	    usedBy: string[];
+	    optional: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SummaryKey(source);
@@ -452,6 +455,7 @@ export namespace build {
 	        this.name = source["name"];
 	        this.help = source["help"];
 	        this.usedBy = source["usedBy"];
+	        this.optional = source["optional"];
 	    }
 	}
 	export class Summary {
@@ -778,6 +782,8 @@ export namespace install {
 	    unsigned: boolean;
 	    unscanned: boolean;
 	    capabilities: installed.CapSnapshot;
+	    declaredSecrets: string[];
+	    optionalSecrets: string[];
 	    shippedKnowledge: ShippedPack[];
 	    mcpServers: mcpview.Server[];
 	    needsCapabilityConfirm: boolean;
@@ -811,6 +817,8 @@ export namespace install {
 	        this.unsigned = source["unsigned"];
 	        this.unscanned = source["unscanned"];
 	        this.capabilities = this.convertValues(source["capabilities"], installed.CapSnapshot);
+	        this.declaredSecrets = source["declaredSecrets"];
+	        this.optionalSecrets = source["optionalSecrets"];
 	        this.shippedKnowledge = this.convertValues(source["shippedKnowledge"], ShippedPack);
 	        this.mcpServers = this.convertValues(source["mcpServers"], mcpview.Server);
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
@@ -2198,6 +2206,8 @@ export namespace main {
 	    maxInputFiles: number;
 	    maxInputBytes: number;
 	    declaredSecrets?: string[];
+	    optionalSecrets?: string[];
+	    vault: boolean;
 	    session?: HostedSessionOfferView;
 	    publisherEarns: boolean;
 	
@@ -2227,6 +2237,8 @@ export namespace main {
 	        this.maxInputFiles = source["maxInputFiles"];
 	        this.maxInputBytes = source["maxInputBytes"];
 	        this.declaredSecrets = source["declaredSecrets"];
+	        this.optionalSecrets = source["optionalSecrets"];
+	        this.vault = source["vault"];
 	        this.session = this.convertValues(source["session"], HostedSessionOfferView);
 	        this.publisherEarns = source["publisherEarns"];
 	    }
@@ -3202,6 +3214,7 @@ export namespace main {
 	    ref: string;
 	    digest: string;
 	    declaredSecrets: string[];
+	    optionalSecrets: string[];
 	    exists: boolean;
 	    keep: boolean;
 	    storedSecretNames: string[];
@@ -3222,6 +3235,7 @@ export namespace main {
 	        this.ref = source["ref"];
 	        this.digest = source["digest"];
 	        this.declaredSecrets = source["declaredSecrets"];
+	        this.optionalSecrets = source["optionalSecrets"];
 	        this.exists = source["exists"];
 	        this.keep = source["keep"];
 	        this.storedSecretNames = source["storedSecretNames"];

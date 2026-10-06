@@ -265,7 +265,10 @@ const profile = signInShape
   ? {
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
     capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
-    declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : ["GITHUB_TOKEN"], storedSecretNames: [], exists: false, keep: true,
+    declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : ["GITHUB_TOKEN", "SEARCH_KEY"], storedSecretNames: [], exists: false, keep: true,
+    // SEARCH_KEY is optional (agentry-desktop#655): marked so in the keys
+    // form, and the line above Run names GITHUB_TOKEN alone.
+    optionalSecrets: hostileGuide ? [] : ["SEARCH_KEY"],
     modes: ["autonomous"], intake: [], opening: "",
     ...(guidedShape ? { guide } : {}),
   }
@@ -340,7 +343,7 @@ const availability = {
   balance: sessionShape ? 460 : 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
-  declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [],
+  declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [], vault: true,
   publisherEarns: hostedEarns,
   // Talk to it In Agentry: offered on the sessions' own terms; a Standard
   // payer is offered it unavailable, with the way up.
@@ -511,6 +514,8 @@ g.go = { main: {
         ? { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", fsWritePaths: ["reports"], secrets: ["PAGERDUTY_TOKEN"], knowledge: ["pagerduty-docs"] }
         : { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
       shippedKnowledge: view === "install-ships-knowledge" ? [{ name: "pagerduty-docs", bytes: 4_404_019 }] : [],
+      // Every declared secret, an optional one marked (agentry-desktop#655).
+      declaredSecrets: ["PAGERDUTY_TOKEN", "STATUSPAGE_TOKEN"], optionalSecrets: ["STATUSPAGE_TOKEN"],
       needsCapabilityConfirm: true, prevVersion: "", diff: null, requiresWidenedConfirm: false,
       vulnerabilities: [], vulnerabilityLine: "have no known high or critical advisories", vulnerabilityRefusal: "",
       target: "agents-md", paths: { dest: "/home/chris/agents/incident-summarizer", managed: true, managedRoot: "/home/chris/agents", agentsMd: "/home/chris/agents/AGENTS.md" },

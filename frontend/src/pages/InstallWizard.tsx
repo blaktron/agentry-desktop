@@ -8,6 +8,7 @@ import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { install } from "../../wailsjs/go/models";
 import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
+import { secretsRow } from "../requiredKeys";
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
@@ -169,7 +170,7 @@ export default function InstallWizard({
             )}
 
             <h3>Declared capabilities</h3>
-            <CapsTable caps={plan.capabilities} shipped={plan.shippedKnowledge} />
+            <CapsTable caps={plan.capabilities} shipped={plan.shippedKnowledge} secrets={secretsRow(plan.declaredSecrets, plan.optionalSecrets)} />
             {(plan.mcpServers ?? []).length > 0 && (
               <>
                 <h3>Declared MCP servers</h3>
@@ -251,14 +252,17 @@ export default function InstallWizard({
   );
 }
 
-function CapsTable({ caps, shipped }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[] }) {
+function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[]; secrets: string }) {
   const rows: [string, string][] = [];
   const list = (v?: string[]) => (v && v.length ? v.join(", ") : "");
   if (list(caps.egressHosts)) rows.push(["network egress", list(caps.egressHosts)]);
   if (caps.fsRead && caps.fsRead !== "none") rows.push(["filesystem read", caps.fsRead === "paths" ? `paths: ${list(caps.fsReadPaths)}` : caps.fsRead]);
   if (caps.fsWrite && caps.fsWrite !== "none") rows.push(["filesystem write", caps.fsWrite === "paths" ? `paths: ${list(caps.fsWritePaths)}` : caps.fsWrite]);
   if (list(caps.execCommands)) rows.push(["exec", list(caps.execCommands)]);
-  if (list(caps.secrets)) rows.push(["secrets", list(caps.secrets)]);
+  // Every declared secret, the release's own and its servers', an optional
+  // one marked (agentry-desktop#655): moving one between optional and
+  // required asks for no new consent (plan optional-secrets.md D6).
+  if (secrets) rows.push(["secrets", secrets]);
   if (list(caps.dataAccess)) rows.push(["data access", list(caps.dataAccess)]);
   // The knowledge packs the release ships in its archive (plan knowledge.md
   // §4.6): part of the contract, each with its size from the archive.

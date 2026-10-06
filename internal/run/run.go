@@ -184,9 +184,12 @@ func resolveForRun(ctx context.Context, regURL, ref string, installIntent bool) 
 // ProfileInfo is a QuickAgent signature's MCP-profile state (§P2/§P3).
 // Secret VALUES never appear here — names only.
 type ProfileInfo struct {
-	Ref               string
-	Digest            string
-	DeclaredSecrets   []string
+	Ref             string
+	Digest          string
+	DeclaredSecrets []string
+	// OptionalSecrets are those of DeclaredSecrets a run can start without
+	// (agentry-desktop#655): the keys form marks them, and leaves them empty.
+	OptionalSecrets   []string
 	Exists            bool
 	Keep              bool
 	StoredSecretNames []string
@@ -215,15 +218,15 @@ type ProfileInfo struct {
 // availability rule (services_hostedrun.go) reads this rather than
 // ProfileStatus, because a hosted run must touch nothing on this machine:
 // no operator policy, no MCP profile, no docker (hosted-runs.md §4.7).
-func Declared(ctx context.Context, regURL, ref string) (modes, secrets []string, err error) {
+func Declared(ctx context.Context, regURL, ref string) (modes, secrets, optional []string, err error) {
 	sig, err := ResolveSignature(ctx, regURL, ref, false)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, mode := range sig.Manifest.SupportedModes() {
 		modes = append(modes, string(mode))
 	}
-	return modes, allSecretNames(sig.Manifest), nil
+	return modes, allSecretNames(sig.Manifest), optionalSecretNames(sig.Manifest), nil
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
@@ -251,6 +254,7 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		Ref:             sig.Ref,
 		Digest:          sig.Digest,
 		DeclaredSecrets: allSecretNames(sig.Manifest),
+		OptionalSecrets: optionalSecretNames(sig.Manifest),
 		Keep:            loadPolicyForRead().KeepProfilesByDefault(),
 		CapabilityLines: capabilityLines(sig.Manifest.Contract()),
 		Intake:          sig.Manifest.Intake,

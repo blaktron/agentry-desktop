@@ -23,6 +23,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/pathguard"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -166,6 +167,14 @@ type Plan struct {
 	Unscanned bool `json:"unscanned"`
 
 	Capabilities installed.CapSnapshot `json:"capabilities"`
+	// DeclaredSecrets is every secret the release declares, its own then each
+	// declared server's, each once, and OptionalSecrets those a run can start
+	// without (capabilities.optionalSecrets, agentry-desktop#655). The
+	// consent names each whatever its marking: moving one between optional
+	// and required asks for no new consent (plan optional-secrets.md D6),
+	// which holds only while every name is shown.
+	DeclaredSecrets []string `json:"declaredSecrets"`
+	OptionalSecrets []string `json:"optionalSecrets"`
 	// ShippedKnowledge is each knowledge pack the release ships in its
 	// archive (the manifest's knowledge.ships, whose names are in
 	// Capabilities.Knowledge), with its size where the archive's headers
@@ -194,7 +203,9 @@ type Plan struct {
 	Paths                Paths            `json:"paths"`
 	// TargetWarning is set when runtime.interfaces omits the chosen target.
 	TargetWarning string `json:"targetWarning,omitempty"`
-	// Secrets lists declared secret NAMES the user must fill in (mcp env).
+	// Secrets lists the release's own declared secret NAMES, for the mcp
+	// target's env placeholders the user fills in; DeclaredSecrets above is
+	// every declared name, for the consent.
 	Secrets []string `json:"secrets,omitempty"`
 }
 
@@ -338,11 +349,13 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		Unsigned:    att.State == trust.StateUnsigned,
 		Unscanned:   att.State == trust.StateUnscanned,
 
-		Capabilities: installed.Snapshot(m.Contract()),
-		MCPServers:   mcpview.Of(m.Capabilities),
-		Target:       target,
-		Paths:        paths,
-		Secrets:      append([]string(nil), m.Capabilities.Secrets...),
+		Capabilities:    installed.Snapshot(m.Contract()),
+		DeclaredSecrets: declaredSecrets(m),
+		OptionalSecrets: optionalSecrets(m),
+		MCPServers:      mcpview.Of(m.Capabilities),
+		Target:          target,
+		Paths:           paths,
+		Secrets:         append([]string(nil), m.Capabilities.Secrets...),
 	}
 	// The packs the release ships, with their sizes from the verified
 	// archive's headers, for the consent (plan knowledge.md §4.6): a size
@@ -491,6 +504,7 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 		return nil, err
 	}
 	plan.Capabilities = installed.Snapshot(m.Contract())
+	plan.DeclaredSecrets, plan.OptionalSecrets = declaredSecrets(m), optionalSecrets(m)
 
 	res := &Result{Dest: plan.Paths.Dest}
 	// after runs once the record is saved: the runner target's replace of
@@ -1013,4 +1027,35 @@ func Forget(k installed.Key) error {
 	}
 	state.Remove(k)
 	return installed.Save(state)
+}
+
+// declaredSecrets is every secret the release declares, its own then each
+// declared server's, each once, in the manifest's order.
+func declaredSecrets(m *manifest.Manifest) []string {
+	out := []string{}
+	for _, n := range append(slices.Clone(m.Capabilities.Secrets), serverSecrets(m)...) {
+		if !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func serverSecrets(m *manifest.Manifest) []string {
+	var out []string
+	for _, srv := range m.Capabilities.MCPServers {
+		out = append(out, srv.Secrets...)
+	}
+	return out
+}
+
+// optionalSecrets is the declared secrets a run can start without.
+func optionalSecrets(m *manifest.Manifest) []string {
+	out := []string{}
+	for _, n := range declaredSecrets(m) {
+		if m.Capabilities.IsOptionalSecret(n) {
+			out = append(out, n)
+		}
+	}
+	return out
 }
