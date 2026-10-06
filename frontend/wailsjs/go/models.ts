@@ -3952,7 +3952,7 @@ export namespace main {
 	    chatIdleTimeoutSeconds: number;
 	    unsafeMode: boolean;
 	    unsafeImage?: string;
-	    builtinNoTimeout: boolean;
+	    builtinNoLimit: boolean;
 	    rememberRuns: boolean;
 	    runHistoryCount: number;
 	
@@ -3970,7 +3970,7 @@ export namespace main {
 	        this.chatIdleTimeoutSeconds = source["chatIdleTimeoutSeconds"];
 	        this.unsafeMode = source["unsafeMode"];
 	        this.unsafeImage = source["unsafeImage"];
-	        this.builtinNoTimeout = source["builtinNoTimeout"];
+	        this.builtinNoLimit = source["builtinNoLimit"];
 	        this.rememberRuns = source["rememberRuns"];
 	        this.runHistoryCount = source["runHistoryCount"];
 	    }

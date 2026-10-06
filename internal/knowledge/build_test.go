@@ -160,19 +160,20 @@ func TestAddResealsUnderTheSameKey(t *testing.T) {
 // before (agentry-desktop#352). No budget of a build counts tokens.
 func TestCreatorBudgetsGiveABuildAtLeastSixtyMinutes(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
+	builtinNoLimit(t, false)
 	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}
-	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 3600, MaxTurns: 60, MaxCostUSD: 2}); b != want {
+	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 3600, MaxTurns: 60, MaxCostUSD: 2}); b.Run != want || b.Shown != want {
 		t.Fatalf("default policy: %+v, want %+v", b, want)
 	}
 	pol.Budgets.TimeoutSeconds = 1800
-	if b := CreatorBudgets(pol); b.TimeoutSeconds != 3600 {
+	if b := CreatorBudgets(pol); b.Run.TimeoutSeconds != 3600 {
 		t.Fatalf("a policy at the old 30 minutes: %+v", b)
 	}
 	pol.Budgets.TimeoutSeconds, pol.Budgets.MaxTurns = 7200, 0
-	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 7200, MaxTurns: 0, MaxCostUSD: 2}); b != want {
+	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 7200, MaxTurns: 0, MaxCostUSD: 2}); b.Run != want {
 		t.Fatalf("a policy of two hours: %+v, want %+v", b, want)
 	}
-	if b := CreatorBudgets(nil); b.TimeoutSeconds != 3600 {
+	if b := CreatorBudgets(nil); b.Run.TimeoutSeconds != 3600 {
 		t.Fatalf("no policy: %+v", b)
 	}
 }
@@ -231,7 +232,9 @@ func TestABuildReportsItsProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 3600 {
+	// By default a build on this computer has no timeout and runs to the
+	// hidden failsafe (agentry-desktop#699).
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns != settings.BuiltinFailsafeTurns {
 		t.Fatalf("the Creator ran with budgets %+v", seen.Budgets)
 	}
 	// A build on this computer takes up to 1 GB (agentry-desktop#354).
@@ -247,7 +250,7 @@ func TestABuildReportsItsProgress(t *testing.T) {
 		t.Fatalf("progress = %+v", got)
 	}
 	first, last := got[0], got[len(got)-1]
-	if first.StartedAt == 0 || first.TimeoutSeconds != seen.Budgets.TimeoutSeconds || first.Turns != 0 || first.Pages != 0 {
+	if first.StartedAt == 0 || first.TimeoutSeconds != 0 || first.MaxTurns != 0 || first.Turns != 0 || first.Pages != 0 {
 		t.Fatalf("first progress = %+v", first)
 	}
 	// The fake leaves one more page in the reports after the two above.
@@ -334,24 +337,17 @@ func TestABuildsProgressIsOneFlatObjectWithItsPages(t *testing.T) {
 	}
 }
 
-// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
-// it is on, a build on this computer runs with no timeout, for a local
-// model that cannot draft a pack in the Creator's 60 minutes; the turn and
-// cost caps stay the policy's, and the build's log says so rather than "up
-// to 0 minutes".
-func TestTheBuiltinAgentsSwitchGivesABuildNoTimeout(t *testing.T) {
+// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
+// D-062; on by default since agentry-desktop#699): a build on this computer
+// runs with no timeout and to the hidden failsafe of 200 turns, for a local
+// model that cannot draft a pack in the Creator's 60 minutes; the cost cap
+// stays the policy's, and the build's log and its building view say no
+// limit rather than "up to 0 minutes" or the failsafe.
+func TestByDefaultABuildHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
-	st, err := settings.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	st.BuiltinNoTimeout = true
-	if err := settings.Save(st); err != nil {
-		t.Fatal(err)
-	}
 	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}
-	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 2}); b != want {
-		t.Fatalf("with the switch on: %+v, want %+v", b, want)
+	if b, want := CreatorBudgets(pol), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: settings.BuiltinFailsafeTurns, MaxCostUSD: 2}); b.Run != want || b.Shown != (spec.Budgets{MaxCostUSD: 2}) {
+		t.Fatalf("by default: %+v, want %+v run and no limit shown", b, want)
 	}
 
 	ctx := context.Background()
@@ -365,13 +361,27 @@ func TestTheBuiltinAgentsSwitchGivesABuildNoTimeout(t *testing.T) {
 		Build: fakeCreator(t, &seen, nil), Log: &log, Progress: func(p Progress) { reports = append(reports, p) }}); err != nil {
 		t.Fatal(err)
 	}
-	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns == 0 {
-		t.Fatalf("the Creator ran under %+v, want no timeout and the policy's turns", seen.Budgets)
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns != settings.BuiltinFailsafeTurns {
+		t.Fatalf("the Creator ran under %+v, want no timeout and the failsafe's turns", seen.Budgets)
 	}
-	if !strings.Contains(log.String(), "no time limit") || strings.Contains(log.String(), "up to 0 minutes") {
-		t.Fatalf("the log did not say the build has no time limit: %q", log.String())
+	if l := log.String(); !strings.Contains(l, "no time or turn limit") || strings.Contains(l, "up to 0 minutes") || strings.Contains(l, "200") {
+		t.Fatalf("the log did not say the build has no time or turn limit: %q", l)
 	}
-	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 {
-		t.Fatalf("the building view was told %+v, want no time limit", reports)
+	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 || reports[0].MaxTurns != 0 {
+		t.Fatalf("the building view was told %+v, want no time or turn limit", reports)
+	}
+}
+
+// builtinNoLimit turns Run defaults' no-limit switch for the built-in agents
+// on or off in the isolated desktop.yaml.
+func builtinNoLimit(t *testing.T, on bool) {
+	t.Helper()
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.BuiltinNoLimit = &on
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
 	}
 }

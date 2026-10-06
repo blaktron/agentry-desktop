@@ -35,10 +35,11 @@ type RunDefaultsView struct {
 	// default.
 	UnsafeMode  bool   `json:"unsafeMode"`
 	UnsafeImage string `json:"unsafeImage,omitempty"`
-	// BuiltinNoTimeout is the no-time-limit switch for the built-in agents (desktop.yaml's
-	// builtinNoTimeout, D-062): the built-in agents' runs on this computer
-	// have no timeout while it is on.
-	BuiltinNoTimeout bool `json:"builtinNoTimeout"`
+	// BuiltinNoLimit is the no-limit switch for the built-in agents
+	// (desktop.yaml's builtinNoLimit, D-062 and its 2026-10-06 addendum), on
+	// unless turned off: the built-in agents' runs on this computer have no
+	// timeout and no turn cap the app shows while it is on.
+	BuiltinNoLimit bool `json:"builtinNoLimit"`
 	// RememberRuns is Remember recent runs (desktop.yaml's rememberRuns,
 	// D-068), on unless turned off; RunHistoryCount how many runs the
 	// history keeps, -1 when it cannot be read.
@@ -94,18 +95,20 @@ func (s *SettingsAPI) SetChatIdleTimeout(seconds int) (*RunDefaultsView, error) 
 	return runDefaultsView()
 }
 
-// SetBuiltinNoTimeout turns the no-time-limit switch for the built-in agents on or off
-// (agentry-desktop#606, D-062): while it is on, the Drafter, the Knowledge
-// Creator, the Examiner and the Voice Writer run on this computer with no
-// timeout. It asks no confirmation: it gives no run a reach it lacked, the
-// turn and cost caps still hold, and a run that has started keeps the
-// budgets it started with.
-func (s *SettingsAPI) SetBuiltinNoTimeout(on bool) (*RunDefaultsView, error) {
+// SetBuiltinNoLimit turns the no-limit switch for the built-in agents on or
+// off (agentry-desktop#606, D-062; agentry-desktop#699, its addendum):
+// while it is on, the default, the Drafter, the Knowledge Creator, the
+// Examiner and the Voice Writer run on this computer with no timeout and
+// no turn cap the app shows, only the hidden settings.BuiltinFailsafeTurns.
+// It asks no confirmation: it gives no run a reach it lacked, the cost cap
+// still holds, and a run that has started keeps the budgets it started
+// with.
+func (s *SettingsAPI) SetBuiltinNoLimit(on bool) (*RunDefaultsView, error) {
 	st, err := settings.Load()
 	if err != nil {
 		return nil, err
 	}
-	st.BuiltinNoTimeout = on
+	st.BuiltinNoLimit = &on
 	if err := settings.Save(st); err != nil {
 		return nil, err
 	}
@@ -190,7 +193,7 @@ func runDefaultsView() (*RunDefaultsView, error) {
 	return &RunDefaultsView{
 		TimeoutSeconds: budgets.TimeoutSeconds, MaxTurns: budgets.MaxTurns, PolicyPath: path,
 		Where: where, OutputDir: st.DefaultOutputDir, ChatIdleTimeoutSeconds: st.ChatIdleTimeoutSeconds,
-		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoTimeout: st.BuiltinNoTimeout,
+		UnsafeMode: st.UnsafeMode, UnsafeImage: pol.Images.UnsafeImage(), BuiltinNoLimit: st.BuiltinNoLimitOn(),
 		RememberRuns: st.RememberRunsEnabled(), RunHistoryCount: historyCount(),
 	}, nil
 }

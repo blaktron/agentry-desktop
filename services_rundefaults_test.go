@@ -346,35 +346,36 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 	}
 }
 
-// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): off by
-// default, written to desktop.yaml by its own binding, read back in the
-// view, and never in the runner policy the CLI shares.
-func TestTheBuiltinAgentsSwitchIsSavedInDesktopYAMLOnly(t *testing.T) {
+// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
+// D-062; agentry-desktop#699, its addendum): on by default, written to
+// desktop.yaml by its own binding, read back in the view, and never in the
+// runner policy the CLI shares.
+func TestTheBuiltinAgentsSwitchIsOnByDefaultAndSavedInDesktopYAMLOnly(t *testing.T) {
 	_, s := runDefaultsApp(t, "")
 	v, err := s.RunDefaults()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.BuiltinNoTimeout {
-		t.Fatal("the switch is on by default")
+	if !v.BuiltinNoLimit {
+		t.Fatal("the switch is off by default")
 	}
 	before, _ := os.ReadFile(filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml"))
-	if v, err = s.SetBuiltinNoTimeout(true); err != nil || !v.BuiltinNoTimeout {
-		t.Fatalf("turning it on: %+v, %v", v, err)
+	if v, err = s.SetBuiltinNoLimit(false); err != nil || v.BuiltinNoLimit {
+		t.Fatalf("turning it off: %+v, %v", v, err)
 	}
-	if st, _ := settings.Load(); !st.BuiltinNoTimeout {
+	if st, _ := settings.Load(); st.BuiltinNoLimitOn() {
 		t.Fatal("desktop.yaml does not hold the switch")
 	}
 	if after, _ := os.ReadFile(filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml")); string(after) != string(before) {
 		t.Fatal("the switch changed the runner policy")
 	}
-	if v.TimeoutSeconds != policy.Default().Budgets.TimeoutSeconds {
-		t.Fatalf("the policy's run timeout reads %d, want it unchanged", v.TimeoutSeconds)
+	if v.TimeoutSeconds != policy.Default().Budgets.TimeoutSeconds || v.MaxTurns != policy.Default().Budgets.MaxTurns {
+		t.Fatalf("the policy's budgets read %d s and %d turns, want them unchanged", v.TimeoutSeconds, v.MaxTurns)
 	}
-	if v, err = s.SetRunWhere(settings.RunWhereAgentry); err != nil || !v.BuiltinNoTimeout {
+	if v, err = s.SetRunWhere(settings.RunWhereAgentry); err != nil || v.BuiltinNoLimit {
 		t.Fatalf("another setting's save: %+v, %v", v, err)
 	}
-	if v, err = s.SetBuiltinNoTimeout(false); err != nil || v.BuiltinNoTimeout {
-		t.Fatalf("turning it off: %+v, %v", v, err)
+	if v, err = s.SetBuiltinNoLimit(true); err != nil || !v.BuiltinNoLimit {
+		t.Fatalf("turning it on again: %+v, %v", v, err)
 	}
 }

@@ -32,7 +32,6 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
-	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/pkg/validate"
 
 	"github.com/blaktron/agentry-desktop/internal/progress"
@@ -58,9 +57,10 @@ type Plan struct {
 
 // Budgets are the review's: the runner policy's, with the Examiner's own
 // timeout floor (30 minutes, since one rubric review may take 15), as
-// `agentry review` gives it, or none while Run defaults' no-time-limit
-// switch for the built-in agents is on (settings.BuiltinBudgets, D-062).
-func (p *Plan) Budgets() spec.Budgets {
+// `agentry review` gives it, or no limit shown while Run defaults' no-limit
+// switch for the built-in agents is on, the default (settings.BuiltinBudgets,
+// D-062).
+func (p *Plan) Budgets() settings.BuiltinLimits {
 	return settings.BuiltinBudgets(localrun.Examiner(), p.Policy.Budgets)
 }
 
@@ -193,8 +193,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if logw == nil {
 		logw = io.Discard
 	}
-	b := p.Budgets()
-	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(b.TimeoutSeconds, b.MaxTurns)})
+	l := p.Budgets()
+	b := l.Run
+	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(l.Shown.TimeoutSeconds, l.Shown.MaxTurns)})
 	prog.Set(atStage(StageRules))
 	client := req.HTTP
 	if client == nil {

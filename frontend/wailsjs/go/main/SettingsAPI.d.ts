@@ -32,7 +32,7 @@ export function RemoveRegistry(arg1:string):Promise<main.SettingsView>;
 
 export function RunDefaults():Promise<main.RunDefaultsView>;
 
-export function SetBuiltinNoTimeout(arg1:boolean):Promise<main.RunDefaultsView>;
+export function SetBuiltinNoLimit(arg1:boolean):Promise<main.RunDefaultsView>;
 
 export function SetChatIdleTimeout(arg1:number):Promise<main.RunDefaultsView>;
 

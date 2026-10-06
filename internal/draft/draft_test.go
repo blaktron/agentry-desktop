@@ -546,9 +546,10 @@ func TestARunReportsItsProgress(t *testing.T) {
 	}
 	var stages []Stage
 	for i, g := range got {
-		// The policy says 900 seconds; a draft on this computer has 30
-		// minutes (agentry-desktop#458).
-		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 1800 || g.MaxTurns != 40 {
+		// The policy says 900 seconds and 40 turns; a draft on this
+		// computer is shown no time or turn limit by default
+		// (agentry-desktop#699).
+		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 0 || g.MaxTurns != 0 {
 			t.Fatalf("report %d = %+v", i, g)
 		}
 		if len(stages) == 0 || stages[len(stages)-1] != g.Stage {
@@ -583,12 +584,13 @@ func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			isolate(t)
 			saveKey(t)
+			builtinNoLimit(t, false)
 			p, err := Prepare("https://registry.example", "Summarize my meeting notes.", nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			p.Policy.Budgets = tc.policy
-			if got := p.Budgets(); got != tc.want {
+			if got := p.Budgets(); got.Run != tc.want || got.Shown != tc.want {
 				t.Fatalf("the plan's budgets are %+v, want %+v", got, tc.want)
 			}
 			var runs []localrun.Run
@@ -712,29 +714,22 @@ func (f scannerFunc) Scan(ctx context.Context, src webscan.Source, text string) 
 	return f(ctx, src, text)
 }
 
-// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
-// it is on, the Drafter runs on this computer with no timeout, for a local
-// model slower than its 30 minutes; its turn and cost caps stay the
+// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
+// D-062; on by default since agentry-desktop#699): the Drafter runs on this
+// computer with no timeout and runs to the hidden failsafe of 200 turns,
+// and its progress dialog is told no limit at all. The cost cap stays the
 // policy's, and the repair turn keeps its own bound, so a draft still ends.
-func TestTheBuiltinAgentsSwitchGivesADraftNoTimeout(t *testing.T) {
+func TestByDefaultADraftHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 	isolate(t)
 	saveKey(t)
-	st, err := settings.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	st.BuiltinNoTimeout = true
-	if err := settings.Save(st); err != nil {
-		t.Fatal(err)
-	}
 	p, err := Prepare("https://registry.example", "Summarize my meeting notes.", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.Policy.Budgets = policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 3}
-	want := spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 3}
-	if got := p.Budgets(); got != want {
-		t.Fatalf("the plan's budgets are %+v, want %+v", got, want)
+	want := spec.Budgets{TimeoutSeconds: 0, MaxTurns: settings.BuiltinFailsafeTurns, MaxCostUSD: 3}
+	if got := p.Budgets(); got.Run != want || got.Shown != (spec.Budgets{MaxCostUSD: 3}) {
+		t.Fatalf("the plan's budgets are %+v, want %+v run and no limit shown", got, want)
 	}
 	var runs []localrun.Run
 	first := fakeRun(t, &runs, refused, nil)
@@ -768,7 +763,21 @@ func TestTheBuiltinAgentsSwitchGivesADraftNoTimeout(t *testing.T) {
 	if got := *runs[1].Budgets; got.TimeoutSeconds != drafter.RepairTimeoutSeconds || got.MaxTurns > drafter.RepairMaxTurns {
 		t.Errorf("the repair turn ran under %+v, want %d seconds at most %d tool calls", got, drafter.RepairTimeoutSeconds, drafter.RepairMaxTurns)
 	}
-	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 {
-		t.Errorf("the progress dialog was told %+v, want no time limit", reports)
+	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 || reports[0].MaxTurns != 0 {
+		t.Errorf("the progress dialog was told %+v, want no time or turn limit", reports)
+	}
+}
+
+// builtinNoLimit turns Run defaults' no-limit switch for the built-in agents
+// on or off in the isolated desktop.yaml.
+func builtinNoLimit(t *testing.T, on bool) {
+	t.Helper()
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.BuiltinNoLimit = &on
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
 	}
 }
