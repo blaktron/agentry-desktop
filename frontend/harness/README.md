@@ -196,10 +196,12 @@ time-and-credits strip and D2's sentence), `#chat-local-working`,
 collected its result) and `#chat-hosted-ended` (the result view with the
 session's credits and `receipts/transcript.md`).
 
-Settings opens on five cards since agentry-desktop#346. `pages.html` shows the
+Settings opens on five cards since agentry-desktop#346, six with Profile while
+the active registry is signed in (agentry-desktop#423), and one more, Home,
+last, since agentry-desktop#661. `pages.html` shows the
 cards (`page-settings`, which asserts each card and its status line), and
 `pages.html?settings=<section>` opens a section page (`registry`, `updates`,
-`coding-agents`, `run-defaults`, `provider`), where the Settings states above
+`coding-agents`, `run-defaults`, `provider`, `profile`, `home`), where the Settings states above
 are shot; the hash still picks each card's own state. The preview keeps its
 own route as App does, so `settings-open-<section>` clicks a card,
 `settings-part-link` follows a part's link, `settings-back-<section>` presses
@@ -223,8 +225,16 @@ sign-in, and
 `#runpanel-default-folder` shows the saved folder filled in on Review and
 start. `shots.mjs` can `fill` a field before its clicks and assert
 `expectChecked` and `expectValue`.
-`#status-refused` makes every status binding refuse: the five cards stay and
-only the registry's line, which reads no binding, is left.
+`#status-refused` makes every status binding refuse: the seven cards (signed
+in) stay and only the registry's line, which reads no binding, is left.
+Settings → Home (agentry-desktop#661) is `settings-landing-home*` (the card's
+line, with `#home-pins-five` and `#home-hidden`), `settings-open-home`,
+`settings-part-link-home`, `settings-deeplink-home`, `settings-back-home`,
+`settings-home-hide` / `-show` (a switch, answered by the mock as Go
+answers), `settings-home-pins` and `-unpin`, `settings-home-reset-confirm`
+and `-reset`, and `settings-home-newer` (the switches held); on Home,
+`page-home-settings-link` and `page-home-all-hidden` (`#home-all-hidden`,
+every card hidden and nothing pinned).
 
 Page previews live in `pages.html` (`pages.tsx`) — Browse, AgentPage,
 Installed, Build, Validate and Settings under the shell. Overlays live in
