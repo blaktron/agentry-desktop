@@ -464,3 +464,21 @@ func TestARunIsGivenItsConnectionsAccessTokenAndTheReceiptLine(t *testing.T) {
 		}
 	}
 }
+
+func TestAStartRefusesAnUnsupportedPackageAndConnectAnUndeclaredServer(t *testing.T) {
+	v := mcpauthtest.New(t)
+	home := fakeVendorSeams(t, v, nil)
+	m := &manifest.Manifest{}
+	m.Capabilities.MCPServers = []manifest.MCPServer{{PyPI: "mcp-gsuite", Version: "0.4.1", OAuth: &manifest.MCPOAuth{Issuer: v.URL}}}
+	_, err := openConnections(context.Background(), home, refA, digestA, m)
+	var ce *engine.ClassifiedError
+	if !errors.As(err, &ce) || ce.Code != engine.ExitPolicy || !strings.Contains(err.Error(), "access token alone") {
+		t.Fatalf("a start with an unsupported package: %v", err)
+	}
+	presented := false
+	_, err = connect(context.Background(), home, refA, digestA, remoteOAuthManifest(v.ServerURL()), "https://elsewhere.example/mcp",
+		ConsentUI{Present: func(string) { presented = true }})
+	if err == nil || presented || !strings.Contains(err.Error(), "declares no MCP server") {
+		t.Fatalf("a server the release does not declare must be refused before consent: %v (presented %v)", err, presented)
+	}
+}

@@ -5,21 +5,13 @@
 // later runs. Go keeps it (internal/run/connections.go); these are the words
 // the page says about it.
 
+import type { main, run } from "../wailsjs/go/models";
+
 /** One declared server that signs in by OAuth, as Go reports it
- *  (run.ServerConnection): never a token. */
-export type ServerConn = {
-  server: string;
-  what: string;
-  issuer?: string;
-  scopes: string[];
-  state: string;
-  broken?: string;
-  label?: string;
-  client?: string;
-  createdAt?: string;
-  lastUsedAt?: string;
-  unsupported?: string;
-};
+ *  (run.ServerConnection): never a token. Its fields are the generated
+ *  type's, so a change in Go fails the type-check here. */
+export type ServerConn = Pick<run.ServerConnection, "server" | "what" | "scopes" | "state"> &
+  Partial<Pick<run.ServerConnection, "issuer" | "broken" | "label" | "client" | "createdAt" | "lastUsedAt" | "unsupported">>;
 
 /** The host of an address, or the address itself where it does not parse. */
 export function hostOf(address: string | undefined): string {
@@ -117,4 +109,14 @@ export function pastedProblem(address: string): string | null {
     return "That is not an address: paste the whole of what the browser's address bar shows.";
   }
   return null;
+}
+
+/** Settings → Connections' landing line: what is kept, never a token. */
+export function connectionsStatus(v: Pick<main.KeptConnectionsView, "connections" | "clients">): string {
+  const n = v.connections.length;
+  const c = v.clients.length;
+  const conns = n === 0 ? "No connections kept" : n === 1 ? "1 connection kept" : `${n} connections kept`;
+  const broken = v.connections.filter((x) => x.state === "broken").length;
+  const own = c === 0 ? "no OAuth client of your own" : c === 1 ? "1 OAuth client of your own" : `${c} OAuth clients of your own`;
+  return `${conns}${broken > 0 ? ` (${broken} no longer working)` : ""} · ${own}.`;
 }

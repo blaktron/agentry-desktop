@@ -10,15 +10,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { clientWords, dateOf, hostOf, scopeWords } from "../connections";
-
-/** The landing card's status line. */
-export function connectionsStatus(v: main.KeptConnectionsView): string {
-  const n = v.connections.length;
-  const c = v.clients.length;
-  const conns = n === 0 ? "No connections kept" : n === 1 ? "1 connection kept" : `${n} connections kept`;
-  const broken = v.connections.filter((x) => x.state === "broken").length;
-  return `${conns}${broken > 0 ? ` (${broken} no longer working)` : ""} · ${c === 0 ? "no OAuth client of your own" : c === 1 ? "1 OAuth client of your own" : `${c} OAuth clients of your own`}.`;
-}
+export { connectionsStatus } from "../connections";
 
 export function ConnectionsSettings() {
   const [view, setView] = useState<main.KeptConnectionsView | null>(null);

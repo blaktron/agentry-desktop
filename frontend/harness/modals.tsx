@@ -161,7 +161,7 @@ const signInRelease = {
 };
 // Agentry's Google steps, as Go words them (internal/run OwnClientSteps).
 const googleGuide = {
-  issuer: "https://accounts.google.com", vendor: "Google", known: true, docs: "https://secureagentry.net/docs/agentry/google-client/",
+  issuer: "https://accounts.google.com", vendor: "Google", known: true, docs: "https://docs.secureagentry.net/agentry/google-client/",
   steps: [
     "In the Google Cloud console (console.cloud.google.com), create a project or pick one of yours.",
     "APIs & Services → Library: enable the Gmail API and the Gmail MCP API (gmailmcp.googleapis.com).",

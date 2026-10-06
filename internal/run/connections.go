@@ -129,6 +129,34 @@ func connectionWhat(srv manifest.MCPServer) string {
 	return srv.SourceID() + " (signing in at " + srv.OAuth.Issuer + ")"
 }
 
+// unsupportedRefusal is the refusal of a package on the unsupported list
+// (D25), before any consent and at a run's start alike.
+func unsupportedRefusal(srv manifest.MCPServer, alt string) error {
+	return engine.Classify(engine.ExitPolicy, fmt.Errorf("declared MCP server %s cannot run on an access token alone, so it cannot take a connection: run a version of the QuickAgent that declares %s instead", srv.SourceID(), alt))
+}
+
+// stores are the connection store and the own-client store of a runner
+// home, with the client that reaches vendors: what every consent, start
+// and removal opens.
+type stores struct {
+	conns   *connection.Store
+	clients *connection.Clients
+	httpc   *http.Client
+}
+
+func openStores(home string) stores {
+	keys := connectionKeys()
+	return stores{conns: connection.Open(home, keys), clients: connection.OpenClients(home, keys), httpc: vendorHTTP()}
+}
+
+// stateOf is a kept connection's state and why it is broken.
+func stateOf(c *connection.Connection) (string, string) {
+	if c.Broken != "" {
+		return ConnBroken, c.Broken
+	}
+	return ConnConnected, ""
+}
+
 func unsupportedAlternative(srv manifest.MCPServer) string {
 	if srv.IsRemote() {
 		return ""
@@ -171,10 +199,7 @@ func connectionsOf(store *connection.Store, ref, digest string, m *manifest.Mani
 		case err != nil:
 			return nil, err
 		default:
-			sc.State = ConnConnected
-			if c.Broken != "" {
-				sc.State, sc.Broken = ConnBroken, c.Broken
-			}
+			sc.State, sc.Broken = stateOf(c)
 			sc.Issuer, sc.Label, sc.Client = c.Issuer, c.Label, c.Client.Kind
 			sc.Granted = append([]string{}, c.Scopes...)
 			sc.CreatedAt, sc.LastUsedAt = c.CreatedAt, c.LastUsedAt
@@ -243,12 +268,10 @@ func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest
 		return nil, fmt.Errorf("%s declares no MCP server %s that signs in by OAuth", ref, server)
 	}
 	if alt := unsupportedAlternative(*srv); alt != "" {
-		return nil, engine.Classify(engine.ExitPolicy, fmt.Errorf("declared MCP server %s cannot run on an access token alone, so it cannot take a connection: run a version of the QuickAgent that declares %s instead", srv.SourceID(), alt))
+		return nil, unsupportedRefusal(*srv, alt)
 	}
-	keys := connectionKeys()
-	store := connection.Open(home, keys)
-	clients := connection.OpenClients(home, keys)
-	httpc := vendorHTTP()
+	st := openStores(home)
+	store, clients, httpc := st.conns, st.clients, st.httpc
 	c := mcpauth.Consent{
 		HTTP: httpc, ServerURL: srv.URL, Scopes: connectionScopes(*srv),
 		OwnClient: clients.Get, CIMDURL: nativeCIMD,
@@ -270,8 +293,12 @@ func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest
 		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), revokeTimeout)
 		outcome, rerr := store.Remove(rctx, k, httpc, clients, "replaced by a new consent")
 		cancel()
-		if rerr == nil && ui.Say != nil {
-			ui.Say("The previous connection was removed (revocation: " + outcome + ").")
+		if ui.Say != nil {
+			if rerr != nil {
+				ui.Say("The previous connection could not be removed cleanly (" + rerr.Error() + "); the new one replaces it (revocation: " + outcome + ").")
+			} else {
+				ui.Say("The previous connection was removed (revocation: " + outcome + ").")
+			}
 		}
 	}
 	if _, err := store.Put(k, g, ""); err != nil {
@@ -310,10 +337,8 @@ func openConnections(ctx context.Context, home, ref, digest string, m *manifest.
 	if len(servers) == 0 {
 		return &runConnections{}, nil
 	}
-	keys := connectionKeys()
-	store := connection.Open(home, keys)
-	clients := connection.OpenClients(home, keys)
-	httpc := vendorHTTP()
+	st := openStores(home)
+	store, clients, httpc := st.conns, st.clients, st.httpc
 	out := &runConnections{
 		tokens: map[string]engine.ConnectionToken{},
 		renew: func(ctx context.Context, server string) (engine.ConnectionToken, error) {
@@ -324,7 +349,7 @@ func openConnections(ctx context.Context, home, ref, digest string, m *manifest.
 	var used []string
 	for _, srv := range servers {
 		if alt := unsupportedAlternative(srv); alt != "" {
-			return nil, engine.Classify(engine.ExitPolicy, fmt.Errorf("declared MCP server %s cannot run on an access token alone: run a version of the QuickAgent that declares %s instead", srv.SourceID(), alt))
+			return nil, unsupportedRefusal(srv, alt)
 		}
 		k := connection.Key{Ref: ref, Digest: digest, Server: connectionServer(srv)}
 		access, c, err := store.Use(ctx, k, httpc, clients)
@@ -395,12 +420,10 @@ func KeptConnections() ([]KeptConnection, []KeptClient, error) {
 	for _, c := range list {
 		k := KeptConnection{
 			Ref: c.Ref, Digest: c.Digest, Server: c.Server, Issuer: c.Issuer, Client: c.Client.Kind,
-			Scopes: append([]string{}, c.Scopes...), State: ConnConnected, Label: c.Label,
+			Scopes: append([]string{}, c.Scopes...), Label: c.Label,
 			CreatedAt: c.CreatedAt, LastUsedAt: c.LastUsedAt, KeptIn: c.SecretIn,
 		}
-		if c.Broken != "" {
-			k.State, k.Broken = ConnBroken, c.Broken
-		}
+		k.State, k.Broken = stateOf(c)
 		conns = append(conns, k)
 	}
 	cs, err := connection.OpenClients(home, nil).List()
@@ -422,11 +445,10 @@ func Disconnect(ctx context.Context, ref, digest, server string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	keys := connectionKeys()
+	st := openStores(home)
 	rctx, cancel := context.WithTimeout(ctx, revokeTimeout)
 	defer cancel()
-	return connection.Open(home, keys).Remove(rctx, connection.Key{Ref: ref, Digest: digest, Server: server},
-		vendorHTTP(), connection.OpenClients(home, keys), "removed by the person")
+	return st.conns.Remove(rctx, connection.Key{Ref: ref, Digest: digest, Server: server}, st.httpc, st.clients, "removed by the person")
 }
 
 // RemoveConnectionsOf removes the connections of every version of ns/name,
@@ -437,14 +459,12 @@ func RemoveConnectionsOf(ctx context.Context, ns, name string) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	keys := connectionKeys()
-	store := connection.Open(home, keys)
-	clients := connection.OpenClients(home, keys)
+	st := openStores(home)
+	store, clients, httpc := st.conns, st.clients, st.httpc
 	list, err := store.List()
 	if err != nil {
 		return nil, err
 	}
-	httpc := vendorHTTP()
 	var out []string
 	var errs []error
 	for _, c := range list {
@@ -489,7 +509,7 @@ func ForgetOwnClient(issuer string) (bool, error) {
 const GoogleIssuer = "https://accounts.google.com"
 
 // OwnClientDocs is the docs page that carries Agentry's Google steps.
-const OwnClientDocs = "https://secureagentry.net/docs/agentry/google-client/"
+const OwnClientDocs = "https://docs.secureagentry.net/agentry/google-client/"
 
 // OwnClientGuide is how to make one's own OAuth client at a vendor (D22):
 // Agentry's steps where it has written them (Known), else the general

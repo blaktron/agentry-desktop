@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -103,6 +104,13 @@ func (r *RunAPI) Connect(reg, ref, server string) (*ConnectView, error) {
 		Pasted: pasted,
 		Say:    func(line string) { emitEvent(r.app, connectSayEvent, ConnectSayView{Server: server, Line: line}) },
 		Present: func(authURL string) {
+			// pkg/mcpauth holds the vendor's authorization endpoint to https;
+			// this app holds the address it hands the OS to it again.
+			if u, err := url.Parse(authURL); err != nil || u.Scheme != "https" || u.Host == "" {
+				emitEvent(r.app, connectSayEvent, ConnectSayView{Server: server,
+					Line: "The vendor's consent address is not an https address, so it was not opened."})
+				return
+			}
 			emitEvent(r.app, connectURLEvent, ConnectURLView{Server: server, URL: authURL})
 			if err := r.openURL(authURL); err != nil {
 				emitEvent(r.app, connectSayEvent, ConnectSayView{Server: server,

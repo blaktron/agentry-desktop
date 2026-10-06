@@ -141,13 +141,18 @@ export default function RunPanel({
   // and Run waits until each is connected. Null until read; a read that
   // fails leaves the engine's own refusal, which names the server.
   const [conns, setConns] = useState<run.ReleaseConnections | null>(null);
+  // The release the panel shows now: a late answer for another one is
+  // dropped rather than drawn.
+  const shown = useRef(agentRef);
+  shown.current = agentRef;
   const readConns = () => {
+    const asked = agentRef;
     // Through a promise, so a binding an older harness entry lacks is a
     // read that did not answer, not a throw.
     Promise.resolve()
-      .then(() => RunAPI.ReleaseConnections(registry, agentRef))
-      .then((c) => setConns(c))
-      .catch(() => setConns(null));
+      .then(() => RunAPI.ReleaseConnections(registry, asked))
+      .then((c) => { if (shown.current === asked) setConns(c); })
+      .catch(() => { if (shown.current === asked) setConns(null); });
   };
   useEffect(readConns, [registry, agentRef]);
   const signIns = asConns(conns?.servers);

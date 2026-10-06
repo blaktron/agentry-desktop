@@ -244,7 +244,7 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
   );
 }
 
-/** The connection state of conns, typed for the pure helpers. */
+/** The connection state of conns, for the pure helpers. */
 export function asConns(conns: run.ServerConnection[] | null | undefined): ServerConn[] {
-  return (conns ?? []) as ServerConn[];
+  return conns ?? [];
 }

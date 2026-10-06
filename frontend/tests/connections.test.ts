@@ -2,7 +2,7 @@
 // connection, and what it holds Run for.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectionBlockers, connectionLine, pastedProblem, signInRecap, type ServerConn } from "../src/connections.ts";
+import { connectionBlockers, connectionLine, connectionsStatus, pastedProblem, signInRecap, type ServerConn } from "../src/connections.ts";
 import { needList, signInNeed } from "../src/runSetup.ts";
 
 const gmail = "https://gmailmcp.googleapis.com/mcp/v1";
@@ -60,4 +60,10 @@ test("a pasted address must be the redirect, whole", () => {
   assert.match(pastedProblem("abc") ?? "", /not an address/);
   assert.match(pastedProblem("http://127.0.0.1:41234/callback") ?? "", /carries a code/);
   assert.match(pastedProblem("javascript:alert(1)?x") ?? "", /not the address/);
+});
+
+test("the Connections card's line counts what is kept and what no longer works", () => {
+  const c = (state: string) => ({ state }) as never;
+  assert.equal(connectionsStatus({ connections: [], clients: [] }), "No connections kept · no OAuth client of your own.");
+  assert.equal(connectionsStatus({ connections: [c("connected"), c("broken")], clients: [{} as never] }), "2 connections kept (1 no longer working) · 1 OAuth client of your own.");
 });
