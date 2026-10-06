@@ -110,6 +110,19 @@
 //                                 (agentry-cli#152, agentry-desktop#269)
 //   #runpanel-local-finished-env  the same run with the runner home
 //                                 relocated by AGENTRY_RUNNER_HOME
+//
+// A release with a remote server that signs in by OAuth, Google's Gmail
+// server (agentry-desktop#666), on Connect tools:
+//   #runpanel-signin             not connected: Connect, and what it asks for
+//   #runpanel-signin-connecting  Connect clicked: the wait, the consent
+//                                address, and the field for the address a
+//                                browser on another computer ended on
+//   #runpanel-signin-own-client  Connect clicked: Google lets no app register
+//                                itself, so Agentry's Google steps (the
+//                                Developer Preview and Test users steps
+//                                among them) and the client form
+//   #runpanel-signin-connected   connected, with Connect again and Disconnect
+//   #runpanel-signin-review      Review and start: Run held until connected
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -133,6 +146,34 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // unanswered question is what the line names.
 const guidedShape = view.startsWith("runpanel-guided") || view === "toolspanel-hostile";
 const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape;
+// A Gmail-reading release whose one server is Google's remote Gmail server,
+// signing in by OAuth with the person's own client (agentry-desktop#666).
+const signInShape = view.startsWith("runpanel-signin");
+const gmailServer = "https://gmailmcp.googleapis.com/mcp/v1";
+const signInRelease = {
+  ref: "acme/inbox-brief@0.1.0", digest: "sha256:7f3a2b9c1d4e5f60",
+  servers: [{
+    server: gmailServer, what: gmailServer, scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+    ...(view === "runpanel-signin-connected"
+      ? { state: "connected", issuer: "https://accounts.google.com", client: "own", createdAt: "2026-10-06T14:02:00Z", lastUsedAt: "2026-10-06T14:05:00Z", granted: ["https://www.googleapis.com/auth/gmail.readonly"] }
+      : { state: "none", granted: [] }),
+  }],
+};
+// Agentry's Google steps, as Go words them (internal/run OwnClientSteps).
+const googleGuide = {
+  issuer: "https://accounts.google.com", vendor: "Google", known: true, docs: "https://secureagentry.net/docs/agentry/google-client/",
+  steps: [
+    "In the Google Cloud console (console.cloud.google.com), create a project or pick one of yours.",
+    "APIs & Services → Library: enable the Gmail API and the Gmail MCP API (gmailmcp.googleapis.com).",
+    "Google's remote MCP servers are in Google's Workspace Developer Preview: enrol this project at developers.google.com/workspace/preview. Google asks for a Google Workspace account and can take a couple of days. Until the project is enrolled, every tool call answers \"The caller does not have permission\". A QuickAgent that uses the workspace-mcp server instead reaches Gmail through the Gmail API and needs no enrolment.",
+    "Google Auth Platform → Branding: give the app a name and your email address.",
+    "Audience: choose Internal if your account is in a Google Workspace organization; otherwise External, then Publish app so it is In production. A client left in Testing gets sign-ins that stop working after 7 days.",
+    "If the app stays in Testing: Audience → Test users → Add users, and add the Google account you will sign in with. Google refuses the sign-in of any account a Testing app does not list.",
+    "Data Access → Add or remove scopes: add the scopes this QuickAgent asks for (https://www.googleapis.com/auth/gmail.readonly).",
+    "Clients → Create client → Application type: Desktop app. Copy its client ID and client secret into the fields below.",
+  ],
+  note: "Google may show an \"unverified app\" screen when you sign in with a client of your own: the app is yours, and Google says so because it has not reviewed it. Every QuickAgent you connect to Google from this computer uses the client you keep here; each version still asks for its own consent.",
+};
 const hostileGuide = view.startsWith("runpanel-guided-hostile") || view === "toolspanel-hostile";
 // What pr-review-brief's author could write in its guide (DEV-141).
 const guide = hostileGuide
@@ -213,7 +254,14 @@ const localResult = {
     ? "UNSAFE MODE: run_command restricted to the argv0 allowlist {7z, analyzeHeadless, binwalk, decompyle3, file, objdump, pyinstxtractor, r2, strings}; the tools container is the Unsafe Mode image ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da with the declared commands installed one at a time, from Kali Linux's repository or, for a pip extra, PyPI (7z ← apt, analyzeHeadless ← link ghidra:/usr/share/ghidra/support/analyzeHeadless, binwalk ← apt, decompyle3 ← pip decompyle3==3.9.3, file ← apt, objdump ← apt, r2 ← apt, strings ← apt — apt packages: 7zip, binutils, binwalk, file, ghidra, radare2); this machine's exec catalogue was not consulted; the image is not minimized, and a declared command runs with the image's own PATH after its shims, so it can reach every program the image holds; not available in Unsafe Mode's image: pyinstxtractor; packages resolved at image build: binutils=2.45-3, file=1:5.46-5, ghidra=11.4.2-0kali1, radare2=6.0.2+dfsg-1; NOT installed at image build (the commands named are absent from this run unless the base image already carries them): binwalk (E: Unable to locate package binwalk) for binwalk"
     : undefined,
 };
-const profile = keysShape
+const profile = signInShape
+  ? {
+    ref: signInRelease.ref, digest: signInRelease.digest,
+    capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: https://gmailmcp.googleapis.com/mcp/v1 (remote; signs in by OAuth)"],
+    declaredSecrets: [], storedSecretNames: [], exists: false, keep: true,
+    modes: ["autonomous"], intake: [], opening: "", shipsKnowledge: [],
+  }
+  : keysShape
   ? {
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
     capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
@@ -241,7 +289,9 @@ const setup = { dockerOk: true, imagesReady: true, timeoutSeconds: 900, maxTurns
 const mcp = {
   refusal: "", vulnerabilityLine: "have no known high or critical advisories", toolRows: [],
   servers: keysShape ? ["github-mcp-server-js"] : [], vulnerabilities: [], dataAccess: keysShape ? ["code"] : [],
-  declaredServers: keysShape
+  declaredServers: signInShape
+    ? [{ id: gmailServer, tools: ["search_threads", "get_thread"], env: [], remote: true, signsIn: true }]
+    : keysShape
     ? [{ id: "npm:github-mcp-server-js@0.1.7", tools: ["get_pull_request", "list_pull_request_files", "list_pull_request_commits"], env: [{ name: "GITHUB_PERMISSION", value: "read-only" }] }]
     : [],
   secretNames: keysShape ? ["GITHUB_TOKEN"] : [], embeddedTools: [],
@@ -393,6 +443,11 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-default-folder": "review",
   "runpanel-unsafe-review": "review",
   "runpanel-unsafe-finished": "review",
+  "runpanel-signin": "tools",
+  "runpanel-signin-connecting": "tools",
+  "runpanel-signin-own-client": "tools",
+  "runpanel-signin-connected": "tools",
+  "runpanel-signin-review": "review",
 };
 
 const g = window as any;
@@ -430,6 +485,19 @@ g.go = { main: {
     UnsafeNotice: async () => unsafeNotice,
     RunOutputs: async () => runOutputs,
     ShowRunFolder: async () => {},
+    // Connect tools' sign-ins (agentry-desktop#666): none for the other
+    // states; on #runpanel-signin-connecting Connect sends the consent
+    // address and waits for the browser, which never answers here.
+    ReleaseConnections: async () => (signInShape ? signInRelease : { ref: profile.ref, digest: profile.digest, servers: [] }),
+    Connect: async (_reg: string, _ref: string, server: string) => {
+      if (view === "runpanel-signin-own-client") return { needsOwnClient: googleGuide };
+      const url = "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=123-abc.apps.googleusercontent.com&redirect_uri=http%3A%2F%2F127.0.0.1%3A41817%2Fcallback&state=Q2hlY2s&code_challenge=E9Melhoa2Owv&code_challenge_method=S256&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly";
+      for (const cb of listeners["connect:say"] ?? []) cb({ server, line: "The sign-in is at https://accounts.google.com (the authorization server " + server + " names), as your own OAuth client 123-abc.apps.googleusercontent.com, asking for: https://www.googleapis.com/auth/gmail.readonly." });
+      for (const cb of listeners["connect:url"] ?? []) cb({ server, url });
+      return new Promise(() => {});
+    },
+    PasteRedirect: async () => {}, CancelConnect: async () => true, KeepOwnClient: async () => {},
+    Disconnect: async () => "revoked",
   },
   InstallAPI: {
     // #install-unscanned: the plan the wizard shows for a release the

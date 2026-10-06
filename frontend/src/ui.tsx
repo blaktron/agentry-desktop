@@ -196,7 +196,16 @@ export function DeclaredServersTable({ servers }: { servers?: mcpview.Server[] }
       <tbody>
         {servers.map((s) => (
           <tr key={s.id}>
-            <td className="mono">{s.id}</td>
+            <td>
+              <span className="mono">{s.id}</span>
+              {/* A remote server, and one that signs in by OAuth, say so
+                  (agentry-desktop#666): the run setup connects it. */}
+              {(s.remote || s.signsIn) && (
+                <span className="muted small" style={{ display: "block" }}>
+                  {[s.remote ? "a remote server" : "", s.signsIn ? "signs you in by OAuth" : ""].filter(Boolean).join(", ")}
+                </span>
+              )}
+            </td>
             <td className="small">{s.tools.length > 0 ? <span className="mono">{s.tools.join(", ")}</span> : <span className="muted">all of the server&apos;s tools</span>}</td>
             <td className="small">
               {s.env.length > 0

@@ -35,12 +35,21 @@ interface Question {
   required: boolean;
 }
 
+/** The "what to have ready" line for the servers that sign in by OAuth
+ *  (agentry-desktop#666). */
+export function signInNeed(count: number): string | null {
+  if (count === 0) return null;
+  return count === 1
+    ? "A sign-in to the MCP server it uses: Connect tools opens the vendor's consent screen in your browser the first time this version runs."
+    : `A sign-in to each of the ${count} MCP servers that ask for one: Connect tools opens each vendor's consent screen in your browser the first time this version runs.`;
+}
+
 // needList is what to gather first: a file for each question that asks for
 // one (else that files are optional), the keys the release declares, the
 // other questions by their own prompts, the task, which on this machine is
 // optional (the packaged instruction runs without one), and, where MCP
 // servers are declared with no key, that there is none to set up.
-export function needList(release: { intake: Question[]; secrets: string[]; servers?: number; files?: string }): string[] {
+export function needList(release: { intake: Question[]; secrets: string[]; servers?: number; files?: string; signIns?: number }): string[] {
   const out: string[] = [];
   const fileQs = release.intake.filter((q) => q.type === "file");
   if (fileQs.length > 0) {
@@ -61,6 +70,10 @@ export function needList(release: { intake: Question[]; secrets: string[]; serve
     if (q.type === "file") continue;
     out.push(`Your answer to “${q.prompt}”${q.required ? "" : " (optional)"}.`);
   }
+  // A server that signs in by OAuth is connected on Connect tools
+  // (agentry-desktop#666).
+  const signIn = signInNeed(release.signIns ?? 0);
+  if (signIn) out.push(signIn);
   out.push("A sentence or two saying what you want done, if you want more than its own instruction.");
   const servers = release.servers ?? 0;
   if (servers > 0 && release.secrets.length === 0) {
