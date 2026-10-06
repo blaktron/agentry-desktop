@@ -164,7 +164,7 @@ func TestARunReviewsAStagedCopyAndWritesItsReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	if ran.Builtin != localrun.Examiner() || ran.Review == nil || ran.Review.JevKey != testKey || ran.RunID != "abcd0001" ||
-		ran.Budgets == nil || ran.Budgets.TimeoutSeconds < examiner.LocalTimeoutFloorSeconds || len(ran.Inputs) != 2 {
+		ran.Budgets == nil || ran.Budgets.TimeoutSeconds != 0 || ran.Budgets.MaxTurns != settings.BuiltinFailsafeTurns || len(ran.Inputs) != 2 {
 		t.Fatalf("the Examiner ran as %+v", ran)
 	}
 	for _, in := range ran.Inputs {
@@ -242,10 +242,12 @@ func TestAReviewIsWrittenOnlyToAFreshFolder(t *testing.T) {
 	}
 }
 
-// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062) takes
-// the Examiner's timeout away, and only its timeout: off, a review on this
-// computer has the Examiner's floor, as `agentry review` gives it.
-func TestTheBuiltinAgentsSwitchGivesAReviewNoTimeout(t *testing.T) {
+// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
+// D-062; on by default since agentry-desktop#699) takes the Examiner's
+// timeout away and runs it to the hidden failsafe of 200 turns, shown as no
+// limit; off, a review on this computer has the Examiner's floor and the
+// policy's turns, as `agentry review` gives it.
+func TestTheBuiltinAgentsSwitchGivesAReviewNoTimeOrTurnLimitByDefault(t *testing.T) {
 	isolate(t)
 	storeKey(t)
 	p, err := Prepare(quickAgent(t))
@@ -253,18 +255,19 @@ func TestTheBuiltinAgentsSwitchGivesAReviewNoTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.Policy.Budgets = policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}
-	if got, want := p.Budgets(), localrun.Examiner().LocalBudgets(p.Policy.Budgets); got != want || got.TimeoutSeconds == 0 {
-		t.Fatalf("with the switch off: %+v, want the floor %+v", got, want)
+	if got, want := p.Budgets(), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: settings.BuiltinFailsafeTurns, MaxCostUSD: 2}); got.Run != want || got.Shown != (spec.Budgets{MaxCostUSD: 2}) {
+		t.Fatalf("by default: %+v, want %+v run and no limit shown", got, want)
 	}
 	st, err := settings.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.BuiltinNoTimeout = true
+	off := false
+	st.BuiltinNoLimit = &off
 	if err := settings.Save(st); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := p.Budgets(), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 2}); got != want {
-		t.Fatalf("with the switch on: %+v, want %+v", got, want)
+	if got, want := p.Budgets(), localrun.Examiner().LocalBudgets(p.Policy.Budgets); got.Run != want || got.Shown != want || want.TimeoutSeconds == 0 {
+		t.Fatalf("with the switch off: %+v, want the floor %+v", got, want)
 	}
 }

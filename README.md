@@ -405,21 +405,27 @@ The product never claims an agent is "safe". The language is always:
     - **Timeout and max turns**: the runner policy's budgets, so `agentry
       run` from the CLI runs with them too. A run's own fields under
       Advanced apply to that run only, longer or shorter, as the CLI's
-      `--timeout` and `--max-turns` do. A draft made on this computer has at
-      least 30 minutes and a knowledge build at least 60, however short the
-      timeout (agentry-desktop#458): the floors are the CLI's, so `agentry
-      draft` and `agentry knowledge create` give the same.
-    - **No time limit for the built-in agents** (agentry-desktop#606,
-      D-062): a switch under the timeout, off by default, kept as
-      `builtinNoTimeout` in `desktop.yaml` and never in the runner policy.
-      While it is on, a draft (Describe it, Edit with AI), a knowledge
-      build, a local review and a Writing Voice run on this computer have
-      no timeout, for a model here too slow to finish inside the floors
-      above: each runs until it finishes or you stop it. Max turns and the
-      cost cap still apply (a model that hangs mid-turn meets neither), and
-      a draft's repair turn keeps the CLI's own 5 minutes. Your QuickAgents'
-      runs, the CLI and anything In Agentry keep their timeouts, and it
-      applies from the next job started.
+      `--timeout` and `--max-turns` do. With the switch below turned off, a
+      draft made on this computer has at least 30 minutes and a knowledge
+      build at least 60, however short the timeout (agentry-desktop#458):
+      the floors are the CLI's, so `agentry draft` and `agentry knowledge
+      create` give the same.
+    - **No time or turn limit for the built-in agents** (agentry-desktop#606,
+      D-062; on by default and over the turns too since
+      agentry-desktop#699, D-062's addendum): a switch under the timeout,
+      kept as `builtinNoLimit` in `desktop.yaml` (absent means on) and never
+      in the runner policy. While it is on, a draft (Describe it, Edit with
+      AI), a knowledge build, a local review and a Writing Voice run on this
+      computer have no timeout and no turn limit the app shows: each runs
+      until it finishes or you stop it. A hidden failsafe of 200 turns (or
+      the policy's max turns when that is higher, and 200 under a policy of
+      0, unlimited) still ends one that loops; no progress line or log names
+      it, and the receipt records it. The cost cap still applies, and a
+      draft's repair turn keeps the CLI's own 5 minutes. A model that hangs
+      mid-turn meets neither cap: Stop ends it.
+      Turned off, the built-ins keep their floors above and the policy's max
+      turns. Your QuickAgents' runs, the CLI and anything In Agentry keep
+      their limits, and it applies from the next job started.
     - **Chat idle timeout** (agentry-desktop#468, D-052): a chat on this
       computer has no idle timeout, no wall clock and no count of your
       messages by default, so it ends when you end it or quit the app. Set

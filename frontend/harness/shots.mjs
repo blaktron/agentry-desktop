@@ -632,18 +632,19 @@ const states = [
   { name: "settings-run-defaults", url: "/pages.html?settings=run-defaults", note: "Run defaults: timeout and turns (the policy's, which the CLI shares), where to run, the output folder, Docker", locator: '[data-preview="settings"]',
     expectSection: "run-defaults", expectText: ["Timeout (seconds)", "the agentry CLI runs with them too", "Where to run", "every consent is asked on every run", "None chosen", "Docker engine"],
     expectValue: ['[data-preview="settings"] #settings-part-budgets input[type="number"] >> nth=0', "900"] },
-  // The built-in agents' switch (agentry-desktop#606, D-062): off by default
-  // beside the timeout it lifts, then on.
-  { name: "settings-builtin-no-timeout-off", url: "/pages.html?settings=run-defaults", note: "Run defaults → Timeout and turns: the built-in agents' no-time-limit switch, off", locator: '[data-preview="settings"] #settings-part-budgets',
-    expectSection: "run-defaults", expectText: ["No time limit for the built-in agents", "drafts, knowledge builds, local", "until it finishes or you stop", "keeps its own 5 minutes", "Your QuickAgents keep the timeout above"] },
+  // The built-in agents' switch (agentry-desktop#606, D-062): on by default
+  // since agentry-desktop#699, beside the timeout and turns it lifts, then off.
+  { name: "settings-builtin-no-limit-on", url: "/pages.html?settings=run-defaults", note: "Run defaults → Timeout and turns: the built-in agents' no-limit switch, on by default", locator: '[data-preview="settings"] #settings-part-budgets',
+    expectSection: "run-defaults", expectText: ["No time or turn limit for the built-in agents", "On unless you turn it off", "drafts, knowledge builds, local", "until it finishes or you stop", "keeps its own 5 minutes", "Your QuickAgents keep the limits above"],
+    expectChecked: '[data-preview="settings"] input[data-builtin-no-limit]' },
   { name: "settings-run-history", url: "/pages.html?settings=run-defaults", note: "Run defaults → Recent runs: Remember recent runs on, how many are kept, what is and is not kept, Clear run history (agentry-desktop#659)", locator: '[data-preview="settings"] #settings-part-history',
     expectSection: "run-defaults", expectText: ["Remember recent runs", "On. 7 runs are remembered.", "never the task, your inputs, the result or", "Clear run history"], expectChecked: '[data-preview="settings"] input[data-remember-runs]' },
   { name: "settings-run-history-cleared", url: "/pages.html?settings=run-defaults", note: "Clear run history: none kept, the switch still on", locator: '[data-preview="settings"] #settings-part-history',
     click: '[data-preview="settings"] button[data-clear-run-history]', expectSection: "run-defaults", expectText: "On. No run is remembered yet.", expectNone: '[data-preview="settings"] button[data-clear-run-history]' },
   { name: "settings-run-history-off", url: "/pages.html?settings=run-defaults", note: "Remember recent runs turned off: nothing is remembered", locator: '[data-preview="settings"] #settings-part-history',
     click: '[data-preview="settings"] input[data-remember-runs]', expectSection: "run-defaults", expectText: "Off: no run is remembered." },
-  { name: "settings-builtin-no-timeout-on", url: "/pages.html?settings=run-defaults", note: "the switch turned on: drafts, builds, reviews and voices on this computer run until they finish", locator: '[data-preview="settings"] #settings-part-budgets',
-    click: '[data-preview="settings"] input[data-builtin-no-timeout]', expectSection: "run-defaults", expectText: "No time limit for the built-in agents", expectChecked: '[data-preview="settings"] input[data-builtin-no-timeout]' },
+  { name: "settings-builtin-no-limit-off", url: "/pages.html?settings=run-defaults", note: "the switch turned off: drafts, builds, reviews and voices on this computer keep the max turns and their floors", locator: '[data-preview="settings"] #settings-part-budgets',
+    click: '[data-preview="settings"] input[data-builtin-no-limit]', expectSection: "run-defaults", expectText: "No time or turn limit for the built-in agents", expectNone: '[data-preview="settings"] input[data-builtin-no-limit]:checked' },
   // Unsafe Mode (agentry-desktop#418): the switch off and on in Run defaults,
   // the pull under way, and the red edge over a page and over a dialog.
   // `window` shoots the window, not the locator, since the edge is the window's;

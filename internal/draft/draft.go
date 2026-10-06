@@ -30,7 +30,6 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
-	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 	"github.com/blaktron/agentry-cli/runnerimage/webscan"
 
 	"github.com/blaktron/agentry-desktop/internal/build"
@@ -72,11 +71,12 @@ type Plan struct {
 // answering a task, and a draft that researches outruns it; a policy that
 // allows more keeps its own. The floor is the CLI's
 // (localrun.Builtin.LocalBudgets, the CLI's DR-54), so a draft gets the
-// same time here as from `agentry draft`. It is a timeout alone: the turn and cost
-// caps are the policy's, and no budget of a draft counts tokens. Run
-// defaults' no-time-limit switch for the built-in agents takes the timeout away
-// (settings.BuiltinBudgets, D-062).
-func (p *Plan) Budgets() spec.Budgets {
+// same time here as from `agentry draft`. No budget of a draft counts
+// tokens. That is with Run defaults' no-limit switch for the built-in
+// agents off; on, the default, the draft has no timeout and runs to the
+// hidden failsafe of turns, and Shown says no limit (settings.BuiltinBudgets,
+// D-062 and its addendum). The cost cap is the policy's either way.
+func (p *Plan) Budgets() settings.BuiltinLimits {
 	return settings.BuiltinBudgets(localrun.Drafter(), p.Policy.Budgets)
 }
 
@@ -269,8 +269,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	if logw == nil {
 		logw = io.Discard
 	}
-	b := p.Budgets()
-	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(b.TimeoutSeconds, b.MaxTurns)})
+	limits := p.Budgets()
+	b, shown := limits.Run, limits.Shown
+	prog := progress.NewMeter(req.Progress, Progress{Report: progress.Start(shown.TimeoutSeconds, shown.MaxTurns)})
 	prog.Set(atStage(StageDescription))
 	scanner := req.Scanner
 	if scanner == nil {
