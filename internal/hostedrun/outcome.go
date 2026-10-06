@@ -19,6 +19,11 @@ const (
 	OutcomeBudget      = "budget"
 	OutcomeInterrupted = "interrupted"
 	OutcomeError       = "error"
+	// OutcomeBlocked: the QuickAgent could not do its task with what the run
+	// had (the CLI's exit 18; agentry-enterprise#437, DEV-216). The registry
+	// settles it when the QuickAgent said so and refunds it when the
+	// runner's own tools failed it; the run's settled credits say which.
+	OutcomeBlocked = "blocked"
 )
 
 // Verdict is how one finished run reads.
@@ -71,6 +76,20 @@ func Read(run *Run) Verdict {
 		return Verdict{
 			Outcome: run.Outcome, Tone: "bad",
 			Line:    "the platform could not run it — the credits it held were refunded",
+			Settled: false,
+		}
+	case OutcomeBlocked:
+		// Charged or refunded is the registry's to say, by what it settled.
+		if run.SettledCredits != nil && *run.SettledCredits > 0 {
+			return Verdict{
+				Outcome: run.Outcome, Tone: "warn",
+				Line:    "blocked: the QuickAgent could not do the task with what the run had, and its output says why — the model use it took to find that out was settled",
+				Settled: true,
+			}
+		}
+		return Verdict{
+			Outcome: run.Outcome, Tone: "warn",
+			Line:    "blocked: the runner's tools failed this run, so the QuickAgent could not do its task — the credits it held were refunded",
 			Settled: false,
 		}
 	default:

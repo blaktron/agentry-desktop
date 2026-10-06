@@ -87,6 +87,8 @@ func localOutcome(ctx context.Context, res *run.Result) (string, int) {
 		return runhistory.OutcomeError, 0
 	case res.Status == "ok":
 		return runhistory.OutcomeOK, 0
+	case res.ExitClass == "blocked":
+		return runhistory.OutcomeBlocked, res.ExitCode
 	default:
 		return runhistory.OutcomeError, res.ExitCode
 	}
