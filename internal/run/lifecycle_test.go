@@ -549,13 +549,14 @@ func TestRunHappyPath(t *testing.T) {
 	}
 	req := request(regURL, outDir)
 	req.InputPaths = []string{inputFile}
+	toolsServerStarts(fd, outDir)
 
 	var log strings.Builder
 	res, err := Run(context.Background(), req, &log)
 	if err != nil {
 		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
 	}
-	if res.Status != "ok" || res.ExitCode != engine.ExitOK || res.Error != "" {
+	if res.Status != "ok" || res.ExitCode != engine.ExitOK || res.Error != "" || res.ExitClass != "ok" || res.Reason != nil {
 		t.Fatalf("view = %+v", res)
 	}
 	if res.Ref != "acme/reporter@1.0.0" || res.Digest != fr.digest || res.RunID == "" {
@@ -631,6 +632,7 @@ func TestRunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
 	req := request(regURL, filepath.Join(t.TempDir(), "out"))
 	req.Task = ""
+	toolsServerStarts(fd, req.OutDir)
 
 	var log strings.Builder
 	res, err := Run(context.Background(), req, &log)
@@ -680,7 +682,7 @@ func TestRunRefusesAnEditedPlan(t *testing.T) {
 // value satisfies a declared secret the host environment does not have,
 // and keep=true retains the profile with lastUsedAt stamped.
 func TestRunSecretFromProfile(t *testing.T) {
-	fr, regURL, _, home := runFixture(t)
+	fr, regURL, fd, home := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "restore-guard")
 	_ = os.Unsetenv("RUN_TEST_TOKEN")
 
@@ -689,8 +691,10 @@ func TestRunSecretFromProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	toolsServerStarts(fd, req.OutDir)
 	var log strings.Builder
-	res, err := Run(context.Background(), request(regURL, filepath.Join(t.TempDir(), "out")), &log)
+	res, err := Run(context.Background(), req, &log)
 	if err != nil {
 		t.Fatalf("profile value should satisfy the secret: %v\n%s", err, log.String())
 	}
@@ -1158,5 +1162,37 @@ func TestAStoppedRunWritesItsReceiptsAsFarAsItGot(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
 			t.Errorf("the stopped run left no %s: %v", rel, err)
 		}
+	}
+}
+
+// A release's run on this computer ends blocked, not ok, when its QuickAgent
+// could not do the task (agentry-cli#629, #680), as `agentry run` does: the
+// view carries the class and the reason the frontend words it from.
+func TestARunWhoseQuickAgentCouldNotDoItsTaskEndsBlocked(t *testing.T) {
+	_, regURL, fd, _ := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+
+	// The tools wrote nothing: the runner's own evidence.
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	var log strings.Builder
+	res, err := Run(context.Background(), req, &log)
+	if err != nil {
+		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
+	}
+	if res.ExitCode != engine.ExitBlocked || res.ExitClass != "blocked" || res.Stage != "agent" ||
+		res.Reason == nil || res.Reason.Code != "runner-blocked" || res.Reason.Detail != "tools-unrecorded" {
+		t.Fatalf("a run whose tools wrote nothing: %+v (reason %+v)", res, res.Reason)
+	}
+
+	// The QuickAgent's own word, its sentence in the error.
+	req = request(regURL, filepath.Join(t.TempDir(), "out"))
+	toolsServerStarts(fd, req.OutDir, `{"tool":"end_blocked","ok":true,"blocked":"the archive is encrypted"}`)
+	res, err = Run(context.Background(), req, &log)
+	if err != nil {
+		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
+	}
+	if res.ExitClass != "blocked" || res.Reason == nil || res.Reason.Code != "agent-blocked" ||
+		res.Error != "blocked: the agent could not do the task: the archive is encrypted" || res.ResultJSON != `"final answer"` {
+		t.Fatalf("a run whose QuickAgent said so: %+v (reason %+v)", res, res.Reason)
 	}
 }

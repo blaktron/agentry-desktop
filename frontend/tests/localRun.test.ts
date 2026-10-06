@@ -57,3 +57,30 @@ test("how it ended, for the card", () => {
   const early = failed(stopAsked(begun), "context canceled");
   assert.deepEqual(outcome(early), { line: "You stopped the run before the QuickAgent started.", tone: "warn" });
 });
+
+// A run that ended blocked (exit 18, agentry-cli#629, agentry-desktop#680)
+// is a warning that says who stopped it, never an error and never a pass.
+test("a blocked run says who stopped it, as a warning", () => {
+  const blocked = (reason: unknown, error = "") =>
+    ({ runId: "r1", status: "error", exitCode: 18, exitClass: "blocked", reason, error }) as unknown as main.RunResultView;
+  const begun = withProgress(starting("acme/a@1.0.0"), report("r1", "acme/a@1.0.0"));
+  const agent = outcome(finished(begun, blocked({ code: "agent-blocked" }, "blocked: the agent could not do the task: the archive is encrypted.")));
+  assert.deepEqual(agent, { line: "Blocked: the QuickAgent could not do the task with what this run had. It said: the archive is encrypted.", tone: "warn" });
+  assert.equal(
+    outcome(finished(begun, blocked({ code: "agent-blocked" }, "something else"))).line,
+    "Blocked: the QuickAgent could not do the task with what this run had. Its output says why.",
+  );
+  for (const [detail, words] of [
+    ["tools-unrecorded", "could not write this run's output folder"],
+    ["inputs-unread", "could not read this run's inputs"],
+    ["report-unwritten", "could not write this run's report"],
+    ["a later word", "failed this run"],
+  ]) {
+    const o = outcome(finished(begun, blocked({ code: "runner-blocked", detail })));
+    assert.equal(o.tone, "warn");
+    assert.match(o.line, new RegExp(words.replace(/'/g, "'")));
+  }
+  assert.match(outcome(finished(begun, blocked(undefined))).line, /failed this run/);
+  // Any other failure is still the error it was.
+  assert.deepEqual(outcome(finished(begun, result("r1", "error", 14))), { line: "It ended in an error (exit 14).", tone: "bad" });
+});
