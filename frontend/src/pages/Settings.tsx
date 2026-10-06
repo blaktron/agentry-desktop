@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
 import { main } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar } from "../ui";
@@ -19,6 +20,8 @@ import { ProfileSettings } from "./SettingsProfile";
 import { DockerImagesCard } from "./DockerImages";
 import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
+import { HomeSettings } from "./SettingsHome";
+import { homeStatus } from "../homeCards";
 
 // Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
 // agentry-desktop#346): the landing is a card per section, each card the
@@ -26,15 +29,17 @@ import { followPart } from "../followPart";
 // and its parts as links; each section page holds the cards Settings held
 // before, moved unchanged, under a "← Settings" link back.
 // Profile (agentry-desktop#423) is a sixth, offered only while the active
-// registry holds a token.
-export type SettingsSection = "profile" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider";
+// registry holds a token. Home (agentry-desktop#661) is the last: which
+// cards Home shows, its pins, and Reset Home.
+export type SettingsSection = "profile" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "home";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
   | "profile" | "subscription" | "account-voice"
   | "registries" | "add-registry" | "desktop" | "quickagents"
-  | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key";
+  | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
+  | "home-cards" | "pins" | "reset-home";
 type Part = { id: SettingsPart; label: string };
 
 // SECTIONS is the landing's order and each section's parts. A part's id is
@@ -77,6 +82,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
       { id: "web-search", label: "Web search" }, { id: "hybrid-analysis-key", label: "Hybrid Analysis key" },
     ],
   },
+  {
+    id: "home", title: "Home",
+    sentence: "Which cards Home shows, the QuickAgents pinned to it, and Reset Home.",
+    parts: [{ id: "home-cards", label: "Cards" }, { id: "pins", label: "Pinned" }, { id: "reset-home", label: "Reset Home" }],
+  },
 ];
 
 // Where each place that opens Settings goes (agentry-desktop#346): straight
@@ -92,6 +102,9 @@ export const SETTINGS_FOR = {
   homeRunDefaults: { section: "run-defaults" },
   // Home's Recent runs card (agentry-desktop#659)
   homeRunHistory: { section: "run-defaults", part: "history" },
+  // Home's own Home settings link, and the line when every card is hidden
+  // (agentry-desktop#661)
+  homeSettings: { section: "home" },
   // Knowledge's "Not signed in" notice
   knowledgeSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
@@ -190,6 +203,7 @@ export default function Settings({
           <PartSection id="hybrid-analysis-key" title="Hybrid Analysis key"><HybridAnalysisKeyCard /></PartSection>
         </>
       )}
+      {section === "home" && <HomeSettings />}
     </div>
   );
 }
@@ -206,7 +220,8 @@ function PartSection({ id, title, children }: { id: SettingsPart; title: string;
 // The landing's status lines, one per card, from bindings the page already
 // had and that read only this computer: the settings file, the self-update
 // status the background check left, the coding-agent export, the runner
-// policy and Docker, the AI Review key's presence. None calls a registry,
+// policy and Docker, the AI Review key's presence, Home's layout in the
+// settings file. None calls a registry,
 // so none carries a token. A read that fails drops its line, never its card.
 type Statuses = {
   update?: main.SelfUpdateView | null;
@@ -214,6 +229,7 @@ type Statuses = {
   setup?: main.SetupStatusView | null;
   jev?: main.JevKeyView | null;
   defaults?: main.RunDefaultsView | null;
+  home?: main.HomeLayoutView | null;
 };
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
@@ -231,6 +247,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     RunAPI.SetupStatus().then(put("setup")).catch(() => put("setup")(null));
     RunAPI.JevKeyStatus().then(put("jev")).catch(() => put("jev")(null));
     SettingsAPI.RunDefaults().then(put("defaults")).catch(() => put("defaults")(null));
+    HomeAPI.Layout().then(put("home")).catch(() => put("home")(null));
     return () => { live = false; };
   }, []);
 
@@ -241,6 +258,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
     "run-defaults": st.defaults ? runDefaultsStatus(st.defaults, st.setup ?? null) : null,
     provider: st.setup || st.jev ? providerStatus(st.setup ?? null, st.jev ?? null) : null,
+    home: st.home ? homeStatus(st.home) : null,
   };
 
   return (

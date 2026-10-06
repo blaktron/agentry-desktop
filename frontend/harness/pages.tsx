@@ -9,6 +9,7 @@ import "../src/style.css";
 import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
+import { HOME_DEFAULTS } from "../src/homeCards";
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -413,22 +414,43 @@ const pinSets: Record<string, { ref: string; registry: string }[][]> = {
   "#home-pin-never": [[pinOf("agentry/changelog-from-git")]],
   "#home-pins-four": [fourPins],
   "#home-pins-five": [fourPins, [pinOf("acme/release-notes")]],
+  // A pin whose origin carries userinfo: Settings → Home names its host
+  // alone (agentry-desktop#661).
+  "#home-pin-userinfo": [[pinOf("demo1/incident-summarizer", "https://chris:s3cret@registry.example")]],
   "#home-pins-sixteen": [
     fourPins.slice(0, 3).concat(pinOf("acme/q01")),
     ...[0, 1, 2].map((c) => [1, 2, 3, 4].map((i) => pinOf(`acme/q${String(c * 4 + i + 1).padStart(2, "0")}`))),
   ],
 };
-let homeCards: any[] = [{ kind: "recent-runs" }, { kind: "installed", hidden: homeHash === "#home-hidden" }, { kind: "profile" }, { kind: "run-defaults" },
+// #home-all-hidden hides every default card and pins nothing
+// (agentry-desktop#661).
+const allHidden = homeHash === "#home-all-hidden";
+let homeCards: any[] = [{ kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins }))];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
 // one after it, an emptied one removed (D11).
-const homeView = () => ({ cards: homeCards, newer: homeHash === "#home-newer", unreadable: homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4 });
+// Reset replaces a kept (newer or unreadable) layout too.
+let homeReset = false;
+const homeView = () => ({ cards: homeCards, newer: !homeReset && homeHash === "#home-newer", unreadable: !homeReset && homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4 });
 function harnessPin(ref: string, registry: string) {
   const pin = { ref, registry };
   const room = homeCards.find((c) => c.kind === "pinned" && c.pins.length < 4);
   if (room) room.pins = [...room.pins, pin];
   else homeCards = [...homeCards, { kind: "pinned", size: "large", pins: [pin] }];
   homeCards = [...homeCards];
+  return homeView();
+}
+// Settings → Home (agentry-desktop#661) as Go does it: a switch flips its
+// card's hidden in place, and Reset is the four defaults, no pins.
+function harnessSetShown(kind: string, shown: boolean) {
+  homeCards = homeCards.some((c) => c.kind === kind)
+    ? homeCards.map((c) => (c.kind === kind ? { ...c, hidden: !shown } : c))
+    : [...homeCards, { kind, hidden: !shown }];
+  return homeView();
+}
+function harnessReset() {
+  homeReset = true;
+  homeCards = HOME_DEFAULTS.map((kind) => ({ kind }));
   return homeView();
 }
 function harnessUnpin(ref: string, registry: string) {
@@ -446,6 +468,8 @@ g.go = { main: {
     },
     Pin: async (ref: string, registry: string) => harnessPin(ref, registry),
     Unpin: async (ref: string, registry: string) => harnessUnpin(ref, registry),
+    SetShown: async (kind: string, shown: boolean) => harnessSetShown(kind, shown),
+    Reset: async () => harnessReset(),
   },
   VoiceAPI: {
     View: async () => voiceView,
@@ -750,6 +774,7 @@ if (window.location.hash === "#status-refused") {
   g.go.main.RunAPI.SetupStatus = refuse;
   g.go.main.RunAPI.JevKeyStatus = refuse;
   g.go.main.SettingsAPI.RunDefaults = refuse;
+  g.go.main.HomeAPI.Layout = refuse;
 }
 // The generated runtime's EventsOn goes through EventsOnMultiple.
 const subscribePage = (name: string, cb: (v: any) => void) => {
@@ -897,7 +922,7 @@ function HomePreview() {
       banner={homeHash === "#home-setup" ? <Notice tone="warn"><strong>Setup isn't finished.</strong> (App's notice)</Notice> : undefined}
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
-        runHistory: mark("run-history"),
+        runHistory: mark("run-history"), settings: mark("home-settings"),
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },

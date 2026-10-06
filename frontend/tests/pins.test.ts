@@ -2,7 +2,7 @@
 // agentry-desktop#660): what the page reads back from the layout Go keeps.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { homeFullSentence, isPinned, latestRunFor, pinOffer, pinRecord, pinsOf } from "../src/pins.ts";
+import { homeFullSentence, isPinned, latestRunFor, pinOffer, pinRecord, pinsOf, registryHost } from "../src/pins.ts";
 
 const REG = "https://dev.secureagentry.net";
 const cards = [
@@ -69,4 +69,11 @@ test("a pin's latest run is the newest run or chat of its ref from its registry,
   // A folder install's run records whatever registry the app had: by ref.
   assert.equal(latestRunFor(rows, { ref: "acme/a" })?.id, "5");
   assert.equal(latestRunFor(rows, { ref: "acme/never", registry: REG }), undefined);
+});
+
+test("Settings → Home names a pin's registry by its host, never a userinfo part (agentry-desktop#661)", () => {
+  assert.equal(registryHost("https://secureagentry.net/"), "secureagentry.net");
+  assert.equal(registryHost("http://localhost:8080"), "localhost:8080");
+  assert.equal(registryHost("https://chris:s3cret@registry.example"), "registry.example");
+  assert.equal(registryHost("not a url"), "");
 });
