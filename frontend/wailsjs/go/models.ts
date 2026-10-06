@@ -910,6 +910,24 @@ export namespace install {
 
 export namespace installed {
 	
+	export class RemoteSnapshot {
+	    auth: string;
+	    scopes?: string[];
+	    tools?: string[];
+	    secrets?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.auth = source["auth"];
+	        this.scopes = source["scopes"];
+	        this.tools = source["tools"];
+	        this.secrets = source["secrets"];
+	    }
+	}
 	export class CapSnapshot {
 	    egressHosts?: string[];
 	    egressNone?: boolean;
@@ -922,6 +940,8 @@ export namespace installed {
 	    dataAccess?: string[];
 	    mcpServers?: string[];
 	    mcpServerEnv?: {[key: string]: any};
+	    mcpRemote?: {[key: string]: RemoteSnapshot};
+	    mcpServerOAuth?: {[key: string]: manifest.MCPOAuth};
 	    knowledge?: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -941,8 +961,28 @@ export namespace installed {
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = source["mcpServers"];
 	        this.mcpServerEnv = source["mcpServerEnv"];
+	        this.mcpRemote = this.convertValues(source["mcpRemote"], RemoteSnapshot, true);
+	        this.mcpServerOAuth = this.convertValues(source["mcpServerOAuth"], manifest.MCPOAuth, true);
 	        this.knowledge = source["knowledge"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Key {
 	    registry: string;
@@ -4671,6 +4711,56 @@ export namespace manifest {
 	        this.widened = source["widened"];
 	        this.narrowed = source["narrowed"];
 	    }
+	}
+	export class MCPOAuthFile {
+	    path: string;
+	    template: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MCPOAuthFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.template = source["template"];
+	    }
+	}
+	export class MCPOAuth {
+	    issuer: string;
+	    scopes?: string[];
+	    files?: MCPOAuthFile[];
+	    env?: {[key: string]: string};
+	
+	    static createFrom(source: any = {}) {
+	        return new MCPOAuth(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.issuer = source["issuer"];
+	        this.scopes = source["scopes"];
+	        this.files = this.convertValues(source["files"], MCPOAuthFile);
+	        this.env = source["env"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
