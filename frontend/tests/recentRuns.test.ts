@@ -25,6 +25,9 @@ test("where and how it ended, here in the app's words and In Agentry in the site
   assert.equal(whereRan({ where: "agentry" }), "In Agentry");
   assert.equal(howItEnded({ where: "here", outcome: "ok" }), "Finished");
   assert.equal(howItEnded({ where: "here", outcome: "stopped" }), "Stopped");
+  // A run that ended blocked (exit 18, #680) is neither an error nor a pass.
+  assert.equal(howItEnded({ where: "here", outcome: "blocked", exitCode: 18 }), "Blocked");
+  assert.equal(headline({ kind: "run", outcome: "blocked", exitCode: 18 }), "It was blocked: the QuickAgent could not do the task with what it had.");
   assert.equal(howItEnded({ where: "here", outcome: "error", exitCode: 3 }), "Ended in an error (exit 3)");
   assert.equal(howItEnded({ where: "here", outcome: "error" }), "Did not finish");
   assert.equal(howItEnded({ where: "agentry", outcome: "succeeded", state: "done — pass" }), "done — pass");
