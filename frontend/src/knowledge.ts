@@ -121,13 +121,14 @@ export type BuildProgress = JobProgress & { pages: number };
 
 /** The warning the review step gives before a build on this computer: it
  *  is long work, and how long it may run. A timeout of 0 is Run defaults'
- *  no-time-limit switch for the built-in agents (agentry-desktop#606). */
+ *  no-limit switch for the built-in agents (agentry-desktop#606), on by
+ *  default (agentry-desktop#699), which also shows no turn cap. */
 export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): string {
   const minutes = Math.round(timeoutSeconds / 60);
   const limit =
     timeoutSeconds > 0
       ? `This build may run for up to ${minutes} minutes${maxTurns > 0 ? ` and ${maxTurns} turns` : ""}, `
-      : `This build has no time limit (Settings → Run defaults)${maxTurns > 0 ? ` and may run for up to ${maxTurns} turns` : ""}, `;
+      : "This build has no time or turn limit (Settings → Run defaults), runs until it finishes or you stop it, ";
   return (
     "Creating knowledge is a big job. A few short documents take a few minutes; a large set, a model running on this " +
     "computer, or a frontier model at high reasoning can take more than 20 minutes. " +

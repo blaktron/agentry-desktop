@@ -136,20 +136,37 @@ func TestCodingAgentExportIsOffByDefault(t *testing.T) {
 	}
 }
 
-// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): off,
-// every built-in starts from the CLI's LocalBudgets, its timeout floor over
-// the policy's; on, every one of them has no timeout, and the turn and cost
-// caps are the policy's either way. A settings file that cannot be read
-// keeps the floor.
-func TestTheBuiltinAgentsSwitchTakesAwayTheTimeoutOfEveryBuiltinAndNothingElse(t *testing.T) {
+// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
+// D-062; agentry-desktop#699, its addendum): on by default, every built-in
+// runs with no timeout and to the hidden failsafe of 200 turns, and is shown
+// no limit at all; off, every one starts from the CLI's LocalBudgets, its
+// timeout floor over the policy's, and the policy's turns. The cost cap is
+// the policy's either way, a policy that allows more turns than the failsafe
+// keeps them, and a settings file that cannot be read keeps the floor.
+func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuiltin(t *testing.T) {
 	isolate(t)
 	pol := policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}
 	if len(localrun.Builtins()) != 4 {
 		t.Fatalf("%d built-ins: the switch's sentence in Run defaults names four", len(localrun.Builtins()))
 	}
+	noLimit := BuiltinLimits{
+		Run:   spec.Budgets{TimeoutSeconds: 0, MaxTurns: BuiltinFailsafeTurns, MaxCostUSD: 2},
+		Shown: spec.Budgets{TimeoutSeconds: 0, MaxTurns: 0, MaxCostUSD: 2},
+	}
+	floor := func(b localrun.Builtin, p policy.Budgets) BuiltinLimits {
+		return BuiltinLimits{Run: b.LocalBudgets(p), Shown: b.LocalBudgets(p)}
+	}
 	for _, b := range localrun.Builtins() {
-		if got, want := BuiltinBudgets(b, pol), b.LocalBudgets(pol); got != want || got.TimeoutSeconds < 1800 {
-			t.Errorf("%s with the switch off (no file): %+v, want the floor %+v", b.Ref(), got, want)
+		if got := BuiltinBudgets(b, pol); got != noLimit {
+			t.Errorf("%s by default (no file): %+v, want %+v", b.Ref(), got, noLimit)
+		}
+		if got := BuiltinBudgets(b, policy.Budgets{TimeoutSeconds: 900, MaxTurns: 500}); got.Run.MaxTurns != 500 || got.Shown.MaxTurns != 0 {
+			t.Errorf("%s under a policy of 500 turns: %+v, want its 500 run and none shown", b.Ref(), got)
+		}
+		// A policy of 0 turns, unlimited, still gets the failsafe: no
+		// built-in runs here with no stop at all by default.
+		if got := BuiltinBudgets(b, policy.Budgets{TimeoutSeconds: 900, MaxTurns: 0}); got.Run.MaxTurns != BuiltinFailsafeTurns || got.Shown.MaxTurns != 0 {
+			t.Errorf("%s under a policy of unlimited turns: %+v, want the failsafe run and none shown", b.Ref(), got)
 		}
 	}
 
@@ -157,13 +174,14 @@ func TestTheBuiltinAgentsSwitchTakesAwayTheTimeoutOfEveryBuiltinAndNothingElse(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.BuiltinNoTimeout = true
+	off := false
+	s.BuiltinNoLimit = &off
 	if err := Save(s); err != nil {
 		t.Fatal(err)
 	}
 	for _, b := range localrun.Builtins() {
-		if got, want := BuiltinBudgets(b, pol), (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 60, MaxCostUSD: 2}); got != want {
-			t.Errorf("%s with the switch on: %+v, want %+v", b.Ref(), got, want)
+		if got := BuiltinBudgets(b, pol); got != floor(b, pol) || got.Run.TimeoutSeconds < 1800 || got.Run.MaxTurns != 60 {
+			t.Errorf("%s with the switch off: %+v, want the floor %+v", b.Ref(), got, floor(b, pol))
 		}
 	}
 	// Another setting's save keeps it.
@@ -174,8 +192,8 @@ func TestTheBuiltinAgentsSwitchTakesAwayTheTimeoutOfEveryBuiltinAndNothingElse(t
 	if err := Save(s); err != nil {
 		t.Fatal(err)
 	}
-	if s, err = Load(); err != nil || !s.BuiltinNoTimeout {
-		t.Fatal("saving another setting turned the switch off")
+	if s, err = Load(); err != nil || s.BuiltinNoLimitOn() {
+		t.Fatal("saving another setting turned the switch back on")
 	}
 
 	// A file that cannot be parsed keeps the floor.
@@ -183,22 +201,33 @@ func TestTheBuiltinAgentsSwitchTakesAwayTheTimeoutOfEveryBuiltinAndNothingElse(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("builtinNoTimeout: true\n: [\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("builtinNoLimit: true\n: [\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, b := range localrun.Builtins() {
-		if got := BuiltinBudgets(b, pol); got != b.LocalBudgets(pol) {
+		if got := BuiltinBudgets(b, pol); got != floor(b, pol) {
 			t.Errorf("%s with an unreadable desktop.yaml: %+v, want the floor", b.Ref(), got)
 		}
 	}
 
-	s = Settings{BuiltinNoTimeout: false}
-	if err := write(s); err != nil {
+	// The switch's first key, which defaulted off, is not read: a file
+	// that says only it is the default, on.
+	if err := os.WriteFile(path, []byte("builtinNoTimeout: false\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, b := range localrun.Builtins() {
-		if got := BuiltinBudgets(b, pol); got != b.LocalBudgets(pol) {
-			t.Errorf("%s with the switch turned off again: %+v", b.Ref(), got)
+		if got := BuiltinBudgets(b, pol); got != noLimit {
+			t.Errorf("%s with only the old key: %+v, want %+v", b.Ref(), got, noLimit)
+		}
+	}
+
+	on := true
+	if err := write(Settings{BuiltinNoLimit: &on}); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range localrun.Builtins() {
+		if got := BuiltinBudgets(b, pol); got != noLimit {
+			t.Errorf("%s with the switch turned on again: %+v", b.Ref(), got)
 		}
 	}
 }

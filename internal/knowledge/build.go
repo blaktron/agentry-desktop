@@ -81,11 +81,13 @@ type Progress struct {
 // budget, 15 minutes by default, allows; a policy that allows more keeps
 // its own. The floor is the CLI's (localrun.Builtin.LocalBudgets, the
 // CLI's DR-54), not a figure kept here, so a build gets the same time from
-// this app as from `agentry knowledge create`. It is a timeout alone: the
-// turn and cost caps are the policy's, and no budget of a build counts
-// tokens. Run defaults' no-time-limit switch for the built-in agents takes the timeout away
-// (settings.BuiltinBudgets, D-062).
-func CreatorBudgets(pol *policy.Policy) spec.Budgets {
+// this app as from `agentry knowledge create`. No budget of a build
+// counts tokens. That is with Run defaults' no-limit switch for the
+// built-in agents off; on, the default, the build has no timeout and runs
+// to the hidden failsafe of turns, and Shown says no limit
+// (settings.BuiltinBudgets, D-062 and its addendum). The cost cap is the
+// policy's either way.
+func CreatorBudgets(pol *policy.Policy) settings.BuiltinLimits {
 	var b policy.Budgets
 	if pol != nil {
 		b = pol.Budgets
@@ -95,8 +97,8 @@ func CreatorBudgets(pol *policy.Policy) spec.Budgets {
 
 // PolicyBudgets is CreatorBudgets for the policy this app's runs obey,
 // read without creating it, for the review step's sentence on how long a
-// build may take.
-func PolicyBudgets() spec.Budgets { return CreatorBudgets(loadPolicy()) }
+// build may take: the budgets it is shown.
+func PolicyBudgets() spec.Budgets { return CreatorBudgets(loadPolicy()).Shown }
 
 // BuildResult is what one build made, for the panel's result.
 type BuildResult struct {
@@ -289,24 +291,22 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 	if b == nil {
 		b = build.Build
 	}
-	budgets := CreatorBudgets(pol)
+	limits := CreatorBudgets(pol)
+	budgets, shown := limits.Run, limits.Shown
 	turns := ""
-	if budgets.MaxTurns > 0 {
-		turns = fmt.Sprintf(" and %d turns", budgets.MaxTurns)
+	if shown.MaxTurns > 0 {
+		turns = fmt.Sprintf(" and %d turns", shown.MaxTurns)
 	}
-	switch {
-	case budgets.TimeoutSeconds > 0:
-		logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", budgets.TimeoutSeconds/60, turns)
-	case budgets.MaxTurns > 0:
-		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time limit, so it runs until it is done or reaches %d turns.", budgets.MaxTurns)
-	default:
-		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time limit, so it runs until it is done.")
+	if shown.TimeoutSeconds > 0 {
+		logf(req.Log, "A build takes a while: it may run for up to %d minutes%s.", shown.TimeoutSeconds/60, turns)
+	} else {
+		logf(req.Log, "A build takes a while: Run defaults gives the built-in agents no time or turn limit, so it runs until it is done or you stop it.")
 	}
 	if total := DocumentsBytes(req.Documents); total > kn.MaxBytes {
 		logf(req.Log, "The documents come to %.1f MB. A build that size can take a very long time, and the pack will stay on this computer: Agentry keeps packs of at most %s.",
 			float64(total)/(1<<20), kn.FormatCap(kn.MaxBytes))
 	}
-	prog := newProgressMeter(req.Progress, budgets, filepath.Join(outDir, "reports", kn.WikiDir))
+	prog := newProgressMeter(req.Progress, shown, filepath.Join(outDir, "reports", kn.WikiDir))
 	stop := prog.watch()
 	defer stop()
 	res, err := b(ctx, dockerx.New(), build.Options{

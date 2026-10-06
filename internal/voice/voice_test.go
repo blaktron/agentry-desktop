@@ -257,10 +257,11 @@ func TestTheVoiceWriterOnThisComputerKeepsWhatItWrote(t *testing.T) {
 	}
 }
 
-// Run defaults' no-time-limit switch for the built-in agents (agentry-desktop#606, D-062): while
-// it is on, the Voice Writer runs on this computer with no timeout; off, it
-// has its floor. The turn and cost caps are the policy's either way.
-func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeout(t *testing.T) {
+// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
+// D-062; on by default since agentry-desktop#699): while it is on, the Voice
+// Writer runs on this computer with no timeout and to the hidden failsafe
+// of 200 turns; off, it has its floor and the policy's turns.
+func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeOrTurnLimitByDefault(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	e, reg := testEnv(t, false)
 	ctx := context.Background()
@@ -274,23 +275,23 @@ func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeout(t *testing.T) {
 	if _, err := e.Build(ctx, BuildRequest{Registry: reg.URL, Job: build.Create, Samples: []string{"a.txt"}, Build: fake}); err != nil {
 		t.Fatal(err)
 	}
-	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < writer.LocalTimeoutFloorSeconds {
-		t.Fatalf("with the switch off the Writer ran under %+v, want at least its floor", seen.Budgets)
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns != settings.BuiltinFailsafeTurns {
+		t.Fatalf("by default the Writer ran under %+v, want no timeout and the failsafe's turns", seen.Budgets)
 	}
-	turns := seen.Budgets.MaxTurns
 
 	st, err := settings.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.BuiltinNoTimeout = true
+	off := false
+	st.BuiltinNoLimit = &off
 	if err := settings.Save(st); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.Build(ctx, BuildRequest{Registry: reg.URL, Job: build.Edit, Brief: "shorter", Build: fake}); err != nil {
 		t.Fatal(err)
 	}
-	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns != turns {
-		t.Fatalf("with the switch on the Writer ran under %+v, want no timeout and %d turns", seen.Budgets, turns)
+	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds < writer.LocalTimeoutFloorSeconds || seen.Budgets.MaxTurns == settings.BuiltinFailsafeTurns {
+		t.Fatalf("with the switch off the Writer ran under %+v, want at least its floor and the policy's turns", seen.Budgets)
 	}
 }

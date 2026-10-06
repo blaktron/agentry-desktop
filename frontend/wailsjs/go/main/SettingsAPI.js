@@ -62,8 +62,8 @@ export function RunDefaults() {
   return window['go']['main']['SettingsAPI']['RunDefaults']();
 }
 
-export function SetBuiltinNoTimeout(arg1) {
-  return window['go']['main']['SettingsAPI']['SetBuiltinNoTimeout'](arg1);
+export function SetBuiltinNoLimit(arg1) {
+  return window['go']['main']['SettingsAPI']['SetBuiltinNoLimit'](arg1);
 }
 
 export function SetChatIdleTimeout(arg1) {

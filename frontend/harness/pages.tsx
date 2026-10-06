@@ -308,7 +308,7 @@ const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
 const UNSAFE_IMAGE = "ghcr.io/blaktron/agentry-unsafe-kali:2026.09.30.2@sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da";
-let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoTimeout: false, rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7 };
+let runDefaultsView = { timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml", where: "here", outputDir: "", chatIdleTimeoutSeconds: 0, unsafeMode: unsafeOn, unsafeImage: UNSAFE_IMAGE, builtinNoLimit: true, rememberRuns: location.hash !== "#home-runs-off", runHistoryCount: location.hash === "#home-runs-off" ? 0 : 7 };
 // The harness's event bus: only the Unsafe Mode pull emits on this entry.
 const pageListeners: Record<string, ((v: any) => void)[]> = {};
 const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[name] ?? []) cb(v); };
@@ -614,7 +614,7 @@ g.go = { main: {
     // Settings → Run defaults (agentry-desktop#347): the saves answer as Go
     // would, and the picker "returns" a folder.
     RunDefaults: async () => runDefaultsView,
-    SetBuiltinNoTimeout: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoTimeout: on }),
+    SetBuiltinNoLimit: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoLimit: on }),
     // Remember recent runs (agentry-desktop#659): off forgets them all.
     SetRememberRuns: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, rememberRuns: on, runHistoryCount: on ? runDefaultsView.runHistoryCount : 0 }),
     ClearRunHistory: async () => (runDefaultsView = { ...runDefaultsView, runHistoryCount: 0 }),
