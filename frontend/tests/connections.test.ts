@@ -2,7 +2,7 @@
 // connection, and what it holds Run for.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectionBlockers, connectionLine, connectionsStatus, pastedProblem, signInRecap, type ServerConn } from "../src/connections.ts";
+import { connectionBlockers, connectionLine, connectionsStatus, pastedProblem, sharedGrantWarning, signInRecap, type ServerConn } from "../src/connections.ts";
 import { needList, signInNeed } from "../src/runSetup.ts";
 
 const gmail = "https://gmailmcp.googleapis.com/mcp/v1";
@@ -66,4 +66,15 @@ test("the Connections card's line counts what is kept and what no longer works",
   const c = (state: string) => ({ state }) as never;
   assert.equal(connectionsStatus({ connections: [], clients: [] }), "No connections kept · no OAuth client of your own.");
   assert.equal(connectionsStatus({ connections: [c("connected"), c("broken")], clients: [{} as never] }), "2 connections kept (1 no longer working) · 1 OAuth client of your own.");
+});
+
+test("Disconnect warns by name when other connections share the client's grant", () => {
+  assert.equal(sharedGrantWarning("accounts.google.com", []), null);
+  assert.equal(sharedGrantWarning("accounts.google.com", undefined), null);
+  const w = sharedGrantWarning("accounts.google.com", ["acme/digest@2.0.0 → pypi:workspace-mcp"]) ?? "";
+  assert.match(w, /^accounts\.google\.com may revoke everything granted to that client/);
+  assert.match(w, /Google does/);
+  assert.match(w, /acme\/digest@2\.0\.0 → pypi:workspace-mcp/);
+  assert.match(w, /The other connection made with the same client then stops working too, and asks for your consent at its next run: /);
+  assert.match(sharedGrantWarning("accounts.google.com", ["a", "b"]) ?? "", /The 2 other connections made with the same client then stop working too, and ask .* their next run: a; b\.$/);
 });

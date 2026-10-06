@@ -5058,6 +5058,7 @@ export namespace run {
 	    createdAt: string;
 	    lastUsedAt?: string;
 	    keptIn: string;
+	    sharesGrantWith: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new KeptConnection(source);
@@ -5077,6 +5078,7 @@ export namespace run {
 	        this.createdAt = source["createdAt"];
 	        this.lastUsedAt = source["lastUsedAt"];
 	        this.keptIn = source["keptIn"];
+	        this.sharesGrantWith = source["sharesGrantWith"];
 	    }
 	}
 	export class OwnClientGuide {
@@ -5114,6 +5116,7 @@ export namespace run {
 	    createdAt?: string;
 	    lastUsedAt?: string;
 	    unsupported?: string;
+	    sharesGrantWith: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ServerConnection(source);
@@ -5133,6 +5136,7 @@ export namespace run {
 	        this.createdAt = source["createdAt"];
 	        this.lastUsedAt = source["lastUsedAt"];
 	        this.unsupported = source["unsupported"];
+	        this.sharesGrantWith = source["sharesGrantWith"];
 	    }
 	}
 	export class ReleaseConnections {

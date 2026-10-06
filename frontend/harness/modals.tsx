@@ -153,7 +153,7 @@ const gmailServer = "https://gmailmcp.googleapis.com/mcp/v1";
 const signInRelease = {
   ref: "acme/inbox-brief@0.1.0", digest: "sha256:7f3a2b9c1d4e5f60",
   servers: [{
-    server: gmailServer, what: gmailServer, scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+    server: gmailServer, what: gmailServer, scopes: ["https://www.googleapis.com/auth/gmail.readonly"], sharesGrantWith: [],
     ...(view === "runpanel-signin-connected"
       ? { state: "connected", issuer: "https://accounts.google.com", client: "own", createdAt: "2026-10-06T14:02:00Z", lastUsedAt: "2026-10-06T14:05:00Z", granted: ["https://www.googleapis.com/auth/gmail.readonly"] }
       : { state: "none", granted: [] }),

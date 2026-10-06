@@ -120,3 +120,16 @@ export function connectionsStatus(v: Pick<main.KeptConnectionsView, "connections
   const own = c === 0 ? "no OAuth client of your own" : c === 1 ? "1 OAuth client of your own" : `${c} OAuth clients of your own`;
   return `${conns}${broken > 0 ? ` (${broken} no longer working)` : ""} · ${own}.`;
 }
+
+/** The warning a Disconnect shows when other connections were made with the
+ *  same client at the same vendor (agentry-desktop#666): a vendor such as
+ *  Google revokes the whole grant to the client, so they stop working too.
+ *  The operator decided on 2026-10-06 that Disconnect still revokes; null
+ *  when nothing else shares the grant. */
+export function sharedGrantWarning(vendorHost: string, shared: string[] | undefined): string | null {
+  if (!shared || shared.length === 0) return null;
+  const then = shared.length === 1
+    ? "The other connection made with the same client then stops working too, and asks for your consent at its next run"
+    : `The ${shared.length} other connections made with the same client then stop working too, and ask for your consent at their next run`;
+  return `${vendorHost || "The vendor"} may revoke everything granted to that client, not this connection alone: Google does. ${then}: ${shared.join("; ")}.`;
+}

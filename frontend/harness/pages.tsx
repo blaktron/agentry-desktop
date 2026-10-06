@@ -756,9 +756,13 @@ g.go = { main: {
     Connections: async () => ({
       connections: [
         { ref: "acme/inbox-brief@0.1.0", digest: "sha256:7f3a2b9c1d4e5f60", server: "https://gmailmcp.googleapis.com/mcp/v1", issuer: "https://accounts.google.com", client: "own",
-          scopes: ["https://www.googleapis.com/auth/gmail.readonly"], state: "connected", createdAt: "2026-10-06T14:02:00Z", lastUsedAt: "2026-10-06T14:05:00Z", keptIn: "keychain" },
+          scopes: ["https://www.googleapis.com/auth/gmail.readonly"], state: "connected", createdAt: "2026-10-06T14:02:00Z", lastUsedAt: "2026-10-06T14:05:00Z", keptIn: "keychain",
+          sharesGrantWith: ["acme/mail-digest@1.0.0 → pypi:workspace-mcp"] },
+        { ref: "acme/mail-digest@1.0.0", digest: "sha256:3c4d5e6f7a8b9c0d", server: "pypi:workspace-mcp", issuer: "https://accounts.google.com", client: "own",
+          scopes: ["https://www.googleapis.com/auth/gmail.readonly"], state: "connected", createdAt: "2026-10-06T14:20:00Z", keptIn: "keychain",
+          sharesGrantWith: ["acme/inbox-brief@0.1.0 → https://gmailmcp.googleapis.com/mcp/v1"] },
         { ref: "acme/team-digest@1.3.0", digest: "sha256:0b1c2d3e4f5a6b7c", server: "https://mcp.linear.app/mcp", issuer: "https://mcp.linear.app", client: "dcr",
-          scopes: ["read"], state: "broken", broken: "invalid_grant: the grant was revoked", createdAt: "2026-10-01T09:00:00Z", keptIn: "keychain" },
+          scopes: ["read"], state: "broken", broken: "invalid_grant: the grant was revoked", createdAt: "2026-10-01T09:00:00Z", keptIn: "keychain", sharesGrantWith: [] },
       ],
       clients: [{ issuer: "https://accounts.google.com", clientId: "123-abc.apps.googleusercontent.com", secretIn: "keychain" }],
     }),

@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
-import { clientWords, dateOf, hostOf, scopeWords } from "../connections";
+import { clientWords, dateOf, hostOf, scopeWords, sharedGrantWarning } from "../connections";
 export { connectionsStatus } from "../connections";
 
 export function ConnectionsSettings() {
@@ -121,6 +121,9 @@ export function ConnectionsSettings() {
             removed from this computer, and Agentry asks {hostOf(confirm.conn.issuer)} to revoke it where it offers that. That
             version&apos;s next run asks for your consent again.
           </p>
+          {sharedGrantWarning(hostOf(confirm.conn.issuer), confirm.conn.sharesGrantWith) && (
+            <Notice tone="warn">{sharedGrantWarning(hostOf(confirm.conn.issuer), confirm.conn.sharesGrantWith)}</Notice>
+          )}
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirm(null)}>Cancel</Button>
             <Button variant="danger" onClick={() => void disconnect(confirm.conn!)}>Disconnect</Button>

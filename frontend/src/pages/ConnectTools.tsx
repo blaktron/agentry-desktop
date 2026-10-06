@@ -15,7 +15,7 @@ import { OpenExternal } from "../../wailsjs/go/main/App";
 import { run } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice } from "../ui";
-import { connectionLine, hostOf, pastedProblem, scopeWords, type ServerConn } from "../connections";
+import { connectionLine, hostOf, pastedProblem, scopeWords, sharedGrantWarning, type ServerConn } from "../connections";
 
 /** The own-client ask: Agentry's steps for the vendor, then the form. */
 export function OwnClientSteps({ guide }: { guide: run.OwnClientGuide }) {
@@ -234,6 +234,9 @@ export function ServerSignIns({ registry, agentRef, release, onChanged }: {
             The connection of this version to <span className="mono">{confirm.server}</span> is removed from this computer, and
             Agentry asks the vendor to revoke it where the vendor offers that. Its next run asks for your consent again.
           </p>
+          {sharedGrantWarning(hostOf(confirm.issuer), confirm.sharesGrantWith) && (
+            <Notice tone="warn">{sharedGrantWarning(hostOf(confirm.issuer), confirm.sharesGrantWith)}</Notice>
+          )}
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirm(null)}>Cancel</Button>
             <Button variant="danger" onClick={() => void disconnect(confirm)}>Disconnect</Button>

@@ -482,3 +482,74 @@ func TestAStartRefusesAnUnsupportedPackageAndConnectAnUndeclaredServer(t *testin
 		t.Fatalf("a server the release does not declare must be refused before consent: %v (presented %v)", err, presented)
 	}
 }
+
+// Google revokes an account's whole grant to a client, not one refresh
+// token (agentry-desktop#666's live check). Connecting again with the same
+// client must therefore not revoke the old token: that would end the new
+// grant, and every other connection made with the client.
+func TestConnectingAgainWithTheSameClientRevokesNothing(t *testing.T) {
+	v := mcpauthtest.New(t)
+	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})
+	v.AddClient("my-client", "PROBE-CLIENT-SECRET-again")
+	if err := SetOwnClient(v.URL, "my-client", "PROBE-CLIENT-SECRET-again"); err != nil {
+		t.Fatal(err)
+	}
+	m := remoteOAuthManifest(v.ServerURL())
+	for i := 0; i < 2; i++ {
+		var said []string
+		ui := browserUI(v)
+		ui.Say = func(s string) { said = append(said, s) }
+		if _, err := connect(context.Background(), home, refA, digestA, m, v.ServerURL(), ui); err != nil {
+			t.Fatal(err)
+		}
+		if i == 1 && !strings.Contains(strings.Join(said, "\n"), "not revoked") {
+			t.Fatalf("the replacement does not say it revoked nothing: %q", said)
+		}
+	}
+	if len(v.Revoked) != 0 {
+		t.Fatalf("connecting again revoked %v", v.Revoked)
+	}
+	if _, err := openConnections(context.Background(), home, refA, digestA, m); err != nil {
+		t.Fatalf("the new connection does not work: %v", err)
+	}
+}
+
+func TestConnectionsSayWhichOthersShareTheirGrant(t *testing.T) {
+	v := mcpauthtest.New(t)
+	v.DCR = true
+	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})
+	v.AddClient("my-client", "s")
+	if err := SetOwnClient(v.URL, "my-client", "s"); err != nil {
+		t.Fatal(err)
+	}
+	m := remoteOAuthManifest(v.ServerURL())
+	for _, ref := range []string{"acme/inbox@1.0.0", "acme/digest@2.0.0"} {
+		if _, err := connect(context.Background(), home, ref, digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	conns, _, err := KeptConnections()
+	if err != nil || len(conns) != 2 {
+		t.Fatalf("%+v %v", conns, err)
+	}
+	for _, c := range conns {
+		if len(c.SharesGrantWith) != 1 || strings.HasPrefix(c.SharesGrantWith[0], c.Ref) {
+			t.Fatalf("%s shares with %v", c.Ref, c.SharesGrantWith)
+		}
+	}
+	rc, _ := connectionsOf(connection.Open(home, nil), "acme/inbox@1.0.0", digestA, m)
+	if got := rc.Servers[0].SharesGrantWith; len(got) != 1 || got[0] != "acme/digest@2.0.0 → "+v.ServerURL() {
+		t.Fatalf("the run setup's view: %v", got)
+	}
+	// A client registered per consent shares nothing.
+	if _, err := ForgetOwnClient(v.URL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := connect(context.Background(), home, "acme/other@1.0.0", digestA, m, v.ServerURL(), browserUI(v)); err != nil {
+		t.Fatal(err)
+	}
+	rc, _ = connectionsOf(connection.Open(home, nil), "acme/other@1.0.0", digestA, m)
+	if len(rc.Servers[0].SharesGrantWith) != 0 {
+		t.Fatalf("a registered client shares: %v", rc.Servers[0].SharesGrantWith)
+	}
+}

@@ -78,6 +78,10 @@ type ServerConnection struct {
 	// Unsupported is the alternative for a package that cannot run on an
 	// access token alone (plan D25): Connect refuses it, as its run would.
 	Unsupported string `json:"unsupported,omitempty"`
+	// SharesGrantWith names the other kept connections made with the same
+	// client at the same issuer (sharedGrant): Disconnect warns that a
+	// vendor such as Google ends them too.
+	SharesGrantWith []string `json:"sharesGrantWith"`
 }
 
 // ReleaseConnections is a release's servers that sign in by OAuth.
@@ -149,6 +153,24 @@ func openStores(home string) stores {
 	return stores{conns: connection.Open(home, keys), clients: connection.OpenClients(home, keys), httpc: vendorHTTP()}
 }
 
+// sharedGrant names the kept connections other than c made with the same
+// client at the same issuer, "ref → server" each. Google revokes the whole
+// grant of an account to a client, not one refresh token (found in
+// agentry-desktop#666's live check: disconnecting one connection made with
+// the person's own client ended another made with it), so removing c may
+// end these too; the operator decided on 2026-10-06 that removal still
+// revokes, after a warning that names them.
+func sharedGrant(all []*connection.Connection, c *connection.Connection) []string {
+	out := []string{}
+	for _, o := range all {
+		if o.Key() == c.Key() || o.Client.ID == "" || o.Client.ID != c.Client.ID || o.Issuer != c.Issuer {
+			continue
+		}
+		out = append(out, o.Ref+" → "+o.Server)
+	}
+	return out
+}
+
 // stateOf is a kept connection's state and why it is broken.
 func stateOf(c *connection.Connection) (string, string) {
 	if c.Broken != "" {
@@ -184,11 +206,15 @@ func ConnectionsFor(ctx context.Context, regURL, ref string) (*ReleaseConnection
 
 func connectionsOf(store *connection.Store, ref, digest string, m *manifest.Manifest) (*ReleaseConnections, error) {
 	out := &ReleaseConnections{Ref: ref, Digest: digest, Servers: []ServerConnection{}}
+	all, err := store.List()
+	if err != nil {
+		return nil, err
+	}
 	for _, srv := range oauthServers(m) {
 		sc := ServerConnection{
 			Server: connectionServer(srv), What: connectionWhat(srv),
 			Scopes: append([]string{}, connectionScopes(srv)...), State: ConnNone, Granted: []string{},
-			Unsupported: unsupportedAlternative(srv),
+			Unsupported: unsupportedAlternative(srv), SharesGrantWith: []string{},
 		}
 		if srv.OAuth != nil {
 			sc.Issuer = srv.OAuth.Issuer
@@ -203,6 +229,7 @@ func connectionsOf(store *connection.Store, ref, digest string, m *manifest.Mani
 			sc.Issuer, sc.Label, sc.Client = c.Issuer, c.Label, c.Client.Kind
 			sc.Granted = append([]string{}, c.Scopes...)
 			sc.CreatedAt, sc.LastUsedAt = c.CreatedAt, c.LastUsedAt
+			sc.SharesGrantWith = sharedGrant(all, c)
 		}
 		out.Servers = append(out.Servers, sc)
 	}
@@ -289,7 +316,19 @@ func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest
 		return nil, fmt.Errorf("connect %s: %w", server, err)
 	}
 	k := connection.Key{Ref: ref, Digest: digest, Server: server}
-	if old, gerr := store.Get(k); gerr == nil && old != nil {
+	old, gerr := store.Get(k)
+	switch {
+	case gerr != nil || old == nil:
+	case old.Client.ID == g.Client.ID && old.Issuer == g.Discovery.Server.Issuer:
+		// The same client at the same issuer: revoking the old refresh
+		// token would end the grant just made at a vendor that revokes the
+		// whole grant (Google), and every other connection made with that
+		// client. Put replaces the record and its secret; nothing is
+		// revoked.
+		if ui.Say != nil {
+			ui.Say("The previous connection is replaced. It was made with the same client, so it is not revoked at the vendor: that would end the new one too.")
+		}
+	default:
 		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), revokeTimeout)
 		outcome, rerr := store.Remove(rctx, k, httpc, clients, "replaced by a new consent")
 		cancel()
@@ -395,6 +434,8 @@ type KeptConnection struct {
 	LastUsedAt string   `json:"lastUsedAt,omitempty"`
 	// KeptIn is where its secret half is: "keychain" or "file".
 	KeptIn string `json:"keptIn"`
+	// SharesGrantWith: as ServerConnection's.
+	SharesGrantWith []string `json:"sharesGrantWith"`
 }
 
 // KeptClient is one of the person's own OAuth clients: never its secret.
@@ -424,6 +465,7 @@ func KeptConnections() ([]KeptConnection, []KeptClient, error) {
 			CreatedAt: c.CreatedAt, LastUsedAt: c.LastUsedAt, KeptIn: c.SecretIn,
 		}
 		k.State, k.Broken = stateOf(c)
+		k.SharesGrantWith = sharedGrant(list, c)
 		conns = append(conns, k)
 	}
 	cs, err := connection.OpenClients(home, nil).List()
@@ -478,7 +520,11 @@ func RemoveConnectionsOf(ctx context.Context, ns, name string) ([]string, error)
 			errs = append(errs, rerr)
 			continue
 		}
-		out = append(out, fmt.Sprintf("removed the connection of %s to %s (revocation: %s)", c.Ref, c.Server, outcome))
+		line := fmt.Sprintf("removed the connection of %s to %s (revocation: %s)", c.Ref, c.Server, outcome)
+		if shared := sharedGrant(list, c); outcome == connection.RevokeDone && len(shared) > 0 {
+			line += "; at a vendor that revokes the whole grant, these, made with the same client, stop working too: " + strings.Join(shared, ", ")
+		}
+		out = append(out, line)
 	}
 	return out, errors.Join(errs...)
 }
