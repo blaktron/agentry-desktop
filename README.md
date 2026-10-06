@@ -34,6 +34,20 @@ The product never claims an agent is "safe". The language is always:
   nothing. Which cards Home shows, in what order, is the `home` key of
   `desktop.yaml`: a versioned, ordered list Go owns, which keeps whatever a
   newer app wrote there.
+  **Pins** (agentry-desktop#660, D-067): **Pin to Home**, on a Library row
+  or a QuickAgent's page, puts a QuickAgent installed on this computer on a
+  **Pinned** card, four to a card and at most four cards, so 16 pins. Go
+  places each one in the first card with room. A pin is written only to
+  `desktop.yaml`, asks no registry and is not a star. Each pin shows the
+  installed version and how its latest run ended, with **Open latest run**
+  and **Run** (the usual run setup). Uninstall or Forget in the app removes
+  the pin once no install of that kind is left.
+  **Settings → Home** (agentry-desktop#661, D-067's second addendum), which
+  Home's **Home settings** link opens, has a switch per default card (a
+  hidden card keeps its place in the order), the pins with **Unpin**, and
+  **Reset Home…**, which restores the default cards and removes every pin
+  after a confirm that says so. A layout a newer app arranged is held as
+  it is; Reset is the way back.
 - **Library** — the QuickAgents installed on this computer (the shared
   install state below), and **Browse** beneath it in the sidebar, shown
   while either is open (agentry-desktop#657, D-066). The Library's search
