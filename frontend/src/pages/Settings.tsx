@@ -531,8 +531,9 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
                 On unless you turn it off. While it is on, drafts, knowledge builds, local reviews and Writing Voice runs on
                 this computer have no timeout and no turn limit: each runs until it finishes or you stop it, and only a
                 safety cap far past what any of them needs ends one that loops. The runner policy&apos;s cost cap still
-                applies, unless it is 0, and the short repair turn a draft sometimes needs keeps its own 5 minutes. Turned
-                off, they keep the max turns above and their own floors. Your QuickAgents keep the limits above, and nothing
+                applies, unless it is 0. A draft&apos;s repair turn has no timeout too, with at most eight tool calls and
+                only the remaining turns and cost. Turned off, they keep the max turns above and their own floors; a
+                timed draft&apos;s repair gets at most five minutes within its remaining time. Your QuickAgents keep the limits above, and nothing
                 changes for the <span className="mono">agentry</span> CLI or for anything run In Agentry. It applies from
                 the next one you start.
               </p>

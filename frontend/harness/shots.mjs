@@ -642,7 +642,7 @@ const states = [
   // The built-in agents' switch (agentry-desktop#606, D-062): on by default
   // since agentry-desktop#699, beside the timeout and turns it lifts, then off.
   { name: "settings-builtin-no-limit-on", url: "/pages.html?settings=run-defaults", note: "Run defaults → Timeout and turns: the built-in agents' no-limit switch, on by default", locator: '[data-preview="settings"] #settings-part-budgets',
-    expectSection: "run-defaults", expectText: ["No time or turn limit for the built-in agents", "On unless you turn it off", "drafts, knowledge builds, local", "until it finishes or you stop", "keeps its own 5 minutes", "Your QuickAgents keep the limits above"],
+    expectSection: "run-defaults", expectText: ["No time or turn limit for the built-in agents", "On unless you turn it off", "drafts, knowledge builds, local", "until it finishes or you stop", "repair turn has no timeout too", "at most eight tool calls", "remaining turns and cost", "at most five minutes", "Your QuickAgents keep the limits above"],
     expectChecked: '[data-preview="settings"] input[data-builtin-no-limit]' },
   { name: "settings-run-history", url: "/pages.html?settings=run-defaults", note: "Run defaults → Recent runs: Remember recent runs on, how many are kept, what is and is not kept, Clear run history (agentry-desktop#659)", locator: '[data-preview="settings"] #settings-part-history',
     expectSection: "run-defaults", expectText: ["Remember recent runs", "On. 7 runs are remembered.", "never the task, your inputs, the result or", "Clear run history"], expectChecked: '[data-preview="settings"] input[data-remember-runs]' },

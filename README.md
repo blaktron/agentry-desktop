@@ -421,8 +421,10 @@ The product never claims an agent is "safe". The language is always:
       the policy's max turns when that is higher, and 200 under a policy of
       0, unlimited) still ends one that loops; no progress line or log names
       it, and the receipt records it. The cost cap still applies, and a
-      draft's repair turn keeps the CLI's own 5 minutes. A model that hangs
-      mid-turn meets neither cap: Stop ends it.
+      draft's repair turn has no timeout too, with at most eight tool calls
+      and only the remaining turns and cost. A model that hangs mid-turn
+      meets neither cap: Stop ends it. With a timed draft, repair keeps at
+      most five minutes within the draft's remaining time.
       Turned off, the built-ins keep their floors above and the policy's max
       turns. Your QuickAgents' runs, the CLI and anything In Agentry keep
       their limits, and it applies from the next job started.

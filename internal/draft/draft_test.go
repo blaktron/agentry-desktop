@@ -719,7 +719,7 @@ func (f scannerFunc) Scan(ctx context.Context, src webscan.Source, text string) 
 // D-062; on by default since agentry-desktop#699): the Drafter runs on this
 // computer with no timeout and runs to the hidden failsafe of 200 turns,
 // and its progress dialog is told no limit at all. The cost cap stays the
-// policy's, and the repair turn keeps its own bound, so a draft still ends.
+// policy's; repair inherits no timeout and only the remaining turns and cost.
 func TestByDefaultADraftHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 	isolate(t)
 	saveKey(t)
@@ -746,7 +746,7 @@ func TestByDefaultADraftHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 			if len(runs) == 0 {
 				// Two hours: past every floor a built-in has.
 				env, err := first(ctx, r)
-				env.Usage = receipt.Usage{Turns: 3, WallMS: 7_200_000}
+				env.Usage = receipt.Usage{Turns: 195, WallMS: 7_200_000, CostUSD: 0.25}
 				return env, err
 			}
 			return second(ctx, r)
@@ -761,8 +761,8 @@ func TestByDefaultADraftHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 	if got := *runs[0].Budgets; got != want {
 		t.Errorf("the Drafter ran under %+v, want %+v", got, want)
 	}
-	if got := *runs[1].Budgets; got.TimeoutSeconds != drafter.RepairTimeoutSeconds || got.MaxTurns > drafter.RepairMaxTurns {
-		t.Errorf("the repair turn ran under %+v, want %d seconds at most %d tool calls", got, drafter.RepairTimeoutSeconds, drafter.RepairMaxTurns)
+	if got := *runs[1].Budgets; got != (spec.Budgets{TimeoutSeconds: 0, MaxTurns: 5, MaxCostUSD: 2.75}) {
+		t.Errorf("the repair turn ran under %+v, want no timeout, five remaining tool calls and $2.75", got)
 	}
 	if len(reports) == 0 || reports[0].TimeoutSeconds != 0 || reports[0].MaxTurns != 0 {
 		t.Errorf("the progress dialog was told %+v, want no time or turn limit", reports)
