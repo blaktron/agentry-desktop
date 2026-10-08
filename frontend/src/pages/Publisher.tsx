@@ -94,30 +94,41 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
   loadRef.current = load;
 
   // Follow a new fork: its copy, then its first version through the
-  // pipeline. The list is read again whenever the line changes, so the row
-  // shows what the line says.
+  // pipeline and any review. The list is read again whenever the line
+  // changes, so the row shows what the line says. Three reads in a row
+  // that do not answer (signed out, the fork deleted, the registry down)
+  // end it, saying so; leaving the page ends it too.
   useEffect(() => {
     if (!follow) return;
     let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let last = "";
+    let misses = 0;
     const ref = `${follow.namespace}/${follow.name}`;
+    const again = () => { if (!stop) timer = setTimeout(tick, followEveryMs); };
     const tick = async () => {
       try {
         const d = await BrowseAPI.Agent(registry, follow.namespace, follow.name);
-        const p = forkProgressLine(ref, { forkState: d.agent.forkState, forkDetail: d.agent.forkDetail, versions: d.versions });
         if (stop) return;
+        misses = 0;
+        const p = forkProgressLine(ref, { forkState: d.agent.forkState, forkDetail: d.agent.forkDetail, versions: d.versions });
         setProgress(p);
         if (p.line !== last) {
           last = p.line;
           void loadRef.current();
         }
-        if (!p.done) setTimeout(tick, followEveryMs);
+        if (!p.done) again();
       } catch {
-        if (!stop) setTimeout(tick, followEveryMs);
+        if (stop) return;
+        if (++misses < 3) return again();
+        setProgress({ line: `${ref} could not be read, so it is no longer followed here. Its row below shows where it stands.`, done: true });
       }
     };
     void tick();
-    return () => { stop = true; };
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, follow?.namespace, follow?.name]);
 

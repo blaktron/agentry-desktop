@@ -56,8 +56,8 @@ export default function ForkDialog({ registry, ns, name, version, onClose, onFor
   return (
     <Modal title={`Fork ${ns}/${name}`} onClose={onClose}>
       <p className="muted">
-        A fork is your own private copy of {ns}/{name}@{version}, with its history, under the same name unless you give
-        another.
+        A fork is your own copy of {ns}/{name}, its whole history included, starting from v{version}. The fork keeps
+        the name {name} unless that name is taken in the namespace you choose.
       </p>
       {!targets && !error && <Spinner />}
       {targets && targets.length === 0 && <p>Sign in under Settings to fork a QuickAgent.</p>}
@@ -65,11 +65,11 @@ export default function ForkDialog({ registry, ns, name, version, onClose, onFor
         <>
           <Field label="Fork into" htmlFor="fork-target">
             <Select id="fork-target" value={target} onChange={(e) => setTarget(e.target.value)}>
-              {targets.map((t, i) => <option key={t} value={t}>{i === 0 ? `${t} (you)` : t}</option>)}
+              {targets.map((t, i) => <option key={t} value={t}>{i === 0 ? `${t} (yours)` : t}</option>)}
             </Select>
           </Field>
           {askName && (
-            <Field label="Name for the fork" htmlFor="fork-name" hint="Lowercase letters, digits and hyphens.">
+            <Field label="Name for the fork" htmlFor="fork-name" hint="Lower-case letters, digits and hyphens, starting and ending with a letter or digit.">
               <Input id="fork-name" className="mono" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
             </Field>
           )}

@@ -2,7 +2,7 @@
 // #706), held to the site's lib/fork.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FORK_TERMS, forkable, forkCopyLine, forkCountLine, forkOfLabel, forkProgressLine, type ForkAgent } from "../src/fork.ts";
+import { FORK_TERMS, forkable, forkCopyNotice, forkCountLine, forkOfLabel, forkProgressLine, type ForkAgent } from "../src/fork.ts";
 
 const pub: ForkAgent = { visibility: "public" };
 const origin = { namespace: "demo1", name: "incident-summarizer", version: "1.0.0", available: true };
@@ -20,9 +20,16 @@ test("Fork is offered on a public, published QuickAgent to a signed-in person, a
 test("a fork's page names its origin and says how its copy stands", () => {
   const f: ForkAgent = { visibility: "private", forkedFrom: origin, forkState: "ready" };
   assert.equal(forkOfLabel(f), "Fork of demo1/incident-summarizer@1.0.0");
-  assert.equal(forkCopyLine(f), null);
-  assert.match(forkCopyLine({ ...f, forkState: "copying" }) ?? "", /^Its history is being copied from demo1\/incident-summarizer/);
-  assert.equal(forkCopyLine({ ...f, forkState: "failed", forkDetail: "No repository." }), "The copy failed: No repository.");
+  assert.equal(forkCopyNotice(f), null);
+  const copying = forkCopyNotice({ ...f, forkState: "copying" });
+  assert.equal(copying?.title, "This fork is being made.");
+  assert.match(copying?.text ?? "", /^Its history is being copied from demo1\/incident-summarizer and its first version submitted to the pipeline\. This page updates by itself\.$/);
+  assert.deepEqual(forkCopyNotice({ ...f, forkState: "failed", forkDetail: "the origin's repository could not be copied" }), {
+    title: "This fork could not be made.",
+    text: "The origin's repository could not be copied. Delete this fork in the Publisher section, then fork the original again.",
+    failed: true,
+  });
+  assert.match(forkCopyNotice({ ...f, forkState: "failed" })?.text ?? "", /^The copy did not finish\. /);
   assert.equal(forkOfLabel(pub), null);
 });
 
@@ -44,10 +51,11 @@ test("a new fork's progress: copying, the first version through the pipeline, th
   const ref = "pat/incident-summarizer";
   assert.deepEqual(forkProgressLine(ref, { forkState: "copying", versions: [] }), { line: "Copying pat/incident-summarizer's history from its origin…", done: false });
   assert.deepEqual(forkProgressLine(ref, { forkState: "ready", versions: [{ version: "1.0.0", status: "scanning" }] }),
-    { line: "pat/incident-summarizer's first version, 1.0.0, is going through the pipeline (scanning).", done: false });
+    { line: "pat/incident-summarizer's first version, v1.0.0, is going through the pipeline (scanning).", done: false });
   assert.equal(forkProgressLine(ref, { forkState: "ready", versions: [{ version: "1.0.0", status: "published" }] }).done, true);
   // The first version is the oldest, wherever later ones are.
-  assert.match(forkProgressLine(ref, { forkState: "ready", versions: [{ version: "1.1.0", status: "scanning" }, { version: "1.0.0", status: "published" }] }).line, /1\.0\.0, is published/);
-  assert.deepEqual(forkProgressLine(ref, { forkState: "failed", forkDetail: "No repository.", versions: [] }), { line: "The copy of pat/incident-summarizer failed: No repository.", done: true });
+  assert.match(forkProgressLine(ref, { forkState: "ready", versions: [{ version: "1.1.0", status: "scanning" }, { version: "1.0.0", status: "published" }] }).line, /v1\.0\.0, is published/);
+  assert.equal(forkProgressLine(ref, { forkState: "ready", versions: [{ version: "1.0.0", status: "needs_review" }] }).done, false, "a review can still publish it");
+  assert.deepEqual(forkProgressLine(ref, { forkState: "failed", forkDetail: "no repository", versions: [] }), { line: "The copy of pat/incident-summarizer did not finish. No repository.", done: true });
   assert.match(forkProgressLine(ref, { forkState: "ready", versions: [{ version: "1.0.0", status: "rejected" }] }).line, /stopped: rejected/);
 });

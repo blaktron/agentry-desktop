@@ -30,14 +30,37 @@ export function forkOfLabel(a: ForkAgent): string | null {
   return f ? `Fork of ${f.namespace}/${f.name}@${f.version}` : null;
 }
 
-/** What a fork's page says of its copy while it is not ready. */
-export function forkCopyLine(a: ForkAgent): string | null {
+/** Said after the label when the origin can no longer be read, since a
+ * link would only reach a missing name (the site's ForkOf). */
+export const ORIGIN_GONE = "(the original is no longer available)";
+
+/** What a fork's page says of its copy while it is not ready, in the
+ * site's words: a title and its sentence. A failed copy says what to do. */
+export function forkCopyNotice(a: ForkAgent): { title: string; text: string; failed: boolean } | null {
   if (!a.forkedFrom) return null;
   if (a.forkState === "copying") {
-    return `Its history is being copied from ${a.forkedFrom.namespace}/${a.forkedFrom.name}, and its first version then goes through the pipeline.`;
+    return {
+      title: "This fork is being made.",
+      text: `Its history is being copied from ${a.forkedFrom.namespace}/${a.forkedFrom.name} and its first version submitted to the pipeline. This page updates by itself.`,
+      failed: false,
+    };
   }
-  if (a.forkState === "failed") return `The copy failed${a.forkDetail ? `: ${a.forkDetail}` : "."}`;
+  if (a.forkState === "failed") {
+    return {
+      title: "This fork could not be made.",
+      text: `${sentenceOf(a.forkDetail || "The copy did not finish.")} Delete this fork in the Publisher section, then fork the original again.`,
+      failed: true,
+    };
+  }
   return null;
+}
+
+/** A detail as a sentence: a capital first and a full stop last. */
+function sentenceOf(s: string): string {
+  const t = s.trim();
+  if (!t) return t;
+  const head = t[0].toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(head) ? head : `${head}.`;
 }
 
 /** A public QuickAgent's fork count, a number only (invariant 5: nothing
@@ -65,21 +88,22 @@ export interface ForkProgress {
 
 /** The line the Publisher section shows for a new fork, and whether it is
  * still worth asking again: copying, then the first version through the
- * pipeline, then published (or stopped). */
+ * pipeline and any review, then published (or stopped). */
 export function forkProgressLine(ref: string, p: ForkProgress): { line: string; done: boolean } {
-  if (p.forkState === "failed") return { line: `The copy of ${ref} failed${p.forkDetail ? `: ${p.forkDetail}` : "."}`, done: true };
+  if (p.forkState === "failed") return { line: `The copy of ${ref} did not finish. ${sentenceOf(p.forkDetail || "")}`.trim(), done: true };
   const first = p.versions[p.versions.length - 1];
   if (p.forkState === "copying" || !first) return { line: `Copying ${ref}'s history from its origin…`, done: false };
   switch (first.status) {
     case "published":
-      return { line: `${ref}'s first version, ${first.version}, is published. It is private, and yours to change.`, done: true };
+      return { line: `${ref}'s first version, v${first.version}, is published. It is private, and yours to change.`, done: true };
     case "submitted":
     case "scanning":
     case "approved":
-      return { line: `${ref}'s first version, ${first.version}, is going through the pipeline (${first.status}).`, done: false };
+      return { line: `${ref}'s first version, v${first.version}, is going through the pipeline (${first.status}).`, done: false };
     case "needs_review":
-      return { line: `${ref}'s first version, ${first.version}, is waiting for a review.`, done: true };
+      // A review can still publish or reject it, so the follow goes on.
+      return { line: `${ref}'s first version, v${first.version}, is waiting for a review.`, done: false };
     default:
-      return { line: `${ref}'s first version, ${first.version}, stopped: ${first.status.replace(/_/g, " ")}.`, done: true };
+      return { line: `${ref}'s first version, v${first.version}, stopped: ${first.status.replace(/_/g, " ")}.`, done: true };
   }
 }

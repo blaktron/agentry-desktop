@@ -52,34 +52,14 @@ type ForkView struct {
 // signed in, or an address Settings would not send the token to, lists
 // none.
 func (p *PublisherAPI) ForkTargets(reg string) ([]string, error) {
-	url, token, err := storedCredential(reg)
-	if err != nil {
-		return []string{}, nil
+	acct, err := p.signedInAccount(reg)
+	if err != nil || acct == nil {
+		return []string{}, err
 	}
-	client, err := registry.New(url, token)
-	if err != nil {
-		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
-	}
-	res, err := client.GetCurrentUserWithResponse(p.ctx())
-	if err != nil {
-		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
-	}
-	if res.StatusCode() == http.StatusUnauthorized {
-		return []string{}, nil
-	}
-	if res.JSON200 == nil {
-		return nil, registry.Problem("read your account", res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body)
-	}
-	u := res.JSON200
-	out := []string{u.Handle}
-	if u.Orgs != nil {
-		for _, o := range *u.Orgs {
-			if o.State != nil && *o.State == apiclient.MembershipStatePending {
-				continue
-			}
-			if (o.Role == "admin" || o.Role == "member") && o.Handle != "" && !hasString(out, o.Handle) {
-				out = append(out, o.Handle)
-			}
+	out := []string{acct.handle}
+	for _, o := range acct.orgs {
+		if (o.role == "admin" || o.role == "member") && o.handle != "" && !hasString(out, o.handle) {
+			out = append(out, o.handle)
 		}
 	}
 	return out, nil

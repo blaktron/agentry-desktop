@@ -17,7 +17,8 @@ import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { heldForm, offersEdit } from "../edit";
 import ReviseDialog from "./ReviseDialog";
 import ForkDialog from "./ForkDialog";
-import { forkable, forkCopyLine, forkCountLine, forkOfLabel } from "../fork";
+import { ORIGIN_GONE, forkable, forkCopyNotice, forkCountLine, forkOfLabel } from "../fork";
+import { FORK_STAYS_PRIVATE } from "../publisher";
 import { PinButton, useHomeLayout } from "./home/PinButton";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
@@ -67,6 +68,9 @@ export default function AgentPage({
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("readme");
   const [forkOpen, setForkOpen] = useState(false);
+  // Bumped when a fork's copy ends, so the page is read again whole (its
+  // first version, readme and report arrive with it).
+  const [rev, setRev] = useState(0);
   const [readme, setReadme] = useState<string | null>(null);
   const [report, setReport] = useState<main.ReportView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
@@ -199,7 +203,21 @@ export default function AgentPage({
         BrowseAPI.Provenance(registry, ns, name, d.latest, d.latestDigest ?? "", d.latestScanStatus ?? "").then(setProv).catch(() => {});
       }
     }).catch((e) => setError(String(e)));
-  }, [registry, ns, name]);
+  }, [registry, ns, name, rev]);
+
+  // A fork being copied: the page updates by itself, as the site's does,
+  // every four seconds until the copy is ready or failed. A read that does
+  // not answer stops it; the page stays as it was.
+  useEffect(() => {
+    if (detail?.agent.forkState !== "copying") return;
+    const t = setTimeout(() => {
+      BrowseAPI.Agent(registry, ns, name).then((d) => {
+        if (d.agent.forkState === "copying") setDetail(d);
+        else setRev((n) => n + 1);
+      }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [detail, registry, ns, name]);
 
   if (error) {
     return (
@@ -227,6 +245,7 @@ export default function AgentPage({
   const counts = report?.findingCounts ?? {};
   const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
   const codingAgent = codingAgentName(codingAgents);
+  const copyNotice = forkCopyNotice(a);
 
   return (
     <div>
@@ -267,10 +286,15 @@ export default function AgentPage({
         <p className="small" data-fork-of>
           {a.forkedFrom.available && onOpenAgent
             ? <Button variant="link" onClick={() => onOpenAgent(a.forkedFrom!.namespace, a.forkedFrom!.name)}>{forkOfLabel(a)}</Button>
-            : forkOfLabel(a)}
+            : <>{forkOfLabel(a)}{!a.forkedFrom.available && ` ${ORIGIN_GONE}`}</>}
+          . {FORK_STAYS_PRIVATE}
         </p>
       )}
-      {forkCopyLine(a) && <Notice tone={a.forkState === "failed" ? "warn" : "info"}>{forkCopyLine(a)}</Notice>}
+      {copyNotice && (
+        <Notice tone={copyNotice.failed ? "warn" : "info"}>
+          <strong>{copyNotice.title}</strong> {copyNotice.text}
+        </Notice>
+      )}
       {forkCountLine(a.forkCount) && <p className="muted small" data-fork-count>{forkCountLine(a.forkCount)}</p>}
       {installBusy && <p className="muted small">Resolving, verifying and installing into the runner home…</p>}
       {runnerInstall && runnerUpdateErr && !installBusy && <p className="muted small">Installed {runnerInstall.version}; could not check for a newer version: {runnerUpdateErr}</p>}

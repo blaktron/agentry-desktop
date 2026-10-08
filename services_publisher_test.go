@@ -460,11 +460,16 @@ func TestPublisherForkTargetsAndFork(t *testing.T) {
 	if v, err = no.Fork(reg, "demo1", "incident-summarizer", "pat", ""); err != nil || !v.Cancelled || len(f.sent()) != before {
 		t.Fatalf("a No: %+v %v", v, err)
 	}
-	// A name or a namespace outside the patterns is refused before the dialog.
+	// A name or a namespace outside the patterns is refused before the
+	// dialog and before any request.
+	beforeAsked := len(*asked)
 	for _, c := range [][3]string{{"demo1", "incident-summarizer", "../x"}, {"demo1", "a/b", "pat"}} {
 		if _, err := p.Fork(reg, c[0], c[1], c[2], ""); err == nil {
 			t.Fatalf("fork of %v was not refused", c)
 		}
+	}
+	if len(*asked) != beforeAsked || len(f.sent()) != before {
+		t.Fatalf("a refused fork reached the dialog or the registry: asked %v", *asked)
 	}
 	if v, _ = p.Fork(reg, "demo1", "incident-summarizer", "pat", "Bad Name"); !v.AskName || !strings.HasPrefix(v.Refusal, "Not forked:") || len(f.sent()) != before {
 		t.Fatalf("a bad new name: %+v", v)
