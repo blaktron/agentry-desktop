@@ -123,6 +123,13 @@
 //                                among them) and the client form
 //   #runpanel-signin-connected   connected, with Connect again and Disconnect
 //   #runpanel-signin-review      Review and start: Run held until connected
+//   #runpanel-signin-hosted      Connect tools In Agentry (agentry-desktop
+//                                #667): Agentry's own connections, made on
+//                                the site, and Connect in your browser now
+//   #runpanel-signin-hosted-connect  Review and start In Agentry: shots.mjs
+//                                clicks Run In Agentry, the registry answers
+//                                connection-missing, Connect tools opens in
+//                                the browser and the start waits
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
@@ -149,6 +156,7 @@ const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || 
 // A Gmail-reading release whose one server is Google's remote Gmail server,
 // signing in by OAuth with the person's own client (agentry-desktop#666).
 const signInShape = view.startsWith("runpanel-signin");
+const hostedSignIn = view.startsWith("runpanel-signin-hosted");
 const gmailServer = "https://gmailmcp.googleapis.com/mcp/v1";
 const signInRelease = {
   ref: "acme/inbox-brief@0.1.0", digest: "sha256:7f3a2b9c1d4e5f60",
@@ -451,6 +459,8 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-signin-own-client": "tools",
   "runpanel-signin-connected": "tools",
   "runpanel-signin-review": "review",
+  "runpanel-signin-hosted": "tools",
+  "runpanel-signin-hosted-connect": "review",
 };
 
 const g = window as any;
@@ -470,7 +480,15 @@ g.go = { main: {
     SendHostedTurn: async () => {}, AddHostedSessionFile: async () => {}, EndHostedSession: async () => {},
     StartHostedRun: async () => (hostedSecrets && hostedStarts++ === 0
       ? { refusal: "secret-missing", detail: "A declared secret is missing: The release declares secrets you have not set: PAGERDUTY_TOKEN.", missing: ["PAGERDUTY_TOKEN"] }
-      : { run: hostedRuns.queued }),
+      : view === "runpanel-signin-hosted-connect"
+        ? { refusal: "connection-missing", detail: `A tool is not connected: The release's tools sign in by OAuth, and you have not connected ${gmailServer} for this version. Connect them, then start the run.`, missing: [gmailServer] }
+        : { run: hostedRuns.queued }),
+    // A run In Agentry's sign-ins (agentry-desktop#667): the page opens in
+    // the browser, which never answers here, so the start waits.
+    OpenHostedConnect: async () => {},
+    AwaitHostedConnections: () => new Promise(() => {}),
+    StopAwaitingConnections: async () => {},
+    DiscardHostedConnect: async () => {},
     SetHostedSecret: async () => {},
     DiscardHostedSecrets: async () => {},
     StarAsk: async () => ({ ask: false }),
@@ -635,7 +653,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns ? "hosted"
+        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
       />

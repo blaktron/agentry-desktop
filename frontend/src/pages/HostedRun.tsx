@@ -13,6 +13,7 @@ import { OpenUpgrade } from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
 import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, sessionTermsSentence } from "../usage";
+import { hostedConnectAsk } from "../connections";
 import { PUBLISHER_EARNS_AFTER, PUBLISHER_EARNS_SENTENCE, starAskSentence, starAskWanted, starredSentence } from "../earnings";
 
 /** What a run In Agentry holds and what the account has, before anything
@@ -272,6 +273,76 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel }: {
         <Button onClick={cancel} disabled={busy}>Cancel</Button>
         <span className="grow" />
         <Button variant="primary" disabled={busy || !ready} onClick={save}>{busy ? "Saving…" : "Save and start"}</Button>
+      </div>
+    </Card>
+  );
+}
+
+/** Connect tools In Agentry (OAuth connections M9, agentry-desktop#667;
+ *  plan D19): the servers this release signs in to, and the page where
+ *  Agentry's connections to them are made. Agentry keeps its own, for this
+ *  version, apart from this computer's; which of them the account keeps is
+ *  not this app's to read (the list is a signed-in session's, as the
+ *  secrets' is), so Run finds out and asks. */
+export function HostedSignIns({ registry, agentRef, servers }: { registry: string; agentRef: string; servers: string[] }) {
+  const [err, setErr] = useState<string | null>(null);
+  if (servers.length === 0) return null;
+  return (
+    <>
+      <h4>Sign-ins</h4>
+      <p className="muted small" style={{ margin: "4px 0" }}>
+        {servers.length === 1 ? "This server signs" : "These servers sign"} in with your own account at {servers.length === 1 ? "its vendor" : "their vendors"}:{" "}
+        {servers.map((sv, i) => (
+          <span key={sv}>{i > 0 ? ", " : ""}<code>{sv}</code></span>
+        ))}
+        . A run In Agentry uses the connections Agentry keeps for this version, not the ones on this computer, and gets a
+        short-lived access token from them and nothing else; this app never sees one. If one is not connected there yet, Run
+        opens Connect tools in your browser and starts once Agentry holds it.
+      </p>
+      <p className="small" style={{ margin: "4px 0" }}>
+        <Button variant="link" onClick={() => RunAPI.OpenHostedConnect(registry, agentRef).then(() => setErr(null)).catch((e) => setErr(String(e)))}>
+          Connect in your browser now
+        </Button>
+      </p>
+      <ErrorBox error={err} />
+    </>
+  );
+}
+
+/** The ask a run In Agentry makes when Agentry keeps no connection to some
+ *  of its servers for this version (409 connection-missing): Connect tools
+ *  is open in the browser, and the start is made again until Agentry holds
+ *  every connection, when the run starts by itself. The panel opens the
+ *  page and waits as Run is refused (plan D5: at Start); this shows where
+ *  that stands and offers the page again, Stop, Wait again and Cancel. */
+export function HostedConnectAsk({ registry, agentRef, missing, detail, waiting, onWait, onStop, onCancel }: {
+  registry: string;
+  agentRef: string;
+  missing: string[];
+  /** The last word from the registry or the wait, shown beneath. */
+  detail?: string;
+  waiting: boolean;
+  onWait: () => void;
+  onStop: () => void;
+  onCancel: () => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const open = () => RunAPI.OpenHostedConnect(registry, agentRef).then(() => setErr(null)).catch((e) => setErr(String(e)));
+  return (
+    <Card>
+      <h3 style={{ marginTop: 0 }}>Connect tools in Agentry</h3>
+      <p className="small">{hostedConnectAsk(missing, registry, waiting)}</p>
+      {waiting ? (
+        <p className="small" role="status">Waiting for Agentry to hold the {missing.length === 1 ? "connection" : "connections"}…</p>
+      ) : (
+        detail && <p className="muted small selectable">{detail}</p>
+      )}
+      <ErrorBox error={err} />
+      <div className="row">
+        <Button onClick={onCancel}>Cancel</Button>
+        <span className="grow" />
+        <Button onClick={open}>Open Connect tools again</Button>
+        {waiting ? <Button onClick={onStop}>Stop waiting</Button> : <Button variant="primary" onClick={onWait}>Wait again</Button>}
       </div>
     </Card>
   );

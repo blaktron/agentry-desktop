@@ -268,7 +268,8 @@ type HostedStartView struct {
 	Hold     int64  `json:"hold,omitempty"`
 	ResetsAt string `json:"resetsAt,omitempty"`
 	// Missing are the declared secrets a secret-missing refusal names: the
-	// ones the panel asks for (agentry-desktop#300).
+	// ones the panel asks for (agentry-desktop#300); for connection-missing,
+	// the servers still to connect In Agentry (agentry-desktop#667).
 	Missing []string `json:"missing,omitempty"`
 }
 
@@ -406,6 +407,8 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	if err := r.hostedIdle(); err != nil {
 		return nil, err
 	}
+	// A new start replaces one waiting for its connections.
+	r.dropAwaiting(nil)
 	// The paths came from a native picker, or they are not used (D-030).
 	for _, p := range inputPaths {
 		if err := r.app.requirePicked("input", p); err != nil {
@@ -439,15 +442,28 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		}
 		return nil, err
 	}
-	created, err := client.Create(ctx, hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice})
+	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice}
+	created, err := client.Create(ctx, req)
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
+			// A server still to connect: the same create is made again
+			// once the vault holds it (AwaitHostedConnections), so the
+			// inputs go up once.
+			if refusal.Slug == hostedrun.SlugConnectionMissing {
+				r.holdAwaiting(&awaitingStart{registry: reg, ref: ref, req: req, outDir: outDir})
+			}
 			return r.refusalView(refusal), nil
 		}
 		runMayExist = true
 		return nil, err
 	}
 	runMayExist = true
+	return r.startedView(reg, token, outDir, created)
+}
+
+// startedView follows a run the registry has just created and is what a
+// start answers with it.
+func (r *RunAPI) startedView(reg, token, outDir string, created *hostedrun.Run) (*HostedStartView, error) {
 	dir, err := hostedOutDir(outDir, created)
 	if err != nil {
 		return nil, err

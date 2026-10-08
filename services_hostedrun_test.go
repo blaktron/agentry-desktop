@@ -8,6 +8,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -122,6 +123,11 @@ type hostedFake struct {
 	// earns is the Publisher Earnings program's answer for acme, whose
 	// reporter is public and read by someone else (agentry-desktop#613).
 	earns bool
+	// uploads counts the input uploads, and creates the create posts, each
+	// body whole (agentry-desktop#667: a start waiting for its connections
+	// makes the same create again and uploads nothing again).
+	uploads int
+	creates []string
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -233,6 +239,9 @@ func (f *hostedFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusOK, packs)
 	})
 	mux.HandleFunc("POST /api/v1/x/runs/inputs", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		f.uploads++
+		f.mu.Unlock()
 		name := r.URL.Query().Get("name")
 		hostedJSON(w, http.StatusCreated, map[string]any{"id": "input-" + name, "name": name, "bytes": r.ContentLength})
 	})
@@ -260,6 +269,9 @@ func (f *hostedFake) start(t *testing.T) string {
 	mux.HandleFunc("POST /api/v1/x/runs/", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		f.creates = append(f.creates, string(body))
 		if f.refuse != nil {
 			f.refuse(w)
 			return

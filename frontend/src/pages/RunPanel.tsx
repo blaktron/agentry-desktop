@@ -25,7 +25,7 @@ import { knowledge, main, run, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
-import { HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
+import { HostedConnectAsk, HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedSignIns, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice";
 import { GuideText, connectHelp } from "../GuideText";
@@ -171,6 +171,9 @@ export default function RunPanel({
   const [hostedKnown, setHostedKnown] = useState(false);
   const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
   const [starting, setStarting] = useState(false);
+  // A start refused connection-missing is made again until Agentry holds
+  // the connections (agentry-desktop#667): whether that wait is under way.
+  const [awaiting, setAwaiting] = useState(false);
 
   // The guided setup: which step shows, a step's own sentence when Next is
   // refused, and the heading focus moves to when the step changes.
@@ -321,7 +324,9 @@ export default function RunPanel({
   const followed = useHostedRun();
   const followedChat = useChat().chat;
   const chatLive = !!followedChat && !followedChat.over;
-  const followedMoving = followed.starting || (!!followed.run && !followed.run.final) || (chatLive && followedChat.kind === "hosted");
+  // This panel's own wait for Agentry's connections is a start too, but not
+  // another run under way: its ask says where it stands.
+  const followedMoving = (followed.starting && !awaiting) || (!!followed.run && !followed.run.final) || (chatLive && followedChat.kind === "hosted");
   // What still stands between this form and a run, each in a sentence the
   // line above the button shows (agentry-desktop#167): the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
@@ -357,7 +362,7 @@ export default function RunPanel({
   if (unscanned && inAgentry) blockers.push("A run In Agentry is not offered for an unscanned release.");
   if (unscanned && !inAgentry && !acceptUnscanned) blockers.push("Tick \u201cRun an unscanned release\u201d.");
   if (vuln.blocker) blockers.push(vuln.blocker);
-  blockers.push(...connectionBlockers(signIns, inAgentry));
+  blockers.push(...connectionBlockers(signIns, inAgentry, hosted?.vault ?? true));
 
   // What the release says about knowledge (plan knowledge.md §4.6): the
   // packs it ships, mounted in every run on this computer, and what it asks
@@ -393,6 +398,10 @@ export default function RunPanel({
   // Save and start; Run waits while it is open.
   const asking = inAgentry && hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0;
   if (asking) blockers.push("Enter the secrets this run needs above, then Save and start — or Cancel.");
+  // The servers Agentry keeps no connection to for this version: connected
+  // in the browser, then the start is made again (agentry-desktop#667).
+  const connecting = inAgentry && hostedRefusal?.refusal === "connection-missing";
+  if (connecting) blockers.push("Connect the servers named below in your browser; the run starts once Agentry holds them — or Cancel.");
   const canRun = !busy && blockers.length === 0;
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
@@ -548,33 +557,73 @@ export default function RunPanel({
     setRunErr(null);
     setHostedRefusal(null);
     try {
-      const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
-      if (sessionInAgentry) {
-        // A chat In Agentry is followed above the pages once the registry
-        // has created it, and this setup closes (agentry-desktop#467).
-        const started = await RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice);
-        if (started.refusal) setHostedRefusal(started);
-        else if (started.run) {
-          followHostedChat(setup, started.run, hosted?.session ?? null, profile?.opening ?? "", task);
-          onClose();
-        }
-        return;
+      const call = sessionInAgentry
+        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice)
+        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice);
+      const started = await startedInAgentry(call);
+      // A server Agentry keeps no connection to for this version: Connect
+      // tools opens in the browser now, at Start (plan D5), and the start
+      // is made again until Agentry holds it (agentry-desktop#667).
+      if (started?.refusal === "connection-missing") {
+        RunAPI.OpenHostedConnect(registry, agentRef).catch((e) => setRunErr(String(e)));
+        void awaitConnections();
       }
-      // A run is followed above the pages once the registry has created
-      // it, and this setup closes (agentry-desktop#466); a refusal stays
-      // here, with the missing-secret ask before any run exists.
-      const started = await startHostedRun(
-        setup,
-        () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice),
-      );
-      if (started.refusal) setHostedRefusal(started);
-      else if (started.run) onClose();
     } catch (e) {
       setRunErr(String(e));
     } finally {
       setStarting(false);
     }
   }
+
+  // A start's answer In Agentry, followed: a chat above the pages once the
+  // registry has created it (agentry-desktop#467), a run likewise
+  // (agentry-desktop#466), and this setup closes; a refusal stays here, with
+  // its ask before any run exists.
+  async function startedInAgentry(call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView | null> {
+    const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
+    if (sessionInAgentry) {
+      const started = await call();
+      if (started.refusal) setHostedRefusal(started);
+      else if (started.run) {
+        followHostedChat(setup, started.run, hosted?.session ?? null, profile?.opening ?? "", task);
+        onClose();
+      }
+      return started;
+    }
+    const started = await startHostedRun(setup, call);
+    if (started.refusal) setHostedRefusal(started);
+    else if (started.run) onClose();
+    return started;
+  }
+
+  // The wait for Agentry's connections: the refused start is made again
+  // every few seconds until the run is created, refused for another reason
+  // (a secret to give, the credits), stopped, or out of time.
+  async function awaitConnections() {
+    setAwaiting(true);
+    setRunErr(null);
+    try {
+      await startedInAgentry(() => RunAPI.AwaitHostedConnections(registry, agentRef));
+    } catch (e) {
+      setHostedRefusal(null);
+      setRunErr(String(e));
+    } finally {
+      setAwaiting(false);
+    }
+  }
+
+  // A start held for its connections goes with the panel, and a wait stops
+  // when the run leaves In Agentry.
+  // Through a promise, so a binding an older harness entry lacks is a call
+  // that did not answer, not a throw.
+  const quietly = (call: () => Promise<void>) => void Promise.resolve().then(call).catch(() => undefined);
+  useEffect(() => () => {
+    quietly(RunAPI.StopAwaitingConnections);
+    quietly(RunAPI.DiscardHostedConnect);
+  }, []);
+  useEffect(() => {
+    if (!inAgentry) quietly(RunAPI.StopAwaitingConnections);
+  }, [inAgentry]);
 
   // Upload a pack kept here so a run In Agentry can attach it (the
   // Knowledge panel's own Upload): Agentry scans it first, so it can be
@@ -955,16 +1004,13 @@ export default function RunPanel({
                 </>
               )}
               {/* The servers that sign in by OAuth (agentry-desktop#666): on
-                  this computer, Connect; In Agentry, not yet (M9). */}
+                  this computer, Connect; In Agentry, Agentry's own
+                  connections, made on the site (agentry-desktop#667). */}
               {conns && conns.servers.length > 0 && !inAgentry && (
                 <ServerSignIns registry={registry} agentRef={agentRef} release={conns} onChanged={readConns} />
               )}
-              {conns && conns.servers.length > 0 && inAgentry && (
-                <Notice tone="warn">
-                  {conns.servers.length === 1 ? "A server this release declares signs in" : "Servers this release declares sign in"} by
-                  OAuth, which a run In Agentry cannot do for you yet. Run it on this computer, where this step connects{" "}
-                  {conns.servers.length === 1 ? "it" : "them"}.
-                </Notice>
+              {conns && conns.servers.length > 0 && inAgentry && (hosted?.vault ?? true) && (
+                <HostedSignIns registry={registry} agentRef={agentRef} servers={conns.servers.filter((c) => !c.unsupported).map((c) => c.server)} />
               )}
               {/* In Agentry the keys are the account's secrets there, asked
                   for at the start (agentry-desktop#300); the profile below
@@ -1366,7 +1412,25 @@ export default function RunPanel({
                   onCancel={() => setHostedRefusal(null)}
                 />
               )}
-              {hostedRefusal?.refusal && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && (
+              {/* The servers Agentry keeps no connection to for this
+                  version: Connect tools is open in the browser, and the
+                  start is made again until it holds them (agentry-desktop#667). */}
+              {connecting && hostedRefusal && (
+                <HostedConnectAsk
+                  registry={registry}
+                  agentRef={agentRef}
+                  missing={hostedRefusal.missing ?? []}
+                  detail={hostedRefusal.detail}
+                  waiting={awaiting}
+                  onWait={() => void awaitConnections()}
+                  onStop={() => quietly(RunAPI.StopAwaitingConnections)}
+                  onCancel={() => {
+                    quietly(RunAPI.DiscardHostedConnect);
+                    setHostedRefusal(null);
+                  }}
+                />
+              )}
+              {hostedRefusal?.refusal && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && hostedRefusal.refusal !== "connection-missing" && (
                 <Notice tone="warn">
                   <strong>
                     {hostedRefusal.refusal === "credits-exhausted"
