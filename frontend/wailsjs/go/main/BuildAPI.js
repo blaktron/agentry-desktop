@@ -58,6 +58,14 @@ export function NewSaveFolder(arg1) {
   return window['go']['main']['BuildAPI']['NewSaveFolder'](arg1);
 }
 
+export function OpenHostedDraft(arg1, arg2) {
+  return window['go']['main']['BuildAPI']['OpenHostedDraft'](arg1, arg2);
+}
+
+export function OpenRecordedDraft(arg1) {
+  return window['go']['main']['BuildAPI']['OpenRecordedDraft'](arg1);
+}
+
 export function PublishThisVersion(arg1, arg2, arg3) {
   return window['go']['main']['BuildAPI']['PublishThisVersion'](arg1, arg2, arg3);
 }

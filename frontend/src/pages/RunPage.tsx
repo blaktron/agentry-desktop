@@ -12,7 +12,8 @@
 // Download output, which costs no credits. A built-in's job links to its
 // own place (D13). A folder that has gone is said, with a way to remove
 // the entry; it is never looked for.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, PageHeader, Spinner } from "../ui";
@@ -27,7 +28,7 @@ export type RunPageSource = "local" | "hosted";
 type Tone = Exclude<JobTone, "">;
 const tone = (t?: string): Tone => (t === "ok" || t === "bad" ? t : "warn");
 
-export default function RunPage({ source, id, registry, backLabel, onBack, onOpenPlace }: {
+export default function RunPage({ source, id, registry, backLabel, onBack, onOpenPlace, onOpenDraft }: {
   source: RunPageSource;
   id: string;
   // The registry a run In Agentry is read from.
@@ -35,19 +36,50 @@ export default function RunPage({ source, id, registry, backLabel, onBack, onOpe
   backLabel: string;
   onBack: () => void;
   onOpenPlace: (page: BuiltinPage) => void;
+  onOpenDraft: (draft: main.DraftView) => void;
 }) {
   return source === "hosted"
-    ? <HostedRunPage id={id} registry={registry} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} />
-    : <LocalRunPage id={id} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} />;
+    ? <HostedRunPage id={id} registry={registry} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />
+    : <LocalRunPage registry={registry} id={id} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />;
 }
 
 function Back({ label, onBack }: { label: string; onBack: () => void }) {
   return <Button variant="link" onClick={onBack}>{label}</Button>;
 }
 
-function PlaceButton({ kind, onOpenPlace }: { kind: string; onOpenPlace: (page: BuiltinPage) => void }) {
+function PlaceButton({ kind, source, id, registry, onOpenPlace, onOpenDraft }: {
+  kind: string; source: RunPageSource; id: string; registry: string;
+  onOpenPlace: (page: BuiltinPage) => void;
+  onOpenDraft: (draft: main.DraftView) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
+  useEffect(() => () => { request.current++; }, [source, id, registry]);
   const place = builtinPlace(kind);
-  return place ? <Button data-run-place={place.page} onClick={() => onOpenPlace(place.page)}>{place.label}</Button> : null;
+  async function open() {
+    if (!place) return;
+    if (kind !== "draft") { onOpenPlace(place.page); return; }
+    const attempt = ++request.current;
+    setBusy(true);
+    setError(null);
+    try {
+      const draft = source === "hosted"
+        ? await BuildAPI.OpenHostedDraft(registry, id)
+        : await BuildAPI.OpenRecordedDraft(id);
+      if (attempt !== request.current) return;
+      if (!draft?.model) throw new Error("This run returned no draft the form can open.");
+      onOpenDraft(draft);
+    } catch (e) {
+      if (attempt === request.current) setError(String(e));
+    } finally {
+      if (attempt === request.current) setBusy(false);
+    }
+  }
+  return place ? <div>
+    <Button data-run-place={place.page} disabled={busy} onClick={() => void open()}>{busy ? "Opening the draft…" : place.label}</Button>
+    <ErrorBox error={error} />
+  </div> : null;
 }
 
 /** A folder that has gone: said, never looked for, and the entry can go. */
@@ -67,11 +99,13 @@ function GoneFolder({ id, error, onRemoved }: { id: string; error?: string; onRe
   );
 }
 
-function LocalRunPage({ id, backLabel, onBack, onOpenPlace }: {
+function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraft }: {
+  registry: string;
   id: string;
   backLabel: string;
   onBack: () => void;
   onOpenPlace: (page: BuiltinPage) => void;
+  onOpenDraft: (draft: main.DraftView) => void;
 }) {
   const [view, setView] = useState<main.RecordedRunView | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -105,7 +139,7 @@ function LocalRunPage({ id, backLabel, onBack, onOpenPlace }: {
   return (
     <div className="run-page" data-run-page={row.id}>
       <Back label={backLabel} onBack={onBack} />
-      <PageHeader title={whatRan(row)} sub={rowLine(row, new Date())} actions={<PlaceButton kind={row.kind} onOpenPlace={onOpenPlace} />} />
+      <PageHeader title={whatRan(row)} sub={rowLine(row, new Date())} actions={<PlaceButton source="local" id={id} registry={registry} kind={row.kind} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />} />
       {view.folderState === "gone" && <GoneFolder id={row.id} error={view.folderError} onRemoved={onBack} />}
       <ErrorBox error={reportErr} />
       {report ? (
@@ -152,12 +186,13 @@ function RunFacts({ row, version, folder }: { row: main.RecentRunView; version: 
   );
 }
 
-function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace }: {
+function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDraft }: {
   id: string;
   registry: string;
   backLabel: string;
   onBack: () => void;
   onOpenPlace: (page: BuiltinPage) => void;
+  onOpenDraft: (draft: main.DraftView) => void;
 }) {
   const [view, setView] = useState<main.HostedRecordView | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -196,7 +231,7 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace }: {
   return (
     <div className="run-page" data-run-page={run.id} data-run-source="hosted">
       <Back label={backLabel} onBack={onBack} />
-      <PageHeader title={whatRan(row)} sub={`In Agentry · ${run.state || run.status}`} actions={<PlaceButton kind={view.kind} onOpenPlace={onOpenPlace} />} />
+      <PageHeader title={whatRan(row)} sub={`In Agentry · ${run.state || run.status}`} actions={<PlaceButton source="hosted" id={id} registry={registry} kind={view.kind} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />} />
       {view.followed && <Notice tone="info">This run is followed in its card, which brings its output here when it ends.</Notice>}
       {view.folderState === "gone" && <GoneFolder id={run.id} error={view.folderError} onRemoved={onBack} />}
       {view.kept ? (

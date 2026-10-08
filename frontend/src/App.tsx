@@ -14,6 +14,7 @@ import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
 import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
 import DraftFlow from "./pages/DraftFlow";
+import { stageRecordedDraft } from "./drafts";
 import RunFlow from "./pages/RunFlow";
 import ReviewFlow from "./pages/ReviewFlow";
 import HostedRunFlow from "./pages/HostedRunFlow";
@@ -269,12 +270,19 @@ export default function App() {
             )}
             {route.page === "run" && (
               <RunPage
+                key={`${route.source}:${route.registry || registry}:${route.id}`}
                 source={route.source}
                 id={route.id}
                 registry={route.registry || registry}
                 backLabel={BACK_LABEL[route.back ?? "home"]}
                 onBack={() => nav({ page: route.back ?? "home" })}
                 onOpenPlace={(page) => nav({ page })}
+                onOpenDraft={(draft) => {
+                  stageRecordedDraft(draft);
+                  setRegistry(route.registry || registry);
+                  setOpenDraftRev((n) => n + 1);
+                  nav({ page: "build" });
+                }}
               />
             )}
             {route.page === "browse" && (
