@@ -111,6 +111,31 @@ func (f *publisherFake) start(t *testing.T) string {
 	mux.HandleFunc("DELETE /api/v1/agents/{ns}/{name}", act)
 	mux.HandleFunc("POST /api/v1/agents/{ns}/{name}/retire", act)
 	mux.HandleFunc("POST /api/v1/agents/{ns}/{name}/restore", act)
+	mux.HandleFunc("POST /api/v1/agents/{ns}/{name}/fork", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		f.record(r, string(body))
+		f.mu.Lock()
+		status, slug, detail := f.status, f.problem, f.detail
+		f.mu.Unlock()
+		if status != 0 {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(status)
+			_ = json.NewEncoder(w).Encode(map[string]any{"type": "https://agentry.dev/problems/" + slug, "title": "refused", "status": status, "detail": detail})
+			return
+		}
+		var req struct {
+			Namespace string `json:"namespace"`
+			Name      string `json:"name"`
+		}
+		_ = json.Unmarshal(body, &req)
+		if req.Name == "" {
+			req.Name = r.PathValue("name")
+		}
+		hostedJSON(w, http.StatusAccepted, publisherAgentDoc(req.Namespace, req.Name, "private", map[string]any{
+			"forkState":  "copying",
+			"forkedFrom": map[string]any{"namespace": r.PathValue("ns"), "name": r.PathValue("name"), "version": "1.0.0", "available": true, "createdAt": "2026-10-08T00:00:00Z"},
+		}))
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv.URL
@@ -387,6 +412,112 @@ func TestPublisherSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 		if d, err := run(); err == nil {
 			t.Fatalf("an owner action went over plain http: %+v", d)
 		}
+	}
+	if len(*asked) != 0 {
+		t.Fatalf("a dialog was raised for a refused address: %v", *asked)
+	}
+}
+
+// Fork (agentry-desktop#706) against the same registry: the targets are
+// pat and the organizations pat publishes for, a fork is asked first and
+// sent as the core takes it, and a refusal is said in the site's words,
+// asking for another name only when the name was the trouble.
+func TestPublisherForkTargetsAndFork(t *testing.T) {
+	f := &publisherFake{scopes: []string{"agent:manage"}}
+	reg := f.start(t)
+	signIn(t, reg)
+	p, asked := newPublisherAPI(true)
+
+	targets, err := p.ForkTargets(reg)
+	if err != nil || strings.Join(targets, ",") != "pat,acme,crew" {
+		t.Fatalf("fork targets %v %v, want pat,acme,crew (a pending membership publishes nothing)", targets, err)
+	}
+
+	v, err := p.Fork(reg, "demo1", "incident-summarizer", "acme", "")
+	if err != nil || v.Cancelled || v.Refusal != "" || v.Namespace != "acme" || v.Name != "incident-summarizer" ||
+		v.Sentence != "Forked demo1/incident-summarizer into acme/incident-summarizer." {
+		t.Fatalf("fork: %+v %v", v, err)
+	}
+	if got := f.sent(); len(got) != 1 || got[0] != `POST /api/v1/agents/demo1/incident-summarizer/fork {"namespace":"acme"}` {
+		t.Fatalf("fork sent %v", got)
+	}
+	if len(*asked) != 1 || !strings.HasPrefix((*asked)[0], "Fork demo1/incident-summarizer into acme/incident-summarizer? | A fork stays private for good.") ||
+		!strings.Contains((*asked)[0], "Runs on your own computer pay nobody.") {
+		t.Fatalf("fork's question: %v", *asked)
+	}
+
+	// Another name is sent as name.
+	if v, err = p.Fork(reg, "demo1", "incident-summarizer", "pat", "my-summarizer"); err != nil || v.Name != "my-summarizer" {
+		t.Fatalf("fork under another name: %+v %v", v, err)
+	}
+	if got := f.sent(); got[len(got)-1] != `POST /api/v1/agents/demo1/incident-summarizer/fork {"name":"my-summarizer","namespace":"pat"}` {
+		t.Fatalf("fork under another name sent %v", got[len(got)-1])
+	}
+
+	// A No sends nothing.
+	no, _ := newPublisherAPI(false)
+	before := len(f.sent())
+	if v, err = no.Fork(reg, "demo1", "incident-summarizer", "pat", ""); err != nil || !v.Cancelled || len(f.sent()) != before {
+		t.Fatalf("a No: %+v %v", v, err)
+	}
+	// A name or a namespace outside the patterns is refused before the
+	// dialog and before any request.
+	beforeAsked := len(*asked)
+	for _, c := range [][3]string{{"demo1", "incident-summarizer", "../x"}, {"demo1", "a/b", "pat"}} {
+		if _, err := p.Fork(reg, c[0], c[1], c[2], ""); err == nil {
+			t.Fatalf("fork of %v was not refused", c)
+		}
+	}
+	if len(*asked) != beforeAsked || len(f.sent()) != before {
+		t.Fatalf("a refused fork reached the dialog or the registry: asked %v", *asked)
+	}
+	if v, _ = p.Fork(reg, "demo1", "incident-summarizer", "pat", "Bad Name"); !v.AskName || !strings.HasPrefix(v.Refusal, "Not forked:") || len(f.sent()) != before {
+		t.Fatalf("a bad new name: %+v", v)
+	}
+}
+
+func TestPublisherForkRefusalsInTheSitesWords(t *testing.T) {
+	f := &publisherFake{scopes: []string{"agent:manage"}}
+	reg := f.start(t)
+	signIn(t, reg)
+	p, _ := newPublisherAPI(true)
+	cases := []struct {
+		status       int
+		slug, detail string
+		askName      bool
+		want         string
+	}{
+		{409, "name-taken", "", true, "pat already has a QuickAgent called incident-summarizer. Choose another name for the fork."},
+		{409, "name-held", "", true, "incident-summarizer belonged to a QuickAgent deleted from pat, and that name is never used again."},
+		{409, "fork-source", "", false, "only a public QuickAgent that is not quarantined or blocked can be forked, and demo1/incident-summarizer is not one now."},
+		{409, "nothing-to-fork", "", false, "demo1/incident-summarizer has no published version yet"},
+		{422, "private-agent-cap", "", false, "pat already holds as many private QuickAgents as its subscription allows, and a fork is private."},
+		{422, "validation", "namespace agent quota reached", false, "pat already holds as many QuickAgents as it may."},
+		{403, "forbidden", "", false, "you cannot create QuickAgents in pat."},
+		{502, "bad-gateway", "", false, "the registry did not answer"},
+	}
+	for i, c := range cases {
+		f.mu.Lock()
+		f.status, f.problem, f.detail = c.status, c.slug, c.detail
+		f.mu.Unlock()
+		v, err := p.Fork(reg, "demo1", "incident-summarizer", "pat", "")
+		if err != nil || v.AskName != c.askName || !strings.HasPrefix(v.Refusal, "Not forked:") || !strings.Contains(v.Refusal, c.want) {
+			t.Fatalf("case %d: %+v %v, want it to say %q", i, v, err, c.want)
+		}
+		if strings.Contains(v.Refusal, "HTTP") || strings.Contains(v.Refusal, hostedTestToken) {
+			t.Fatalf("case %d says a status code or the token: %q", i, v.Refusal)
+		}
+	}
+}
+
+func TestPublisherForkSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
+	signIn(t, "http://dev.secureagentry.net")
+	p, asked := newPublisherAPI(true)
+	if targets, err := p.ForkTargets("http://dev.secureagentry.net"); err != nil || len(targets) != 0 {
+		t.Fatalf("fork targets over plain http: %v %v", targets, err)
+	}
+	if v, err := p.Fork("http://dev.secureagentry.net", "demo1", "incident-summarizer", "pat", ""); err == nil {
+		t.Fatalf("a fork went over plain http: %+v", v)
 	}
 	if len(*asked) != 0 {
 		t.Fatalf("a dialog was raised for a refused address: %v", *asked)
