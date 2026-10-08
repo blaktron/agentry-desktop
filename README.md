@@ -25,7 +25,11 @@ The product never claims an agent is "safe". The language is always:
   builds) on this computer and, signed in, In Agentry, newest first; a row
   opens the **run page**: how it ended, its result and files, or for a run
   In Agentry whose output is not here **Download output** (no credits), and
-  for a built-in's job a button to Build, Knowledge or Voice.
+  for a built-in's job a button to Build, Knowledge or Voice. **Open in
+  Build** loads the selected completed draft, including its notes and AI
+  Review result; a hosted draft's existing output is downloaded without
+  starting another run or spending credits. Unavailable or invalid output
+  is reported on the run page instead of opening an empty Builder (#722).
   **Installed QuickAgents** counts what is on this computer and
   what has an update, and names the newest five; **Profile** shows who is
   signed in, the plan and the credit balance (a **Sign in** card when not

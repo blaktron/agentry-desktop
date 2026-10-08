@@ -62,6 +62,14 @@ export function takeLandedDraft(): main.DraftView | null {
   return v;
 }
 
+/** A completed run selected from history uses the Builder handoff without
+ *  starting or changing the active Drafter dialog. */
+export function stageRecordedDraft(v: main.DraftView): void {
+  if (draftInFlight()) throw new Error("A draft is still being made. Let it finish before opening another draft.");
+  landed = v;
+  landers.forEach((f) => f());
+}
+
 /** Tells f whenever a draft lands, so a page can clear what it kept. */
 export function whenLanded(f: () => void): void {
   landers.add(f);
