@@ -86,6 +86,12 @@ type RunAPI struct {
 	// (agentry-desktop#300). Names only.
 	heldMu sync.Mutex
 	held   map[string]map[string]bool
+	// awaiting is a start In Agentry refused 409 connection-missing, kept
+	// so it can be made again once the vault holds the connection, with the
+	// inputs it already uploaded (services_hostedrun_connect.go,
+	// agentry-desktop#667).
+	awaitMu  sync.Mutex
+	awaiting *awaitingStart
 
 	// holder is what holds mu, for the busy refusal and InFlight
 	// (services_runflow.go, agentry-desktop#465), under its own lock.

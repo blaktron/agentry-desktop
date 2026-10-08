@@ -30,6 +30,10 @@ export function AttachHostedRunAtStart(arg1) {
   return window['go']['main']['RunAPI']['AttachHostedRunAtStart'](arg1);
 }
 
+export function AwaitHostedConnections(arg1, arg2) {
+  return window['go']['main']['RunAPI']['AwaitHostedConnections'](arg1, arg2);
+}
+
 export function CancelConnect() {
   return window['go']['main']['RunAPI']['CancelConnect']();
 }
@@ -56,6 +60,10 @@ export function Connections() {
 
 export function DeleteHostedSecret(arg1, arg2) {
   return window['go']['main']['RunAPI']['DeleteHostedSecret'](arg1, arg2);
+}
+
+export function DiscardHostedConnect() {
+  return window['go']['main']['RunAPI']['DiscardHostedConnect']();
 }
 
 export function DiscardHostedSecrets(arg1) {
@@ -148,6 +156,10 @@ export function KeepsSecrets(arg1) {
 
 export function ListModels(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['ListModels'](arg1, arg2, arg3);
+}
+
+export function OpenHostedConnect(arg1, arg2) {
+  return window['go']['main']['RunAPI']['OpenHostedConnect'](arg1, arg2);
 }
 
 export function PasteRedirect(arg1) {
@@ -260,6 +272,10 @@ export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13) {
   return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
+}
+
+export function StopAwaitingConnections() {
+  return window['go']['main']['RunAPI']['StopAwaitingConnections']();
 }
 
 export function StopRun() {

@@ -2,7 +2,7 @@
 // connection, and what it holds Run for.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { connectionBlockers, connectionLine, connectionsStatus, pastedProblem, sharedGrantWarning, signInRecap, type ServerConn } from "../src/connections.ts";
+import { connectionBlockers, connectionLine, connectionsStatus, hostedConnectAsk, pastedProblem, sharedGrantWarning, signInRecap, type ServerConn } from "../src/connections.ts";
 import { needList, signInNeed } from "../src/runSetup.ts";
 
 const gmail = "https://gmailmcp.googleapis.com/mcp/v1";
@@ -16,19 +16,35 @@ test("a server not connected holds Run on this computer, by name, until it is", 
   assert.deepEqual(connectionBlockers(null, false), [], "a read that did not answer holds nothing: the engine still refuses by name");
 });
 
-test("In Agentry any server that signs in holds Run, connected here or not", () => {
+test("In Agentry this computer's connections do not count, and nothing holds Run but a registry that keeps none", () => {
+  // Agentry keeps its own (plan D19): the start asks for what it lacks.
   for (const c of [none, connected]) {
-    const b = connectionBlockers([c], true);
+    assert.deepEqual(connectionBlockers([c], true), []);
+    const b = connectionBlockers([c], true, false);
     assert.equal(b.length, 1);
-    assert.match(b[0], /In Agentry cannot sign in/);
+    assert.match(b[0], /keeps no connections for runs In Agentry/);
     assert.match(b[0], /this computer/);
   }
+  assert.deepEqual(connectionBlockers([], true, false), []);
+});
+
+test("the hosted ask names each server, the registry's host, and what happens next", () => {
+  const two = hostedConnectAsk([gmail, "https://mcp.linear.app/mcp"], "https://dev.secureagentry.net", true);
+  assert.match(two, new RegExp(`no connection to ${gmail.replace(/[.]/g, "\\.")} and https://mcp\\.linear\\.app/mcp for this version`));
+  assert.match(two, /Connect them on Connect tools, which opens in your browser on dev\.secureagentry\.net/);
+  assert.match(two, /starts by itself/);
+  const one = hostedConnectAsk([gmail], "https://dev.secureagentry.net", false);
+  assert.match(one, /Connect it on/);
+  assert.match(one, /Then wait again/);
+  assert.match(hostedConnectAsk([], "", true), /the servers this release signs in to/);
 });
 
 test("a package on the unsupported list is said with its alternative", () => {
   const bad: ServerConn = { server: "pypi:mcp-gsuite", what: "pypi:mcp-gsuite (signing in at https://accounts.google.com)", scopes: [], state: "none", unsupported: "pypi:workspace-mcp" };
   assert.match(connectionLine(bad), /workspace-mcp/);
   assert.match(connectionBlockers([bad], false)[0], /workspace-mcp/);
+  // In Agentry too: no connection there serves it either.
+  assert.match(connectionBlockers([bad], true)[0], /workspace-mcp/);
 });
 
 test("connected says where, as whom where the vendor said, and never claims an account it was not told", () => {
