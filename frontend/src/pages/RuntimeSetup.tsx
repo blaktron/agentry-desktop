@@ -4,6 +4,7 @@ import { OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
+import { baseURLFor, takesBaseURL } from "../providerForm";
 
 // The §P1 provider table, mirrored for form prefills; the Go side
 // (pkg/runner/setup) holds the authoritative copy and fills any gaps. The
@@ -146,7 +147,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     setCatalog(null);
   }
 
-  const needsBaseURL = provider === "custom";
+  const needsBaseURL = takesBaseURL(provider);
 
   // Plain http off this machine is allowed (agentry-desktop#317, D-042) and
   // said out loud: the sentence is the CLI's, asked as the URL changes, so
@@ -175,7 +176,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     setError(null);
     setNotice(null);
     try {
-      const cat = await RunAPI.ListModels(provider, baseURL.trim(), apiKey);
+      const cat = await RunAPI.ListModels(provider, baseURLFor(provider, baseURL), apiKey);
       setCatalog(cat);
       setKeyNotice(cat.notice || null);
       // The current model stays if the endpoint lists it; the table's
@@ -220,7 +221,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
           throw new Error(`${e} — the key you typed was cleared; type it again to retry.`);
         }
       }
-      const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURL.trim(), pullImages, source, forgetKey);
+      const s = await RunAPI.ApplySetup(provider, model.trim(), apiKeyEnv.trim(), baseURLFor(provider, baseURL), pullImages, source, forgetKey);
       setForgetKey(false);
       setStatus(s);
       setKeyMode(s.apiKeySource === "keyring" ? "keyring" : "env");

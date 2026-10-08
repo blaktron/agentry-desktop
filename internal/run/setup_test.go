@@ -554,6 +554,12 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	if !strings.Contains(string(raw), "apiKeyKind: subscription") {
 		t.Fatalf("policy:\n%s", raw)
 	}
+	// The switch away from custom, sent with no URL as the form sends it
+	// (agentry-desktop#724), leaves the custom endpoint behind: no base
+	// URL, and the egress allowlist is the provider's own.
+	if st.BaseURL != "" || strings.Contains(string(raw), "llm.example.net") || !strings.Contains(string(raw), "api.anthropic.com:443") {
+		t.Fatalf("the custom endpoint survived the switch: status %+v\npolicy:\n%s", st, raw)
+	}
 	// The values reached the keychain and nothing else.
 	for _, secret := range []string{"typed-secret", "sk-ant-oat01"} {
 		if strings.Contains(log.String(), secret) || strings.Contains(string(raw), secret) {
