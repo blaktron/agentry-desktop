@@ -7,6 +7,10 @@ dist
 node_modules
 frontend/dist
 vendor/
+# A go build or wails generate module (make bindings) in the root writes the
+# app binary here; nothing reads it and releases build their own
+# (agentry-desktop#732).
+/agentry-desktop
 # wails build -nsis drops the WebView2 bootstrapper here before makensis runs
 build/windows/installer/tmp/
 # Local credentials never enter the tree (agentry-desktop#128): the estate's
