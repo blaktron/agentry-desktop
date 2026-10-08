@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as PublisherAPI from "../../wailsjs/go/main/PublisherAPI";
+import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
+import { forkProgressLine } from "../fork";
 import { main } from "../../wailsjs/go/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Toolbar, fmtDate,
@@ -16,8 +18,18 @@ import {
 // Publisher list is, with the owner actions on each. Every action is asked
 // again in a native dialog by Go and decided by the registry; the page says
 // what happened in the words Go returns.
-export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSettings }: {
+// A fork just made from an agent page (agentry-desktop#706): the section
+// opens on its namespace and follows it until its first version is
+// published or stops.
+export type FollowFork = { namespace: string; name: string; sentence: string };
+
+// followEveryMs is how often a followed fork is read again.
+const followEveryMs = 4000;
+
+export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSettings, follow }: {
   registry: string;
+  /** A fork to open on and follow. */
+  follow?: FollowFork;
   onOpenAgent: (ns: string, name: string) => void;
   /** Edit opens the release in the Build tab (edit.ts). */
   onEdit: (ns: string, name: string) => void;
@@ -28,7 +40,9 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
   const [ns, setNs] = useState("");
   const [rows, setRows] = useState<main.PublisherAgent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(follow?.sentence || null);
+  // The followed fork's progress, in words, and whether it is over.
+  const [progress, setProgress] = useState<{ line: string; done: boolean } | null>(null);
   const [q, setQ] = useState("");
   const [visibility, setVisibility] = useState<VisibilityFilter>("");
   const [state, setState] = useState<StateFilter>("");
@@ -47,7 +61,10 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
     PublisherAPI.Overview(registry)
       .then((v) => {
         setView(v);
-        setNs((cur) => (v.namespaces.some((n) => n.handle === cur) ? cur : v.namespaces[0]?.handle ?? ""));
+        setNs((cur) => {
+          if (follow && v.namespaces.some((n) => n.handle === follow.namespace)) return follow.namespace;
+          return v.namespaces.some((n) => n.handle === cur) ? cur : v.namespaces[0]?.handle ?? "";
+        });
       })
       .catch((e) => setError(String(e)));
   }, [registry]);
@@ -70,6 +87,50 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, ns, state, forks, sort]);
+
+  // The newest load, for the follow's timer, which outlives the render
+  // that started it (the namespace is set after the first one).
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  // Follow a new fork: its copy, then its first version through the
+  // pipeline and any review. The list is read again whenever the line
+  // changes, so the row shows what the line says. Three reads in a row
+  // that do not answer (signed out, the fork deleted, the registry down)
+  // end it, saying so; leaving the page ends it too.
+  useEffect(() => {
+    if (!follow) return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let last = "";
+    let misses = 0;
+    const ref = `${follow.namespace}/${follow.name}`;
+    const again = () => { if (!stop) timer = setTimeout(tick, followEveryMs); };
+    const tick = async () => {
+      try {
+        const d = await BrowseAPI.Agent(registry, follow.namespace, follow.name);
+        if (stop) return;
+        misses = 0;
+        const p = forkProgressLine(ref, { forkState: d.agent.forkState, forkDetail: d.agent.forkDetail, versions: d.versions });
+        setProgress(p);
+        if (p.line !== last) {
+          last = p.line;
+          void loadRef.current();
+        }
+        if (!p.done) again();
+      } catch {
+        if (stop) return;
+        if (++misses < 3) return again();
+        setProgress({ line: `${ref} could not be read, so it is no longer followed here. Its row below shows where it stands.`, done: true });
+      }
+    };
+    void tick();
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registry, follow?.namespace, follow?.name]);
 
   async function act(row: main.PublisherAgent, which: "visibility" | "retire" | "delete", run: () => Promise<main.PublisherDone>) {
     setBusy(`${row.namespace}/${row.name}:${which}`);
@@ -182,6 +243,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
 
       <ErrorBox error={error} />
       {notice && <Notice tone="ok">{notice}</Notice>}
+      {progress && <Notice tone={progress.done ? "ok" : "info"}><span data-fork-progress>{progress.line}</span></Notice>}
       {!admin && here && <p className="muted small" data-not-admin>{notAdminLine(ns)}</p>}
 
       {!shown && <Spinner />}

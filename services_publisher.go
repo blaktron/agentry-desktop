@@ -115,42 +115,67 @@ type PublisherDone struct {
 // registry address Settings would not send the token to, is an answer, not
 // an error.
 func (p *PublisherAPI) Overview(reg string) (*PublisherView, error) {
-	signedOut := &PublisherView{Namespaces: []PublisherNamespace{}}
+	acct, err := p.signedInAccount(reg)
+	if err != nil {
+		return nil, err
+	}
+	if acct == nil {
+		return &PublisherView{Namespaces: []PublisherNamespace{}}, nil
+	}
+	v := &PublisherView{SignedIn: true, Namespaces: []PublisherNamespace{{Handle: acct.handle, Kind: "user", Admin: true}}}
+	for _, o := range acct.orgs {
+		v.Namespaces = append(v.Namespaces, PublisherNamespace{Handle: o.handle, Kind: "org", Admin: o.role == "admin"})
+	}
+	if scopes, ok := tokenScopes(p.ctx(), acct.url, acct.token); ok {
+		v.ScopesKnown = true
+		v.CanManage = carriesOwnerActions(scopes)
+	}
+	return v, nil
+}
+
+// account is who is signed in to a registry: their handle and their
+// active memberships (a pending one holds nothing yet, agentry#361), with
+// the address and token they were read with.
+type account struct {
+	url, token, handle string
+	orgs               []membership
+}
+
+type membership struct{ handle, role string }
+
+// signedInAccount reads the account signed in to reg. Nothing signed in,
+// an address Settings would not send the token to, or a token the
+// registry refuses is nil, not an error.
+func (p *PublisherAPI) signedInAccount(reg string) (*account, error) {
 	url, token, err := storedCredential(reg)
 	if err != nil {
-		return signedOut, nil
+		return nil, nil
 	}
 	client, err := registry.New(url, token)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	ctx := p.ctx()
-	res, err := client.GetCurrentUserWithResponse(ctx)
+	res, err := client.GetCurrentUserWithResponse(p.ctx())
 	if err != nil {
 		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
 	if res.StatusCode() == http.StatusUnauthorized {
-		return signedOut, nil
+		return nil, nil
 	}
 	if res.JSON200 == nil {
 		return nil, registry.Problem("read your account", res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body)
 	}
 	u := res.JSON200
-	v := &PublisherView{SignedIn: true, Namespaces: []PublisherNamespace{{Handle: u.Handle, Kind: "user", Admin: true}}}
+	a := &account{url: url, token: token, handle: u.Handle}
 	if u.Orgs != nil {
 		for _, o := range *u.Orgs {
-			// A pending membership holds nothing yet (agentry#361).
 			if o.State != nil && *o.State == apiclient.MembershipStatePending {
 				continue
 			}
-			v.Namespaces = append(v.Namespaces, PublisherNamespace{Handle: o.Handle, Kind: "org", Admin: o.Role == "admin"})
+			a.orgs = append(a.orgs, membership{handle: o.Handle, role: o.Role})
 		}
 	}
-	if scopes, ok := tokenScopes(ctx, url, token); ok {
-		v.ScopesKnown = true
-		v.CanManage = carriesOwnerActions(scopes)
-	}
-	return v, nil
+	return a, nil
 }
 
 func carriesOwnerActions(scopes []string) bool {

@@ -1379,6 +1379,24 @@ export namespace main {
 	        this.scanStatus = source["scanStatus"];
 	    }
 	}
+	export class AgentForkOrigin {
+	    namespace: string;
+	    name: string;
+	    version: string;
+	    available: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AgentForkOrigin(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.namespace = source["namespace"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	        this.available = source["available"];
+	    }
+	}
 	export class AgentView {
 	    namespace: string;
 	    name: string;
@@ -1388,6 +1406,10 @@ export namespace main {
 	    quarantine?: string;
 	    createdAt: string;
 	    gitHttpUrl?: string;
+	    forkedFrom?: AgentForkOrigin;
+	    forkState?: string;
+	    forkDetail?: string;
+	    forkCount?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AgentView(source);
@@ -1403,7 +1425,29 @@ export namespace main {
 	        this.quarantine = source["quarantine"];
 	        this.createdAt = source["createdAt"];
 	        this.gitHttpUrl = source["gitHttpUrl"];
+	        this.forkedFrom = this.convertValues(source["forkedFrom"], AgentForkOrigin);
+	        this.forkState = source["forkState"];
+	        this.forkDetail = source["forkDetail"];
+	        this.forkCount = source["forkCount"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class AgentDetailView {
 	    agent: AgentView;
@@ -1449,6 +1493,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	export class ModelView {
 	    id: string;
@@ -2064,6 +2109,28 @@ export namespace main {
 	        this.excerpt = source["excerpt"];
 	        this.verdict = source["verdict"];
 	        this.verdictReason = source["verdictReason"];
+	    }
+	}
+	export class ForkView {
+	    cancelled: boolean;
+	    namespace?: string;
+	    name?: string;
+	    sentence?: string;
+	    refusal?: string;
+	    askName?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ForkView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cancelled = source["cancelled"];
+	        this.namespace = source["namespace"];
+	        this.name = source["name"];
+	        this.sentence = source["sentence"];
+	        this.refusal = source["refusal"];
+	        this.askName = source["askName"];
 	    }
 	}
 	export class GuideView {

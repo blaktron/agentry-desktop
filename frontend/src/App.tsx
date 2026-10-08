@@ -10,7 +10,7 @@ import Browse from "./pages/Browse";
 import Home from "./pages/Home";
 import AgentPage from "./pages/AgentPage";
 import Library from "./pages/Library";
-import Publisher from "./pages/Publisher";
+import Publisher, { type FollowFork } from "./pages/Publisher";
 import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
 import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
@@ -59,7 +59,9 @@ export type Route =
   | { page: "build" }
   // The QuickAgents the signed-in person publishes (plan
   // forks-and-publisher.md D12; agentry-desktop#705).
-  | { page: "publisher" }
+  // follow: a fork just made from an agent page, which the section opens on
+  // and follows (agentry-desktop#706).
+  | { page: "publisher"; follow?: FollowFork }
   // section: one of Settings' five section pages, or the landing's cards
   // when absent; part: the anchor within it (settings-cards.md D12).
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
@@ -307,6 +309,12 @@ export default function App() {
                 // Edit opens in the Build tab, which submits to the app's
                 // registry: offered only for that registry's QuickAgents.
                 onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })}
+                // Fork goes into the app's registry, so it is offered there
+                // only, and only while it is signed in (agentry-desktop#706).
+                onFork={signedIn && sameRegistry(route.registry ?? registry, registry)
+                  ? (fns, fname, sentence) => nav({ page: "publisher", follow: { namespace: fns, name: fname, sentence } })
+                  : undefined}
+                onOpenAgent={(ons, oname) => nav({ page: "agent", ns: ons, name: oname, registry: route.registry, back: route.back })}
                 onEdit={!sameRegistry(route.registry ?? registry, registry) ? undefined : () => {
                   requestEdit({ registry: route.registry ?? registry, namespace: route.ns, name: route.name });
                   setOpenEditRev((n) => n + 1);
@@ -323,7 +331,9 @@ export default function App() {
             )}
             {route.page === "publisher" && (
               <Publisher
+                key={route.follow ? `${route.follow.namespace}/${route.follow.name}` : "publisher"}
                 registry={registry}
+                follow={route.follow}
                 onOpenAgent={(ns, name) => nav({ page: "agent", ns, name, back: "publisher" })}
                 onEdit={(ns, name) => {
                   requestEdit({ registry, namespace: ns, name });

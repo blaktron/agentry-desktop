@@ -6,6 +6,14 @@ export function Delete(arg1, arg2, arg3, arg4) {
   return window['go']['main']['PublisherAPI']['Delete'](arg1, arg2, arg3, arg4);
 }
 
+export function Fork(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['PublisherAPI']['Fork'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function ForkTargets(arg1) {
+  return window['go']['main']['PublisherAPI']['ForkTargets'](arg1);
+}
+
 export function List(arg1, arg2, arg3) {
   return window['go']['main']['PublisherAPI']['List'](arg1, arg2, arg3);
 }

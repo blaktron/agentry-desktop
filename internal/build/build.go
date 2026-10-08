@@ -1448,9 +1448,9 @@ func ExistsPrivate(ctx context.Context, regURL, token, ns, name string) (bool, e
 // it does not exist, uploads the packed archive (cli-upload source), and
 // follows the pipeline to a verdict — the port of `agentry publish`
 // without --tag. An agent that exists private stays private: making it
-// public is its namespace administrators' act, which a desktop sign-in
-// does not carry (DEV-078, D19; the operator's decision of 2026-09-30), so
-// the result says so and names its settings page on the site. A registry
+// public is a step of its own, its namespace administrators' (DEV-078,
+// D19; the operator's decision of 2026-09-30), taken in the Publisher
+// section since agentry-desktop#705, so the result says so. A registry
 // that stores nothing and says why (credits, the namespace, the
 // private-agent cap, an unverified email) is a refused result in words,
 // not an error. Progress lines go to logw. privateTold is what the
@@ -1678,7 +1678,7 @@ SOFTWARE.
 
 // PrivateStaysNote is what a submission to an agent that exists private
 // says: it stays private, and why.
-const PrivateStaysNote = "it stays private: making a QuickAgent public is its namespace administrators' act, which a desktop sign-in does not carry"
+const PrivateStaysNote = "it stays private: making it public is a step of its own, Make public in the Publisher section, for its namespace's administrators, and never for a fork"
 
 // refusedWithReason turns the registry's refusal to create the agent or
 // take its version into a refused result in words, for the refusals the

@@ -19,8 +19,14 @@ const hits = [
 // #agent-unscanned (M23): the latest version was admitted without a scan
 // — its own verdict, its own mark, no attestation to verify.
 const unscanned = window.location.hash === "#agent-unscanned";
+// #agent-fork is a fork's page (agentry-desktop#706): its origin, its copy
+// under way, no Fork. The origin itself carries a fork count.
+const agentFork = window.location.hash === "#agent-fork";
 const detail = {
-  agent: { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "" },
+  agent: agentFork
+    ? { namespace: "pat", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", visibility: "private",
+      forkedFrom: { namespace: "demo1", name: "incident-summarizer", version: "1.2.0", available: true }, forkState: "copying" }
+    : { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", visibility: "public", forkCount: 2 },
   latest: "1.2.0", latestDigest: "sha256:9c356fd0d20fef07123ba7c4a1b2c3d4e5f6a7b8",
   latestCapabilities: { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
   dependencyAlerts: [],
@@ -468,6 +474,7 @@ function harnessUnpin(ref: string, registry: string) {
 // (crew). #publisher-old-signin is a sign-in from before agentry#993, whose
 // token carries no agent:manage; #publisher-signed-out has none at all.
 const publisherHash = window.location.hash;
+let forkReads = 0;
 const publisherRows: Record<string, any[]> = {
   pat: [
     { namespace: "pat", name: "incident-digest", summary: "Turns an incident channel into a timeline and a list of follow-ups.", visibility: "public", quarantineState: "none", installs30d: 12, lastSubmittedAt: "2026-10-06T09:00:00Z", createdAt: "2026-09-12T09:00:00Z", forkCount: 2 },
@@ -501,6 +508,17 @@ function publisherChange(ns: string, name: string, change: (r: any) => void) {
 
 g.go = { main: {
   PublisherAPI: {
+    // Fork (agentry-desktop#706): #agent-fork-taken answers the origin's
+    // name with name-taken, so the dialog asks for another.
+    ForkTargets: async () => ["pat", "acme"],
+    Fork: async (_reg: string, ns: string, name: string, target: string, newName: string) => {
+      if (window.location.hash === "#agent-fork-taken" && !newName) {
+        return { cancelled: false, askName: true, refusal: `Not forked: ${target} already has a QuickAgent called ${name}. Choose another name for the fork.` };
+      }
+      const fname = newName || name;
+      document.body.dataset.forked = `${target}/${fname}`;
+      return { cancelled: false, namespace: target, name: fname, sentence: `Forked ${ns}/${name} into ${target}/${fname}.` };
+    },
     Overview: async () => publisherHash === "#publisher-signed-out"
       ? { signedIn: false, namespaces: [], canManage: false, scopesKnown: false }
       : {
@@ -571,7 +589,18 @@ g.go = { main: {
       const found = q ? hits.filter((h: any) => `${h.namespace}/${h.name} ${h.summary}`.toLowerCase().includes(q)) : hits;
       return fresh ? { results: found } : { total: found.length, results: found };
     },
-    Agent: async () => detail,
+    // The Publisher section follows a new fork (#publisher-follow): copying,
+    // then its first version scanning, then published.
+    Agent: async (_reg: string, ns: string, name: string) => {
+      if (ns === "pat" && name === "incident-summarizer" && publisherHash === "#publisher-follow") {
+        forkReads++;
+        const st = forkReads < 2 ? "copying" : "ready";
+        const status = forkReads < 2 ? "" : forkReads < 3 ? "scanning" : "published";
+        return { ...detail, agent: { ...detail.agent, namespace: "pat", forkState: st, forkedFrom: { namespace: "demo1", name: "incident-summarizer", version: "1.2.0", available: true } },
+          versions: status ? [{ version: "1.2.0", status, channel: "stable", createdAt: "2026-10-08T12:00:00Z" }] : [] };
+      }
+      return detail;
+    },
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
     Report: async () => (unscanned ? { versionStatus: "published", scanStatus: "skipped", verdict: "unscanned", findings: [] } : report),
     Provenance: async () => prov,
@@ -638,7 +667,7 @@ g.go = { main: {
     Install: async () => ({ ref: "demo1/incident-summarizer@0.1.0", digest: "sha256:5565240b85d9c2f41e0a7d3b1c9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e", repaired: false, warnings: [] }),
     Submit: async () => (buildHash === "summary-private"
       ? { version: "0.1.0", status: "published", digest: "sha256:5565240b85d9", detail: "published demo1/incident-summarizer@0.1.0", visibility: "private",
-          visibilityNote: "it stays private: making a QuickAgent public is its namespace administrators' act, which a desktop sign-in does not carry; its settings page on the site does it",
+          visibilityNote: "it stays private: making it public is a step of its own, Make public in the Publisher section, for its namespace's administrators, and never for a fork",
           settingsUrl: "https://secureagentry.net/demo1/incident-summarizer/settings" }
       : { version: "0.1.0", status: "published", digest: "sha256:5565240b85d9", detail: "published demo1/incident-summarizer@0.1.0", visibility: "public" }),
     // pages.html#build-validate: a validate run that failed, so the card
@@ -1025,7 +1054,8 @@ const render = () => createRoot(document.getElementById("root")!).render(
     {/* #browse-query: Browse as the Library's search opens it, searched for
         what was typed there (agentry-desktop#657). */}
     <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
-    <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns="demo1" name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"} /></Shell></div>
+    <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns={detail.agent.namespace} name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"}
+      onFork={() => {}} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see
         the query it hands to Browse (agentry-desktop#657). */}
     {/* Home (agentry-desktop#658). ?active=anon makes the anonymous
@@ -1040,6 +1070,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
     {/* The Publisher section (agentry-desktop#705): what an action and a row
         open are marked on the body (data-open) for a shot to see. */}
     <div data-preview="publisher"><Shell active="publisher" signedIn={publisherHash !== "#publisher-signed-out"}><Publisher registry={REG}
+      follow={publisherHash === "#publisher-follow" ? { namespace: "pat", name: "incident-summarizer", sentence: "Forked demo1/incident-summarizer into pat/incident-summarizer." } : undefined}
       onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }}
       onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
       onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>

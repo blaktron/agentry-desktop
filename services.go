@@ -524,6 +524,23 @@ type AgentView struct {
 	Quarantine string   `json:"quarantine,omitempty"`
 	CreatedAt  string   `json:"createdAt"`
 	GitHTTPURL string   `json:"gitHttpUrl,omitempty"`
+	// ForkedFrom is what a fork was taken from (agentry#943); ForkState its
+	// copy (copying, ready, failed) and ForkDetail why a copy failed.
+	// ForkCount is how many forks a public QuickAgent has, a number only
+	// (plan forks-and-publisher.md invariant 5). agentry-desktop#706.
+	ForkedFrom *AgentForkOrigin `json:"forkedFrom,omitempty"`
+	ForkState  string           `json:"forkState,omitempty"`
+	ForkDetail string           `json:"forkDetail,omitempty"`
+	ForkCount  int              `json:"forkCount,omitempty"`
+}
+
+// AgentForkOrigin is a fork's origin as its page says it: Available is
+// whether the origin can still be read, so its name opens its page.
+type AgentForkOrigin struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Available bool   `json:"available"`
 }
 
 // AgentDetailView is the agent page's model.
@@ -608,6 +625,18 @@ func (b *BrowseAPI) Agent(reg, ns, name string) (*AgentDetailView, error) {
 	}
 	if a.QuarantineState != "none" {
 		out.Agent.Quarantine = string(a.QuarantineState)
+	}
+	if f := a.ForkedFrom; f != nil {
+		out.Agent.ForkedFrom = &AgentForkOrigin{Namespace: f.Namespace, Name: f.Name, Version: f.Version, Available: f.Available}
+	}
+	if a.ForkState != nil {
+		out.Agent.ForkState = string(*a.ForkState)
+	}
+	if a.ForkDetail != nil {
+		out.Agent.ForkDetail = *a.ForkDetail
+	}
+	if a.ForkCount != nil {
+		out.Agent.ForkCount = *a.ForkCount
 	}
 
 	vresp, err := client.ListVersionsWithResponse(b.app.ctx, ns, name)
