@@ -205,6 +205,7 @@ function recordedRun() {
   switch (hash) {
     case "runpage-gone":
       return { run: rpRow({ outcome: "error", exitCode: 3, tone: "bad" }), folder: RP_DIR, folderState: "gone", folderError: "the run's folder is no longer there: it was deleted or moved" };
+    case "runpage-draft-error":
     case "runpage-draft":
       return { run: rpRow({ kind: "draft", ref: "" }), folder: "/home/chris/Downloads/agentry-out/agentry-drafter-0192a3", folderState: "present",
         resultJson: JSON.stringify("Drafted demo1/csv-quality-check: three tools, one intake question.") };
@@ -217,7 +218,7 @@ function recordedRun() {
   }
 }
 function hostedRecord(kept: boolean) {
-  if (hash === "runpage-hosted-draft") {
+  if (hash === "runpage-hosted-draft" || hash === "runpage-hosted-draft-error") {
     return { run: { ...hosted.finished, ref: "agentry/drafter@1.8.0", outputs: [], resultJson: "", outDir: "" }, kind: "draft", kept: false, folderState: "none", downloadable: false, followed: false };
   }
   if (hash === "runpage-hosted-expired") {
@@ -302,6 +303,23 @@ g.go = { main: {
     }),
   },
   BuildAPI: {
+    OpenRecordedDraft: async (id: string) => {
+      if (id !== RUN_ID) throw new Error("wrong recorded draft selected");
+      if (hash.endsWith("-error")) throw new Error("The draft's output is no longer available.");
+      return selectedDraft();
+    },
+    OpenHostedDraft: async (registry: string, id: string) => {
+      if (registry !== REG || id !== H_ID) throw new Error("wrong hosted draft selected");
+      if (hash.endsWith("-error")) throw new Error("The draft's output is no longer available.");
+      return selectedDraft();
+    },
+    ReviewStatus: async () => ({ key: { ready: false }, modelName: "harness" }),
+    NewModel: async () => ({ name: "unrelated-blank-form", guide: {} }),
+    Check: async () => ({ ok: true, problems: {}, fragments: {}, public: "" }),
+    Summary: async (m: { name: string; summary: string; instructions: string }) => ({
+      name: m.name, ref: "demo1/" + m.name + "@0.1.0", summary: m.summary, steps: m.instructions, tools: [], hosts: [], keys: [],
+      servers: [], websites: [], grants: [], knowledge: [], overview: "", anyUnnamed: false,
+    }),
     DescribeInAgentry: async () => ({ draft: { id: "01a0e424-0000-0000-0000-000000000000", status: "running", state: "running",
       statusLine: "The Drafter is running on a sandbox host.", queuePosition: 0, cancelRequested: false, holdCredits: 41,
       creditsLine: "41 credits are held for this draft.", final: false } }),
@@ -328,21 +346,37 @@ import { attachHostedRun, cancelHostedRun, followHostedChat, sendChat, startHost
 import { startDraft } from "../src/drafts";
 import { CornerHost } from "../src/progress";
 import RunPage from "../src/pages/RunPage";
+import Build from "../src/pages/Build";
+import { stageRecordedDraft } from "../src/drafts";
 
 // The run page under the shell, Home lit (agentry-desktop#659); where Back
 // and a built-in's button lead is marked on the body (data-open).
+function selectedDraft() {
+  return {
+    model: { schemaVersion: "2", namespace: "demo1", name: "csv-quality-check", version: "0.1.0", summary: "Checks the selected CSV draft.",
+      instructions: "Read the selected draft's CSV and report its columns.", instructionFile: "AGENT.md", modes: ["autonomous"],
+      license: "Apache-2.0", tags: [], dataAccess: ["files"], mcpServers: [], secrets: [], requiredSecrets: [], execCommands: [],
+      egressMode: "none", egressHosts: [], fsRead: "none", fsReadPaths: [], fsWrite: "none", fsWritePaths: [],
+      intake: [], guide: { overview: "", prepare: [], files: "", task: "", connect: [] } },
+    notes: "Notes retained from the selected run.", decodeNotes: [], matches: [], sources: [], openQuestions: [], problems: [], unmentioned: [],
+    check: { rubric: "flagged", draft: "pass", findings: [{ id: "C3_undeclared_capability", question: "Undeclared capability", score: 2, path: "AGENT.md" }], flagged: [], checks: 1 },
+    aiReview: { scan: "registry", read: 5, passed: 5, withheld: 0, notScanned: 0, withheldSources: [] },
+  } as unknown as import("../wailsjs/go/models").main.DraftView;
+}
 function RunPagePreview() {
+  const [opened, setOpened] = useState(false);
   return (
     <div data-preview="runpage" className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        <SidebarNav page="run" />
-        <div className="foot"><div>v0.6.63</div><div className="nowrap">{HOST}</div></div>
+        <SidebarNav page={opened ? "build" : "run"} />
+        <div className="foot"><div>v0.6.75</div><div className="nowrap">{HOST}</div></div>
       </div>
       <div className="content">
-        <RunPage source={hash.startsWith("runpage-hosted") ? "hosted" : "local"} id={hash.startsWith("runpage-hosted") ? H_ID : RUN_ID} registry={REG}
+        {opened ? <Build registry={REG} openDraftRev={1} /> : <RunPage source={hash.startsWith("runpage-hosted") ? "hosted" : "local"} id={hash.startsWith("runpage-hosted") ? H_ID : RUN_ID} registry={REG}
           backLabel="← back to Home" onBack={() => { document.body.dataset.open = "home"; }}
-          onOpenPlace={(page) => { document.body.dataset.open = page; }} />
+          onOpenPlace={(page) => { document.body.dataset.open = page; }}
+          onOpenDraft={(draft) => { stageRecordedDraft(draft); document.body.dataset.open = "build"; setOpened(true); }} />}
       </div>
     </div>
   );

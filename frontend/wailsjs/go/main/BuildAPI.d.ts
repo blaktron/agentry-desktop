@@ -33,6 +33,10 @@ export function NewModel(arg1:string):Promise<build.Model>;
 
 export function NewSaveFolder(arg1:string):Promise<string>;
 
+export function OpenHostedDraft(arg1:string,arg2:string):Promise<main.DraftView>;
+
+export function OpenRecordedDraft(arg1:string):Promise<main.DraftView>;
+
 export function PublishThisVersion(arg1:string,arg2:string,arg3:string):Promise<build.PublishResult>;
 
 export function ReviewLocally(arg1:string,arg2:string):Promise<main.ReviewView>;
