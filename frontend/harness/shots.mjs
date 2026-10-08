@@ -408,6 +408,38 @@ const states = [
   { name: "page-library-to-browse", url: "/pages.html", note: "the registry button hands Browse what was typed, trimmed (agentry-desktop#657)", locator: '[data-preview="library"]', fill: [['[data-preview="library"] input[type="search"]', "  pager duty "]], click: '[data-preview="library"] .toolbar button:has-text("Search the registry")', expectSelector: 'body[data-browse="pager duty"]' },
   { name: "page-library-uninstall", url: "/pages.html", note: "Uninstall from the Library still asks first, naming what it removes (agentry-desktop#657)", locator: "body", click: '[data-preview="library"] button:text-is("Uninstall") >> nth=0', expectText: ["Uninstall demo1/incident-summarizer?", "This removes"] },
   { name: "page-library-forget", url: "/pages.html", note: "Forget from the Library drops only the record of a directory that is gone (agentry-desktop#657)", locator: '[data-preview="library"]', click: '[data-preview="library"] button:text-is("Forget")', expectText: "Forgot acme/release-notes; nothing on disk was touched." },
+  // The Publisher section (plan forks-and-publisher.md M6, agentry-desktop#705):
+  // pat's QuickAgents with their badges and actions, the sidebar's Publisher
+  // item for a signed-in registry, an organization pat is a member of, an
+  // old sign-in, the owner actions and Delete's typed name.
+  { name: "page-publisher", url: "/pages.html", note: "the Publisher section: pat's QuickAgents with Private, Retired and Fork badges, the Fork of line, a fork's Make public withheld, the counts, and Publisher in the sidebar under Build", locator: '[data-preview="publisher"]',
+    expectText: ["The QuickAgents you publish", "4 QuickAgents · 2 private · 1 retired", "pat/incident-digest", "Fork of demo1/incident-summarizer@1.0.0", "stays private", "A fork stays private for good, so it is never made public.", "Make private", "Make public", "Restore", "Retire"],
+    expectNoText: ["archive", "Archive"],
+    expectOrder: [
+      ['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Publisher", "Settings"]],
+      ['[data-preview="publisher"] .sidebar .nav-item[aria-current="page"]', ["Publisher"]],
+      ['[data-preview="publisher"] .agent-row:has-text("pat/incident-summarizer") .badge', ["Private", "Fork"]],
+    ] },
+  { name: "page-publisher-retire", url: "/pages.html", note: "Retire on a public QuickAgent: the sentence Go returns, and the row now Retired with Restore", locator: '[data-preview="publisher"]',
+    click: '[data-preview="publisher"] .agent-row:has-text("pat/incident-digest") button:text-is("Retire")',
+    expectText: ["pat/incident-digest is retired. It is private, takes no new versions, and Restore brings it back as it was.", "4 QuickAgents · 2 private · 2 retired"] },
+  { name: "page-publisher-delete", url: "/pages.html", note: "Delete asks for the typed name before anything is sent: the button waits for it", locator: "body",
+    click: '[data-preview="publisher"] .agent-row:has-text("pat/csv-quality-check") button:text-is("Delete")',
+    expectText: ["Delete pat/csv-quality-check?", "the name stays held in pat for good", "Type csv-quality-check to confirm"],
+    expectDisabledButton: "Delete" },
+  { name: "page-publisher-deleted", url: "/pages.html", note: "the name typed and Enter pressed: deleted, said so, and gone from the list", locator: '[data-preview="publisher"]',
+    click: '[data-preview="publisher"] .agent-row:has-text("pat/csv-quality-check") button:text-is("Delete")',
+    type: [["#publisher-delete-name", "csv-quality-check\n"]],
+    expectText: ["pat/csv-quality-check is deleted.", "3 QuickAgents · 1 private · 1 retired"] },
+  { name: "page-publisher-member", url: "/pages.html#publisher-crew", note: "an organization pat is a member of: Edit stays, the owner actions are the admins'", locator: '[data-preview="publisher"]',
+    expectText: ["Only admins of crew can make its QuickAgents public or private, retire, restore or delete them.", "crew/standup-notes", "Edit"],
+    expectNone: '[data-preview="publisher"] .agent-row button:text-is("Retire")' },
+  { name: "page-publisher-old-signin", url: "/pages.html#publisher-old-signin", note: "a sign-in from before agentry#993 (no agent:manage): the section says to sign in again and offers no owner action", locator: '[data-preview="publisher"]',
+    expectText: "This sign-in was made before Agentry Desktop could retire, restore, delete or change who sees a QuickAgent.",
+    expectNone: '[data-preview="publisher"] .agent-row button:text-is("Retire")' },
+  { name: "page-publisher-signed-out", url: "/pages.html#publisher-signed-out", note: "signed out: no Publisher in the sidebar, and the page says to sign in", locator: '[data-preview="publisher"]',
+    expectText: "Sign in to manage what you publish",
+    expectOrder: [['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]]] },
   { name: "page-library-empty", url: "/pages.html#fresh", note: "nothing installed on this computer: the way to Browse (agentry-desktop#657)", locator: '[data-preview="library"]', expectText: ["Nothing installed on this computer yet", "Find more QuickAgents"] },
   { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page's two cards, Describe it to AI first, then Build it by hand, with the operator's words and the tagline, as the site's /build (agentry-desktop#598)", locator: '[data-preview="build"]', expectText: [BUILD_TAGLINE, DESCRIBE_COPY, BY_HAND_COPY, "Switch to Advanced"], expectOrder: [
     ['[data-preview="build"] .build-way-main', ["Describe it to AI", "Build it by hand"]],

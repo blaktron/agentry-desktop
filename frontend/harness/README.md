@@ -367,3 +367,14 @@ PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node harness/docker-rec
 It holds the re-check pending to assert Checking, then confirms recovery
 without replacing unsaved provider, endpoint or key fields, and verifies
 that a successful prerequisite re-check clears its failure card.
+
+The Publisher section (agentry-desktop#705) is `pages.html`'s
+`[data-preview="publisher"]`: pat's QuickAgents (a public one, a private
+one, a retired one and a fork) under a sidebar that shows Publisher because
+the registry is signed in. `#publisher-crew` opens on an organization pat is
+only a member of (Edit, no owner actions), `#publisher-old-signin` on a
+token without `agent:manage` (the sign-in-again notice, no owner actions),
+and `#publisher-signed-out` on no sign-in (no Publisher in the sidebar).
+`page-publisher-delete` holds Delete until the name is typed;
+`page-publisher-deleted` types it and presses Enter. The harness's mock
+stands in for Go, so no native dialog shows there.
