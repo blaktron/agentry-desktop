@@ -5,12 +5,10 @@
 // answer: an exported PDF opens in the app's viewer and the system's, and
 // can be saved; any other is Save only, and says why.
 
+import type { main } from "../wailsjs/go/models";
+
 /** The Go view of a PDF, as RunOutputs sends it. */
-export interface PdfFacts {
-  exported: boolean;
-  pages?: number;
-  theme?: string;
-}
+export type PdfFacts = Pick<main.OutputPDFView, "exported" | "pages" | "theme">;
 
 export interface PdfActions {
   view: boolean;

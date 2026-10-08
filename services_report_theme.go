@@ -124,10 +124,10 @@ func accountReportTheme(ctx context.Context, url, token string, logw io.Writer) 
 	v, err := reportThemeOf(ctx, url, token)
 	switch {
 	case err != nil:
-		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme could not be read (%v); PDFs use plain\n", err)
+		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme could not be read (%v); PDFs use Plain\n", err)
 	case v.Theme == "":
 	case !toolsrv.IsBuiltinTheme(v.Theme):
-		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme %q is not one this app has (update the app); PDFs use plain\n", v.Theme)
+		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme %q is not one this app has (update the app); PDFs use Plain\n", v.Theme)
 	default:
 		return engine.ReportTheme{Name: v.Theme, From: engine.ThemeFromAccount}
 	}

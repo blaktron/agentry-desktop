@@ -8,12 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	goruntime "runtime"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -29,8 +29,9 @@ import (
 // OpenRunPDF opens a fresh copy of checked bytes (never the file in the
 // run folder, which could be swapped between the check and the open), and
 // SaveRunPDF writes where a native dialog in this process says. Like the
-// rest of the result view's bindings, they take a run id this app produced
-// and a path inside that run's outputs/ or reports/, nothing else.
+// rest of the result view's bindings, they take a run id this app produced,
+// and a path inside that run's outputs/ or reports/ that is read with no
+// link at any part of it (readRunFile), nothing else.
 
 // OutputPDFView is what the result view may do with a PDF: Exported is true
 // when the run's envelope lists it with these bytes, and then Pages and
@@ -67,7 +68,7 @@ func isPDFPath(rel string) bool { return strings.EqualFold(path.Ext(rel), ".pdf"
 // not well formed, lists nothing, so nothing opens.
 func readPDFRecords(dir string) pdfRecords {
 	recs := pdfRecords{files: map[string]pdfRecord{}}
-	b, ok := readRegular(filepath.Join(dir, "result.json"), maxEnvelopeBytes)
+	b, ok := readRunFile(dir, "result.json", maxEnvelopeBytes)
 	if !ok {
 		return recs
 	}
@@ -89,7 +90,7 @@ func readPDFRecords(dir string) pdfRecords {
 	recs.theme = env.PDFs.Theme.Name
 	for _, f := range env.PDFs.Files {
 		sum := strings.ToLower(f.SHA256)
-		if d, err := hex.DecodeString(sum); err != nil || len(d) != sha256.Size || !validRunPath(f.Path) {
+		if d, err := hex.DecodeString(sum); err != nil || len(d) != sha256.Size || !validRunPath(f.Path) || !strings.HasPrefix(f.Path, "reports/") {
 			continue
 		}
 		recs.files[f.Path] = pdfRecord{sha256: sum, pages: max(f.Pages, 0)}
@@ -107,9 +108,63 @@ func validRunPath(rel string) bool {
 	return strings.HasPrefix(rel, "outputs/") || strings.HasPrefix(rel, "reports/")
 }
 
+// readRunFile reads a file of the run folder by its "/"-separated path, at
+// most limit bytes, the way listOutputs walks it: every part before the
+// file a real directory and the file a regular one, a link anywhere
+// refused. listOutputs never walks a linked folder, so a path a page names
+// through one (outputs/docs, a link the run left to ~/Documents) must not
+// reach a file the listing would never show. The open goes through an
+// os.Root on the run folder as well, so a part swapped for a link after
+// the checks still cannot lead out of it; the file is opened without
+// following a link where the OS allows it and checked to be the one Lstat
+// saw.
+func readRunFile(dir, rel string, limit int64) ([]byte, bool) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = root.Close() }()
+	parts := strings.Split(rel, "/")
+	for i := 1; i < len(parts); i++ {
+		fi, err := root.Lstat(filepath.FromSlash(strings.Join(parts[:i], "/")))
+		if err != nil || !fi.IsDir() {
+			return nil, false // a link, a junction or a file where a folder was
+		}
+	}
+	name := filepath.FromSlash(rel)
+	before, err := root.Lstat(name)
+	if err != nil || !before.Mode().IsRegular() || before.Size() > limit {
+		return nil, false
+	}
+	f, err := root.OpenFile(name, os.O_RDONLY|noFollowOpenFlags, 0)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = f.Close() }()
+	if after, err := f.Stat(); err != nil || !os.SameFile(before, after) {
+		return nil, false
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil || int64(len(b)) > limit {
+		return nil, false
+	}
+	return b, true
+}
+
 func sha256Hex(b []byte) string {
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
+}
+
+// exportedBytes reads a PDF the record lists and answers its bytes only
+// when they are a PDF whose SHA-256 is the record's: the one check both the
+// listing's mark and every binding that hands bytes on make.
+func exportedBytes(dir, rel string, rec pdfRecord) ([]byte, bool) {
+	b, ok := readRunFile(dir, rel, maxPDFBytes)
+	if !ok || !bytes.HasPrefix(b, []byte("%PDF-")) || sha256Hex(b) != rec.sha256 {
+		return nil, false
+	}
+	return b, true
 }
 
 // markPDFs sets each PDF's view: exported when the record lists its path
@@ -130,8 +185,7 @@ func markPDFs(dir string, view *RunOutputsView) {
 		if !ok {
 			continue
 		}
-		b, ok := readRegular(filepath.Join(dir, filepath.FromSlash(f.Path)), maxPDFBytes)
-		if !ok || sha256Hex(b) != rec.sha256 {
+		if _, ok := exportedBytes(dir, f.Path, rec); !ok {
 			continue
 		}
 		*f.PDF = OutputPDFView{Exported: true, Pages: rec.pages, Theme: recs.theme}
@@ -150,19 +204,20 @@ func (r *RunAPI) runPDFBytes(runID, rel string, exported bool) ([]byte, error) {
 	if !validRunPath(rel) || !isPDFPath(rel) {
 		return nil, fmt.Errorf("%q is not a PDF in the run's outputs/ or reports/", rel)
 	}
-	var rec pdfRecord
 	if exported {
-		var listed bool
-		if rec, listed = readPDFRecords(dir).files[rel]; !listed {
+		rec, listed := readPDFRecords(dir).files[rel]
+		if !listed {
 			return nil, errNotExported
 		}
+		b, ok := exportedBytes(dir, rel, rec)
+		if !ok {
+			return nil, errNotExported
+		}
+		return b, nil
 	}
-	b, ok := readRegular(filepath.Join(dir, filepath.FromSlash(rel)), maxPDFBytes)
+	b, ok := readRunFile(dir, rel, maxPDFBytes)
 	if !ok {
 		return nil, fmt.Errorf("%s could not be read: it is gone, not a regular file, or larger than %d MiB", path.Base(rel), maxPDFBytes>>20)
-	}
-	if exported && (sha256Hex(b) != rec.sha256 || !bytes.HasPrefix(b, []byte("%PDF-"))) {
-		return nil, errNotExported
 	}
 	return b, nil
 }
@@ -185,10 +240,11 @@ func (r *RunAPI) OpenRunPDF(runID, rel string) error {
 	}
 	r.pdfMu.Lock()
 	if r.pdfDir == "" {
+		sweepStalePDFCopies(os.TempDir(), time.Now().Add(-24*time.Hour))
 		d, err := os.MkdirTemp("", "agentry-pdf-")
 		if err != nil {
 			r.pdfMu.Unlock()
-			return err
+			return fmt.Errorf("make a folder for the PDF's copy: %w", err)
 		}
 		r.pdfDir = d
 	}
@@ -196,17 +252,20 @@ func (r *RunAPI) OpenRunPDF(runID, rel string) error {
 	r.pdfMu.Unlock()
 	sub, err := os.MkdirTemp(dir, "open-")
 	if err != nil {
-		return err
+		return fmt.Errorf("make a folder for the PDF's copy: %w", err)
 	}
-	p := filepath.Join(sub, path.Base(rel))
+	p := filepath.Join(sub, copyName(rel))
 	if err := os.WriteFile(p, b, 0o600); err != nil {
-		return err
+		return fmt.Errorf("write the PDF's copy: %w", err)
 	}
 	open := r.openFile
 	if open == nil {
-		open = openWithSystemViewer
+		open = openWithSystemViewer // services_pdf_unix.go, services_pdf_windows.go
 	}
-	return open(p)
+	if err := open(p); err != nil {
+		return fmt.Errorf("open the PDF in your PDF viewer: %w", err)
+	}
+	return nil
 }
 
 // SaveRunPDF writes a PDF of the run, exported or not, where the person
@@ -228,17 +287,22 @@ func (r *RunAPI) SaveRunPDF(runID, rel string) (string, error) {
 		}
 	}
 	target, err := save(path.Base(rel))
-	if err != nil || target == "" {
-		return "", err
+	if err != nil {
+		return "", fmt.Errorf("ask where to save the PDF: %w", err)
+	}
+	if target == "" {
+		return "", nil
 	}
 	if err := os.WriteFile(target, b, 0o600); err != nil {
-		return "", err
+		return "", fmt.Errorf("save the PDF: %w", err)
 	}
 	return target, nil
 }
 
 // removePDFCopies removes the copies OpenRunPDF made; the app's shutdown
-// calls it.
+// calls it. A copy a viewer still holds open on Windows cannot be removed
+// then, and an app that crashed removes nothing: the next OpenRunPDF sweeps
+// folders of this kind a day old (sweepStalePDFCopies).
 func (r *RunAPI) removePDFCopies() {
 	r.pdfMu.Lock()
 	defer r.pdfMu.Unlock()
@@ -248,17 +312,40 @@ func (r *RunAPI) removePDFCopies() {
 	}
 }
 
-// openWithSystemViewer asks the OS to open a PDF copy OpenRunPDF wrote,
-// with the program the person has for PDFs.
-func openWithSystemViewer(p string) error {
-	var cmd *exec.Cmd
-	switch goruntime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", p)
-	case "windows":
-		cmd = exec.Command("rundll32.exe", "url.dll,FileProtocolHandler", p)
-	default:
-		cmd = exec.Command("xdg-open", p)
+// sweepStalePDFCopies removes agentry-pdf-* folders in tmp last changed
+// before cutoff: copies an earlier app left. A folder another app made
+// today is left alone.
+func sweepStalePDFCopies(tmp string, cutoff time.Time) {
+	entries, err := os.ReadDir(tmp)
+	if err != nil {
+		return
 	}
-	return cmd.Start()
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), "agentry-pdf-") {
+			continue
+		}
+		if info, err := e.Info(); err == nil && info.ModTime().Before(cutoff) {
+			_ = os.RemoveAll(filepath.Join(tmp, e.Name()))
+		}
+	}
+}
+
+// copyName is the name OpenRunPDF gives its copy: the PDF's own name with
+// anything but letters, digits, space, '.', '-' and '_' made '_', so the
+// OS's open sees a plain name ending in .pdf.
+func copyName(rel string) string {
+	var b strings.Builder
+	for _, c := range strings.TrimSuffix(path.Base(rel), path.Ext(rel)) {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == ' ', c == '.', c == '-', c == '_':
+			b.WriteRune(c)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	name := strings.Trim(b.String(), " .")
+	if name == "" {
+		name = "report"
+	}
+	return name + ".pdf"
 }
