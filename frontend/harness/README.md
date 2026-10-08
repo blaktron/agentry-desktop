@@ -378,3 +378,12 @@ and `#publisher-signed-out` on no sign-in (no Publisher in the sidebar).
 `page-publisher-delete` holds Delete until the name is typed;
 `page-publisher-deleted` types it and presses Enter. The harness's mock
 stands in for Go, so no native dialog shows there.
+
+Fork (agentry-desktop#706) is on the agent preview, whose page is given
+`onFork` as a signed-in App gives it: `page-agent-fork` (Fork and the fork
+count), `page-agent-fork-dialog` (the three facts, no name field),
+`page-agent-fork-taken` (`#agent-fork-taken`: the name refusal and the name
+field) and `page-agent-fork-of` (`#agent-fork`: a fork's own page, its
+origin and its copy). `#publisher-follow` opens the Publisher section on a
+new fork, whose mocked reads go copying → scanning → published;
+`page-publisher-follow` waits for the last.

@@ -4,6 +4,10 @@ import {main} from '../models';
 
 export function Delete(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.PublisherDone>;
 
+export function Fork(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<main.ForkView>;
+
+export function ForkTargets(arg1:string):Promise<Array<string>>;
+
 export function List(arg1:string,arg2:string,arg3:main.PublisherQuery):Promise<Array<main.PublisherAgent>>;
 
 export function Overview(arg1:string):Promise<main.PublisherView>;

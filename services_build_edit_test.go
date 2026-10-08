@@ -26,8 +26,10 @@ type editFake struct {
 	mu         sync.Mutex
 	url        string
 	canPublish *bool
-	versions   []map[string]any
-	file       map[string]any
+	// fork, when set, is merged into the agent read (agentry-desktop#706).
+	fork     map[string]any
+	versions []map[string]any
+	file     map[string]any
 	// asked are the paths the fake served, for what was and was not read.
 	asked []string
 }
@@ -68,6 +70,9 @@ func newEditFake(t *testing.T) *editFake {
 			"gitHttpUrl": "x", "quarantineState": "none", "createdAt": "2026-09-30T00:00:00Z"}
 		if f.canPublish != nil {
 			a["canPublish"] = *f.canPublish
+		}
+		for k, v := range f.fork {
+			a[k] = v
 		}
 		hostedJSON(w, http.StatusOK, a)
 	})
@@ -180,5 +185,35 @@ func TestTheAgentPageReadsCanPublish(t *testing.T) {
 	f.mu.Unlock()
 	if d, err = b.Agent(f.url, "chris", "meeting-actions"); err != nil || d.CanPublish {
 		t.Fatalf("canPublish absent: %+v %v", d, err)
+	}
+}
+
+// The agent page reads a fork's origin and copy, and a public agent's fork
+// count (agentry-desktop#706; agentry#943).
+func TestTheAgentPageReadsForks(t *testing.T) {
+	f := newEditFake(t)
+	signIn(t, f.url)
+	b := &BrowseAPI{app: &App{ctx: context.Background()}}
+	f.mu.Lock()
+	f.fork = map[string]any{"forkCount": 3}
+	f.mu.Unlock()
+	d, err := b.Agent(f.url, "chris", "meeting-actions")
+	if err != nil || d.Agent.ForkCount != 3 || d.Agent.ForkedFrom != nil {
+		t.Fatalf("a public agent's forks: %+v %v", d.Agent, err)
+	}
+	f.mu.Lock()
+	f.fork = map[string]any{
+		"forkedFrom": map[string]any{"namespace": "demo1", "name": "incident-summarizer", "version": "1.0.0", "available": false, "createdAt": "2026-10-06T00:00:00Z"},
+		"forkState":  "failed", "forkDetail": "The origin's repository could not be copied.",
+	}
+	f.mu.Unlock()
+	d, err = b.Agent(f.url, "chris", "meeting-actions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fo := d.Agent.ForkedFrom
+	if fo == nil || fo.Namespace != "demo1" || fo.Name != "incident-summarizer" || fo.Version != "1.0.0" || fo.Available ||
+		d.Agent.ForkState != "failed" || d.Agent.ForkDetail != "The origin's repository could not be copied." {
+		t.Fatalf("a fork: %+v", d.Agent)
 	}
 }
