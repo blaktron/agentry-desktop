@@ -72,19 +72,37 @@ export function connectionLine(c: ServerConn): string {
 
 /** What still holds Run for the servers that sign in, as sentences the line
  *  above the button shows. On this computer, each server without a working
- *  connection; In Agentry, any such server at all: a run there cannot sign
- *  in to one yet (the plan's M9, agentry-desktop#667). */
-export function connectionBlockers(conns: ServerConn[] | null, inAgentry: boolean): string[] {
+ *  connection. In Agentry, this computer's connections do not count (plan
+ *  D19: Agentry keeps its own), and which of Agentry's the account keeps is
+ *  not this app's to read, so nothing holds Run there but a server no
+ *  connection can serve, or a registry that keeps none (`vault` false): the
+ *  start finds out what is missing, and asks (agentry-desktop#667). */
+export function connectionBlockers(conns: ServerConn[] | null, inAgentry: boolean, vault = true): string[] {
   if (!conns || conns.length === 0) return [];
-  if (inAgentry) {
-    return ["A run In Agentry cannot sign in to an MCP server for you yet. Run it on this computer, where Connect tools signs in."];
-  }
   const out: string[] = [];
   for (const c of conns) {
     if (c.unsupported) out.push(`${c.server} cannot run on an access token alone: run a version that declares ${c.unsupported} instead.`);
-    else if (c.state !== "connected") out.push(`Connect ${c.server} on Connect tools.`);
+    else if (!inAgentry && c.state !== "connected") out.push(`Connect ${c.server} on Connect tools.`);
+  }
+  if (inAgentry && !vault) {
+    out.push("This registry keeps no connections for runs In Agentry, and this release's servers sign in. Run it on this computer, where Connect tools signs in.");
   }
   return out;
+}
+
+/** The ask a run In Agentry makes when Agentry keeps no connection to some
+ *  of its servers for this version (run create's 409 connection-missing):
+ *  where to connect them, and what happens then. */
+export function hostedConnectAsk(missing: string[], registry: string, waiting: boolean): string {
+  const which = missing.length === 0 ? "the servers this release signs in to" : missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+  const where = hostOf(registry) || "the registry";
+  return (
+    `Agentry keeps no connection to ${which} for this version yet. Connect ${missing.length === 1 ? "it" : "them"} on Connect tools, ` +
+    `which opens in your browser on ${where}, signed in as the account this app uses: each server signs you in on the vendor's own page. ` +
+    (waiting
+      ? "The run starts by itself once Agentry holds every connection."
+      : "Then wait again, and the run starts once Agentry holds every connection.")
+  );
 }
 
 /** The recap's line for the sign-ins. */

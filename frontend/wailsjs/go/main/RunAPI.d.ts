@@ -18,6 +18,8 @@ export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStar
 
 export function AttachHostedRunAtStart(arg1:string):Promise<main.HostedStartView>;
 
+export function AwaitHostedConnections(arg1:string,arg2:string):Promise<main.HostedStartView>;
+
 export function CancelConnect():Promise<boolean>;
 
 export function CancelHostedRun():Promise<main.HostedRunView>;
@@ -31,6 +33,8 @@ export function Connect(arg1:string,arg2:string,arg3:string):Promise<main.Connec
 export function Connections():Promise<main.KeptConnectionsView>;
 
 export function DeleteHostedSecret(arg1:string,arg2:string):Promise<void>;
+
+export function DiscardHostedConnect():Promise<void>;
 
 export function DiscardHostedSecrets(arg1:string):Promise<void>;
 
@@ -77,6 +81,8 @@ export function KeepOwnClient(arg1:string,arg2:string,arg3:string):Promise<void>
 export function KeepsSecrets(arg1:string):Promise<boolean>;
 
 export function ListModels(arg1:string,arg2:string,arg3:string):Promise<main.CatalogView>;
+
+export function OpenHostedConnect(arg1:string,arg2:string):Promise<void>;
 
 export function PasteRedirect(arg1:string):Promise<void>;
 
@@ -133,6 +139,8 @@ export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<st
 export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean):Promise<main.HostedStartView>;
 
 export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean):Promise<main.SessionView>;
+
+export function StopAwaitingConnections():Promise<void>;
 
 export function StopRun():Promise<void>;
 

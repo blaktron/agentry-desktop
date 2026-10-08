@@ -580,7 +580,8 @@ type Refusal struct {
 	Tier     string
 	Known    bool
 	// Missing are the declared secrets a 409 secret-missing names: the
-	// ones the start asks for (agentry-desktop#300).
+	// ones the start asks for (agentry-desktop#300); for a 409
+	// connection-missing, the servers still to connect (agentry-desktop#667).
 	Missing []string
 }
 
