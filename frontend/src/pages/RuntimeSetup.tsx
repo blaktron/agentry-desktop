@@ -4,7 +4,7 @@ import { OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
-import { baseURLFor } from "../providerForm";
+import { baseURLFor, takesBaseURL } from "../providerForm";
 
 // The §P1 provider table, mirrored for form prefills; the Go side
 // (pkg/runner/setup) holds the authoritative copy and fills any gaps. The
@@ -147,7 +147,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     setCatalog(null);
   }
 
-  const needsBaseURL = provider === "custom";
+  const needsBaseURL = takesBaseURL(provider);
 
   // Plain http off this machine is allowed (agentry-desktop#317, D-042) and
   // said out loud: the sentence is the CLI's, asked as the URL changes, so
