@@ -92,6 +92,28 @@ func Problem(op string, status int, p *apiclient.Problem, body []byte) error {
 	return fmt.Errorf("%s: HTTP %d: %s", op, status, msg)
 }
 
+// ProblemSlug is a refused call's problem slug, the last segment of its
+// type URI (https://agentry.dev/problems/<slug>), and its detail. The
+// generated client decodes the problem only for a status the spec leaves
+// to its default, so for a declared one (a delete's 409 and 422) it is
+// read from the body. Both are empty when the body holds no problem.
+func ProblemSlug(p *apiclient.Problem, body []byte) (slug, detail string) {
+	if p == nil {
+		var doc apiclient.Problem
+		if json.Unmarshal(body, &doc) != nil {
+			return "", ""
+		}
+		p = &doc
+	}
+	if i := strings.LastIndex(p.Type, "/"); i >= 0 {
+		slug = p.Type[i+1:]
+	}
+	if p.Detail != nil {
+		detail = *p.Detail
+	}
+	return slug, detail
+}
+
 // Digest computes the "sha256:<hex>" digest of b (D-15 identity form).
 func Digest(b []byte) string {
 	sum := sha256.Sum256(b)

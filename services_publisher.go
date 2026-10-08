@@ -11,13 +11,12 @@
 // says to sign in again.
 //
 // Every action is asked again in a native dialog first (D-030: the page is
-// not a principal), and a refusal is said in the site's words
+// not a principal; D-070), and a refusal is said in the site's words
 // (agentry-web lib/publisher.ts), never as a status code alone.
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,10 +43,7 @@ func (p *PublisherAPI) ctx() context.Context {
 
 // The owner-action scopes: the sign-in grant's agent:manage, or a pasted
 // token's org:admin, which also admits them (DEV-225).
-const (
-	scopeAgentManage = "agent:manage"
-	scopeOrgAdmin    = "org:admin"
-)
+var ownerActionScopes = []string{string(apiclient.AgentManage), string(apiclient.OrgAdmin)}
 
 // PublisherNamespace is a namespace whose QuickAgents the section lists:
 // the person's own, then each organization they are an active member of.
@@ -65,7 +61,6 @@ type PublisherNamespace struct {
 // not say, and the actions are offered for the registry to decide.
 type PublisherView struct {
 	SignedIn    bool                 `json:"signedIn"`
-	Handle      string               `json:"handle,omitempty"`
 	Namespaces  []PublisherNamespace `json:"namespaces"`
 	CanManage   bool                 `json:"canManage"`
 	ScopesKnown bool                 `json:"scopesKnown"`
@@ -76,8 +71,6 @@ type PublisherForkOrigin struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	Version   string `json:"version"`
-	// Available says the origin can still be read, so its name is a link.
-	Available bool `json:"available"`
 }
 
 // PublisherAgent is a row of the list.
@@ -89,11 +82,12 @@ type PublisherAgent struct {
 	RetiredAt       string               `json:"retiredAt,omitempty"`
 	QuarantineState string               `json:"quarantineState"`
 	ForkedFrom      *PublisherForkOrigin `json:"forkedFrom,omitempty"`
-	ForkState       string               `json:"forkState,omitempty"`
-	ForkCount       *int                 `json:"forkCount,omitempty"`
-	Installs30d     *int                 `json:"installs30d,omitempty"`
-	LastSubmittedAt string               `json:"lastSubmittedAt,omitempty"`
-	CreatedAt       string               `json:"createdAt"`
+	// ForkState is a fork's copy: copying, ready or failed.
+	ForkState   string `json:"forkState,omitempty"`
+	Installs30d *int   `json:"installs30d,omitempty"`
+	// LastSubmittedAt is present once a version was submitted, which is
+	// also how the list tells a QuickAgent with versions (Delete's words).
+	LastSubmittedAt string `json:"lastSubmittedAt,omitempty"`
 }
 
 // PublisherQuery is the list's search, filters and sort, in the core's
@@ -117,12 +111,14 @@ type PublisherDone struct {
 }
 
 // Overview says who is signed in to reg, which namespaces the section
-// lists, and whether the token reaches the owner actions. Signed out is an
-// answer, not an error.
+// lists, and whether the token reaches the owner actions. Signed out, or a
+// registry address Settings would not send the token to, is an answer, not
+// an error.
 func (p *PublisherAPI) Overview(reg string) (*PublisherView, error) {
+	signedOut := &PublisherView{Namespaces: []PublisherNamespace{}}
 	url, token, err := storedCredential(reg)
 	if err != nil {
-		return &PublisherView{Namespaces: []PublisherNamespace{}}, nil
+		return signedOut, nil
 	}
 	client, err := registry.New(url, token)
 	if err != nil {
@@ -134,13 +130,13 @@ func (p *PublisherAPI) Overview(reg string) (*PublisherView, error) {
 		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
 	if res.StatusCode() == http.StatusUnauthorized {
-		return &PublisherView{Namespaces: []PublisherNamespace{}}, nil
+		return signedOut, nil
 	}
 	if res.JSON200 == nil {
 		return nil, registry.Problem("read your account", res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body)
 	}
 	u := res.JSON200
-	v := &PublisherView{SignedIn: true, Handle: u.Handle, Namespaces: []PublisherNamespace{{Handle: u.Handle, Kind: "user", Admin: true}}}
+	v := &PublisherView{SignedIn: true, Namespaces: []PublisherNamespace{{Handle: u.Handle, Kind: "user", Admin: true}}}
 	if u.Orgs != nil {
 		for _, o := range *u.Orgs {
 			// A pending membership holds nothing yet (agentry#361).
@@ -152,9 +148,18 @@ func (p *PublisherAPI) Overview(reg string) (*PublisherView, error) {
 	}
 	if scopes, ok := tokenScopes(ctx, url, token); ok {
 		v.ScopesKnown = true
-		v.CanManage = hasString(scopes, scopeAgentManage) || hasString(scopes, scopeOrgAdmin)
+		v.CanManage = carriesOwnerActions(scopes)
 	}
 	return v, nil
+}
+
+func carriesOwnerActions(scopes []string) bool {
+	for _, s := range ownerActionScopes {
+		if hasString(scopes, s) {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -223,8 +228,7 @@ func publisherAgent(a apiclient.Agent) PublisherAgent {
 	v := PublisherAgent{
 		Namespace: a.Namespace, Name: a.Name, Summary: a.Summary,
 		Visibility: string(a.Visibility), QuarantineState: string(a.QuarantineState),
-		ForkCount: a.ForkCount, Installs30d: a.Installs30d,
-		CreatedAt: a.CreatedAt.UTC().Format(time.RFC3339),
+		Installs30d: a.Installs30d,
 	}
 	if a.RetiredAt != nil {
 		v.RetiredAt = a.RetiredAt.UTC().Format(time.RFC3339)
@@ -233,10 +237,7 @@ func publisherAgent(a apiclient.Agent) PublisherAgent {
 		v.LastSubmittedAt = a.LastSubmittedAt.UTC().Format(time.RFC3339)
 	}
 	if a.ForkedFrom != nil {
-		v.ForkedFrom = &PublisherForkOrigin{
-			Namespace: a.ForkedFrom.Namespace, Name: a.ForkedFrom.Name,
-			Version: a.ForkedFrom.Version, Available: a.ForkedFrom.Available,
-		}
+		v.ForkedFrom = &PublisherForkOrigin{Namespace: a.ForkedFrom.Namespace, Name: a.ForkedFrom.Name, Version: a.ForkedFrom.Version}
 	}
 	if a.ForkState != nil {
 		v.ForkState = string(*a.ForkState)
@@ -255,112 +256,125 @@ const (
 	actDelete  publisherAct = "delete"
 )
 
-// The native dialog's question per action: what it does to the people who
-// use the QuickAgent, before anything is sent.
-func publisherQuestion(act publisherAct, ref string) (title, message string) {
-	switch act {
-	case actPrivate:
-		return "Make " + ref + " private?", ref + " leaves Browse and search, and only its readers can open it. People who installed it keep their copy, but cannot update it or install it again."
-	case actPublic:
-		return "Make " + ref + " public?", "Anyone can find " + ref + " in Browse and install it."
-	case actRetire:
-		return "Retire " + ref + "?", ref + " becomes private and takes no new versions. People who installed it keep their copy. Restore brings it back as it was."
-	case actRestore:
-		return "Restore " + ref + "?", ref + " goes back to the visibility it had when it was retired, which may be public, and takes new versions again."
-	default:
-		return "Delete " + ref + "?", "Every version of " + ref + " is withdrawn, nobody can install or run it again, and the name stays held in its namespace for good. This cannot be undone."
-	}
+// publisherWords are what an action asks in the native dialog, before
+// anything is sent, and what it says once it went through (the site's
+// doneSentence). Each is given the QuickAgent's ns/name.
+type publisherWords struct {
+	title, question, done func(ref string) string
 }
 
-// publisherDoneSentence is what an action that went through says (the
-// site's doneSentence).
-func publisherDoneSentence(act publisherAct, ref string) string {
-	switch act {
-	case actPrivate:
-		return ref + " is private now. It left Browse and search, and only its readers can open it."
-	case actPublic:
-		return ref + " is public now: anyone can find it in Browse and install it."
-	case actRetire:
-		return ref + " is retired. It is private, takes no new versions, and Restore brings it back as it was."
-	case actRestore:
-		return ref + " is restored, with the visibility it had when it was retired."
-	default:
-		return ref + " is deleted."
-	}
+var publisherActs = map[publisherAct]publisherWords{
+	actPrivate: {
+		title: func(ref string) string { return "Make " + ref + " private?" },
+		question: func(ref string) string {
+			return ref + " leaves Browse and search, and only its readers can open it. Anyone who installed it keeps their copy, but can no longer update it."
+		},
+		done: func(ref string) string {
+			return ref + " is private now. It left Browse and search, and only its readers can open it."
+		},
+	},
+	actPublic: {
+		title:    func(ref string) string { return "Make " + ref + " public?" },
+		question: func(ref string) string { return "Anyone can find " + ref + " in Browse and install it." },
+		done:     func(ref string) string { return ref + " is public now: anyone can find it in Browse and install it." },
+	},
+	actRetire: {
+		title: func(ref string) string { return "Retire " + ref + "?" },
+		question: func(ref string) string {
+			return ref + " becomes private and takes no new versions. Anyone who installed it keeps their copy. Restore brings it back as it was."
+		},
+		done: func(ref string) string {
+			return ref + " is retired. It is private, takes no new versions, and Restore brings it back as it was."
+		},
+	},
+	actRestore: {
+		title: func(ref string) string { return "Restore " + ref + "?" },
+		question: func(ref string) string {
+			return ref + " goes back to the visibility it had when it was retired, which may be public, and takes new versions again."
+		},
+		done: func(ref string) string { return ref + " is restored, with the visibility it had when it was retired." },
+	},
+	// Delete's question depends on whether the QuickAgent has a version
+	// (deleteQuestion); this one is for a version history.
+	actDelete: {
+		title: func(ref string) string { return "Delete " + ref + "?" },
+		question: func(ref string) string {
+			return "Every version of " + ref + " is yanked, and it is gone for everyone, you included. Anyone who installed it keeps their copy, but can no longer update it. This cannot be undone, and the name stays held in its namespace for good."
+		},
+		done: func(ref string) string { return ref + " is deleted." },
+	},
 }
 
-const nothingChanged = "Nothing changed:"
+// deleteQuestionNoVersions is Delete's question for a QuickAgent that has
+// no version, which the core deletes outright (plan §4.1).
+func deleteQuestionNoVersions(ref string) string {
+	return ref + " has no version, so it is deleted outright with its repository, and the name is free to use again. This cannot be undone."
+}
+
+const publisherNothingChanged = "Nothing changed:"
+
+// publisherUnreachable is what an action says when the registry did not
+// answer: a sentence for the person, so it ends in a full stop.
+func publisherUnreachable() string {
+	return publisherNothingChanged + " the registry did not answer. Try again in a moment."
+}
 
 // publisherMistyped is what a Delete whose typed name does not match says.
 func publisherMistyped(ns, name string) string {
-	return fmt.Sprintf("%s to delete %s/%s, type its name, %s, exactly.", nothingChanged, ns, name, name)
+	return fmt.Sprintf("%s to delete %s/%s, type its name, %s, exactly.", publisherNothingChanged, ns, name, name)
 }
 
-// publisherRefusal is what an action the registry refused says, in the
-// site's words (refusalSentence): the problem's slug decides the
-// sentence, and its detail is used only where no sentence here fits. A
-// 403 to a token without agent:manage says to sign in again, which is the
-// fix; the site's 403 names the rung, which a session can only lack.
-func publisherRefusal(act publisherAct, ns, name string, status int, slug, detail string, scopeless bool) error {
+// publisherRefusal is a refused action's answer.
+type publisherRefusal struct {
+	status       int
+	slug, detail string
+	// scopeless: the token carries neither agent:manage nor org:admin.
+	scopeless bool
+}
+
+// sentence says the refusal in the site's words (refusalSentence): the
+// problem's slug decides the sentence, and its detail is used only where
+// no sentence here fits. A 403 to a token without agent:manage says to
+// sign in again, which is the fix; the site's 403 names the rung, which a
+// session can only lack.
+func (r publisherRefusal) sentence(act publisherAct, ns, name string) string {
 	ref := ns + "/" + name
-	var s string
+	nothing := publisherNothingChanged
 	switch {
-	case slug == "account-unactivated" && detail != "":
-		s = detail
-	case status == http.StatusUnauthorized:
-		s = nothingChanged + " you are signed out. Sign in again under Settings, then retry."
-	case status == http.StatusForbidden && scopeless:
-		s = nothingChanged + " this sign-in was made before Agentry Desktop could retire, restore, delete or change who sees a QuickAgent. Sign out and sign in again under Settings, then retry."
-	case status == http.StatusForbidden:
-		s = fmt.Sprintf("%s only %s itself, or an admin of the %s organization, can change who sees %s, or retire or delete it.", nothingChanged, ns, ns, ref)
-	case status == http.StatusNotFound:
-		s = fmt.Sprintf("%s %s is not there any more. It may have been deleted.", nothingChanged, ref)
-	case slug == "private-agent-cap":
-		s = fmt.Sprintf("%s %s already holds as many private QuickAgents as its subscription allows. Make one of them public, retire one, or upgrade, then try again.", nothingChanged, ns)
-	case slug == "agent-unscanned":
-		s = fmt.Sprintf("%s only a version that passed the gate is ever public, and %s has versions admitted without a scan, or still admits them. Yank those versions and turn off admitting unscanned submissions in its settings on the site, then try again.", nothingChanged, ref)
-	case slug == "agent-retired":
-		s = fmt.Sprintf("%s %s is retired. Restore it first.", nothingChanged, ref)
-	case slug == "agent-not-retired":
-		s = fmt.Sprintf("%s %s is not retired, so there was nothing to restore.", nothingChanged, ref)
-	case slug == "confirm-name":
-		s = publisherMistyped(ns, name)
-	case slug == "fork-stays-private":
-		s = fmt.Sprintf("%s %s is a fork, and a fork stays private for good.", nothingChanged, ref)
-	case act == actDelete && status == http.StatusConflict && detail != "":
-		s = nothingChanged + " " + detail
-	case status == http.StatusTooManyRequests:
-		s = nothingChanged + " too many requests. Wait a minute, then try again."
-	case status >= 500:
-		s = nothingChanged + " the registry did not answer. Try again in a moment."
-	case detail != "":
-		s = nothingChanged + " " + detail
-	default:
-		s = nothingChanged + " the registry refused it."
+	case r.slug == "account-unactivated" && r.detail != "":
+		return r.detail
+	case r.status == http.StatusUnauthorized:
+		return nothing + " you are signed out. Sign in again under Settings, then retry."
+	case r.status == http.StatusForbidden && r.scopeless:
+		return nothing + " this sign-in was made before Agentry Desktop could retire, restore, delete or change who sees a QuickAgent. Sign out and sign in again under Settings, then retry."
+	case r.status == http.StatusForbidden:
+		return fmt.Sprintf("%s only %s itself, or an admin of the %s organization, can change who sees %s, or retire or delete it.", nothing, ns, ns, ref)
+	case r.status == http.StatusNotFound:
+		return fmt.Sprintf("%s %s is not there any more. It may have been deleted.", nothing, ref)
+	case r.slug == "private-agent-cap":
+		return fmt.Sprintf("%s %s already holds as many private QuickAgents as its subscription allows. Make one of them public, retire one, or upgrade, then try again.", nothing, ns)
+	case r.slug == "agent-unscanned":
+		// The site sends the person to the Versions page and Settings,
+		// which are the site's pages.
+		return fmt.Sprintf("%s only a version that passed the gate is ever public, and %s has versions admitted without a scan, or still admits them. Yank those versions and turn off admitting unscanned submissions in its settings on the site, then try again.", nothing, ref)
+	case r.slug == "agent-retired":
+		return fmt.Sprintf("%s %s is retired. Restore it first.", nothing, ref)
+	case r.slug == "agent-not-retired":
+		return fmt.Sprintf("%s %s is not retired, so there was nothing to restore.", nothing, ref)
+	case r.slug == "confirm-name":
+		return publisherMistyped(ns, name)
+	case r.slug == "fork-stays-private":
+		return fmt.Sprintf("%s %s is a fork, and a fork stays private for good.", nothing, ref)
+	case act == actDelete && r.status == http.StatusConflict && r.detail != "":
+		return nothing + " " + r.detail
+	case r.status == http.StatusTooManyRequests:
+		return nothing + " too many requests. Wait a minute, then try again."
+	case r.status >= 500:
+		return publisherUnreachable()
+	case r.detail != "":
+		return nothing + " " + r.detail
 	}
-	return errors.New(s)
-}
-
-// problemSlug is the last segment of a problem's type URI
-// (https://agentry.dev/problems/<slug>), and its detail. The generated
-// client decodes the problem only for a status the spec leaves to its
-// default, so for a declared one (the delete's 409 and 422) it is read
-// from the body here.
-func problemSlug(pr *apiclient.Problem, body []byte) (slug, detail string) {
-	if pr == nil {
-		var doc apiclient.Problem
-		if json.Unmarshal(body, &doc) != nil {
-			return "", ""
-		}
-		pr = &doc
-	}
-	if i := strings.LastIndex(pr.Type, "/"); i >= 0 {
-		slug = pr.Type[i+1:]
-	}
-	if pr.Detail != nil {
-		detail = *pr.Detail
-	}
-	return slug, detail
+	return nothing + " the registry refused it."
 }
 
 // SetVisibility makes ns/name public or private.
@@ -394,8 +408,20 @@ func (p *PublisherAPI) Delete(reg, ns, name, typed string) (*PublisherDone, erro
 	return p.act(reg, ns, name, actDelete, name)
 }
 
+// publisherAnswer is the registry's answer to one owner action.
+type publisherAnswer struct {
+	status  int
+	agent   *apiclient.Agent
+	problem *apiclient.Problem
+	body    []byte
+}
+
 // act asks the native question, then makes the one call.
 func (p *PublisherAPI) act(reg, ns, name string, act publisherAct, confirm string) (*PublisherDone, error) {
+	words, ok := publisherActs[act]
+	if !ok {
+		return nil, fmt.Errorf("%q is not an owner action", act)
+	}
 	if !manifest.ValidNamespace(ns) || !manifest.ValidName(name) {
 		return nil, fmt.Errorf("%q is not a QuickAgent's name", ns+"/"+name)
 	}
@@ -407,71 +433,81 @@ func (p *PublisherAPI) act(reg, ns, name string, act publisherAct, confirm strin
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	ref := ns + "/" + name
 	if p.app == nil {
 		return nil, errors.New("no confirmation dialog is available; refusing")
 	}
-	title, message := publisherQuestion(act, ref)
-	if err := p.app.askConsent(title, message); err != nil {
+	ctx := p.ctx()
+	ref := ns + "/" + name
+	question := words.question(ref)
+	if act == actDelete && !hasVersions(ctx, client, ns, name) {
+		question = deleteQuestionNoVersions(ref)
+	}
+	if err := p.app.askConsent(words.title(ref), question); err != nil {
 		if errors.Is(err, errNotConfirmed) {
 			return &PublisherDone{Cancelled: true}, nil
 		}
 		return nil, err
 	}
 
-	ctx := p.ctx()
-	var (
-		status int
-		agent  *apiclient.Agent
-		pr     *apiclient.Problem
-		body   []byte
-	)
+	ans, err := sendOwnerAction(ctx, client, act, ns, name, confirm)
+	if err != nil {
+		return nil, errors.New(publisherUnreachable())
+	}
+	if ans.status >= 200 && ans.status < 300 {
+		done := &PublisherDone{Sentence: words.done(ref)}
+		if ans.agent != nil {
+			a := publisherAgent(*ans.agent)
+			done.Agent = &a
+		}
+		return done, nil
+	}
+	r := publisherRefusal{status: ans.status}
+	r.slug, r.detail = registry.ProblemSlug(ans.problem, ans.body)
+	if ans.status == http.StatusForbidden {
+		if scopes, ok := tokenScopes(ctx, url, token); ok {
+			r.scopeless = !carriesOwnerActions(scopes)
+		}
+	}
+	return nil, errors.New(r.sentence(act, ns, name))
+}
+
+// sendOwnerAction makes the action's one call to the core.
+func sendOwnerAction(ctx context.Context, client *apiclient.ClientWithResponses, act publisherAct, ns, name, confirm string) (publisherAnswer, error) {
 	switch act {
 	case actPrivate, actPublic:
 		vis := apiclient.UpdateAgentJSONBodyVisibility(act)
 		res, err := client.UpdateAgentWithResponse(ctx, ns, name, apiclient.UpdateAgentJSONRequestBody{Visibility: &vis})
 		if err != nil {
-			return nil, unreachable(err)
+			return publisherAnswer{}, err
 		}
-		status, agent, pr, body = res.StatusCode(), res.JSON200, res.ApplicationproblemJSONDefault, res.Body
+		return publisherAnswer{res.StatusCode(), res.JSON200, res.ApplicationproblemJSONDefault, res.Body}, nil
 	case actRetire:
 		res, err := client.RetireAgentWithResponse(ctx, ns, name)
 		if err != nil {
-			return nil, unreachable(err)
+			return publisherAnswer{}, err
 		}
-		status, agent, pr, body = res.StatusCode(), res.JSON200, res.ApplicationproblemJSONDefault, res.Body
+		return publisherAnswer{res.StatusCode(), res.JSON200, res.ApplicationproblemJSONDefault, res.Body}, nil
 	case actRestore:
 		res, err := client.RestoreAgentWithResponse(ctx, ns, name)
 		if err != nil {
-			return nil, unreachable(err)
+			return publisherAnswer{}, err
 		}
-		status, agent, pr, body = res.StatusCode(), res.JSON200, res.ApplicationproblemJSONDefault, res.Body
-	case actDelete:
+		return publisherAnswer{res.StatusCode(), res.JSON200, res.ApplicationproblemJSONDefault, res.Body}, nil
+	default:
 		res, err := client.DeleteAgentWithResponse(ctx, ns, name, &apiclient.DeleteAgentParams{Confirm: &confirm})
 		if err != nil {
-			return nil, unreachable(err)
+			return publisherAnswer{}, err
 		}
-		status, pr, body = res.StatusCode(), res.ApplicationproblemJSONDefault, res.Body
+		return publisherAnswer{res.StatusCode(), nil, res.ApplicationproblemJSONDefault, res.Body}, nil
 	}
-	if status >= 200 && status < 300 {
-		done := &PublisherDone{Sentence: publisherDoneSentence(act, ref)}
-		if agent != nil {
-			a := publisherAgent(*agent)
-			done.Agent = &a
-		}
-		return done, nil
-	}
-	slug, detail := problemSlug(pr, body)
-	scopeless := false
-	if status == http.StatusForbidden {
-		if scopes, ok := tokenScopes(ctx, url, token); ok {
-			scopeless = !hasString(scopes, scopeAgentManage) && !hasString(scopes, scopeOrgAdmin)
-		}
-	}
-	return nil, publisherRefusal(act, ns, name, status, slug, detail, scopeless)
 }
 
-// unreachable is an action the registry did not answer.
-func unreachable(err error) error {
-	return fmt.Errorf("%s the registry did not answer. Try again in a moment. (%w)", nothingChanged, err)
+// hasVersions reports whether ns/name has a version row, for Delete's
+// question. A read that does not answer counts as yes, the graver words.
+func hasVersions(ctx context.Context, client *apiclient.ClientWithResponses, ns, name string) bool {
+	res, err := client.ListVersionsWithResponse(ctx, ns, name)
+	if err != nil || res.JSON200 == nil {
+		return true
+	}
+	return len(*res.JSON200) > 0
 }

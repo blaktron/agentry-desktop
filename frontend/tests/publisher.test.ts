@@ -3,14 +3,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  countsLine, deleteNameMatches, forkOfLabel, listCounts, notAdminLine, rowActions, rowBadges, visibilityLabel, visibleIn,
+  countsLine, deleteNameMatches, deleteWords, forkOfLabel, listCounts, notAdminLine, rowActions, rowBadges, visibilityLabel, visibleIn,
   type PublisherRow,
 } from "../src/publisher.ts";
 
 const row = (over: Partial<PublisherRow> = {}): PublisherRow => ({
   namespace: "pat", name: "kept", visibility: "public", quarantineState: "none", ...over,
 });
-const fork = { namespace: "demo1", name: "incident-summarizer", version: "1.0.0", available: true };
+const fork = { namespace: "demo1", name: "incident-summarizer", version: "1.0.0" };
 
 test("badges come in the plan's order: Private, Fork, Retired, then a quarantine by its state", () => {
   assert.deepEqual(rowBadges(row()), []);
@@ -21,9 +21,19 @@ test("badges come in the plan's order: Private, Fork, Retired, then a quarantine
   assert.deepEqual(rowBadges(row({ quarantineState: "blocked" })).map((b) => [b.label, b.tone]), [["Blocked", "bad"]]);
 });
 
-test("a fork's row names what it was forked from", () => {
-  assert.equal(forkOfLabel(row({ forkedFrom: fork })), "Fork of demo1/incident-summarizer@1.0.0");
+test("a fork's row names what it was forked from, and its copy while it is not ready", () => {
+  assert.equal(forkOfLabel(row({ forkedFrom: fork, forkState: "ready" })), "Fork of demo1/incident-summarizer@1.0.0");
+  assert.equal(forkOfLabel(row({ forkedFrom: fork, forkState: "copying" })), "Fork of demo1/incident-summarizer@1.0.0 · being copied");
+  assert.equal(forkOfLabel(row({ forkedFrom: fork, forkState: "failed" })), "Fork of demo1/incident-summarizer@1.0.0 · the copy failed");
   assert.equal(forkOfLabel(row()), null);
+});
+
+test("Delete says the site's words: outright and the name freed without a version, held for good with one", () => {
+  assert.deepEqual(deleteWords("pat", "draft", false), ["pat/draft has no version, so it is deleted outright with its repository, and the name is free to use again. This cannot be undone."]);
+  const held = deleteWords("pat", "kept", true).join(" ");
+  assert.match(held, /Every version of pat\/kept is yanked/);
+  assert.match(held, /no QuickAgent in pat can be called kept again/);
+  assert.match(held, /Retire it instead/);
 });
 
 test("a public QuickAgent offers Make private and Retire, a private one Make public", () => {

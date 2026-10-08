@@ -32,6 +32,8 @@ type publisherFake struct {
 	// calls records each owner action and list read: method, path, query,
 	// body.
 	calls []string
+	// versionless lists no version for any QuickAgent.
+	versionless bool
 }
 
 func (f *publisherFake) start(t *testing.T) string {
@@ -55,6 +57,16 @@ func (f *publisherFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusOK, []map[string]any{{
 			"id": "00000000-0000-0000-0000-0000000000c1", "name": "desktop", "prefix": hostedTestToken[:patDisplayPrefixLen],
 			"scopes": f.scopes, "createdAt": "2026-10-01T00:00:00Z", "expiresAt": "2026-11-01T00:00:00Z",
+		}})
+	})
+	mux.HandleFunc("GET /api/v1/agents/{ns}/{name}/versions", func(w http.ResponseWriter, _ *http.Request) {
+		if f.versionless {
+			hostedJSON(w, http.StatusOK, []map[string]any{})
+			return
+		}
+		hostedJSON(w, http.StatusOK, []map[string]any{{
+			"id": "00000000-0000-0000-0000-0000000000d1", "version": "1.0.0", "channel": "stable", "status": "published",
+			"createdAt": "2026-09-01T00:00:00Z", "source": "git-tag",
 		}})
 	})
 	mux.HandleFunc("GET /api/v1/agents", func(w http.ResponseWriter, r *http.Request) {
@@ -138,10 +150,11 @@ func publisherAgentDoc(ns, name, vis string, extra map[string]any) map[string]an
 
 // newPublisherAPI is the binding with a native dialog that answers yes or
 // no and records each question.
+// The questions are recorded as "title | message".
 func newPublisherAPI(answer bool) (*PublisherAPI, *[]string) {
 	var asked []string
-	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, _ string) (bool, error) {
-		asked = append(asked, title)
+	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, message string) (bool, error) {
+		asked = append(asked, title+" | "+message)
 		return answer, nil
 	}}
 	return &PublisherAPI{app: app}, &asked
@@ -153,7 +166,7 @@ func TestPublisherOverview(t *testing.T) {
 	p, _ := newPublisherAPI(true)
 
 	// Signed out is an answer: the section draws its Sign in notice.
-	keyringOff(t)
+	signInElsewhere(t)
 	v, err := p.Overview(reg)
 	if err != nil || v.SignedIn {
 		t.Fatalf("signed out: %+v %v", v, err)
@@ -164,7 +177,7 @@ func TestPublisherOverview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !v.SignedIn || v.Handle != "pat" || !v.CanManage || !v.ScopesKnown {
+	if !v.SignedIn || !v.CanManage || !v.ScopesKnown {
 		t.Fatalf("overview: %+v", v)
 	}
 	want := []PublisherNamespace{{"pat", "user", true}, {"acme", "org", true}, {"crew", "org", false}}
@@ -194,8 +207,9 @@ func TestPublisherOverview(t *testing.T) {
 	}
 }
 
-// keyringOff isolates the app's state with nothing signed in.
-func keyringOff(t *testing.T) {
+// signInElsewhere isolates the app's state with a token kept only for an
+// address nothing answers on, so the registry under test is signed out.
+func signInElsewhere(t *testing.T) {
 	t.Helper()
 	signIn(t, "http://127.0.0.1:1")
 }
@@ -213,7 +227,7 @@ func TestPublisherListSendsTheCoresFilters(t *testing.T) {
 	if len(rows) != 2 || rows[0].RetiredAt != "2026-10-02T10:00:00Z" || rows[0].Installs30d == nil || *rows[0].Installs30d != 3 {
 		t.Fatalf("rows: %+v", rows)
 	}
-	if fo := rows[1].ForkedFrom; fo == nil || fo.Namespace != "demo1" || fo.Version != "1.0.0" || !fo.Available || rows[1].ForkState != "ready" {
+	if fo := rows[1].ForkedFrom; fo == nil || fo.Namespace != "demo1" || fo.Version != "1.0.0" || rows[1].ForkState != "ready" {
 		t.Fatalf("fork row: %+v", rows[1])
 	}
 	// Anything unknown is no filter, and the sort is newest.
@@ -278,9 +292,18 @@ func TestPublisherActionsAreAskedFirstAndCallTheCore(t *testing.T) {
 	if len(*asked) != len(cases) {
 		t.Fatalf("asked %d native questions for %d actions: %v", len(*asked), len(cases), *asked)
 	}
-	if !strings.HasPrefix((*asked)[4], "Delete pat/kept?") {
-		t.Fatalf("delete's question: %q", (*asked)[4])
+	if !strings.HasPrefix((*asked)[4], "Delete pat/kept? | Every version of pat/kept is yanked") || !strings.Contains((*asked)[4], "the name stays held") {
+		t.Fatalf("delete's question for a QuickAgent with a version: %q", (*asked)[4])
 	}
+	// One with no version is deleted outright, and its name is free again.
+	f.versionless = true
+	if _, err := p.Delete(reg, "pat", "draft", "draft"); err != nil {
+		t.Fatal(err)
+	}
+	if q := (*asked)[len(*asked)-1]; !strings.Contains(q, "pat/draft has no version, so it is deleted outright") || strings.Contains(q, "held") {
+		t.Fatalf("delete's question for a QuickAgent with no version: %q", q)
+	}
+	f.versionless = false
 
 	// A mistyped name costs no dialog and no call.
 	before, beforeAsked := len(f.sent()), len(*asked)
@@ -336,8 +359,36 @@ func TestPublisherRefusalsInTheSitesWords(t *testing.T) {
 		if !strings.HasPrefix(err.Error(), "Nothing changed:") || !strings.Contains(err.Error(), c.want) {
 			t.Fatalf("case %d: %q, want it to say %q", i, err, c.want)
 		}
-		if strings.Contains(err.Error(), "HTTP") {
-			t.Fatalf("case %d says a status code: %q", i, err)
+		if strings.Contains(err.Error(), "HTTP") || strings.Contains(err.Error(), hostedTestToken) {
+			t.Fatalf("case %d says a status code or the token: %q", i, err)
 		}
+	}
+}
+
+// The token goes only where Settings would send it (agentry-desktop#307):
+// a plain-http registry at a real host is refused before any dialog or
+// request, and the section reads as signed out there.
+func TestPublisherSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
+	signIn(t, "http://dev.secureagentry.net")
+	p, asked := newPublisherAPI(true)
+	const reg = "http://dev.secureagentry.net"
+	if v, err := p.Overview(reg); err != nil || v.SignedIn {
+		t.Fatalf("overview over plain http: %+v %v", v, err)
+	}
+	if _, err := p.List(reg, "pat", PublisherQuery{}); err == nil {
+		t.Fatal("the list was read over plain http")
+	}
+	for _, run := range []func() (*PublisherDone, error){
+		func() (*PublisherDone, error) { return p.SetVisibility(reg, "pat", "kept", "private") },
+		func() (*PublisherDone, error) { return p.Retire(reg, "pat", "kept") },
+		func() (*PublisherDone, error) { return p.Restore(reg, "pat", "kept") },
+		func() (*PublisherDone, error) { return p.Delete(reg, "pat", "kept", "kept") },
+	} {
+		if d, err := run(); err == nil {
+			t.Fatalf("an owner action went over plain http: %+v", d)
+		}
+	}
+	if len(*asked) != 0 {
+		t.Fatalf("a dialog was raised for a refused address: %v", *asked)
 	}
 }

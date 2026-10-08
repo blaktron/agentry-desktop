@@ -104,7 +104,7 @@ var requestedScopes = []string{
 	// The Publisher section's owner actions: make a QuickAgent public or
 	// private, retire, restore and delete it (plan forks-and-publisher.md
 	// M6); the core's sign-in grant carries it since agentry#993 (DEV-225).
-	scopeAgentManage,
+	"agent:manage",
 }
 
 // authorizeURL is the flow's authorize page plus the scopes the app asks

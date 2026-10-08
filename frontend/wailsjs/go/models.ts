@@ -3556,7 +3556,6 @@ export namespace main {
 	    namespace: string;
 	    name: string;
 	    version: string;
-	    available: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PublisherForkOrigin(source);
@@ -3567,7 +3566,6 @@ export namespace main {
 	        this.namespace = source["namespace"];
 	        this.name = source["name"];
 	        this.version = source["version"];
-	        this.available = source["available"];
 	    }
 	}
 	export class PublisherAgent {
@@ -3579,10 +3577,8 @@ export namespace main {
 	    quarantineState: string;
 	    forkedFrom?: PublisherForkOrigin;
 	    forkState?: string;
-	    forkCount?: number;
 	    installs30d?: number;
 	    lastSubmittedAt?: string;
-	    createdAt: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PublisherAgent(source);
@@ -3598,10 +3594,8 @@ export namespace main {
 	        this.quarantineState = source["quarantineState"];
 	        this.forkedFrom = this.convertValues(source["forkedFrom"], PublisherForkOrigin);
 	        this.forkState = source["forkState"];
-	        this.forkCount = source["forkCount"];
 	        this.installs30d = source["installs30d"];
 	        this.lastSubmittedAt = source["lastSubmittedAt"];
-	        this.createdAt = source["createdAt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3693,7 +3687,6 @@ export namespace main {
 	}
 	export class PublisherView {
 	    signedIn: boolean;
-	    handle?: string;
 	    namespaces: PublisherNamespace[];
 	    canManage: boolean;
 	    scopesKnown: boolean;
@@ -3705,7 +3698,6 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.signedIn = source["signedIn"];
-	        this.handle = source["handle"];
 	        this.namespaces = this.convertValues(source["namespaces"], PublisherNamespace);
 	        this.canManage = source["canManage"];
 	        this.scopesKnown = source["scopesKnown"];

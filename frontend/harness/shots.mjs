@@ -413,7 +413,7 @@ const states = [
   // item for a signed-in registry, an organization pat is a member of, an
   // old sign-in, the owner actions and Delete's typed name.
   { name: "page-publisher", url: "/pages.html", note: "the Publisher section: pat's QuickAgents with Private, Retired and Fork badges, the Fork of line, a fork's Make public withheld, the counts, and Publisher in the sidebar under Build", locator: '[data-preview="publisher"]',
-    expectText: ["The QuickAgents you publish", "4 QuickAgents · 2 private · 1 retired", "pat/incident-digest", "Fork of demo1/incident-summarizer@1.0.0", "stays private", "A fork stays private for good, so it is never made public.", "Make private", "Make public", "Restore", "Retire"],
+    expectText: ["The QuickAgents you publish", "4 QuickAgents · 2 private · 1 retired", "pat/incident-digest", "Fork of demo1/incident-summarizer@1.0.0", "stays private", "A fork stays private for good, so it cannot be made public.", "Make private", "Make public", "Restore", "Retire"],
     expectNoText: ["archive", "Archive"],
     expectOrder: [
       ['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Publisher", "Settings"]],
@@ -425,7 +425,7 @@ const states = [
     expectText: ["pat/incident-digest is retired. It is private, takes no new versions, and Restore brings it back as it was.", "4 QuickAgents · 2 private · 2 retired"] },
   { name: "page-publisher-delete", url: "/pages.html", note: "Delete asks for the typed name before anything is sent: the button waits for it", locator: "body",
     click: '[data-preview="publisher"] .agent-row:has-text("pat/csv-quality-check") button:text-is("Delete")',
-    expectText: ["Delete pat/csv-quality-check?", "the name stays held in pat for good", "Type csv-quality-check to confirm"],
+    expectText: ["Delete pat/csv-quality-check?", "Every version of pat/csv-quality-check is yanked", "no QuickAgent in pat can be called csv-quality-check again", "Type csv-quality-check to confirm"],
     expectDisabledButton: "Delete" },
   { name: "page-publisher-deleted", url: "/pages.html", note: "the name typed and Enter pressed: deleted, said so, and gone from the list", locator: '[data-preview="publisher"]',
     click: '[data-preview="publisher"] .agent-row:has-text("pat/csv-quality-check") button:text-is("Delete")',

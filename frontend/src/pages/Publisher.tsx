@@ -5,7 +5,7 @@ import {
   AgentRow, Button, EmptyState, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Toolbar, fmtDate,
 } from "../ui";
 import {
-  FORK_STAYS_PRIVATE, LIST_SORTS, SIGN_IN_AGAIN, countsLine, deleteNameMatches, forkOfLabel, listCounts, notAdminLine,
+  FORK_STAYS_PRIVATE, LIST_SORTS, SIGN_IN_AGAIN, countsLine, deleteNameMatches, deleteWords, forkOfLabel, listCounts, notAdminLine,
   rowActions, rowBadges, visibilityLabel, visibleIn,
   type ForksFilter, type ListSort, type StateFilter, type VisibilityFilter,
 } from "../publisher";
@@ -20,7 +20,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
   registry: string;
   onOpenAgent: (ns: string, name: string) => void;
   /** Edit opens the release in the Build tab (edit.ts). */
-  onEdit?: (ns: string, name: string) => void;
+  onEdit: (ns: string, name: string) => void;
   /** Settings' registry part, where a sign-in is made or made again. */
   onOpenSettings: () => void;
 }) {
@@ -161,18 +161,18 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
           keeps its width. */}
       <Toolbar>
         <Select value={visibility} onChange={(e) => setVisibility(e.target.value as VisibilityFilter)} title="Visibility" aria-label="Visibility">
-          <option value="">public and private</option>
+          <option value="">any visibility</option>
           <option value="public">public</option>
           <option value="private">private</option>
         </Select>
         <Select value={state} onChange={(e) => setState(e.target.value as StateFilter)} title="State" aria-label="State">
-          <option value="">active and retired</option>
+          <option value="">any state</option>
           <option value="active">active</option>
           <option value="retired">retired</option>
         </Select>
         <Select value={forks} onChange={(e) => setForks(e.target.value as ForksFilter)} title="Forks" aria-label="Forks">
-          <option value="">forks and not</option>
-          <option value="only">forks only</option>
+          <option value="">forks or not</option>
+          <option value="only">only forks</option>
           <option value="none">no forks</option>
         </Select>
         <Select value={sort} onChange={(e) => setSort(e.target.value as ListSort)} title="Sort" aria-label="Sort">
@@ -213,7 +213,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
                 meta={meta || undefined}
                 onClick={() => onOpenAgent(a.namespace, a.name)}
                 actions={<>
-                  {acts.edit && onEdit && <Button onClick={() => onEdit(a.namespace, a.name)} disabled={!!busy}>Edit</Button>}
+                  {acts.edit && <Button onClick={() => onEdit(a.namespace, a.name)} disabled={!!busy}>Edit</Button>}
                   {owner && acts.visibility && (
                     <Button
                       onClick={() => act(a, () => PublisherAPI.SetVisibility(registry, a.namespace, a.name, acts.visibility!))}
@@ -248,10 +248,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
 
       {deleting && (
         <Modal title={`Delete ${deleting.namespace}/${deleting.name}?`} onClose={() => setDeleting(null)}>
-          <p>
-            Every version is withdrawn, nobody can install or run it again, and the name stays held in {deleting.namespace} for good.
-            People who installed it keep their copy. This cannot be undone.
-          </p>
+          {deleteWords(deleting.namespace, deleting.name, !!deleting.lastSubmittedAt).map((p) => <p key={p}>{p}</p>)}
           <Field label={<>Type <span className="mono">{deleting.name}</span> to confirm</>} htmlFor="publisher-delete-name">
             <Input id="publisher-delete-name" autoFocus value={typed} onChange={(e) => setTyped(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && deleteNameMatches(typed, deleting.name) && confirmDelete()} />

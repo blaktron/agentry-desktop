@@ -17,7 +17,8 @@ import { Fragment } from "react";
 // spelled out here because App imports this file.
 export type NavPage = "home" | "run" | "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
 
-type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; signedIn?: boolean };
+// needsSignIn: shown only while the active registry holds a token.
+type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean };
 
 const ITEMS: Item[] = [
   // The page the app opens on (plan desktop-home-and-library.md D2).
@@ -32,7 +33,7 @@ const ITEMS: Item[] = [
   { label: "Voice", page: "voice" },
   { label: "Build", page: "build", sub: [{ label: "Validate", page: "validate" }] },
   // The QuickAgents the person publishes, with the owner actions.
-  { label: "Publisher", page: "publisher", signedIn: true },
+  { label: "Publisher", page: "publisher", needsSignIn: true },
   { label: "Settings", page: "settings" },
 ];
 
@@ -58,7 +59,7 @@ export function SidebarNav({ page, onNav, installedUpdates = 0, signedIn = false
   );
   return (
     <nav className="sidebar-nav" aria-label="Pages">
-      {ITEMS.filter((item) => !item.signedIn || signedIn).map((item) => {
+      {ITEMS.filter((item) => !item.needsSignIn || signedIn).map((item) => {
         // A parent whose sub-item is open stays lit in its colour without
         // the fill the open page carries (style.css .nav-item.parent).
         const subOpen = item.sub?.some((s) => s.page === page) ?? false;

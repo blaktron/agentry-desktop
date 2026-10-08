@@ -13,7 +13,9 @@ export interface PublisherRow {
   visibility: string;
   retiredAt?: string;
   quarantineState: string;
-  forkedFrom?: { namespace: string; name: string; version: string; available: boolean };
+  forkedFrom?: { namespace: string; name: string; version: string };
+  forkState?: string;
+  lastSubmittedAt?: string;
 }
 
 export type VisibilityFilter = "" | "public" | "private";
@@ -23,10 +25,10 @@ export type ListSort = "newest" | "installs" | "submitted" | "name";
 
 /** The sorts, as Browse offers them, read for a namespace. */
 export const LIST_SORTS: { id: ListSort; label: string }[] = [
-  { id: "newest", label: "Newest" },
-  { id: "installs", label: "Most installed (30 days)" },
-  { id: "submitted", label: "Last submission" },
-  { id: "name", label: "Name" },
+  { id: "newest", label: "newest" },
+  { id: "installs", label: "most installed (30 days)" },
+  { id: "submitted", label: "last submission" },
+  { id: "name", label: "name" },
 ];
 
 /** Visibility is not one of the core's filters: it is applied to the list
@@ -52,14 +54,18 @@ export function rowBadges(a: PublisherRow): RowBadge[] {
   return out;
 }
 
-/** "Fork of ns/name@version", the line a fork's row carries. */
+/** "Fork of ns/name@version", the line a fork's row carries, with its
+ * copy's state while it is not ready, as the site's row says it. */
 export function forkOfLabel(a: PublisherRow): string | null {
   const f = a.forkedFrom;
-  return f ? `Fork of ${f.namespace}/${f.name}@${f.version}` : null;
+  if (!f) return null;
+  const state = a.forkState === "copying" ? " · being copied" : a.forkState === "failed" ? " · the copy failed" : "";
+  return `Fork of ${f.namespace}/${f.name}@${f.version}${state}`;
 }
 
-/** Why a fork offers no Make public (D9), said where the button would be. */
-export const FORK_STAYS_PRIVATE = "A fork stays private for good, so it is never made public.";
+/** Why a fork offers no Make public (D9), in the site's words
+ * (lib/fork.ts). */
+export const FORK_STAYS_PRIVATE = "A fork stays private for good, so it cannot be made public.";
 
 /** The owner actions a row offers (D5). A retired QuickAgent offers Restore
  * in place of Make public and Retire, and no Edit, since it takes no new
@@ -111,6 +117,19 @@ export function notAdminLine(ns: string): string {
  * one made before the grant carried agent:manage (agentry#993). */
 export const SIGN_IN_AGAIN =
   "This sign-in was made before Agentry Desktop could retire, restore, delete or change who sees a QuickAgent. Sign out and sign in again under Settings to use those actions here.";
+
+/** What deleting does, said before the name is typed: the site's
+ * DeleteWords. A QuickAgent with no version is deleted outright and frees
+ * its name; one with versions leaves a tombstone and holds it (plan §4.1).
+ * The list knows which from its last submission, as the site's does. */
+export function deleteWords(ns: string, name: string, hasVersions: boolean): string[] {
+  const ref = `${ns}/${name}`;
+  if (!hasVersions) return [`${ref} has no version, so it is deleted outright with its repository, and the name is free to use again. This cannot be undone.`];
+  return [
+    `Every version of ${ref} is yanked, and it is gone for everyone, you included. Anyone who installed it keeps their copy, but can no longer update it.`,
+    `This cannot be undone, and the name stays held: no QuickAgent in ${ns} can be called ${name} again. To put it away and keep the choice, Retire it instead.`,
+  ];
+}
 
 /** Whether a Delete's typed name matches, as Go checks it again. */
 export function deleteNameMatches(typed: string, name: string): boolean {
