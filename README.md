@@ -139,6 +139,18 @@ The product never claims an agent is "safe". The language is always:
   directory under the system's temp directory, used when the runner home's
   path is too long for a socket; and files another user owns. The sweep
   takes the runner home to be this machine's alone (agentry-desktop#480).
+- **PDF reports** (agentry-desktop#730, D-072) — a run can turn its report
+  into a PDF with its `export_pdf` tool, laid out in the account's **report
+  theme**: Settings → Profile → **Report theme**, the same setting as the
+  site's (Plain, Formal, Brief, Technical, Letter, or Not chosen, which is
+  Plain here). A local run or chat reads it from the signed-in registry
+  when it starts; the QuickAgent never picks it. In the run's result, a PDF
+  that the run's envelope (`result.json`'s `pdfs` block) lists with the
+  SHA-256 of its bytes has **View**, which draws it in the app with a
+  bundled pdf.js (no script, form or link in the PDF is live), **Open in
+  system viewer**, which opens a fresh copy of the checked bytes, never the
+  file in the run folder, and **Save**. Any other PDF in the folder is
+  **Save** only, and says it is not one the run's PDF export made.
 - **Sessions** — a release that declares the `interactive` mode can run as a
   chat instead: **Start session** in the run panel opens it under the same
   controls as an autonomous run. Every message, and every file you add

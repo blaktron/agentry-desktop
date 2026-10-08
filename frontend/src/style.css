@@ -973,6 +973,13 @@ details.advanced[open] > summary { margin-bottom: 6px; }
   overflow-wrap: anywhere;
 }
 .run-file-body { max-height: 320px; overflow: auto; padding: 4px 10px; }
+/* A PDF's card opens tall enough to read a page in (agentry-desktop#730). */
+.run-file[data-pdf] .run-file-body { max-height: none; }
+.pdf-viewer { border-top: 1px solid var(--color-border); margin-top: 6px; padding-top: 6px; }
+.pdf-viewer-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pdf-viewer-zoom { display: inline-flex; align-items: center; gap: 6px; }
+.pdf-viewer-pages { max-height: 70vh; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: 10px; background: var(--color-surface); padding: 10px 0; }
+.pdf-page { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); background: #fff; max-width: none; }
 .run-details { margin-top: 10px; }
 
 /* The Build tab (plan builder-rework.md §5, agentry-desktop#280): its start
@@ -1193,3 +1200,8 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .voice-foot-item + .voice-foot-item { margin-top: 14px; }
 .voice-foot-item p { margin: 0; }
 .voice-pending h3 { font-size: 14px; margin: 12px 0 4px; }
+
+/* Settings → Profile's Report theme (agentry-desktop#730): one radio per
+   theme, each with its look beside its name. */
+.report-themes { border: 0; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 4px; }
+.report-themes label { align-items: baseline; gap: 8px; }

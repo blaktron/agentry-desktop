@@ -18,6 +18,7 @@
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
     "marked": "^17.0.6",
+    "pdfjs-dist": "6.3.289",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",

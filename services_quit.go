@@ -276,6 +276,7 @@ func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 // and any run of an app that died left (run.SweepAtQuit). Another app's
 // run that is live on this machine is never touched.
 func (r *RunAPI) shutdown() {
+	defer r.removePDFCopies()
 	var ids []string
 	if l := r.current(); l != nil {
 		if s := r.session; s != nil {

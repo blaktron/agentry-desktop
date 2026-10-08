@@ -3207,12 +3207,29 @@ export namespace main {
 	        this.state = source["state"];
 	    }
 	}
+	export class OutputPDFView {
+	    exported: boolean;
+	    pages?: number;
+	    theme?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OutputPDFView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.exported = source["exported"];
+	        this.pages = source["pages"];
+	        this.theme = source["theme"];
+	    }
+	}
 	export class OutputFileView {
 	    path: string;
 	    bytes: number;
 	    previewKind: string;
 	    preview?: string;
 	    noPreview?: string;
+	    pdf?: OutputPDFView;
 	
 	    static createFrom(source: any = {}) {
 	        return new OutputFileView(source);
@@ -3225,8 +3242,28 @@ export namespace main {
 	        this.previewKind = source["previewKind"];
 	        this.preview = source["preview"];
 	        this.noPreview = source["noPreview"];
+	        this.pdf = this.convertValues(source["pdf"], OutputPDFView);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class PendingOrgView {
 	    handle: string;
 	    displayName: string;
@@ -3918,6 +3955,20 @@ export namespace main {
 	        this.hasToken = source["hasToken"];
 	        this.tokenSource = source["tokenSource"];
 	        this.isDefault = source["isDefault"];
+	    }
+	}
+	export class ReportThemeView {
+	    available: boolean;
+	    theme: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportThemeView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.theme = source["theme"];
 	    }
 	}
 	export class ReportView {

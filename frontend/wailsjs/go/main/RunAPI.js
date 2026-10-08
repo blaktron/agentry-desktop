@@ -162,6 +162,10 @@ export function OpenHostedConnect(arg1, arg2) {
   return window['go']['main']['RunAPI']['OpenHostedConnect'](arg1, arg2);
 }
 
+export function OpenRunPDF(arg1, arg2) {
+  return window['go']['main']['RunAPI']['OpenRunPDF'](arg1, arg2);
+}
+
 export function PasteRedirect(arg1) {
   return window['go']['main']['RunAPI']['PasteRedirect'](arg1);
 }
@@ -214,12 +218,20 @@ export function RunOutputs(arg1) {
   return window['go']['main']['RunAPI']['RunOutputs'](arg1);
 }
 
+export function RunPDF(arg1, arg2) {
+  return window['go']['main']['RunAPI']['RunPDF'](arg1, arg2);
+}
+
 export function RunRequirements(arg1, arg2) {
   return window['go']['main']['RunAPI']['RunRequirements'](arg1, arg2);
 }
 
 export function SaveProfile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['RunAPI']['SaveProfile'](arg1, arg2, arg3, arg4);
+}
+
+export function SaveRunPDF(arg1, arg2) {
+  return window['go']['main']['RunAPI']['SaveRunPDF'](arg1, arg2);
 }
 
 export function SearchKeyStatus() {

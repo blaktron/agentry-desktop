@@ -62,6 +62,9 @@ type OutputFileView struct {
 	Preview     string `json:"preview,omitempty"`
 	// NoPreview is "large" or "binary" when PreviewKind is "none".
 	NoPreview string `json:"noPreview,omitempty"`
+	// PDF is set for a .pdf file: whether the run's PDF export made it
+	// (services_pdf.go).
+	PDF *OutputPDFView `json:"pdf,omitempty"`
 }
 
 // RunOutputsView is a run folder's outputs/ and reports/, outputs first.
@@ -115,7 +118,12 @@ func (r *RunAPI) RunOutputs(runID string) (*RunOutputsView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return listOutputs(dir)
+	view, err := listOutputs(dir)
+	if err != nil {
+		return nil, err
+	}
+	markPDFs(dir, view)
+	return view, nil
 }
 
 // ShowRunFolder shows the run's folder in the file manager.
