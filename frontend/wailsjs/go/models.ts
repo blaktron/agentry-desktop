@@ -3552,6 +3552,175 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class PublisherForkOrigin {
+	    namespace: string;
+	    name: string;
+	    version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublisherForkOrigin(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.namespace = source["namespace"];
+	        this.name = source["name"];
+	        this.version = source["version"];
+	    }
+	}
+	export class PublisherAgent {
+	    namespace: string;
+	    name: string;
+	    summary: string;
+	    visibility: string;
+	    retiredAt?: string;
+	    quarantineState: string;
+	    forkedFrom?: PublisherForkOrigin;
+	    forkState?: string;
+	    installs30d?: number;
+	    lastSubmittedAt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublisherAgent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.namespace = source["namespace"];
+	        this.name = source["name"];
+	        this.summary = source["summary"];
+	        this.visibility = source["visibility"];
+	        this.retiredAt = source["retiredAt"];
+	        this.quarantineState = source["quarantineState"];
+	        this.forkedFrom = this.convertValues(source["forkedFrom"], PublisherForkOrigin);
+	        this.forkState = source["forkState"];
+	        this.installs30d = source["installs30d"];
+	        this.lastSubmittedAt = source["lastSubmittedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PublisherDone {
+	    cancelled: boolean;
+	    sentence?: string;
+	    agent?: PublisherAgent;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublisherDone(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cancelled = source["cancelled"];
+	        this.sentence = source["sentence"];
+	        this.agent = this.convertValues(source["agent"], PublisherAgent);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class PublisherNamespace {
+	    handle: string;
+	    kind: string;
+	    admin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublisherNamespace(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.handle = source["handle"];
+	        this.kind = source["kind"];
+	        this.admin = source["admin"];
+	    }
+	}
+	export class PublisherQuery {
+	    q: string;
+	    state: string;
+	    forks: string;
+	    sort: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublisherQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.q = source["q"];
+	        this.state = source["state"];
+	        this.forks = source["forks"];
+	        this.sort = source["sort"];
+	    }
+	}
+	export class PublisherView {
+	    signedIn: boolean;
+	    namespaces: PublisherNamespace[];
+	    canManage: boolean;
+	    scopesKnown: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PublisherView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.signedIn = source["signedIn"];
+	        this.namespaces = this.convertValues(source["namespaces"], PublisherNamespace);
+	        this.canManage = source["canManage"];
+	        this.scopesKnown = source["scopesKnown"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class RecentRunView {
 	    id: string;
 	    kind: string;

@@ -10,6 +10,7 @@ import Browse from "./pages/Browse";
 import Home from "./pages/Home";
 import AgentPage from "./pages/AgentPage";
 import Library from "./pages/Library";
+import Publisher from "./pages/Publisher";
 import Knowledge, { type KnowledgePlace } from "./pages/Knowledge";
 import Voice from "./pages/Voice";
 import KnowledgeCreate from "./pages/KnowledgeCreate";
@@ -47,7 +48,7 @@ export type Route =
   // one; back: where the ← link returns to.
   // run: open the page with its run setup open (a pin's Run on Home,
   // agentry-desktop#660).
-  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home"; run?: boolean }
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher"; run?: boolean }
   // A run Recent runs lists, as a page (plan desktop-home-and-library.md
   // §4.7, D7; agentry-desktop#659): read by its id, from the history Go
   // keeps (local) or the registry (hosted).
@@ -56,12 +57,15 @@ export type Route =
   | { page: "voice" }
   | { page: "validate" }
   | { page: "build" }
+  // The QuickAgents the signed-in person publishes (plan
+  // forks-and-publisher.md D12; agentry-desktop#705).
+  | { page: "publisher" }
   // section: one of Settings' five section pages, or the landing's cards
   // when absent; part: the anchor within it (settings-cards.md D12).
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The agent page's way back, by where it was opened from.
-const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home" } as const;
+const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher" } as const;
 
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app
@@ -200,6 +204,8 @@ export default function App() {
     </div>
   );
   const unsafeShown = !!settings?.unsafeMode || unsafeLive;
+  // The active registry holds a token: the sidebar shows Publisher.
+  const signedIn = !!settings?.registries.some((r) => r.url === registry && r.hasToken);
 
   return (
     <CornerHost.Provider value={corner}>
@@ -208,7 +214,7 @@ export default function App() {
           <div className="brand">
             <Wordmark sub="Desktop" />
           </div>
-          <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} />
+          <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} signedIn={signedIn} />
           <div className="foot">
             {/* Unsafe Mode in words, beside the red edge below (D-050). */}
             {unsafeShown && (
@@ -313,6 +319,18 @@ export default function App() {
                 registry={registry}
                 onBrowse={(q) => nav({ page: "browse", q })}
                 onOpenAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "library" })}
+              />
+            )}
+            {route.page === "publisher" && (
+              <Publisher
+                registry={registry}
+                onOpenAgent={(ns, name) => nav({ page: "agent", ns, name, back: "publisher" })}
+                onEdit={(ns, name) => {
+                  requestEdit({ registry, namespace: ns, name });
+                  setOpenEditRev((n) => n + 1);
+                  nav({ page: "build" });
+                }}
+                onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.publisherSignIn })}
               />
             )}
             {route.page === "voice" && (

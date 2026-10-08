@@ -82,8 +82,9 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 // authorize page's URL. Browse and install, Build → publish and identity
 // are what the registry has always minted for a desktop sign-in; a run In
 // Agentry adds run:read and run:write (plan hosted-runs.md §6, agentry
-// #348), Knowledge knowledge:read and knowledge:write, and the Writing
-// Voice voice:read and voice:write. The registry
+// #348), Knowledge knowledge:read and knowledge:write, the Writing
+// Voice voice:read and voice:write, and the Publisher section
+// agent:manage. The registry
 // decides what it grants — the scope set of a desktop
 // grant is fixed server-side so no caller can widen it — so this names
 // what the app asks for, and HostedAvailability reads back what the token
@@ -100,6 +101,10 @@ var requestedScopes = []string{
 	// Writer In Agentry (plan writing-voice.md V6); the core's sign-in
 	// grant has carried both since agentry#809 (DEV-191).
 	hostedrun.ScopeVoiceRead, hostedrun.ScopeVoiceWrite,
+	// The Publisher section's owner actions: make a QuickAgent public or
+	// private, retire, restore and delete it (plan forks-and-publisher.md
+	// M6); the core's sign-in grant carries it since agentry#993 (DEV-225).
+	"agent:manage",
 }
 
 // authorizeURL is the flow's authorize page plus the scopes the app asks

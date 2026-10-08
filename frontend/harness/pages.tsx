@@ -463,7 +463,72 @@ function harnessUnpin(ref: string, registry: string) {
   return homeView();
 }
 
+// The Publisher section (agentry-desktop#705): pat's namespace and two
+// organizations, one pat administers (acme) and one pat is a member of
+// (crew). #publisher-old-signin is a sign-in from before agentry#993, whose
+// token carries no agent:manage; #publisher-signed-out has none at all.
+const publisherHash = window.location.hash;
+const publisherRows: Record<string, any[]> = {
+  pat: [
+    { namespace: "pat", name: "incident-digest", summary: "Turns an incident channel into a timeline and a list of follow-ups.", visibility: "public", quarantineState: "none", installs30d: 12, lastSubmittedAt: "2026-10-06T09:00:00Z", createdAt: "2026-09-12T09:00:00Z", forkCount: 2 },
+    { namespace: "pat", name: "csv-quality-check", summary: "Checks a CSV for missing values, duplicate rows and mixed formats.", visibility: "private", quarantineState: "none", lastSubmittedAt: "2026-10-01T09:00:00Z", createdAt: "2026-09-30T09:00:00Z" },
+    { namespace: "pat", name: "old-triage", summary: "The first triage helper, kept for its history.", visibility: "private", retiredAt: "2026-10-02T10:00:00Z", quarantineState: "none", createdAt: "2026-08-02T09:00:00Z" },
+    { namespace: "pat", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", visibility: "private", quarantineState: "none", forkedFrom: { namespace: "demo1", name: "incident-summarizer", version: "1.0.0", available: true }, forkState: "ready", createdAt: "2026-10-06T09:00:00Z" },
+  ],
+  acme: [
+    { namespace: "acme", name: "pr-triage", summary: "Reads an open PR and drafts a triage note under a strict egress allowlist.", visibility: "public", quarantineState: "quarantined", installs30d: 7, createdAt: "2026-08-30T09:00:00Z" },
+  ],
+  crew: [
+    { namespace: "crew", name: "standup-notes", summary: "Collects the team's standup into one note.", visibility: "private", quarantineState: "none", createdAt: "2026-09-20T09:00:00Z" },
+  ],
+};
+function publisherList(ns: string, q: any) {
+  let rows = publisherRows[ns] ?? [];
+  const term = String(q?.q ?? "").trim().toLowerCase();
+  if (term) rows = rows.filter((r) => `${r.name} ${r.summary}`.toLowerCase().includes(term));
+  if (q?.state === "retired") rows = rows.filter((r) => r.retiredAt);
+  if (q?.state === "active") rows = rows.filter((r) => !r.retiredAt);
+  if (q?.forks === "only") rows = rows.filter((r) => r.forkedFrom);
+  if (q?.forks === "none") rows = rows.filter((r) => !r.forkedFrom);
+  return rows.map((r) => ({ ...r }));
+}
+function publisherChange(ns: string, name: string, change: (r: any) => void) {
+  const r = (publisherRows[ns] ?? []).find((x) => x.name === name);
+  if (!r) throw new Error(`Nothing changed: ${ns}/${name} is not there any more. It may have been deleted.`);
+  change(r);
+  return { ...r };
+}
+
 g.go = { main: {
+  PublisherAPI: {
+    Overview: async () => publisherHash === "#publisher-signed-out"
+      ? { signedIn: false, namespaces: [], canManage: false, scopesKnown: false }
+      : {
+        signedIn: true, handle: "pat", scopesKnown: true, canManage: publisherHash !== "#publisher-old-signin",
+        // #publisher-crew lists crew first, so the section opens on it.
+        namespaces: publisherHash === "#publisher-crew"
+          ? [{ handle: "crew", kind: "org", admin: false }, { handle: "pat", kind: "user", admin: true }]
+          : [{ handle: "pat", kind: "user", admin: true }, { handle: "acme", kind: "org", admin: true }, { handle: "crew", kind: "org", admin: false }],
+      },
+    List: async (_reg: string, ns: string, q: any) => publisherList(ns, q),
+    SetVisibility: async (_reg: string, ns: string, name: string, vis: string) => {
+      const agent = publisherChange(ns, name, (r) => { r.visibility = vis; });
+      return { cancelled: false, sentence: vis === "private" ? `${ns}/${name} is private now. It left Browse and search, and only its readers can open it.` : `${ns}/${name} is public now: anyone can find it in Browse and install it.`, agent };
+    },
+    Retire: async (_reg: string, ns: string, name: string) => {
+      const agent = publisherChange(ns, name, (r) => { r.retiredAt = "2026-10-08T12:00:00Z"; r.visibility = "private"; });
+      return { cancelled: false, sentence: `${ns}/${name} is retired. It is private, takes no new versions, and Restore brings it back as it was.`, agent };
+    },
+    Restore: async (_reg: string, ns: string, name: string) => {
+      const agent = publisherChange(ns, name, (r) => { delete r.retiredAt; });
+      return { cancelled: false, sentence: `${ns}/${name} is restored, with the visibility it had when it was retired.`, agent };
+    },
+    Delete: async (_reg: string, ns: string, name: string, typed: string) => {
+      if (typed.trim() !== name) throw new Error(`Nothing changed: to delete ${ns}/${name}, type its name, ${name}, exactly.`);
+      publisherRows[ns] = (publisherRows[ns] ?? []).filter((r) => r.name !== name);
+      return { cancelled: false, sentence: `${ns}/${name} is deleted.` };
+    },
+  },
   HomeAPI: {
     Layout: async () => {
       if (homeHash === "#home-broken") throw new Error("parse ~/.config/agentry/desktop.yaml: yaml: line 4: did not find expected key");
@@ -817,6 +882,7 @@ import Build from "../src/pages/Build";
 import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
+import Publisher from "../src/pages/Publisher";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
 
 const settingsView = {
@@ -896,12 +962,12 @@ const profileView = () => {
     hostedRuns: caps,
   };
 };
-function Shell({ active, children }: { active: NavPage; children: React.ReactNode }) {
+function Shell({ active, children, signedIn }: { active: NavPage; children: React.ReactNode; signedIn?: boolean }) {
   return (
     <div className="shell" style={{ height: "auto", minHeight: "100vh" }}>
       <div className="sidebar">
         <div className="brand"><Wordmark sub="Desktop" /></div>
-        <SidebarNav page={active} installedUpdates={installedUpdates} />
+        <SidebarNav page={active} installedUpdates={installedUpdates} signedIn={signedIn} />
         <div className="foot">{(unsafeOn || unsafeRunning) && <UnsafeBadge running={unsafeRunning} />}<div>v0.1.0</div><div className="nowrap">secureagentry.net</div></div>
       </div>
       <div className="content">{children}</div>
@@ -971,6 +1037,12 @@ const render = () => createRoot(document.getElementById("root")!).render(
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
     <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>
+    {/* The Publisher section (agentry-desktop#705): what an action and a row
+        open are marked on the body (data-open) for a shot to see. */}
+    <div data-preview="publisher"><Shell active="publisher" signedIn={publisherHash !== "#publisher-signed-out"}><Publisher registry={REG}
+      onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }}
+      onEdit={(ns, name) => { document.body.dataset.open = `edit:${ns}/${name}`; }}
+      onOpenSettings={() => { document.body.dataset.open = "settings"; }} /></Shell></div>
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a
