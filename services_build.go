@@ -209,15 +209,17 @@ var errBuildBusy = errors.New("a submit or an install is already in progress")
 
 // submitConsentText is Submit's warning: what it spends, and whether it
 // is public. A new or public QuickAgent is published public; one that
-// exists private stays private, since a desktop sign-in cannot change a
-// QuickAgent's visibility (the operator's decision of 2026-09-30).
+// exists private stays private (the operator's decision of 2026-09-30):
+// making it public is a step of its own, Make public in the Publisher
+// section, for its namespace's administrators, and never a fork's
+// (agentry-desktop#705, #706).
 func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error) string {
 	sends := "This sends " + ref + " to " + origin + ", where the security pipeline scans it"
 	lines := []string{sends + ", and makes it public: anyone can find and install it once the pipeline publishes it."}
 	if private {
 		lines = []string{
 			sends + ".",
-			"It exists there as a private QuickAgent, and this version stays private with it: making it public is its namespace administrators' act, which a desktop sign-in does not carry.",
+			"It exists there as a private QuickAgent, and this version stays private with it. Making it public is a step of its own: Make public in the Publisher section, for its namespace's administrators, and never for a fork.",
 		}
 	}
 	switch {

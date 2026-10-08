@@ -1320,8 +1320,8 @@ function PublishOutcome({ pub, m, registry, onError }: { pub: build.PublishResul
       {pub.visibilityNote && <Notice tone="warn">{pub.visibilityNote}</Notice>}
       {pub.settingsUrl && (
         // A private QuickAgent is made public on its settings page on the
-        // site, where the person is signed in with the authority a desktop
-        // sign-in does not carry (agentry-desktop#425).
+        // site (agentry-desktop#425), or since agentry-desktop#705 by Make
+        // public in the Publisher section, which the note names.
         <p className="small"><Button onClick={() => OpenExternal(pub.settingsUrl!).catch((e) => onError(String(e)))}>Its settings on the site</Button></p>
       )}
       {pub.status === "refused" && pub.account && (
