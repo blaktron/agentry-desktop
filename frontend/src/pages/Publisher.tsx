@@ -34,7 +34,8 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
   const [state, setState] = useState<StateFilter>("");
   const [forks, setForks] = useState<ForksFilter>("");
   const [sort, setSort] = useState<ListSort>("newest");
-  // The row whose action is in flight, so its buttons show it.
+  // The action in flight, "ns/name:which", so its own button shows it and
+  // every other action waits.
   const [busy, setBusy] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<main.PublisherAgent | null>(null);
   const [typed, setTyped] = useState("");
@@ -70,9 +71,8 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, ns, state, forks, sort]);
 
-  async function act(row: main.PublisherAgent, run: () => Promise<main.PublisherDone>) {
-    const key = `${row.namespace}/${row.name}`;
-    setBusy(key);
+  async function act(row: main.PublisherAgent, which: "visibility" | "retire" | "delete", run: () => Promise<main.PublisherDone>) {
+    setBusy(`${row.namespace}/${row.name}:${which}`);
     setError(null);
     setNotice(null);
     try {
@@ -91,7 +91,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
     const row = deleting;
     if (!row) return;
     setDeleting(null);
-    await act(row, () => PublisherAPI.Delete(registry, row.namespace, row.name, typed));
+    await act(row, "delete", () => PublisherAPI.Delete(registry, row.namespace, row.name, typed));
     setTyped("");
   }
 
@@ -203,7 +203,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
               a.lastSubmittedAt ? `last submitted ${fmtDate(a.lastSubmittedAt)}` : null,
               a.retiredAt ? `retired ${fmtDate(a.retiredAt)}` : null,
             ].filter(Boolean).join(" · ");
-            const inFlight = busy === ref;
+            const inFlight = (which: string) => busy === `${ref}:${which}`;
             return (
               <AgentRow
                 key={ref}
@@ -216,8 +216,8 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
                   {acts.edit && <Button onClick={() => onEdit(a.namespace, a.name)} disabled={!!busy}>Edit</Button>}
                   {owner && acts.visibility && (
                     <Button
-                      onClick={() => act(a, () => PublisherAPI.SetVisibility(registry, a.namespace, a.name, acts.visibility!))}
-                      disabled={!!busy} busy={inFlight} busyLabel="Asking…"
+                      onClick={() => act(a, "visibility", () => PublisherAPI.SetVisibility(registry, a.namespace, a.name, acts.visibility!))}
+                      disabled={!!busy} busy={inFlight("visibility")} busyLabel="Asking…"
                     >
                       {visibilityLabel(acts.visibility)}
                     </Button>
@@ -227,15 +227,15 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
                   )}
                   {owner && (
                     <Button
-                      onClick={() => act(a, () => acts.retire === "retire"
+                      onClick={() => act(a, "retire", () => acts.retire === "retire"
                         ? PublisherAPI.Retire(registry, a.namespace, a.name)
                         : PublisherAPI.Restore(registry, a.namespace, a.name))}
-                      disabled={!!busy}
+                      disabled={!!busy} busy={inFlight("retire")} busyLabel="Asking…"
                     >
                       {acts.retire === "retire" ? "Retire" : "Restore"}
                     </Button>
                   )}
-                  {owner && <Button variant="danger" onClick={() => { setTyped(""); setDeleting(a); }} disabled={!!busy}>Delete</Button>}
+                  {owner && <Button variant="danger" onClick={() => { setTyped(""); setDeleting(a); }} disabled={!!busy} busy={inFlight("delete")} busyLabel="Asking…">Delete</Button>}
                 </>}
               />
             );
