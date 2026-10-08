@@ -46,6 +46,57 @@ func refuseUntil(f *hostedFake, n int) {
 	}
 }
 
+// fastConnect paces a wait for the test: every 10ms, for wait (0: as long
+// as the app waits).
+func fastConnect(t *testing.T, wait time.Duration) {
+	t.Helper()
+	oldPoll, oldWait := connectPoll, connectWait
+	connectPoll = 10 * time.Millisecond
+	if wait > 0 {
+		connectWait = wait
+	}
+	t.Cleanup(func() { connectPoll, connectWait = oldPoll, oldWait })
+}
+
+// What a start answers the panel has no field a token could travel in: the
+// vault returns none, and the app has nowhere to put one.
+func TestAStartsViewHasNoPlaceForAToken(t *testing.T) {
+	for _, typ := range []reflect.Type{reflect.TypeOf(HostedStartView{}), reflect.TypeOf(HostedRunView{})} {
+		for i := range typ.NumField() {
+			name := strings.ToLower(typ.Field(i).Name + " " + typ.Field(i).Tag.Get("json"))
+			if strings.Contains(name, "token") {
+				t.Errorf("%s.%s", typ.Name(), typ.Field(i).Name)
+			}
+		}
+	}
+}
+
+// The secrets this app set for a start, unkept, stay with it while it waits
+// for its connections, and go when it is discarded.
+func TestAHeldStartKeepsItsSecretsUntilDiscarded(t *testing.T) {
+	f := &hostedFake{enabled: true}
+	f.refuse = connectionMissing
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	if err := r.SetHostedSecret(reg, "LINEAR_TEAM", "eng", false); err != nil {
+		t.Fatal(err)
+	}
+	startWithInput(t, r, reg)
+	f.mu.Lock()
+	deleted := append([]string(nil), f.vaultDeletes...)
+	f.mu.Unlock()
+	if len(deleted) != 0 {
+		t.Fatalf("a start held for its connections deleted %v", deleted)
+	}
+	r.DiscardHostedConnect()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if strings.Join(f.vaultDeletes, ",") != "LINEAR_TEAM" {
+		t.Fatalf("discarded, deleted %v", f.vaultDeletes)
+	}
+}
+
 // startWithInput makes a start of acme/linear@0.1.0 with one input file.
 func startWithInput(t *testing.T, r *RunAPI, reg string) *HostedStartView {
 	t.Helper()
@@ -70,7 +121,7 @@ func TestAStartWaitsForItsConnectionsAndRunsOnceTheyAreMade(t *testing.T) {
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
 	fastPoll(t)
-	r.connectPoll = 10 * time.Millisecond
+	fastConnect(t, 0)
 
 	start := startWithInput(t, r, reg)
 	if start.Refusal != hostedrun.SlugConnectionMissing || strings.Join(start.Missing, ",") != linearServer || start.Run != nil {
@@ -97,11 +148,6 @@ func TestAStartWaitsForItsConnectionsAndRunsOnceTheyAreMade(t *testing.T) {
 			t.Fatalf("a create while waiting differs from the start's:\n%s\n%s", c, creates[0])
 		}
 	}
-	// What the panel received names no token: there is none to name.
-	b, _ := json.Marshal([]*HostedStartView{start, got})
-	if strings.Contains(strings.ToLower(string(b)), "token") {
-		t.Fatalf("a view carries a token field: %s", b)
-	}
 	// The start is spent: there is nothing left to wait for.
 	if _, err := r.AwaitHostedConnections(reg, "acme/linear@0.1.0"); err == nil {
 		t.Fatal("a second wait found the spent start")
@@ -124,7 +170,7 @@ func TestAnotherRefusalEndsTheWaitAndForgetsTheStart(t *testing.T) {
 	reg := f.start(t)
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
-	r.connectPoll = 10 * time.Millisecond
+	fastConnect(t, 0)
 
 	startWithInput(t, r, reg)
 	got, err := r.AwaitHostedConnections(reg, "acme/linear@0.1.0")
@@ -143,7 +189,7 @@ func TestStopKeepsTheStartForTheNextWait(t *testing.T) {
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
 	fastPoll(t)
-	r.connectPoll = 10 * time.Millisecond
+	fastConnect(t, 0)
 
 	startWithInput(t, r, reg)
 	done := make(chan *HostedStartView, 1)
@@ -189,7 +235,7 @@ func TestADiscardedWaitAnswersNothing(t *testing.T) {
 	reg := f.start(t)
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
-	r.connectPoll = 10 * time.Millisecond
+	fastConnect(t, 0)
 
 	startWithInput(t, r, reg)
 	done := make(chan *HostedStartView, 1)
@@ -215,7 +261,7 @@ func TestAWaitThatRunsOutSaysSoAndKeepsTheStart(t *testing.T) {
 	reg := f.start(t)
 	signIn(t, reg)
 	r, _ := newRunAPI(t)
-	r.connectPoll, r.connectWait = 10*time.Millisecond, 40*time.Millisecond
+	fastConnect(t, 40*time.Millisecond)
 
 	startWithInput(t, r, reg)
 	got, err := r.AwaitHostedConnections(reg, "acme/linear@0.1.0")
@@ -254,7 +300,7 @@ func TestANewStartReplacesTheOneWaiting(t *testing.T) {
 func TestOpenHostedConnectOpensTheSitesConnectToolsForTheVersion(t *testing.T) {
 	r, _ := newRunAPI(t)
 	var opened []string
-	r.openPage = func(u string) error { opened = append(opened, u); return nil }
+	r.openBrowser = func(u string) error { opened = append(opened, u); return nil }
 	if err := r.OpenHostedConnect("https://dev.secureagentry.net/", "acme/linear@0.1.0"); err != nil {
 		t.Fatal(err)
 	}

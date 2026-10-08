@@ -398,6 +398,11 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 			r.forgetHeld(reg)
 			return
 		}
+		// A start held for its connections keeps them for its next create
+		// (AwaitHostedConnections, DiscardHostedConnect).
+		if err == nil && view != nil && view.Refusal == hostedrun.SlugConnectionMissing {
+			return
+		}
 		r.DiscardHostedSecrets(reg)
 	}()
 	token := settings.TokenFor(reg)

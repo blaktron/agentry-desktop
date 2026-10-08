@@ -24,8 +24,8 @@ func TestConnectionMissingNamesTheServers(t *testing.T) {
 	if ref == nil || ref.Slug != SlugConnectionMissing || ref.Status != http.StatusConflict {
 		t.Fatalf("refusal = %+v (%v)", ref, err)
 	}
-	if strings.Join(ref.Missing, ",") != linear || strings.Join(ref.Connections, ",") != linear+",npm:@acme/mcp" {
-		t.Fatalf("missing %v, connections %v", ref.Missing, ref.Connections)
+	if strings.Join(ref.Missing, ",") != linear {
+		t.Fatalf("missing %v", ref.Missing)
 	}
 }
 
@@ -49,6 +49,8 @@ func TestConnectPageNeedsAnExactVersionAndARegistry(t *testing.T) {
 		{"https://registry.example", "acme/linear"},
 		{"https://registry.example", "acme/linear@^1.0"},
 		{"https://registry.example", "acme/linear@beta"},
+		{"https://registry.example", "acme/linear@1"},
+		{"https://registry.example", "acme/linear@1.x"},
 		{"https://registry.example", "not a ref"},
 		{"file:///etc", "acme/linear@1.0.0"},
 		{"javascript:alert(1)", "acme/linear@1.0.0"},

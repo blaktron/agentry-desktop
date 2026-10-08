@@ -324,9 +324,7 @@ export default function RunPanel({
   const followed = useHostedRun();
   const followedChat = useChat().chat;
   const chatLive = !!followedChat && !followedChat.over;
-  // This panel's own wait for Agentry's connections is a start too, but not
-  // another run under way: its ask says where it stands.
-  const followedMoving = (followed.starting && !awaiting) || (!!followed.run && !followed.run.final) || (chatLive && followedChat.kind === "hosted");
+  const followedMoving = followed.starting || (!!followed.run && !followed.run.final) || (chatLive && followedChat.kind === "hosted");
   // What still stands between this form and a run, each in a sentence the
   // line above the button shows (agentry-desktop#167): the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
@@ -579,7 +577,7 @@ export default function RunPanel({
   // registry has created it (agentry-desktop#467), a run likewise
   // (agentry-desktop#466), and this setup closes; a refusal stays here, with
   // its ask before any run exists.
-  async function startedInAgentry(call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView | null> {
+  async function startedInAgentry(call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> {
     const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
     if (sessionInAgentry) {
       const started = await call();
@@ -598,12 +596,25 @@ export default function RunPanel({
 
   // The wait for Agentry's connections: the refused start is made again
   // every few seconds until the run is created, refused for another reason
-  // (a secret to give, the credits), stopped, or out of time.
+  // (a secret to give, the credits), stopped, or out of time. It runs
+  // outside the run store, whose start is a moment, not a quarter of an
+  // hour; the run it makes is followed as any start's is.
   async function awaitConnections() {
     setAwaiting(true);
     setRunErr(null);
     try {
-      await startedInAgentry(() => RunAPI.AwaitHostedConnections(registry, agentRef));
+      const started = await RunAPI.AwaitHostedConnections(registry, agentRef);
+      if (started.refusal) setHostedRefusal(started);
+      else if (started.run) {
+        setHostedRefusal(null);
+        const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
+        if (started.run.mode === "interactive") {
+          followHostedChat(setup, started.run, hosted?.session ?? null, profile?.opening ?? "", task);
+        } else {
+          await startHostedRun(setup, async () => started);
+        }
+        onClose();
+      }
     } catch (e) {
       setHostedRefusal(null);
       setRunErr(String(e));
@@ -612,18 +623,19 @@ export default function RunPanel({
     }
   }
 
-  // A start held for its connections goes with the panel, and a wait stops
-  // when the run leaves In Agentry.
+  // A start held for its connections goes with the panel, and with a change
+  // of where or how it runs: the held create is the first start's.
   // Through a promise, so a binding an older harness entry lacks is a call
   // that did not answer, not a throw.
   const quietly = (call: () => Promise<void>) => void Promise.resolve().then(call).catch(() => undefined);
-  useEffect(() => () => {
-    quietly(RunAPI.StopAwaitingConnections);
-    quietly(RunAPI.DiscardHostedConnect);
-  }, []);
+  useEffect(() => () => quietly(RunAPI.DiscardHostedConnect), []);
+  const heldMode = useRef(mode);
   useEffect(() => {
-    if (!inAgentry) quietly(RunAPI.StopAwaitingConnections);
-  }, [inAgentry]);
+    if (heldMode.current === mode) return;
+    heldMode.current = mode;
+    quietly(RunAPI.DiscardHostedConnect);
+    setHostedRefusal((r) => (r?.refusal === "connection-missing" ? null : r));
+  }, [mode]);
 
   // Upload a pack kept here so a run In Agentry can attach it (the
   // Knowledge panel's own Upload): Agentry scans it first, so it can be
@@ -1196,11 +1208,13 @@ export default function RunPanel({
                     <dd><span className="muted small">{hosted.knowledgeNote}</span></dd>
                   </>
                 )}
-                {signIns.length > 0 && !inAgentry && (
+                {signIns.length > 0 && (
                   <>
                     <dt>Sign-ins</dt>
                     <dd>
-                      <span>{signInRecap(signIns)}</span>
+                      {/* In Agentry, Agentry's own connections, which this
+                          app cannot read: Run asks for any it lacks. */}
+                      <span>{inAgentry ? "Agentry's connections for this version; Run asks for any it lacks" : signInRecap(signIns)}</span>
                       <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))} aria-label="Edit sign-ins">Edit</Button>
                     </dd>
                   </>

@@ -24,9 +24,10 @@ import (
 // them for this version: Missing names each server still to connect.
 const SlugConnectionMissing = "connection-missing"
 
-// pinnedVersion is a version the site's setup address may pin
-// (agentry-web#1329's setupVersion): an exact version, not a range.
-var pinnedVersion = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$`)
+// pinnedVersion is an exact version, major.minor.patch with any
+// pre-release and build: never a range such as "1" or "1.x", which the site's
+// setup would not find among the published versions (agentry-web#1329).
+var pinnedVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
 
 // ConnectPage is the site's run setup for ref, open on Connect tools and
 // pinned to ref's exact version, on the registry's own origin: the site and

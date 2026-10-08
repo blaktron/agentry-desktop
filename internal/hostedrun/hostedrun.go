@@ -583,10 +583,6 @@ type Refusal struct {
 	// ones the start asks for (agentry-desktop#300); for a 409
 	// connection-missing, the servers still to connect (agentry-desktop#667).
 	Missing []string
-	// Connections are the servers a connection refusal says the release
-	// signs in to (connection-missing, connections-unsupported): keys, an
-	// address or a package's source, never a token.
-	Connections []string
 }
 
 // Sentence is the refusal as one line of prose, with no JSON in it.
@@ -620,7 +616,6 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 		ResetsAt string   `json:"resetsAt"`
 		Tier     string   `json:"tier"`
 		Missing  []string `json:"missing"`
-		Conns    []string `json:"connections"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
 		r.Detail = strings.TrimSpace(string(body))
@@ -633,7 +628,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 	if i := strings.LastIndex(r.Slug, "/"); i >= 0 {
 		r.Slug = r.Slug[i+1:]
 	}
-	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing, r.Connections = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing, p.Conns
+	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing
 	if p.Balance != nil {
 		r.Balance, r.Known = *p.Balance, true
 	}

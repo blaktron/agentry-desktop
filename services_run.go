@@ -89,14 +89,9 @@ type RunAPI struct {
 	// awaiting is a start In Agentry refused 409 connection-missing, kept
 	// so it can be made again once the vault holds the connection, with the
 	// inputs it already uploaded (services_hostedrun_connect.go,
-	// agentry-desktop#667). connectPoll and connectWait pace that; zero is
-	// the app's own pace, and a test passes its own. openPage opens the
-	// site's Connect tools; nil is the system browser.
-	awaitMu     sync.Mutex
-	awaiting    *awaitingStart
-	connectPoll time.Duration
-	connectWait time.Duration
-	openPage    func(string) error
+	// agentry-desktop#667).
+	awaitMu  sync.Mutex
+	awaiting *awaitingStart
 
 	// holder is what holds mu, for the busy refusal and InFlight
 	// (services_runflow.go, agentry-desktop#465), under its own lock.

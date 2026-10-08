@@ -22,22 +22,28 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The app's pace while it waits. A consent address lapses after ten
-// minutes (DEV-222), so the wait outlasts one, with time to sign in first.
-const (
-	connectPollDefault = 3 * time.Second
-	connectWaitDefault = 15 * time.Minute
+// connectPoll is how often a start waiting for its connections is made
+// again, and connectWait how long it waits: a consent address lapses after
+// ten minutes (DEV-222), so the wait outlasts one, with time to sign in to
+// the site first. Tests shorten both.
+var (
+	connectPoll = 3 * time.Second
+	connectWait = 15 * time.Minute
 )
 
 // awaitingStart is a start refused connection-missing: the create as it
-// was made, its inputs already uploaded, and where its outputs go.
+// was made, its inputs already uploaded and any secrets it set held for it,
+// and where its outputs go.
 type awaitingStart struct {
 	registry string
 	ref      string
 	req      hostedrun.CreateRequest
 	outDir   string
-	// stop ends a wait under way; nil while none is.
-	stop chan struct{}
+	// stop is open while a wait on this start runs, and closed to end it;
+	// the wait itself clears it as it returns, so a second wait cannot
+	// begin while the first is still inside a create.
+	stop    chan struct{}
+	stopped bool
 }
 
 func (r *RunAPI) holdAwaiting(a *awaitingStart) {
@@ -48,22 +54,31 @@ func (r *RunAPI) holdAwaiting(a *awaitingStart) {
 }
 
 // dropAwaiting forgets the start held for its connections: a, or whatever
-// is held when a is nil. A wait under way on it stops.
-func (r *RunAPI) dropAwaiting(a *awaitingStart) {
+// is held when a is nil. A wait under way on it stops. It returns what it
+// dropped.
+func (r *RunAPI) dropAwaiting(a *awaitingStart) *awaitingStart {
 	r.awaitMu.Lock()
 	defer r.awaitMu.Unlock()
 	if a != nil && r.awaiting != a {
-		return
+		return nil
 	}
+	held := r.awaiting
 	r.stopLocked()
 	r.awaiting = nil
+	return held
 }
 
 func (r *RunAPI) stopLocked() {
-	if r.awaiting != nil && r.awaiting.stop != nil {
-		close(r.awaiting.stop)
-		r.awaiting.stop = nil
+	if a := r.awaiting; a != nil && a.stop != nil && !a.stopped {
+		close(a.stop)
+		a.stopped = true
 	}
+}
+
+func (r *RunAPI) holds(a *awaitingStart) bool {
+	r.awaitMu.Lock()
+	defer r.awaitMu.Unlock()
+	return r.awaiting == a
 }
 
 // OpenHostedConnect opens, in the system browser, the site's Connect tools
@@ -80,10 +95,7 @@ func (r *RunAPI) OpenHostedConnect(reg, ref string) error {
 	if err != nil {
 		return err
 	}
-	if r.openPage != nil {
-		return r.openPage(page)
-	}
-	return r.app.OpenExternal(page)
+	return r.openURL(page)
 }
 
 // AwaitHostedConnections makes again the start that was refused 409
@@ -93,13 +105,17 @@ func (r *RunAPI) OpenHostedConnect(reg, ref string) error {
 // it answers as a start does. A wait that runs out, or that
 // StopAwaitingConnections ends, answers connection-missing again and keeps
 // the start, so the next wait makes the same create with the same inputs.
+// A start discarded or replaced while it waits answers nothing.
 //
 // The create is never cut off mid-request: an answer that never came back
 // may have created the run, so a create that fails without the registry's
 // refusal ends the wait with that error and forgets the start, as a start
 // does; the app's attach finds a run that was created.
 func (r *RunAPI) AwaitHostedConnections(reg, ref string) (*HostedStartView, error) {
-	reg = settings.Normalize(reg)
+	reg, token, err := storedCredential(reg)
+	if err != nil {
+		return nil, err
+	}
 	r.awaitMu.Lock()
 	a := r.awaiting
 	if a == nil || a.registry != reg || a.ref != ref {
@@ -111,56 +127,46 @@ func (r *RunAPI) AwaitHostedConnections(reg, ref string) (*HostedStartView, erro
 		return nil, errors.New("this start is already waiting for its connections")
 	}
 	stop := make(chan struct{})
-	a.stop = stop
+	a.stop, a.stopped = stop, false
 	r.awaitMu.Unlock()
 	defer func() {
 		r.awaitMu.Lock()
-		if a.stop == stop {
-			a.stop = nil
-		}
+		a.stop = nil
 		r.awaitMu.Unlock()
 	}()
 
-	token := settings.TokenFor(reg)
-	if token == "" {
-		return nil, fmt.Errorf("sign in to %s to run In Agentry", reg)
-	}
-	if err := r.hostedIdle(); err != nil {
-		return nil, err
-	}
-	poll, wait := r.connectPoll, r.connectWait
-	if poll <= 0 {
-		poll = connectPollDefault
-	}
-	if wait <= 0 {
-		wait = connectWaitDefault
-	}
 	client := hostedrun.New(reg, token)
-	deadline := time.Now().Add(wait)
+	deadline := time.Now().Add(connectWait)
 	for {
+		if err := r.hostedIdle(); err != nil {
+			return nil, err
+		}
 		created, err := client.Create(r.ctx(), a.req)
 		if err == nil {
 			r.dropAwaiting(a)
+			r.forgetHeld(reg)
 			return r.startedView(reg, token, a.outDir, created)
 		}
 		refusal := hostedrun.RefusalOf(err)
 		if refusal == nil {
+			// The run may exist and hold the secrets: they are left to it.
 			r.dropAwaiting(a)
+			r.forgetHeld(reg)
 			return nil, err
 		}
 		if refusal.Slug != hostedrun.SlugConnectionMissing {
 			r.dropAwaiting(a)
+			r.DiscardHostedSecrets(reg)
 			return r.refusalView(refusal), nil
 		}
 		still := r.refusalView(refusal)
 		if !time.Now().Before(deadline) {
-			still.Detail = fmt.Sprintf("Agentry still keeps no connection to %s for this version after %s. Connect it on the page that opened in your browser, then wait again.", joinServers(refusal.Missing), wait.Round(time.Minute))
+			still.Detail = fmt.Sprintf("Agentry still keeps no connection to %s for this version after %s. Connect %s on the page that opened in your browser, then wait again.",
+				joinServers(refusal.Missing), connectWait.Round(time.Minute), itOrThem(refusal.Missing))
 			return still, nil
 		}
 		select {
 		case <-stop:
-			// A start discarded or replaced meanwhile is nobody's to ask
-			// about any more: the answer is nothing.
 			if !r.holds(a) {
 				return &HostedStartView{}, nil
 			}
@@ -168,31 +174,27 @@ func (r *RunAPI) AwaitHostedConnections(reg, ref string) (*HostedStartView, erro
 			return still, nil
 		case <-r.ctx().Done():
 			return nil, r.ctx().Err()
-		case <-time.After(poll):
+		case <-time.After(connectPoll):
 		}
 	}
 }
 
-func (r *RunAPI) holds(a *awaitingStart) bool {
-	r.awaitMu.Lock()
-	defer r.awaitMu.Unlock()
-	return r.awaiting == a
-}
-
 // StopAwaitingConnections ends a wait under way, which answers
-// connection-missing; the start is kept for the next wait. A wait ended by
-// DiscardHostedConnect, or by a new start, answers nothing.
+// connection-missing; the start is kept for the next wait.
 func (r *RunAPI) StopAwaitingConnections() {
 	r.awaitMu.Lock()
 	defer r.awaitMu.Unlock()
 	r.stopLocked()
 }
 
-// DiscardHostedConnect forgets the start held for its connections: the
-// panel closed, or the person chose to run on this computer. Its uploaded
-// inputs stay unclaimed until the registry sweeps them.
+// DiscardHostedConnect forgets the start held for its connections, and the
+// secrets this app set for it and did not keep: the panel closed, the
+// person cancelled, or changed where or how it runs. Its uploaded inputs
+// stay unclaimed until the registry sweeps them.
 func (r *RunAPI) DiscardHostedConnect() {
-	r.dropAwaiting(nil)
+	if a := r.dropAwaiting(nil); a != nil {
+		r.DiscardHostedSecrets(a.registry)
+	}
 }
 
 func joinServers(servers []string) string {
@@ -211,4 +213,11 @@ func joinServers(servers []string) string {
 		}
 	}
 	return out
+}
+
+func itOrThem(servers []string) string {
+	if len(servers) > 1 {
+		return "them"
+	}
+	return "it"
 }
