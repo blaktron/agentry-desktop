@@ -20,8 +20,9 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
+import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
-import { knowledge, main, run, trust } from "../../wailsjs/go/models";
+import { knowledge, main, run, schedules, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
@@ -33,9 +34,15 @@ import { AuthorHelp } from "../KeyHelp";
 import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooManyPacks } from "../knowledge";
 import { ServerSignIns, asConns } from "./ConnectTools";
 import { connectionBlockers, signInRecap } from "../connections";
+import { WhenStep, type Availability, type CheckState } from "./WhenStep";
+import { defaultWhen, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
+
+/** Announced when the setup made a schedule: App opens the Scheduled
+ *  page on it (agentry-desktop#743). */
+export const SCHEDULED_EVENT = "agentry:scheduled";
 
 export default function RunPanel({
-  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false, initialForm,
+  registry, ns, name, version, summary, attestation, onClose, initialMode, initialStep, local = false, initialForm, initialWhen,
 }: {
   registry: string;
   ns: string;
@@ -58,6 +65,8 @@ export default function RunPanel({
   /** The answers as the person left them, when Back to the setup reopens
    *  the setup of a run that is over (agentry-desktop#465). */
   initialForm?: RunForm;
+  /** Schedule a new run opens the setup with When on Repeat (D12). */
+  initialWhen?: WhenChoice;
 }) {
   const agentRef = `${ns}/${name}@${version}`;
   const f0 = initialForm;
@@ -162,6 +171,26 @@ export default function RunPanel({
   // consent comes first), when this setup closes (agentry-desktop#465).
   const [running, setRunning] = useState(false);
   const [runErr, setRunErr] = useState<string | null>(null);
+
+  // When (plan quickagent-scheduling.md §7, D12; agentry-desktop#743): Now,
+  // or Later or Repeat, which make this run a schedule on this computer.
+  // Whether this computer can schedule at all is read once; the zone it
+  // reads is a new schedule's default.
+  const [availability, setAvailability] = useState<Availability | null>(null);
+  const [when, setWhen] = useState<WhenForm>(() => defaultWhen(new Date(), "", initialWhen ?? "now"));
+  const [check, setCheck] = useState<CheckState>({ state: "idle" });
+  useEffect(() => {
+    let live = true;
+    Promise.resolve()
+      .then(() => ScheduleAPI.Availability())
+      .then((a) => {
+        if (!live) return;
+        setAvailability(a);
+        setWhen((w) => (w.zone ? w : { ...w, zone: a.zone }));
+      })
+      .catch((e) => live && setAvailability({ available: false, reason: String(e), zone: "", signedOut: { available: false, reason: String(e) }, lingerOn: false }));
+    return () => { live = false; };
+  }, []);
 
   // In Agentry (hosted runs M6): whether the mode is offered here, the run
   // the registry is executing, and a refused create rendered as a sentence.
@@ -400,6 +429,21 @@ export default function RunPanel({
   // in the browser, then the start is made again (agentry-desktop#667).
   const connecting = inAgentry && hostedRefusal?.refusal === "connection-missing";
   if (connecting) blockers.push("Connect the servers named below in your browser; the run starts once Agentry holds them — or Cancel.");
+  // A schedule (Later or Repeat): offered only where it can run, and held
+  // until the agentry command's check finds nothing a fire would lack (D8).
+  const whenBlocked = whenUnavailable({ modes: profile?.modes ?? [], mode, inAgentry, local, availability });
+  const scheduling = when.choice !== "now" && !whenBlocked;
+  const whenSays = scheduling ? whenProblem(when) : null;
+  // Later or Repeat that this run cannot be holds the button rather than
+  // let it start the run now.
+  if (when.choice !== "now" && whenBlocked) blockers.push(`When says ${when.choice === "later" ? "Later" : "Repeat"}, which this run cannot be: ${whenBlocked} Choose Now to run it now.`);
+  if (scheduling) {
+    if (whenSays) blockers.push(whenSays);
+    if (!outDir.trim()) blockers.push("Choose the output folder: each scheduled run gets its own folder in it.");
+    if (check.state === "checking" || (check.state === "idle" && !whenSays && outDir.trim())) blockers.push("Checking what a scheduled run needs.");
+    if (check.state === "error") blockers.push(`The check could not be made: ${check.error}`);
+    if (check.state === "done" && !check.ready) blockers.push(...check.gaps.map((g) => `A scheduled run would not have it: ${g}`));
+  }
   const canRun = !busy && blockers.length === 0;
   // A step that went away (the tools step, once the release's shape is
   // known) falls back to the first one rather than to nothing.
@@ -527,6 +571,69 @@ export default function RunPanel({
       timeout: timeoutSec.trim() === "" ? 0 : Math.max(0, parseInt(timeoutSec, 10) || 0),
       turns: maxTurns.trim() === "" ? -1 : Math.max(0, parseInt(maxTurns, 10) || 0),
     };
+  }
+
+  // The schedule this setup describes, as Go takes it (schedules.Request):
+  // the run's own answers, and When.
+  function scheduleRequest(): schedules.Request | null {
+    const spec = whenSpec(when);
+    if (!spec) return null;
+    const { timeout, turns } = limits();
+    return schedules.Request.createFrom({
+      registry, ref: agentRef, outDir: outDir.trim(), task: task.trim(), files: inputs, knowledge: attached,
+      intake: intakeAnswers(), voice: writeInVoice, timeoutSeconds: timeout, maxTurns: turns,
+      allowUnsigned: unsigned && acceptUnsigned, allowUnscanned: unscanned && acceptUnscanned, allowVulnerableMcp: vuln.send,
+      signedOut: when.signedOut && !!availability?.signedOut.available, when: spec,
+    });
+  }
+  // The check runs again, after a pause in typing, whenever the schedule
+  // the setup describes changes; a late answer for an older one is dropped.
+  const scheduleKey = scheduling && !whenSays && outDir.trim() ? JSON.stringify(scheduleRequest()) : "";
+  const checkedKey = useRef("");
+  useEffect(() => {
+    if (!scheduleKey) {
+      checkedKey.current = "";
+      setCheck({ state: "idle" });
+      return;
+    }
+    setCheck({ state: "checking" });
+    const req = scheduleRequest();
+    // Set now, not when the timer fires: an older check's late answer is
+    // then dropped as soon as the schedule described changes.
+    checkedKey.current = scheduleKey;
+    const asked = scheduleKey;
+    const timer = setTimeout(() => {
+      Promise.resolve()
+        .then(() => ScheduleAPI.Check(req!))
+        .then((c) => {
+          if (checkedKey.current !== asked) return;
+          setCheck({ state: "done", ready: c.ready, gaps: c.gaps ?? [], installed: c.installed, describe: c.describe, next: c.next, needsConsent: c.needsConsent });
+        })
+        .catch((e) => checkedKey.current === asked && setCheck({ state: "error", error: String(e) }));
+    }, 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleKey]);
+
+  // Schedule: Go checks again, asks the consents in a native dialog, and the
+  // agentry command makes the schedule; the setup closes onto the Scheduled
+  // page. A refusal stays here in the command's words.
+  async function scheduleRun() {
+    const req = scheduleRequest();
+    if (!req) return;
+    setRunning(true);
+    setRunErr(null);
+    try {
+      const made = await ScheduleAPI.Add(req);
+      window.dispatchEvent(new CustomEvent(SCHEDULED_EVENT, { detail: made.id }));
+      onClose();
+    } catch (e) {
+      // A No in the consent dialog is no error.
+      const said = String(e);
+      if (!/not confirmed/i.test(said)) setRunErr(said);
+    } finally {
+      setRunning(false);
+    }
   }
 
   // A chat on this computer: the chat's store starts it and its dialog opens
@@ -661,6 +768,10 @@ export default function RunPanel({
   }
 
   async function runAgent() {
+    if (scheduling) {
+      await scheduleRun();
+      return;
+    }
     if (inAgentry) {
       await runInAgentry();
       return;
@@ -690,7 +801,9 @@ export default function RunPanel({
     }
   }
 
-  const runLabel = sessionInAgentry
+  const runLabel = scheduling
+    ? running ? "Scheduling…" : "Schedule"
+    : sessionInAgentry
     ? starting ? "Starting…" : "Start session In Agentry"
     : inAgentry
     ? starting ? "Starting…" : "Run In Agentry"
@@ -1263,6 +1376,7 @@ export default function RunPanel({
                   </p>
                 </div>
               )}
+              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running} />
               {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
               {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
               {(mode === "hosted" || sessionInAgentry) && hosted && <PublisherEarnsLine hosted={hosted} />}
@@ -1411,6 +1525,19 @@ export default function RunPanel({
                   <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
                     {blockers.map((b) => <li key={b}>{b}</li>)}
                   </ul>
+                  {/* A gap is fixed in place where the setup has the place
+                      (plan D8): the keys on Connect tools; the model key in
+                      the keychain is Settings → Model provider. */}
+                  {scheduling && check.state === "done" && !check.ready && (
+                    <p className="small" style={{ margin: "4px 0 0" }} data-when-fixes>
+                      {check.gaps.some((g) => /secret/i.test(g)) && steps.includes("tools") && (
+                        <Button variant="link" onClick={() => goTo(steps.indexOf("tools"))}>Save the keys on Connect tools</Button>
+                      )}
+                      {check.gaps.some((g) => /model key/i.test(g)) && (
+                        <span> Keep the model key in this computer&apos;s keychain: Settings → Model provider, with the key saved there (a scheduled run does not see a key in the environment).</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
               {/* A refused create, as a sentence — and, for credits, the way

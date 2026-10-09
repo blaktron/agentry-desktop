@@ -15,7 +15,7 @@ import { Fragment } from "react";
 
 // The pages a sidebar item can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
-export type NavPage = "home" | "run" | "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
+export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "agent" | "knowledge" | "voice" | "build" | "validate" | "publisher" | "settings";
 
 // needsSignIn: shown only while the active registry holds a token.
 type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean };
@@ -24,6 +24,9 @@ const ITEMS: Item[] = [
   // The page the app opens on (plan desktop-home-and-library.md D2).
   // A run page is opened from Home's Recent runs, so Home stays lit on it.
   { label: "Home", page: "home", also: ["run"] },
+  // Runs on this computer for later or on repeat (plan
+  // quickagent-scheduling.md §7, D11; agentry-desktop#743).
+  { label: "Scheduled", page: "scheduled" },
   // The QuickAgents installed on this computer, with Browse beneath it for
   // finding more. An agent's page is reached from either, so Library stays
   // lit on it.

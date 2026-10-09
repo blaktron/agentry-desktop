@@ -41,7 +41,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function AgentPage({
-  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey, openRun = false, onFork, onOpenAgent,
+  registry, ns, name, onBack, backLabel = "← back to Browse", onEdit, onOpenReviewKey, openRun = false, openSchedule = false, onFork, onOpenAgent,
 }: {
   registry: string;
   ns: string;
@@ -57,6 +57,9 @@ export default function AgentPage({
   /** Open with the run setup open, once the release is read: a pin's Run
    *  on Home (agentry-desktop#660). */
   openRun?: boolean;
+  /** With openRun: the setup opens with When on Repeat (Schedule a new
+   *  run, agentry-desktop#743). */
+  openSchedule?: boolean;
   /** Fork (agentry-desktop#706), given only while this registry is signed
    *  in: called with the fork the registry made, which App follows in the
    *  Publisher section. */
@@ -93,10 +96,13 @@ export default function AgentPage({
   const [runOpen, setRunOpen] = useState(false);
   // A pin's Run opens the run setup once, when there is a version to run.
   const [ranOnOpen, setRanOnOpen] = useState(false);
+  // The setup opened by Schedule a new run starts on Repeat; one opened by
+  // Run later does not.
+  const [asSchedule, setAsSchedule] = useState(false);
   const runnable = !!detail?.latest;
   useEffect(() => {
-    if (openRun && runnable && !ranOnOpen) { setRanOnOpen(true); setRunOpen(true); }
-  }, [openRun, runnable, ranOnOpen]);
+    if (openRun && runnable && !ranOnOpen) { setRanOnOpen(true); setRunOpen(true); setAsSchedule(openSchedule); }
+  }, [openRun, runnable, ranOnOpen, openSchedule]);
   // Pin to Home, offered while this QuickAgent is installed here
   // (agentry-desktop#660, D5).
   const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
@@ -499,7 +505,8 @@ export default function AgentPage({
           version={detail.latest}
           summary={a.summary}
           attestation={prov}
-          onClose={() => setRunOpen(false)}
+          initialWhen={asSchedule ? "repeat" : undefined}
+          onClose={() => { setRunOpen(false); setAsSchedule(false); }}
         />
       )}
     </div>

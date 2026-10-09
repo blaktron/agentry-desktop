@@ -29,7 +29,7 @@ export function RecentRunsCard({ view, error, now, onOpenRun, onOpenSettings }: 
       {rows.length > 0 && (
         <ul className="home-card-list recent-runs" data-recent-runs>
           {rows.map((r) => (
-            <li key={`${r.source}-${r.id}`} data-run-row={r.id} data-run-where={r.where} data-run-kind={r.kind}>
+            <li key={`${r.source}-${r.id}`} data-run-row={r.id} data-run-where={r.where} data-run-kind={r.kind} data-run-scheduled={r.scheduled ? "" : undefined}>
               <button type="button" className="link build-way-part" onClick={() => onOpenRun(r)}>
                 <span className={r.kind === "run" || r.kind === "chat" ? "mono" : ""}>{whatRan(r)}</span>
               </button>

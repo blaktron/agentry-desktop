@@ -1206,3 +1206,36 @@ details.advanced[open] > summary { margin-bottom: 6px; }
    theme, each with its look beside its name. */
 .report-themes { border: 0; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 4px; }
 .report-themes label { align-items: baseline; gap: 8px; }
+
+/* The Scheduled page (plan quickagent-scheduling.md §7, D11;
+   agentry-desktop#743): a hand-built month grid beside the chosen day and
+   Upcoming, each day's occurrences as dots in the colour of what happened. */
+.scheduled-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+@media (max-width: 1000px) { .scheduled-grid { grid-template-columns: 1fr; } }
+.scheduled-page .card { padding: 14px 16px; }
+.scheduled-page .card + .card { margin-top: 16px; }
+.scheduled-grid > .card + .card { margin-top: 0; }
+.cal { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; }
+.cal th { font-size: 12px; font-weight: 600; color: var(--color-muted); padding: 4px 0; }
+.cal td { padding: 2px; }
+.cal-day { width: 100%; min-height: 54px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 6px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-raised); color: var(--color-fg); cursor: pointer; text-align: left; }
+.cal-day:hover { border-color: var(--color-border-strong); }
+.cal-out .cal-day { background: transparent; color: var(--color-muted); }
+.cal-today .cal-num { font-weight: 700; color: var(--color-accent); }
+.cal-chosen .cal-day { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+.cal-num { font-size: 13px; }
+.cal-dots { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+.cal-dot.tone-due { background: transparent; border: 1.5px solid var(--color-accent); }
+.cal-dot.tone-ok { background: var(--color-ok); }
+.cal-dot.tone-bad { background: var(--color-sev-high); }
+.cal-dot.tone-warn { background: var(--color-sev-medium); }
+.cal-more { font-size: 10px; color: var(--color-muted); }
+.cal-key .cal-dot { margin: 0 2px 0 8px; }
+.schedule-list { list-style: none; margin: 0; padding: 0; }
+.schedule-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--color-border); }
+.schedule-row:first-child { border-top: 0; }
+.schedule-pick { list-style: none; padding: 0; }
+.run-when { margin: 10px 0; }
+.when-fields { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
+.when-days { flex-wrap: wrap; }
