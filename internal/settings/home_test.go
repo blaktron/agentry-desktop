@@ -302,7 +302,7 @@ func equalYAML(t *testing.T, a, b any) bool {
 // after every other card, and never one of the 16 QuickAgent pins.
 func TestPinScheduledAddsOneLargeCard(t *testing.T) {
 	isolate(t)
-	if ScheduledOnHome() {
+	if scheduledShown(t) {
 		t.Fatal("the defaults hold a Scheduled card")
 	}
 	for range 2 {
@@ -317,7 +317,7 @@ func TestPinScheduledAddsOneLargeCard(t *testing.T) {
 	if c := l.Cards[4]; c.Size != HomeLarge || c.Hidden || len(c.Pins) != 0 {
 		t.Fatalf("the Scheduled card = %+v, want Large, shown, no pins", c)
 	}
-	if !ScheduledOnHome() {
+	if !scheduledShown(t) {
 		t.Fatal("ScheduledOnHome after the pin")
 	}
 	// It is a card, not a pin: all 16 pins still fit.
@@ -339,7 +339,7 @@ func TestScheduledCardShownHiddenAndUnpinned(t *testing.T) {
 	if err := SetHomeCardShown(HomeScheduled, false); err != nil {
 		t.Fatal(err)
 	}
-	if ScheduledOnHome() {
+	if scheduledShown(t) {
 		t.Fatal("a hidden Scheduled card reads as on Home")
 	}
 	if err := PinScheduledToHome(); err != nil {
@@ -365,7 +365,7 @@ func TestScheduledCardShownHiddenAndUnpinned(t *testing.T) {
 	if err := ResetHome(); err != nil {
 		t.Fatal(err)
 	}
-	if ScheduledOnHome() {
+	if scheduledShown(t) {
 		t.Fatal("Reset Home kept the Scheduled card")
 	}
 }
@@ -390,7 +390,7 @@ func TestScheduledCardKeepsTheLayoutReadableByAnOlderApp(t *testing.T) {
 	if err := PinToHome("acme/a", ""); err != nil {
 		t.Fatal(err)
 	}
-	if !ScheduledOnHome() {
+	if !scheduledShown(t) {
 		t.Fatal("another change dropped the Scheduled card")
 	}
 }
@@ -401,7 +401,7 @@ func TestScheduledCardLeavesANewerLayoutAlone(t *testing.T) {
 	isolate(t)
 	raw := "home:\n  version: 2\n  cards:\n    - kind: scheduled\n"
 	writeRaw(t, raw)
-	if ScheduledOnHome() {
+	if scheduledShown(t) {
 		t.Fatal("a newer layout's card reads as on Home")
 	}
 	if err := PinScheduledToHome(); err == nil {
@@ -413,4 +413,23 @@ func TestScheduledCardLeavesANewerLayoutAlone(t *testing.T) {
 	if readRaw(t) != raw {
 		t.Fatal("the newer layout was written over")
 	}
+}
+
+// scheduledShown reports whether the stored layout draws the Scheduled
+// card: one there and not hidden, in a layout this app uses.
+func scheduledShown(t *testing.T) bool {
+	t.Helper()
+	l, st, err := homeLayoutState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st != homeOK {
+		return false
+	}
+	for _, c := range l.Cards {
+		if c.Kind == HomeScheduled && !c.Hidden {
+			return true
+		}
+	}
+	return false
 }

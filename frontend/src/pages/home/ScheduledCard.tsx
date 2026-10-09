@@ -1,6 +1,6 @@
 import { main } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
-import { asSentence, byDay, monthTitle, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
+import { asSentence, byDay, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
 import { MonthGrid } from "../MonthGrid";
 
 // Home's Scheduled card (plan quickagent-scheduling.md §7, D11, D13;
@@ -9,23 +9,23 @@ import { MonthGrid } from "../MonthGrid";
 // read in process (ScheduleAPI.HomeCard; D-073). Large, pinned from the
 // Scheduled page's options menu. The card opens the Scheduled page, where
 // every change is made; it changes and runs nothing.
-export function ScheduledCard({ view, error, weeks, onOpen }: {
+export function ScheduledCard({ view, error, weeks, title, onOpen }: {
   view: main.ScheduledCardView | null;
   error: string | null;
-  /** This month's grid (monthGrid of now). */
+  /** This month's grid (monthGrid of now), and its title. */
   weeks: GridDay[][];
+  title: string;
   onOpen: () => void;
 }) {
   const days = byDay((view?.month ?? []) as FireRow[]);
   const next = view?.next ?? [];
-  const mid = weeks[1]?.[0]?.date.split("-").map(Number) ?? [];
   return (
     <CardFrame title="Scheduled" onOpen={onOpen} className="home-card home-scheduled" status={scheduledCardStatus(view, error)}
       foot={view?.reason ? asSentence(view.reason) : undefined}>
       {view && (
         <div className="home-scheduled-body">
           <div className="home-scheduled-month">
-            {mid.length === 3 && <p className="small home-scheduled-title">{monthTitle(mid[0], mid[1] - 1)}</p>}
+            <p className="small home-scheduled-title">{title}</p>
             <MonthGrid weeks={weeks} days={days} mini />
           </div>
           <div className="home-scheduled-next">

@@ -465,8 +465,9 @@ const pinSets: Record<string, { ref: string; registry: string }[][]> = {
 const allHidden = homeHash === "#home-all-hidden";
 // The Scheduled card (agentry-desktop#744): #home-scheduled pins it, with
 // the Scheduled page's October; #home-scheduled-empty with no schedule,
-// #home-scheduled-nocli where the agentry command is not found.
-const homeScheduled = homeHash.startsWith("#home-scheduled");
+// #home-scheduled-nocli where the agentry command is not found;
+// #home-strict-scheduled is #home-strict with the card.
+const homeScheduled = homeHash.startsWith("#home-scheduled") || homeHash === "#home-strict-scheduled";
 let homeCards: any[] = [{ kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
   ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
@@ -1165,12 +1166,14 @@ const render = () => createRoot(document.getElementById("root")!).render(
 if (landedDraft) {
   startDraft(REG, "here", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
   setTimeout(render, 100);
-} else if (homeHash === "#home-strict") {
+} else if (homeHash === "#home-strict" || homeHash === "#home-strict-scheduled") {
   // Home starts nothing on load (plan desktop-home-and-library.md §3,
   // invariant 4): only Home is drawn, and every binding but the reads Home
   // makes throws and names itself on the body, which the shot checks is
   // never marked.
-  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns"]);
+  // The Scheduled card reads the CLI's store and runs nothing
+  // (agentry-desktop#744).
+  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", ...(homeScheduled ? ["HomeCard"] : [])]);
   for (const api of Object.values(g.go.main) as Record<string, unknown>[]) {
     for (const k of Object.keys(api)) {
       if (reads.has(k)) continue;

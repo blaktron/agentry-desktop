@@ -5,8 +5,9 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, main } from "../../wailsjs/go/models";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Notice, PageHeader } from "../ui";
-import { cardsToDraw, HOME_DEFAULTS, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
+import { cardsToDraw, HOME_DEFAULTS, scheduledOnHome, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
 import { greeting } from "../homeLines";
 import { signedInTo } from "./Settings";
 import { InstalledCard } from "./home/InstalledCard";
@@ -15,7 +16,7 @@ import { RunDefaultsCard } from "./home/RunDefaultsCard";
 import { RecentRunsCard } from "./home/RecentRunsCard";
 import { PinnedCard } from "./home/PinnedCard";
 import { ScheduledCard } from "./home/ScheduledCard";
-import { gridRange, monthGrid } from "../scheduled";
+import { gridRange, monthGrid, monthTitle } from "../scheduled";
 import RunPanel from "./RunPanel";
 import { localAttestation } from "./Library";
 import type { Pin } from "../pins";
@@ -125,14 +126,18 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
 
   // The Scheduled card's read, only while the layout holds the card: Home
   // reads the CLI's store and runs nothing (agentry-desktop#744).
-  const wantsScheduled = !!layout.value && !layout.value.newer && !layout.value.unreadable
-    && layout.value.cards.some((c) => c.kind === "scheduled" && !c.hidden);
+  const wantsScheduled = !!layout.value && !layout.value.newer && !layout.value.unreadable && scheduledOnHome(layout.value.cards);
+  // Read again when a schedule changes or a Run now ends while Home is open.
   useEffect(() => {
     if (!wantsScheduled) return;
     let live = true;
     const { from, to } = gridRange(weeks);
-    ScheduleAPI.HomeCard(from, to).then(...settle(() => live)(setScheduled));
-    return () => { live = false; };
+    const read = () => { ScheduleAPI.HomeCard(from, to).then(...settle(() => live)(setScheduled)); };
+    read();
+    let off: (() => void) | undefined;
+    // The harness has no runtime.
+    try { off = EventsOn("schedules:changed", read); } catch { off = undefined; }
+    return () => { live = false; off?.(); };
   }, [wantsScheduled, weeks]);
 
   // A pin whose QuickAgent is gone from this computer is unpinned from its
@@ -162,7 +167,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
         onOpenLibrary={open.library} onOpenAgent={open.agent} onOpenRun={open.run} onUnpin={unpin}
         onRun={(rec) => (rec.local ? setRunningLocal(rec) : open.runAgent(rec.origin, rec.namespace, rec.name))} />
     ),
-    scheduled: () => <ScheduledCard view={scheduled.value} error={scheduled.error} weeks={weeks} onOpen={open.scheduled} />,
+    scheduled: () => <ScheduledCard view={scheduled.value} error={scheduled.error} weeks={weeks} title={monthTitle(now.getFullYear(), now.getMonth())} onOpen={open.scheduled} />,
   };
   const cards = layout.value || layout.error
     ? cardsToDraw(layout.value?.cards ?? FALLBACK, new Set(Object.keys(renderers)))

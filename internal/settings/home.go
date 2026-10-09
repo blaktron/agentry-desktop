@@ -194,22 +194,6 @@ func SetHomeCardShown(kind string, shown bool) error {
 	return Save(s)
 }
 
-// ScheduledOnHome reports whether Home draws the Scheduled card: one is in
-// the layout and not hidden. A layout this app keeps rather than uses
-// draws none.
-func ScheduledOnHome() bool {
-	l, st, err := homeLayoutState()
-	if err != nil || st != homeOK {
-		return false
-	}
-	for _, c := range l.Cards {
-		if c.Kind == HomeScheduled && !c.Hidden {
-			return true
-		}
-	}
-	return false
-}
-
 // PinScheduledToHome is the Scheduled page's Pin to Home: the Scheduled
 // card, Large, after every other card, or a hidden one shown again in its
 // place. One already shown is left as it is.

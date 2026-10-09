@@ -60,8 +60,8 @@ type ScheduleAPI struct {
 	home     func() (string, error)
 	now      func() time.Time
 	lingerOn func() bool
-	// locateCLI finds the command on disk without running it (Home's
-	// card); nil is schedules.FindCLI.
+	// locateCLI only finds the command on disk (Home's card), where
+	// findCLI also runs it for its version.
 	locateCLI func() (string, error)
 
 	mu sync.Mutex
@@ -293,7 +293,10 @@ func (s *ScheduleAPI) HomeCard(from, to string) (*ScheduledCardView, error) {
 	}
 	v := &ScheduledCardView{Schedules: len(items), Month: month, Next: []schedules.Fire{}}
 	for _, f := range ahead {
-		if f.Outcome == schedules.Due && len(v.Next) < cardNext {
+		if len(v.Next) == cardNext {
+			break
+		}
+		if f.Outcome == schedules.Due {
 			v.Next = append(v.Next, f)
 		}
 	}
