@@ -170,6 +170,11 @@ func TestParseVersionReadsTheCLIsLine(t *testing.T) {
 	if err != nil || v.Original() != "0.6.52-dev.2" {
 		t.Fatalf("got %v, %v", v, err)
 	}
+	// The Linux and macOS builds print the registry on a line of its own.
+	v, err = parseVersion([]byte("agentry version 0.6.87\ndefault registry: https://secureagentry.net\n"))
+	if err != nil || v.Original() != "0.6.87" {
+		t.Fatalf("two-line form: got %v, %v", v, err)
+	}
 	if _, err := parseVersion([]byte("some other program 1.2.3\n")); err == nil {
 		t.Fatal("read a version from another program's output")
 	}

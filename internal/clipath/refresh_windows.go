@@ -26,6 +26,10 @@ func scriptCLI(getenv func(string) string) string {
 // bundledBeside is the installer's $INSTDIR\bin\agentry.exe.
 func bundledBeside(dir string) string { return filepath.Join(dir, BinDir, cliName) }
 
+// refreshAllowed: the installer runs per-user (REQUEST_EXECUTION_LEVEL user),
+// and the app as the person, so LOCALAPPDATA is theirs.
+func refreshAllowed() bool { return true }
+
 // createNoWindow is CREATE_NO_WINDOW: --version runs with no console window
 // flashing up over the app.
 const createNoWindow = 0x08000000

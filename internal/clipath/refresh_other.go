@@ -28,13 +28,24 @@ func scriptCLI(getenv func(string) string) string {
 	return filepath.Join(home, ".local", "bin", cliName)
 }
 
-// bundledBeside is the packages' /usr/bin/agentry beside /usr/bin/agentry-desktop.
+// packagedDir is where the .deb and .rpm put the app and the CLI.
+const packagedDir = "/usr/bin"
+
+// bundledBeside is the packages' /usr/bin/agentry, and only for the app the
+// packages installed: a tarball or a build run from a home directory has no
+// pipeline-carried CLI beside it, and whatever file sits there is not copied
+// onto the PATH. "" on macOS.
 func bundledBeside(dir string) string {
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == "darwin" || filepath.Clean(dir) != packagedDir {
 		return ""
 	}
-	return filepath.Join(dir, cliName)
+	return filepath.Join(packagedDir, cliName)
 }
+
+// refreshAllowed is false for root: the refresh runs one person's script copy
+// and writes it, which an app started under sudo or pkexec must not do with
+// another account's HOME.
+func refreshAllowed() bool { return os.Geteuid() != 0 }
 
 func hideWindow(*exec.Cmd) {}
 

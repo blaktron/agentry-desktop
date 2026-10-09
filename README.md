@@ -705,8 +705,9 @@ the script's copy at its default place
 (`%LOCALAPPDATA%\Programs\agentry\bin\agentry.exe`,
 `${XDG_BIN_HOME:-~/.local/bin}/agentry`) with the carried one when its
 `--version` is lower. A copy that is as new or newer, whose version cannot
-be read, or that is a symlink, is left alone (`internal/clipath/refresh.go`;
-#770, D-074).
+be read, or that is a symlink, is left alone; on Linux only the packages'
+`/usr/bin/agentry` counts as carried, and nothing runs as root
+(`internal/clipath/refresh.go`; #770, D-074).
 
 **macOS** cannot be cross-built (the macOS front end is Objective-C behind
 cgo), so the universal bundle is built on a Mac that carries the Command

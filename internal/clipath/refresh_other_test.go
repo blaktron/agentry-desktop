@@ -23,4 +23,9 @@ func TestScriptCLIIsInstallShsDefault(t *testing.T) {
 	want(scriptCLI(env(map[string]string{"HOME": "/home/p", "XDG_BIN_HOME": "rel"})), "/home/p/.local/bin/agentry")
 	want(scriptCLI(env(map[string]string{})), "")
 	want(bundledBeside("/usr/bin"), "/usr/bin/agentry")
+	want(bundledBeside("/usr/bin/"), "/usr/bin/agentry")
+	// A tarball or a build run from a home carries no pipeline CLI.
+	if got := bundledBeside("/home/p/Downloads"); got != "" {
+		t.Fatalf("a file beside an unpackaged app counts as carried: %q", got)
+	}
 }

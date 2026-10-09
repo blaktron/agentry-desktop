@@ -46,7 +46,6 @@ const (
 type Result struct {
 	Outcome      Outcome
 	Target       string // the script's copy
-	Bundled      string // the copy this build carries
 	TargetVer    string // the script's copy's version before, "" when unread
 	BundledVer   string
 	KeptBecause  string // why a Kept copy was left alone
@@ -105,7 +104,7 @@ func runVersion(path string) ([]byte, error) {
 // cannot be read, and when target is as new or newer. version runs a CLI's
 // --version (runVersion outside tests).
 func Refresh(bundled, target string, version VersionFunc) (Result, error) {
-	r := Result{Target: target, Bundled: bundled}
+	r := Result{Target: target}
 	if bundled == "" || target == "" {
 		return r, nil
 	}
@@ -262,5 +261,8 @@ func bundledCLI() string {
 // installer's AddFlag run (install and every silent self-update on Windows)
 // and once at app start.
 func RefreshInstalled() (Result, error) {
+	if !refreshAllowed() {
+		return Result{}, nil
+	}
 	return Refresh(bundledCLI(), scriptCLI(os.Getenv), runVersion)
 }

@@ -40,6 +40,9 @@ func Main(w io.Writer, flag string) int {
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "the user Path was not changed: %v\n", err)
+		if flag == AddFlag {
+			reportRefresh(w) // it does not need the Path
+		}
 		return 1
 	}
 	switch {
