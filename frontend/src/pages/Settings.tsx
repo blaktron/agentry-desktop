@@ -34,10 +34,11 @@ import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 // registry holds a token. Home (agentry-desktop#661) is the last: which
 // cards Home shows, its pins, and Reset Home. Connections
 // (agentry-desktop#666) sits before Home: the OAuth connections kept on this
-// computer, with Disconnect, and the person's own OAuth clients. Report
-// design (agentry-desktop#759) follows Profile, as the site's fifth Settings
-// card: the account's report design and its editor, which took the
-// Profile's Report theme.
+// computer, with Disconnect, and the person's own OAuth clients.
+//
+// Report design (agentry-desktop#759, D-075) comes second, after Profile,
+// as on the site: the account's report design and its editor, which took
+// the place of the Profile's Report theme.
 export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "home";
 
 // The parts a landing link or a deep link can name; each section page
