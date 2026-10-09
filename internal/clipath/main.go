@@ -50,5 +50,21 @@ func Main(w io.Writer, flag string) int {
 	default:
 		_, _ = fmt.Fprintf(w, "removed %s from the user Path\n", dir)
 	}
+	if flag == AddFlag {
+		// An older CLI from the site's install script comes first on the
+		// Path; bring it up to the one just installed (agentry-desktop#770,
+		// D-074). Its failure is reported and never fails the install.
+		reportRefresh(w)
+	}
 	return 0
+}
+
+// reportRefresh runs RefreshInstalled and writes what it did to w.
+func reportRefresh(w io.Writer) {
+	r, err := RefreshInstalled()
+	if err != nil {
+		_, _ = fmt.Fprintf(w, "the agentry CLI from the install script was not refreshed: %v\n", err)
+		return
+	}
+	_, _ = fmt.Fprintln(w, r.String())
 }

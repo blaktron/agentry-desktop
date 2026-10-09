@@ -109,6 +109,11 @@ func main() {
 			// The schedules' alarms rewritten from the store (plan
 			// quickagent-scheduling.md §5; agentry-desktop#743).
 			scheduleAPI.start(ctx)
+			// An older agentry CLI from the site's install script, first on
+			// the PATH, brought up to the one this app carries
+			// (agentry-desktop#770, D-074); in its own goroutine, since it
+			// runs both CLIs' --version.
+			go refreshScriptCLI()
 		},
 		// "Install automatically when I quit" (agentry-desktop#88, D6). Off
 		// by default; does nothing unless a verified release is waiting and
