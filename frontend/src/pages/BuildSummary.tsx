@@ -124,6 +124,7 @@ export function SummaryView({
                 <div>{sv.tools.length === 0 ? "May call all of its tools." : <RevealText text={`Tools: ${sv.tools.join(", ")}.`} />}</div>
                 {sv.keys.length > 0 && <div><RevealText text={`Keys: ${sv.keys.join(", ")}.`} /></div>}
                 {sv.config.length > 0 && <div><RevealText text={`Configuration: ${sv.config.join(", ")}.`} /></div>}
+                {(sv.signIn ?? []).map((line) => <div key={line}><RevealText text={line} /></div>)}
                 {sv.hosts.length === 0 ? <div className="muted">Reaches no website.</div> : <Hosts hosts={sv.hosts} label={`Websites ${sv.ref} reaches`} />}
               </li>
             ))}

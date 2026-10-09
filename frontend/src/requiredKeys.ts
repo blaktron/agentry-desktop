@@ -4,18 +4,24 @@
 // server's, is written to capabilities.optionalSecrets, so a key the author
 // attaches starts as Optional. Pure, so node tests it without the app.
 
+import { serverKeys, type ServerRow } from "./remoteServers.ts";
+
 /** The parts of a Builder model these rules read. */
 export interface KeyModel {
   secrets?: string[];
-  mcpServers?: { secrets?: string[] }[];
+  mcpServers?: ServerRow[];
   requiredSecrets?: string[];
 }
 
 const names = (xs?: string[]) => (xs ?? []).map((x) => x.trim()).filter(Boolean);
 
-/** Every key the model declares, its own then each server's, each once. */
+/**
+ * Every key the model declares, its own then each server's, each once. A
+ * remote server declares its key only when it signs in with one
+ * (agentry-desktop#668), as the writer does.
+ */
 export function declaredKeys(m: KeyModel): string[] {
-  return [...new Set([...names(m.secrets), ...(m.mcpServers ?? []).flatMap((s) => names(s.secrets))])];
+  return [...new Set([...names(m.secrets), ...(m.mcpServers ?? []).flatMap(serverKeys)])];
 }
 
 /** The declared keys a run can start without. */

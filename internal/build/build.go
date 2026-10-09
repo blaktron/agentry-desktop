@@ -157,13 +157,30 @@ type IntakeRow struct {
 }
 
 // MCPServerRow is one capabilities.mcpServers entry as the form edits it.
+//
+// A row is a package server (Source "npm" or "pypi") or, since OAuth
+// connections M11 (agentry-desktop#668), a remote server (Source "url"),
+// declared by its HTTPS address and run at its vendor. A row keeps the
+// fields of both shapes so switching its source loses nothing typed, but
+// only the fields of its own shape are written, checked or summarised:
+// Declared says which.
 type MCPServerRow struct {
-	// Source is "npm" or "pypi".
+	// Source is "npm", "pypi" or "url".
 	Source string `json:"source"`
 	// Package is the npm (optionally @scope/name) or PyPI package name.
 	Package string `json:"package"`
 	// Version is the exact pin (no ranges, V5).
 	Version string `json:"version"`
+	// URL is a remote server's https:// address; its host is the server's
+	// one network destination.
+	URL string `json:"url"`
+	// Auth is how a remote server is signed in to: oauth (the person's
+	// connection), secret (its one key, sent as a bearer token) or none.
+	Auth string `json:"auth"`
+	// Scopes are what a remote server's OAuth consent asks for.
+	Scopes []string `json:"scopes"`
+	// OAuth is a package server's OAuth sign-in; nil for none.
+	OAuth *OAuthRow `json:"oauth"`
 	// Tools restricts the server to these tool names; empty = all.
 	Tools []string `json:"tools"`
 	// Secrets are env var NAMES this server needs (never values).
@@ -179,6 +196,62 @@ type MCPServerRow struct {
 type EnvRow struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+// OAuthRow is a package server's OAuth sign-in (the core's MCPOAuth,
+// DEV-215): the authorization server a connection is made with, what
+// consent asks for, and how the access token reaches the server: files the
+// runner writes into the server's token folder, and environment variables,
+// each with placeholders the runner fills.
+type OAuthRow struct {
+	Issuer string         `json:"issuer"`
+	Scopes []string       `json:"scopes"`
+	Files  []TokenFileRow `json:"files"`
+	Env    []EnvRow       `json:"env"`
+}
+
+// TokenFileRow is one file of a sign-in's token folder.
+type TokenFileRow struct {
+	Path     string `json:"path"`
+	Template string `json:"template"`
+}
+
+// IsRemote reports whether the row declares a remote server.
+func (r MCPServerRow) IsRemote() bool { return r.Source == "url" }
+
+// Declared is the row as the manifest declares it: only the fields of its
+// own shape. A remote server keeps its address, auth, tools, and its key
+// with auth secret or its scopes with auth oauth; a package server keeps
+// its package, version, tools, keys, hosts, configuration and sign-in.
+// What the source or the auth hides is not written, so a value the page no
+// longer shows can never reach agent.yaml.
+func (r MCPServerRow) Declared() MCPServerRow {
+	if r.IsRemote() {
+		out := MCPServerRow{Source: "url", URL: strings.TrimSpace(r.URL), Auth: strings.TrimSpace(r.Auth), Tools: compact(r.Tools)}
+		switch out.Auth {
+		case "secret":
+			out.Secrets = compact(r.Secrets)
+		case "oauth":
+			out.Scopes = compact(r.Scopes)
+		}
+		return out
+	}
+	out := r
+	out.URL, out.Auth, out.Scopes = "", "", nil
+	return out
+}
+
+// Hosts are the hosts the row's server reaches: a package's egress, or a
+// remote server's own host.
+func (r MCPServerRow) Hosts() []string {
+	d := r.Declared()
+	if !d.IsRemote() {
+		return compact(d.Egress)
+	}
+	if u, err := url.Parse(d.URL); err == nil && u.Hostname() != "" {
+		return []string{u.Hostname()}
+	}
+	return nil
 }
 
 // DependencyRow is one dependencies.agents entry.
@@ -316,9 +389,24 @@ func (m *Model) formProblems() []SectionProblem {
 		}
 	}
 	seen := map[string]bool{}
-	for i, srv := range m.MCPServers {
+	for i, row := range m.MCPServers {
+		srv := row.Declared()
+		if srv.IsRemote() {
+			// The address and its auth: the core's V5 (manifest.Validate,
+			// below) holds the rest, as it does for a package's sign-in.
+			switch {
+			case srv.URL == "":
+				add(SectionTools, "mcp server %d: give the remote server's https:// address", i+1)
+			case seen["url:"+srv.URL]:
+				add(SectionTools, "mcp server %s is declared twice", srv.URL)
+			case srv.Auth == "":
+				add(SectionTools, "mcp server %s: say how it signs in: OAuth, a key, or nothing", srv.URL)
+			}
+			seen["url:"+srv.URL] = true
+			continue
+		}
 		if srv.Source != "npm" && srv.Source != "pypi" {
-			add(SectionTools, "mcp server %d: source must be npm or pypi", i+1)
+			add(SectionTools, "mcp server %d: source must be npm, pypi or url", i+1)
 			continue
 		}
 		pkg := strings.TrimSpace(srv.Package)
@@ -580,7 +668,8 @@ func (m *Model) DeclaredServers() []manifest.MCPServer {
 	var out []manifest.MCPServer
 	for _, srv := range m.MCPServers {
 		pkg, ver := strings.TrimSpace(srv.Package), strings.TrimSpace(srv.Version)
-		if pkg == "" || ver == "" {
+		// A remote server has no package for the registry to look up.
+		if srv.IsRemote() || pkg == "" || ver == "" {
 			continue
 		}
 		d := manifest.MCPServer{Version: ver}
@@ -792,7 +881,23 @@ func (m *Model) serverLines() []string {
 		return nil
 	}
 	out := []string{"  mcpServers:"}
-	for _, srv := range m.MCPServers {
+	for _, row := range m.MCPServers {
+		srv := row.Declared()
+		if srv.IsRemote() {
+			// Every value quoted, auth too: the step check renders a model
+			// before its rules have passed.
+			out = append(out, "    - url: "+q(srv.URL), "      auth: "+q(srv.Auth))
+			if len(srv.Scopes) > 0 {
+				out = append(out, "      scopes: "+seq(srv.Scopes))
+			}
+			if len(srv.Tools) > 0 {
+				out = append(out, "      tools: "+seq(srv.Tools))
+			}
+			if len(srv.Secrets) > 0 {
+				out = append(out, "      secrets: "+seq(srv.Secrets))
+			}
+			continue
+		}
 		out = append(out, "    - "+srv.Source+": "+q(strings.TrimSpace(srv.Package)), "      version: "+q(strings.TrimSpace(srv.Version)))
 		if tools := compact(srv.Tools); len(tools) > 0 {
 			out = append(out, "      tools: "+seq(tools))
@@ -807,6 +912,26 @@ func (m *Model) serverLines() []string {
 			out = append(out, "      env:")
 			for _, e := range srv.Env {
 				out = append(out, "        "+strings.TrimSpace(e.Name)+": "+q(e.Value))
+			}
+		}
+		if o := srv.OAuth; o != nil {
+			out = append(out, "      oauth:", "        issuer: "+q(strings.TrimSpace(o.Issuer)))
+			if sc := compact(o.Scopes); len(sc) > 0 {
+				out = append(out, "        scopes: "+seq(sc))
+			}
+			if len(o.Files) > 0 {
+				out = append(out, "        files:")
+				for _, f := range o.Files {
+					out = append(out, "          - path: "+q(strings.TrimSpace(f.Path)), "            template: "+q(f.Template))
+				}
+			}
+			if len(o.Env) > 0 {
+				// A token setting's name is quoted: unlike env's, no form
+				// rule holds it before the core's.
+				out = append(out, "        env:")
+				for _, e := range o.Env {
+					out = append(out, "          "+q(strings.TrimSpace(e.Name))+": "+q(e.Value))
+				}
 			}
 		}
 	}
@@ -828,7 +953,7 @@ func (m *Model) declaredSecrets() []string {
 	}
 	add(m.Secrets)
 	for _, srv := range m.MCPServers {
-		add(srv.Secrets)
+		add(srv.Declared().Secrets)
 	}
 	return out
 }
@@ -1185,11 +1310,23 @@ func decodeManifest(raw []byte) (*Model, error) {
 			MCPServers      []struct {
 				NPM     string            `yaml:"npm"`
 				PyPI    string            `yaml:"pypi"`
+				URL     string            `yaml:"url"`
+				Auth    string            `yaml:"auth"`
+				Scopes  []string          `yaml:"scopes"`
 				Version string            `yaml:"version"`
 				Tools   []string          `yaml:"tools"`
 				Secrets []string          `yaml:"secrets"`
 				Egress  []string          `yaml:"egress"`
 				Env     map[string]string `yaml:"env"`
+				OAuth   *struct {
+					Issuer string   `yaml:"issuer"`
+					Scopes []string `yaml:"scopes"`
+					Files  []struct {
+						Path     string `yaml:"path"`
+						Template string `yaml:"template"`
+					} `yaml:"files"`
+					Env map[string]string `yaml:"env"`
+				} `yaml:"oauth"`
 			} `yaml:"mcpServers"`
 		} `yaml:"capabilities"`
 		Knowledge struct {
@@ -1268,11 +1405,25 @@ func decodeManifest(raw []byte) (*Model, error) {
 	for _, srv := range doc.Capabilities.MCPServers {
 		row := MCPServerRow{Source: "npm", Package: srv.NPM, Version: srv.Version,
 			Tools: orEmpty(srv.Tools), Secrets: orEmpty(srv.Secrets), Egress: orEmpty(srv.Egress), Env: []EnvRow{}}
-		if srv.PyPI != "" {
+		switch {
+		case srv.PyPI != "":
 			row.Source, row.Package = "pypi", srv.PyPI
+		case srv.URL != "" && srv.NPM == "":
+			// A remote server (agentry-desktop#668): before it, the row
+			// came in as an empty npm package and a save dropped it.
+			row.Source, row.URL, row.Auth, row.Scopes = "url", srv.URL, srv.Auth, orEmpty(srv.Scopes)
 		}
 		for _, name := range sortedKeys(srv.Env) {
 			row.Env = append(row.Env, EnvRow{Name: name, Value: srv.Env[name]})
+		}
+		if o := srv.OAuth; o != nil {
+			row.OAuth = &OAuthRow{Issuer: o.Issuer, Scopes: orEmpty(o.Scopes), Files: []TokenFileRow{}, Env: []EnvRow{}}
+			for _, f := range o.Files {
+				row.OAuth.Files = append(row.OAuth.Files, TokenFileRow{Path: f.Path, Template: f.Template})
+			}
+			for _, name := range sortedKeys(o.Env) {
+				row.OAuth.Env = append(row.OAuth.Env, EnvRow{Name: name, Value: o.Env[name]})
+			}
 		}
 		m.MCPServers = append(m.MCPServers, row)
 	}

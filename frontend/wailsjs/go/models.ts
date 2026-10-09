@@ -217,10 +217,64 @@ export namespace build {
 	        this.choices = source["choices"];
 	    }
 	}
+	export class TokenFileRow {
+	    path: string;
+	    template: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TokenFileRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.template = source["template"];
+	    }
+	}
+	export class OAuthRow {
+	    issuer: string;
+	    scopes: string[];
+	    files: TokenFileRow[];
+	    env: EnvRow[];
+	
+	    static createFrom(source: any = {}) {
+	        return new OAuthRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.issuer = source["issuer"];
+	        this.scopes = source["scopes"];
+	        this.files = this.convertValues(source["files"], TokenFileRow);
+	        this.env = this.convertValues(source["env"], EnvRow);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class MCPServerRow {
 	    source: string;
 	    package: string;
 	    version: string;
+	    url: string;
+	    auth: string;
+	    scopes: string[];
+	    oauth?: OAuthRow;
 	    tools: string[];
 	    secrets: string[];
 	    egress: string[];
@@ -235,6 +289,10 @@ export namespace build {
 	        this.source = source["source"];
 	        this.package = source["package"];
 	        this.version = source["version"];
+	        this.url = source["url"];
+	        this.auth = source["auth"];
+	        this.scopes = source["scopes"];
+	        this.oauth = this.convertValues(source["oauth"], OAuthRow);
 	        this.tools = source["tools"];
 	        this.secrets = source["secrets"];
 	        this.egress = source["egress"];
@@ -357,6 +415,7 @@ export namespace build {
 		    return a;
 		}
 	}
+	
 	export class PublishResult {
 	    version: string;
 	    status: string;
@@ -394,6 +453,8 @@ export namespace build {
 	    hosts: SummaryHost[];
 	    keys: string[];
 	    config: string[];
+	    remote: boolean;
+	    signIn: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SummaryServer(source);
@@ -406,6 +467,8 @@ export namespace build {
 	        this.hosts = this.convertValues(source["hosts"], SummaryHost);
 	        this.keys = source["keys"];
 	        this.config = source["config"];
+	        this.remote = source["remote"];
+	        this.signIn = source["signIn"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -504,6 +567,7 @@ export namespace build {
 		    return a;
 		}
 	}
+	
 	
 	
 

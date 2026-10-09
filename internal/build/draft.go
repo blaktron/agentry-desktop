@@ -110,7 +110,10 @@ var draftFields = map[string]any{
 		"filesystem": map[string]any{"read": map[string]any{"paths": nil}, "write": map[string]any{"paths": nil}},
 		"exec":       map[string]any{"commands": nil},
 		"secrets":    nil, "optionalSecrets": nil, "dataAccess": nil,
-		"mcpServers": []any{map[string]any{"npm": nil, "pypi": nil, "version": nil, "tools": nil, "secrets": nil, "egress": nil, "env": nil}},
+		"mcpServers": []any{map[string]any{
+			"npm": nil, "pypi": nil, "url": nil, "auth": nil, "scopes": nil, "version": nil, "tools": nil, "secrets": nil, "egress": nil, "env": nil,
+			"oauth": map[string]any{"issuer": nil, "scopes": nil, "files": []any{map[string]any{"path": nil, "template": nil}}, "env": nil},
+		}},
 	},
 	"knowledge":    map[string]any{"accepts": map[string]any{"prompt": nil, "required": nil}, "ships": nil},
 	"dependencies": map[string]any{"agents": []any{map[string]any{"ref": nil, "version": nil}}},
