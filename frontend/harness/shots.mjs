@@ -63,6 +63,9 @@ const states = [
   { name: "runpanel-step-details", url: "/modals.html#runpanel-step-details", note: "Details: the intake question, then the task", expectText: ": Details" },
   { name: "runpanel-step-review", url: "/modals.html#runpanel-step-review", note: "Review and start: the recap with Edit links, the output folder, Advanced, Run", expectText: "Review and start" },
   { name: "runpanel-voice", url: "/modals.html#runpanel-voice", note: "Review and start with this computer's Writing Voice on for every run: Write in my voice, ticked from its switch (agentry-desktop#510)", expectText: ["Write in my voice", "Here it is this computer's voice."] },
+  { name: "runpanel-schedule", url: "/modals.html#runpanel-schedule", note: "Review and start opened by Schedule a new run: When on Repeat (every day, the next whole hour, this computer's zone), the signed-out box, the check ready, and the button reads Schedule; the fixture's unanswered intake question still holds it (agentry-desktop#743)", expectText: ["When", "Also run when I'm signed out", "Ready: every day at 15:00 (Europe/London)"], expectSelector: '.run-step-foot button.primary:text-is("Schedule")' },
+  { name: "runpanel-schedule-gaps", url: "/modals.html#runpanel-schedule-gaps", note: "a fire would lack the model key: the check's gap holds Schedule (plan D8)", expectText: ["A scheduled run would not have it: no model key is kept in the keychain"], expectSelector: '.run-step-foot button.primary:text-is("Schedule")[disabled]' },
+  { name: "runpanel-schedule-windows", url: "/modals.html#runpanel-schedule-windows", note: "on Windows the signed-out box is off, with the reason (D17, D19)", expectText: ["Docker Desktop stops when you sign out."], expectSelector: '[data-signed-out] input[type="checkbox"][disabled]' },
   { name: "runpanel-step-review-long", url: "/modals.html#runpanel-step-review-long", note: "Review and start with an intake prompt as long as binary-reverse-engineer's: the label wraps in its column and every value keeps a readable width (agentry-desktop#420)", expectText: ["leave blank for a full pass", "none: its own instruction runs"], expectMinWidth: [".run-recap dd", 320] },
   // The author's guide (agentry-desktop#228): each step that reads it, and a
   // hostile guide that must render as text on the two steps it reaches.
@@ -321,13 +324,13 @@ const states = [
   // change to the token table (agentry-desktop#49) is seen everywhere it
   // lands, not only in the states above.
   { name: "page-browse", url: "/pages.html", note: "Browse under the shell, a sub-item of Library shown only inside it; Validate is not listed outside Build (agentry-desktop#422, #657)", locator: '[data-preview="browse"]', expectOrder: [
-    ['[data-preview="browse"] .sidebar .nav-item', ["Home", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="browse"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
     ['[data-preview="browse"] .sidebar .nav-item.active', ["Library", "Browse"]],
     ['[data-preview="browse"] .sidebar .nav-item[aria-current="page"]', ["Browse"]],
   ] },
   { name: "page-browse-query", url: "/pages.html#browse-query", note: "Browse opened from the Library's search: the words carried over and searched (agentry-desktop#657)", locator: '[data-preview="browse"]', expectValue: ['[data-preview="browse"] input[type="search"]', "triage"], expectText: ["1 result", "acme/pr-triage"], expectNoText: "demo1/incident-summarizer" },
   { name: "page-agent", url: "/pages.html", note: "an agent's page under the shell: Library lit, Browse not listed (agentry-desktop#657)", locator: '[data-preview="agent"]', expectOrder: [
-    ['[data-preview="agent"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="agent"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]],
     ['[data-preview="agent"] .sidebar .nav-item.active', ["Library"]],
   ] },
   // Home (plan desktop-home-and-library.md M2, agentry-desktop#658): the
@@ -337,7 +340,7 @@ const states = [
     expectText: ["Hello, Chris.", "4 QuickAgents on this computer.", "me/csv-quality-check", "agentry/changelog-from-git", "Standard", "40 credits", "On this computer", "15 minutes", "~/Downloads/agentry-out"],
     expectNoText: ["acme/release-notes", "Top up credits"],
     expectOrder: [
-      ['[data-preview="home"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]],
+      ['[data-preview="home"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]],
       ['[data-preview="home"] .sidebar .nav-item[aria-current="page"]', ["Home"]],
       ['[data-preview="home"] .build-way-main', ["Recent runs", "Installed QuickAgents", "Profile", "Run defaults"]],
     ] },
@@ -394,6 +397,14 @@ const states = [
     click: '[data-preview="home"] [data-pin="demo1/incident-summarizer"] button:text-is("Run")', expectSelector: 'body[data-open="run-agent:https://secureagentry.net/demo1/incident-summarizer"]' },
   { name: "page-home-pin-run-local", url: "/pages.html#home-pins-four", note: "Run on a folder install's pin opens its run setup over Home, as the Library's does", locator: ".modal",
     click: '[data-preview="home"] [data-pin="me/csv-quality-check"] button:text-is("Run")', expectText: ["Run me/csv-quality-check@0.1.0", "It was installed from a folder on this computer"] },
+  { name: "page-scheduled", url: "/pages.html", note: "the Scheduled page (agentry-desktop#743): October's grid with dots that ran, failed, were missed and are due, the chosen day, Upcoming, each schedule's actions and the History, which says what happened and never reads as done when nothing ran", locator: '[data-preview="scheduled"]',
+    expectText: ["Scheduled", "Schedule a new run", "October 2026", "Morning digest", "every day at 09:00 (Europe/London)", "Runs while you are signed out too", "Paused", "Resume", "Run now", "Missed: the computer was off", "Failed (docker, exit 13)", "Upcoming", "History"],
+    expectOrder: [['[data-preview="scheduled"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]]],
+    expectSelector: '[data-preview="scheduled"] .cal-dot.tone-bad' },
+  { name: "page-scheduled-pick", url: "/pages.html", note: "Schedule a new run picks an installed QuickAgent; choosing one opens its page with the setup on Repeat", locator: ".modal",
+    click: '[data-preview="scheduled"] button:text-is("Schedule a new run")', expectText: ["Schedule a new run", "When on Repeat"] },
+  { name: "page-scheduled-edit", url: "/pages.html", note: "Edit a schedule: its name, its repeat as it was, the signed-out box", locator: ".modal",
+    click: '[data-preview="scheduled"] [data-schedule="ab12cd34ef"] button:text-is("Edit")', expectText: ["Edit Morning digest", "Also run when I'm signed out", "It keeps running the version it was made for"] },
   { name: "page-library-pin", url: "/pages.html", note: "Pin to Home on a Library row: Go places the pin, and the button turns to Unpin from Home (agentry-desktop#660)", locator: '[data-preview="library"]',
     click: '[data-preview="library"] button[data-pin-button="pin"] >> nth=0', expectSelector: '[data-preview="library"] button[data-pin-button="unpin"]' },
   { name: "page-library-pins-full", url: "/pages.html#home-pins-sixteen", note: "Home holds 16 pins: Pin is held on every row not pinned, with the sentence that says why; a pinned one still offers Unpin", locator: '[data-preview="library"]',
@@ -401,7 +412,7 @@ const states = [
   { name: "page-home-pins-sixteen", url: "/pages.html#home-pins-sixteen", note: "four Pinned cards of four: the most Home holds", locator: '[data-preview="home"]',
     expectSelector: '[data-preview="home"] [data-home-card="pinned"] >> nth=3', expectNone: '[data-preview="home"] [data-home-card="pinned"] >> nth=4' },
   { name: "page-library", url: "/pages.html", note: "the Library under the shell (Installed and Browse in one section, agentry-desktop#657): what is installed on this computer, with a QuickAgent installed from a folder (local and unsigned, Run in place of Details, agentry-desktop#425), the search and the way on to Browse", locator: '[data-preview="library"]', expectText: ["The QuickAgents installed on this computer.", "Installed on this computer", "me/csv-quality-check", "local, unsigned", "from a folder on this computer; no registry holds it", "Find more QuickAgents"], expectOrder: [
-    ['[data-preview="library"] .sidebar .nav-item', ["Home", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
+    ['[data-preview="library"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Browse", "Knowledge", "Voice", "Build", "Settings"]],
     ['[data-preview="library"] .sidebar .nav-item[aria-current="page"]', ["Library"]],
   ] },
   { name: "page-library-run-local", url: "/pages.html", note: "Run on the QuickAgent installed from a folder opens its run setup over the Library, from its own contract (agentry-desktop#425)", locator: ".modal", click: '[data-preview="library"] button:text-is("Run")', expectText: ["Run me/csv-quality-check@0.1.0", "Step 1 of 4: Before you start", "It was installed from a folder on this computer"] },
@@ -418,7 +429,7 @@ const states = [
     expectText: ["The QuickAgents you publish", "4 QuickAgents · 2 private · 1 retired", "pat/incident-digest", "Fork of demo1/incident-summarizer@1.0.0", "stays private", "A fork stays private for good, so it cannot be made public.", "Make private", "Make public", "Restore", "Retire"],
     expectNoText: ["archive", "Archive"],
     expectOrder: [
-      ['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Publisher", "Settings"]],
+      ['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Publisher", "Settings"]],
       ['[data-preview="publisher"] .sidebar .nav-item[aria-current="page"]', ["Publisher"]],
       ['[data-preview="publisher"] .agent-row:has-text("pat/incident-summarizer") .badge', ["Private", "Fork"]],
     ] },
@@ -441,7 +452,7 @@ const states = [
     expectNone: '[data-preview="publisher"] .agent-row button:text-is("Retire")' },
   { name: "page-publisher-signed-out", url: "/pages.html#publisher-signed-out", note: "signed out: no Publisher in the sidebar, and the page says to sign in", locator: '[data-preview="publisher"]',
     expectText: "Sign in to manage what you publish",
-    expectOrder: [['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]]] },
+    expectOrder: [['[data-preview="publisher"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]]] },
   // Fork in the desktop (agentry-desktop#706): Fork and the fork count on a
   // public QuickAgent's page, the dialog with the site's three facts, a
   // taken name asking for another, a fork's own page, and the Publisher
@@ -465,7 +476,7 @@ const states = [
   { name: "page-library-empty", url: "/pages.html#fresh", note: "nothing installed on this computer: the way to Browse (agentry-desktop#657)", locator: '[data-preview="library"]', expectText: ["Nothing installed on this computer yet", "Find more QuickAgents"] },
   { name: "page-build", url: "/pages.html", note: "Build under the shell: the start page's two cards, Describe it to AI first, then Build it by hand, with the operator's words and the tagline, as the site's /build (agentry-desktop#598)", locator: '[data-preview="build"]', expectText: [BUILD_TAGLINE, DESCRIBE_COPY, BY_HAND_COPY, "Switch to Advanced"], expectOrder: [
     ['[data-preview="build"] .build-way-main', ["Describe it to AI", "Build it by hand"]],
-    ['[data-preview="build"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
+    ['[data-preview="build"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="build"] .sidebar .nav-item.active', ["Build"]],
   ] },
   // The cards open their views (#598): a press anywhere on Build it by hand
@@ -538,7 +549,7 @@ const states = [
   { name: "page-voice", url: "/pages.html", note: "the Voice page as two cards (agentry-desktop#610): Local Voice and Cloud Voice, each a figure over its words and its status line; no Voice Writer card", locator: '[data-preview="voice"]',
     expectText: ["Local Voice", "Cloud Voice", "The voice kept on this computer. Edit it by hand or with AI for free", "AI Review checks every version before it goes live", "Voice set · updated", "· used by default.", "Live since", "a new version was flagged by AI Review"],
     expectNoText: ["Start the Voice Writer", "Submit to Agentry"],
-    expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Settings"]] },
+    expectOrder: ['[data-preview="voice"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Settings"]] },
   { name: "page-voice-none", url: "/pages.html#voice-none", note: "the two cards with no voice in either place", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "No voice in your account yet."] },
   { name: "page-voice-signed-out", url: "/pages.html#voice-signed-out", note: "the two cards signed out: Cloud Voice asks for a sign-in", locator: '[data-preview="voice"]', expectText: ["No voice on this computer yet.", "Sign in to keep a voice in your account."] },
   { name: "page-voice-local", url: "/pages.html", click: ['[data-preview="voice"] button.build-way-main:has-text("Local Voice")'], note: "the Local Voice page: Download is Already the same (the digests match), Upload says it asks first because the account's flagged version is newer and costs 1 credit, Edit with AI, the switch shared with Run defaults, the editor and Delete", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
@@ -579,7 +590,7 @@ const states = [
   { name: "page-voice-standard", url: "/pages.html#voice-standard", click: ['[data-preview="voice"] button.build-way-main:has-text("Cloud Voice")'], note: "the Cloud Voice page on Standard with this cycle's Voice Writer run used: Edit with AI held, the date the next is theirs, and the upgrade (brought back by agentry-desktop#611)", locator: '[data-preview="voice"]', expectSelector: '[data-preview="voice"] .voice-wysiwyg',
     expectText: ["this cycle's runs are used. The next is yours on 28 October 2026.", "Upgrade"] },
   { name: "page-validate", url: "/pages.html", note: "Validate under the shell: a sub-item of Build, with Build lit beside it (agentry-desktop#422)", locator: '[data-preview="validate"]', expectOrder: [
-    ['[data-preview="validate"] .sidebar .nav-item', ["Home", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
+    ['[data-preview="validate"] .sidebar .nav-item', ["Home", "Scheduled", "Library", "Knowledge", "Voice", "Build", "Validate", "Settings"]],
     ['[data-preview="validate"] .sidebar .nav-item.active', ["Build", "Validate"]],
     ['[data-preview="validate"] .sidebar [aria-current="page"]', ["Validate"]],
   ] },

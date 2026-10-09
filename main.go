@@ -67,6 +67,7 @@ func main() {
 	homeAPI := &HomeAPI{}
 	publisherAPI := &PublisherAPI{app: app}
 	selfUpdateAPI := newSelfUpdateAPI(app)
+	scheduleAPI := &ScheduleAPI{app: app}
 
 	err := wails.Run(&options.App{
 		Title:     "Agentry Desktop",
@@ -105,6 +106,9 @@ func main() {
 			selfUpdateAPI.start(ctx)
 			// And the installed QuickAgents' check, once (agentry-desktop#147).
 			installAPI.start(ctx)
+			// The schedules' alarms rewritten from the store (plan
+			// quickagent-scheduling.md §5; agentry-desktop#743).
+			scheduleAPI.start(ctx)
 		},
 		// "Install automatically when I quit" (agentry-desktop#88, D6). Off
 		// by default; does nothing unless a verified release is waiting and
@@ -134,6 +138,7 @@ func main() {
 			homeAPI,
 			publisherAPI,
 			selfUpdateAPI,
+			scheduleAPI,
 		},
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{

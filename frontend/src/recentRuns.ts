@@ -17,6 +17,9 @@ export type RunRow = {
   exitCode?: number;
   state?: string;
   tone: string;
+  /** A schedule on this computer fired it (agentry-desktop#743). */
+  scheduled?: boolean;
+  schedule?: string;
 };
 
 const BUILTIN: Record<string, string> = {
@@ -49,8 +52,10 @@ export function whatRan(row: Pick<RunRow, "kind" | "ref">): string {
 
 export const isBuiltin = (kind: string): boolean => kind in BUILTIN;
 
-/** Where it ran, in the glossary's words. */
-export const whereRan = (row: Pick<RunRow, "where">): string => (row.where === "agentry" ? "In Agentry" : "On this computer");
+/** Where it ran, in the glossary's words; a run a schedule fired is
+ *  marked Scheduled (plan quickagent-scheduling.md D5). */
+export const whereRan = (row: Pick<RunRow, "where" | "scheduled">): string =>
+  row.where === "agentry" ? "In Agentry" : row.scheduled ? "Scheduled, on this computer" : "On this computer";
 
 /** How it ended, in a few words; a run In Agentry in the site's words. */
 export function howItEnded(row: Pick<RunRow, "where" | "outcome" | "exitCode" | "state">): string {

@@ -535,7 +535,37 @@ function publisherChange(ns: string, name: string, change: (r: any) => void) {
   return { ...r };
 }
 
+// The Scheduled page (agentry-desktop#743): two schedules, one paused and
+// one that runs signed out, a fortnight of October 2026 that ran, failed
+// and was missed, and what is due.
+const SCHED_NOW = new Date(2026, 9, 9, 12, 0);
+const schedAt = (d: number, h = 9) => new Date(2026, 9, d, h, 0).toISOString();
+const schedFires = [
+  { scheduleId: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer@1.2.0", at: schedAt(6), outcome: "ran", runId: "a1b2c3d4e5f60718" },
+  { scheduleId: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer@1.2.0", at: schedAt(7), outcome: "missed" },
+  { scheduleId: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer@1.2.0", at: schedAt(8), outcome: "failed", exitCode: 13, exitClass: "docker", message: "docker is not running", runId: "b1b2c3d4e5f60718" },
+  { scheduleId: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer@1.2.0", at: schedAt(9), outcome: "ran", runId: "c1b2c3d4e5f60718" },
+];
+const schedDue = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31].map((d) => (
+  { scheduleId: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer@1.2.0", at: schedAt(d), outcome: "due" }));
+const scheduleItems = [
+  { id: "ab12cd34ef", name: "Morning digest", ref: "demo1/incident-summarizer", version: "1.2.0", describe: "every day at 09:00 (Europe/London)",
+    when: { kind: "daily", time: "09:00", zone: "Europe/London", end: "never" }, outDir: "/home/me/agentry-runs", signedOut: true, keysSealed: true,
+    runs: 3, next: schedAt(10), last: schedFires[3] },
+  { id: "cd34ef56gh", name: "acme/pr-triage", ref: "acme/pr-triage", version: "0.4.1", describe: "every Tue, Thu at 22:00 (Europe/London)",
+    when: { kind: "weekly", time: "22:00", days: ["tue", "thu"], zone: "Europe/London", end: "after", times: 10 }, outDir: "/home/me/agentry-runs", paused: true },
+];
+
 g.go = { main: {
+  ScheduleAPI: {
+    Availability: async () => ({ available: true, zone: "Europe/London", lingerOn: true, signedOut: { available: true } }),
+    List: async () => ({ schedules: scheduleItems, running: [] }),
+    Calendar: async () => [...schedFires, ...schedDue],
+    History: async () => [...schedFires].reverse(),
+    Check: async () => ({ ready: true, gaps: [], installed: true, modes: ["autonomous"], refusals: [], needsConsent: false, signedOut: { available: true } }),
+    Edit: async () => undefined, Pause: async () => undefined, Resume: async () => undefined,
+    Remove: async () => true, RunNow: async () => undefined, Add: async () => ({ id: "ab12cd34ef" }),
+  },
   PublisherAPI: {
     // Fork (agentry-desktop#706): #agent-fork-taken answers the origin's
     // name with name-taken, so the dialog asks for another.
@@ -936,6 +966,7 @@ import Browse from "../src/pages/Browse";
 import Home from "../src/pages/Home";
 import AgentPage from "../src/pages/AgentPage";
 import Library from "../src/pages/Library";
+import Scheduled from "../src/pages/Scheduled";
 import Build from "../src/pages/Build";
 import { startDraft } from "../src/drafts";
 import Validate from "../src/pages/Validate";
@@ -1092,6 +1123,11 @@ const render = () => createRoot(document.getElementById("root")!).render(
         registry the active one, so the Profile card is a Sign in card. What a
         card opens is marked on the body (data-open) for a shot to see. */}
     <div data-preview="home"><Shell active="home"><HomePreview /></Shell></div>
+    {/* Scheduled (agentry-desktop#743): what a row opens is marked on the
+        body (data-open) for a shot to see. */}
+    <div data-preview="scheduled"><Shell active="scheduled"><Scheduled now={SCHED_NOW}
+      onOpenRun={(id) => { document.body.dataset.open = `run:${id}`; }}
+      onScheduleAgent={(_reg, ns, name) => { document.body.dataset.open = `schedule:${ns}/${name}`; }} /></Shell></div>
     <div data-preview="library"><Shell active="library"><Library registry={REG} onBrowse={(q) => { document.body.dataset.browse = q ?? ""; }} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenLibrary={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>

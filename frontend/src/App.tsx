@@ -20,7 +20,8 @@ import RunFlow from "./pages/RunFlow";
 import ReviewFlow from "./pages/ReviewFlow";
 import HostedRunFlow from "./pages/HostedRunFlow";
 import ChatFlow from "./pages/ChatFlow";
-import RunPanel from "./pages/RunPanel";
+import RunPanel, { SCHEDULED_EVENT } from "./pages/RunPanel";
+import Scheduled from "./pages/Scheduled";
 import RunPage, { type RunPageSource } from "./pages/RunPage";
 import { type RunSetup, attachHostedRun } from "./runs";
 import { CornerHost } from "./progress";
@@ -48,11 +49,16 @@ export type Route =
   // one; back: where the ← link returns to.
   // run: open the page with its run setup open (a pin's Run on Home,
   // agentry-desktop#660).
-  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher"; run?: boolean }
+  // schedule: the run setup opens with When on Repeat (Schedule a new
+  // run, agentry-desktop#743).
+  | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher" | "scheduled"; run?: boolean; schedule?: boolean }
+  // The schedules on this computer (plan quickagent-scheduling.md §7;
+  // agentry-desktop#743); focus: one just made.
+  | { page: "scheduled"; focus?: string }
   // A run Recent runs lists, as a page (plan desktop-home-and-library.md
   // §4.7, D7; agentry-desktop#659): read by its id, from the history Go
   // keeps (local) or the registry (hosted).
-  | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" }
+  | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" }
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
@@ -67,7 +73,7 @@ export type Route =
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The agent page's way back, by where it was opened from.
-const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher" } as const;
+const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Scheduled" } as const;
 
 // The one Create knowledge or Add documents flow, above the pages so a build
 // goes on in its corner card while the person uses the rest of the app
@@ -120,6 +126,13 @@ export default function App() {
   // latest event arrived is dropped, not allowed to undo it.
   const [unsafeLive, setUnsafeLive] = useState(false);
   const unsafeEvents = useRef(0);
+  // A run setup that made a schedule opens the Scheduled page on it
+  // (agentry-desktop#743).
+  useEffect(() => {
+    const opened = (e: Event) => setRoute({ page: "scheduled", focus: String((e as CustomEvent).detail ?? "") });
+    window.addEventListener(SCHEDULED_EVENT, opened);
+    return () => window.removeEventListener(SCHEDULED_EVENT, opened);
+  }, []);
   useEffect(() => EventsOn("runner:unsafe-live", (live: boolean) => {
     unsafeEvents.current++;
     setUnsafeLive(live);
@@ -276,6 +289,13 @@ export default function App() {
                 }}
               />
             )}
+            {route.page === "scheduled" && (
+              <Scheduled
+                focus={route.focus}
+                onOpenRun={(id) => nav({ page: "run", source: "local", id, back: "scheduled" })}
+                onScheduleAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "scheduled", run: true, schedule: true })}
+              />
+            )}
             {route.page === "run" && (
               <RunPage
                 key={`${route.source}:${route.registry || registry}:${route.id}`}
@@ -306,6 +326,7 @@ export default function App() {
                 backLabel={BACK_LABEL[route.back ?? "browse"]}
                 onBack={() => nav({ page: route.back ?? "browse" })}
                 openRun={route.run}
+                openSchedule={route.schedule}
                 // Edit opens in the Build tab, which submits to the app's
                 // registry: offered only for that registry's QuickAgents.
                 onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })}
