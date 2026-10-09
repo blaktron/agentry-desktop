@@ -14,9 +14,12 @@
 // The entry is the bin directory beside the running executable. It is
 // appended, never prepended: a CLI the person installed on purpose (the
 // site's install.ps1 prepends its own directory) wins over the copy the app
-// carries. On every other OS both flags do nothing and exit 0: the Linux
-// packages install /usr/bin/agentry, and macOS offers the command from the
-// app (agentry-desktop#581).
+// carries. So that the copy that wins is never older than the app's, the
+// add also refreshes an older one at the script's default place
+// (refresh.go; agentry-desktop#770, D-074), as app start does on Windows and
+// Linux. On every other OS both flags leave the Path alone and exit 0: the
+// Linux packages install /usr/bin/agentry, and macOS offers the command from
+// the app (agentry-desktop#581).
 package clipath
 
 import (

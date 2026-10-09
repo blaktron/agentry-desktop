@@ -696,6 +696,19 @@ default uninstall keeping them, the box removing them — is
 `scripts/acceptance/windows-install.ps1`, run by hand in a plain user
 session on a Windows machine until #55 gives CI one.
 
+**The agentry command** a release carries (`bin\agentry.exe`, appended to
+the user Path; `/usr/bin/agentry`; D-061) comes after a CLI the site's
+install script put first on PATH. So that the one a terminal finds is never
+the older of the two, the installer's `--add-cli-to-path` run (install and
+every silent self-update) and every app start on Windows and Linux replace
+the script's copy at its default place
+(`%LOCALAPPDATA%\Programs\agentry\bin\agentry.exe`,
+`${XDG_BIN_HOME:-~/.local/bin}/agentry`) with the carried one when its
+`--version` is lower. A copy that is as new or newer, whose version cannot
+be read, or that is a symlink, is left alone; on Linux only the packages'
+`/usr/bin/agentry` counts as carried, and nothing runs as root
+(`internal/clipath/refresh.go`; #770, D-074).
+
 **macOS** cannot be cross-built (the macOS front end is Objective-C behind
 cgo), so the universal bundle is built on a Mac that carries the Command
 Line Tools, Go, Node and the Wails CLI. `scripts/build-darwin.sh [user@host]`
