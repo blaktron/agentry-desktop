@@ -3904,6 +3904,8 @@ export namespace main {
 	    tone: string;
 	    kept: boolean;
 	    source: string;
+	    scheduled?: boolean;
+	    schedule?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RecentRunView(source);
@@ -3925,6 +3927,8 @@ export namespace main {
 	        this.tone = source["tone"];
 	        this.kept = source["kept"];
 	        this.source = source["source"];
+	        this.scheduled = source["scheduled"];
+	        this.schedule = source["schedule"];
 	    }
 	}
 	export class RecentRunsView {
@@ -4514,6 +4518,104 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SignedOutView {
+	    available: boolean;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SignedOutView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class ScheduleAvailabilityView {
+	    available: boolean;
+	    reason?: string;
+	    zone: string;
+	    signedOut: SignedOutView;
+	    lingerOn: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScheduleAvailabilityView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	        this.zone = source["zone"];
+	        this.signedOut = this.convertValues(source["signedOut"], SignedOutView);
+	        this.lingerOn = source["lingerOn"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ScheduleMadeView {
+	    id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScheduleMadeView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	    }
+	}
+	export class SchedulesView {
+	    schedules: schedules.Item[];
+	    running: string[];
+	    resealProblem?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SchedulesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.schedules = this.convertValues(source["schedules"], schedules.Item);
+	        this.running = source["running"];
+	        this.resealProblem = source["resealProblem"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SearchHitView {
 	    namespace: string;
 	    name: string;
@@ -4861,6 +4963,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class StarAskView {
 	    ask: boolean;
 	    name?: string;
@@ -5538,6 +5641,313 @@ export namespace run {
 		    return a;
 		}
 	}
+
+}
+
+export namespace schedules {
+	
+	export class SignedOut {
+	    available: boolean;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SignedOut(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class Refusal {
+	    kind: string;
+	    message: string;
+	    lift?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Refusal(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.message = source["message"];
+	        this.lift = source["lift"];
+	    }
+	}
+	export class Check {
+	    ref: string;
+	    version: string;
+	    digest: string;
+	    modes: string[];
+	    ready: boolean;
+	    gaps: string[];
+	    needsConsent: boolean;
+	    consentReason?: string;
+	    refusals: Refusal[];
+	    installed: boolean;
+	    signedOut: SignedOut;
+	    describe?: string;
+	    next?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Check(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.version = source["version"];
+	        this.digest = source["digest"];
+	        this.modes = source["modes"];
+	        this.ready = source["ready"];
+	        this.gaps = source["gaps"];
+	        this.needsConsent = source["needsConsent"];
+	        this.consentReason = source["consentReason"];
+	        this.refusals = this.convertValues(source["refusals"], Refusal);
+	        this.installed = source["installed"];
+	        this.signedOut = this.convertValues(source["signedOut"], SignedOut);
+	        this.describe = source["describe"];
+	        this.next = source["next"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class When {
+	    kind: string;
+	    date?: string;
+	    time: string;
+	    days?: string[];
+	    monthDay?: number;
+	    end?: string;
+	    until?: string;
+	    times?: number;
+	    zone?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new When(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.date = source["date"];
+	        this.time = source["time"];
+	        this.days = source["days"];
+	        this.monthDay = source["monthDay"];
+	        this.end = source["end"];
+	        this.until = source["until"];
+	        this.times = source["times"];
+	        this.zone = source["zone"];
+	    }
+	}
+	export class Edit {
+	    name?: string;
+	    when?: When;
+	    signedOut?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Edit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.when = this.convertValues(source["when"], When);
+	        this.signedOut = source["signedOut"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Fire {
+	    scheduleId: string;
+	    name: string;
+	    ref: string;
+	    at: string;
+	    outcome: string;
+	    manual?: boolean;
+	    started?: string;
+	    ended?: string;
+	    runId?: string;
+	    exitCode?: number;
+	    exitClass?: string;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Fire(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scheduleId = source["scheduleId"];
+	        this.name = source["name"];
+	        this.ref = source["ref"];
+	        this.at = source["at"];
+	        this.outcome = source["outcome"];
+	        this.manual = source["manual"];
+	        this.started = source["started"];
+	        this.ended = source["ended"];
+	        this.runId = source["runId"];
+	        this.exitCode = source["exitCode"];
+	        this.exitClass = source["exitClass"];
+	        this.message = source["message"];
+	    }
+	}
+	export class Item {
+	    id: string;
+	    name: string;
+	    ref: string;
+	    version: string;
+	    registry?: string;
+	    local?: boolean;
+	    describe: string;
+	    when: When;
+	    outDir: string;
+	    paused?: boolean;
+	    ended?: boolean;
+	    signedOut?: boolean;
+	    keysSealed?: boolean;
+	    runs?: number;
+	    next?: string;
+	    last?: Fire;
+	
+	    static createFrom(source: any = {}) {
+	        return new Item(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.ref = source["ref"];
+	        this.version = source["version"];
+	        this.registry = source["registry"];
+	        this.local = source["local"];
+	        this.describe = source["describe"];
+	        this.when = this.convertValues(source["when"], When);
+	        this.outDir = source["outDir"];
+	        this.paused = source["paused"];
+	        this.ended = source["ended"];
+	        this.signedOut = source["signedOut"];
+	        this.keysSealed = source["keysSealed"];
+	        this.runs = source["runs"];
+	        this.next = source["next"];
+	        this.last = this.convertValues(source["last"], Fire);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Request {
+	    registry: string;
+	    ref: string;
+	    name?: string;
+	    outDir: string;
+	    task?: string;
+	    files?: string[];
+	    knowledge?: string[];
+	    intake?: {[key: string]: string};
+	    voice: boolean;
+	    timeoutSeconds?: number;
+	    maxTurns: number;
+	    allowUnsigned?: boolean;
+	    allowUnscanned?: boolean;
+	    allowVulnerableMcp?: boolean;
+	    signedOut?: boolean;
+	    when: When;
+	
+	    static createFrom(source: any = {}) {
+	        return new Request(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registry = source["registry"];
+	        this.ref = source["ref"];
+	        this.name = source["name"];
+	        this.outDir = source["outDir"];
+	        this.task = source["task"];
+	        this.files = source["files"];
+	        this.knowledge = source["knowledge"];
+	        this.intake = source["intake"];
+	        this.voice = source["voice"];
+	        this.timeoutSeconds = source["timeoutSeconds"];
+	        this.maxTurns = source["maxTurns"];
+	        this.allowUnsigned = source["allowUnsigned"];
+	        this.allowUnscanned = source["allowUnscanned"];
+	        this.allowVulnerableMcp = source["allowVulnerableMcp"];
+	        this.signedOut = source["signedOut"];
+	        this.when = this.convertValues(source["when"], When);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 

@@ -52,6 +52,34 @@ The product never claims an agent is "safe". The language is always:
   **Reset Home…**, which restores the default cards and removes every pin
   after a confirm that says so. A layout a newer app arranged is held as
   it is; Reset is the way back.
+- **Scheduled** — runs on this computer for later, or on repeat like a
+  calendar entry (plan `quickagent-scheduling.md` M4, agentry-desktop#743,
+  D-073). A hand-built month calendar shows each day's occurrences as dots
+  in the colour of what happened (ran, failed, missed while the computer
+  was off) or hollow when due, beside the chosen day's list and
+  **Upcoming**; **Schedules** lists each one with **Edit** (its name, its
+  repeat, whether it also runs signed out), **Pause**/**Resume**,
+  **Run now** and **Delete**; **History** lists every fire, a failed one
+  with its exit class. **Schedule a new run** picks an installed QuickAgent
+  and opens its run setup with **When** on Repeat (every day, the next
+  whole hour). The run setup's Review and start carries **When** for every
+  run: *Now*, *Later* or *Repeat* (every day, weekdays, chosen days of the
+  week, or a day of the month, at a time, in a time zone, ending never, on
+  a date or after N runs), with **Also run when I'm signed out** on Linux
+  with Docker Engine (disabled elsewhere, with the reason). With Later or
+  Repeat the button reads **Schedule**, and it stays off until the agentry
+  command's check (`agentry schedule add --check`) finds nothing a fire
+  would lack; each gap is listed. The CLI keeps the schedules: the app
+  reads its store under the runner home in process, and makes every change
+  with the **installed agentry command** (`/usr/bin/agentry` from the Linux
+  packages, `bin\agentry.exe` beside the Windows app), whose path each
+  schedule's entry in the system's scheduler pins. On macOS the page says
+  scheduling is not available until the app carries the command
+  (agentry-desktop#581). The app runs `agentry schedule sync` at start, and
+  `agentry schedule reseal` after a model key, a provider key or a sign-in
+  changes in Settings, so a signed-out schedule's sealed keys follow it.
+  A run a schedule fired, the app open or not, shows in Recent runs marked
+  *Scheduled* and opens on the run page.
 - **Library** — the QuickAgents installed on this computer (the shared
   install state below), and **Browse** beneath it in the sidebar, shown
   while either is open (agentry-desktop#657, D-066). The Library's search

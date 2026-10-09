@@ -417,6 +417,7 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 	if err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.SetupStatus()
 }
 
@@ -573,6 +574,7 @@ func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	if err := run.StoreModelKey(provider, key, logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.SetupStatus()
 }
 
@@ -619,6 +621,7 @@ func (r *RunAPI) StoreJevKey(key string) (*JevKeyView, error) {
 	if err := run.StoreJevKey(key, logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.JevKeyStatus()
 }
 
@@ -634,6 +637,7 @@ func (r *RunAPI) ForgetJevKey() (*JevKeyView, error) {
 	if err := run.ForgetJevKey(logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.JevKeyStatus()
 }
 
@@ -696,6 +700,7 @@ func (r *RunAPI) StoreHybridKey(key string) (*HybridKeyView, error) {
 	if err := run.StoreHybridKey(key, logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.HybridKeyStatus()
 }
 
@@ -711,6 +716,7 @@ func (r *RunAPI) ForgetHybridKey() (*HybridKeyView, error) {
 	if err := run.ForgetHybridKey(logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.HybridKeyStatus()
 }
 
@@ -791,6 +797,7 @@ func (r *RunAPI) StoreSearchKey(provider, key string) (*SearchKeyView, error) {
 	if err := run.StoreSearchKey(provider, key, logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.SearchKeyStatus()
 }
 
@@ -806,6 +813,7 @@ func (r *RunAPI) ForgetSearchKey() (*SearchKeyView, error) {
 	if err := run.ForgetSearchKey(logw); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.SearchKeyStatus()
 }
 

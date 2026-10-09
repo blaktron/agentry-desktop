@@ -190,6 +190,7 @@ func (s *SettingsAPI) RemoveRegistry(url string) (*SettingsView, error) {
 	if err := settings.DeleteToken(url); err != nil {
 		return nil, err
 	}
+	resealSchedules(s.app)
 	cfg, err := settings.Load()
 	if err != nil {
 		return nil, err
@@ -295,6 +296,9 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 		}
 	}
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
+	// A schedule that runs signed out carries the registry token sealed
+	// beside it (DR-84): the new one is sealed in its place.
+	resealSchedules(s.app)
 	res := &SignInResult{User: *user, TokenStore: store, PinNote: pin}
 	// Packs kept while signed out are encrypted to this computer's key;
 	// from this sign-in on, the account's key at this registry wraps them,
@@ -308,6 +312,7 @@ func (s *SettingsAPI) SignOut(url string) (*SettingsView, error) {
 	if err := settings.DeleteToken(url); err != nil {
 		return nil, err
 	}
+	resealSchedules(s.app)
 	return settingsView()
 }
 

@@ -39,6 +39,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/review"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/runhistory"
+	"github.com/blaktron/agentry-desktop/internal/schedules"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -259,16 +260,83 @@ const (
 	folderNone    = "none"
 )
 
-// historyFolder is the folder the history keeps for runID, checked.
+// historyFolder is the folder the history keeps for runID, checked, or
+// the one a schedule's fire recorded for it.
 func historyFolder(runID string) (string, error) {
-	if !historyOn() {
-		return "", errUnknownRun
+	if historyOn() {
+		if e, ok, err := runhistory.Find(runID); err == nil && ok {
+			return recordedFolder(e)
+		}
 	}
-	e, ok, err := runhistory.Find(runID)
-	if err != nil || !ok {
-		return "", errUnknownRun
+	if e, _, ok := scheduledEntry(runID); ok {
+		return recordedFolder(e)
 	}
-	return recordedFolder(e)
+	return "", errUnknownRun
+}
+
+// scheduledEntry is a run a schedule on this computer fired, as a history
+// entry, read from the CLI's record of the schedule's fires (the agentry
+// command wrote it, never the page), with the schedule's name. A fire
+// that made no run has no run id and is never found.
+func scheduledEntry(runID string) (runhistory.Entry, string, bool) {
+	if !validRunID(runID) {
+		return runhistory.Entry{}, "", false
+	}
+	home, err := run.Home()
+	if err != nil {
+		return runhistory.Entry{}, "", false
+	}
+	f, ok := schedules.StoreIn(home).FindRun(runID)
+	if !ok {
+		return runhistory.Entry{}, "", false
+	}
+	return fireEntry(f), f.Name, true
+}
+
+// fireEntry is a schedule's fire as a history entry.
+func fireEntry(f schedules.Fire) runhistory.Entry {
+	e := runhistory.Entry{
+		ID: f.RunID, Kind: runhistory.KindRun, Where: runhistory.WhereHere, Ref: f.Ref,
+		Outcome: runhistory.OutcomeError, ExitCode: f.ExitCode, ExitClass: f.ExitClass,
+	}
+	if f.Outcome == schedules.Ran {
+		e.Outcome = runhistory.OutcomeOK
+	}
+	e.StartedAt, _ = time.Parse(time.RFC3339, f.Started)
+	e.EndedAt, _ = time.Parse(time.RFC3339, f.Ended)
+	// The folder is the CLI's record's; one that is not absolute and clean
+	// is not offered.
+	if filepath.IsAbs(f.OutDir) && filepath.Clean(f.OutDir) == f.OutDir {
+		e.Folder = f.OutDir
+	}
+	return e
+}
+
+// scheduledRows is the runs schedules on this computer fired, as Recent
+// runs rows: a missed occurrence ran nothing and is not one (the
+// Scheduled page's History shows it).
+func scheduledRows(limit int) []RecentRunView {
+	home, err := run.Home()
+	if err != nil {
+		return nil
+	}
+	fires, err := schedules.StoreIn(home).Fires(0)
+	if err != nil {
+		return nil
+	}
+	var rows []RecentRunView
+	for _, f := range fires {
+		if f.RunID == "" || f.Outcome == schedules.Missed || !validRunID(f.RunID) {
+			continue
+		}
+		row := entryView(fireEntry(f))
+		row.Scheduled, row.Schedule = true, f.Name
+		rows = append(rows, row)
+		if len(rows) >= limit {
+			break
+		}
+	}
+	return rows
 }
 
 // RecentRunView is one row of Recent runs: a run, a chat or a built-in's
@@ -299,6 +367,12 @@ type RecentRunView struct {
 	// Source is where the run page reads it: "local" (the history) or
 	// "hosted" (the registry).
 	Source string `json:"source"`
+	// Scheduled: a schedule on this computer fired it, through the agentry
+	// command, so the CLI's record holds it rather than the history
+	// (plan quickagent-scheduling.md D5; agentry-desktop#743). Schedule is
+	// that schedule's name.
+	Scheduled bool   `json:"scheduled,omitempty"`
+	Schedule  string `json:"schedule,omitempty"`
 }
 
 // RecentRunsView is Home's Recent runs.
@@ -405,7 +479,15 @@ func (r *RunAPI) RecentRuns(reg string, limit int) (*RecentRunsView, error) {
 	}
 	for _, e := range kept {
 		if !seen[e.ID] {
+			seen[e.ID] = true
 			v.Runs = append(v.Runs, entryView(e))
+		}
+	}
+	// Runs a schedule fired, also while the app was closed (D5).
+	for _, row := range scheduledRows(limit) {
+		if !seen[row.ID] {
+			seen[row.ID] = true
+			v.Runs = append(v.Runs, row)
 		}
 	}
 	sort.SliceStable(v.Runs, func(i, j int) bool { return rowTime(v.Runs[i]) > rowTime(v.Runs[j]) })
@@ -442,17 +524,30 @@ type RecordedRunView struct {
 // RecordedRun is a run the history keeps, by its id: the run page's local
 // source. An id the history does not hold is refused.
 func (r *RunAPI) RecordedRun(runID string) (*RecordedRunView, error) {
-	if !historyOn() || !validRunID(runID) {
+	if !validRunID(runID) {
 		return nil, errUnknownRun
 	}
-	e, ok, err := runhistory.Find(runID)
-	if err != nil {
-		return nil, err
+	var (
+		e        runhistory.Entry
+		ok       bool
+		err      error
+		schedule string
+	)
+	if historyOn() {
+		if e, ok, err = runhistory.Find(runID); err != nil {
+			return nil, err
+		}
 	}
 	if !ok {
-		return nil, errUnknownRun
+		// A run a schedule fired (D5), from the CLI's record.
+		if e, schedule, ok = scheduledEntry(runID); !ok {
+			return nil, errUnknownRun
+		}
 	}
 	v := &RecordedRunView{Run: entryView(e), Folder: e.Folder, FolderState: folderNone}
+	if schedule != "" {
+		v.Run.Scheduled, v.Run.Schedule = true, schedule
+	}
 	if e.Folder == "" {
 		return v, nil
 	}

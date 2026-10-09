@@ -38,6 +38,10 @@
 //                           Write in my voice, ticked
 //   #runpanel-chat-review   Review and start for a chat on this computer:
 //                           Advanced has no timeout, and says why
+//   #runpanel-schedule      Review and start with When on Repeat (Schedule
+//                           a new run, agentry-desktop#743): the check ready
+//   #runpanel-schedule-gaps the check names what a fire would lack
+//   #runpanel-schedule-windows  the signed-out box off, with the reason
 //   #runpanel-step-review-long  the same with an intake prompt as long as
 //                           binary-reverse-engineer's: the label wraps and
 //                           every value keeps its width (agentry-desktop#420)
@@ -330,7 +334,7 @@ const runDefaults = {
   unsafeMode: unsafeShape,
   timeoutSeconds: 900, maxTurns: 60, policyPath: "~/.agentry/runner/policy.yaml",
   where: view.startsWith("runpanel-default-agentry") ? "agentry" : "here",
-  outputDir: view === "runpanel-default-folder" ? "/home/me/agentry-runs" : "",
+  outputDir: view === "runpanel-default-folder" || view.startsWith("runpanel-schedule") ? "/home/me/agentry-runs" : "",
   chatIdleTimeoutSeconds: 0,
 };
 
@@ -436,6 +440,9 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-step-review": "review",
   "runpanel-voice": "review",
   "runpanel-step-review-long": "review",
+  "runpanel-schedule": "review",
+  "runpanel-schedule-gaps": "review",
+  "runpanel-schedule-windows": "review",
   "runpanel-chat-review": "review",
   "runpanel-guided-files": "files",
   "runpanel-guided-tools": "tools",
@@ -466,6 +473,20 @@ const STEP_OF: Record<string, StepKey> = {
 const g = window as any;
 g.go = { main: {
   SettingsAPI: { RunDefaults: async () => runDefaults },
+  // Schedules on this computer (agentry-desktop#743): this computer can
+  // schedule; on the Windows state it cannot also run signed out.
+  ScheduleAPI: {
+    Availability: async () => ({
+      available: true, zone: "Europe/London", lingerOn: false,
+      signedOut: view === "runpanel-schedule-windows"
+        ? { available: false, reason: "--signed-out is not available on windows: Docker Desktop stops when you sign out" }
+        : { available: true },
+    }),
+    Check: async () => (view === "runpanel-schedule-gaps"
+      ? { ready: false, gaps: ["no model key is kept in the keychain: run `agentry setup`"], installed: true, modes: ["autonomous"], refusals: [], needsConsent: false, signedOut: { available: true } }
+      : { ready: true, gaps: [], installed: true, modes: ["autonomous"], refusals: [], needsConsent: false, signedOut: { available: true }, describe: "every day at 15:00 (Europe/London)", next: "2026-10-09T14:00:00Z" }),
+    Add: async () => ({ id: "ab12cd34ef" }),
+  },
   RunAPI: {
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
     ProfileStatus: async () => profile,
@@ -656,6 +677,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
+        initialWhen={view.startsWith("runpanel-schedule") ? "repeat" : undefined}
       />
     </>,
   );
