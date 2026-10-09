@@ -48,6 +48,7 @@ import { KeyHelpList } from "../KeyHelp";
 import { advisoryWords } from "../advisory";
 import { declaredKeys, optionalKeys, questionRequired, requiredKeys } from "../requiredKeys";
 import { isRemote, reachRow, REMOTE_CHECK, serverRef } from "../remoteServers";
+import { RevealText } from "../reveal";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
 // The §19 instruction-file quota, as internal/build's maxInstructionBytes.
@@ -267,7 +268,7 @@ function ServerChecks({ m, checks }: { m: build.Model; checks: Record<string, mc
         const said = isRemote(s) ? { tone: "muted" as const, text: REMOTE_CHECK } : c ? checkSentence(c) : { tone: "muted" as const, text: "Asking the registry…" };
         return (
           <div key={i} className="small" style={{ marginTop: 6 }}>
-            <span className="mono">{serverRef(s)}</span>
+            <span className="mono"><RevealText text={serverRef(s)} /></span>
             <div className={said.tone === "high" ? "sev-high" : "muted"} style={said.tone === "high" ? { color: "var(--color-sev-high)" } : undefined}>{said.text}</div>
           </div>
         );
@@ -347,8 +348,10 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
       <dl className="build-reach">
         {rows.map((r, i) => (
           <div key={i} style={{ display: "contents" }}>
-            <dt className="mono small">{r.what}</dt>
-            <dd>{r.value}</dd>
+            {/* Through RevealText: a scope, an address or a tool name can
+                hold a character a reader cannot see (agentry-desktop#668). */}
+            <dt className="mono small"><RevealText text={r.what} /></dt>
+            <dd><RevealText text={r.value} /></dd>
           </div>
         ))}
       </dl>

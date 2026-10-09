@@ -228,10 +228,10 @@ func (r MCPServerRow) IsRemote() bool { return r.Source == "url" }
 func (r MCPServerRow) Declared() MCPServerRow {
 	if r.IsRemote() {
 		out := MCPServerRow{Source: "url", URL: strings.TrimSpace(r.URL), Auth: strings.TrimSpace(r.Auth), Tools: compact(r.Tools)}
-		switch out.Auth {
-		case "secret":
+		switch manifest.MCPAuth(out.Auth) {
+		case manifest.AuthSecret:
 			out.Secrets = compact(r.Secrets)
-		case "oauth":
+		case manifest.AuthOAuth:
 			out.Scopes = compact(r.Scopes)
 		}
 		return out
@@ -884,8 +884,9 @@ func (m *Model) serverLines() []string {
 	for _, row := range m.MCPServers {
 		srv := row.Declared()
 		if srv.IsRemote() {
-			// Every value quoted, auth too: the step check renders a model
-			// before its rules have passed.
+			// Every value through q, auth too: the step check renders a model
+			// before its rules have passed, and q quotes whatever could
+			// change the YAML's shape.
 			out = append(out, "    - url: "+q(srv.URL), "      auth: "+q(srv.Auth))
 			if len(srv.Scopes) > 0 {
 				out = append(out, "      scopes: "+seq(srv.Scopes))
@@ -1249,6 +1250,37 @@ func Load(dir string) (*Model, error) {
 	return m, nil
 }
 
+// heldWhole refuses a server entry the form cannot hold whole: a row keeps
+// only the fields of its own shape (MCPServerRow.Declared), so an entry
+// mixing a remote server's fields with a package's, or a key or scopes its
+// auth does not use, would be narrowed by the next save without a word.
+// The core refuses each of these too; the site's importer refuses them
+// alike (agentry-web lib/draft-import.ts).
+func heldWhole(i int, npm, pypi, address, auth, version string, scopes, secrets, egress []string, env, oauth bool) error {
+	where := fmt.Sprintf("capabilities.mcpServers[%d]", i)
+	named := 0
+	for _, s := range []string{npm, pypi, address} {
+		if s != "" {
+			named++
+		}
+	}
+	switch {
+	case named > 1:
+		return fmt.Errorf("%s names more than one of npm, pypi and url", where)
+	case address != "" && (version != "" || len(egress) > 0 || env || oauth):
+		return fmt.Errorf("%s is a remote server and also carries a package's version, hosts, configuration or sign-in", where)
+	case address == "" && (auth != "" || len(scopes) > 0):
+		return fmt.Errorf("%s is a package server and carries a remote server's auth or scopes", where)
+	case address != "" && auth != "" && auth != string(manifest.AuthOAuth) && auth != string(manifest.AuthSecret) && auth != string(manifest.AuthNone):
+		return fmt.Errorf("%s.auth is %q, not oauth, secret or none", where, auth)
+	case address != "" && auth != string(manifest.AuthSecret) && len(secrets) > 0:
+		return fmt.Errorf("%s declares a key but does not sign in with one", where)
+	case address != "" && auth != string(manifest.AuthOAuth) && len(scopes) > 0:
+		return fmt.Errorf("%s declares scopes but does not sign in with OAuth", where)
+	}
+	return nil
+}
+
 // decodeManifest reads a manifest's YAML shape (JSON is YAML too, which is
 // how a draft's manifest comes) into the form's Model: every field of schema
 // v2, and a v1 kind as its mode. It reads no file. A value of a shape the
@@ -1402,7 +1434,10 @@ func decodeManifest(raw []byte) (*Model, error) {
 	m.FSRead, m.FSReadPaths = decodeFS(doc.Capabilities.Filesystem.Read)
 	m.FSWrite, m.FSWritePaths = decodeFS(doc.Capabilities.Filesystem.Write)
 	m.ExecCommands = decodeExec(doc.Capabilities.Exec)
-	for _, srv := range doc.Capabilities.MCPServers {
+	for i, srv := range doc.Capabilities.MCPServers {
+		if err := heldWhole(i, srv.NPM, srv.PyPI, srv.URL, strings.TrimSpace(srv.Auth), srv.Version, srv.Scopes, srv.Secrets, srv.Egress, len(srv.Env) > 0, srv.OAuth != nil); err != nil {
+			return nil, err
+		}
 		row := MCPServerRow{Source: "npm", Package: srv.NPM, Version: srv.Version,
 			Tools: orEmpty(srv.Tools), Secrets: orEmpty(srv.Secrets), Egress: orEmpty(srv.Egress), Env: []EnvRow{}}
 		switch {
@@ -1411,7 +1446,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 		case srv.URL != "" && srv.NPM == "":
 			// A remote server (agentry-desktop#668): before it, the row
 			// came in as an empty npm package and a save dropped it.
-			row.Source, row.URL, row.Auth, row.Scopes = "url", srv.URL, srv.Auth, orEmpty(srv.Scopes)
+			row.Source, row.URL, row.Auth, row.Scopes = "url", srv.URL, strings.TrimSpace(srv.Auth), orEmpty(srv.Scopes)
 		}
 		for _, name := range sortedKeys(srv.Env) {
 			row.Env = append(row.Env, EnvRow{Name: name, Value: srv.Env[name]})

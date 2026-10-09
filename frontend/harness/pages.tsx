@@ -284,7 +284,7 @@ function summaryFor(m: typeof buildModel, unmentioned: string[]) {
     const signIn = remote
       ? ["Runs at its vendor. Agentry checks its address and what it asks for, not the vendor's code.",
           sv.auth === "oauth" ? `Signs in with OAuth: the first run asks whoever runs it to sign in at the vendor and allow ${allow(sv.scopes ?? [])}. The run gets an access token, nothing else.`
-            : sv.auth === "secret" ? `Signs in with the key ${keys.join(", ")}, sent to the vendor as a bearer token.` : "Signs in with nothing."]
+            : sv.auth === "secret" ? `Signs in with the key ${keys.join(", ")}, sent to the vendor as a bearer token.` : sv.auth === "none" ? "Signs in with nothing." : ""].filter(Boolean)
       : sv.oauth ? [`Signs in with OAuth at ${sv.oauth.issuer}: the first run asks whoever runs it to allow ${allow(sv.oauth.scopes)}. The server gets an access token, never a refresh token.`,
           ...sv.oauth.files.map((f) => `Token file ${f.path}: ${f.template}`),
           ...(sv.oauth.env.length ? [`Token settings: ${sv.oauth.env.map((e) => `${e.name}=${e.value}`).join(", ")}.`] : [])] : [];

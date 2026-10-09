@@ -19,7 +19,11 @@ export interface ServerRow {
   oauth?: { issuer?: string; scopes?: string[] } | null;
 }
 
-const names = (xs?: string[]) => (xs ?? []).map((x) => x.trim()).filter(Boolean);
+/** A list's non-empty entries, trimmed. */
+export const names = (xs?: string[]) => (xs ?? []).map((x) => x.trim()).filter(Boolean);
+
+/** What a sign-in with no issuer yet says in its place (internal/build issuerNotGiven). */
+export const ISSUER_NOT_GIVEN = "an issuer not given yet";
 
 /** Whether the row declares a remote server, by its address. */
 export const isRemote = (s: ServerRow) => s.source === "url";
@@ -60,7 +64,7 @@ export function signInPhrase(s: ServerRow): string {
     return s.auth === "none" ? "signs in with nothing" : "";
   }
   if (!s.oauth) return "";
-  return `signs in with OAuth at ${(s.oauth.issuer ?? "").trim() || "an issuer not given yet"}, asking for ${scopes(names(s.oauth.scopes))}`;
+  return `signs in with OAuth at ${(s.oauth.issuer ?? "").trim() || ISSUER_NOT_GIVEN}, asking for ${scopes(names(s.oauth.scopes))}`;
 }
 
 /** A server's row in "Everywhere it and its servers can reach". */

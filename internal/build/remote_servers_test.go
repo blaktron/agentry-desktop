@@ -186,8 +186,13 @@ func TestHostileSignInValuesCannotChangeTheShape(t *testing.T) {
 	r := workspaceRow()
 	r.OAuth.Files[0].Template = "{access_token}\"\n  injected: true\n#"
 	r.OAuth.Env = []EnvRow{{Name: "A: b\n  injected", Value: "{access_token}"}}
+	r.OAuth.Issuer = "https://a.example\n  injected: true"
+	r.OAuth.Scopes = []string{"a], injected: [x", "? k"}
+	r.OAuth.Files = append(r.OAuth.Files, TokenFileRow{Path: "b.json\n  injected: true", Template: "{access_token}"})
 	remote := linearRow()
 	remote.Auth = "oauth\n  injected: true"
+	remote.URL = "https://x.example/\"\n  injected: true"
+	remote.Scopes = []string{"read]\n  injected: true"}
 	res := withServers(r, remote).Check()
 	for _, line := range strings.Split(res.YAML, "\n") {
 		if strings.TrimSpace(line) == "injected: true" || strings.HasPrefix(strings.TrimSpace(line), "injected") {
@@ -276,5 +281,29 @@ func TestARemoteServerIsNotLookedUpAtTheRegistry(t *testing.T) {
 	got := withServers(linearRow(), workspaceRow()).DeclaredServers()
 	if len(got) != 1 || got[0].PyPI != "workspace-mcp" {
 		t.Errorf("only the package is asked about: %+v", got)
+	}
+}
+
+// The reader refuses a server entry the form could not hold whole, as the
+// site's importer does, rather than letting the next save narrow it.
+func TestLoadRefusesAServerTheFormCannotHoldWhole(t *testing.T) {
+	head := "schemaVersion: \"2\"\nname: x\nnamespace: acme\nversion: 0.1.0\nsummary: s\nmodes: [autonomous]\ncapabilities:\n  mcpServers:\n"
+	cases := map[string]string{
+		"a remote server with a version": "    - url: https://mcp.linear.app/mcp\n      auth: oauth\n      version: 1.0.0\n",
+		"a remote server with hosts":     "    - url: https://mcp.linear.app/mcp\n      auth: oauth\n      egress: [x.example]\n",
+		"a package with auth":            "    - npm: x\n      version: 1.0.0\n      auth: oauth\n",
+		"a key under OAuth":              "    - url: https://mcp.linear.app/mcp\n      auth: oauth\n      secrets: [TOKEN]\n",
+		"scopes under a key":             "    - url: https://api.githubcopilot.com/mcp/\n      auth: secret\n      secrets: [TOKEN]\n      scopes: [repo]\n",
+		"an address beside a package":    "    - npm: x\n      url: https://mcp.linear.app/mcp\n",
+		"an auth outside the three":      "    - url: https://mcp.linear.app/mcp\n      auth: basic\n",
+	}
+	for name, entry := range cases {
+		if _, err := decodeManifest([]byte(head + entry)); err == nil || !strings.Contains(err.Error(), "capabilities.mcpServers[0]") {
+			t.Errorf("%s: want a refusal naming the entry, got %v", name, err)
+		}
+	}
+	m, err := decodeManifest([]byte(head + "    - url: https://mcp.linear.app/mcp\n      auth: \" oauth \"\n"))
+	if err != nil || m.MCPServers[0].Auth != "oauth" {
+		t.Errorf("a hand-written auth is read trimmed, as the page's select compares it: %v %+v", err, m)
 	}
 }

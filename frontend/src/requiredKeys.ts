@@ -4,7 +4,7 @@
 // server's, is written to capabilities.optionalSecrets, so a key the author
 // attaches starts as Optional. Pure, so node tests it without the app.
 
-import { serverKeys, type ServerRow } from "./remoteServers.ts";
+import { names, serverKeys, type ServerRow } from "./remoteServers.ts";
 
 /** The parts of a Builder model these rules read. */
 export interface KeyModel {
@@ -13,7 +13,6 @@ export interface KeyModel {
   requiredSecrets?: string[];
 }
 
-const names = (xs?: string[]) => (xs ?? []).map((x) => x.trim()).filter(Boolean);
 
 /**
  * Every key the model declares, its own then each server's, each once. A

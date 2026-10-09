@@ -3,6 +3,8 @@ package build
 import (
 	"fmt"
 	"strings"
+
+	"github.com/blaktron/agentry/pkg/manifest"
 )
 
 // Summary is the Build tab's summary (plan builder-simplify.md §4.1, D7;
@@ -103,12 +105,12 @@ func (r MCPServerRow) SignInLines() []string {
 	}
 	if d.IsRemote() {
 		out := []string{"Runs at its vendor. Agentry checks its address and what it asks for, not the vendor's code."}
-		switch d.Auth {
-		case "oauth":
+		switch manifest.MCPAuth(d.Auth) {
+		case manifest.AuthOAuth:
 			out = append(out, "Signs in with OAuth: the first run asks whoever runs it to sign in at the vendor and allow "+allow(d.Scopes)+". The run gets an access token, nothing else.")
-		case "secret":
+		case manifest.AuthSecret:
 			out = append(out, "Signs in with the key "+strings.Join(d.Secrets, ", ")+", sent to the vendor as a bearer token.")
-		case "none":
+		case manifest.AuthNone:
 			out = append(out, "Signs in with nothing.")
 		}
 		return out
