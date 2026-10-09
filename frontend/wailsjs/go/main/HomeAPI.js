@@ -10,6 +10,10 @@ export function Pin(arg1, arg2) {
   return window['go']['main']['HomeAPI']['Pin'](arg1, arg2);
 }
 
+export function PinScheduled() {
+  return window['go']['main']['HomeAPI']['PinScheduled']();
+}
+
 export function Reset() {
   return window['go']['main']['HomeAPI']['Reset']();
 }
@@ -20,4 +24,8 @@ export function SetShown(arg1, arg2) {
 
 export function Unpin(arg1, arg2) {
   return window['go']['main']['HomeAPI']['Unpin'](arg1, arg2);
+}
+
+export function UnpinScheduled() {
+  return window['go']['main']['HomeAPI']['UnpinScheduled']();
 }

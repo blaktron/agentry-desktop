@@ -13,16 +13,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
+import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
 import { install, main, schedules } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { Button, EmptyState, ErrorBox, Modal, Notice, PageHeader } from "../ui";
+import { Button, EmptyState, ErrorBox, Modal, Notice, OptionsMenu, PageHeader } from "../ui";
+import { scheduledOnHome } from "../homeCards";
+import { CalendarKey, MonthGrid } from "./MonthGrid";
 import {
   byDay, clockOf, gridRange, monthGrid, monthTitle, outcomeLabel, outcomeTone, scheduleState, whenForm, whenOf,
   sameWhen, whenProblem, whenSpec, ymd, type FireRow, type WhenForm,
 } from "../scheduled";
 import { RepeatFields, SignedOutBox, type Availability } from "./WhenStep";
-
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // How many rows Upcoming and History show.
 const UPCOMING = 8;
@@ -64,6 +65,11 @@ export default function Scheduled({ onOpenRun, onScheduleAgent, focus, now: nowP
   const [editing, setEditing] = useState<schedules.Item | null>(null);
   const [picking, setPicking] = useState(false);
   const [reseal, setReseal] = useState<string | null>(null);
+  // Home's layout, for the options menu's Pin to Home or Unpin (D13;
+  // agentry-desktop#744): null until read, or when it cannot be, and then
+  // the menu offers nothing. pinSaid is what the last Pin or Unpin did.
+  const [home, setHome] = useState<main.HomeLayoutView | null>(null);
+  const [pinSaid, setPinSaid] = useState<{ text: string; error?: boolean } | null>(null);
 
   const weeks = useMemo(() => monthGrid(month.year, month.month, now), [month, now]);
   const range = useMemo(() => gridRange(weeks), [weeks]);
@@ -85,6 +91,11 @@ export default function Scheduled({ onOpenRun, onScheduleAgent, focus, now: nowP
   useEffect(() => {
     ScheduleAPI.Availability().then(setAvailability).catch((e) =>
       setAvailability({ available: false, reason: String(e), zone: "", signedOut: { available: false, reason: String(e) }, lingerOn: false }));
+  }, []);
+  useEffect(() => {
+    let live = true;
+    HomeAPI.Layout().then((v) => { if (live) setHome(v); }).catch(() => {});
+    return () => { live = false; };
   }, []);
   useGoEvent("schedules:changed", read);
   useGoEvent("schedules:reseal", useCallback((msg: unknown) => setReseal(String(msg)), []));
@@ -125,6 +136,18 @@ export default function Scheduled({ onOpenRun, onScheduleAgent, focus, now: nowP
   });
 
   const unavailable = availability && !availability.available ? availability.reason : null;
+  // A layout this app keeps rather than uses takes no change (D-067).
+  const homeUsable = !!home && !home.newer && !home.unreadable;
+  const onHome = homeUsable && scheduledOnHome(home!.cards);
+  async function pin() {
+    setPinSaid(null);
+    try {
+      setHome(await (onHome ? HomeAPI.UnpinScheduled() : HomeAPI.PinScheduled()));
+      setPinSaid({ text: onHome ? "Unpinned from Home." : "Pinned to Home: this month's calendar and the next three runs." });
+    } catch (e) {
+      setPinSaid({ text: String(e), error: true });
+    }
+  }
   const items = list?.schedules ?? [];
   const dayRows = days.get(day) ?? [];
 
@@ -133,8 +156,14 @@ export default function Scheduled({ onOpenRun, onScheduleAgent, focus, now: nowP
       <PageHeader
         title="Scheduled"
         sub="Runs on this computer for later, or on repeat like a calendar entry."
-        actions={<Button variant="primary" onClick={() => setPicking(true)} disabled={!!unavailable}>Schedule a new run</Button>}
+        actions={<>
+          {homeUsable && (
+            <OptionsMenu items={[{ key: onHome ? "unpin-home" : "pin-home", label: onHome ? "Unpin from Home" : "Pin to Home", onSelect: () => void pin() }]} />
+          )}
+          <Button variant="primary" onClick={() => setPicking(true)} disabled={!!unavailable}>Schedule a new run</Button>
+        </>}
       />
+      {pinSaid && (pinSaid.error ? <ErrorBox error={pinSaid.text} /> : <p className="small home-said" role="status" data-pin-said>{pinSaid.text}</p>)}
       {unavailable && <Notice tone="warn"><span data-scheduled-unavailable>{unavailable}</span></Notice>}
       {reseal && <Notice tone="warn"><span className="selectable" data-reseal-problem>{reseal}</span></Notice>}
       <ErrorBox error={err} />
@@ -147,34 +176,8 @@ export default function Scheduled({ onOpenRun, onScheduleAgent, focus, now: nowP
             <h3 style={{ margin: 0 }}>{monthTitle(month.year, month.month)}</h3>
             <Button onClick={() => shift(1)} aria-label="Next month">→</Button>
           </div>
-          <table className="cal" role="grid">
-            <thead><tr>{WEEKDAYS.map((d) => <th key={d} scope="col">{d}</th>)}</tr></thead>
-            <tbody>
-              {weeks.map((w, i) => (
-                <tr key={i}>
-                  {w.map((g) => {
-                    const rows = days.get(g.date) ?? [];
-                    return (
-                      <td key={g.date} className={`${g.inMonth ? "" : "cal-out"}${g.today ? " cal-today" : ""}${g.date === day ? " cal-chosen" : ""}`}>
-                        <button type="button" className="cal-day" onClick={() => setDay(g.date)} aria-pressed={g.date === day}
-                          aria-label={`${g.date}: ${rows.length === 0 ? "nothing scheduled" : rows.map((r) => `${r.name} ${outcomeLabel(r)}`).join(", ")}`}>
-                          <span className="cal-num">{g.day}</span>
-                          <span className="cal-dots" aria-hidden>
-                            {rows.slice(0, 4).map((r, k) => <span key={k} className={`cal-dot tone-${outcomeTone(r.outcome)}`} />)}
-                            {rows.length > 4 && <span className="cal-more">+{rows.length - 4}</span>}
-                          </span>
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="muted small cal-key">
-            <span className="cal-dot tone-due" /> due <span className="cal-dot tone-ok" /> ran <span className="cal-dot tone-bad" /> failed{" "}
-            <span className="cal-dot tone-warn" /> missed
-          </p>
+          <MonthGrid weeks={weeks} days={days} chosen={day} onChoose={setDay} />
+          <CalendarKey />
         </section>
 
         <section className="card scheduled-day" aria-label="The chosen day">

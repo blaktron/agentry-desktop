@@ -60,6 +60,9 @@ type ScheduleAPI struct {
 	home     func() (string, error)
 	now      func() time.Time
 	lingerOn func() bool
+	// locateCLI only finds the command on disk (Home's card), where
+	// findCLI also runs it for its version.
+	locateCLI func() (string, error)
 
 	mu sync.Mutex
 	// running is the Run now under way, by schedule id.
@@ -241,6 +244,70 @@ func (s *ScheduleAPI) Calendar(from, to string) ([]schedules.Fire, error) {
 		return nil, err
 	}
 	return st.Between(f, t, s.clock())
+}
+
+// ScheduledCardView is Home's Scheduled card (plan
+// quickagent-scheduling.md §7, D13; agentry-desktop#744): the month's
+// occurrences and the next three to come.
+type ScheduledCardView struct {
+	// Reason is why this computer cannot schedule a run, when the agentry
+	// command cannot be found: the card says it rather than an empty month.
+	Reason string `json:"reason,omitempty"`
+	// Schedules is how many schedules the store holds.
+	Schedules int `json:"schedules"`
+	// Month is what happened and what is due in the range asked.
+	Month []schedules.Fire `json:"month"`
+	// Next are the next occurrences due, soonest first, at most three.
+	Next []schedules.Fire `json:"next"`
+}
+
+// cardNext is how many occurrences the Home card lists (D13), and
+// cardAhead how far ahead it looks for them: a year, so a once schedule
+// months away is still found.
+const (
+	cardNext  = 3
+	cardAhead = 366 * 24 * time.Hour
+)
+
+// HomeCard is the Scheduled card's read: the month in [from, to)
+// (RFC 3339, as Calendar takes it) and the next three occurrences. It
+// reads the store and finds the agentry command on disk; it runs nothing,
+// as Home starts nothing.
+func (s *ScheduleAPI) HomeCard(from, to string) (*ScheduledCardView, error) {
+	month, err := s.Calendar(from, to)
+	if err != nil {
+		return nil, err
+	}
+	st, err := s.store()
+	if err != nil {
+		return nil, err
+	}
+	now := s.clock()
+	items, err := st.List(now)
+	if err != nil {
+		return nil, err
+	}
+	ahead, err := st.Between(now, now.Add(cardAhead), now)
+	if err != nil {
+		return nil, err
+	}
+	v := &ScheduledCardView{Schedules: len(items), Month: month, Next: []schedules.Fire{}}
+	for _, f := range ahead {
+		if len(v.Next) == cardNext {
+			break
+		}
+		if f.Outcome == schedules.Due {
+			v.Next = append(v.Next, f)
+		}
+	}
+	locate := schedules.FindCLI
+	if s.locateCLI != nil {
+		locate = s.locateCLI
+	}
+	if _, err := locate(); err != nil {
+		v.Reason = err.Error()
+	}
+	return v, nil
 }
 
 // History is the fires recorded, newest first, at most limit (1 to 200).

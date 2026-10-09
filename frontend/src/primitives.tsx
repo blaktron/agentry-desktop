@@ -195,3 +195,41 @@ export function Recap({ rows }: { rows: { label: string; value: React.ReactNode;
     </dl>
   );
 }
+
+/** A page's options menu (the Scheduled page's, agentry-desktop#744): one
+ *  button that opens a short list of actions under it. It closes on a
+ *  choice, on Escape and on a press outside it, and the first item takes
+ *  the focus when it opens. */
+export function OptionsMenu({ label = "Options", items }: {
+  label?: string;
+  items: { label: string; onSelect: () => void; disabled?: boolean; key?: string }[];
+}) {
+  const [open, setOpen] = React.useState(false);
+  const box = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    box.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  return (
+    <div className="options-menu" ref={box}>
+      <button type="button" aria-haspopup="menu" aria-expanded={open} data-options-menu onClick={() => setOpen((o) => !o)}>
+        {label} <span aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div className="options-menu-list" role="menu">
+          {items.map((it) => (
+            <button key={it.key ?? it.label} type="button" role="menuitem" className="ghost" disabled={it.disabled} data-menu-item={it.key}
+              onClick={() => { setOpen(false); it.onSelect(); }}>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

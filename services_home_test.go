@@ -178,3 +178,22 @@ func TestRemovingAFolderInstallKeepsTheRegistryPin(t *testing.T) {
 			settings.IsPinned("acme/triage", ""), settings.IsPinned("acme/triage", reg))
 	}
 }
+
+// The Scheduled page's Pin to Home and Unpin through the binding (plan
+// quickagent-scheduling.md D13; agentry-desktop#744): one Large card at the
+// end, which no other card is, and gone again on Unpin.
+func TestHomeBindingPinsTheScheduledCard(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
+	h := &HomeAPI{}
+	v, err := h.PinScheduled()
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := v.Cards[len(v.Cards)-1]
+	if len(v.Cards) != 5 || last.Kind != settings.HomeScheduled || last.Size != settings.HomeLarge || v.MaxPins != settings.MaxPins {
+		t.Fatalf("PinScheduled() = %+v", v)
+	}
+	if v, err = h.UnpinScheduled(); err != nil || len(v.Cards) != 4 {
+		t.Fatalf("UnpinScheduled() = %+v, %v", v, err)
+	}
+}

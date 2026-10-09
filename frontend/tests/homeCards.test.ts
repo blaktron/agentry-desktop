@@ -46,13 +46,13 @@ test("each kind has a title for Settings to name it by", () => {
 // the landing card's status line.
 import { HOME_DEFAULTS, cardSwitches, homeStatus } from "../src/homeCards.ts";
 
-test("Settings → Home has a switch for each default card, in the default order, whatever the layout's", () => {
+test("Settings → Home has a switch for each default card, in the default order, whatever the layout's, then the Scheduled card", () => {
   const sw = cardSwitches([{ kind: "run-defaults" }, { kind: "installed", hidden: true }, { kind: "pinned", pins: [{ ref: "a/b" }] }, { kind: "recent-runs" }]);
-  assert.deepEqual(sw.map((s) => s.kind), HOME_DEFAULTS);
-  assert.deepEqual(sw.map((s) => s.title), ["Recent runs", "Installed QuickAgents", "Profile", "Run defaults"]);
-  // A default the stored layout lacks is not drawn, so its switch is off;
+  assert.deepEqual(sw.map((s) => s.kind), [...HOME_DEFAULTS, "scheduled"]);
+  assert.deepEqual(sw.map((s) => s.title), ["Recent runs", "Installed QuickAgents", "Profile", "Run defaults", "Scheduled"]);
+  // A card the stored layout lacks is not drawn, so its switch is off;
   // Go adds it at the end when it is turned on.
-  assert.deepEqual(sw.map((s) => s.shown), [true, false, false, true]);
+  assert.deepEqual(sw.map((s) => s.shown), [true, false, false, true, false]);
 });
 
 test("a default card the layout names twice reads as shown while any of its entries is", () => {
@@ -75,4 +75,39 @@ test("the landing's line counts the cards shown and the QuickAgents pinned", () 
 test("a layout this app keeps rather than uses says so, and counts nothing", () => {
   assert.equal(homeStatus(view(defaults, { newer: true })), "Arranged by a newer Agentry Desktop; the default cards are shown.");
   assert.equal(homeStatus(view(defaults, { unreadable: true })), "The arrangement cannot be read; the default cards are shown.");
+});
+
+// The Scheduled card (plan quickagent-scheduling.md D13;
+// agentry-desktop#744): one Large card, pinned from the Scheduled page,
+// listed in Settings → Home after the defaults.
+import { scheduledOnHome } from "../src/homeCards.ts";
+
+test("the Scheduled card is drawn once, Large, in the layout's place, and an older app skips it", () => {
+  const drawn = cardsToDraw([{ kind: "profile" }, { kind: "scheduled", size: "large" }, { kind: "scheduled" }], all);
+  assert.deepEqual(kinds(drawn), ["profile", "scheduled"]);
+  assert.equal(drawn[1].size, "large");
+  // 0.6.81 had no renderer for it: a kind without one is skipped.
+  const older = new Set(["recent-runs", "installed", "profile", "run-defaults", "pinned"]);
+  assert.deepEqual(kinds(cardsToDraw([{ kind: "scheduled", size: "large" }, { kind: "installed" }], older)), ["installed"]);
+});
+
+test("the options menu offers Unpin while Home draws the Scheduled card, else Pin", () => {
+  assert.equal(scheduledOnHome(defaults), false);
+  assert.equal(scheduledOnHome([...defaults, { kind: "scheduled" }]), true);
+  assert.equal(scheduledOnHome([...defaults, { kind: "scheduled", hidden: true }]), false);
+});
+
+test("Settings → Home lists the Scheduled card after the defaults, on only while it is drawn", () => {
+  const sw = cardSwitches([...defaults, { kind: "scheduled" }]);
+  assert.deepEqual(sw.map((s) => s.kind), [...HOME_DEFAULTS, "scheduled"]);
+  assert.equal(sw[4].title, "Scheduled");
+  assert.equal(sw[4].shown, true);
+  assert.equal(cardSwitches(defaults)[4].shown, false);
+  assert.equal(cardSwitches([...defaults, { kind: "scheduled", hidden: true }])[4].shown, false);
+});
+
+test("the landing counts the Scheduled card only while the layout holds it", () => {
+  assert.equal(homeStatus(view(defaults)), "All 4 cards shown, nothing pinned.");
+  assert.equal(homeStatus(view([...defaults, { kind: "scheduled" }])), "All 5 cards shown, nothing pinned.");
+  assert.equal(homeStatus(view([...defaults, { kind: "scheduled", hidden: true }])), "4 of 5 cards shown, nothing pinned.");
 });

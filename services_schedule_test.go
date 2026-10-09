@@ -301,3 +301,49 @@ func TestResealAfterAKeyChange(t *testing.T) {
 		t.Fatalf("list %+v", l)
 	}
 }
+
+// Home's Scheduled card (agentry-desktop#744): the month as the page's
+// calendar reads it, the next three occurrences however far the month
+// view reaches, and the reason when the agentry command is not there,
+// found on disk without running anything.
+func TestScheduledHomeCard(t *testing.T) {
+	f := &scheduleFake{}
+	s := newScheduleAPI(t, f, true)
+	scheduledHome(t)
+	s.now = func() time.Time { return time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC) }
+	s.locateCLI = func() (string, error) { return "/usr/bin/agentry", nil }
+	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Schedules != 1 || v.Reason != "" || len(v.Month) != 3+2 || v.Month[0].Outcome != "ran" || v.Month[4].At != "2026-11-01T09:00:00Z" {
+		t.Fatalf("card %+v", v)
+	}
+	var next []string
+	for _, n := range v.Next {
+		next = append(next, n.At+" "+n.Outcome)
+	}
+	if got, want := strings.Join(next, ","), "2026-10-31T09:00:00Z due,2026-11-01T09:00:00Z due,2026-11-02T09:00:00Z due"; got != want {
+		t.Fatalf("next = %s, want %s", got, want)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("the card ran the agentry command: %v", f.calls)
+	}
+	s.locateCLI = func() (string, error) { return "", schedules.ErrNoCLI }
+	if v, err = s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z"); err != nil || v.Reason != schedules.ErrNoCLI.Error() {
+		t.Fatalf("no command: %+v %v", v, err)
+	}
+	if _, err := s.HomeCard("2026-01-01T00:00:00Z", "2026-12-01T00:00:00Z"); err == nil {
+		t.Fatal("a year was read at once")
+	}
+}
+
+// An empty runner home is an empty card, not an error.
+func TestScheduledHomeCardEmpty(t *testing.T) {
+	s := newScheduleAPI(t, &scheduleFake{}, false)
+	s.locateCLI = func() (string, error) { return "/usr/bin/agentry", nil }
+	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z")
+	if err != nil || v.Schedules != 0 || len(v.Month) != 0 || v.Next == nil || len(v.Next) != 0 {
+		t.Fatalf("empty card %+v %v", v, err)
+	}
+}

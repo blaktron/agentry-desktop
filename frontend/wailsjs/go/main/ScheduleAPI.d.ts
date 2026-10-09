@@ -15,6 +15,8 @@ export function Edit(arg1:string,arg2:schedules.Edit):Promise<void>;
 
 export function History(arg1:number):Promise<Array<schedules.Fire>>;
 
+export function HomeCard(arg1:string,arg2:string):Promise<main.ScheduledCardView>;
+
 export function List():Promise<main.SchedulesView>;
 
 export function Pause(arg1:string):Promise<void>;

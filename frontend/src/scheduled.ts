@@ -281,3 +281,19 @@ export function zoneChoices(here: string, supported: string[]): string[] {
   const rest = supported.filter((z) => z !== here);
   return here ? [here, ...rest] : rest;
 }
+
+/** Home's Scheduled card's status line (D13; agentry-desktop#744): how many
+ *  schedules this computer keeps, or what kept them from being read. */
+export function scheduledCardStatus(v: { schedules: number } | null, error: string | null): string {
+  if (error) return "The schedules could not be read.";
+  if (!v) return "Reading the schedules…";
+  if (v.schedules === 0) return "Nothing is scheduled on this computer yet.";
+  return `${v.schedules} schedule${v.schedules === 1 ? "" : "s"} on this computer.`;
+}
+
+/** A reason from Go as a sentence: its first letter capital, one stop. */
+export function asSentence(reason: string): string {
+  const t = reason.trim();
+  if (!t) return "";
+  return t[0].toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? "" : ".");
+}

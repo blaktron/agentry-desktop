@@ -80,6 +80,13 @@ The product never claims an agent is "safe". The language is always:
   changes in Settings, so a signed-out schedule's sealed keys follow it.
   A run a schedule fired, the app open or not, shows in Recent runs marked
   *Scheduled* and opens on the run page.
+  The page's **Options** menu offers **Pin to Home** (agentry-desktop#744,
+  plan M5, D-073's addendum): one Large **Scheduled** card at the end of
+  Home, this month's mini calendar with the same dots and the next three
+  occurrences, which opens the page. It is a card, not one of the 16 pins;
+  Settings → Home lists it after the default cards with its own switch,
+  **Unpin from Home** in the same menu removes it, and Reset Home removes it
+  with the pins. The card reads the store in process and runs nothing.
 - **Library** — the QuickAgents installed on this computer (the shared
   install state below), and **Browse** beneath it in the sidebar, shown
   while either is open (agentry-desktop#657, D-066). The Library's search
