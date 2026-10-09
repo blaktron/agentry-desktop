@@ -26,6 +26,10 @@ export function History(arg1) {
   return window['go']['main']['ScheduleAPI']['History'](arg1);
 }
 
+export function HomeCard(arg1, arg2) {
+  return window['go']['main']['ScheduleAPI']['HomeCard'](arg1, arg2);
+}
+
 export function List() {
   return window['go']['main']['ScheduleAPI']['List']();
 }

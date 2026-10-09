@@ -30,6 +30,12 @@ const (
 	HomeRunDefaults = "run-defaults"
 	// HomePinned is a card of pinned QuickAgents, one of several (M4).
 	HomePinned = "pinned"
+	// HomeScheduled is the Scheduled page's mini calendar (plan
+	// quickagent-scheduling.md D13; agentry-desktop#744): at most one,
+	// Large, pinned from the Scheduled page and shown or hidden in Settings
+	// → Home. It is a card, not one of the 16 QuickAgent pins, and it is no
+	// default: Reset Home removes it.
+	HomeScheduled = "scheduled"
 )
 
 // homeDefaults are the default cards, in their order. Each is one card of
@@ -155,11 +161,12 @@ func HomeLayoutNow() (layout HomeLayout, newer, unreadable bool, err error) {
 	return l, st == homeNewer, st == homeUnreadable, err
 }
 
-// SetHomeCardShown shows or hides the default card of kind, keeping its
-// place in the order. A default card the stored layout lacks is added at
-// the end. Any other kind is refused, and so is a change to a newer layout.
+// SetHomeCardShown shows or hides the default card of kind, or the
+// Scheduled card, keeping its place in the order. One the stored layout
+// lacks is added at the end when it is shown (the Scheduled card Large).
+// Any other kind is refused, and so is a change to a newer layout.
 func SetHomeCardShown(kind string, shown bool) error {
-	if !slices.Contains(homeDefaults, kind) {
+	if !slices.Contains(homeDefaults, kind) && kind != HomeScheduled {
 		return fmt.Errorf("%q is not a Home card that can be shown or hidden", kind)
 	}
 	s, l, err := usableHome()
@@ -174,8 +181,52 @@ func SetHomeCardShown(kind string, shown bool) error {
 		}
 	}
 	if !found {
-		l.Cards = append(l.Cards, HomeCard{Kind: kind, Hidden: !shown})
+		c := HomeCard{Kind: kind, Hidden: !shown}
+		if kind == HomeScheduled {
+			if !shown {
+				return nil
+			}
+			c.Size = HomeLarge
+		}
+		l.Cards = append(l.Cards, c)
 	}
+	s.Home = &l
+	return Save(s)
+}
+
+// ScheduledOnHome reports whether Home draws the Scheduled card: one is in
+// the layout and not hidden. A layout this app keeps rather than uses
+// draws none.
+func ScheduledOnHome() bool {
+	l, st, err := homeLayoutState()
+	if err != nil || st != homeOK {
+		return false
+	}
+	for _, c := range l.Cards {
+		if c.Kind == HomeScheduled && !c.Hidden {
+			return true
+		}
+	}
+	return false
+}
+
+// PinScheduledToHome is the Scheduled page's Pin to Home: the Scheduled
+// card, Large, after every other card, or a hidden one shown again in its
+// place. One already shown is left as it is.
+func PinScheduledToHome() error { return SetHomeCardShown(HomeScheduled, true) }
+
+// UnpinScheduledFromHome removes the Scheduled card, hidden or not; a Home
+// without one is left as it is.
+func UnpinScheduledFromHome() error {
+	s, l, err := usableHome()
+	if err != nil {
+		return err
+	}
+	cards := slices.DeleteFunc(slices.Clone(l.Cards), func(c HomeCard) bool { return c.Kind == HomeScheduled })
+	if len(cards) == len(l.Cards) {
+		return nil
+	}
+	l.Cards = cards
 	s.Home = &l
 	return Save(s)
 }

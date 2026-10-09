@@ -137,3 +137,22 @@ func unpinIfGone(ref string) {
 		}
 	}
 }
+
+// PinScheduled is the Scheduled page's Pin to Home (plan
+// quickagent-scheduling.md D13; agentry-desktop#744): the Scheduled card,
+// Large, at the end of Home, or a hidden one shown again. It is a card,
+// not one of the QuickAgent pins.
+func (h *HomeAPI) PinScheduled() (*HomeLayoutView, error) {
+	if err := settings.PinScheduledToHome(); err != nil {
+		return nil, err
+	}
+	return homeView()
+}
+
+// UnpinScheduled removes the Scheduled card from Home.
+func (h *HomeAPI) UnpinScheduled() (*HomeLayoutView, error) {
+	if err := settings.UnpinScheduledFromHome(); err != nil {
+		return nil, err
+	}
+	return homeView()
+}

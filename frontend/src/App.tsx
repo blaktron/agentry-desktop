@@ -286,6 +286,7 @@ export default function App() {
                   runHistory: () => nav({ page: "settings", ...SETTINGS_FOR.homeRunHistory }),
                   runAgent: (reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "home", run: true }),
                   settings: () => nav({ page: "settings", ...SETTINGS_FOR.homeSettings }),
+                  scheduled: () => nav({ page: "scheduled" }),
                 }}
               />
             )}

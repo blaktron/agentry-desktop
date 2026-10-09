@@ -1,7 +1,9 @@
 package settings
 
 import (
+	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -293,4 +295,122 @@ func equalYAML(t *testing.T, a, b any) bool {
 		t.Fatal(err1, err2)
 	}
 	return string(x) == string(y)
+}
+
+// The Scheduled card (plan quickagent-scheduling.md D13;
+// agentry-desktop#744): pinned from the Scheduled page, at most one, Large,
+// after every other card, and never one of the 16 QuickAgent pins.
+func TestPinScheduledAddsOneLargeCard(t *testing.T) {
+	isolate(t)
+	if ScheduledOnHome() {
+		t.Fatal("the defaults hold a Scheduled card")
+	}
+	for range 2 {
+		if err := PinScheduledToHome(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, _, _ := homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "recent-runs,installed,profile,run-defaults,scheduled"; got != want {
+		t.Fatalf("layout = %s, want %s", got, want)
+	}
+	if c := l.Cards[4]; c.Size != HomeLarge || c.Hidden || len(c.Pins) != 0 {
+		t.Fatalf("the Scheduled card = %+v, want Large, shown, no pins", c)
+	}
+	if !ScheduledOnHome() {
+		t.Fatal("ScheduledOnHome after the pin")
+	}
+	// It is a card, not a pin: all 16 pins still fit.
+	for i := range MaxPins {
+		if err := PinToHome(fmt.Sprintf("acme/a%d", i), "https://r.example"); err != nil {
+			t.Fatalf("pin %d with the Scheduled card on Home: %v", i, err)
+		}
+	}
+}
+
+// Settings → Home hides and shows it in its place like a default card;
+// shown when it is not there, it is added at the end. Pin to Home on the
+// page shows a hidden one again, and Unpin removes it.
+func TestScheduledCardShownHiddenAndUnpinned(t *testing.T) {
+	isolate(t)
+	if err := PinScheduledToHome(); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetHomeCardShown(HomeScheduled, false); err != nil {
+		t.Fatal(err)
+	}
+	if ScheduledOnHome() {
+		t.Fatal("a hidden Scheduled card reads as on Home")
+	}
+	if err := PinScheduledToHome(); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ := homeLayoutState()
+	if n := len(l.Cards); n != 5 || l.Cards[4].Hidden {
+		t.Fatalf("Pin did not show the hidden card in its place: %+v", l.Cards)
+	}
+	if err := UnpinScheduledFromHome(); err != nil {
+		t.Fatal(err)
+	}
+	l, _, _ = homeLayoutState()
+	if got, want := strings.Join(kinds(l), ","), "recent-runs,installed,profile,run-defaults"; got != want {
+		t.Fatalf("after Unpin = %s, want %s", got, want)
+	}
+	if err := SetHomeCardShown(HomeScheduled, true); err != nil {
+		t.Fatal(err)
+	}
+	if l, _, _ = homeLayoutState(); l.Cards[len(l.Cards)-1].Kind != HomeScheduled || l.Cards[len(l.Cards)-1].Size != HomeLarge {
+		t.Fatalf("Settings' switch did not add it at the end, Large: %+v", l.Cards)
+	}
+	if err := ResetHome(); err != nil {
+		t.Fatal(err)
+	}
+	if ScheduledOnHome() {
+		t.Fatal("Reset Home kept the Scheduled card")
+	}
+}
+
+// A file that holds the Scheduled card stays a version 1 layout, so an
+// older Agentry Desktop reads it as its own rather than as a newer
+// arrangement: it keeps the card it does not know through its own saves
+// (TestHomeKeepsWhatItDoesNotKnow) and its page skips the kind.
+func TestScheduledCardKeepsTheLayoutReadableByAnOlderApp(t *testing.T) {
+	isolate(t)
+	if err := PinScheduledToHome(); err != nil {
+		t.Fatal(err)
+	}
+	raw := readRaw(t)
+	if !strings.Contains(raw, "version: 1\n") || !regexp.MustCompile(`- kind: scheduled\n\s+size: large\n`).MatchString(raw) {
+		t.Fatalf("the file =\n%s", raw)
+	}
+	// What 0.6.81 did with it: hide a default card, pin a QuickAgent.
+	if err := SetHomeCardShown(HomeProfile, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := PinToHome("acme/a", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !ScheduledOnHome() {
+		t.Fatal("another change dropped the Scheduled card")
+	}
+}
+
+// Unpin of a layout this app keeps rather than uses is refused like any
+// other change to it.
+func TestScheduledCardLeavesANewerLayoutAlone(t *testing.T) {
+	isolate(t)
+	raw := "home:\n  version: 2\n  cards:\n    - kind: scheduled\n"
+	writeRaw(t, raw)
+	if ScheduledOnHome() {
+		t.Fatal("a newer layout's card reads as on Home")
+	}
+	if err := PinScheduledToHome(); err == nil {
+		t.Fatal("Pin changed a newer layout")
+	}
+	if err := UnpinScheduledFromHome(); err == nil {
+		t.Fatal("Unpin changed a newer layout")
+	}
+	if readRaw(t) != raw {
+		t.Fatal("the newer layout was written over")
+	}
 }

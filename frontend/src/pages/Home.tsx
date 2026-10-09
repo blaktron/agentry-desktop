@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { install, main } from "../../wailsjs/go/models";
 import { Button, Notice, PageHeader } from "../ui";
@@ -13,6 +14,8 @@ import { ProfileCard } from "./home/ProfileCard";
 import { RunDefaultsCard } from "./home/RunDefaultsCard";
 import { RecentRunsCard } from "./home/RecentRunsCard";
 import { PinnedCard } from "./home/PinnedCard";
+import { ScheduledCard } from "./home/ScheduledCard";
+import { gridRange, monthGrid } from "../scheduled";
 import RunPanel from "./RunPanel";
 import { localAttestation } from "./Library";
 import type { Pin } from "../pins";
@@ -54,6 +57,8 @@ export type HomeOpen = {
   runAgent: (registry: string, ns: string, name: string) => void;
   // Settings → Home: which cards, the pins, Reset (agentry-desktop#661).
   settings: () => void;
+  // The Scheduled card's page (agentry-desktop#744).
+  scheduled: () => void;
 };
 
 // How many rows Recent runs shows (plan §4.3).
@@ -62,13 +67,18 @@ const RECENT_ROWS = 5;
 // (the history keeps 50, D1).
 const RUNS_READ = 50;
 
-export default function Home({ registry, settings, open, banner }: {
+export default function Home({ registry, settings, open, banner, now: nowProp }: {
   registry: string;
   settings: main.SettingsView | null;
   open: HomeOpen;
   // The "Setup isn't finished" notice, when App has one to show.
   banner?: ReactNode;
+  // Harness-only: a fixed now, for the Scheduled card's month.
+  now?: Date;
 }) {
+  const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
+  // The Scheduled card's month (agentry-desktop#744): this one's grid.
+  const weeks = useMemo(() => monthGrid(now.getFullYear(), now.getMonth(), now), [now]);
   const [layout, setLayout] = useState<Got<main.HomeLayoutView>>(pending);
   const [records, setRecords] = useState<Got<install.Item[]>>(pending);
   // The launch check's snapshot: each record's answer for the Pinned
@@ -81,6 +91,7 @@ export default function Home({ registry, settings, open, banner }: {
   const [profile, setProfile] = useState<Got<main.ProfileView>>(pending);
   const [defaults, setDefaults] = useState<Got<main.RunDefaultsView>>(pending);
   const [recent, setRecent] = useState<Got<main.RecentRunsView>>(pending);
+  const [scheduled, setScheduled] = useState<Got<main.ScheduledCardView>>(pending);
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
 
@@ -112,6 +123,18 @@ export default function Home({ registry, settings, open, banner }: {
     return () => { live = false; };
   }, [registry, signedIn]);
 
+  // The Scheduled card's read, only while the layout holds the card: Home
+  // reads the CLI's store and runs nothing (agentry-desktop#744).
+  const wantsScheduled = !!layout.value && !layout.value.newer && !layout.value.unreadable
+    && layout.value.cards.some((c) => c.kind === "scheduled" && !c.hidden);
+  useEffect(() => {
+    if (!wantsScheduled) return;
+    let live = true;
+    const { from, to } = gridRange(weeks);
+    ScheduleAPI.HomeCard(from, to).then(...settle(() => live)(setScheduled));
+    return () => { live = false; };
+  }, [wantsScheduled, weeks]);
+
   // A pin whose QuickAgent is gone from this computer is unpinned from its
   // card; Go answers with the layout as it now is.
   const unpin = (pin: Pin) => {
@@ -139,6 +162,7 @@ export default function Home({ registry, settings, open, banner }: {
         onOpenLibrary={open.library} onOpenAgent={open.agent} onOpenRun={open.run} onUnpin={unpin}
         onRun={(rec) => (rec.local ? setRunningLocal(rec) : open.runAgent(rec.origin, rec.namespace, rec.name))} />
     ),
+    scheduled: () => <ScheduledCard view={scheduled.value} error={scheduled.error} weeks={weeks} onOpen={open.scheduled} />,
   };
   const cards = layout.value || layout.error
     ? cardsToDraw(layout.value?.cards ?? FALLBACK, new Set(Object.keys(renderers)))

@@ -1,0 +1,50 @@
+import { main } from "../../../wailsjs/go/models";
+import { CardFrame } from "../../cards";
+import { asSentence, byDay, monthTitle, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
+import { MonthGrid } from "../MonthGrid";
+
+// Home's Scheduled card (plan quickagent-scheduling.md §7, D11, D13;
+// agentry-desktop#744): this month's mini calendar, its dots in the colour
+// of what happened, and the next three occurrences, from the CLI's store
+// read in process (ScheduleAPI.HomeCard; D-073). Large, pinned from the
+// Scheduled page's options menu. The card opens the Scheduled page, where
+// every change is made; it changes and runs nothing.
+export function ScheduledCard({ view, error, weeks, onOpen }: {
+  view: main.ScheduledCardView | null;
+  error: string | null;
+  /** This month's grid (monthGrid of now). */
+  weeks: GridDay[][];
+  onOpen: () => void;
+}) {
+  const days = byDay((view?.month ?? []) as FireRow[]);
+  const next = view?.next ?? [];
+  const mid = weeks[1]?.[0]?.date.split("-").map(Number) ?? [];
+  return (
+    <CardFrame title="Scheduled" onOpen={onOpen} className="home-card home-scheduled" status={scheduledCardStatus(view, error)}
+      foot={view?.reason ? asSentence(view.reason) : undefined}>
+      {view && (
+        <div className="home-scheduled-body">
+          <div className="home-scheduled-month">
+            {mid.length === 3 && <p className="small home-scheduled-title">{monthTitle(mid[0], mid[1] - 1)}</p>}
+            <MonthGrid weeks={weeks} days={days} mini />
+          </div>
+          <div className="home-scheduled-next">
+            <p className="muted small home-scheduled-title">Next</p>
+            {next.length === 0 ? (
+              <p className="muted small" data-scheduled-next-none>{view.schedules === 0 ? "Schedule a run from the Scheduled page." : "Nothing is due."}</p>
+            ) : (
+              <ul className="home-card-list" data-scheduled-next>
+                {next.map((f, k) => (
+                  <li key={k}>
+                    <span className="small">{whenOf(f.at)}</span>
+                    <div className="mono small">{f.name}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </CardFrame>
+  );
+}

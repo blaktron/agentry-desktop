@@ -6,7 +6,7 @@
 // of the layout's cards the page draws. A new kind is one entry here and
 // one renderer beside the page (pages/home/).
 
-export type HomeCardKind = "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned";
+export type HomeCardKind = "recent-runs" | "installed" | "profile" | "run-defaults" | "pinned" | "scheduled";
 
 export type HomeCardDescriptor = {
   kind: HomeCardKind;
@@ -26,6 +26,11 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   "run-defaults": { kind: "run-defaults", title: "Run defaults", multiple: false,
     line: "Where runs go, their limits, the output folder, and Unsafe Mode while it is on." },
   pinned: { kind: "pinned", title: "Pinned", multiple: true, line: "Up to four pinned QuickAgents, each with its latest run and Run." },
+  // Pinned from the Scheduled page's options menu (plan
+  // quickagent-scheduling.md D13; agentry-desktop#744). Not a default:
+  // Reset Home removes it.
+  scheduled: { kind: "scheduled", title: "Scheduled", multiple: false,
+    line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Scheduled page adds it." },
 };
 
 import type { settings } from "../wailsjs/go/models";
@@ -68,26 +73,37 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
  * together. */
 export const HOME_DEFAULTS: HomeCardKind[] = ["recent-runs", "installed", "profile", "run-defaults"];
 
+/** Settings → Home's switches: the default cards, then the Scheduled card
+ * (agentry-desktop#744), which Go shows or hides by kind like them. */
+export const HOME_SWITCHES: HomeCardKind[] = [...HOME_DEFAULTS, "scheduled"];
+
 export type CardSwitch = { kind: HomeCardKind; title: string; line: string; shown: boolean };
 
-/** Each default card and whether Home draws it, in the default order. A
- * default the stored layout lacks is not drawn, so it reads as off; Go
- * adds it at the end when it is turned on. */
+/** Whether Home draws the Scheduled card: one is in the layout and not
+ * hidden. The Scheduled page's options menu offers Unpin then, else Pin. */
+export function scheduledOnHome(cards: Pick<LayoutCard, "kind" | "hidden">[]): boolean {
+  return cards.some((c) => c.kind === "scheduled" && !c.hidden);
+}
+
+/** Each switch's card and whether Home draws it, in the default order,
+ * the Scheduled card last. A card the stored layout lacks is not drawn, so
+ * it reads as off; Go adds it at the end when it is turned on. */
 export function cardSwitches(cards: Pick<LayoutCard, "kind" | "hidden">[]): CardSwitch[] {
-  return HOME_DEFAULTS.map((kind) => ({
+  return HOME_SWITCHES.map((kind) => ({
     kind, title: HOME_CARDS[kind].title, line: HOME_CARDS[kind].line, shown: cards.some((c) => c.kind === kind && !c.hidden),
   }));
 }
 
 type StatusView = { cards: Pick<LayoutCard, "kind" | "hidden" | "pins">[]; newer: boolean; unreadable: boolean };
 
-/** The Settings landing's line for the Home card: the default cards shown
- * and the QuickAgents pinned, or why the stored layout is not the one
- * drawn. It reads desktop.yaml only, through HomeAPI.Layout. */
+/** The Settings landing's line for the Home card: the cards shown (the
+ * defaults, and the Scheduled card while the layout holds it) and the
+ * QuickAgents pinned, or why the stored layout is not the one drawn. It
+ * reads desktop.yaml only, through HomeAPI.Layout. */
 export function homeStatus(v: StatusView): string {
   if (v.newer) return "Arranged by a newer Agentry Desktop; the default cards are shown.";
   if (v.unreadable) return "The arrangement cannot be read; the default cards are shown.";
-  const total = HOME_DEFAULTS.length;
+  const total = HOME_DEFAULTS.length + (v.cards.some((c) => c.kind === "scheduled") ? 1 : 0);
   const shown = cardSwitches(v.cards).filter((s) => s.shown).length;
   // pins.ts's pinsOf, counted here: node's tests load these modules
   // without a bundler, which resolves no extensionless import.
