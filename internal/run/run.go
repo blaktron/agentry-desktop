@@ -357,11 +357,11 @@ type Request struct {
 	// the packs and grants voice_read, and the receipt names it; the plan
 	// and its hash do not move. nil runs without one.
 	Voice *engine.AttachedVoice
-	// ReportTheme is the theme export_pdf lays the run's PDFs out with, and
-	// what chose it (plan scratch-and-pdf-reports.md D18, D21;
-	// agentry-desktop#730): the account's report theme when the app is
-	// signed in to the run's registry and the account chose one, else
-	// Plain. The model never chooses it, and the receipt names it. The
+	// ReportTheme is the report design export_pdf draws the run's PDFs in,
+	// and what chose it (plan report-designs.md D12, D18;
+	// agentry-desktop#759, D-075): the account's design, whole, when the
+	// app is signed in to the run's registry and the account chose one,
+	// else Plain. The model never chooses it, and the receipt names it. The
 	// zero value is Plain, chosen by the default.
 	ReportTheme engine.ReportTheme
 	// OutDir is where reports/receipts land ("" = ~/Downloads/agentry-out/

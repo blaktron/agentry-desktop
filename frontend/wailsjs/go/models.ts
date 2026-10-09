@@ -4025,38 +4025,202 @@ export namespace main {
 	        this.isDefault = source["isDefault"];
 	    }
 	}
-	export class ReportThemeChoice {
-	    id: string;
-	    name: string;
-	    here: boolean;
+	export class ReportAccentCheck {
+	    valid: boolean;
+	    ok: boolean;
+	    ratio: number;
+	    need: number;
+	    onText: boolean;
+	    nearest: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ReportThemeChoice(source);
+	        return new ReportAccentCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.valid = source["valid"];
+	        this.ok = source["ok"];
+	        this.ratio = source["ratio"];
+	        this.need = source["need"];
+	        this.onText = source["onText"];
+	        this.nearest = source["nearest"];
+	    }
+	}
+	export class ReportDesignProblem {
+	    field: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportDesignProblem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.field = source["field"];
+	        this.message = source["message"];
+	    }
+	}
+	export class ReportDesignCheck {
+	    problem?: ReportDesignProblem;
+	    accent: ReportAccentCheck;
+	    tint: string;
+	    unedited: boolean;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportDesignCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.problem = this.convertValues(source["problem"], ReportDesignProblem);
+	        this.accent = this.convertValues(source["accent"], ReportAccentCheck);
+	        this.tint = source["tint"];
+	        this.unedited = source["unedited"];
+	        this.label = source["label"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ReportDesignFamily {
+	    name: string;
+	    kind: string;
+	    headingsOnly?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportDesignFamily(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.headingsOnly = source["headingsOnly"];
+	    }
+	}
+	export class ReportDesignTheme {
+	    id: string;
+	    design: reportdesign.Design;
+	    thumbnail: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportDesignTheme(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.here = source["here"];
+	        this.design = this.convertValues(source["design"], reportdesign.Design);
+	        this.thumbnail = source["thumbnail"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
-	export class ReportThemeView {
-	    available: boolean;
-	    theme: string;
-	    edited?: boolean;
-	    choices: ReportThemeChoice[];
+	export class ReportDesignOptions {
+	    themes: ReportDesignTheme[];
+	    families: ReportDesignFamily[];
+	    headingFonts: string[];
+	    bodyFonts: string[];
+	    codeFonts: string[];
+	    papers: string[];
+	    titleBlocks: string[];
+	    headingStyles: string[];
+	    quoteStyles: string[];
+	    pageNumbers: string[];
+	    maxName: number;
+	    maxFooterText: number;
+	    defaultThemeId: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ReportThemeView(source);
+	        return new ReportDesignOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.themes = this.convertValues(source["themes"], ReportDesignTheme);
+	        this.families = this.convertValues(source["families"], ReportDesignFamily);
+	        this.headingFonts = source["headingFonts"];
+	        this.bodyFonts = source["bodyFonts"];
+	        this.codeFonts = source["codeFonts"];
+	        this.papers = source["papers"];
+	        this.titleBlocks = source["titleBlocks"];
+	        this.headingStyles = source["headingStyles"];
+	        this.quoteStyles = source["quoteStyles"];
+	        this.pageNumbers = source["pageNumbers"];
+	        this.maxName = source["maxName"];
+	        this.maxFooterText = source["maxFooterText"];
+	        this.defaultThemeId = source["defaultThemeId"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class ReportDesignView {
+	    available: boolean;
+	    design?: reportdesign.Design;
+	    label?: string;
+	    unreadable?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReportDesignView(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.available = source["available"];
-	        this.theme = source["theme"];
-	        this.edited = source["edited"];
-	        this.choices = this.convertValues(source["choices"], ReportThemeChoice);
+	        this.design = this.convertValues(source["design"], reportdesign.Design);
+	        this.label = source["label"];
+	        this.unreadable = source["unreadable"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5566,6 +5730,109 @@ export namespace remote {
 	        this.flags = source["flags"];
 	    }
 	}
+
+}
+
+export namespace reportdesign {
+	
+	export class Footer {
+	    pageNumbers: string;
+	    text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Footer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pageNumbers = source["pageNumbers"];
+	        this.text = source["text"];
+	    }
+	}
+	export class Tables {
+	    tinted: boolean;
+	    banded: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Tables(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tinted = source["tinted"];
+	        this.banded = source["banded"];
+	    }
+	}
+	export class Fonts {
+	    headings: string;
+	    body: string;
+	    code: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Fonts(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.headings = source["headings"];
+	        this.body = source["body"];
+	        this.code = source["code"];
+	    }
+	}
+	export class Design {
+	    agentryTheme: number;
+	    name: string;
+	    basedOn: string;
+	    version: number;
+	    paper: string;
+	    fonts: Fonts;
+	    accent: string;
+	    titleBlock: string;
+	    headings: string;
+	    tables: Tables;
+	    quotes: string;
+	    footer: Footer;
+	
+	    static createFrom(source: any = {}) {
+	        return new Design(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.agentryTheme = source["agentryTheme"];
+	        this.name = source["name"];
+	        this.basedOn = source["basedOn"];
+	        this.version = source["version"];
+	        this.paper = source["paper"];
+	        this.fonts = this.convertValues(source["fonts"], Fonts);
+	        this.accent = source["accent"];
+	        this.titleBlock = source["titleBlock"];
+	        this.headings = source["headings"];
+	        this.tables = this.convertValues(source["tables"], Tables);
+	        this.quotes = source["quotes"];
+	        this.footer = this.convertValues(source["footer"], Footer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 
 }
 
