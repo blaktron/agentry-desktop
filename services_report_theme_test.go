@@ -167,11 +167,12 @@ func TestSetReportThemeSavesClearsAndRefuses(t *testing.T) {
 }
 
 // A local run takes the account's theme when the account chose one the
-// pinned agentry command can draw; otherwise Plain, chosen by the default. An account it cannot read, or a
-// name this build does not have, is a line in the run's log and Plain:
-// how a PDF looks is no reason to stop a run (D21, as the CLI does).
+// pinned agentry command can draw; otherwise Plain, chosen by the default.
+// An account it cannot read, or a name this build does not have, is a line
+// in the run's log and Plain: how a PDF looks is no reason to stop a run
+// (D21, as the CLI does).
 func TestALocalRunTakesTheAccountsTheme(t *testing.T) {
-	srv, theme, _ := reportThemeRegistry(t, true)
+	srv, stored, _ := reportThemeRegistry(t, true)
 	ctx := context.Background()
 	var log strings.Builder
 
@@ -179,7 +180,7 @@ func TestALocalRunTakesTheAccountsTheme(t *testing.T) {
 	if got != (engine.ReportTheme{}) {
 		t.Fatalf("never chosen: %+v, want the zero value (Plain by default)", got)
 	}
-	*theme = builtinDoc(t, "technical")
+	*stored = builtinDoc(t, "technical")
 	got = accountReportTheme(ctx, srv.URL, "agy_test", &log)
 	if got.Name != "technical" || got.From != engine.ThemeFromAccount {
 		t.Fatalf("chosen: %+v", got)
@@ -193,11 +194,20 @@ func TestALocalRunTakesTheAccountsTheme(t *testing.T) {
 	}
 	// A built-in the pinned agentry command cannot draw yet is Plain, said
 	// in the log (D20), until the app carries agentry-cli#784.
-	*theme = builtinDoc(t, "modern")
+	*stored = builtinDoc(t, "modern")
 	log.Reset()
 	got = accountReportTheme(ctx, srv.URL, "agy_test", &log)
 	if got != (engine.ReportTheme{}) || !strings.Contains(log.String(), `"modern" is not one this app can draw yet`) {
 		t.Fatalf("not drawable here: %+v, log %q", got, log.String())
+	}
+	// A design edited on the site is drawn by its base as shipped, said.
+	edited, _ := reportdesign.Builtin("technical")
+	edited.Name = "Ours"
+	*stored = string(edited.Canonical())
+	log.Reset()
+	got = accountReportTheme(ctx, srv.URL, "agy_test", &log)
+	if got.Name != "technical" || !strings.Contains(log.String(), "changed on the site") {
+		t.Fatalf("edited: %+v, log %q", got, log.String())
 	}
 	// Signed out: no account to ask, nothing to say.
 	log.Reset()

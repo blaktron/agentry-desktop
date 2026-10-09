@@ -55,6 +55,11 @@ export const REPORT_THEME_LOOKS: Record<string, string> = {
  *  draw yet: its runs use Plain until the app is updated (D20). */
 export const NOT_HERE_YET = "Runs from this app use Plain for it until the app is updated.";
 
+/** What runs from this app draw meanwhile: the agentry command it carries
+ *  has Plain and Technical in their earlier look, and no edited design
+ *  (until agentry-cli#784 reaches the app). */
+export const DRAWN_HERE = "Runs from this app draw Plain and Technical in their earlier look, without changes made on the site, until the app is updated.";
+
 /** The sentence a save answers with. */
 export function themeSavedSentence(theme: string, name?: string, here = true): string {
   if (!theme) return "Saved. You have no report theme: runs from this app use Plain.";

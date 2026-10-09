@@ -142,7 +142,8 @@ func reportThemeView(s *apiclient.ReportSettings) *ReportThemeView {
 
 // isBuiltinAsShipped reports whether d is its basedOn built-in unchanged,
 // compared by the core's canonical form. One this build cannot parse is
-// taken as edited.
+// taken as edited. It sees d through the generated type, so a field a
+// later core adds is not compared; #759 replaces this with the editor.
 func isBuiltinAsShipped(d *apiclient.ReportDesign) bool {
 	raw, err := json.Marshal(d)
 	if err != nil {
@@ -183,6 +184,9 @@ func accountReportTheme(ctx context.Context, url, token string, logw io.Writer) 
 	case !toolsrv.IsBuiltinTheme(v.Theme):
 		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme %q is not one this app can draw yet (update the app); PDFs use Plain\n", v.Theme)
 	default:
+		if v.Edited {
+			_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report design was changed on the site; this app draws %q as it ships until it is updated\n", v.Theme)
+		}
 		return engine.ReportTheme{Name: v.Theme, From: engine.ThemeFromAccount}
 	}
 	return engine.ReportTheme{}

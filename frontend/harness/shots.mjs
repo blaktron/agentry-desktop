@@ -635,7 +635,7 @@ const states = [
     click: ['[data-preview="settings"] [data-report-theme="classic"] input', '[data-preview="settings"] #settings-part-report-theme button:has-text("Save report theme")'],
     expectText: "Saved. Your report theme is Classic; runs from this app use Plain for it until the app is updated." },
   { name: "settings-report-theme-edited", url: "/pages.html?settings=profile#report-edited", note: "a design changed on the site: shown by the theme it is based on, with what saving here does", locator: '[data-preview="settings"] #settings-part-report-theme',
-    expectText: "Your report design was changed on the site." },
+    expectText: "Your report design was changed on the site.", expectSelector: '[data-preview="settings"] #settings-part-report-theme button:has-text("Save report theme"):not([disabled])' },
   { name: "settings-profile-save", url: "/pages.html?settings=profile", note: "the display name changed and saved: the card shows the name the registry answered, and says so", locator: '[data-preview="settings"]',
     fill: [['[data-preview="settings"] input[aria-label="Display name"]', "Chris Q"]], click: '[data-preview="settings"] button:has-text("Save profile")',
     expectSection: "profile", expectText: "Display name saved.", expectNone: '[data-preview="settings"] .error-box' },

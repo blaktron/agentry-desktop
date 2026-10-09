@@ -3,7 +3,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
 import { capsSentence } from "../usage";
-import { NOT_HERE_YET, REPORT_THEME_LOOKS, themeSavedSentence } from "../reportPdf";
+import { DRAWN_HERE, NOT_HERE_YET, REPORT_THEME_LOOKS, themeSavedSentence } from "../reportPdf";
 import {
   bonusOf, changesPhrase, creditCount, creditNumber, creditsPhrase, dayOf, owedSentence, packBonus, packLabel, packPrice, runningPromo, tierLabel,
   topUpOffer,
@@ -245,14 +245,16 @@ function ReportThemePart({ registry }: { registry: string }) {
             ))}
           </fieldset>
         )}
+        {view && <p className="muted small" data-drawn-here>{DRAWN_HERE}</p>}
         {view?.edited && (
           <Notice tone="info">
-            Your report design was changed on the site. It is shown here by the theme it is based on, and saving a theme
-            here replaces it with that theme as it ships.
+            {(view.choices ?? []).some((c) => c.id === view.theme)
+              ? "Your report design was changed on the site. It is shown here by the theme it is based on, and saving a theme here replaces it with that theme as it ships."
+              : "Your report design is based on a theme this app does not know yet. Saving a theme here replaces it."}
           </Notice>
         )}
         {view && (
-          <Button busy={busy} busyLabel="Saving…" disabled={choice === (view.theme ?? "")} onClick={() => void save()}>
+          <Button busy={busy} busyLabel="Saving…" disabled={choice === (view.theme ?? "") && !view.edited} onClick={() => void save()}>
             Save report theme
           </Button>
         )}
