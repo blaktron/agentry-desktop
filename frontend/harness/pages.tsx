@@ -113,6 +113,11 @@ const runnerRecForShown = {
 };
 
 
+type HarnessServer = {
+  source: string; package: string; version: string; url?: string; auth?: string; scopes?: string[];
+  tools: string[]; secrets: string[]; egress: string[]; env: { name: string; value: string }[];
+  oauth?: { issuer: string; scopes: string[]; files: { path: string; template: string }[]; env: { name: string; value: string }[] };
+};
 const buildModel = {
   knowledgePrompt: "", knowledgeRequired: false, knowledgeShips: [] as string[],
   name: "incident-summarizer", namespace: "demo1", modes: ["autonomous"], version: "1.2.0",
@@ -123,7 +128,20 @@ const buildModel = {
   // PAGERDUTY_TOKEN marked Required; STATUSPAGE_TOKEN left Optional, as a
   // newly attached key starts (agentry-desktop#655).
   requiredSecrets: ["PAGERDUTY_TOKEN"],
-  mcpServers: [{ source: "npm", package: "@cyanheads/osv-advisory-mcp-server", version: "0.1.13", tools: [], secrets: [], egress: ["api.osv.dev"], env: [{ name: "LOG_LEVEL", value: "info" }] }],
+  // #build-tools-remote and #build-summary-remote (agentry-desktop#668): a
+  // remote server signed in to by OAuth, one by a key, and a package server
+  // with a sign-in, beside the npm server every other state shows.
+  mcpServers: [
+    { source: "npm", package: "@cyanheads/osv-advisory-mcp-server", version: "0.1.13", tools: [] as string[], secrets: [] as string[], egress: ["api.osv.dev"], env: [{ name: "LOG_LEVEL", value: "info" }] } as HarnessServer,
+    ...(window.location.hash.endsWith("-remote") ? [
+      { source: "url", package: "", version: "", url: "https://mcp.linear.app/mcp", auth: "oauth", scopes: ["read"], tools: ["list_issues"], secrets: [], egress: [], env: [] },
+      { source: "url", package: "", version: "", url: "https://api.githubcopilot.com/mcp/", auth: "secret", scopes: [], tools: [], secrets: ["GITHUB_TOKEN"], egress: [], env: [] },
+      { source: "pypi", package: "workspace-mcp", version: "2.0.1", tools: [], secrets: [], egress: ["gmail.googleapis.com"], env: [{ name: "MCP_SINGLE_USER_MODE", value: "1" }],
+        oauth: { issuer: "https://accounts.google.com", scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+          files: [{ path: "me@agentry.invalid.json", template: '{"token": "{access_token}", "expiry": "{expiry}", "client_id": "agentry", "client_secret": "agentry"}' }],
+          env: [{ name: "WORKSPACE_MCP_CREDENTIALS_DIR", value: "{dir}" }] } },
+    ] as HarnessServer[] : []),
+  ],
   dataAccess: ["tickets"], intake: [], opening: "", idleTimeoutSeconds: 0,
   guide: { overview: window.location.hash === "#build-summary-hostile"
     ? "Reads the channel. <script>alert(1)</script><b onclick=\"steal()\">now</b> ![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) \u202eexe.txt"
@@ -159,7 +177,7 @@ const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "
 // markup; #build-summary-problem a rule the form still fails, with Fix it.
 const buildSummary = buildHash.startsWith("summary");
 const buildView = buildHash === "" || buildHash === "landed" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
-const buildStep = ({ instructions: 1, tools: 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
+const buildStep = ({ instructions: 1, tools: 2, "tools-remote": 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
 // Describe it (#282): #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
@@ -256,10 +274,21 @@ function summaryFor(m: typeof buildModel, unmentioned: string[]) {
     if (k.usedBy[k.usedBy.length - 1] !== by) k.usedBy.push(by);
   };
   m.secrets.forEach((k) => need(k, "the QuickAgent"));
+  // signIn approximates internal/build SignInLines, which its Go test holds.
   const servers = m.mcpServers.map((sv) => {
-    const ref = `${sv.source}:${sv.package}@${sv.version}`;
-    sv.secrets.forEach((k) => need(k, ref));
-    return { ref, tools: sv.tools, hosts: sv.egress.map(host), keys: sv.secrets, config: sv.env.map((e) => e.name) };
+    const remote = isRemote(sv);
+    const ref = serverRef(sv);
+    const keys = serverKeys(sv);
+    keys.forEach((k) => need(k, ref));
+    const allow = (sc: string[]) => (sc.length ? `these scopes: ${sc.join(", ")}` : "the scopes the vendor asks for");
+    const signIn = remote
+      ? ["Runs at its vendor. Agentry checks its address and what it asks for, not the vendor's code.",
+          sv.auth === "oauth" ? `Signs in with OAuth: the first run asks whoever runs it to sign in at the vendor and allow ${allow(sv.scopes ?? [])}. The run gets an access token, nothing else.`
+            : sv.auth === "secret" ? `Signs in with the key ${keys.join(", ")}, sent to the vendor as a bearer token.` : sv.auth === "none" ? "Signs in with nothing." : ""].filter(Boolean)
+      : sv.oauth ? [`Signs in with OAuth at ${sv.oauth.issuer}: the first run asks whoever runs it to allow ${allow(sv.oauth.scopes)}. The server gets an access token, never a refresh token.`,
+          ...sv.oauth.files.map((f) => `Token file ${f.path}: ${f.template}`),
+          ...(sv.oauth.env.length ? [`Token settings: ${sv.oauth.env.map((e) => `${e.name}=${e.value}`).join(", ")}.`] : [])] : [];
+    return { ref, tools: sv.tools, hosts: serverHosts(sv).map(host), keys, config: remote ? [] : sv.env.map((e) => e.name), remote, signIn };
   });
   const websites = m.egressMode === "all" ? [host("*")] : m.egressMode === "hosts" ? m.egressHosts.map(host) : [];
   const fs = (mode: string, paths: string[], verb: string) =>
@@ -913,6 +942,7 @@ import Validate from "../src/pages/Validate";
 import Voice from "../src/pages/Voice";
 import Publisher from "../src/pages/Publisher";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "../src/pages/Settings";
+import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServers";
 
 const settingsView = {
   defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml", unsafeMode: unsafeOn,

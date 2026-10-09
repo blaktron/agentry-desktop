@@ -3,6 +3,8 @@ package build
 import (
 	"fmt"
 	"strings"
+
+	"github.com/blaktron/agentry/pkg/manifest"
 )
 
 // Summary is the Build tab's summary (plan builder-simplify.md §4.1, D7;
@@ -73,6 +75,66 @@ type SummaryServer struct {
 	// Config is the names of its plain configuration (env); the values
 	// are in the form.
 	Config []string `json:"config"`
+	// Remote is a server run at its vendor, declared by its address
+	// (agentry-desktop#668).
+	Remote bool `json:"remote"`
+	// SignIn says how it signs in, in the site's sentences
+	// (agentry-web lib/builder-summary.ts signInLines): a remote server's
+	// auth and scopes; a package's issuer, scopes, each token file with its
+	// template, and its token settings. Empty for none.
+	SignIn []string `json:"signIn"`
+}
+
+// issuerNotGiven stands in for a sign-in's issuer before it is given.
+const issuerNotGiven = "an issuer not given yet"
+
+// SignInLines says how a server signs in (plan mcp-oauth-connections.md
+// §3.9, §6): what the first run asks of whoever runs it, and that a run
+// gets an access token and nothing else (D8). It never vouches for a
+// vendor: of a remote server it says what Agentry checks and what it cannot.
+// A token file's template and a token setting's value are shown whole,
+// unlike configuration's names: what is written beside the token is
+// contract. The words are the site's.
+func (r MCPServerRow) SignInLines() []string {
+	d := r.Declared()
+	allow := func(scopes []string) string {
+		if len(scopes) == 0 {
+			return "the scopes the vendor asks for"
+		}
+		return "these scopes: " + strings.Join(scopes, ", ")
+	}
+	if d.IsRemote() {
+		out := []string{"Runs at its vendor. Agentry checks its address and what it asks for, not the vendor's code."}
+		switch manifest.MCPAuth(d.Auth) {
+		case manifest.AuthOAuth:
+			out = append(out, "Signs in with OAuth: the first run asks whoever runs it to sign in at the vendor and allow "+allow(d.Scopes)+". The run gets an access token, nothing else.")
+		case manifest.AuthSecret:
+			out = append(out, "Signs in with the key "+strings.Join(d.Secrets, ", ")+", sent to the vendor as a bearer token.")
+		case manifest.AuthNone:
+			out = append(out, "Signs in with nothing.")
+		}
+		return out
+	}
+	o := d.OAuth
+	if o == nil {
+		return []string{}
+	}
+	issuer := strings.TrimSpace(o.Issuer)
+	if issuer == "" {
+		issuer = issuerNotGiven
+	}
+	out := []string{"Signs in with OAuth at " + issuer + ": the first run asks whoever runs it to allow " + allow(compact(o.Scopes)) + ". The server gets an access token, never a refresh token."}
+	for _, f := range o.Files {
+		out = append(out, "Token file "+strings.TrimSpace(f.Path)+": "+f.Template)
+	}
+	var settings []string
+	for _, e := range o.Env {
+		settings = append(settings, strings.TrimSpace(e.Name)+"="+e.Value)
+	}
+	if len(settings) > 0 {
+		out = append(out, "Token settings: "+strings.Join(settings, ", ")+".")
+	}
+	return out
 }
 
 // Summarize reads the model, and the hosts a draft's description did not
@@ -121,10 +183,12 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	for _, k := range compact(m.Secrets) {
 		need(k, "the QuickAgent")
 	}
-	for _, srv := range m.MCPServers {
+	for _, row := range m.MCPServers {
+		srv := row.Declared()
 		ref := srv.Ref()
-		sv := SummaryServer{Ref: ref, Tools: compact(srv.Tools), Hosts: []SummaryHost{}, Keys: compact(srv.Secrets), Config: []string{}}
-		for _, h := range compact(srv.Egress) {
+		sv := SummaryServer{Ref: ref, Tools: compact(srv.Tools), Hosts: []SummaryHost{}, Keys: compact(srv.Secrets), Config: []string{},
+			Remote: srv.IsRemote(), SignIn: srv.SignInLines()}
+		for _, h := range srv.Hosts() {
 			sv.Hosts = append(sv.Hosts, host(h))
 		}
 		for _, e := range srv.Env {
@@ -177,8 +241,11 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 }
 
 // Ref is a server's reference as the page and the registry's check name
-// it: source:package@version.
+// it: source:package@version, or a remote server's address.
 func (r MCPServerRow) Ref() string {
+	if r.IsRemote() {
+		return strings.TrimSpace(r.URL)
+	}
 	return r.Source + ":" + strings.TrimSpace(r.Package) + "@" + strings.TrimSpace(r.Version)
 }
 

@@ -35,7 +35,7 @@ func UnmentionedHosts(m *build.Model, words string) []string {
 		reached = append(reached, m.EgressHosts...)
 	}
 	for _, s := range m.MCPServers {
-		reached = append(reached, s.Egress...)
+		reached = append(reached, s.Hosts()...)
 	}
 	said := strings.ToLower(words)
 	seen := map[string]bool{}

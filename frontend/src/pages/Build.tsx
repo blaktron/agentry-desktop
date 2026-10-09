@@ -47,6 +47,8 @@ import { Button, Card, ErrorBox, Notice, PageHeader, Recap, Sev, Spinner, StepFo
 import { KeyHelpList } from "../KeyHelp";
 import { advisoryWords } from "../advisory";
 import { declaredKeys, optionalKeys, questionRequired, requiredKeys } from "../requiredKeys";
+import { isRemote, reachRow, REMOTE_CHECK, serverRef } from "../remoteServers";
+import { RevealText } from "../reveal";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
 // The §19 instruction-file quota, as internal/build's maxInstructionBytes.
@@ -118,9 +120,6 @@ function sentence(s: string): string {
 
 const stepOf = (key: StepKey) => STEPS.findIndex((s) => s.key === key);
 
-/** A server's reference, as the registry's check names it. */
-const serverRef = (s: build.MCPServerRow) => `${s.source}:${s.package}@${s.version}`;
-
 // The registry's check of one server version in plain words. The status
 // "safe" is never shown as a word: it means no known advisories at a date.
 function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: string } {
@@ -146,18 +145,130 @@ function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: strin
   }
 }
 
+type PatchRow = (row: Partial<build.MCPServerRow>) => void;
+
+// A remote server's row (OAuth connections M11, agentry-desktop#668): its
+// address, how it signs in, and the scopes or the key that goes with that.
+// The Go model writes only these (MCPServerRow.Declared), so a package's
+// fields a source switch hides are kept for switching back, never written.
+function RemoteServerRow({ srv, patch, source, remove }: { srv: build.MCPServerRow; patch: PatchRow; source: ReactNode; remove: ReactNode }) {
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      <div className="row">
+        {source}
+        <label className="small grow">address
+          <input type="text" className="mono" style={{ width: "100%" }} placeholder="https://mcp.example.com/mcp"
+            value={srv.url ?? ""} onChange={(e) => patch({ url: e.target.value })} />
+        </label>
+        <label className="small">signs in with
+          <select value={srv.auth ?? ""} onChange={(e) => patch({ auth: e.target.value })}>
+            <option value="">choose</option>
+            <option value="oauth">OAuth</option>
+            <option value="secret">a key</option>
+            <option value="none">nothing</option>
+          </select>
+        </label>
+        {remove}
+      </div>
+      <div className="row" style={{ marginTop: 6 }}>
+        {srv.auth === "oauth" && (
+          <label className="small grow">scopes it asks for (empty = the vendor&apos;s)
+            <ListInput value={srv.scopes ?? []} onChange={(v) => patch({ scopes: v })} placeholder="read, write" />
+          </label>
+        )}
+        <label className="small grow">tools it may call (empty = all it offers)
+          <ListInput value={srv.tools ?? []} onChange={(v) => patch({ tools: v })} placeholder="list_issues, get_issue" />
+        </label>
+        {srv.auth === "secret" && (
+          <label className="small grow">the key it sends (a NAME)
+            <ListInput value={srv.secrets ?? []} onChange={(v) => patch({ secrets: v })} placeholder="GITHUB_TOKEN" />
+          </label>
+        )}
+      </div>
+      <p className="muted small" style={{ margin: "6px 0 0" }}>
+        It runs at its vendor: Agentry checks its address and what it asks for, not the vendor&apos;s code.{" "}
+        {srv.auth === "oauth" && "Before its first run, whoever runs the QuickAgent signs in at the vendor and allows these scopes; the run gets an access token and nothing else."}
+        {srv.auth === "secret" && "The key goes to the vendor as a bearer token; whoever runs the QuickAgent supplies it. Under Files, commands and data you say whether a run can start without it."}
+      </p>
+    </div>
+  );
+}
+
+// A package server's OAuth sign-in (the manifest's oauth block, DEV-215):
+// the issuer, the scopes, and how the access token reaches the server.
+function SignInFields({ srv, patch }: { srv: build.MCPServerRow; patch: PatchRow }) {
+  const o = srv.oauth;
+  const set = (next: Partial<build.OAuthRow>) => patch({ oauth: new build.OAuthRow({ ...o, ...next }) });
+  const files = o?.files ?? [];
+  const env = o?.env ?? [];
+  return (
+    <div style={{ marginTop: 6 }}>
+      <label className="small">
+        <input type="checkbox" checked={!!o}
+          onChange={(e) => patch({ oauth: e.target.checked ? new build.OAuthRow({ issuer: "", scopes: [], files: [], env: [] }) : undefined })} />{" "}
+        it signs in to the person&apos;s own account (OAuth)
+      </label>
+      {o && (
+        <>
+          <div className="row" style={{ marginTop: 4 }}>
+            <label className="small grow">issuer
+              <input type="text" className="mono" style={{ width: "100%" }} placeholder="https://accounts.google.com"
+                value={o.issuer} onChange={(e) => set({ issuer: e.target.value })} />
+            </label>
+            <label className="small grow">scopes it asks for
+              <ListInput value={o.scopes ?? []} onChange={(v) => set({ scopes: v })} placeholder="https://www.googleapis.com/auth/gmail.readonly" />
+            </label>
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <span className="small">token files, written into the server&apos;s own folder ({"{access_token}"}, {"{expiry}"}, {"{expiry_ms}"})</span>
+            {files.map((f, k) => (
+              <div className="row" key={k} style={{ marginTop: 4 }}>
+                <input type="text" className="mono" aria-label="token file name" placeholder="credentials.json" style={{ width: 180 }} value={f.path}
+                  onChange={(ev) => set({ files: files.map((x, j) => (j === k ? new build.TokenFileRow({ ...x, path: ev.target.value }) : x)) })} />
+                <input type="text" className="mono grow" aria-label="token file template" placeholder='{"token": "{access_token}"}' value={f.template}
+                  onChange={(ev) => set({ files: files.map((x, j) => (j === k ? new build.TokenFileRow({ ...x, template: ev.target.value }) : x)) })} />
+                <Button type="button" onClick={() => set({ files: files.filter((_, j) => j !== k) })}>remove</Button>
+              </div>
+            ))}
+            <Button type="button" className="small" onClick={() => set({ files: [...files, new build.TokenFileRow({ path: "", template: "" })] })}>+ add token file</Button>
+          </div>
+          <div style={{ marginTop: 6 }}>
+            <span className="small">token settings, environment variables ({"{access_token}"}, {"{dir}"} for the folder)</span>
+            {env.map((e, k) => (
+              <div className="row" key={k} style={{ marginTop: 4 }}>
+                <input type="text" className="mono" aria-label="token setting name" placeholder="NAME" style={{ width: 180 }} value={e.name}
+                  onChange={(ev) => set({ env: env.map((x, j) => (j === k ? new build.EnvRow({ ...x, name: ev.target.value }) : x)) })} />
+                <input type="text" className="mono grow" aria-label="token setting value" placeholder="{dir}" value={e.value}
+                  onChange={(ev) => set({ env: env.map((x, j) => (j === k ? new build.EnvRow({ ...x, value: ev.target.value }) : x)) })} />
+                <Button type="button" onClick={() => set({ env: env.filter((_, j) => j !== k) })}>remove</Button>
+              </div>
+            ))}
+            <Button type="button" className="small" onClick={() => set({ env: [...env, new build.EnvRow({ name: "", value: "" })] })}>+ add token setting</Button>
+          </div>
+          <p className="muted small" style={{ margin: "6px 0 0" }}>
+            Before its first run, whoever runs the QuickAgent signs in and allows these scopes; the server gets an access token,
+            never a refresh token. A token file is packed with the QuickAgent and anyone can read it: where it needs a client id
+            or secret, write a dummy such as &ldquo;agentry&rdquo;, never a real token or secret.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ServerChecks({ m, checks }: { m: build.Model; checks: Record<string, mcpvuln.Status> }) {
-  const rows = (m.mcpServers ?? []).filter((s) => s.package.trim() && s.version.trim());
+  const rows = (m.mcpServers ?? []).filter((s) => (isRemote(s) ? (s.url ?? "").trim() : s.package.trim() && s.version.trim()));
   if (rows.length === 0) return null;
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <strong className="small">The declared servers, as the registry last checked them</strong>
       {rows.map((s, i) => {
         const c = checks[serverRef(s)];
-        const said = c ? checkSentence(c) : { tone: "muted" as const, text: "Asking the registry…" };
+        // A remote server has no package for the registry to look up.
+        const said = isRemote(s) ? { tone: "muted" as const, text: REMOTE_CHECK } : c ? checkSentence(c) : { tone: "muted" as const, text: "Asking the registry…" };
         return (
           <div key={i} className="small" style={{ marginTop: 6 }}>
-            <span className="mono">{serverRef(s)}</span>
+            <span className="mono"><RevealText text={serverRef(s)} /></span>
             <div className={said.tone === "high" ? "sev-high" : "muted"} style={said.tone === "high" ? { color: "var(--color-sev-high)" } : undefined}>{said.text}</div>
           </div>
         );
@@ -173,17 +284,7 @@ function networkReach(m: build.Model): { what: string; value: string }[] {
     value: m.egressMode === "all" ? "any host (*): routed to review, refused by runners whose policy does not allow it"
       : m.egressMode === "hosts" ? (m.egressHosts.join(", ") || "no hosts listed yet") : "none",
   }];
-  for (const s of m.mcpServers ?? []) {
-    rows.push({
-      what: `${s.source}:${s.package || "?"}@${s.version || "?"}`,
-      value: [
-        (s.egress ?? []).length ? `reaches ${s.egress.join(", ")}` : "reaches no host",
-        (s.tools ?? []).length ? `tools ${s.tools.join(", ")}` : "all its tools",
-        (s.secrets ?? []).length ? `keys ${s.secrets.join(", ")}` : "",
-        (s.env ?? []).length ? `configuration ${s.env.map((e) => e.name).join(", ")}` : "",
-      ].filter(Boolean).join("; "),
-    });
-  }
+  for (const s of m.mcpServers ?? []) rows.push(reachRow(s));
   return rows;
 }
 
@@ -247,8 +348,10 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
       <dl className="build-reach">
         {rows.map((r, i) => (
           <div key={i} style={{ display: "contents" }}>
-            <dt className="mono small">{r.what}</dt>
-            <dd>{r.value}</dd>
+            {/* Through RevealText: a scope, an address or a tool name can
+                hold a character a reader cannot see (agentry-desktop#668). */}
+            <dt className="mono small"><RevealText text={r.what} /></dt>
+            <dd><RevealText text={r.value} /></dd>
           </div>
         ))}
       </dl>
@@ -401,7 +504,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // per version while Tools and web access or Review is showing.
   useEffect(() => {
     if (!model || view !== "steps" || (STEPS[at].key !== "tools" && STEPS[at].key !== "review")) return;
-    const fresh = (model.mcpServers ?? []).filter((s) => s.package.trim() && s.version.trim() && !asked.current.has(serverRef(s)));
+    const fresh = (model.mcpServers ?? []).filter((s) => !isRemote(s) && s.package.trim() && s.version.trim() && !asked.current.has(serverRef(s)));
     if (fresh.length === 0) return;
     fresh.forEach((s) => asked.current.add(serverRef(s)));
     BuildAPI.ServerChecks(registry, new build.Model({ ...model, mcpServers: fresh }))
@@ -737,32 +840,47 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         <div style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <strong className="small">MCP servers (exact version pins; each installed per release)</strong>
-            <Button
-              type="button"
-              onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [], env: [] })] })}
-            >
-              + add server
-            </Button>
+            <div className="row">
+              <Button
+                type="button"
+                onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "npm", package: "", version: "", tools: [], secrets: [], egress: [], env: [] })] })}
+              >
+                + add server
+              </Button>
+              <Button
+                type="button"
+                onClick={() => set({ mcpServers: [...(m.mcpServers ?? []), new build.MCPServerRow({ source: "url", package: "", version: "", url: "", auth: "", scopes: [], tools: [], secrets: [], egress: [], env: [] })] })}
+              >
+                + add remote server
+              </Button>
+            </div>
           </div>
           {(m.mcpServers ?? []).length === 0 && (
             <p className="muted small" style={{ margin: "4px 0 0" }}>
               None. A server declared here is resolved from npm or PyPI at the pinned version and installed into the
-              release&apos;s own store; its tools, keys and hosts are scoped to that server.
+              release&apos;s own store; its tools, keys and hosts are scoped to that server. A remote server runs at its
+              vendor and is reached at its https:// address.
             </p>
           )}
           {(m.mcpServers ?? []).map((srv, i) => {
             const patch = (row: Partial<build.MCPServerRow>) =>
               set({ mcpServers: m.mcpServers.map((r, j) => (j === i ? new build.MCPServerRow({ ...r, ...row }) : r)) });
             const env = srv.env ?? [];
+            const sourceSelect = (
+              <label className="small">source
+                <select value={srv.source} onChange={(e) => patch({ source: e.target.value })}>
+                  <option value="npm">npm</option>
+                  <option value="pypi">PyPI</option>
+                  <option value="url">remote</option>
+                </select>
+              </label>
+            );
+            const remove = <Button type="button" onClick={() => set({ mcpServers: m.mcpServers.filter((_, j) => j !== i) })}>remove</Button>;
+            if (isRemote(srv)) return <RemoteServerRow key={i} srv={srv} patch={patch} source={sourceSelect} remove={remove} />;
             return (
               <div className="card" key={i} style={{ marginTop: 8 }}>
                 <div className="row">
-                  <label className="small">source
-                    <select value={srv.source} onChange={(e) => patch({ source: e.target.value })}>
-                      <option value="npm">npm</option>
-                      <option value="pypi">PyPI</option>
-                    </select>
-                  </label>
+                  {sourceSelect}
                   <label className="small grow">package
                     <input type="text" className="mono" style={{ width: "100%" }} placeholder={srv.source === "npm" ? "@scope/server-name" : "mcp-server-name"}
                       value={srv.package} onChange={(e) => patch({ package: e.target.value })} />
@@ -770,7 +888,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                   <label className="small">exact version
                     <input type="text" className="mono" style={{ width: 120 }} placeholder="1.2.3" value={srv.version} onChange={(e) => patch({ version: e.target.value })} />
                   </label>
-                  <Button type="button" onClick={() => set({ mcpServers: m.mcpServers.filter((_, j) => j !== i) })}>remove</Button>
+                  {remove}
                 </div>
                 <div className="row" style={{ marginTop: 6 }}>
                   <label className="small grow">tools it may call (empty = all it offers)
@@ -796,6 +914,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                   ))}
                   <Button type="button" className="small" onClick={() => patch({ env: [...env, new build.EnvRow({ name: "", value: "" })] })}>+ add configuration</Button>
                 </div>
+                <SignInFields srv={srv} patch={patch} />
                 {(srv.secrets ?? []).length > 0 && (
                   <p className="muted small" style={{ margin: "6px 0 0" }}>
                     It needs {srv.secrets.join(", ")}: whoever runs the QuickAgent supplies {srv.secrets.length === 1 ? "it" : "them"}, on their computer or when they start it in Agentry. Under Files, commands and data you say whether a run can start without each.
