@@ -3,6 +3,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
 import { capsSentence } from "../usage";
+import { REPORT_THEMES, themeSavedSentence } from "../reportPdf";
 import {
   bonusOf, changesPhrase, creditCount, creditNumber, creditsPhrase, dayOf, owedSentence, packBonus, packLabel, packPrice, runningPromo, tierLabel,
   topUpOffer,
@@ -161,6 +162,7 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
           <p className="muted small">The sign-in service holds your handle and email, and this app cannot change them.</p>
         </Card>
       </section>
+      <ReportThemePart registry={registry} />
       {/* The Subscription part is drawn where the registry sells
           subscriptions, as the site's is: a registry without billing has
           none (the site's SubscriptionPart returns nothing there). */}
@@ -171,6 +173,79 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
         </section>
       )}
     </>
+  );
+}
+
+// ReportThemePart is the account's report theme (plan
+// scratch-and-pdf-reports.md D18, D21; agentry-desktop#730): how the PDFs a
+// run exports are laid out, the same setting as the site's Profile card. A
+// local run from this app takes it; "Not chosen" is Plain here. Drawn only
+// where the registry keeps the setting.
+function ReportThemePart({ registry }: { registry: string }) {
+  const [view, setView] = useState<main.ReportThemeView | null>(null);
+  const [choice, setChoice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    SettingsAPI.ReportTheme(registry)
+      .then((v) => { if (live) { setView(v); setChoice(v.theme ?? ""); } })
+      .catch((e) => { if (live) setErr(String(e)); });
+    return () => { live = false; };
+  }, [registry]);
+
+  if (view && !view.available) return null;
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    setSaved(null);
+    try {
+      const v = await SettingsAPI.SetReportTheme(registry, choice);
+      setView(v);
+      setChoice(v.theme ?? "");
+      setSaved(themeSavedSentence(v.theme ?? ""));
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section id="settings-part-report-theme" className="settings-part">
+      <h2>Report theme</h2>
+      <Card>
+        <p className="muted small">
+          How the PDFs your runs export are laid out. A run makes a PDF when you ask for one, or when its report is
+          meant for someone else. The QuickAgent never picks the theme, and asking it for a formal tone changes its
+          words, not this.
+        </p>
+        {!view && !err && <p className="muted small">Reading your report theme…</p>}
+        <ErrorBox error={err} />
+        {view && (
+          <fieldset className="report-themes" disabled={busy}>
+            <legend className="sr-only">Report theme</legend>
+            <label className="row">
+              <input type="radio" name="report-theme" value="" checked={choice === ""} onChange={() => setChoice("")} />
+              <span>Not chosen <span className="muted small">Plain, for runs from this app.</span></span>
+            </label>
+            {REPORT_THEMES.map((t) => (
+              <label key={t.name} className="row">
+                <input type="radio" name="report-theme" value={t.name} checked={choice === t.name} onChange={() => setChoice(t.name)} />
+                <span>{t.label} <span className="muted small">{t.look}</span></span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {view && (
+          <Button busy={busy} busyLabel="Saving…" disabled={choice === (view.theme ?? "")} onClick={() => void save()}>
+            Save report theme
+          </Button>
+        )}
+        {saved && <Notice tone="ok">{saved}</Notice>}
+      </Card>
+    </section>
   );
 }
 

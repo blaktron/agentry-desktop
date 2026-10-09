@@ -130,6 +130,13 @@ type RunAPI struct {
 	// way, so a second click is refused (services_history.go).
 	downloading sync.Map
 	openFolder  func(dir string) error
+	// openFile opens a PDF copy in the system viewer and saveFile asks
+	// where to save one (services_pdf.go); nil are the OS's. pdfDir holds
+	// the copies OpenRunPDF made, removed at quit.
+	openFile func(path string) error
+	saveFile func(name string) (string, error)
+	pdfMu    sync.Mutex
+	pdfDir   string
 	// openBrowser opens a consent address (services_connections.go); nil
 	// is the system browser. A test substitutes its own.
 	openBrowser func(url string) error
@@ -235,6 +242,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		InputPaths:             inputPaths,
 		Knowledge:              packs,
 		Voice:                  voiced,
+		ReportTheme:            r.reportThemeFor(ctx, reg, logw),
 		OutDir:                 outDir,
 		OutDirIsRoot:           isSavedOutputDir(outDir),
 		KeepProfile:            keepProfile,
@@ -1050,6 +1058,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		InputPaths:         inputPaths,
 		Knowledge:          packs,
 		Voice:              voiced,
+		ReportTheme:        r.reportThemeFor(ctx, reg, logw),
 		OutDir:             outDir,
 		OutDirIsRoot:       isSavedOutputDir(outDir),
 		KeepProfile:        keepProfile,

@@ -7,18 +7,26 @@ package main
 //
 // Two rules hold these bindings to the run and to nothing else:
 //
-//   - The page names a run, never a path. A run's folder is known here only
-//     because Go produced the run's result itself (RunAgent, EndSession, a
-//     hosted run's download) and remembered its folder under its run id,
-//     in memory and, while Remember recent runs is on, in the run history
-//     Go alone writes (services_history.go, D-068); any other id is
-//     refused. So a page that has been made to call these bindings can
-//     list or reveal a run's folder, and nothing else on the machine.
-//   - Nothing an agent wrote is opened. A file is read for its preview,
-//     through no link, and only when it is a regular file inside the folder;
-//     ShowRunFolder opens the run's folder itself in the file manager, never
-//     a file in it, because a file a run wrote can be one the OS would
-//     execute (plan D8).
+//   - The page names a run, never a folder. A run's folder is known here
+//     only because Go produced the run's result itself (RunAgent,
+//     EndSession, a hosted run's download) and remembered its folder under
+//     its run id, in memory and, while Remember recent runs is on, in the
+//     run history Go alone writes (services_history.go, D-068); any other
+//     id is refused. The PDF bindings (services_pdf.go, D-072) also take a
+//     path inside that folder, the one this listing named: Go holds it to
+//     outputs/ or reports/ and reads it with no link at any part of it, as
+//     listOutputs walks. So a page that has been made to call these
+//     bindings can list or reveal a run's folder and read a PDF in it, and
+//     nothing else on the machine.
+//   - Nothing an agent wrote is opened, with one exception. A file is read
+//     for its preview, through no link, and only when it is a regular file
+//     inside the folder; ShowRunFolder opens the run's folder itself in the
+//     file manager, never a file in it, because a file a run wrote can be
+//     one the OS would execute (plan D8). The exception is a PDF the run's
+//     own export made, by the envelope's record of its SHA-256: it is drawn
+//     in the app's viewer, and Open in system viewer hands the OS a fresh
+//     copy of the checked bytes under a plain name ending in .pdf
+//     (services_pdf.go, D-072).
 
 import (
 	"errors"
@@ -62,6 +70,9 @@ type OutputFileView struct {
 	Preview     string `json:"preview,omitempty"`
 	// NoPreview is "large" or "binary" when PreviewKind is "none".
 	NoPreview string `json:"noPreview,omitempty"`
+	// PDF is set for a .pdf file: whether the run's PDF export made it
+	// (services_pdf.go).
+	PDF *OutputPDFView `json:"pdf,omitempty"`
 }
 
 // RunOutputsView is a run folder's outputs/ and reports/, outputs first.
@@ -115,7 +126,12 @@ func (r *RunAPI) RunOutputs(runID string) (*RunOutputsView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return listOutputs(dir)
+	view, err := listOutputs(dir)
+	if err != nil {
+		return nil, err
+	}
+	markPDFs(dir, view)
+	return view, nil
 }
 
 // ShowRunFolder shows the run's folder in the file manager.
