@@ -67,6 +67,8 @@ export function HomeSettings() {
   const switches = cardSwitches(view.cards);
   const pinCards = kept ? [] : view.cards.filter((c) => c.kind === "pinned" && (c.pins?.length ?? 0) > 0);
   const pins = kept ? [] : pinsOf(view.cards);
+  // The Scheduled card is no default, so Reset removes it (agentry-desktop#744).
+  const hasScheduled = !kept && view.cards.some((c) => c.kind === "scheduled");
 
   return (
     <>
@@ -87,7 +89,8 @@ export function HomeSettings() {
         <h2>Cards</h2>
         <Card>
           <p className="muted small" style={{ marginTop: 0 }}>
-            A hidden card keeps its place on Home, and shows there again when you turn it back on.
+            A hidden card keeps its place on Home, and shows there again when you turn it back on. A card that is not on Home
+            is added at the end.
           </p>
           {switches.map((s) => (
             <div key={s.kind} className="home-card-switch" data-home-switch={s.kind}>
@@ -155,7 +158,8 @@ export function HomeSettings() {
         <Card>
           <p className="small" style={{ marginTop: 0 }}>
             Shows the {HOME_DEFAULTS.length} default cards again in their first order
-            {pins.length > 0 ? <>, and removes every pin ({pins.length})</> : null}. It uninstalls nothing.
+            {pins.length > 0 ? <>, and removes every pin ({pins.length})</> : null}
+            {hasScheduled ? <>{pins.length > 0 ? " and" : ", and removes"} the Scheduled card</> : null}. It uninstalls nothing.
           </p>
           <Button disabled={busy} data-reset-home onClick={() => setConfirmReset(true)}>Reset Home…</Button>
           <Said said={said} part="reset" />
@@ -172,6 +176,7 @@ export function HomeSettings() {
                 : `the ${pins.length} QuickAgents pinned there stay installed, and Pin to Home puts them back`}</>
               : null}
             {kept ? <>. The arrangement the settings file holds now is replaced, with any pins it holds</> : null}.
+            {hasScheduled ? <> The Scheduled card goes too: Pin to Home on the Scheduled page puts it back. Your schedules stay as they are.</> : null}
           </p>
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmReset(false)}>Cancel</Button>

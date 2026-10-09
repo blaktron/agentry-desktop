@@ -128,3 +128,21 @@ test("Edit sends When only when it changed, since a changed repeat starts afresh
   assert.equal(sameWhen(whenSpec(whenForm(daily, false, now, "UTC")), daily), true);
   assert.equal(sameWhen(null, daily), false);
 });
+
+// Home's Scheduled card (agentry-desktop#744).
+import { asSentence, scheduledCardStatus } from "../src/scheduled.ts";
+
+test("the Scheduled card's line counts the schedules, or says why there is none to count", () => {
+  assert.equal(scheduledCardStatus(null, null), "Reading the schedules…");
+  assert.equal(scheduledCardStatus(null, "boom"), "The schedules could not be read.");
+  assert.equal(scheduledCardStatus({ schedules: 0 }, null), "Nothing is scheduled on this computer yet.");
+  assert.equal(scheduledCardStatus({ schedules: 1 }, null), "1 schedule on this computer.");
+  assert.equal(scheduledCardStatus({ schedules: 3 }, null), "3 schedules on this computer.");
+});
+
+test("Go's reason reads as a sentence on the card", () => {
+  assert.equal(asSentence("scheduling a run on this computer needs the agentry command, which was not found"),
+    "Scheduling a run on this computer needs the agentry command, which was not found.");
+  assert.equal(asSentence("Already a sentence."), "Already a sentence.");
+  assert.equal(asSentence(" "), "");
+});

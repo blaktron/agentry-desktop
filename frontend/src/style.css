@@ -1232,6 +1232,25 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .cal-dot.tone-warn { background: var(--color-sev-medium); }
 .cal-more { font-size: 10px; color: var(--color-muted); }
 .cal-key .cal-dot { margin: 0 2px 0 8px; }
+/* The mini month grid on Home's Scheduled card (agentry-desktop#744):
+   the page's grid, smaller, its days plain cells (the card is the button). */
+.cal-mini { margin-top: 2px; }
+.cal-mini th { font-size: 11px; padding: 2px 0; }
+.cal-mini td { padding: 1px; }
+.cal-mini .cal-day { min-height: 30px; padding: 3px 4px; gap: 2px; border-radius: 6px; cursor: inherit; }
+.cal-mini .cal-day:hover { border-color: var(--color-border); }
+.cal-mini .cal-num { font-size: 11px; }
+.cal-mini .cal-dot { width: 6px; height: 6px; }
+.cal-mini .cal-dots { gap: 2px; }
+.home-scheduled-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; align-items: start; }
+@media (max-width: 720px) { .home-scheduled-body { grid-template-columns: 1fr; } }
+.home-scheduled-title { margin: 0 0 4px; font-weight: 600; }
+.home-scheduled-next .home-card-list { gap: 8px; }
+/* A page's options menu (OptionsMenu): a short list under its button. */
+.options-menu { position: relative; }
+.options-menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 180px; display: flex; flex-direction: column; padding: 4px;
+  background: var(--color-raised); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); }
+.options-menu-list [role="menuitem"] { text-align: left; border: 0; width: 100%; white-space: nowrap; }
 .schedule-list { list-style: none; margin: 0; padding: 0; }
 .schedule-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--color-border); }
 .schedule-row:first-child { border-top: 0; }

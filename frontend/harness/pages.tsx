@@ -463,8 +463,14 @@ const pinSets: Record<string, { ref: string; registry: string }[][]> = {
 // #home-all-hidden hides every default card and pins nothing
 // (agentry-desktop#661).
 const allHidden = homeHash === "#home-all-hidden";
+// The Scheduled card (agentry-desktop#744): #home-scheduled pins it, with
+// the Scheduled page's October; #home-scheduled-empty with no schedule,
+// #home-scheduled-nocli where the agentry command is not found;
+// #home-strict-scheduled is #home-strict with the card.
+const homeScheduled = homeHash.startsWith("#home-scheduled") || homeHash === "#home-strict-scheduled";
 let homeCards: any[] = [{ kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
-  ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins }))];
+  ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
+  ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
 // one after it, an emptied one removed (D11).
 // Reset replaces a kept (newer or unreadable) layout too.
@@ -483,9 +489,11 @@ function harnessPin(ref: string, registry: string) {
 function harnessSetShown(kind: string, shown: boolean) {
   homeCards = homeCards.some((c) => c.kind === kind)
     ? homeCards.map((c) => (c.kind === kind ? { ...c, hidden: !shown } : c))
-    : [...homeCards, { kind, hidden: !shown }];
+    : [...homeCards, { kind, hidden: !shown, ...(kind === "scheduled" ? { size: "large" } : {}) }];
   return homeView();
 }
+// The Scheduled page's Pin to Home and Unpin (agentry-desktop#744).
+const harnessUnpinScheduled = () => { homeCards = homeCards.filter((c) => c.kind !== "scheduled"); return homeView(); };
 function harnessReset() {
   homeReset = true;
   homeCards = HOME_DEFAULTS.map((kind) => ({ kind }));
@@ -565,6 +573,9 @@ g.go = { main: {
     Check: async () => ({ ready: true, gaps: [], installed: true, modes: ["autonomous"], refusals: [], needsConsent: false, signedOut: { available: true } }),
     Edit: async () => undefined, Pause: async () => undefined, Resume: async () => undefined,
     Remove: async () => true, RunNow: async () => undefined, Add: async () => ({ id: "ab12cd34ef" }),
+    HomeCard: async () => (homeHash === "#home-scheduled-empty" || homeHash === "#home-scheduled-nocli"
+      ? { schedules: 0, month: [], next: [], reason: homeHash === "#home-scheduled-nocli" ? "scheduling a run on this computer needs the agentry command, which was not found" : undefined }
+      : { schedules: scheduleItems.length, month: [...schedFires, ...schedDue], next: schedDue.slice(0, 3) }),
   },
   PublisherAPI: {
     // Fork (agentry-desktop#706): #agent-fork-taken answers the origin's
@@ -615,6 +626,8 @@ g.go = { main: {
     Unpin: async (ref: string, registry: string) => harnessUnpin(ref, registry),
     SetShown: async (kind: string, shown: boolean) => harnessSetShown(kind, shown),
     Reset: async () => harnessReset(),
+    PinScheduled: async () => harnessSetShown("scheduled", true),
+    UnpinScheduled: async () => harnessUnpinScheduled(),
   },
   VoiceAPI: {
     View: async () => voiceView,
@@ -1096,12 +1109,14 @@ function HomePreview() {
   return (
     <Home
       registry={q.get("active") === "anon" ? "http://agentry:8080" : REG}
+      // The Scheduled card's month is the Scheduled page's October.
+      now={SCHED_NOW}
       settings={settingsView as any}
       // #home-setup: the "Setup isn't finished" notice App hands Home.
       banner={homeHash === "#home-setup" ? <Notice tone="warn"><strong>Setup isn't finished.</strong> (App's notice)</Notice> : undefined}
       open={{
         library: mark("library"), browse: mark("browse"), profile: mark("profile"), signIn: mark("sign-in"), runDefaults: mark("run-defaults"),
-        runHistory: mark("run-history"), settings: mark("home-settings"),
+        runHistory: mark("run-history"), settings: mark("home-settings"), scheduled: mark("scheduled"),
         runAgent: (reg, ns, name) => { document.body.dataset.open = `run-agent:${reg}/${ns}/${name}`; },
         run: (row) => { document.body.dataset.open = `run:${row.source}/${row.id}`; },
         agent: (reg, ns, name) => { document.body.dataset.open = `agent:${reg}/${ns}/${name}`; },
@@ -1151,12 +1166,14 @@ const render = () => createRoot(document.getElementById("root")!).render(
 if (landedDraft) {
   startDraft(REG, "here", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
   setTimeout(render, 100);
-} else if (homeHash === "#home-strict") {
+} else if (homeHash === "#home-strict" || homeHash === "#home-strict-scheduled") {
   // Home starts nothing on load (plan desktop-home-and-library.md §3,
   // invariant 4): only Home is drawn, and every binding but the reads Home
   // makes throws and names itself on the body, which the shot checks is
   // never marked.
-  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns"]);
+  // The Scheduled card reads the CLI's store and runs nothing
+  // (agentry-desktop#744).
+  const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", ...(homeScheduled ? ["HomeCard"] : [])]);
   for (const api of Object.values(g.go.main) as Record<string, unknown>[]) {
     for (const k of Object.keys(api)) {
       if (reads.has(k)) continue;
