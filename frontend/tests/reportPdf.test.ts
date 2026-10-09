@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pdfActions, REPORT_THEMES, themeSavedSentence } from "../src/reportPdf.ts";
+import { pdfActions, REPORT_THEME_LOOKS, themeSavedSentence } from "../src/reportPdf.ts";
 
 // D15, D16: only a PDF the run's export made opens, in the app or the
 // system's viewer; any other is Save only, and says why.
@@ -23,7 +23,10 @@ test("a PDF the export did not make is Save only, and says why", () => {
 });
 
 test("the five built-in themes, in order, and what a save says", () => {
-  assert.deepEqual(REPORT_THEMES.map((t) => t.name), ["plain", "formal", "brief", "technical", "letter"]);
-  assert.equal(themeSavedSentence("formal"), "Saved. Your runs' PDF reports use the Formal theme.");
+  // The core's five built-in designs (agentry#1026); formal, brief and letter are gone.
+  assert.deepEqual(Object.keys(REPORT_THEME_LOOKS), ["plain", "classic", "modern", "editorial", "technical"]);
+  assert.equal(themeSavedSentence("technical", "Technical"), "Saved. Your runs' PDF reports use the Technical theme.");
+  assert.equal(themeSavedSentence("classic", "Classic", false),
+    "Saved. Your report theme is Classic; runs from this app use Plain for it until the app is updated.");
   assert.match(themeSavedSentence(""), /no report theme: runs from this app use Plain/);
 });
