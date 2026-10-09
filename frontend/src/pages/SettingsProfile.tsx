@@ -3,7 +3,6 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
 import { capsSentence } from "../usage";
-import { DRAWN_HERE, NOT_HERE_YET, REPORT_THEME_LOOKS, themeSavedSentence } from "../reportPdf";
 import {
   bonusOf, changesPhrase, creditCount, creditNumber, creditsPhrase, dayOf, owedSentence, packBonus, packLabel, packPrice, runningPromo, tierLabel,
   topUpOffer,
@@ -162,7 +161,6 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
           <p className="muted small">The sign-in service holds your handle and email, and this app cannot change them.</p>
         </Card>
       </section>
-      <ReportThemePart registry={registry} />
       {/* The Subscription part is drawn where the registry sells
           subscriptions, as the site's is: a registry without billing has
           none (the site's SubscriptionPart returns nothing there). */}
@@ -173,94 +171,6 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
         </section>
       )}
     </>
-  );
-}
-
-// ReportThemePart is the account's report theme (plan
-// scratch-and-pdf-reports.md D18, D21; agentry-desktop#730): how the PDFs a
-// run exports are laid out, the same setting as the site's Profile card. A
-// local run from this app takes it; "Not chosen" is Plain here. Drawn only
-// where the registry keeps the setting. Since the account keeps a report
-// design (agentry#1026), the card offers the core's built-ins, which Go
-// names, and saves one whole; a design edited on the site is said, since
-// saving here replaces it (agentry-desktop#766, until #759's editor).
-function ReportThemePart({ registry }: { registry: string }) {
-  const [view, setView] = useState<main.ReportThemeView | null>(null);
-  const [choice, setChoice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    SettingsAPI.ReportTheme(registry)
-      .then((v) => { if (live) { setView(v); setChoice(v.theme ?? ""); } })
-      .catch((e) => { if (live) setErr(String(e)); });
-    return () => { live = false; };
-  }, [registry]);
-
-  if (view && !view.available) return null;
-  const save = async () => {
-    setBusy(true);
-    setErr(null);
-    setSaved(null);
-    try {
-      const v = await SettingsAPI.SetReportTheme(registry, choice);
-      setView(v);
-      setChoice(v.theme ?? "");
-      const c = v.choices?.find((x) => x.id === v.theme);
-      setSaved(themeSavedSentence(v.theme ?? "", c?.name, c?.here ?? true));
-    } catch (e) {
-      setErr(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section id="settings-part-report-theme" className="settings-part">
-      <h2>Report theme</h2>
-      <Card>
-        <p className="muted small">
-          How the PDFs your runs export are laid out. A run makes a PDF when you ask for one, or when its report is
-          meant for someone else. The QuickAgent never picks the theme, and asking it for a formal tone changes its
-          words, not this.
-        </p>
-        {!view && !err && <p className="muted small">Reading your report theme…</p>}
-        <ErrorBox error={err} />
-        {view && (
-          <fieldset className="report-themes" disabled={busy}>
-            <legend className="sr-only">Report theme</legend>
-            <label className="row">
-              <input type="radio" name="report-theme" value="" checked={choice === ""} onChange={() => setChoice("")} />
-              <span>Not chosen <span className="muted small">Plain, for runs from this app.</span></span>
-            </label>
-            {(view.choices ?? []).map((t) => (
-              <label key={t.id} className="row" data-report-theme={t.id}>
-                <input type="radio" name="report-theme" value={t.id} checked={choice === t.id} onChange={() => setChoice(t.id)} />
-                <span>
-                  {t.name} <span className="muted small">{REPORT_THEME_LOOKS[t.id] ?? ""}</span>
-                  {!t.here && <span className="muted small" data-not-here> {NOT_HERE_YET}</span>}
-                </span>
-              </label>
-            ))}
-          </fieldset>
-        )}
-        {view && <p className="muted small" data-drawn-here>{DRAWN_HERE}</p>}
-        {view?.edited && (
-          <Notice tone="info">
-            {(view.choices ?? []).some((c) => c.id === view.theme)
-              ? "Your report design was changed on the site. It is shown here by the theme it is based on, and saving a theme here replaces it with that theme as it ships."
-              : "Your report design is based on a theme this app does not know yet. Saving a theme here replaces it."}
-          </Notice>
-        )}
-        {view && (
-          <Button busy={busy} busyLabel="Saving…" disabled={choice === (view.theme ?? "") && !view.edited} onClick={() => void save()}>
-            Save report theme
-          </Button>
-        )}
-        {saved && <Notice tone="ok">{saved}</Notice>}
-      </Card>
-    </section>
   );
 }
 

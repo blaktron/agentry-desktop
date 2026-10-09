@@ -10,6 +10,7 @@ import { Notice, Wordmark } from "../src/ui";
 import { SidebarNav, type NavPage } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 import { HOME_DEFAULTS } from "../src/homeCards";
+import reportDesigns from "../tests/fixtures/reportDesigns.json";
 
 const hits = [
   { namespace: "demo1", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", installs30d: 42 },
@@ -564,9 +565,37 @@ const scheduleItems = [
     when: { kind: "weekly", time: "22:00", days: ["tue", "thu"], zone: "Europe/London", end: "after", times: 10 }, outDir: "/home/me/agentry-runs", paused: true },
 ];
 
-const reportThemeChoices = [["plain", "Plain", true], ["classic", "Classic", false], ["modern", "Modern", false], ["editorial", "Editorial", false], ["technical", "Technical", true]]
-  .map(([id, name, here]) => ({ id, name, here }));
-const reportThemeView = (theme: string, edited: boolean) => ({ available: true, theme, edited, choices: reportThemeChoices });
+// Settings → Report design (agentry-desktop#759): the core's five themes
+// from the frontend tests' fixture (held to the pinned core by a Go test),
+// without thumbnails, which only Go carries. The check stands in for the
+// core's: #report-pale refuses the accent with the nearest shade, anything
+// else passes. #report-saved opens on a saved design of the person's own.
+const rd = reportDesigns as { ids: string[]; themes: Record<string, string>; families: { name: string; kind: string; headingsOnly?: boolean }[];
+  headingFonts: string[]; bodyFonts: string[]; codeFonts: string[]; papers: string[]; titleBlocks: string[]; headingStyles: string[];
+  quoteStyles: string[]; pageNumbers: string[] };
+const rdOptions = {
+  themes: rd.ids.map((id) => ({ id, design: JSON.parse(rd.themes[id]), thumbnail: "" })),
+  families: rd.families, headingFonts: rd.headingFonts, bodyFonts: rd.bodyFonts, codeFonts: rd.codeFonts, papers: rd.papers,
+  titleBlocks: rd.titleBlocks, headingStyles: rd.headingStyles, quoteStyles: rd.quoteStyles, pageNumbers: rd.pageNumbers,
+  maxName: 60, maxFooterText: 120, defaultThemeId: "plain",
+};
+let rdSaved: Record<string, unknown> | null = window.location.hash === "#report-saved"
+  ? { ...JSON.parse(rd.themes.modern), name: "House", accent: "#0f766e", paper: "letter", footer: { pageNumbers: "nOfN", text: "Acme Ltd · internal" } }
+  : null;
+const rdView = () => ({ available: true, design: rdSaved ?? undefined, label: rdSaved ? `${rdSaved.name} (from Modern)` : undefined });
+const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock: string; headings: string }) => {
+  const onText = d.titleBlock === "band" || d.headings === "smallcaps" || d.headings === "numbered";
+  const pale = window.location.hash === "#report-pale";
+  const valid = /^#[0-9a-f]{6}$/.test(d.accent);
+  return {
+    problem: !valid ? { field: "accent", message: "must be a colour #rrggbb in lower-case hex" }
+      : pale ? { field: "accent", message: `${d.accent} reaches 2.41:1 on white` } : undefined,
+    accent: { valid, ok: valid && !pale, ratio: pale ? 2.41 : 7.21, need: onText ? 4.5 : 3, onText, nearest: pale ? "#3a6aa6" : d.accent },
+    tint: "#e7eef7",
+    unedited: JSON.stringify(d) === JSON.stringify(JSON.parse(rd.themes[d.basedOn] ?? "{}")),
+    label: d.name,
+  };
+};
 
 g.go = { main: {
   ScheduleAPI: {
@@ -769,10 +798,11 @@ g.go = { main: {
   // agentry-desktop#423; the account and the subscription are the Profile
   // card's (Profile below).
   SettingsAPI: {
-    // The report theme card (agentry-desktop#766): the core's five built-in
-    // designs; #report-edited is a design changed on the site.
-    ReportTheme: async () => reportThemeView(window.location.hash === "#report-edited" ? "classic" : "", window.location.hash === "#report-edited"),
-    SetReportTheme: async (_reg: string, id: string) => reportThemeView(id, false),
+    ReportDesignOptions: async () => rdOptions,
+    ReportDesign: async () => rdView(),
+    CheckReportDesign: async (d: Parameters<typeof rdCheck>[0]) => rdCheck(d),
+    SaveReportDesign: async (_reg: string, d: Record<string, unknown>) => { rdSaved = d; return rdView(); },
+    ResetReportDesign: async () => { rdSaved = null; return rdView(); },
     Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
     OpenTopUp: async () => undefined,

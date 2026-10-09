@@ -17,6 +17,7 @@ import { WebSearchKeyCard } from "./WebSearchKey";
 import { keyStanding } from "../keyRecommendation";
 import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
+import { ReportDesignSettings } from "./SettingsReportDesign";
 import { DockerImagesCard } from "./DockerImages";
 import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
@@ -34,12 +35,17 @@ import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 // cards Home shows, its pins, and Reset Home. Connections
 // (agentry-desktop#666) sits before Home: the OAuth connections kept on this
 // computer, with Disconnect, and the person's own OAuth clients.
-export type SettingsSection = "profile" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "home";
+//
+// Report design (agentry-desktop#759, D-075) comes second, after Profile,
+// as on the site: the account's report design and its editor, which took
+// the place of the Profile's Report theme.
+export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "home";
 
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
-  | "profile" | "report-theme" | "subscription" | "account-voice"
+  | "profile" | "subscription" | "account-voice"
+  | "themes" | "design-editor" | "design-preview"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients"
@@ -51,8 +57,13 @@ type Part = { id: SettingsPart; label: string };
 export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[] }[] = [
   {
     id: "profile", title: "Profile",
-    sentence: "Who you are signed in as, your display name, the theme your PDF reports take, and your subscription, as your account page on the site shows them.",
-    parts: [{ id: "profile", label: "Profile" }, { id: "report-theme", label: "Report theme" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
+    sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
+    parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
+  },
+  {
+    id: "report-design", title: "Report design",
+    sentence: "How the PDFs your runs export look: a theme to start from, the accent, the fonts and the paper, kept on your account.",
+    parts: [{ id: "themes", label: "Themes" }, { id: "design-editor", label: "Editor" }, { id: "design-preview", label: "Preview" }],
   },
   {
     id: "registry", title: "Registry settings",
@@ -178,6 +189,9 @@ export default function Settings({
           )}
         </>
       )}
+      {section === "report-design" && (
+        <ReportDesignSettings registry={activeRegistry} signedIn={signedInTo(settings, activeRegistry)} onOpenRegistry={() => onOpen("registry", "registries")} />
+      )}
       {section === "registry" && (
         <RegistrySettings settings={settings} activeRegistry={activeRegistry} onChanged={onChanged} onSelectRegistry={onSelectRegistry} onOpenProfile={() => onOpen("profile")} />
       )}
@@ -270,6 +284,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
 
   const status: Record<SettingsSection, React.ReactNode> = {
     profile: null,
+    "report-design": null,
     registry: registryStatus(settings, activeRegistry),
     updates: st.update ? updateStatus(st.update) : null,
     "coding-agents": st.coding ? codingStatus(st.coding) : null,
