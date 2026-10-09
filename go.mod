@@ -5,7 +5,7 @@ go 1.27.2
 require (
 	aead.dev/minisign v0.3.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/blaktron/agentry v0.6.15-dev.64
+	github.com/blaktron/agentry v0.6.15-dev.65
 	github.com/blaktron/agentry-cli v0.6.83
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.19.2
