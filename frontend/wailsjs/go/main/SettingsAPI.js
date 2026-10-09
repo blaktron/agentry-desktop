@@ -10,6 +10,10 @@ export function CancelBrowserSignIn() {
   return window['go']['main']['SettingsAPI']['CancelBrowserSignIn']();
 }
 
+export function CheckReportDesign(arg1) {
+  return window['go']['main']['SettingsAPI']['CheckReportDesign'](arg1);
+}
+
 export function ChooseCodingAgentProjectDir() {
   return window['go']['main']['SettingsAPI']['ChooseCodingAgentProjectDir']();
 }
@@ -58,12 +62,24 @@ export function RemoveRegistry(arg1) {
   return window['go']['main']['SettingsAPI']['RemoveRegistry'](arg1);
 }
 
-export function ReportTheme(arg1) {
-  return window['go']['main']['SettingsAPI']['ReportTheme'](arg1);
+export function ReportDesign(arg1) {
+  return window['go']['main']['SettingsAPI']['ReportDesign'](arg1);
+}
+
+export function ReportDesignOptions() {
+  return window['go']['main']['SettingsAPI']['ReportDesignOptions']();
+}
+
+export function ResetReportDesign(arg1) {
+  return window['go']['main']['SettingsAPI']['ResetReportDesign'](arg1);
 }
 
 export function RunDefaults() {
   return window['go']['main']['SettingsAPI']['RunDefaults']();
+}
+
+export function SaveReportDesign(arg1, arg2) {
+  return window['go']['main']['SettingsAPI']['SaveReportDesign'](arg1, arg2);
 }
 
 export function SetBuiltinNoLimit(arg1) {
@@ -88,10 +104,6 @@ export function SetInstallIntoCodingAgent(arg1) {
 
 export function SetRememberRuns(arg1) {
   return window['go']['main']['SettingsAPI']['SetRememberRuns'](arg1);
-}
-
-export function SetReportTheme(arg1, arg2) {
-  return window['go']['main']['SettingsAPI']['SetReportTheme'](arg1, arg2);
 }
 
 export function SetRunBudgets(arg1, arg2) {

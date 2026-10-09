@@ -1,0 +1,134 @@
+{
+  "bodyFonts": [
+    "Inter",
+    "IBM Plex Sans",
+    "Source Sans 3",
+    "Work Sans",
+    "Source Serif 4",
+    "Lora",
+    "Merriweather",
+    "IBM Plex Serif",
+    "EB Garamond"
+  ],
+  "codeFonts": [
+    "IBM Plex Mono",
+    "JetBrains Mono",
+    "Source Code Pro"
+  ],
+  "families": [
+    {
+      "name": "Inter",
+      "kind": "sans"
+    },
+    {
+      "name": "IBM Plex Sans",
+      "kind": "sans"
+    },
+    {
+      "name": "Source Sans 3",
+      "kind": "sans"
+    },
+    {
+      "name": "Work Sans",
+      "kind": "sans"
+    },
+    {
+      "name": "Montserrat",
+      "kind": "sans",
+      "headingsOnly": true
+    },
+    {
+      "name": "Source Serif 4",
+      "kind": "serif"
+    },
+    {
+      "name": "Lora",
+      "kind": "serif"
+    },
+    {
+      "name": "Merriweather",
+      "kind": "serif"
+    },
+    {
+      "name": "IBM Plex Serif",
+      "kind": "serif"
+    },
+    {
+      "name": "EB Garamond",
+      "kind": "serif"
+    },
+    {
+      "name": "Playfair Display",
+      "kind": "serif",
+      "headingsOnly": true
+    },
+    {
+      "name": "IBM Plex Mono",
+      "kind": "mono"
+    },
+    {
+      "name": "JetBrains Mono",
+      "kind": "mono"
+    },
+    {
+      "name": "Source Code Pro",
+      "kind": "mono"
+    }
+  ],
+  "headingFonts": [
+    "Inter",
+    "IBM Plex Sans",
+    "Source Sans 3",
+    "Work Sans",
+    "Montserrat",
+    "Source Serif 4",
+    "Lora",
+    "Merriweather",
+    "IBM Plex Serif",
+    "EB Garamond",
+    "Playfair Display",
+    "IBM Plex Mono",
+    "JetBrains Mono",
+    "Source Code Pro"
+  ],
+  "headingStyles": [
+    "rule",
+    "bar",
+    "smallcaps",
+    "numbered",
+    "plain"
+  ],
+  "ids": [
+    "plain",
+    "classic",
+    "modern",
+    "editorial",
+    "technical"
+  ],
+  "pageNumbers": [
+    "none",
+    "n",
+    "nOfN"
+  ],
+  "papers": [
+    "a4",
+    "letter"
+  ],
+  "quoteStyles": [
+    "callout",
+    "plain"
+  ],
+  "themes": {
+    "classic": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Classic\",\n  \"basedOn\": \"classic\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Source Serif 4\",\n    \"body\": \"Source Serif 4\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#1f3a5f\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"smallcaps\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"text\": \"\"\n  }\n}\n",
+    "editorial": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Editorial\",\n  \"basedOn\": \"editorial\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Playfair Display\",\n    \"body\": \"Source Sans 3\",\n    \"code\": \"Source Code Pro\"\n  },\n  \"accent\": \"#b3261e\",\n  \"titleBlock\": \"bar\",\n  \"headings\": \"rule\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"n\",\n    \"text\": \"\"\n  }\n}\n",
+    "modern": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Modern\",\n  \"basedOn\": \"modern\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Inter\",\n    \"body\": \"Inter\",\n    \"code\": \"JetBrains Mono\"\n  },\n  \"accent\": \"#1f6feb\",\n  \"titleBlock\": \"band\",\n  \"headings\": \"bar\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"text\": \"\"\n  }\n}\n",
+    "plain": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Plain\",\n  \"basedOn\": \"plain\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"Inter\",\n    \"body\": \"Inter\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#2b2f36\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"plain\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": false\n  },\n  \"quotes\": \"plain\",\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"text\": \"\"\n  }\n}\n",
+    "technical": "{\n  \"agentryTheme\": 2,\n  \"name\": \"Technical\",\n  \"basedOn\": \"technical\",\n  \"version\": 1,\n  \"paper\": \"a4\",\n  \"fonts\": {\n    \"headings\": \"IBM Plex Sans\",\n    \"body\": \"IBM Plex Sans\",\n    \"code\": \"IBM Plex Mono\"\n  },\n  \"accent\": \"#0f766e\",\n  \"titleBlock\": \"ruled\",\n  \"headings\": \"numbered\",\n  \"tables\": {\n    \"tinted\": true,\n    \"banded\": true\n  },\n  \"quotes\": \"callout\",\n  \"footer\": {\n    \"pageNumbers\": \"nOfN\",\n    \"text\": \"\"\n  }\n}\n"
+  },
+  "titleBlocks": [
+    "band",
+    "bar",
+    "ruled",
+    "none"
+  ]
+}

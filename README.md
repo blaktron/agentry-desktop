@@ -174,13 +174,21 @@ The product never claims an agent is "safe". The language is always:
   directory under the system's temp directory, used when the runner home's
   path is too long for a socket; and files another user owns. The sweep
   takes the runner home to be this machine's alone (agentry-desktop#480).
-- **PDF reports** (agentry-desktop#730, D-072) — a run can turn its report
-  into a PDF with its `export_pdf` tool, laid out in the account's **report
-  theme**: Settings → Profile → **Report theme**, the same setting as the
-  site's (Plain, Formal, Brief, Technical, Letter, or Not chosen, which is
-  Plain here). A local run or chat reads it from the signed-in registry
-  when it starts; the QuickAgent never picks it. In the run's result, a PDF
-  that the run's envelope (`result.json`'s `pdfs` block) lists with the
+- **PDF reports** (agentry-desktop#730, D-072; agentry-desktop#759, D-075) —
+  a run can turn its report into a PDF with its `export_pdf` tool, drawn in
+  the account's **report design**: Settings → **Report design**, the same
+  setting as the site's. The page shows the core's five themes (Plain,
+  Classic, Modern, Editorial, Technical) as thumbnails the runner's own
+  template drew; choosing one loads it into an editor of the accent, the
+  fonts, the title block, the headings, the tables, the quotes, the footer
+  and the paper, beside a live likeness. The core's `pkg/reportdesign`
+  judges every state, so an accent too pale for where it is used is
+  refused with the nearest shade that passes. **Save** keeps the design on
+  the account, whole; **Reset** clears it. A local run or chat reads it from
+  the signed-in registry when it starts and hands it to the engine whole,
+  and the receipt names it by its SHA-256; signed out, or never chosen, runs
+  from this app use Plain. The QuickAgent never picks it. In the run's
+  result, a PDF that the run's envelope (`result.json`'s `pdfs` block) lists with the
   SHA-256 of its bytes has **View**, which draws it in the app with a
   bundled pdf.js (no script, form or link in the PDF is live), **Open in
   system viewer**, which opens a fresh copy of the checked bytes, never the

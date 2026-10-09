@@ -1,0 +1,231 @@
+{
+  "dockerimages": "blaktron/agentry-dockerimages",
+  "commit": "d6bcc7753e94b1d51c6bfac6d5d4ae08eb2b457c",
+  "fetchTsv": "https://raw.githubusercontent.com/blaktron/agentry-dockerimages/d6bcc7753e94b1d51c6bfac6d5d4ae08eb2b457c/build/typst/fetch.tsv",
+  "files": [
+    {
+      "family": "Inter",
+      "file": "inter-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/inter/Inter%5Bopsz,wght%5D.ttf",
+      "sourceSha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+      "sha256": "2b1a28994dd61fd9548cee2af10d6776929fd2e612cbe3ee495383df90cc8a85"
+    },
+    {
+      "family": "Inter",
+      "file": "inter-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/inter/Inter-Italic%5Bopsz,wght%5D.ttf",
+      "sourceSha256": "acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6",
+      "sha256": "78922f4f244294344d94b3a5b72d2321be95d97c21c2fef3bd167a9bf82a22c3"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "file": "ibmplexsans-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexsans/IBMPlexSans%5Bwdth,wght%5D.ttf",
+      "sourceSha256": "3b031aa4216174205bd8471f88a49b91f093169e9e87bd5262242bc5967fe2e3",
+      "sha256": "0ecf4027028bd147552da4813d9ac4492e8cdec0da5cce8ad3c5f01537652910"
+    },
+    {
+      "family": "IBM Plex Sans",
+      "file": "ibmplexsans-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexsans/IBMPlexSans-Italic%5Bwdth,wght%5D.ttf",
+      "sourceSha256": "0b94c5e981993764db32bf9c610ecc60cbd34ad77ec2f10ba03c64ab75124d8e",
+      "sha256": "dd67584b6454ac21c0191c08a88933d67197f185ad0d5f0071ab0353725936eb"
+    },
+    {
+      "family": "Source Sans 3",
+      "file": "sourcesans3-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf",
+      "sourceSha256": "042fe2cc0b933e328410d7acbd0aa6a1873dca5aef81875f4bc214b08825c7b9",
+      "sha256": "8d9d88a953cf441894e5fda134071dd891ff9093c563e3e00c31eb63a33c9fae"
+    },
+    {
+      "family": "Source Sans 3",
+      "file": "sourcesans3-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/sourcesans3/SourceSans3-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "39e3ab05ccd7cb94907c31005bb5bec1d5432f0b096a2b782976e217a540eb6c",
+      "sha256": "101f2cbbeccc34a8a238c2f65390d93584d9174f5785be84600100028213d072"
+    },
+    {
+      "family": "Work Sans",
+      "file": "worksans-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/worksans/WorkSans%5Bwght%5D.ttf",
+      "sourceSha256": "f50f61f2ba738e239442d40bf1069adb195c224b6a5a73a581fc2f3ed62a9f63",
+      "sha256": "d52977eb29d954a91d819100956a4522f0cc8b3821a22bc9602e394c90a9a53e"
+    },
+    {
+      "family": "Work Sans",
+      "file": "worksans-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/worksans/WorkSans-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "0a9f935ea490d3477fc97e40248f356c29bce11a1973939056c4316b122341ec",
+      "sha256": "5308180dd1106088dc37ca5d730d4d3233ab91a3aa72b7cc3aada46bcd6cea7b"
+    },
+    {
+      "family": "Montserrat",
+      "file": "montserrat-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
+      "sourceSha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+      "sha256": "c2968f4c943fa6dab3ec0bb15929facc311863abd2cb081c6b44ffc59e617ae1"
+    },
+    {
+      "family": "Montserrat",
+      "file": "montserrat-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/montserrat/Montserrat-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "51607f316bc020e59f03cbf51543eecffbea501c0b31d73e5b82927c5cca442c",
+      "sha256": "eeec9d99ca84257bf14b78e64372bd0f605c6545e44e0044911d08fceba41694"
+    },
+    {
+      "family": "Source Serif 4",
+      "file": "sourceserif4-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/sourceserif4/SourceSerif4%5Bopsz,wght%5D.ttf",
+      "sourceSha256": "97b2d4da6e3cb494b5a1e66ae176914d852ccabef49e0c02c0df25f3e39aca0b",
+      "sha256": "5a2a182232ba7521a735de9cccf12fd4a63f881f8716f0303a7cc4788a7632f3"
+    },
+    {
+      "family": "Source Serif 4",
+      "file": "sourceserif4-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/sourceserif4/SourceSerif4-Italic%5Bopsz,wght%5D.ttf",
+      "sourceSha256": "15fbc7e4679489a501998c3669272637a6646388ef7e4bd77eebb5bf967a1f42",
+      "sha256": "5e8c595456c24e5a2a84a93091f75a0cdfbca1215a0a2cba0c17f8646cf44601"
+    },
+    {
+      "family": "Lora",
+      "file": "lora-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/lora/Lora%5Bwght%5D.ttf",
+      "sourceSha256": "822a6621ccbe8d97d20ac88c1c41f5615c9c2c202eaa75f272cd452aac6475a7",
+      "sha256": "dd3e397f9ee98c0a15e4cc973380dccdc9ff5873fc98dd769667d50b02394123"
+    },
+    {
+      "family": "Lora",
+      "file": "lora-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/lora/Lora-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "22d8d8854b53807aa664ca34f2031a9ed57a1d0dea296b8b96cdd3aad937a2b3",
+      "sha256": "f166e47ea3eb8ce8cf2073f35fcbb209c672e0376163379d7298d1fb9784abe5"
+    },
+    {
+      "family": "Merriweather",
+      "file": "merriweather-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/merriweather/Merriweather%5Bopsz,wdth,wght%5D.ttf",
+      "sourceSha256": "d0ed0e359e396af7ad05e73dffd11a3a4c326ea0d0283c56bd9361cb2cc86a96",
+      "sha256": "d5eb399d30f10088dd374d018210d85ba740cb7abea63aaa5c2c56054ed62bf5"
+    },
+    {
+      "family": "Merriweather",
+      "file": "merriweather-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/merriweather/Merriweather-Italic%5Bopsz,wdth,wght%5D.ttf",
+      "sourceSha256": "f68a8f4989258679e4fbaf50aa42400132b5373c2d9d2514ba82ef6e85947a0b",
+      "sha256": "42fac35cda5dc9a872b5119b104ca07f228526036522d09e3bb184fb86e0e0f9"
+    },
+    {
+      "family": "IBM Plex Serif",
+      "file": "ibmplexserif-regular.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexserif/IBMPlexSerif-Regular.ttf",
+      "sourceSha256": "e882efa9c41949a528ac2369079ec5ef050c1c996bbd0bacce3c3326d44cf80d",
+      "sha256": "bc313b10f0ce5c4b60c268e8cc29c0c273335f526a44e832ed5683d43dfc374a"
+    },
+    {
+      "family": "IBM Plex Serif",
+      "file": "ibmplexserif-italic.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexserif/IBMPlexSerif-Italic.ttf",
+      "sourceSha256": "4b75b38be4673527231f49c48818d090c913d5042dd5c747b525bf6185d29ecb",
+      "sha256": "3e752165e36bd41df93612927644553965ae60b0e340feec12380895d63b1ded"
+    },
+    {
+      "family": "IBM Plex Serif",
+      "file": "ibmplexserif-bold.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexserif/IBMPlexSerif-Bold.ttf",
+      "sourceSha256": "534c02c295999dd86e770457ece1d43db0de9256dd98bf741426f63ae904209e",
+      "sha256": "0703fbbf1cbe376d810e3f2bad563614021e7e8bf7fbd2ed0b3845942a8a11ae"
+    },
+    {
+      "family": "IBM Plex Serif",
+      "file": "ibmplexserif-bolditalic.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexserif/IBMPlexSerif-BoldItalic.ttf",
+      "sourceSha256": "2a32b76ac19c1942bf5942dbbd2a1566e5f1ae9833e421ebcf36d3522715e153",
+      "sha256": "362d26b2af0f3f5a407cc17e6e1435802e8631ae69bacc4ba9a37c1c1f6ac826"
+    },
+    {
+      "family": "EB Garamond",
+      "file": "ebgaramond-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ebgaramond/EBGaramond%5Bwght%5D.ttf",
+      "sourceSha256": "ef9512f92f6d579e5dc75af59a5a4b1b8b47d2eda89e00b954d44520e5369027",
+      "sha256": "da306af6a206bf7cf60b742b9d80f9be601e362187d1853dd0140272923dcbd0"
+    },
+    {
+      "family": "EB Garamond",
+      "file": "ebgaramond-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ebgaramond/EBGaramond-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "bba2c4499c93c9612b90b9825d32b07da52fce2fe57562a1eb6b833553f93c4e",
+      "sha256": "c897eb447b766120f1e01b07f6459ca19d88d506dacf63096b9f2fc3f395de06"
+    },
+    {
+      "family": "Playfair Display",
+      "file": "playfairdisplay-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
+      "sourceSha256": "c40f2293766a503bc70cce9e512ef844a4ccb7cbcde792fe2ea31d191917d8d6",
+      "sha256": "3beecd3476cba8a9663e583e9752f6c2b2056f98d1338619f5e4cad699663c02"
+    },
+    {
+      "family": "Playfair Display",
+      "file": "playfairdisplay-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/playfairdisplay/PlayfairDisplay-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "a5e26dc5e2e77fb2803a0bf02fd4f81ee136ec8dea863ccdb0c59a263b21378b",
+      "sha256": "cfe637993f2f3f62d9a16cff027d2e2d14fabd58c67458c0ac206ac03b84e932"
+    },
+    {
+      "family": "IBM Plex Mono",
+      "file": "ibmplexmono-regular.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexmono/IBMPlexMono-Regular.ttf",
+      "sourceSha256": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+      "sha256": "68cbfd2b333c8530c7d8fb8067a830293d87105e97bb89b4052eef9e1d4537f0"
+    },
+    {
+      "family": "IBM Plex Mono",
+      "file": "ibmplexmono-italic.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexmono/IBMPlexMono-Italic.ttf",
+      "sourceSha256": "3362fc791b0652193328b862c1c5f23a789bc7288b1617fa63302f88689a2a34",
+      "sha256": "2afd73b998fa8bfb78549f56b0191b433649d7bc8cba2f018772897ce824eab3"
+    },
+    {
+      "family": "IBM Plex Mono",
+      "file": "ibmplexmono-bold.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexmono/IBMPlexMono-Bold.ttf",
+      "sourceSha256": "ac27abd6450a64dd94467580a02fe6235156d5b92f2926ebbc8e7489df64e0be",
+      "sha256": "b26a24ce2a7181d80e2044acc92dbee5813b54f4544857119b4383192da8f836"
+    },
+    {
+      "family": "IBM Plex Mono",
+      "file": "ibmplexmono-bolditalic.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/ibmplexmono/IBMPlexMono-BoldItalic.ttf",
+      "sourceSha256": "af4e05a761e98c1adf064c48a6352c9bec1a6ad70982cd2a544149323391f98e",
+      "sha256": "94ecfae2d26ebe08b295675e6c59f916bd7ab2a1c6f5f6ad57b44a13db64583c"
+    },
+    {
+      "family": "JetBrains Mono",
+      "file": "jetbrainsmono-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf",
+      "sourceSha256": "48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda",
+      "sha256": "775489d0cbf157f2ad03105affc2aebb3e239750e77cc2cb2eed4cbcc87c2f9c"
+    },
+    {
+      "family": "JetBrains Mono",
+      "file": "jetbrainsmono-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/jetbrainsmono/JetBrainsMono-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "85ae2a5cd3f56baf1ce1c21a851322c58e3d8fbe8e8ad4a4d090a820dd7fe558",
+      "sha256": "b7f773fe8c9aef0c230e84943ea9dd9942abc350f373012b97420c8e123776c0"
+    },
+    {
+      "family": "Source Code Pro",
+      "file": "sourcecodepro-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/sourcecodepro/SourceCodePro%5Bwght%5D.ttf",
+      "sourceSha256": "b400fc584e10aff25d0e775ce181b4fc1c5ea1b5dc37b81aeb2084375b945790",
+      "sha256": "66750a13a1556f69f1617bdd27ae9885aa74c7744a0c32932315f26ecbdd9e5a"
+    },
+    {
+      "family": "Source Code Pro",
+      "file": "sourcecodepro-italic-variable.woff2",
+      "source": "https://raw.githubusercontent.com/google/fonts/62e55e586fc0c29d428ee47b7c359cd33143f93d/ofl/sourcecodepro/SourceCodePro-Italic%5Bwght%5D.ttf",
+      "sourceSha256": "6db77d25aa7b30eff449305b5c998e475694c74d398421127ea5a60f536413cd",
+      "sha256": "2790277b0f44766027a81e2825d86002c6a7271f3ac25a06d95e55ded5ce50bd"
+    }
+  ]
+}
