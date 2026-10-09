@@ -84,6 +84,8 @@ export function ListModels(arg1:string,arg2:string,arg3:string):Promise<main.Cat
 
 export function OpenHostedConnect(arg1:string,arg2:string):Promise<void>;
 
+export function OpenRunPDF(arg1:string,arg2:string):Promise<void>;
+
 export function PasteRedirect(arg1:string):Promise<void>;
 
 export function PrereqStatus():Promise<main.PrereqView>;
@@ -110,9 +112,13 @@ export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,
 
 export function RunOutputs(arg1:string):Promise<main.RunOutputsView>;
 
+export function RunPDF(arg1:string,arg2:string):Promise<string>;
+
 export function RunRequirements(arg1:string,arg2:string):Promise<main.MCPView>;
 
 export function SaveProfile(arg1:string,arg2:string,arg3:Record<string, string>,arg4:boolean):Promise<main.ProfileStatusView>;
+
+export function SaveRunPDF(arg1:string,arg2:string):Promise<string>;
 
 export function SearchKeyStatus():Promise<main.SearchKeyView>;
 

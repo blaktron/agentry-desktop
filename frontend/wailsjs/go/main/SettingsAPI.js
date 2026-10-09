@@ -58,6 +58,10 @@ export function RemoveRegistry(arg1) {
   return window['go']['main']['SettingsAPI']['RemoveRegistry'](arg1);
 }
 
+export function ReportTheme(arg1) {
+  return window['go']['main']['SettingsAPI']['ReportTheme'](arg1);
+}
+
 export function RunDefaults() {
   return window['go']['main']['SettingsAPI']['RunDefaults']();
 }
@@ -84,6 +88,10 @@ export function SetInstallIntoCodingAgent(arg1) {
 
 export function SetRememberRuns(arg1) {
   return window['go']['main']['SettingsAPI']['SetRememberRuns'](arg1);
+}
+
+export function SetReportTheme(arg1, arg2) {
+  return window['go']['main']['SettingsAPI']['SetReportTheme'](arg1, arg2);
 }
 
 export function SetRunBudgets(arg1, arg2) {

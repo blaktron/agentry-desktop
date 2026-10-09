@@ -39,7 +39,7 @@ export type SettingsSection = "profile" | "registry" | "updates" | "coding-agent
 // The parts a landing link or a deep link can name; each section page
 // renders its part under the anchor settings-part-<id>.
 export type SettingsPart =
-  | "profile" | "subscription" | "account-voice"
+  | "profile" | "report-theme" | "subscription" | "account-voice"
   | "registries" | "add-registry" | "desktop" | "quickagents"
   | "budgets" | "chats" | "where" | "output" | "history" | "voice" | "unsafe" | "docker" | "images" | "provider" | "ai-review-key" | "web-search" | "hybrid-analysis-key"
   | "connections" | "own-clients"
@@ -51,8 +51,8 @@ type Part = { id: SettingsPart; label: string };
 export const SECTIONS: { id: SettingsSection; title: string; sentence: string; parts: Part[] }[] = [
   {
     id: "profile", title: "Profile",
-    sentence: "Who you are signed in as, your display name, and your subscription, as your account page on the site shows them.",
-    parts: [{ id: "profile", label: "Profile" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
+    sentence: "Who you are signed in as, your display name, the theme your PDF reports take, and your subscription, as your account page on the site shows them.",
+    parts: [{ id: "profile", label: "Profile" }, { id: "report-theme", label: "Report theme" }, { id: "subscription", label: "Subscription" }, { id: "account-voice", label: "Writing Voice" }],
   },
   {
     id: "registry", title: "Registry settings",

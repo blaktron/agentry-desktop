@@ -9,7 +9,11 @@
 // The files come from RunAPI.RunOutputs, which lists the run's folder by
 // its run id and never a path the page gives it; nothing here opens a file
 // a run wrote (plan D8): a preview is text, and Show in folder opens the
-// folder.
+// folder. One exception, PDFs the run exported (plan
+// scratch-and-pdf-reports.md D15, D16; agentry-desktop#730): Go holds each
+// PDF to the envelope's pdfs record, and one it lists with the same SHA-256
+// opens in the app's viewer (PdfViewer) or, as a fresh copy, in the
+// system's; any other PDF is Save only.
 import { useEffect, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main } from "../../wailsjs/go/models";
@@ -17,6 +21,8 @@ import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText, plainName } from "../reveal";
 import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
 import { localUseLine } from "../usage";
+import { PdfViewer } from "../PdfViewer";
+import { pdfActions } from "../reportPdf";
 
 export function RunResultView({
   runId, headline, tone, error, resultJson, knowledge, decode, unsafeExec, ask, children,
@@ -114,7 +120,9 @@ export function RunResultView({
         <ErrorBox error={outputsErr} />
         <p className="muted small">What is under the folder&apos;s outputs/ and reports/: if the folder was used before, earlier files are here too.</p>
         {outputs && files.length === 0 && <p className="muted small">There is nothing in outputs/ or reports/.</p>}
-        {files.map((f) => (
+        {files.map((f) => f.pdf ? (
+          <PdfFile key={f.path} runId={runId} file={f} />
+        ) : (
           <div key={f.path} className="run-file">
             <div className="run-file-head">
               <span className="mono small">
@@ -154,6 +162,49 @@ export function RunResultView({
         <summary className="muted small">Run details: the badges, the usage, the receipt and the paths</summary>
         {children}
       </details>
+    </div>
+  );
+}
+
+/** A PDF the run left: View (the app's viewer), Open in system viewer and
+ *  Save for one the run's PDF export made; Save alone for any other. */
+function PdfFile({ runId, file }: { runId: string; file: main.OutputFileView }) {
+  const [viewing, setViewing] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const a = pdfActions(file.pdf!);
+  const name = plainName(file.path);
+  return (
+    <div className="run-file" data-pdf={file.pdf!.exported ? "exported" : "other"}>
+      <div className="run-file-head">
+        <span className="mono small">
+          <RevealText text={file.path} />
+        </span>
+        <span className="row nowrap">
+          <span className="muted small">{fmtBytes(file.bytes)}</span>
+          {a.view && (
+            <Button variant="primary" onClick={() => setViewing((v) => !v)} aria-expanded={viewing} aria-label={`${viewing ? "Hide" : "View"} ${name}`}>
+              {viewing ? "Hide" : "View"}
+            </Button>
+          )}
+          {a.openInSystemViewer && (
+            <Button variant="primary" onClick={() => { setErr(null); RunAPI.OpenRunPDF(runId, file.path).catch((e) => setErr(String(e))); }} aria-label={`Open ${name} in the system viewer`}>
+              Open in system viewer
+            </Button>
+          )}
+          {a.save && (
+            <Button variant="primary" onClick={() => { setErr(null); setSaved(null); RunAPI.SaveRunPDF(runId, file.path).then((p) => p && setSaved(p)).catch((e) => setErr(String(e))); }} aria-label={`Save ${name}`}>
+              Save
+            </Button>
+          )}
+        </span>
+      </div>
+      <div className="run-file-body">
+        <p className="muted small">{a.line}</p>
+        {saved && <p className="small">Saved to <span className="mono selectable">{saved}</span>.</p>}
+        <ErrorBox error={err} />
+        {viewing && runId && <PdfViewer runId={runId} path={file.path} name={name} />}
+      </div>
     </div>
   );
 }
