@@ -40,6 +40,13 @@ else
   (cd frontend && npm ci --no-audit --no-fund && npx vite build)
 fi
 
+# The build container's Go is go.mod's exact version: a floating
+# golang:1.27-bookworm was whatever the runner had cached (1.27.1), and with
+# GOTOOLCHAIN=local a go.mod that names 1.27.2 refused to build
+# (v0.6.79-dev.1's release, agentry-desktop#730).
+GO_VERSION=$(awk '$1 == "go" {print $2; exit}' go.mod)
+[ -n "$GO_VERSION" ] || { echo "build-linux: no go version in go.mod" >&2; exit 1; }
+
 # label=disable: on a host whose Docker daemon runs with SELinux (the CI
 # runner host), a bind mount is otherwise unwritable from inside.
 # The container runs as root (apt needs it) and chowns its output to the
@@ -47,7 +54,7 @@ fi
 docker run --rm --security-opt label=disable -v "$PWD:/src" -w /src \
   -e DESKTOP_VERSION="$VERSION" -e EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-}" -e OUT="$OUT" \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
-  golang:1.27-bookworm bash -ec '
+  "golang:${GO_VERSION}-bookworm" bash -ec '
   trap "chown -R ${HOST_UID}:${HOST_GID} build/linux 2>/dev/null || true" EXIT
   apt-get update -qq >/dev/null 2>&1
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
