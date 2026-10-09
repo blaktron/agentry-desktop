@@ -13,6 +13,7 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/reportthumbs"
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry/pkg/reportdesign"
@@ -335,11 +336,16 @@ func (r *RunAPI) reportThemeFor(ctx context.Context, reg string, logw io.Writer)
 // accountReportTheme is the account's report design for a run, whole, as
 // the CLI's chooseReportTheme takes it: the zero value (Plain, chosen by
 // the default) when there is no credential, the account never chose, or
-// the registry has no such setting. An account it cannot read, or a design
-// this build cannot draw, says so in the run's log and is Plain too; the
-// run goes on, since how a PDF looks is no reason to stop one (D20).
+// the registry has no such setting. A registry address Settings would not
+// accept is never sent the token (D-030). An account it cannot read, or a
+// design this build cannot draw, says so in the run's log and is Plain too;
+// the run goes on, since how a PDF looks is no reason to stop one (D20).
 func accountReportTheme(ctx context.Context, url, token string, logw io.Writer) engine.ReportTheme {
 	if token == "" {
+		return engine.ReportTheme{}
+	}
+	if settings.ValidateURL(url) != nil {
+		_, _ = fmt.Fprintln(logw, "agentry: warning: the run's registry address is not one Settings accepts, so your account's report design was not read; PDFs use Plain")
 		return engine.ReportTheme{}
 	}
 	ctx, cancel := context.WithTimeout(ctx, reportDesignReadTimeout)
@@ -351,6 +357,13 @@ func accountReportTheme(ctx context.Context, url, token string, logw io.Writer) 
 	case doc == nil:
 	default:
 		d, err := reportdesign.Parse(doc)
+		if err == nil {
+			// The engine stamps the design with the pinned CLI's copy of
+			// the core's rules, which a core bump could move apart from
+			// this build's: a design that copy refuses would fail the run
+			// in grantPDF, so it is held to that copy here too.
+			_, err = toolsrv.StampTheme(d.Canonical())
+		}
 		if err != nil {
 			_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report design is not one this app can draw (%v; update the app); PDFs use Plain\n", err)
 			break

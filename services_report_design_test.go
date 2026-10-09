@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
@@ -30,6 +31,7 @@ func reportDesignRegistry(t *testing.T, found bool) (*httptest.Server, *string, 
 	stored, puts := "", 0
 	mux := http.NewServeMux()
 	authed := func(w http.ResponseWriter, r *http.Request) bool {
+		requests.Add(1)
 		if !found {
 			w.WriteHeader(http.StatusNotFound)
 			return false
@@ -89,6 +91,9 @@ func reportDesignRegistry(t *testing.T, found bool) (*httptest.Server, *string, 
 	t.Cleanup(srv.Close)
 	return srv, &stored, &puts
 }
+
+// requests counts every request any fake registry of this file answered.
+var requests atomic.Int64
 
 // builtin is a built-in design, failing the test when there is none.
 func builtin(t *testing.T, id string) reportdesign.Design {
@@ -326,9 +331,37 @@ func TestALocalRunTakesTheAccountsDesign(t *testing.T) {
 	if got := accountReportTheme(ctx, srv.URL, "agy_test", &log); got.Design != nil || !strings.Contains(log.String(), "not one this app can draw") {
 		t.Fatalf("a later document: %+v, log %q", got, log.String())
 	}
+	// Signed out: nothing is asked, and nothing said.
 	log.Reset()
-	if got := accountReportTheme(ctx, srv.URL, "", &log); got.Design != nil || log.Len() != 0 {
-		t.Fatalf("signed out: %+v, log %q", got, log.String())
+	before := requests.Load()
+	if got := accountReportTheme(ctx, srv.URL, "", &log); got.Design != nil || log.Len() != 0 || requests.Load() != before {
+		t.Fatalf("signed out: %+v, log %q, %d requests", got, log.String(), requests.Load()-before)
+	}
+	// An http:// spelling of a registry off this machine is never sent the
+	// token (D-030): Plain, said, and no request.
+	if got := accountReportTheme(ctx, "http://registry.example", "agy_test", &log); got.Design != nil ||
+		!strings.Contains(log.String(), "not one Settings accepts") || strings.Contains(log.String(), "registry.example") {
+		t.Fatalf("http off this machine: %+v, log %q", got, log.String())
+	}
+	if requests.Load() != before {
+		t.Fatal("no request may be made without a usable credential and address")
+	}
+}
+
+// The settings bindings take a page-supplied address through Settings'
+// rule before a token is looked up (D-030): an http:// spelling of a
+// registry off this machine is refused, whatever the keychain holds.
+func TestReportDesignBindingsHoldTheAddressToSettingsRule(t *testing.T) {
+	s := &SettingsAPI{app: &App{ctx: context.Background()}}
+	const bad = "http://registry.example"
+	if _, err := s.ReportDesign(bad); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("ReportDesign: %v", err)
+	}
+	if _, err := s.SaveReportDesign(bad, builtin(t, "plain")); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("SaveReportDesign: %v", err)
+	}
+	if _, err := s.ResetReportDesign(bad); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("ResetReportDesign: %v", err)
 	}
 }
 
