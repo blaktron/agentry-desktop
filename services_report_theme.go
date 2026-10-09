@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry/pkg/apiclient"
+	"github.com/blaktron/agentry/pkg/reportdesign"
 )
 
 // The report theme (plan scratch-and-pdf-reports.md D13, D18, D21;
@@ -22,13 +24,43 @@ import (
 // run or chat takes it. The model never chooses it. An account that never
 // chose reads back with no theme, which is not Plain: the CLI then falls to
 // its own config, and this app, which has none, to Plain.
+//
+// Since core agentry#1026 (report designs M2, DEV-230) the account keeps a
+// report design, not a theme name, and the built-ins are plain, classic,
+// modern, editorial and technical. Until agentry-desktop#759 brings the
+// design editor, the card reads a design's basedOn as its theme and saves a
+// built-in's own document (agentry-desktop#766, D-072's addendum).
 
 // ReportThemeView is the account's report theme as the Profile card shows
 // it. Available is false on a registry from before the setting, where the
-// card is not offered; Theme is "" when the account never chose one.
+// card is not offered; Theme is "" when the account never chose one, else
+// the built-in the account's design is based on. Edited says the design is
+// not that built-in as shipped (changed on the site), which saving a
+// built-in here replaces. Choices are the built-ins, in the order offered.
 type ReportThemeView struct {
-	Available bool   `json:"available"`
-	Theme     string `json:"theme"`
+	Available bool                `json:"available"`
+	Theme     string              `json:"theme"`
+	Edited    bool                `json:"edited,omitempty"`
+	Choices   []ReportThemeChoice `json:"choices"`
+}
+
+// ReportThemeChoice is one built-in design the card offers.
+type ReportThemeChoice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Here says the agentry command this app pins can draw it; a run
+	// takes Plain for one it cannot (D20) until the app carries one that
+	// can (agentry-cli#784).
+	Here bool `json:"here"`
+}
+
+// reportThemeChoices are the core's built-in designs.
+func reportThemeChoices() []ReportThemeChoice {
+	out := []ReportThemeChoice{}
+	for _, d := range reportdesign.Builtins() {
+		out = append(out, ReportThemeChoice{ID: string(d.BasedOn), Name: d.Name, Here: toolsrv.IsBuiltinTheme(string(d.BasedOn))})
+	}
+	return out
 }
 
 // reportThemeReadTimeout bounds the read a run makes before it starts.
@@ -63,7 +95,7 @@ func reportThemeOf(ctx context.Context, url, token string) (*ReportThemeView, er
 		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
 	if resp.StatusCode() == http.StatusNotFound {
-		return &ReportThemeView{}, nil
+		return &ReportThemeView{Choices: reportThemeChoices()}, nil
 	}
 	if resp.JSON200 == nil {
 		return nil, registry.Problem("read your report theme", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
@@ -74,11 +106,15 @@ func reportThemeOf(ctx context.Context, url, token string) (*ReportThemeView, er
 func setReportTheme(ctx context.Context, url, token, theme string) (*ReportThemeView, error) {
 	body := apiclient.UpdateUserReportSettingsJSONRequestBody{}
 	if theme != "" {
-		if !toolsrv.IsBuiltinTheme(theme) {
+		doc, ok := reportdesign.BuiltinDocument(theme)
+		if !ok {
 			return nil, fmt.Errorf("%q is not a report theme", theme)
 		}
-		t := apiclient.ReportTheme(theme)
-		body.Theme = &t
+		var d apiclient.ReportDesign
+		if err := json.Unmarshal(doc, &d); err != nil {
+			return nil, fmt.Errorf("the %s report theme this app carries cannot be read: %w", theme, err)
+		}
+		body.Design = &d
 	}
 	client, err := registry.New(url, token)
 	if err != nil {
@@ -95,11 +131,29 @@ func setReportTheme(ctx context.Context, url, token, theme string) (*ReportTheme
 }
 
 func reportThemeView(s *apiclient.ReportSettings) *ReportThemeView {
-	v := &ReportThemeView{Available: true}
-	if s.Theme != nil {
-		v.Theme = string(*s.Theme)
+	v := &ReportThemeView{Available: true, Choices: reportThemeChoices()}
+	if s.Design == nil {
+		return v
 	}
+	v.Theme = string(s.Design.BasedOn)
+	v.Edited = !isBuiltinAsShipped(s.Design)
 	return v
+}
+
+// isBuiltinAsShipped reports whether d is its basedOn built-in unchanged,
+// compared by the core's canonical form. One this build cannot parse is
+// taken as edited.
+func isBuiltinAsShipped(d *apiclient.ReportDesign) bool {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		return false
+	}
+	got, err := reportdesign.Parse(raw)
+	if err != nil {
+		return false
+	}
+	want, ok := reportdesign.Builtin(string(d.BasedOn))
+	return ok && got.SHA256() == want.SHA256()
 }
 
 // reportThemeFor is the theme a local run or chat at reg takes: the
@@ -127,7 +181,7 @@ func accountReportTheme(ctx context.Context, url, token string, logw io.Writer) 
 		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme could not be read (%v); PDFs use Plain\n", err)
 	case v.Theme == "":
 	case !toolsrv.IsBuiltinTheme(v.Theme):
-		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme %q is not one this app has (update the app); PDFs use Plain\n", v.Theme)
+		_, _ = fmt.Fprintf(logw, "agentry: warning: your account's report theme %q is not one this app can draw yet (update the app); PDFs use Plain\n", v.Theme)
 	default:
 		return engine.ReportTheme{Name: v.Theme, From: engine.ThemeFromAccount}
 	}

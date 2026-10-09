@@ -39,19 +39,27 @@ export function pdfActions(pdf: PdfFacts): PdfActions {
   };
 }
 
-/** The account's report theme as Settings → Profile offers it ("" is never chosen). */
-export const REPORT_THEMES: { name: string; label: string; look: string }[] = [
-  { name: "plain", label: "Plain", look: "Clean sans-serif pages with page numbers." },
-  { name: "formal", label: "Formal", look: "Serif, with a cover page for a titled report and “page n of N”." },
-  { name: "brief", label: "Brief", look: "A compact memo with a ruled heading and no cover." },
-  { name: "technical", label: "Technical", look: "Dense, with banded tables and stronger code blocks." },
-  { name: "letter", label: "Letter", look: "Serif, the first heading as a letterhead, and short lines such as an address kept as written." },
-];
+/** What each of the core's built-in report designs looks like, by id
+ *  (plan report-designs.md §4, D14; agentry-desktop#766). Go names the
+ *  built-ins the card offers (ReportThemeView.choices); an id this list
+ *  lacks is offered by its name alone. */
+export const REPORT_THEME_LOOKS: Record<string, string> = {
+  plain: "Clean sans-serif pages, near-monochrome, with page numbers.",
+  classic: "Serif throughout, small-capital headings, a navy accent.",
+  modern: "Sans-serif with a coloured title band and barred headings.",
+  editorial: "A display serif for headings over a sans-serif body, a warm red accent.",
+  technical: "Dense, numbered headings, banded tables and stronger code blocks.",
+};
+
+/** The line under a built-in the agentry command this app carries cannot
+ *  draw yet: its runs use Plain until the app is updated (D20). */
+export const NOT_HERE_YET = "Runs from this app use Plain for it until the app is updated.";
 
 /** The sentence a save answers with. */
-export function themeSavedSentence(theme: string): string {
-  const t = REPORT_THEMES.find((x) => x.name === theme);
-  return t
-    ? `Saved. Your runs' PDF reports use the ${t.label} theme.`
-    : "Saved. You have no report theme: runs from this app use Plain.";
+export function themeSavedSentence(theme: string, name?: string, here = true): string {
+  if (!theme) return "Saved. You have no report theme: runs from this app use Plain.";
+  const label = name || theme;
+  return here
+    ? `Saved. Your runs' PDF reports use the ${label} theme.`
+    : `Saved. Your report theme is ${label}; runs from this app use Plain for it until the app is updated.`;
 }

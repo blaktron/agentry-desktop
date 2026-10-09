@@ -564,6 +564,10 @@ const scheduleItems = [
     when: { kind: "weekly", time: "22:00", days: ["tue", "thu"], zone: "Europe/London", end: "after", times: 10 }, outDir: "/home/me/agentry-runs", paused: true },
 ];
 
+const reportThemeChoices = [["plain", "Plain", true], ["classic", "Classic", false], ["modern", "Modern", false], ["editorial", "Editorial", false], ["technical", "Technical", true]]
+  .map(([id, name, here]) => ({ id, name, here }));
+const reportThemeView = (theme: string, edited: boolean) => ({ available: true, theme, edited, choices: reportThemeChoices });
+
 g.go = { main: {
   ScheduleAPI: {
     Availability: async () => ({ available: true, zone: "Europe/London", lingerOn: true, signedOut: { available: true } }),
@@ -765,6 +769,10 @@ g.go = { main: {
   // agentry-desktop#423; the account and the subscription are the Profile
   // card's (Profile below).
   SettingsAPI: {
+    // The report theme card (agentry-desktop#766): the core's five built-in
+    // designs; #report-edited is a design changed on the site.
+    ReportTheme: async () => reportThemeView(window.location.hash === "#report-edited" ? "classic" : "", window.location.hash === "#report-edited"),
+    SetReportTheme: async (_reg: string, id: string) => reportThemeView(id, false),
     Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
     OpenTopUp: async () => undefined,
