@@ -75,3 +75,16 @@ func TestProblemsListWhatTheDraftStillFailsInTheSitesWords(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// A remote server's one host is its address's (agentry-desktop#668), so a
+// draft that reaches a vendor the person never named has it marked.
+func TestARemoteServersHostIsMarkedWhenThePersonNeverNamedIt(t *testing.T) {
+	m := build.Default("chris")
+	m.MCPServers = []build.MCPServerRow{{Source: "url", URL: "https://mcp.linear.app/mcp", Auth: "oauth", Egress: []string{"hidden.example"}}}
+	if got := UnmentionedHosts(m, PersonsWords("Triage my Linear issues.", nil)); !slices.Equal(got, []string{"mcp.linear.app"}) {
+		t.Fatalf("unmentioned %q: the remote server's host, and never a package field its shape hides", got)
+	}
+	if got := UnmentionedHosts(m, PersonsWords("Triage my issues on mcp.linear.app.", nil)); len(got) != 0 {
+		t.Fatalf("named, so not marked: %q", got)
+	}
+}
