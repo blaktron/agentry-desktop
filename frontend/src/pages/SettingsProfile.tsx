@@ -3,7 +3,7 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
 import { capsSentence } from "../usage";
-import { REPORT_THEMES, themeSavedSentence } from "../reportPdf";
+import { DRAWN_HERE, NOT_HERE_YET, REPORT_THEME_LOOKS, themeSavedSentence } from "../reportPdf";
 import {
   bonusOf, changesPhrase, creditCount, creditNumber, creditsPhrase, dayOf, owedSentence, packBonus, packLabel, packPrice, runningPromo, tierLabel,
   topUpOffer,
@@ -180,7 +180,10 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
 // scratch-and-pdf-reports.md D18, D21; agentry-desktop#730): how the PDFs a
 // run exports are laid out, the same setting as the site's Profile card. A
 // local run from this app takes it; "Not chosen" is Plain here. Drawn only
-// where the registry keeps the setting.
+// where the registry keeps the setting. Since the account keeps a report
+// design (agentry#1026), the card offers the core's built-ins, which Go
+// names, and saves one whole; a design edited on the site is said, since
+// saving here replaces it (agentry-desktop#766, until #759's editor).
 function ReportThemePart({ registry }: { registry: string }) {
   const [view, setView] = useState<main.ReportThemeView | null>(null);
   const [choice, setChoice] = useState("");
@@ -205,7 +208,8 @@ function ReportThemePart({ registry }: { registry: string }) {
       const v = await SettingsAPI.SetReportTheme(registry, choice);
       setView(v);
       setChoice(v.theme ?? "");
-      setSaved(themeSavedSentence(v.theme ?? ""));
+      const c = v.choices?.find((x) => x.id === v.theme);
+      setSaved(themeSavedSentence(v.theme ?? "", c?.name, c?.here ?? true));
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -230,16 +234,27 @@ function ReportThemePart({ registry }: { registry: string }) {
               <input type="radio" name="report-theme" value="" checked={choice === ""} onChange={() => setChoice("")} />
               <span>Not chosen <span className="muted small">Plain, for runs from this app.</span></span>
             </label>
-            {REPORT_THEMES.map((t) => (
-              <label key={t.name} className="row">
-                <input type="radio" name="report-theme" value={t.name} checked={choice === t.name} onChange={() => setChoice(t.name)} />
-                <span>{t.label} <span className="muted small">{t.look}</span></span>
+            {(view.choices ?? []).map((t) => (
+              <label key={t.id} className="row" data-report-theme={t.id}>
+                <input type="radio" name="report-theme" value={t.id} checked={choice === t.id} onChange={() => setChoice(t.id)} />
+                <span>
+                  {t.name} <span className="muted small">{REPORT_THEME_LOOKS[t.id] ?? ""}</span>
+                  {!t.here && <span className="muted small" data-not-here> {NOT_HERE_YET}</span>}
+                </span>
               </label>
             ))}
           </fieldset>
         )}
+        {view && <p className="muted small" data-drawn-here>{DRAWN_HERE}</p>}
+        {view?.edited && (
+          <Notice tone="info">
+            {(view.choices ?? []).some((c) => c.id === view.theme)
+              ? "Your report design was changed on the site. It is shown here by the theme it is based on, and saving a theme here replaces it with that theme as it ships."
+              : "Your report design is based on a theme this app does not know yet. Saving a theme here replaces it."}
+          </Notice>
+        )}
         {view && (
-          <Button busy={busy} busyLabel="Saving…" disabled={choice === (view.theme ?? "")} onClick={() => void save()}>
+          <Button busy={busy} busyLabel="Saving…" disabled={choice === (view.theme ?? "") && !view.edited} onClick={() => void save()}>
             Save report theme
           </Button>
         )}

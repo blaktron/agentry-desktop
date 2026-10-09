@@ -5,18 +5,22 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
+	"github.com/blaktron/agentry/pkg/reportdesign"
 )
 
 // reportThemeRegistry answers GET and PUT /user/report-settings as the core
-// does since agentry#989 (DEV-227): {} for never chosen, a built-in name
-// kept, anything else 422. found=false is a registry from before the route.
+// does since agentry#1026 (DEV-230): {} for never chosen, {"design": …}
+// kept when the core's pkg/reportdesign parses it, a body with any other
+// field refused with 400 (the old {"theme": …} included). found=false is a
+// registry from before the route. stored is the design kept, "" for none.
 func reportThemeRegistry(t *testing.T, found bool) (*httptest.Server, *string, *int) {
 	t.Helper()
-	theme, puts := "", 0
+	stored, puts := "", 0
 	mux := http.NewServeMux()
 	authed := func(w http.ResponseWriter, r *http.Request) bool {
 		if !found {
@@ -31,11 +35,16 @@ func reportThemeRegistry(t *testing.T, found bool) (*httptest.Server, *string, *
 		return true
 	}
 	answer := func(w http.ResponseWriter) {
-		if theme == "" {
+		if stored == "" {
 			_, _ = w.Write([]byte(`{}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"theme":"` + theme + `"}`))
+		_, _ = w.Write([]byte(`{"design":` + stored + `}`))
+	}
+	refuse := func(w http.ResponseWriter, status int, detail string) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"type":"about:blank","title":"validation","status":` + strconv.Itoa(status) + `,"detail":"` + detail + `"}`))
 	}
 	mux.HandleFunc("GET /api/v1/user/report-settings", func(w http.ResponseWriter, r *http.Request) {
 		if authed(w, r) {
@@ -47,42 +56,76 @@ func reportThemeRegistry(t *testing.T, found bool) (*httptest.Server, *string, *
 			return
 		}
 		puts++
-		var body map[string]any
+		var body map[string]json.RawMessage
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
+			refuse(w, http.StatusBadRequest, "not JSON")
 			return
 		}
-		name, has := body["theme"].(string)
+		design, has := body["design"]
 		switch {
-		case !has && len(body) == 0:
-			theme = ""
-		case has && strings.Contains(" plain formal brief technical letter ", " "+name+" "):
-			theme = name
+		case len(body) == 0:
+			stored = ""
+		case has && len(body) == 1:
+			d, err := reportdesign.Parse(design)
+			if err != nil {
+				refuse(w, http.StatusUnprocessableEntity, "design is not a report design")
+				return
+			}
+			stored = string(d.Canonical())
 		default:
-			w.Header().Set("Content-Type", "application/problem+json")
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = w.Write([]byte(`{"type":"about:blank","title":"validation","status":422,"detail":"theme is not a report theme"}`))
+			refuse(w, http.StatusBadRequest, "unknown field")
 			return
 		}
 		answer(w)
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv, &theme, &puts
+	return srv, &stored, &puts
 }
 
-// The Profile's Report theme reads the account's choice, "" for never
-// chosen, which is not Plain (DEV-227).
+// builtinDoc is a built-in design's document as the core stores it.
+func builtinDoc(t *testing.T, id string) string {
+	t.Helper()
+	d, ok := reportdesign.Builtin(id)
+	if !ok {
+		t.Fatalf("no built-in %q", id)
+	}
+	return string(d.Canonical())
+}
+
+// The Profile's Report theme reads the built-in the account's design is
+// based on, "" for never chosen, which is not Plain (DEV-227); a design
+// changed on the site reads as Edited; the choices are the core's five
+// built-ins, the two the pinned agentry command can draw marked.
 func TestReportThemeReadsTheAccountsChoice(t *testing.T) {
-	srv, theme, _ := reportThemeRegistry(t, true)
+	srv, stored, _ := reportThemeRegistry(t, true)
 	ctx := context.Background()
 	v, err := reportThemeOf(ctx, srv.URL, "agy_test")
-	if err != nil || !v.Available || v.Theme != "" {
+	if err != nil || !v.Available || v.Theme != "" || v.Edited {
 		t.Fatalf("never chosen: %+v, %v", v, err)
 	}
-	*theme = "letter"
-	if v, err = reportThemeOf(ctx, srv.URL, "agy_test"); err != nil || v.Theme != "letter" {
+	var ids, here []string
+	for _, c := range v.Choices {
+		ids = append(ids, c.ID)
+		if c.Here {
+			here = append(here, c.ID)
+		}
+	}
+	if got := strings.Join(ids, ","); got != "plain,classic,modern,editorial,technical" {
+		t.Fatalf("choices %s", got)
+	}
+	if got := strings.Join(here, ","); got != "plain,technical" {
+		t.Fatalf("drawn here %s", got)
+	}
+	*stored = builtinDoc(t, "classic")
+	if v, err = reportThemeOf(ctx, srv.URL, "agy_test"); err != nil || v.Theme != "classic" || v.Edited {
 		t.Fatalf("chosen: %+v, %v", v, err)
+	}
+	edited, _ := reportdesign.Builtin("classic")
+	edited.Name = "Ours"
+	*stored = string(edited.Canonical())
+	if v, err = reportThemeOf(ctx, srv.URL, "agy_test"); err != nil || v.Theme != "classic" || !v.Edited {
+		t.Fatalf("edited on the site: %+v, %v (stored %s)", v, err, *stored)
 	}
 	if _, err := reportThemeOf(ctx, srv.URL, "agy_wrong"); err == nil {
 		t.Fatal("a refused credential must be an error")
@@ -99,33 +142,37 @@ func TestReportThemeOnARegistryWithoutTheSetting(t *testing.T) {
 	}
 }
 
-// Saving sends the theme; "" clears it with {}; a name that is not a
-// built-in theme's is refused before anything is sent.
+// Saving sends the built-in's own document, which the core accepts and
+// keeps; "" clears it with {}; a name that is not a built-in's (the old
+// formal, brief and letter among them) is refused before anything is sent.
 func TestSetReportThemeSavesClearsAndRefuses(t *testing.T) {
-	srv, theme, puts := reportThemeRegistry(t, true)
+	srv, stored, puts := reportThemeRegistry(t, true)
 	ctx := context.Background()
-	v, err := setReportTheme(ctx, srv.URL, "agy_test", "formal")
-	if err != nil || v.Theme != "formal" || *theme != "formal" {
-		t.Fatalf("save: %+v, %v (stored %q)", v, err, *theme)
+	v, err := setReportTheme(ctx, srv.URL, "agy_test", "editorial")
+	if err != nil || v.Theme != "editorial" || v.Edited || *stored != builtinDoc(t, "editorial") {
+		t.Fatalf("save: %+v, %v (stored %s)", v, err, *stored)
 	}
-	if v, err = setReportTheme(ctx, srv.URL, "agy_test", ""); err != nil || v.Theme != "" || *theme != "" {
-		t.Fatalf("clear: %+v, %v (stored %q)", v, err, *theme)
+	if v, err = setReportTheme(ctx, srv.URL, "agy_test", ""); err != nil || v.Theme != "" || *stored != "" {
+		t.Fatalf("clear: %+v, %v (stored %q)", v, err, *stored)
 	}
 	before := *puts
-	if _, err := setReportTheme(ctx, srv.URL, "agy_test", "Fancy"); err == nil || !strings.Contains(err.Error(), "not a report theme") {
-		t.Fatalf("unknown name: %v", err)
+	for _, name := range []string{"Fancy", "formal", "letter"} {
+		if _, err := setReportTheme(ctx, srv.URL, "agy_test", name); err == nil || !strings.Contains(err.Error(), "not a report theme") {
+			t.Fatalf("%s: %v", name, err)
+		}
 	}
 	if *puts != before {
 		t.Fatal("an unknown name must send nothing")
 	}
 }
 
-// A local run takes the account's theme when the account chose one;
-// otherwise Plain, chosen by the default. An account it cannot read, or a
-// name this build does not have, is a line in the run's log and Plain:
-// how a PDF looks is no reason to stop a run (D21, as the CLI does).
+// A local run takes the account's theme when the account chose one the
+// pinned agentry command can draw; otherwise Plain, chosen by the default.
+// An account it cannot read, or a name this build does not have, is a line
+// in the run's log and Plain: how a PDF looks is no reason to stop a run
+// (D21, as the CLI does).
 func TestALocalRunTakesTheAccountsTheme(t *testing.T) {
-	srv, theme, _ := reportThemeRegistry(t, true)
+	srv, stored, _ := reportThemeRegistry(t, true)
 	ctx := context.Background()
 	var log strings.Builder
 
@@ -133,7 +180,7 @@ func TestALocalRunTakesTheAccountsTheme(t *testing.T) {
 	if got != (engine.ReportTheme{}) {
 		t.Fatalf("never chosen: %+v, want the zero value (Plain by default)", got)
 	}
-	*theme = "technical"
+	*stored = builtinDoc(t, "technical")
 	got = accountReportTheme(ctx, srv.URL, "agy_test", &log)
 	if got.Name != "technical" || got.From != engine.ThemeFromAccount {
 		t.Fatalf("chosen: %+v", got)
@@ -145,11 +192,22 @@ func TestALocalRunTakesTheAccountsTheme(t *testing.T) {
 	if got != (engine.ReportTheme{}) || !strings.Contains(log.String(), "report theme could not be read") {
 		t.Fatalf("unreadable: %+v, log %q", got, log.String())
 	}
-	*theme = "future"
+	// A built-in the pinned agentry command cannot draw yet is Plain, said
+	// in the log (D20), until the app carries agentry-cli#784.
+	*stored = builtinDoc(t, "modern")
 	log.Reset()
 	got = accountReportTheme(ctx, srv.URL, "agy_test", &log)
-	if got != (engine.ReportTheme{}) || !strings.Contains(log.String(), `"future"`) {
-		t.Fatalf("unknown: %+v, log %q", got, log.String())
+	if got != (engine.ReportTheme{}) || !strings.Contains(log.String(), `"modern" is not one this app can draw yet`) {
+		t.Fatalf("not drawable here: %+v, log %q", got, log.String())
+	}
+	// A design edited on the site is drawn by its base as shipped, said.
+	edited, _ := reportdesign.Builtin("technical")
+	edited.Name = "Ours"
+	*stored = string(edited.Canonical())
+	log.Reset()
+	got = accountReportTheme(ctx, srv.URL, "agy_test", &log)
+	if got.Name != "technical" || !strings.Contains(log.String(), "changed on the site") {
+		t.Fatalf("edited: %+v, log %q", got, log.String())
 	}
 	// Signed out: no account to ask, nothing to say.
 	log.Reset()
