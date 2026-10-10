@@ -175,7 +175,11 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // unanswered question is what the line names.
 const guidedShape = view.startsWith("runpanel-guided") || view === "toolspanel-hostile";
 const optionalKeysShape = view.startsWith("runpanel-keys-optional");
-const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape || optionalKeysShape;
+// #runpanel-hosted-keys-tools: the same release In Agentry on Connect tools,
+// whose local keys form opened by itself and must not hold Next there
+// (agentry-desktop#799).
+const hostedKeysTools = view === "runpanel-hosted-keys-tools";
+const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape || optionalKeysShape || hostedKeysTools;
 // A Gmail-reading release whose one server is Google's remote Gmail server,
 // signing in by OAuth with the person's own client (agentry-desktop#666).
 const signInShape = view.startsWith("runpanel-signin");
@@ -494,6 +498,7 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-knowledge-finished": "review",
   "runpanel-hosted-knowledge": "knowledge",
   "runpanel-hosted-secrets": "review",
+  "runpanel-hosted-keys-tools": "tools",
   "runpanel-hosted-optional": "review",
   "runpanel-hosted-optional-only": "review",
   "runpanel-hosted-followed": "review",
@@ -719,7 +724,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule ? "hosted"
+        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule || hostedKeysTools ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
         initialWhen={view.startsWith("runpanel-schedule") ? "repeat" : undefined}
