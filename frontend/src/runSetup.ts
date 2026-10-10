@@ -212,8 +212,23 @@ export function goesWithoutSentence(
   const which = keys.length === 1 ? `the optional key ${list}` : `the optional keys ${list}`;
   const it = keys.length === 1 ? "it" : "them";
   return inAgentry
-    ? `; the run goes without ${which} unless your account keeps ${it}`
+    ? `; the run goes without ${which} unless your account keeps ${it} or you give ${it} when you start`
     : `; the run goes without ${which} unless you set ${it} in Connect tools or this computer's environment holds ${it}`;
+}
+
+/**
+ * Whether the start's ask In Agentry can be saved (agentry-desktop#795):
+ * every key the registry named that is not optional has a value; an
+ * optional one may stay empty, and the run then goes without it.
+ */
+export function askReady(names: string[], optional: string[] | undefined, values: Record<string, string>): boolean {
+  const opt = new Set(optional ?? []);
+  return names.every((n) => opt.has(n) || (values[n] ?? "") !== "");
+}
+
+/** The keys the ask sets: those given a value, in the order named. */
+export function askToSet(names: string[], values: Record<string, string>): string[] {
+  return names.filter((n) => (values[n] ?? "") !== "");
 }
 
 /**

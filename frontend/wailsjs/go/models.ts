@@ -2891,6 +2891,7 @@ export namespace main {
 	    refusal?: string;
 	    detail?: string;
 	    missing?: string[];
+	    optional?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedScheduleMadeView(source);
@@ -2903,6 +2904,7 @@ export namespace main {
 	        this.refusal = source["refusal"];
 	        this.detail = source["detail"];
 	        this.missing = source["missing"];
+	        this.optional = source["optional"];
 	    }
 	}
 	
@@ -2916,6 +2918,7 @@ export namespace main {
 	    intake?: {[key: string]: string};
 	    voice: boolean;
 	    when: schedules.When;
+	    askOptionalSecrets?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedScheduleRequest(source);
@@ -2932,6 +2935,7 @@ export namespace main {
 	        this.intake = source["intake"];
 	        this.voice = source["voice"];
 	        this.when = this.convertValues(source["when"], schedules.When);
+	        this.askOptionalSecrets = source["askOptionalSecrets"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3000,6 +3004,7 @@ export namespace main {
 	    hold?: number;
 	    resetsAt?: string;
 	    missing?: string[];
+	    optional?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedStartView(source);
@@ -3014,6 +3019,7 @@ export namespace main {
 	        this.hold = source["hold"];
 	        this.resetsAt = source["resetsAt"];
 	        this.missing = source["missing"];
+	        this.optional = source["optional"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

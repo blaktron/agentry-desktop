@@ -362,6 +362,11 @@ type HostedScheduleRequest struct {
 	Intake    map[string]string `json:"intake,omitempty"`
 	Voice     bool              `json:"voice"`
 	When      schedules.When    `json:"when"`
+	// AskOptionalSecrets makes the registry's check refuse an optional
+	// secret the account does not keep, as a required one, so the When step
+	// asks for it (agentry-desktop#795); a schedule made again after the
+	// ask leaves it false.
+	AskOptionalSecrets bool `json:"askOptionalSecrets,omitempty"`
 }
 
 // HostedScheduleMadeView is a schedule just made In Agentry, or the gap
@@ -375,6 +380,9 @@ type HostedScheduleMadeView struct {
 	Refusal string   `json:"refusal,omitempty"`
 	Detail  string   `json:"detail,omitempty"`
 	Missing []string `json:"missing,omitempty"`
+	// Optional are the release's optional secrets a secret-missing names:
+	// those of Missing the ask may leave empty (agentry-desktop#795).
+	Optional []string `json:"optional,omitempty"`
 }
 
 // HostedAdd makes the schedule req describes In Agentry. The registry's
@@ -420,17 +428,18 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 	ids, err := c.UploadInputs(ctx, files)
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
-			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing}, nil
+			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional}, nil
 		}
 		return nil, err
 	}
 	voice := req.Voice
 	made, err := c.CreateSchedule(ctx, hostedrun.ScheduleRequest{
 		Name: strings.TrimSpace(req.Name), Ref: req.Ref, Task: req.Task, Intake: req.Intake, Knowledge: packs, Voice: &voice, Inputs: ids, When: when,
+		AskOptionalSecrets: req.AskOptionalSecrets,
 	})
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
-			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing}, nil
+			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional}, nil
 		}
 		return nil, err
 	}

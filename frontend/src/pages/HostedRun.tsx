@@ -14,6 +14,7 @@ import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
 import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, sessionTermsSentence } from "../usage";
 import { hostedConnectAsk } from "../connections";
+import { askReady, askToSet } from "../runSetup";
 import { PUBLISHER_EARNS_AFTER, PUBLISHER_EARNS_SENTENCE, starAskSentence, starAskWanted, starredSentence } from "../earnings";
 
 /** What a run In Agentry holds and what the account has, before anything
@@ -167,12 +168,12 @@ export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityV
       .{" "}
       {hosted.vault ? (
         <>
-          A secret your account keeps in Agentry is used as it is. A required one it does not keep is asked for when you start,
-          and Agentry removes it when the run ends unless you tick Keep it for later runs.
+          A secret your account keeps in Agentry is used as it is. One it does not keep is asked for when you start, and
+          Agentry removes it when the run ends unless you tick Keep it for later runs.
           {(hosted.optionalSecrets ?? []).length > 0 && (
             <>
-              {" "}A run can start without {(hosted.optionalSecrets ?? []).join(", ")}: an optional secret your account does not
-              keep is not asked for, and the run goes without it. To give one, keep it on the site&apos;s Secrets page.
+              {" "}A run can start without {(hosted.optionalSecrets ?? []).join(", ")}: leave an optional one empty when it is
+              asked for, and the run goes without it.
             </>
           )}
         </>
@@ -187,10 +188,14 @@ export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityV
  *  (a secret-missing refusal names them). Each value is sent once, in a
  *  call of its own (RunAPI.SetHostedSecret, D-024's rule), and cleared
  *  from this form before it is sent; "Keep it for later runs" is unticked,
- *  so a value is held for this run alone unless the person ticks it. */
-export function HostedSecretsAsk({ registry, names, onSaved, onCancel, forSchedule }: {
+ *  so a value is held for this run alone unless the person ticks it. An
+ *  optional key (agentry-desktop#795) is asked for the same way, marked,
+ *  and may stay empty: nothing is set for it, and the run goes without it. */
+export function HostedSecretsAsk({ registry, names, optional, onSaved, onCancel, forSchedule }: {
   registry: string;
   names: string[];
+  /** Those of names a run can start without (the refusal's `optional`). */
+  optional?: string[];
   onSaved: () => void;
   onCancel: () => void;
   /** A schedule's ask (agentry-desktop#745; plan quickagent-scheduling.md
@@ -202,7 +207,12 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel, forSchedu
   const [keep, setKeep] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const ready = names.every((n) => (values[n] ?? "") !== "");
+  const ready = askReady(names, optional, values);
+  const isOptional = (n: string) => (optional ?? []).includes(n);
+  const required = names.filter((n) => !isOptional(n));
+  // The button says it saves unless every key is optional and none is
+  // typed, when it only starts (or schedules) without them.
+  const saves = required.length > 0 || askToSet(names, values).length > 0;
   // An ask that goes away without starting (the panel closed, the mode
   // changed) discards what it set; one that saved and starts leaves them
   // to the start, which keeps or discards them itself.
@@ -219,7 +229,7 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel, forSchedu
     const typed = { ...values };
     setValues({});
     try {
-      for (const n of names) {
+      for (const n of askToSet(names, typed)) {
         await RunAPI.SetHostedSecret(registry, n, typed[n], forSchedule || !!keep[n]);
       }
       saved.current = true;
@@ -246,18 +256,27 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel, forSchedu
           {names.length === 1 ? "its value" : "each value"} to keep {names.length === 1 ? "it" : "them"} under your account,
           for this schedule and any run In Agentry that declares {names.length === 1 ? "it" : "them"}. A value goes into a
           run&apos;s tools container only, never into the agent&apos;s own.
+          {required.length < names.length && <> Leave an optional one empty and the schedule&apos;s runs go without it.</>}
         </p>
       ) : (
         <p className="small">
           This release declares {names.length === 1 ? "a secret" : "secrets"} your account does not keep in Agentry.
-          Enter {names.length === 1 ? "its value" : "each value"} to start the run. The value goes into that run&apos;s
-          tools container only, never into the agent&apos;s own.
+          {required.length > 0
+            ? <> Enter {required.length === 1 ? "the required one" : "each required one"} to start the run</>
+            : names.length === 1
+              ? <> It is optional: enter it for the run to use it, or start without it</>
+              : <> Each is optional: enter one for the run to use it, or start without them</>}
+          {required.length > 0 && required.length < names.length ? <>; leave an optional one empty and the run goes without it.</> : <>.</>}
+          {" "}The value goes into that run&apos;s tools container only, never into the agent&apos;s own.
         </p>
       )}
       {names.map((n) => (
         <div key={n} style={{ marginBottom: 10 }}>
           <div className="field">
-            <label className="field-label" htmlFor={`secret-${n}`}><code>{n}</code></label>
+            <label className="field-label" htmlFor={`secret-${n}`}>
+              <code>{n}</code>
+              {isOptional(n) && <span className="muted small" data-optional-key> optional: leave it empty to run without it</span>}
+            </label>
             {/* A text area, as the site's: a one-line field silently drops
                 a pasted value's line breaks, where the registry refuses a
                 multi-line value in words. */}
@@ -290,7 +309,9 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel, forSchedu
       <div className="row">
         <Button onClick={cancel} disabled={busy}>Cancel</Button>
         <span className="grow" />
-        <Button variant="primary" disabled={busy || !ready} onClick={save}>{busy ? "Saving…" : forSchedule ? "Keep and schedule" : "Save and start"}</Button>
+        <Button variant="primary" disabled={busy || !ready} onClick={save}>
+          {busy ? "Saving…" : forSchedule ? (saves ? "Keep and schedule" : "Schedule") : (saves ? "Save and start" : "Start")}
+        </Button>
       </div>
     </Card>
   );

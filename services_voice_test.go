@@ -355,7 +355,7 @@ func TestAHostedRunAsksForTheAccountsVoiceOnlyWhenTicked(t *testing.T) {
 		events.mu.Lock()
 		events.runs = nil
 		events.mu.Unlock()
-		if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, want); err != nil {
+		if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, want, false); err != nil {
 			t.Fatal(err)
 		}
 		f.mu.Lock()
