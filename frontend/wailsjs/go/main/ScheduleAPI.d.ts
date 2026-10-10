@@ -25,6 +25,8 @@ export function HostedEdit(arg1:string,arg2:string,arg3:schedules.Edit):Promise<
 
 export function HostedHistory(arg1:string,arg2:number):Promise<main.HostedCalendarView>;
 
+export function HostedOffer(arg1:string):Promise<main.HostedScheduleOfferView>;
+
 export function HostedPause(arg1:string,arg2:string):Promise<void>;
 
 export function HostedRemove(arg1:string,arg2:string,arg3:string):Promise<boolean>;

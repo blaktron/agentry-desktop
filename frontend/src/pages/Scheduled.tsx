@@ -82,6 +82,10 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   // In Agentry (agentry-desktop#745): the account's schedules, their
   // month and their history; each read that did not answer says so.
   const [hosted, setHosted] = useState<main.HostedSchedulesView | null>(null);
+  // Whether a new one can be made there, read once for the registry: its
+  // facts are several reads of the registry, which every refresh making
+  // again outlasted an edge that spaces out a burst (the live check).
+  const [offer, setOffer] = useState<main.HostedScheduleOfferView | null>(null);
   const [hostedCal, setHostedCal] = useState<FireRow[]>([]);
   const [hostedCalSaid, setHostedCalSaid] = useState<string | null>(null);
   const [hostedHistory, setHostedHistory] = useState<FireRow[]>([]);
@@ -106,19 +110,50 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
       .then((c) => { if (n === reads.current) setCal(c as FireRow[]); })
       .catch(() => { if (n === reads.current) setCal([]); });
     ScheduleAPI.History(HISTORY).then((h) => setHistory(h as FireRow[])).catch(() => setHistory([]));
-    // Through a promise, so a binding an older harness lacks is a read that
-    // did not answer, not a throw.
-    Promise.resolve().then(() => ScheduleAPI.HostedSchedules(registry))
-      .then(setHosted)
-      .catch((e) => setHosted(main.HostedSchedulesView.createFrom({ registry, unavailable: `Your schedules In Agentry could not be read: ${String(e)}`, schedules: [] })));
-    Promise.resolve().then(() => ScheduleAPI.HostedCalendar(registry, range.from, range.to))
-      .then((c) => { if (n === reads.current) { setHostedCal(c.fires as FireRow[]); setHostedCalSaid(c.unavailable || null); } })
-      .catch(() => { if (n === reads.current) { setHostedCal([]); setHostedCalSaid(null); } });
-    Promise.resolve().then(() => ScheduleAPI.HostedHistory(registry, HISTORY))
-      .then((h) => setHostedHistory(h.fires as FireRow[]))
-      .catch(() => setHostedHistory([]));
+    readHosted(n);
   }, [range, registry]);
   useEffect(read, [read]);
+
+  // The reads In Agentry, one set at a time: a change brings its own
+  // refresh and the schedules:changed event's, and a set asked for while one
+  // is out runs once after it, so the registry is not asked twice at once.
+  const hostedBusy = useRef(false);
+  const hostedAgain = useRef(false);
+  function readHosted(n: number) {
+    if (hostedBusy.current) {
+      hostedAgain.current = true;
+      return;
+    }
+    hostedBusy.current = true;
+    // Through a promise, so a binding an older harness lacks is a read that
+    // did not answer, not a throw.
+    const list = Promise.resolve().then(() => ScheduleAPI.HostedSchedules(registry))
+      .then(setHosted)
+      .catch((e) => setHosted(main.HostedSchedulesView.createFrom({ registry, unavailable: `Your schedules In Agentry could not be read: ${String(e)}`, schedules: [] })));
+    const cal = Promise.resolve().then(() => ScheduleAPI.HostedCalendar(registry, range.from, range.to))
+      .then((c) => { if (n === reads.current) { setHostedCal(c.fires as FireRow[]); setHostedCalSaid(c.unavailable || null); } })
+      .catch(() => { if (n === reads.current) { setHostedCal([]); setHostedCalSaid(null); } });
+    const hist = Promise.resolve().then(() => ScheduleAPI.HostedHistory(registry, HISTORY))
+      .then((h) => setHostedHistory(h.fires as FireRow[]))
+      .catch(() => setHostedHistory([]));
+    void Promise.allSettled([list, cal, hist]).then(() => {
+      hostedBusy.current = false;
+      if (hostedAgain.current) {
+        hostedAgain.current = false;
+        // This render's month and registry, not the ones this set began with.
+        latestReadHosted.current(reads.current);
+      }
+    });
+  }
+  const latestReadHosted = useRef(readHosted);
+  latestReadHosted.current = readHosted;
+  useEffect(() => {
+    let live = true;
+    Promise.resolve().then(() => ScheduleAPI.HostedOffer(registry))
+      .then((o) => { if (live) setOffer(o); })
+      .catch(() => { if (live) setOffer(null); });
+    return () => { live = false; };
+  }, [registry]);
   useEffect(() => {
     ScheduleAPI.Availability().then(setAvailability).catch((e) =>
       setAvailability({ available: false, reason: String(e), zone: "", signedOut: { available: false, reason: String(e) }, lingerOn: false }));
@@ -171,7 +206,6 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   // What this computer cannot do holds the schedules on it; In Agentry is
   // the registry's and the plan's to allow (D7).
   const unavailable = availability && !availability.available ? availability.reason : null;
-  const offer = hosted?.offer;
   const hostedOpen = !!offer?.available;
   const hostedSaid = hosted?.unavailable || hostedCalSaid;
   // A layout this app keeps rather than uses takes no change (D-067).

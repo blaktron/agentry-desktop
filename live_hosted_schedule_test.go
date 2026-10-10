@@ -11,7 +11,7 @@ package main
 //	AGENTRY_LIVE_SCHEDULE_REF=ns/name@version \
 //	go test -run TestLiveHostedSchedule -v -timeout 30m .
 //
-// It makes a once schedule a few minutes ahead, finds it in the list and on
+// It makes a once schedule a few minutes ahead (AGENTRY_LIVE_SCHEDULE_LEAD), finds it in the list and on
 // the calendar as due, and (with AGENTRY_LIVE_SCHEDULE_WAIT=1) waits for the
 // registry to fire it and reads the run it started. With
 // AGENTRY_LIVE_SCHEDULE_KEEP=1 the schedule is left for a look on the site
@@ -21,6 +21,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -63,8 +64,14 @@ func TestLiveHostedSchedule(t *testing.T) {
 		t.Fatalf("Later and Repeat In Agentry are not offered: %+v", avail.Schedule)
 	}
 
-	// Once, a few minutes ahead, in UTC.
-	at := time.Now().UTC().Add(4 * time.Minute).Truncate(time.Minute)
+	// Once, a few minutes ahead (AGENTRY_LIVE_SCHEDULE_LEAD minutes, 4 by
+	// default, so there is time to look at it on the site and in the app
+	// before it fires), in UTC.
+	lead := 4
+	if n, err := strconv.Atoi(os.Getenv("AGENTRY_LIVE_SCHEDULE_LEAD")); err == nil && n > 1 {
+		lead = n
+	}
+	at := time.Now().UTC().Add(time.Duration(lead) * time.Minute).Truncate(time.Minute)
 	name := "M10 live check " + at.Format("15:04")
 	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: ref, Name: name,
 		When: schedules.When{Kind: "once", Date: at.Format("2006-01-02"), Time: at.Format("15:04"), Zone: "UTC"}})
@@ -135,4 +142,52 @@ func TestLiveHostedSchedule(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("the run's record: %s %s", rec.Run.Status, rec.Run.Outcome)
+}
+
+// The gap, live (plan D8): a schedule of a release whose required secret
+// the account does not keep comes back as the create's refusal naming it,
+// for the When step to ask for, and nothing is made.
+//
+//	AGENTRY_LIVE_SCHEDULE_REGISTRY=… AGENTRY_LIVE_SCHEDULE_TOKEN=… \
+//	AGENTRY_LIVE_SCHEDULE_GAP_REF=ns/name@version \
+//	go test -run TestLiveHostedScheduleGap -v .
+func TestLiveHostedScheduleGap(t *testing.T) {
+	reg := strings.TrimRight(os.Getenv("AGENTRY_LIVE_SCHEDULE_REGISTRY"), "/")
+	token := os.Getenv("AGENTRY_LIVE_SCHEDULE_TOKEN")
+	ref := os.Getenv("AGENTRY_LIVE_SCHEDULE_GAP_REF")
+	if reg == "" || token == "" || ref == "" {
+		t.Skip("set AGENTRY_LIVE_SCHEDULE_REGISTRY, _TOKEN and _GAP_REF to see a schedule's gap come back")
+	}
+	keyring.MockInit()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	st, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.Upsert(settings.Registry{URL: settings.Normalize(reg), Token: token})
+	if err := settings.Save(st); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{ctx: context.Background()}
+	s := &ScheduleAPI{app: app, run: &RunAPI{app: app}}
+	before, err := s.HostedSchedules(reg)
+	if err != nil || before.Unavailable != "" {
+		t.Fatalf("list: %+v, %v", before, err)
+	}
+	at := time.Now().UTC().Add(2 * time.Hour)
+	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: ref,
+		When: schedules.When{Kind: "once", Date: at.Format("2006-01-02"), Time: at.Format("15:04"), Zone: "UTC"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if made.ID != "" || (made.Refusal != "secret-missing" && made.Refusal != "secret-not-kept") || len(made.Missing) == 0 {
+		t.Fatalf("the gap: %+v", made)
+	}
+	t.Logf("refused %s naming %v: %s", made.Refusal, made.Missing, made.Detail)
+	after, err := s.HostedSchedules(reg)
+	if err != nil || len(after.Schedules) != len(before.Schedules) {
+		t.Fatalf("a schedule was made: %d before, %d after (%v)", len(before.Schedules), len(after.Schedules), err)
+	}
 }

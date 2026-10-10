@@ -86,9 +86,6 @@ type HostedSchedulesView struct {
 	// SignedOut: no token is kept for it, so nothing In Agentry is read;
 	// the page says signing in shows them.
 	SignedOut bool `json:"signedOut,omitempty"`
-	// Offer is whether a new schedule can be made In Agentry; nil where
-	// none is offered (signed out, or a registry without schedules).
-	Offer *HostedScheduleOfferView `json:"offer,omitempty"`
 	// Unavailable is why the account's schedules could not be read: the
 	// registry did not answer, or refused. The page says it, and shows the
 	// schedules on this computer as they are.
@@ -193,32 +190,47 @@ func hostedSaid(err error) error {
 	return err
 }
 
-// HostedSchedules is the account's schedules In Agentry at reg, and whether
-// a new one can be made there. Nothing is offered or listed signed out, or
-// where the registry schedules no runs; a registry that cannot be reached
-// is Unavailable, never an error.
+// HostedOffer is whether a new schedule can be made In Agentry at reg
+// (DecideSchedule): nil where none is offered (signed out, a registry
+// without schedules, or one that did not answer). The page reads it once,
+// apart from the list it reads at every change: its facts are four reads
+// of the registry, and an edge that spaces out a burst made a refresh that
+// read them every time outlast its time (agentry-desktop#745's live check).
+func (s *ScheduleAPI) HostedOffer(reg string) (*HostedScheduleOfferView, error) {
+	reg = settings.Normalize(reg)
+	if settings.ValidateURL(reg) != nil {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(s.ctx(), hostedReadTimeout)
+	defer cancel()
+	f, _, reach := hostedFacts(ctx, reg)
+	if reach != "" || !f.SignedIn || !f.Schedules {
+		return nil, nil
+	}
+	return scheduleOfferView(hostedrun.DecideSchedule(f)), nil
+}
+
+// HostedSchedules is the account's schedules In Agentry at reg, in one read
+// of the registry. Nothing is listed signed out, or where the registry
+// schedules no runs (its route a 404); a registry that cannot be reached is
+// Unavailable, never an error.
 func (s *ScheduleAPI) HostedSchedules(reg string) (*HostedSchedulesView, error) {
 	reg = settings.Normalize(reg)
 	v := &HostedSchedulesView{Registry: originOf(reg), Schedules: []HostedScheduleItem{}}
 	if err := settings.ValidateURL(reg); err != nil {
 		return v, nil
 	}
-	ctx, cancel := context.WithTimeout(s.ctx(), hostedReadTimeout)
-	defer cancel()
-	f, token, reach := hostedFacts(ctx, reg)
-	if reach != "" {
-		v.Unavailable = "Your schedules In Agentry could not be read: " + reach + "."
-		return v, nil
-	}
-	if !f.SignedIn {
+	token := settings.TokenFor(reg)
+	if token == "" {
 		v.SignedOut = true
 		return v, nil
 	}
-	if !f.Schedules {
+	ctx, cancel := context.WithTimeout(s.ctx(), hostedReadTimeout)
+	defer cancel()
+	items, limit, err := hostedrun.New(reg, token).Schedules(ctx)
+	if r := hostedrun.RefusalOf(err); r != nil && r.Status == http.StatusNotFound {
 		return v, nil
 	}
-	v.Offer = scheduleOfferView(hostedrun.DecideSchedule(f))
-	items, limit, err := hostedrun.New(reg, token).Schedules(ctx)
 	if err != nil {
 		v.Unavailable = "Your schedules In Agentry could not be read: " + hostedSaid(err).Error() + "."
 		return v, nil

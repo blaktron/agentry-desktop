@@ -252,8 +252,15 @@ func TestHostedSchedulesListAndAnUnreachableRegistry(t *testing.T) {
 		Inputs: []hostedrun.ScheduleInput{{Name: "notes.txt", Bytes: 5}}, Refusals: 3}}}
 	s, reg, _ := hostedScheduleAPI(t, sr, nil)
 	v, err := s.HostedSchedules(reg)
-	if err != nil || v.Unavailable != "" || v.Offer == nil || !v.Offer.Available || v.Limit != 25 || len(v.Schedules) != 1 {
+	if err != nil || v.Unavailable != "" || v.Limit != 25 || len(v.Schedules) != 1 {
 		t.Fatalf("HostedSchedules = %+v, %v", v, err)
+	}
+	// The list is one read of the registry; the offer is read apart.
+	if calls := sr.calls(); len(calls) != 1 || calls[0] != "GET /api/v1/x/schedules/" {
+		t.Fatalf("the list read %v", calls)
+	}
+	if o, err := s.HostedOffer(reg); err != nil || o == nil || !o.Available {
+		t.Fatalf("HostedOffer = %+v, %v", o, err)
 	}
 	it := v.Schedules[0]
 	if !it.Hosted || it.Ref != "acme/reporter" || it.Version != "1.0.0" || !it.Paused || it.PausedReason != "refusals" || it.Describe == "" ||
@@ -312,6 +319,12 @@ func TestHostedCalendarWithoutTheExtension(t *testing.T) {
 	cal, err := s.HostedCalendar(reg, "2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z")
 	if err != nil || cal.Unavailable != "" || len(cal.Fires) != 0 {
 		t.Fatalf("HostedCalendar = %+v, %v", cal, err)
+	}
+	if v, err := s.HostedSchedules(reg); err != nil || v.Unavailable != "" || len(v.Schedules) != 0 {
+		t.Fatalf("HostedSchedules = %+v, %v", v, err)
+	}
+	if o, err := s.HostedOffer(reg); o != nil || err != nil {
+		t.Fatalf("an offer without the extension: %+v, %v", o, err)
 	}
 }
 
@@ -396,7 +409,10 @@ func TestHomeCardMergesSchedulesInAgentry(t *testing.T) {
 func TestHostedSchedulesSignedOut(t *testing.T) {
 	s, _, _ := hostedScheduleAPI(t, &scheduleRoutes{}, nil)
 	v, err := s.HostedSchedules("https://elsewhere.example")
-	if err != nil || !v.SignedOut || v.Offer != nil || v.Unavailable != "" || len(v.Schedules) != 0 {
+	if err != nil || !v.SignedOut || v.Unavailable != "" || len(v.Schedules) != 0 {
 		t.Fatalf("signed out: %+v, %v", v, err)
+	}
+	if o, err := s.HostedOffer("https://elsewhere.example"); o != nil || err != nil {
+		t.Fatalf("an offer signed out: %+v, %v", o, err)
 	}
 }

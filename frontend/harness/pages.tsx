@@ -587,10 +587,12 @@ const hostedView = () => (window.location.hash === "#scheduled-hosted-signedout"
   ? { registry: "secureagentry.net", signedOut: true, schedules: [] }
   : window.location.hash === "#scheduled-hosted-unreachable"
   ? { registry: "secureagentry.net", unavailable: "Your schedules In Agentry could not be read: secureagentry.net could not be reached: dial tcp: lookup secureagentry.net: no such host.", schedules: [] }
+  : { registry: "secureagentry.net", schedules: hostedItems, limit: 25 });
+const hostedOffer = () => (window.location.hash === "#scheduled-hosted-signedout" || window.location.hash === "#scheduled-hosted-unreachable" ? null
   : window.location.hash === "#scheduled-hosted-standard"
-  ? { registry: "secureagentry.net", schedules: [], limit: 25, offer: { offered: true, available: false, upgrade: true,
-    reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.", remedy: "On Standard, schedule it on this computer, for no credits; or upgrade to Pro." } }
-  : { registry: "secureagentry.net", schedules: hostedItems, limit: 25, offer: { offered: true, available: true } });
+  ? { offered: true, available: false, upgrade: true,
+    reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.", remedy: "On Standard, schedule it on this computer, for no credits; or upgrade to Pro." }
+  : { offered: true, available: true });
 
 // Settings → Report design (agentry-desktop#759): the core's five themes
 // from the frontend tests' fixture (held to the pinned core by a Go test),
@@ -638,6 +640,7 @@ g.go = { main: {
       : { schedules: scheduleItems.length, month: [...schedFires, ...schedDue], hostedMonth: [...hostedFires, ...hostedDue], hostedSchedules: schedHostedHash ? 1 : 0,
         next: [...schedDue, ...hostedDue].sort((a, b) => (a.at < b.at ? -1 : 1)).slice(0, 3) }),
     HostedSchedules: async () => hostedView(),
+    HostedOffer: async () => hostedOffer(),
     HostedCalendar: async () => (window.location.hash === "#scheduled-hosted-unreachable"
       ? { fires: [], unavailable: "Your schedules In Agentry are not shown: secureagentry.net could not be reached." }
       : { fires: [...hostedFires, ...hostedDue] }),

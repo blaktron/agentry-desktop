@@ -46,6 +46,10 @@ export function HostedHistory(arg1, arg2) {
   return window['go']['main']['ScheduleAPI']['HostedHistory'](arg1, arg2);
 }
 
+export function HostedOffer(arg1) {
+  return window['go']['main']['ScheduleAPI']['HostedOffer'](arg1);
+}
+
 export function HostedPause(arg1, arg2) {
   return window['go']['main']['ScheduleAPI']['HostedPause'](arg1, arg2);
 }

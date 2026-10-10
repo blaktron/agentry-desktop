@@ -2937,7 +2937,6 @@ export namespace main {
 	export class HostedSchedulesView {
 	    registry: string;
 	    signedOut?: boolean;
-	    offer?: HostedScheduleOfferView;
 	    unavailable?: string;
 	    schedules: HostedScheduleItem[];
 	    limit?: number;
@@ -2950,7 +2949,6 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.registry = source["registry"];
 	        this.signedOut = source["signedOut"];
-	        this.offer = this.convertValues(source["offer"], HostedScheduleOfferView);
 	        this.unavailable = source["unavailable"];
 	        this.schedules = this.convertValues(source["schedules"], HostedScheduleItem);
 	        this.limit = source["limit"];
