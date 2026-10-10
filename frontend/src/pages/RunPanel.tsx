@@ -477,7 +477,10 @@ export default function RunPanel({
   // open with none saved, and a required question left unanswered. The rest
   // of the blockers are the review's, beside Run.
   function problemHere(): string | null {
-    if (step === "tools" && formOpen) {
+    // The keys form is this computer's: In Agentry it is not drawn, so it
+    // holds nothing there, though it opened by itself for a required key
+    // with no profile (agentry-desktop#799).
+    if (step === "tools" && formOpen && !inAgentry) {
       return needsProfile
         ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
         : "Save the keys or cancel the change to go on.";
