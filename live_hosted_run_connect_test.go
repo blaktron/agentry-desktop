@@ -71,7 +71,7 @@ func TestLiveHostedRunConnectsOnceAndRunsTwice(t *testing.T) {
 
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, ref, task, nil, out, nil, nil, false)
+	start, err := r.StartHostedRun(reg, ref, task, nil, out, nil, nil, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestLiveHostedRunConnectsOnceAndRunsTwice(t *testing.T) {
 
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	again, err := r.StartHostedRun(reg, ref, task, nil, out2, nil, nil, false)
+	again, err := r.StartHostedRun(reg, ref, task, nil, out2, nil, nil, false, false)
 	if err != nil || again.Run == nil {
 		t.Fatalf("the second start asked again or failed: %+v, %v", again, err)
 	}

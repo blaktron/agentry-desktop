@@ -85,6 +85,10 @@ type ScheduleRequest struct {
 	Voice  *bool       `json:"voice,omitempty"`
 	Inputs []string    `json:"inputs,omitempty"`
 	When   *Recurrence `json:"when,omitempty"`
+	// AskOptionalSecrets makes the create's or the edit's check refuse an
+	// optional secret the account does not keep, as a required one
+	// (agentry-enterprise#517); the schedule does not keep it.
+	AskOptionalSecrets bool `json:"ask_optional_secrets,omitempty"`
 }
 
 // ScheduleInput is one of a schedule's files, copied into storage it owns.

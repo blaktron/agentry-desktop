@@ -274,12 +274,12 @@ export function StarQuickAgent(arg1, arg2) {
   return window['go']['main']['RunAPI']['StarQuickAgent'](arg1, arg2);
 }
 
-export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
-  return window['go']['main']['RunAPI']['StartHostedRun'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+  return window['go']['main']['RunAPI']['StartHostedRun'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
-export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
-  return window['go']['main']['RunAPI']['StartHostedSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+  return window['go']['main']['RunAPI']['StartHostedSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13) {

@@ -290,7 +290,7 @@ func TestAStartThatCannotFollowItsRunLeavesItsSecrets(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(out)
-	_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false)
+	_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false, false)
 	if err == nil || !strings.Contains(err.Error(), other.id) {
 		t.Fatalf("start = %v", err)
 	}

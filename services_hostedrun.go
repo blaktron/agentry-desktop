@@ -276,6 +276,10 @@ type HostedStartView struct {
 	// ones the panel asks for (agentry-desktop#300); for connection-missing,
 	// the servers still to connect In Agentry (agentry-desktop#667).
 	Missing []string `json:"missing,omitempty"`
+	// Optional are the release's optional secrets, as a secrets refusal
+	// names them: those of Missing the ask may leave empty
+	// (agentry-desktop#795).
+	Optional []string `json:"optional,omitempty"`
 }
 
 // HostedAvailability answers the panel's first question about a release:
@@ -383,8 +387,14 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // (SetHostedSecret with keep false) are deleted again when the run does
 // not start, whatever stopped it; when it starts, the vault removes them
 // as the run ends (plan hosted-credentials-vault.md D12).
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice bool) (*HostedStartView, error) {
-	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice)
+//
+// askOptional asks the registry to refuse the start while the account keeps
+// no value for one of the release's optional secrets (agentry-desktop#795,
+// agentry-enterprise#517), so the panel asks for it as for a required one;
+// the start the ask makes again leaves it false, so an optional key left
+// empty is gone without.
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice, askOptional bool) (*HostedStartView, error) {
+	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice, askOptional)
 }
 
 // startHosted is StartHostedRun and StartHostedSession: the same gates, the
@@ -394,7 +404,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 // writeInVoice asks the run to write in the account's live Writing Voice
 // (plan writing-voice.md §5, D5): the registry checks there is one, and at
 // the hand-off gives the run the live version as it stands then.
-func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice bool) (view *HostedStartView, err error) {
+func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice, askOptional bool) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	// runMayExist: the registry created the run, or a create's answer never
@@ -457,7 +467,7 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		}
 		return nil, err
 	}
-	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice}
+	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice, AskOptionalSecrets: askOptional}
 	created, err := client.Create(ctx, req)
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {
@@ -822,7 +832,7 @@ func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 	v := &HostedStartView{
 		Refusal: refusal.Slug, Detail: refusal.Sentence(),
 		Balance: refusal.Balance, Hold: refusal.Hold, ResetsAt: refusal.ResetsAt,
-		Missing: refusal.Missing,
+		Missing: refusal.Missing, Optional: refusal.Optional,
 	}
 	// No destination here: the panel asks SettingsAPI.OpenUpgrade for it
 	// at the moment a person clicks, so the registry's answer is checked

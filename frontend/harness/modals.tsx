@@ -107,6 +107,12 @@
 //                                 Run In Agentry and the registry answers
 //                                 secret-missing, so the ask shows, Keep it
 //                                 for later runs unticked
+//   #runpanel-hosted-optional     the same with STATUSPAGE_TOKEN optional
+//                                 too (agentry-desktop#795): the ask names
+//                                 both, the optional one marked, and Save
+//                                 and start is held for the required one
+//   #runpanel-hosted-optional-only  STATUSPAGE_TOKEN alone, optional: the
+//                                 ask offers Start with the field empty
 //
 // Talk to it In Agentry, a hosted session (agentry-desktop#403), on an
 // interactive-only copy of the release:
@@ -169,7 +175,11 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // unanswered question is what the line names.
 const guidedShape = view.startsWith("runpanel-guided") || view === "toolspanel-hostile";
 const optionalKeysShape = view.startsWith("runpanel-keys-optional");
-const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape || optionalKeysShape;
+// #runpanel-hosted-keys-tools: the same release In Agentry on Connect tools,
+// whose local keys form opened by itself and must not hold Next there
+// (agentry-desktop#799).
+const hostedKeysTools = view === "runpanel-hosted-keys-tools";
+const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape || optionalKeysShape || hostedKeysTools;
 // A Gmail-reading release whose one server is Google's remote Gmail server,
 // signing in by OAuth with the person's own client (agentry-desktop#666).
 const signInShape = view.startsWith("runpanel-signin");
@@ -236,7 +246,12 @@ const unsafeShape = view.startsWith("runpanel-unsafe");
 // A finished local run: no intake question, so Run on the review is enabled.
 const localFinished = view.startsWith("runpanel-local-finished") || view === "runpanel-knowledge-finished" || view === "runpanel-unsafe-finished";
 const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
-const hostedSecrets = view === "runpanel-hosted-secrets";
+const hostedOptional = view.startsWith("runpanel-hosted-optional");
+const hostedOptionalOnly = view === "runpanel-hosted-optional-only";
+const hostedSecrets = view === "runpanel-hosted-secrets" || hostedOptional;
+// What the release declares In Agentry, and which of it is optional.
+const hostedDeclared = hostedOptionalOnly ? ["STATUSPAGE_TOKEN"] : hostedOptional ? ["PAGERDUTY_TOKEN", "STATUSPAGE_TOKEN"] : hostedSecrets ? ["PAGERDUTY_TOKEN"] : [];
+const hostedOptionalNames = hostedOptional ? ["STATUSPAGE_TOKEN"] : [];
 const hostedEarns = view === "runpanel-hosted-earns";
 const sessionShape = view.startsWith("runpanel-session");
 // Schedules In Agentry (agentry-desktop#745): Pro, but for the Standard
@@ -309,7 +324,7 @@ const profile = signInShape
     modes: sessionShape ? ["interactive"] : ["autonomous", "interactive"],
     intake: fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
-      : localFinished || view === "runpanel-hosted-secrets" || sessionShape || hostedSchedule ? []
+      : localFinished || hostedSecrets || sessionShape || hostedSchedule ? []
       : longPromptShape
       ? [{ id: "focus", prompt: "Focus area (optional): a function, embedded payload, or part of the binary to prioritize; leave blank for a full pass.", type: "text", required: false, choices: [] }]
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
@@ -373,7 +388,7 @@ const availability = {
   balance: sessionShape ? 460 : 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
-  declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [], vault: true,
+  declaredSecrets: hostedDeclared, optionalSecrets: hostedOptionalNames, vault: true,
   publisherEarns: hostedEarns,
   // Later and Repeat In Agentry follow the plan: Standard is offered them
   // unavailable, with the way up (agentry-desktop#745).
@@ -483,6 +498,9 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-knowledge-finished": "review",
   "runpanel-hosted-knowledge": "knowledge",
   "runpanel-hosted-secrets": "review",
+  "runpanel-hosted-keys-tools": "tools",
+  "runpanel-hosted-optional": "review",
+  "runpanel-hosted-optional-only": "review",
   "runpanel-hosted-followed": "review",
   "runpanel-local-finished-env": "review",
   "runpanel-local-finished-files": "review",
@@ -532,7 +550,7 @@ g.go = { main: {
     StartHostedSession: async () => ({ run: hostedRuns.session }),
     SendHostedTurn: async () => {}, AddHostedSessionFile: async () => {}, EndHostedSession: async () => {},
     StartHostedRun: async () => (hostedSecrets && hostedStarts++ === 0
-      ? { refusal: "secret-missing", detail: "A declared secret is missing: The release declares secrets you have not set: PAGERDUTY_TOKEN.", missing: ["PAGERDUTY_TOKEN"] }
+      ? { refusal: "secret-missing", detail: `A secret is missing: ${hostedDeclared.join(", ")} not set.`, missing: hostedDeclared, optional: hostedOptionalNames }
       : view === "runpanel-signin-hosted-connect"
         ? { refusal: "connection-missing", detail: `A tool is not connected: The release's tools sign in by OAuth, and you have not connected ${gmailServer} for this version. Connect them, then start the run.`, missing: [gmailServer] }
         : { run: hostedRuns.queued }),
@@ -706,7 +724,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule ? "hosted"
+        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule || hostedKeysTools ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
         initialWhen={view.startsWith("runpanel-schedule") ? "repeat" : undefined}

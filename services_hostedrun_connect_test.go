@@ -107,7 +107,7 @@ func startWithInput(t *testing.T, r *RunAPI, reg string) *HostedStartView {
 	}
 	outDir := t.TempDir()
 	r.app.markPicked(inputDir, outDir)
-	start, err := r.StartHostedRun(reg, "acme/linear@0.1.0", "list my issues", []string{input}, outDir, nil, nil, false)
+	start, err := r.StartHostedRun(reg, "acme/linear@0.1.0", "list my issues", []string{input}, outDir, nil, nil, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestANewStartReplacesTheOneWaiting(t *testing.T) {
 	startWithInput(t, r, reg)
 	out := t.TempDir()
 	r.app.markPicked(out)
-	if _, err := r.StartHostedRun(reg, "acme/other@1.0.0", "go", nil, out, nil, nil, false); err != nil {
+	if _, err := r.StartHostedRun(reg, "acme/other@1.0.0", "go", nil, out, nil, nil, false, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.AwaitHostedConnections(reg, "acme/linear@0.1.0"); err == nil {

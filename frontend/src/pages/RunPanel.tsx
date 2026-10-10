@@ -439,7 +439,7 @@ export default function RunPanel({
   // The ask for the declared secrets the account does not keep has its own
   // Save and start; Run waits while it is open.
   const asking = inAgentry && hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0;
-  if (asking) blockers.push("Enter the secrets this run needs above, then Save and start — or Cancel.");
+  if (asking) blockers.push("Enter the secrets this run needs above and start (an optional one may stay empty) — or Cancel.");
   // The servers Agentry keeps no connection to for this version: connected
   // in the browser, then the start is made again (agentry-desktop#667).
   const connecting = inAgentry && hostedRefusal?.refusal === "connection-missing";
@@ -477,7 +477,10 @@ export default function RunPanel({
   // open with none saved, and a required question left unanswered. The rest
   // of the blockers are the review's, beside Run.
   function problemHere(): string | null {
-    if (step === "tools" && formOpen) {
+    // The keys form is this computer's: In Agentry it is not drawn, so it
+    // holds nothing there, though it opened by itself for a required key
+    // with no profile (agentry-desktop#799).
+    if (step === "tools" && formOpen && !inAgentry) {
       return needsProfile
         ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
         : "Save the keys or cancel the change to go on.";
@@ -658,7 +661,11 @@ export default function RunPanel({
   // gap comes back for this setup to ask for in place (the secrets to keep,
   // the connections to make), then Schedule is made again; the schedule
   // made, the setup closes onto the Scheduled page.
-  async function scheduleInAgentry() {
+  // askOptional (agentry-desktop#795): the first try asks the check to
+  // name an optional key the account does not keep too, so the gap asks
+  // for it as for a required one; the try the ask makes again does not, so
+  // an optional key left empty is gone without.
+  async function scheduleInAgentry(askOptional = true) {
     const spec = whenSpec(when);
     if (!spec) return;
     setRunning(true);
@@ -667,6 +674,7 @@ export default function RunPanel({
     try {
       const made = await ScheduleAPI.HostedAdd(main.HostedScheduleRequest.createFrom({
         registry, ref: agentRef, task: task.trim(), files: inputs, knowledge: attached, intake: intakeAnswers(), voice: writeInVoice, when: spec,
+        askOptionalSecrets: askOptional,
       }));
       if (made.refusal) {
         setScheduleGap(made);
@@ -707,15 +715,19 @@ export default function RunPanel({
 
   // In Agentry: the inputs go up, the run is created, and the panel follows
   // where it stands until the outputs come back. A refused create is a
-  // sentence, not an error.
-  async function runInAgentry() {
+  // sentence, not an error. askOptional (agentry-desktop#795): the start
+  // asks the registry to name an optional key the account does not keep
+  // too, so the ask below takes it as it takes a required one; the start
+  // the ask makes again does not, so an optional key left empty is gone
+  // without.
+  async function runInAgentry(askOptional = true) {
     setStarting(true);
     setRunErr(null);
     setHostedRefusal(null);
     try {
       const call = sessionInAgentry
-        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice)
-        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice);
+        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional)
+        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional);
       const started = await startedInAgentry(call);
       // A server Agentry keeps no connection to for this version: Connect
       // tools opens in the browser now, at Start (plan D5), and the start
@@ -1406,9 +1418,7 @@ export default function RunPanel({
                         {inAgentry
                           ? schedulingThere
                             ? "the secrets your account keeps in Agentry, the only ones a schedule's runs use; one it does not keep is asked for when you schedule, and kept"
-                            : requiredNames.length > 0
-                            ? "your account's secrets in Agentry; a required one it does not keep is asked for when you start"
-                            : "your account's secrets in Agentry"
+                            : "your account's secrets in Agentry; one it does not keep is asked for when you start"
                           : profile.exists ? "saved for this release" : "not saved yet"}
                         {goesWithoutSentence(profile, inAgentry)}
                       </span>
@@ -1450,7 +1460,7 @@ export default function RunPanel({
               {schedulingThere && scheduleGap?.refusal && (
                 <ScheduleGap
                   gap={scheduleGap} registry={registry} agentRef={agentRef} busy={running}
-                  onAgain={() => void scheduleInAgentry()}
+                  onAgain={(askOptional) => void scheduleInAgentry(askOptional)}
                   onCancel={() => setScheduleGap(null)}
                   onError={(e) => setRunErr(e)}
                 />
@@ -1624,12 +1634,15 @@ export default function RunPanel({
                   onward the Build page already offers (desktop#74). */}
               {/* The declared secrets the account does not keep: asked for
                   here, each with Keep it for later runs unticked, then the
-                  start is made again (plan D12, agentry-desktop#300). */}
+                  start is made again (plan D12, agentry-desktop#300); an
+                  optional one marked, and allowed to stay empty
+                  (agentry-desktop#795). */}
               {hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0 && (
                 <HostedSecretsAsk
                   registry={registry}
                   names={hostedRefusal.missing ?? []}
-                  onSaved={() => { setHostedRefusal(null); void runInAgentry(); }}
+                  optional={hostedRefusal.optional}
+                  onSaved={() => { setHostedRefusal(null); void runInAgentry(false); }}
                   onCancel={() => setHostedRefusal(null)}
                 />
               )}
@@ -1723,12 +1736,14 @@ function ScheduleGap({ gap, registry, agentRef, busy, onAgain, onCancel, onError
   registry: string;
   agentRef: string;
   busy: boolean;
-  onAgain: () => void;
+  /** Make the schedule again; askOptional asks the check for the optional
+   *  keys too, which a try after the secrets' ask does not. */
+  onAgain: (askOptional: boolean) => void;
   onCancel: () => void;
   onError: (e: string) => void;
 }) {
   if (gapAsksSecrets(gap)) {
-    return <HostedSecretsAsk registry={registry} names={gap.missing ?? []} forSchedule onSaved={onAgain} onCancel={onCancel} />;
+    return <HostedSecretsAsk registry={registry} names={gap.missing ?? []} optional={gap.optional} forSchedule onSaved={() => onAgain(false)} onCancel={onCancel} />;
   }
   return (
     <Notice tone="warn">
@@ -1744,7 +1759,7 @@ function ScheduleGap({ gap, registry, agentRef, busy, onAgain, onCancel, onError
           {gap.refusal === "connection-missing" && (
             <>
               <Button onClick={() => RunAPI.OpenHostedConnect(registry, agentRef).catch((e) => onError(String(e)))} disabled={busy}>Open Connect tools</Button>
-              <Button variant="primary" onClick={onAgain} disabled={busy}>{busy ? "Scheduling…" : "Schedule again"}</Button>
+              <Button variant="primary" onClick={() => onAgain(true)} disabled={busy}>{busy ? "Scheduling…" : "Schedule again"}</Button>
             </>
           )}
           {gap.refusal === "schedule-tier" && (

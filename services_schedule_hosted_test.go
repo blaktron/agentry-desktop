@@ -243,6 +243,30 @@ func TestHostedAddGivesTheGapBack(t *testing.T) {
 	}
 }
 
+// agentry-desktop#795: a schedule asked to ask for the optional keys sends
+// ask_optional_secrets to the registry's check, one not asked sends nothing
+// of it, and the check's secret-missing comes back with its optional names.
+func TestHostedAddAsksForTheOptionalKeysOnlyWhenTold(t *testing.T) {
+	sr := &scheduleRoutes{refuse: func(w http.ResponseWriter) {
+		hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/secret-missing", "title": "A secret is missing",
+			"missing": []string{"OPT_KEY"}, "secrets": []string{"OPT_KEY"}, "optional": []string{"OPT_KEY"}})
+	}}
+	s, reg, _ := hostedScheduleAPI(t, sr, nil)
+	req := HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", When: schedules.When{Kind: "daily", Time: "09:00", Zone: "UTC"}, AskOptionalSecrets: true}
+	made, err := s.HostedAdd(req)
+	if err != nil || made.Refusal != "secret-missing" || strings.Join(made.Missing, ",") != "OPT_KEY" || strings.Join(made.Optional, ",") != "OPT_KEY" {
+		t.Fatalf("HostedAdd = %+v, %v", made, err)
+	}
+	req.AskOptionalSecrets = false
+	if _, err := s.HostedAdd(req); err != nil {
+		t.Fatal(err)
+	}
+	calls := sr.calls()
+	if len(calls) != 2 || !strings.Contains(calls[0], `"ask_optional_secrets":true`) || strings.Contains(calls[1], "ask_optional_secrets") {
+		t.Fatalf("calls = %v", calls)
+	}
+}
+
 // The page's list: each schedule In Agentry in the local list's shape,
 // marked hosted; a registry that cannot be reached is a sentence, never
 // an error, so the schedules on this computer still show.
