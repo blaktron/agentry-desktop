@@ -356,10 +356,16 @@ type CreateRequest struct {
 	// Voice asks a run or a session to write in the runner's live Writing
 	// Voice; Op, Brief and Note are a Voice Writer run's (KindVoiceBuild:
 	// create, improve or edit; agentry-enterprise#306).
-	Voice bool   `json:"voice,omitempty"`
-	Op    string `json:"op,omitempty"`
-	Brief string `json:"brief,omitempty"`
-	Note  string `json:"note,omitempty"`
+	Voice bool `json:"voice,omitempty"`
+	// AskOptionalSecrets asks the registry to refuse a run or a session,
+	// 409 secret-missing, while the account keeps no value for one of the
+	// release's optional secrets too (agentry-enterprise#517): the token
+	// cannot list the account's secrets (DEV-165), so this is how a start
+	// learns which optional keys to ask for (agentry-desktop#795).
+	AskOptionalSecrets bool   `json:"ask_optional_secrets,omitempty"`
+	Op                 string `json:"op,omitempty"`
+	Brief              string `json:"brief,omitempty"`
+	Note               string `json:"note,omitempty"`
 	// Web is a knowledge build's Search the web choice
 	// (agentry-enterprise#296); nil leaves it to the registry's default, on
 	// for a new pack with no documents and off otherwise. A knowledge
@@ -585,6 +591,10 @@ type Refusal struct {
 	// for a schedule's 409 secret-not-kept, its `names`: the secrets set for
 	// one run only, which a schedule cannot use (agentry-desktop#745).
 	Missing []string
+	// Optional are the release's optional secrets a secrets refusal names
+	// (`optional`): those of Missing a run can start without
+	// (agentry-desktop#795).
+	Optional []string
 }
 
 // Sentence is the refusal as one line of prose, with no JSON in it.
@@ -619,6 +629,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 		Tier     string   `json:"tier"`
 		Missing  []string `json:"missing"`
 		Names    []string `json:"names"`
+		Optional []string `json:"optional"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
 		r.Detail = strings.TrimSpace(string(body))
@@ -631,7 +642,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 	if i := strings.LastIndex(r.Slug, "/"); i >= 0 {
 		r.Slug = r.Slug[i+1:]
 	}
-	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing
+	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing, r.Optional = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing, p.Optional
 	if len(r.Missing) == 0 {
 		r.Missing = p.Names
 	}

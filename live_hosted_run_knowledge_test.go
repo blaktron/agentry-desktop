@@ -83,7 +83,7 @@ func TestLiveHostedRunWithKnowledge(t *testing.T) {
 
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	start, err := r.StartHostedRun(reg, ref, task, nil, outDir, nil, []string{pack}, false)
+	start, err := r.StartHostedRun(reg, ref, task, nil, outDir, nil, []string{pack}, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}

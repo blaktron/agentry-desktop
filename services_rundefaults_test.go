@@ -82,7 +82,7 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 	passedTheGate("the gates, output", r.runGates("acme/x@1.0.0", nil, saved, false, false, false))
 	_, err = r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, saved, nil, 0, false, nil, false, false, nil, false)
 	passedTheGate("StartSession", err)
-	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", nil, saved, nil, nil, false)
+	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", nil, saved, nil, nil, false, false)
 	passedTheGate("StartHostedRun", err)
 	if err == nil || strings.Contains(err.Error(), "sign in") {
 		t.Fatalf("StartHostedRun stopped before the path gate: %v", err)
@@ -96,7 +96,7 @@ func TestTheSavedOutputFolderIsAdmittedAsAnOutputFolderOnly(t *testing.T) {
 		r.runGates("acme/x@1.0.0", []string{filepath.Join(saved, "notes.txt")}, saved, false, false, false))
 	refusedAsTyped("the saved folder as an input",
 		r.runGates("acme/x@1.0.0", []string{saved}, "", false, false, false))
-	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", []string{filepath.Join(saved, "notes.txt")}, saved, nil, nil, false)
+	_, err = r.StartHostedRun(reg, "acme/x@1.0.0", "go", []string{filepath.Join(saved, "notes.txt")}, saved, nil, nil, false, false)
 	refusedAsTyped("an input inside the saved folder, In Agentry", err)
 
 	// A path the page sends as "the default" that is not the saved one is

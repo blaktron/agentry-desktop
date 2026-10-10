@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { declaredKeys, optionalKeys, questionRequired, requiredKeys, secretsRow } from "../src/requiredKeys.ts";
-import { goesWithoutSentence, needList, offerSetKeys, requiredOf } from "../src/runSetup.ts";
+import { askReady, askToSet, goesWithoutSentence, needList, offerSetKeys, requiredOf } from "../src/runSetup.ts";
 
 const m = { secrets: ["API_TOKEN"], mcpServers: [{ secrets: ["SEARCH_KEY", "API_TOKEN"] }], requiredSecrets: [] as string[] };
 
@@ -38,8 +38,8 @@ test("RunPanel holds a run only for a required key, and says which optional ones
   assert.deepEqual(requiredOf({ declaredSecrets: ["A"] }), ["A"]);
   assert.equal(goesWithoutSentence(p, false), "; the run goes without the optional key OPT_KEY unless you set it in Connect tools or this computer's environment holds it");
   assert.equal(goesWithoutSentence({ ...p, storedSecretNames: ["REQ_KEY", "OPT_KEY"] }, false), "");
-  assert.equal(goesWithoutSentence(p, true), "; the run goes without the optional key OPT_KEY unless your account keeps it");
-  assert.equal(goesWithoutSentence({ optionalSecrets: ["A", "B"] }, true), "; the run goes without the optional keys A, B unless your account keeps them");
+  assert.equal(goesWithoutSentence(p, true), "; the run goes without the optional key OPT_KEY unless your account keeps it or you give it when you start");
+  assert.equal(goesWithoutSentence({ optionalSecrets: ["A", "B"] }, true), "; the run goes without the optional keys A, B unless your account keeps them or you give them when you start");
   assert.equal(goesWithoutSentence({ declaredSecrets: ["A"] }, true), "");
 });
 
@@ -64,4 +64,16 @@ test("the consent names every declared secret, an optional one marked, as before
   assert.equal(secretsRow(["REQ_KEY", "OPT_KEY", "SRV_KEY"], ["OPT_KEY", "SRV_KEY"]), "REQ_KEY, OPT_KEY (optional), SRV_KEY (optional)");
   assert.equal(secretsRow(["A", "B"], []), "A, B");
   assert.equal(secretsRow(undefined, undefined), "");
+});
+
+test("the start's ask In Agentry needs every required key and lets an optional one stay empty (agentry-desktop#795)", () => {
+  const names = ["OPT_KEY", "REQ_KEY"];
+  assert.equal(askReady(names, ["OPT_KEY"], {}), false);
+  assert.equal(askReady(names, ["OPT_KEY"], { REQ_KEY: "r" }), true);
+  assert.equal(askReady(names, ["OPT_KEY"], { OPT_KEY: "o" }), false);
+  assert.equal(askReady(["OPT_KEY"], ["OPT_KEY"], {}), true);
+  assert.equal(askReady(names, undefined, { REQ_KEY: "r" }), false);
+  assert.deepEqual(askToSet(names, { REQ_KEY: "r" }), ["REQ_KEY"]);
+  assert.deepEqual(askToSet(names, { REQ_KEY: "r", OPT_KEY: "o" }), ["OPT_KEY", "REQ_KEY"]);
+  assert.deepEqual(askToSet(names, { OPT_KEY: "" }), []);
 });

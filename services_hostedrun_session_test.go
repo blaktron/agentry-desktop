@@ -118,7 +118,7 @@ func TestHostedSessionEndToEnd(t *testing.T) {
 	}
 	r.app.markPicked(outDir, extra)
 
-	start, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "check the csv", nil, outDir, nil, nil, false)
+	start, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "check the csv", nil, outDir, nil, nil, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestHostedSessionRefusals(t *testing.T) {
 	}
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, outDir, nil, nil, false); err != nil {
+	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, outDir, nil, nil, false, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -297,7 +297,7 @@ func TestQuitLeavesAHostedSessionToItsIdleClose(t *testing.T) {
 	}
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, outDir, nil, nil, false); err != nil {
+	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, outDir, nil, nil, false, false); err != nil {
 		t.Fatal(err)
 	}
 	if r.beforeClose(context.Background()) {
@@ -378,7 +378,7 @@ func TestAStreamTheRegistryCannotShowIsSaidAndTheSessionStillDelivers(t *testing
 	r, events := newRunAPI(t)
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false); err != nil {
+	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false); err != nil {
 		t.Fatal(err)
 	}
 	lost := waitForSession(t, events, 1)

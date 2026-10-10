@@ -119,7 +119,7 @@ func TestAStartThatDoesNotStartDeletesItsHeldSecrets(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false, false)
 	if err != nil || start.Refusal != "credits-exhausted" {
 		t.Fatalf("start = %+v, %v", start, err)
 	}
@@ -136,7 +136,7 @@ func TestAStartThatDoesNotStartDeletesItsHeldSecrets(t *testing.T) {
 	}
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	if start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false); err != nil || start.Run == nil {
+	if start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false, false); err != nil || start.Run == nil {
 		t.Fatalf("start = %+v, %v", start, err)
 	}
 	if len(f.vaultDeletes) != 0 {
@@ -161,7 +161,7 @@ func TestStartHostedRunReportsTheMissingSecrets(t *testing.T) {
 	r, _ := newRunAPI(t)
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false, false)
 	if err != nil || start.Refusal != "secret-missing" || strings.Join(start.Missing, ",") != "GITHUB_TOKEN" {
 		t.Fatalf("start = %+v, %v", start, err)
 	}
@@ -195,7 +195,7 @@ func TestACreateWithNoAnswerLeavesTheHeldSecrets(t *testing.T) {
 	}
 	out := t.TempDir()
 	r.app.markPicked(out)
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false); err == nil {
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false, false); err == nil {
 		t.Fatal("a create with no answer was not an error")
 	}
 	if len(f.vaultDeletes) != 0 {
@@ -204,5 +204,48 @@ func TestACreateWithNoAnswerLeavesTheHeldSecrets(t *testing.T) {
 	r.DiscardHostedSecrets(reg)
 	if len(f.vaultDeletes) != 0 {
 		t.Fatalf("a later discard deleted %v", f.vaultDeletes)
+	}
+}
+
+// agentry-desktop#795: a start asked to ask for the optional keys sends
+// ask_optional_secrets, and one not asked sends nothing of it; the
+// registry's secret-missing reaches the panel with the names it asks for
+// and the optional ones among them, which the ask may leave empty.
+func TestAStartAsksForTheOptionalKeysOnlyWhenTold(t *testing.T) {
+	f := &hostedFake{enabled: true}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	fastPoll(t)
+	out := t.TempDir()
+	r.app.markPicked(out)
+	f.mu.Lock()
+	f.refuse = func(w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"type":"https://agentry.dev/problems/secret-missing","title":"A secret is missing","status":409,"missing":["OPT_KEY","REQ_KEY"],"secrets":["OPT_KEY","REQ_KEY"],"optional":["OPT_KEY"]}`))
+	}
+	f.mu.Unlock()
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, nil, nil, false, true)
+	if err != nil || start.Refusal != "secret-missing" || strings.Join(start.Missing, ",") != "OPT_KEY,REQ_KEY" || strings.Join(start.Optional, ",") != "OPT_KEY" {
+		t.Fatalf("start = %+v, %v", start, err)
+	}
+	f.mu.Lock()
+	asked := len(f.creates) == 1 && strings.Contains(f.creates[0], `"ask_optional_secrets":true`)
+	f.refuse = nil
+	f.created = nil
+	f.mu.Unlock()
+	if !asked {
+		t.Fatal("an asking start did not send ask_optional_secrets")
+	}
+	out2 := t.TempDir()
+	r.app.markPicked(out2)
+	if start, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out2, nil, nil, false, false); err != nil || start.Run == nil {
+		t.Fatalf("the start made again = %+v, %v", start, err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.created == nil || len(f.creates) != 2 || strings.Contains(f.creates[1], "ask_optional_secrets") {
+		t.Fatalf("the start made again asked for the optional keys: %v", f.creates)
 	}
 }
