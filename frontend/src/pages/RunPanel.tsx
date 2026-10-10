@@ -24,7 +24,7 @@ import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
 import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
 import { knowledge, main, run, schedules, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
-import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence } from "../runSetup";
+import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
 import { HostedConnectAsk, HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedSignIns, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
@@ -1212,6 +1212,19 @@ export default function RunPanel({
                       <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Reconfigure…</Button>
                     </div>
                   )}
+                  {/* Every key optional and none saved: the form does not open
+                      by itself, so it is offered, and an optional key is set
+                      here rather than only in the environment
+                      (agentry-desktop#784). */}
+                  {!formOpen && offerSetKeys(profile) && (
+                    <div className="row">
+                      <span className="muted small">
+                        No key saved for this release. The run can start without{" "}
+                        {profile.declaredSecrets.length === 1 ? "it" : "them"}, or set {profile.declaredSecrets.length === 1 ? "it" : "them"} now for this run.
+                      </span>
+                      <Button onClick={() => { setFormOpen(true); setFormValues({}); }}>Set keys…</Button>
+                    </div>
+                  )}
                   {formOpen && (
                     <Card>
                       <p className="muted small" style={{ marginTop: 0 }}>
@@ -1256,7 +1269,9 @@ export default function RunPanel({
                         </span>
                       </label>
                       <div className="row" style={{ justifyContent: "flex-end" }}>
-                        {profile.exists && <Button onClick={() => setFormOpen(false)} disabled={savingProfile}>Cancel</Button>}
+                        {(profile.exists || requiredNames.length === 0) && (
+                          <Button onClick={() => { setFormOpen(false); setFormValues({}); }} disabled={savingProfile}>Cancel</Button>
+                        )}
                         <Button variant="primary" onClick={saveProfile} disabled={savingProfile}>
                           {savingProfile ? "Saving…" : "Save keys"}
                         </Button>

@@ -188,7 +188,8 @@ type ProfileInfo struct {
 	Digest          string
 	DeclaredSecrets []string
 	// OptionalSecrets are those of DeclaredSecrets a run can start without
-	// (agentry-desktop#655): the keys form marks them, and leaves them empty.
+	// (agentry-desktop#655): the keys form marks them, and a value for one is
+	// set there or left empty (agentry-desktop#784).
 	OptionalSecrets   []string
 	Exists            bool
 	Keep              bool
