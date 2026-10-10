@@ -4469,6 +4469,7 @@ export namespace main {
 	    design?: reportdesign.Design;
 	    label?: string;
 	    unreadable?: string;
+	    logo?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ReportDesignView(source);
@@ -4480,6 +4481,7 @@ export namespace main {
 	        this.design = this.convertValues(source["design"], reportdesign.Design);
 	        this.label = source["label"];
 	        this.unreadable = source["unreadable"];
+	        this.logo = source["logo"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

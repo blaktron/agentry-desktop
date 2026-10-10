@@ -5,7 +5,7 @@ import { Button, Card, ErrorBox, Notice, Select } from "../ui";
 import {
   canonical, edit, fieldLabel, fontsFor, HEADING_LABELS, labelOf, PAGE_NUMBER_LABELS, PAPER_LABELS, QUOTE_LABELS,
   ratioText, sameDesign, savedSentence, standingSentence, startFrom, THEME_LOOKS, TITLE_BLOCK_LABELS, toDocument,
-  cssColour, type FontRole, type ReportDesign,
+  cssColour, isLogoSrc, type FontRole, type ReportDesign,
 } from "../reportDesign";
 import { ReportDesignPreview } from "./ReportDesignPreview";
 
@@ -21,6 +21,12 @@ import { ReportDesignPreview } from "./ReportDesignPreview";
 // stores it whole; Reset clears it, and runs from this app then use Plain,
 // as they do signed out. There is no form element, so Enter in a field
 // presses nothing (the site's thumbnails-as-submit trap cannot happen).
+//
+// The logo (agentry#1025, agentry-desktop#777) has a part of its own: Choose
+// opens the system's file picker in Go and uploads what is picked, Remove
+// takes it off and keeps the design. Save never sends it, so the core keeps
+// it. The preview and the part draw it only as the PNG data: URL Go's view
+// built from the core's answer.
 export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
   registry: string;
   signedIn: boolean;
@@ -30,7 +36,7 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
   const [view, setView] = useState<main.ReportDesignView | null>(null);
   const [d, setD] = useState<ReportDesign | null>(null);
   const [check, setCheck] = useState<{ key: string; c: main.ReportDesignCheck } | null>(null);
-  const [busy, setBusy] = useState<"" | "save" | "reset">("");
+  const [busy, setBusy] = useState<"" | "save" | "reset" | "logo" | "unlogo">("");
   const [err, setErr] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
 
@@ -104,6 +110,23 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
       setView(v);
       if (v.design) setD(startFrom(v.design));
       setSaid(savedSentence(v.label ?? null));
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+  const logoAction = async (kind: "logo" | "unlogo") => {
+    setBusy(kind);
+    setErr(null);
+    setSaid(null);
+    try {
+      const v = kind === "logo" ? await SettingsAPI.ChooseReportLogo(registry) : await SettingsAPI.RemoveReportLogo(registry);
+      if (!v) return; // the picker was cancelled
+      setView(v);
+      setSaid(kind === "logo"
+        ? "Your logo is set. Your runs' PDFs draw it at the right of the title on their first page."
+        : "Your logo is removed. Your report design is as it was.");
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -265,11 +288,47 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
           <Card>
             <p className="muted small">A likeness drawn from the controls; the thumbnails above are the real render.</p>
             <div className="report-design-paper">
-              <ReportDesignPreview design={d} tint={c?.tint ?? check?.c.tint ?? ""} families={opts.families} />
+              <ReportDesignPreview design={d} tint={c?.tint ?? check?.c.tint ?? ""} families={opts.families} logo={view.logo ?? ""} />
             </div>
           </Card>
         </section>
       </div>
+
+      <section id="settings-part-design-logo" className="settings-part">
+        <h2>Logo</h2>
+        <Card>
+          <p className="muted small">
+            Your logo, drawn at the right of the title on the first page of every PDF your runs export, and nowhere else. On a
+            band title block it sits on a small white ground. The QuickAgent never chooses or changes it.
+          </p>
+          {!view.design ? (
+            <p data-logo-needs-design>Save a report design first: a logo is part of one.</p>
+          ) : (
+            <>
+              {isLogoSrc(view.logo) ? (
+                <img className="report-design-logo" src={view.logo} alt="Your logo" />
+              ) : (
+                <p className="muted small">No logo yet.</p>
+              )}
+              <div className="row">
+                <Button variant="primary" busy={busy === "logo"} busyLabel="Uploading…" disabled={!!busy} onClick={() => void logoAction("logo")}>
+                  {isLogoSrc(view.logo) ? "Replace the logo…" : "Choose a logo…"}
+                </Button>
+                {isLogoSrc(view.logo) && (
+                  <Button variant="danger" busy={busy === "unlogo"} busyLabel="Removing…" disabled={!!busy} onClick={() => void logoAction("unlogo")}>
+                    Remove the logo
+                  </Button>
+                )}
+              </div>
+              <p className="muted small">
+                A PNG or a JPEG of at most 512 KB. The registry decodes it, scales it to fit 1024 pixels each way and encodes it
+                again from the pixels, so nothing of the file but its picture is kept. SVG is not accepted. Saving the design
+                keeps the logo.
+              </p>
+            </>
+          )}
+        </Card>
+      </section>
     </div>
   );
 }
