@@ -523,7 +523,7 @@ func testPNG(t *testing.T, w, h int) []byte {
 // core's refusals come back in its words; Remove keeps the design; Reset
 // clears both.
 func TestTheReportLogo(t *testing.T) {
-	srv, stored, puts := reportDesignRegistry(t, true)
+	srv, stored, _ := reportDesignRegistry(t, true)
 	ctx := context.Background()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "my-company-logo.png")
@@ -596,7 +596,11 @@ func TestTheReportLogo(t *testing.T) {
 	if v, err := saveReportDesign(ctx, srv.URL, "agy_test", nil); err != nil || v.Design != nil || *stored != "" || storedLogo(srv.URL) != (reportdesign.Logo{}) {
 		t.Fatalf("reset: %+v, %v", v, err)
 	}
-	_ = puts
+	// A folder is not a logo, and nothing is sent.
+	before = requests.Load()
+	if _, err := uploadReportLogo(ctx, srv.URL, "agy_test", dir); err == nil || requests.Load() != before {
+		t.Fatalf("a folder: %v", err)
+	}
 }
 
 // A local run takes the account's design with its logo, whole, and the

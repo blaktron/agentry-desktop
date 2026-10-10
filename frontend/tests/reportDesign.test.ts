@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   canonical, CONTROLS, cssColour, cssFamily, edit, fieldLabel, fontsFor, HEADING_LABELS, PAGE_NUMBER_LABELS,
   PAPER_LABELS, QUOTE_LABELS, savedSentence, sameDesign, startFrom, THEME_FIELDS, THEME_LOOKS, TITLE_BLOCK_LABELS,
-  toDocument, isLogoSrc, LOGO_FIELD, type ReportDesign, type ReportFamily,
+  toDocument, isLogoSrc, type ReportDesign, type ReportFamily,
 } from "../src/reportDesign.ts";
 
 // The core's report designs as this app pins them: each theme's canonical
@@ -46,9 +46,9 @@ test("the editor's controls are exactly the fields of version 2 a person may cha
   // A design with a logo (agentry#1025) has one field more, which no
   // control sets and the save never sends: the logo is uploaded on its own.
   const withLogo = { ...theme("modern"), logo: { png: "iVBORw0KGgo=" } } as ReportDesign;
-  const fields = leaves(withLogo).filter((f) => !THEME_FIELDS.includes(f) && f.split(".")[0] !== LOGO_FIELD);
+  const fields = leaves(withLogo).filter((f) => !THEME_FIELDS.includes(f) && f.split(".")[0] !== "logo");
   assert.deepEqual(CONTROLS.map((c) => c.field), fields);
-  assert.deepEqual(leaves(withLogo).filter((f) => f.split(".")[0] === LOGO_FIELD), ["logo.png"]);
+  assert.deepEqual(leaves(withLogo).filter((f) => f.split(".")[0] === "logo"), ["logo.png"]);
   assert.equal("logo" in toDocument(withLogo), false);
   assert.equal(canonical(withLogo), canonical(theme("modern")));
 });
@@ -133,7 +133,7 @@ test("the preview sets only the core's families, as the app's renamed web fonts,
 
 test("what a save and a reset say", () => {
   assert.equal(savedSentence("House (from Modern)"), "Saved. Your runs' PDF reports use House (from Modern).");
-  assert.match(savedSentence(null), /no report design: runs from this app use Plain/);
+  assert.match(savedSentence(null), /no report design, and no logo: runs from this app use Plain/);
 });
 
 // The preview's web fonts (scripts/sync-report-fonts.sh): every file is

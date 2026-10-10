@@ -177,10 +177,6 @@ export function cssFamily(name: string, families: ReportFamily[]): string {
   return f ? `"Report ${f.name}", ${generic}` : generic;
 }
 
-/** The one field of version 2 the editor neither shows nor sends: the
- *  logo, uploaded on its own. */
-export const LOGO_FIELD = "logo";
-
 /** Whether src is a PNG data: URL, the only logo the preview and the page
  *  draw (Go's view builds it from the core's answer). */
 export function isLogoSrc(src: unknown): src is string {
@@ -222,12 +218,12 @@ export function fieldLabel(field: string): string {
 export function savedSentence(label: string | null): string {
   return label
     ? `Saved. Your runs' PDF reports use ${label}.`
-    : "Reset. You have no report design: runs from this app use Plain.";
+    : "Reset. You have no report design, and no logo: runs from this app use Plain.";
 }
 
 /** The line under the editor: what runs from this app draw now. */
 export function standingSentence(label: string | null): string {
   return label
-    ? `Your runs use ${label}. Reset forgets it, and runs from this app then use Plain.`
+    ? `Your runs use ${label}. Reset forgets it and your logo, and runs from this app then use Plain.`
     : "You have not saved a design: runs from this app use Plain.";
 }

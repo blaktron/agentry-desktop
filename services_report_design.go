@@ -406,6 +406,9 @@ func uploadReportLogo(ctx context.Context, url, token, path string) (*ReportDesi
 		return nil, fmt.Errorf("open the logo: %w", err)
 	}
 	defer func() { _ = f.Close() }()
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return nil, errors.New("the logo must be a file: choose a PNG or a JPEG")
+	}
 	data, err := io.ReadAll(io.LimitReader(f, reportdesign.MaxLogoUploadBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read the logo: %w", err)
@@ -453,7 +456,7 @@ func removeReportLogo(ctx context.Context, url, token string) (*ReportDesignView
 	if err != nil {
 		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
-	if resp.StatusCode()/100 != 2 {
+	if resp.StatusCode() != http.StatusOK {
 		return nil, registry.Problem("remove your logo", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
 	}
 	return reportDesignOf(ctx, url, token)
