@@ -6000,6 +6000,18 @@ export namespace remote {
 
 export namespace reportdesign {
 	
+	export class Logo {
+	    png: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Logo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.png = source["png"];
+	    }
+	}
 	export class Footer {
 	    pageNumbers: string;
 	    text: string;
@@ -6057,6 +6069,7 @@ export namespace reportdesign {
 	    tables: Tables;
 	    quotes: string;
 	    footer: Footer;
+	    logo: Logo;
 	
 	    static createFrom(source: any = {}) {
 	        return new Design(source);
@@ -6076,6 +6089,7 @@ export namespace reportdesign {
 	        this.tables = this.convertValues(source["tables"], Tables);
 	        this.quotes = source["quotes"];
 	        this.footer = this.convertValues(source["footer"], Footer);
+	        this.logo = this.convertValues(source["logo"], Logo);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -6096,6 +6110,7 @@ export namespace reportdesign {
 		    return a;
 		}
 	}
+	
 	
 	
 
