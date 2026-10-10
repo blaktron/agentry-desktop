@@ -4,8 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  byDay, defaultWhen, gridRange, monthGrid, nextWholeHour, outcomeLabel, outcomeTone, sameWhen, scheduleState, signedOutUnavailable,
-  whenForm, whenProblem, whenSpec, whenUnavailable, zoneChoices,
+  byDay, defaultWhen, gridRange, hostedGapHeading, hostedReasonWords, mergeFires, monthGrid, nextWholeHour, outcomeLabel, outcomeTone, sameWhen,
+  scheduleState, signedOutUnavailable, whenForm, whenProblem, whenSpec, whenUnavailable, zoneChoices,
 } from "../src/scheduled.ts";
 import { whereRan } from "../src/recentRuns.ts";
 
@@ -48,10 +48,23 @@ test("When is offered only for an autonomous run on this computer of a registry 
   assert.equal(whenUnavailable(s), null);
   assert.match(whenUnavailable({ ...s, modes: ["interactive"] })!, /^Needs you there to answer/);
   assert.match(whenUnavailable({ ...s, modes: ["autonomous", "interactive"], mode: "interactive" })!, /runs autonomous/);
-  assert.match(whenUnavailable({ ...s, inAgentry: true })!, /runs on this computer/);
+  assert.match(whenUnavailable({ ...s, inAgentry: true })!, /does not schedule runs In Agentry/);
   assert.match(whenUnavailable({ ...s, local: true })!, /agentry schedule add --local/);
   assert.match(whenUnavailable({ ...s, availability: null })!, /^Checking/);
   assert.equal(whenUnavailable({ ...s, availability: { ...ready, available: false, reason: "the agentry command was not found" } }), "the agentry command was not found");
+});
+
+test("In Agentry, When follows the registry's offer and the plan, and never a session (agentry-desktop#745)", () => {
+  const s = { modes: ["autonomous"], mode: "hosted", inAgentry: true, local: false, availability: null };
+  const pro = { available: true };
+  assert.equal(whenUnavailable({ ...s, hostedOffer: pro }), null);
+  // This computer's command is no part of a schedule In Agentry.
+  assert.equal(whenUnavailable({ ...s, hostedOffer: pro, availability: { available: false, reason: "no agentry command" } }), null);
+  assert.match(whenUnavailable({ ...s, hostedOffer: null })!, /does not schedule runs In Agentry/);
+  assert.equal(whenUnavailable({ ...s, hostedOffer: { available: false, reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.", remedy: "Or upgrade to Pro." } }),
+    "Scheduling runs In Agentry is part of Pro, Business and Enterprise. Or upgrade to Pro.");
+  assert.match(whenUnavailable({ ...s, mode: "hosted-session", session: true, hostedOffer: pro })!, /needs you there/);
+  assert.match(whenUnavailable({ ...s, modes: ["interactive"], hostedOffer: pro })!, /^Needs you there to answer/);
 });
 
 test("the signed-out box says why it is off", () => {
@@ -80,6 +93,36 @@ test("a past occurrence says what happened, and nothing reads as done when nothi
   assert.match(outcomeLabel({ outcome: "missed" }), /^Missed: the computer was off/);
   assert.equal(outcomeLabel({ outcome: "due" }), "Due");
   assert.deepEqual(["ran", "failed", "missed", "due"].map(outcomeTone), ["ok", "bad", "warn", "due"]);
+});
+
+test("an occurrence In Agentry says a run started, never that it is done, and why nothing ran", () => {
+  assert.equal(outcomeLabel({ outcome: "ran", hosted: true }), "Run started");
+  assert.equal(outcomeLabel({ outcome: "due", hosted: true }), "Due");
+  assert.equal(outcomeLabel({ outcome: "pending", hosted: true }), "Starting");
+  assert.equal(outcomeLabel({ outcome: "pending", hosted: true, reason: "run-active" }), "Not started yet: a run of yours was still going after an hour of tries");
+  assert.equal(outcomeLabel({ outcome: "skipped", hosted: true, reason: "credits" }), "Skipped: there were not enough credits. Nothing ran.");
+  assert.equal(outcomeLabel({ outcome: "failed", hosted: true, reason: "secret" }), "Failed: a secret it needs is missing. Nothing ran.");
+  // A code this app does not know is shown as it is, never guessed.
+  assert.equal(hostedReasonWords("something-new"), "something-new");
+  assert.deepEqual(["skipped", "pending"].map(outcomeTone), ["warn", "due"]);
+});
+
+test("the calendars of this computer and In Agentry merge by time", () => {
+  const a = [{ at: "2026-10-02T09:00:00Z", n: "here" }, { at: "2026-10-04T09:00:00Z", n: "here" }];
+  const b = [{ at: "2026-10-03T08:00:00Z", n: "there" }];
+  assert.deepEqual(mergeFires(a, b).map((r) => r.at), ["2026-10-02T09:00:00Z", "2026-10-03T08:00:00Z", "2026-10-04T09:00:00Z"]);
+  assert.deepEqual(mergeFires(a, b, true).map((r) => r.n), ["here", "there", "here"]);
+});
+
+test("a schedule In Agentry says who paused it, and the gaps have headings", () => {
+  assert.match(scheduleState({ hosted: true }), /^Runs In Agentry/);
+  assert.equal(scheduleState({ hosted: true, paused: true, pausedReason: "owner" }), "Paused");
+  assert.match(scheduleState({ hosted: true, paused: true, pausedReason: "refusals" }), /three refused runs/);
+  assert.match(scheduleState({ hosted: true, paused: true, pausedReason: "entitlement" }), /plan no longer/);
+  assert.equal(scheduleState({ hosted: true, ended: true }), "Ended");
+  assert.match(hostedGapHeading("schedule-tier"), /not part of this plan/);
+  assert.match(hostedGapHeading("secret-not-kept"), /secrets your account keeps/);
+  assert.equal(hostedGapHeading("anything-else"), "Agentry did not make the schedule.");
 });
 
 test("the month grid starts on Monday and covers whole weeks", () => {
@@ -138,6 +181,9 @@ test("the Scheduled card's line counts the schedules, or says why there is none 
   assert.equal(scheduledCardStatus({ schedules: 0 }, null), "Nothing is scheduled on this computer yet.");
   assert.equal(scheduledCardStatus({ schedules: 1 }, null), "1 schedule on this computer.");
   assert.equal(scheduledCardStatus({ schedules: 3 }, null), "3 schedules on this computer.");
+  assert.equal(scheduledCardStatus({ schedules: 0, hostedSchedules: 0 }, null), "Nothing is scheduled on this computer yet.");
+  assert.equal(scheduledCardStatus({ schedules: 0, hostedSchedules: 1 }, null), "1 schedule In Agentry.");
+  assert.equal(scheduledCardStatus({ schedules: 2, hostedSchedules: 3 }, null), "2 schedules on this computer, 3 In Agentry.");
 });
 
 test("Go's reason reads as a sentence on the card", () => {

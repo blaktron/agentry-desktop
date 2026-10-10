@@ -15,7 +15,25 @@ export function Edit(arg1:string,arg2:schedules.Edit):Promise<void>;
 
 export function History(arg1:number):Promise<Array<schedules.Fire>>;
 
-export function HomeCard(arg1:string,arg2:string):Promise<main.ScheduledCardView>;
+export function HomeCard(arg1:string,arg2:string,arg3:string):Promise<main.ScheduledCardView>;
+
+export function HostedAdd(arg1:main.HostedScheduleRequest):Promise<main.HostedScheduleMadeView>;
+
+export function HostedCalendar(arg1:string,arg2:string,arg3:string):Promise<main.HostedCalendarView>;
+
+export function HostedEdit(arg1:string,arg2:string,arg3:schedules.Edit):Promise<void>;
+
+export function HostedHistory(arg1:string,arg2:number):Promise<main.HostedCalendarView>;
+
+export function HostedPause(arg1:string,arg2:string):Promise<void>;
+
+export function HostedRemove(arg1:string,arg2:string,arg3:string):Promise<boolean>;
+
+export function HostedResume(arg1:string,arg2:string):Promise<void>;
+
+export function HostedRunNow(arg1:string,arg2:string):Promise<main.HostedRunNowView>;
+
+export function HostedSchedules(arg1:string):Promise<main.HostedSchedulesView>;
 
 export function List():Promise<main.SchedulesView>;
 

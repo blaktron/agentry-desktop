@@ -35,7 +35,7 @@ import { attachable, attachableInAgentry, inAgentryLine, pagesOf, scanTone, tooM
 import { ServerSignIns, asConns } from "./ConnectTools";
 import { connectionBlockers, signInRecap } from "../connections";
 import { WhenStep, type Availability, type CheckState } from "./WhenStep";
-import { defaultWhen, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
+import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it (agentry-desktop#743). */
@@ -179,6 +179,10 @@ export default function RunPanel({
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [when, setWhen] = useState<WhenForm>(() => defaultWhen(new Date(), "", initialWhen ?? "now"));
   const [check, setCheck] = useState<CheckState>({ state: "idle" });
+  // A schedule In Agentry the registry would not make yet (D8;
+  // agentry-desktop#745): its create is the check, and what it names is
+  // asked for here, then Schedule is made again.
+  const [scheduleGap, setScheduleGap] = useState<main.HostedScheduleMadeView | null>(null);
   useEffect(() => {
     let live = true;
     Promise.resolve()
@@ -358,10 +362,21 @@ export default function RunPanel({
   // line above the button shows (agentry-desktop#167): the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
   const busy = running || (inAgentry && starting);
+  // A schedule (Later or Repeat): offered only where it can run (on this
+  // computer, or In Agentry where the registry and the plan allow), and
+  // held until nothing a fire needs is missing (D8).
+  const whenBlocked = whenUnavailable({
+    modes: profile?.modes ?? [], mode, inAgentry, local, availability, session: sessionInAgentry, hostedOffer: hosted?.schedule ?? null,
+  });
+  const scheduling = when.choice !== "now" && !whenBlocked;
+  const schedulingHere = scheduling && !inAgentry;
+  const schedulingThere = scheduling && inAgentry;
+  const whenSays = scheduling ? whenProblem(when) : null;
   const blockers: string[] = [];
   if ((mode === "interactive" || sessionInAgentry) && chatLive) {
     blockers.push("A chat is open, in its card in the corner. This app keeps one chat at a time: end it there, then start another.");
-  } else if (inAgentry && followedMoving) {
+  } else if (inAgentry && followedMoving && !schedulingThere) {
+    // Making a schedule starts no run, so a run under way does not hold it.
     blockers.push("A run or a chat In Agentry is under way, in its card in the corner. Agentry runs one at a time for an account: wait for it to end, or end it there.");
   } else if (inAgentry) {
     if (!hosted) blockers.push("Checking whether this release can run In Agentry.");
@@ -429,16 +444,14 @@ export default function RunPanel({
   // in the browser, then the start is made again (agentry-desktop#667).
   const connecting = inAgentry && hostedRefusal?.refusal === "connection-missing";
   if (connecting) blockers.push("Connect the servers named below in your browser; the run starts once Agentry holds them — or Cancel.");
-  // A schedule (Later or Repeat): offered only where it can run, and held
-  // until the agentry command's check finds nothing a fire would lack (D8).
-  const whenBlocked = whenUnavailable({ modes: profile?.modes ?? [], mode, inAgentry, local, availability });
-  const scheduling = when.choice !== "now" && !whenBlocked;
-  const whenSays = scheduling ? whenProblem(when) : null;
   // Later or Repeat that this run cannot be holds the button rather than
   // let it start the run now.
   if (when.choice !== "now" && whenBlocked) blockers.push(`When says ${when.choice === "later" ? "Later" : "Repeat"}, which this run cannot be: ${whenBlocked} Choose Now to run it now.`);
-  if (scheduling) {
-    if (whenSays) blockers.push(whenSays);
+  if (scheduling && whenSays) blockers.push(whenSays);
+  if (schedulingThere && scheduleGap?.refusal && gapAsksSecrets(scheduleGap)) {
+    blockers.push("Enter the secrets above, then Keep and schedule — or Cancel.");
+  }
+  if (schedulingHere) {
     if (!outDir.trim()) blockers.push("Choose the output folder: each scheduled run gets its own folder in it.");
     if (check.state === "checking" || (check.state === "idle" && !whenSays && outDir.trim())) blockers.push("Checking what a scheduled run needs.");
     if (check.state === "error") blockers.push(`The check could not be made: ${check.error}`);
@@ -588,7 +601,7 @@ export default function RunPanel({
   }
   // The check runs again, after a pause in typing, whenever the schedule
   // the setup describes changes; a late answer for an older one is dropped.
-  const scheduleKey = scheduling && !whenSays && outDir.trim() ? JSON.stringify(scheduleRequest()) : "";
+  const scheduleKey = schedulingHere && !whenSays && outDir.trim() ? JSON.stringify(scheduleRequest()) : "";
   const checkedKey = useRef("");
   useEffect(() => {
     if (!scheduleKey) {
@@ -619,6 +632,10 @@ export default function RunPanel({
   // agentry command makes the schedule; the setup closes onto the Scheduled
   // page. A refusal stays here in the command's words.
   async function scheduleRun() {
+    if (inAgentry) {
+      await scheduleInAgentry();
+      return;
+    }
     const req = scheduleRequest();
     if (!req) return;
     setRunning(true);
@@ -635,6 +652,40 @@ export default function RunPanel({
       setRunning(false);
     }
   }
+
+  // Schedule In Agentry (agentry-desktop#745): the registry's create checks
+  // what every fire will need and keeps nothing until it all holds (D8). A
+  // gap comes back for this setup to ask for in place (the secrets to keep,
+  // the connections to make), then Schedule is made again; the schedule
+  // made, the setup closes onto the Scheduled page.
+  async function scheduleInAgentry() {
+    const spec = whenSpec(when);
+    if (!spec) return;
+    setRunning(true);
+    setRunErr(null);
+    setScheduleGap(null);
+    try {
+      const made = await ScheduleAPI.HostedAdd(main.HostedScheduleRequest.createFrom({
+        registry, ref: agentRef, task: task.trim(), files: inputs, knowledge: attached, intake: intakeAnswers(), voice: writeInVoice, when: spec,
+      }));
+      if (made.refusal) {
+        setScheduleGap(made);
+        // A server Agentry keeps no connection to: Connect tools opens in
+        // the browser now, as a run's start does (agentry-desktop#667).
+        if (made.refusal === "connection-missing") RunAPI.OpenHostedConnect(registry, agentRef).catch((e) => setRunErr(String(e)));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent(SCHEDULED_EVENT, { detail: made.id }));
+      onClose();
+    } catch (e) {
+      setRunErr(String(e));
+    } finally {
+      setRunning(false);
+    }
+  }
+  // A change of where or how it runs, or of When, leaves a gap that was
+  // the old schedule's.
+  useEffect(() => { setScheduleGap(null); }, [mode, when.choice]);
 
   // A chat on this computer: the chat's store starts it and its dialog opens
   // at once, with the start (the native consent, the sandbox) under way
@@ -1338,7 +1389,9 @@ export default function RunPanel({
                     <dd>
                       <span>
                         {inAgentry
-                          ? requiredNames.length > 0
+                          ? schedulingThere
+                            ? "the secrets your account keeps in Agentry, the only ones a schedule's runs use; one it does not keep is asked for when you schedule, and kept"
+                            : requiredNames.length > 0
                             ? "your account's secrets in Agentry; a required one it does not keep is asked for when you start"
                             : "your account's secrets in Agentry"
                           : profile.exists ? "saved for this release" : "not saved yet"}
@@ -1376,10 +1429,21 @@ export default function RunPanel({
                   </p>
                 </div>
               )}
-              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running} />
-              {mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
+              <WhenStep form={when} onChange={setWhen} unavailable={whenBlocked} availability={availability} check={check} disabled={running}
+                inAgentry={inAgentry && hosted ? { holdCredits: hosted.holdCredits, balance: hosted.balance, balanceKnown: hosted.balanceKnown } : null}
+                onUpgrade={inAgentry && !sessionInAgentry && hosted?.schedule?.upgrade ? () => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e))) : undefined} />
+              {schedulingThere && scheduleGap?.refusal && (
+                <ScheduleGap
+                  gap={scheduleGap} registry={registry} agentRef={agentRef} busy={running}
+                  onAgain={() => void scheduleInAgentry()}
+                  onCancel={() => setScheduleGap(null)}
+                  onError={(e) => setRunErr(e)}
+                />
+              )}
+              {!schedulingThere && mode === "hosted" && hosted && <HostedCredits hosted={hosted} />}
               {sessionInAgentry && hosted && <SessionCredits hosted={hosted} />}
               {(mode === "hosted" || sessionInAgentry) && hosted && <PublisherEarnsLine hosted={hosted} />}
+              {!schedulingThere && (<>
               <h4>Output</h4>
               {mode === "hosted" && (
                 <p className="muted small" style={{ margin: "2px 0 6px" }}>
@@ -1409,6 +1473,7 @@ export default function RunPanel({
                   <Button onClick={() => setOutDir(defaults?.outputDir ?? "")} disabled={running}>Default</Button>
                 )}
               </div>
+              </>)}
               {!inAgentry && (
             <>
               {/* The ceilings have the policy's defaults and the keep toggle its
@@ -1521,7 +1586,7 @@ export default function RunPanel({
               )}
               {!busy && blockers.length > 0 && (
                 <div className="muted small run-blockers">
-                  <strong>Before you can run:</strong>
+                  <strong>{scheduling ? "Before you can schedule:" : "Before you can run:"}</strong>
                   <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
                     {blockers.map((b) => <li key={b}>{b}</li>)}
                   </ul>
@@ -1626,3 +1691,53 @@ export default function RunPanel({
   );
 }
 
+
+/** Whether a schedule's gap is its secrets: missing, or held for one run
+ *  only, which the setup asks for, kept. */
+function gapAsksSecrets(gap: main.HostedScheduleMadeView): boolean {
+  return (gap.refusal === "secret-missing" || gap.refusal === "secret-not-kept") && (gap.missing?.length ?? 0) > 0;
+}
+
+/** What the registry would not schedule In Agentry yet, and its fix in
+ *  place (plan quickagent-scheduling.md D8; agentry-desktop#745): the
+ *  secrets to keep, asked for here; the connections, made in the browser
+ *  on Connect tools; the plan, through the upgrade page; anything else in
+ *  the registry's own words. */
+function ScheduleGap({ gap, registry, agentRef, busy, onAgain, onCancel, onError }: {
+  gap: main.HostedScheduleMadeView;
+  registry: string;
+  agentRef: string;
+  busy: boolean;
+  onAgain: () => void;
+  onCancel: () => void;
+  onError: (e: string) => void;
+}) {
+  if (gapAsksSecrets(gap)) {
+    return <HostedSecretsAsk registry={registry} names={gap.missing ?? []} forSchedule onSaved={onAgain} onCancel={onCancel} />;
+  }
+  return (
+    <Notice tone="warn">
+      <div data-schedule-gap={gap.refusal}>
+        <strong>{hostedGapHeading(gap.refusal ?? "")}</strong> <span className="selectable">{gap.detail}</span>
+        {gap.refusal === "connection-missing" && (
+          <p className="small">
+            Connect tools is open in your browser, signed in as the account this app uses: connect{" "}
+            {(gap.missing ?? []).length > 0 ? (gap.missing ?? []).join(", ") : "each server"} there, then Schedule again.
+          </p>
+        )}
+        <p className="small row" style={{ gap: 8, marginBottom: 0 }}>
+          {gap.refusal === "connection-missing" && (
+            <>
+              <Button onClick={() => RunAPI.OpenHostedConnect(registry, agentRef).catch((e) => onError(String(e)))} disabled={busy}>Open Connect tools</Button>
+              <Button variant="primary" onClick={onAgain} disabled={busy}>{busy ? "Scheduling…" : "Schedule again"}</Button>
+            </>
+          )}
+          {gap.refusal === "schedule-tier" && (
+            <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => onError(String(e)))}>Credits and upgrade</Button>
+          )}
+          <Button onClick={onCancel} disabled={busy}>Dismiss</Button>
+        </p>
+      </div>
+    </Notice>
+  );
+}

@@ -42,6 +42,13 @@
 //                           a new run, agentry-desktop#743): the check ready
 //   #runpanel-schedule-gaps the check names what a fire would lack
 //   #runpanel-schedule-windows  the signed-out box off, with the reason
+//   #runpanel-schedule-hosted   When on Repeat for a run In Agentry, on Pro:
+//                           the hold, the balance and the check the create
+//                           makes (agentry-desktop#745)
+//   #runpanel-schedule-hosted-standard  the same on Standard: Later and
+//                           Repeat off, with the plan and the way up
+//   #runpanel-schedule-hosted-gap  Schedule In Agentry refused
+//                           secret-not-kept: the secrets asked for, kept
 //   #runpanel-step-review-long  the same with an intake prompt as long as
 //                           binary-reverse-engineer's: the label wraps and
 //                           every value keeps its width (agentry-desktop#420)
@@ -226,6 +233,11 @@ const hostedKnowledge = view.startsWith("runpanel-hosted-knowledge");
 const hostedSecrets = view === "runpanel-hosted-secrets";
 const hostedEarns = view === "runpanel-hosted-earns";
 const sessionShape = view.startsWith("runpanel-session");
+// Schedules In Agentry (agentry-desktop#745): Pro, but for the Standard
+// state; the gap state's first create is refused secret-not-kept and the
+// one after the ask is made.
+const hostedSchedule = view.startsWith("runpanel-schedule-hosted");
+let hostedScheduleAdds = 0;
 // The first start of #runpanel-hosted-secrets is refused secret-missing;
 // the one after the ask is saved is queued.
 let hostedStarts = 0;
@@ -291,7 +303,7 @@ const profile = signInShape
     modes: sessionShape ? ["interactive"] : ["autonomous", "interactive"],
     intake: fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
-      : localFinished || view === "runpanel-hosted-secrets" || sessionShape ? []
+      : localFinished || view === "runpanel-hosted-secrets" || sessionShape || hostedSchedule ? []
       : longPromptShape
       ? [{ id: "focus", prompt: "Focus area (optional): a function, embedded payload, or part of the binary to prioritize; leave blank for a full pass.", type: "text", required: false, choices: [] }]
       : [{ id: "since", prompt: "Summarise incidents since when?", type: "text", required: true, choices: [] }],
@@ -350,13 +362,19 @@ const availability = {
     : "",
   remedy: hostedState === "unavailable" ? "Sign in again from Settings to mint a token that carries them." : "",
   signedIn: !signedOut, extension: true, enabled: true, runnersOnline: 1, queued: 2,
-  tier: "standard", holdCredits: 20,
+  tier: hostedSchedule && view !== "runpanel-schedule-hosted-standard" ? "pro" : "standard", holdCredits: 20,
   caps: { timeoutSeconds: 300, maxTurns: 20 },
   balance: sessionShape ? 460 : 46, balanceKnown: true,
   maxInputFiles: 20, maxInputBytes: 10 * 1024 * 1024,
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
   declaredSecrets: hostedSecrets ? ["PAGERDUTY_TOKEN"] : [], vault: true,
   publisherEarns: hostedEarns,
+  // Later and Repeat In Agentry follow the plan: Standard is offered them
+  // unavailable, with the way up (agentry-desktop#745).
+  schedule: hostedSchedule && view !== "runpanel-schedule-hosted-standard"
+    ? { offered: true, available: true }
+    : { offered: true, available: false, upgrade: true, reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.",
+      remedy: "On Standard, schedule it on this computer, for no credits; or upgrade to Pro." },
   // Talk to it In Agentry: offered on the sessions' own terms; a Standard
   // payer is offered it unavailable, with the way up.
   session: sessionShape
@@ -443,6 +461,9 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-schedule": "review",
   "runpanel-schedule-gaps": "review",
   "runpanel-schedule-windows": "review",
+  "runpanel-schedule-hosted": "review",
+  "runpanel-schedule-hosted-standard": "review",
+  "runpanel-schedule-hosted-gap": "review",
   "runpanel-chat-review": "review",
   "runpanel-guided-files": "files",
   "runpanel-guided-tools": "tools",
@@ -486,6 +507,9 @@ g.go = { main: {
       ? { ready: false, gaps: ["no model key is kept in the keychain: run `agentry setup`"], installed: true, modes: ["autonomous"], refusals: [], needsConsent: false, signedOut: { available: true } }
       : { ready: true, gaps: [], installed: true, modes: ["autonomous"], refusals: [], needsConsent: false, signedOut: { available: true }, describe: "every day at 15:00 (Europe/London)", next: "2026-10-09T14:00:00Z" }),
     Add: async () => ({ id: "ab12cd34ef" }),
+    HostedAdd: async () => (view === "runpanel-schedule-hosted-gap" && hostedScheduleAdds++ === 0
+      ? { refusal: "secret-not-kept", detail: "A secret is set for one run only: A schedule uses secrets kept under Secrets, and PAGERDUTY_TOKEN is set for one run only. Keep it, then make the schedule.", missing: ["PAGERDUTY_TOKEN"] }
+      : { id: "6f1c2d3e-4b5a-4c6d-8e7f-8091a2b3c4d5", next: "2026-10-10T07:00:00Z" }),
   },
   RunAPI: {
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
@@ -674,7 +698,7 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         summary={keysShape
           ? "Turns one GitHub pull request into the reviewer's brief: what changed, the risks, what to test and questions for the author."
           : "Summarises an incident channel into a report card, redacting secrets first."}
-        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn ? "hosted"
+        initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
         initialWhen={view.startsWith("runpanel-schedule") ? "repeat" : undefined}

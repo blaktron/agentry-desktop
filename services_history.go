@@ -673,13 +673,19 @@ type HostedRecordView struct {
 // hostedClient is reg's runs client for the run page, under Settings' URL
 // rule, with the token kept for reg.
 func hostedClient(reg string) (*hostedrun.Client, error) {
+	return hostedClientFor(reg, "see its runs In Agentry")
+}
+
+// hostedClientFor is reg's client under Settings' URL rule (D-039), with the
+// token kept for reg; signed out, the error says what signing in is for.
+func hostedClientFor(reg, forWhat string) (*hostedrun.Client, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, err
 	}
 	token := settings.TokenFor(reg)
 	if token == "" {
-		return nil, fmt.Errorf("sign in to %s to see its runs In Agentry", reg)
+		return nil, fmt.Errorf("sign in to %s to %s", reg, forWhat)
 	}
 	return hostedrun.New(reg, token), nil
 }

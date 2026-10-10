@@ -125,20 +125,21 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   }, [registry, signedIn]);
 
   // The Scheduled card's read, only while the layout holds the card: Home
-  // reads the CLI's store and runs nothing (agentry-desktop#744).
+  // reads the CLI's store and, signed in, the account's schedules In
+  // Agentry, and runs nothing (agentry-desktop#744, #745).
   const wantsScheduled = !!layout.value && !layout.value.newer && !layout.value.unreadable && scheduledOnHome(layout.value.cards);
   // Read again when a schedule changes or a Run now ends while Home is open.
   useEffect(() => {
     if (!wantsScheduled) return;
     let live = true;
     const { from, to } = gridRange(weeks);
-    const read = () => { ScheduleAPI.HomeCard(from, to).then(...settle(() => live)(setScheduled)); };
+    const read = () => { ScheduleAPI.HomeCard(from, to, registry).then(...settle(() => live)(setScheduled)); };
     read();
     let off: (() => void) | undefined;
     // The harness has no runtime.
     try { off = EventsOn("schedules:changed", read); } catch { off = undefined; }
     return () => { live = false; off?.(); };
-  }, [wantsScheduled, weeks]);
+  }, [wantsScheduled, weeks, registry]);
 
   // A pin whose QuickAgent is gone from this computer is unpinned from its
   // card; Go answers with the layout as it now is.

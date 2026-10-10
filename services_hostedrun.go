@@ -149,6 +149,11 @@ type HostedAvailabilityView struct {
 	// the registry's terms for one. Nil where it is not offered.
 	Session *HostedSessionOfferView `json:"session,omitempty"`
 
+	// Schedule is Later and Repeat In Agentry for this release
+	// (agentry-desktop#745): whether they are offered and can be chosen.
+	// Nil where they are not offered (a registry without schedules).
+	Schedule *HostedScheduleOfferView `json:"schedule,omitempty"`
+
 	// PublisherEarns says the release's publisher earns a share of the
 	// credits runs of it spend, which the run setup says under what a run
 	// costs (plan creator-monetization.md D10; agentry-desktop#613). Never
@@ -293,6 +298,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		if err == nil {
 			facts.Extension = hasString(exts, "runs")
 			facts.Vault = hasString(exts, "vault")
+			facts.Schedules = hasString(exts, "schedules")
 		}
 		v.Extension, v.Vault = facts.Extension, facts.Vault
 	}
@@ -327,6 +333,9 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 		if st.Caller != nil && st.Caller.Session != nil {
 			allowed := st.Caller.Session.Allowed
 			facts.SessionAllowed = &allowed
+			// The same rule as a schedule's: AboveStandard of the payer's
+			// tier (Facts.ScheduleAllowed).
+			facts.ScheduleAllowed = &allowed
 		}
 		v.Enabled, v.RunnersOnline, v.Queued = st.Enabled, st.RunnersOnline(), st.Queued
 		if st.Caller != nil {
@@ -348,6 +357,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	o := hostedrun.Decide(facts)
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
 	v.Session = sessionOffer(hostedrun.DecideSession(facts), terms)
+	v.Schedule = scheduleOfferView(hostedrun.DecideSchedule(facts))
 	// Its reads carry the token, so they are held to Settings' URL rule,
 	// which the rest of this function does not apply yet (agentry-desktop
 	// #307).

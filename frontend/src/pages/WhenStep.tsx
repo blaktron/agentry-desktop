@@ -1,11 +1,14 @@
 // The run setup's When (plan quickagent-scheduling.md §7, D12, D19; D-073;
-// agentry-desktop#743): Now, the default, or Later or Repeat, which make the
-// run a schedule on this computer. With Later or Repeat, Review and start's
-// button reads Schedule, and it stays off until the agentry command's check
-// says a scheduled run would have everything it needs (D8); each gap it
-// names is shown here. The same fields edit a schedule's repeat on the
-// Scheduled page.
+// agentry-desktop#743, #745): Now, the default, or Later or Repeat, which make
+// the run a schedule: on this computer, or In Agentry when the run goes
+// there. With Later or Repeat, Review and start's button reads Schedule. On
+// this computer it stays off until the agentry command's check says a
+// scheduled run would have everything it needs (D8), and each gap it names
+// is shown here; In Agentry the registry's create is that check, and the
+// setup asks for what it names. The same fields edit a schedule's repeat on
+// the Scheduled page.
 import { DAYS, signedOutUnavailable, zoneChoices, type WhenForm } from "../scheduled";
+import { Button } from "../ui";
 
 export type Availability = {
   available: boolean;
@@ -155,8 +158,12 @@ export function SignedOutBox({ form, onChange, availability, disabled }: {
   );
 }
 
+/** What a schedule In Agentry holds for each run (agentry-desktop#745):
+ *  the registry's numbers, as Review and start states a run's. */
+export type HostedTerms = { holdCredits: number; balance: number; balanceKnown: boolean };
+
 /** The When step on Review and start. */
-export function WhenStep({ form, onChange, unavailable, availability, check, disabled }: {
+export function WhenStep({ form, onChange, unavailable, availability, check, disabled, inAgentry, onUpgrade }: {
   form: WhenForm;
   onChange: (w: WhenForm) => void;
   /** Why only Now is offered for this run, or null. */
@@ -164,6 +171,12 @@ export function WhenStep({ form, onChange, unavailable, availability, check, dis
   availability: Availability | null;
   check: CheckState;
   disabled?: boolean;
+  /** The run goes In Agentry: a schedule there, which the registry keeps
+   *  and checks when it is made (D8; agentry-desktop#745), with each run's
+   *  hold and the balance. */
+  inAgentry?: HostedTerms | null;
+  /** The way up, where the plan is what holds When In Agentry (D7). */
+  onUpgrade?: () => void;
 }) {
   const choose = (choice: WhenForm["choice"]) => onChange({ ...form, choice });
   return (
@@ -179,7 +192,23 @@ export function WhenStep({ form, onChange, unavailable, availability, check, dis
         ))}
       </div>
       {unavailable && <p className="muted small" style={{ margin: "2px 0" }} data-when-unavailable>{unavailable}</p>}
-      {form.choice !== "now" && !unavailable && (
+      {unavailable && onUpgrade && <p className="small" style={{ margin: "2px 0" }}><Button onClick={onUpgrade}>Credits and upgrade</Button></p>}
+      {form.choice !== "now" && !unavailable && inAgentry && (
+        <>
+          <RepeatFields form={form} onChange={onChange} disabled={disabled} />
+          <p className="muted small" style={{ margin: "4px 0" }} data-when-hosted>
+            A schedule In Agentry runs this exact version, autonomous, whether or not this computer is on. Each run is an
+            ordinary run of yours there: it holds {inAgentry.holdCredits} credits while it runs
+            {inAgentry.balanceKnown ? `, and your balance is ${inAgentry.balance}` : ""}, and a run that finds too few
+            credits is skipped. Its result stays with the run In Agentry; open it from Scheduled.
+          </p>
+          <p className="muted small" style={{ margin: "4px 0" }}>
+            Schedule has Agentry check what every run will need before it keeps the schedule: each secret kept in your
+            account, each connection made for this version, and the files copied. Anything missing is asked for here.
+          </p>
+        </>
+      )}
+      {form.choice !== "now" && !unavailable && !inAgentry && (
         <>
           <RepeatFields form={form} onChange={onChange} disabled={disabled} />
           <SignedOutBox form={form} onChange={onChange} availability={availability} disabled={disabled} />

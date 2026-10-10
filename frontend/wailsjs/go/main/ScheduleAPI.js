@@ -26,8 +26,44 @@ export function History(arg1) {
   return window['go']['main']['ScheduleAPI']['History'](arg1);
 }
 
-export function HomeCard(arg1, arg2) {
-  return window['go']['main']['ScheduleAPI']['HomeCard'](arg1, arg2);
+export function HomeCard(arg1, arg2, arg3) {
+  return window['go']['main']['ScheduleAPI']['HomeCard'](arg1, arg2, arg3);
+}
+
+export function HostedAdd(arg1) {
+  return window['go']['main']['ScheduleAPI']['HostedAdd'](arg1);
+}
+
+export function HostedCalendar(arg1, arg2, arg3) {
+  return window['go']['main']['ScheduleAPI']['HostedCalendar'](arg1, arg2, arg3);
+}
+
+export function HostedEdit(arg1, arg2, arg3) {
+  return window['go']['main']['ScheduleAPI']['HostedEdit'](arg1, arg2, arg3);
+}
+
+export function HostedHistory(arg1, arg2) {
+  return window['go']['main']['ScheduleAPI']['HostedHistory'](arg1, arg2);
+}
+
+export function HostedPause(arg1, arg2) {
+  return window['go']['main']['ScheduleAPI']['HostedPause'](arg1, arg2);
+}
+
+export function HostedRemove(arg1, arg2, arg3) {
+  return window['go']['main']['ScheduleAPI']['HostedRemove'](arg1, arg2, arg3);
+}
+
+export function HostedResume(arg1, arg2) {
+  return window['go']['main']['ScheduleAPI']['HostedResume'](arg1, arg2);
+}
+
+export function HostedRunNow(arg1, arg2) {
+  return window['go']['main']['ScheduleAPI']['HostedRunNow'](arg1, arg2);
+}
+
+export function HostedSchedules(arg1) {
+  return window['go']['main']['ScheduleAPI']['HostedSchedules'](arg1);
 }
 
 export function List() {
