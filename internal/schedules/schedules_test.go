@@ -206,8 +206,10 @@ func TestTooOld(t *testing.T) {
 }
 
 func TestFindCLI(t *testing.T) {
-	savedOS, savedExe, savedLook, savedStat := goos, executable, lookPath, statFile
-	t.Cleanup(func() { goos, executable, lookPath, statFile = savedOS, savedExe, savedLook, savedStat })
+	savedOS, savedExe, savedEnv, savedLook, savedStat := goos, executable, getenv, lookPath, statFile
+	t.Cleanup(func() {
+		goos, executable, getenv, lookPath, statFile = savedOS, savedExe, savedEnv, savedLook, savedStat
+	})
 	have := map[string]bool{}
 	statFile = func(p string) (fs.FileInfo, error) {
 		if have[p] {
@@ -215,8 +217,11 @@ func TestFindCLI(t *testing.T) {
 		}
 		return nil, fs.ErrNotExist
 	}
+	env := map[string]string{"HOME": "/home/ada"}
+	getenv = func(k string) string { return env[k] }
 	lookPath = func(string) (string, error) { return "", errors.New("not found") }
 	executable = func() (string, error) { return filepath.Join("C:", "Agentry", "agentry-desktop.exe"), nil }
+	script := filepath.Join("/home/ada", ".local", "bin", "agentry")
 
 	goos = "linux"
 	if _, err := FindCLI(); !errors.Is(err, ErrNoCLI) {
@@ -226,15 +231,30 @@ func TestFindCLI(t *testing.T) {
 	if p, err := FindCLI(); err != nil || p != linuxPackageCLI {
 		t.Fatalf("linux %q %v", p, err)
 	}
+	// The script's copy, which Options installs, comes first on Linux.
+	have[script] = true
+	if p, err := FindCLI(); err != nil || p != script {
+		t.Fatalf("linux with the script's copy %q %v", p, err)
+	}
 	goos = "windows"
 	beside := filepath.Join("C:", "Agentry", "bin", "agentry.exe")
 	have[beside] = true
 	if p, err := FindCLI(); err != nil || p != beside {
 		t.Fatalf("windows %q %v", p, err)
 	}
+	// macOS finds the script's copy, which an app's PATH lacks, and never
+	// the Linux package's path.
 	goos = "darwin"
-	if _, err := FindCLI(); err == nil || !strings.Contains(err.Error(), "macOS") {
-		t.Fatalf("darwin %v", err)
+	if p, err := FindCLI(); err != nil || p != script {
+		t.Fatalf("darwin %q %v", p, err)
+	}
+	env["XDG_BIN_HOME"] = "/home/ada/bin"
+	if _, err := FindCLI(); !errors.Is(err, ErrNoCLI) {
+		t.Fatalf("darwin with XDG_BIN_HOME elsewhere: %v", err)
+	}
+	lookPath = func(string) (string, error) { return "/opt/homebrew/bin/agentry", nil }
+	if p, err := FindCLI(); err != nil || p != "/opt/homebrew/bin/agentry" {
+		t.Fatalf("darwin on PATH %q %v", p, err)
 	}
 }
 

@@ -70,6 +70,10 @@ export function HostedSchedules(arg1) {
   return window['go']['main']['ScheduleAPI']['HostedSchedules'](arg1);
 }
 
+export function InstallCLI() {
+  return window['go']['main']['ScheduleAPI']['InstallCLI']();
+}
+
 export function List() {
   return window['go']['main']['ScheduleAPI']['List']();
 }

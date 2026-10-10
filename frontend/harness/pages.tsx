@@ -571,6 +571,12 @@ const scheduleItems = [
 // Standard account, offered the upgrade. #home-scheduled-hosted is Home's
 // card with the same schedule merged.
 const schedHostedHash = window.location.hash.startsWith("#scheduled-hosted") || window.location.hash === "#home-scheduled-hosted";
+// The agentry command (agentry-desktop#788): #scheduled-nocli is a
+// computer with none (macOS before an install), whose notice says to
+// install it from Options; the install there makes it available, and the
+// menu then offers Reinstall.
+const schedNoCLIHash = window.location.hash === "#scheduled-nocli";
+let schedCLIInstalled = false;
 const HOSTED_SCHED = "6f1c2d3e-4b5a-4c6d-8e7f-8091a2b3c4d5";
 const hostedFires = window.location.hash === "#scheduled-hosted" || window.location.hash === "#home-scheduled-hosted" ? [
   { hosted: true, scheduleId: HOSTED_SCHED, name: "Weekly report", at: schedAt(5, 7), outcome: "ran", runId: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42", zone: "Europe/London" },
@@ -628,7 +634,16 @@ const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock:
 
 g.go = { main: {
   ScheduleAPI: {
-    Availability: async () => ({ available: true, zone: "Europe/London", lingerOn: true, signedOut: { available: true } }),
+    Availability: async () => (schedNoCLIHash && !schedCLIInstalled
+      ? { available: false, reason: "scheduling a run on this computer needs the agentry command, which was not found", zone: "Europe/London", lingerOn: false,
+        signedOut: { available: false, reason: "scheduling a run on this computer needs the agentry command, which was not found" }, installCLI: "Install the agentry command" }
+      : { available: true, zone: "Europe/London", lingerOn: true, signedOut: { available: true }, ...(schedNoCLIHash ? { installCLI: "Reinstall the agentry command" } : {}) }),
+    InstallCLI: async () => {
+      schedCLIInstalled = true;
+      return { path: "/Users/me/.local/bin/agentry", version: "0.6.93",
+        notes: ["Added /Users/me/.local/bin to PATH in /Users/me/.zshrc", "Open a new terminal, or run  . \"/Users/me/.zshrc\"  to use agentry here."],
+        log: "Downloading agentry 0.6.93 for darwin/arm64 from https://secureagentry.net\nInstalled agentry 0.6.93: /Users/me/.local/bin/agentry\nAdded /Users/me/.local/bin to PATH in /Users/me/.zshrc\nAGENTRY_BIN=/Users/me/.local/bin/agentry" };
+    },
     List: async () => ({ schedules: scheduleItems, running: [] }),
     Calendar: async () => [...schedFires, ...schedDue],
     History: async () => [...schedFires].reverse(),

@@ -28,6 +28,7 @@ import (
 	cliknowledge "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
+	"github.com/blaktron/agentry-desktop/internal/cliinstall"
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
@@ -69,6 +70,10 @@ type ScheduleAPI struct {
 	// locateCLI only finds the command on disk (Home's card), where
 	// findCLI also runs it for its version.
 	locateCLI func() (string, error)
+	// installOffered and installRun stand in for the Options menu's
+	// install of the agentry command (services_schedule_cli.go).
+	installOffered func() bool
+	installRun     func(ctx context.Context) (cliinstall.Result, error)
 
 	mu sync.Mutex
 	// running is the Run now under way, by schedule id.
@@ -172,12 +177,15 @@ type ScheduleAvailabilityView struct {
 	// LingerOn: schedules already start with this computer, so the
 	// signed-out checkbox asks nothing more.
 	LingerOn bool `json:"lingerOn"`
+	// InstallCLI is the Options menu's entry that installs or reinstalls
+	// the agentry command, "" where the app offers none (D-076).
+	InstallCLI string `json:"installCLI,omitempty"`
 }
 
 // Availability says whether a run can be scheduled on this computer, and
 // whether a schedule can also run while the person is signed out.
 func (s *ScheduleAPI) Availability() (*ScheduleAvailabilityView, error) {
-	v := &ScheduleAvailabilityView{Zone: schedule.LocalZone()}
+	v := &ScheduleAvailabilityView{Zone: schedule.LocalZone(), InstallCLI: s.installCLILabelFor()}
 	c, err := s.cli()
 	if err != nil {
 		v.Reason = err.Error()
