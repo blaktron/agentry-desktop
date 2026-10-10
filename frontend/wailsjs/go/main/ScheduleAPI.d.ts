@@ -37,6 +37,8 @@ export function HostedRunNow(arg1:string,arg2:string):Promise<main.HostedRunNowV
 
 export function HostedSchedules(arg1:string):Promise<main.HostedSchedulesView>;
 
+export function InstallCLI():Promise<main.CLIInstallView>;
+
 export function List():Promise<main.SchedulesView>;
 
 export function Pause(arg1:string):Promise<void>;

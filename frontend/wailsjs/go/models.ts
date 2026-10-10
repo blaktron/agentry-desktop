@@ -1559,6 +1559,24 @@ export namespace main {
 	}
 	
 	
+	export class CLIInstallView {
+	    path: string;
+	    version?: string;
+	    notes?: string[];
+	    log: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CLIInstallView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.version = source["version"];
+	        this.notes = source["notes"];
+	        this.log = source["log"];
+	    }
+	}
 	export class CalendarFire {
 	    hosted: boolean;
 	    scheduleId: string;
@@ -5001,6 +5019,7 @@ export namespace main {
 	    zone: string;
 	    signedOut: SignedOutView;
 	    lingerOn: boolean;
+	    installCLI?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ScheduleAvailabilityView(source);
@@ -5013,6 +5032,7 @@ export namespace main {
 	        this.zone = source["zone"];
 	        this.signedOut = this.convertValues(source["signedOut"], SignedOutView);
 	        this.lingerOn = source["lingerOn"];
+	        this.installCLI = source["installCLI"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

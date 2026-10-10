@@ -16,6 +16,9 @@ export type Availability = {
   zone: string;
   signedOut: { available: boolean; reason?: string };
   lingerOn: boolean;
+  /** The Scheduled page's Options entry that installs or reinstalls the
+   *  agentry command, "" or absent where none is offered (D-076). */
+  installCLI?: string;
 };
 
 export type CheckState =
