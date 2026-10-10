@@ -188,11 +188,15 @@ export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityV
  *  call of its own (RunAPI.SetHostedSecret, D-024's rule), and cleared
  *  from this form before it is sent; "Keep it for later runs" is unticked,
  *  so a value is held for this run alone unless the person ticks it. */
-export function HostedSecretsAsk({ registry, names, onSaved, onCancel }: {
+export function HostedSecretsAsk({ registry, names, onSaved, onCancel, forSchedule }: {
   registry: string;
   names: string[];
   onSaved: () => void;
   onCancel: () => void;
+  /** A schedule's ask (agentry-desktop#745; plan quickagent-scheduling.md
+   *  D8): its runs resolve kept secrets alone, so each value is kept, and
+   *  there is no box to hold one for a single run. */
+  forSchedule?: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [keep, setKeep] = useState<Record<string, boolean>>({});
@@ -216,7 +220,7 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel }: {
     setValues({});
     try {
       for (const n of names) {
-        await RunAPI.SetHostedSecret(registry, n, typed[n], !!keep[n]);
+        await RunAPI.SetHostedSecret(registry, n, typed[n], forSchedule || !!keep[n]);
       }
       saved.current = true;
       onSaved();
@@ -234,12 +238,22 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel }: {
 
   return (
     <Card>
-      <h3 style={{ marginTop: 0 }}>Secrets for this run</h3>
-      <p className="small">
-        This release declares {names.length === 1 ? "a secret" : "secrets"} your account does not keep in Agentry.
-        Enter {names.length === 1 ? "its value" : "each value"} to start the run. The value goes into that run&apos;s
-        tools container only, never into the agent&apos;s own.
-      </p>
+      <h3 style={{ marginTop: 0 }}>{forSchedule ? "Secrets for this schedule" : "Secrets for this run"}</h3>
+      {forSchedule ? (
+        <p className="small" data-secrets-for-schedule>
+          A schedule&apos;s runs use only secrets your account keeps in Agentry, and this release declares{" "}
+          {names.length === 1 ? "one" : "some"} it does not keep, or holds for one run only. Enter{" "}
+          {names.length === 1 ? "its value" : "each value"} to keep {names.length === 1 ? "it" : "them"} under your account,
+          for this schedule and any run In Agentry that declares {names.length === 1 ? "it" : "them"}. A value goes into a
+          run&apos;s tools container only, never into the agent&apos;s own.
+        </p>
+      ) : (
+        <p className="small">
+          This release declares {names.length === 1 ? "a secret" : "secrets"} your account does not keep in Agentry.
+          Enter {names.length === 1 ? "its value" : "each value"} to start the run. The value goes into that run&apos;s
+          tools container only, never into the agent&apos;s own.
+        </p>
+      )}
       {names.map((n) => (
         <div key={n} style={{ marginBottom: 10 }}>
           <div className="field">
@@ -253,15 +267,19 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel }: {
               onChange={(e) => setValues((v) => ({ ...v, [n]: e.target.value }))}
             />
           </div>
-          <label className="row gap small" style={{ marginTop: 6 }}>
-            <input type="checkbox" checked={!!keep[n]} disabled={busy} onChange={(e) => setKeep((k) => ({ ...k, [n]: e.target.checked }))} />
-            <span>Keep it for later runs</span>
-          </label>
-          <span className="muted small">
-            {keep[n]
-              ? <>Kept under your account for any run In Agentry that declares <code>{n}</code>, capitals included.</>
-              : <>Agentry removes it when this run ends.</>}
-          </span>
+          {!forSchedule && (
+            <>
+              <label className="row gap small" style={{ marginTop: 6 }}>
+                <input type="checkbox" checked={!!keep[n]} disabled={busy} onChange={(e) => setKeep((k) => ({ ...k, [n]: e.target.checked }))} />
+                <span>Keep it for later runs</span>
+              </label>
+              <span className="muted small">
+                {keep[n]
+                  ? <>Kept under your account for any run In Agentry that declares <code>{n}</code>, capitals included.</>
+                  : <>Agentry removes it when this run ends.</>}
+              </span>
+            </>
+          )}
         </div>
       ))}
       <p className="muted small">
@@ -272,7 +290,7 @@ export function HostedSecretsAsk({ registry, names, onSaved, onCancel }: {
       <div className="row">
         <Button onClick={cancel} disabled={busy}>Cancel</Button>
         <span className="grow" />
-        <Button variant="primary" disabled={busy || !ready} onClick={save}>{busy ? "Saving…" : "Save and start"}</Button>
+        <Button variant="primary" disabled={busy || !ready} onClick={save}>{busy ? "Saving…" : forSchedule ? "Keep and schedule" : "Save and start"}</Button>
       </div>
     </Card>
   );

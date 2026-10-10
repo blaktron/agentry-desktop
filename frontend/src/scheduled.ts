@@ -134,17 +134,29 @@ export function whenForm(spec: WhenSpec, signedOut: boolean, now: Date, zone: st
 }
 
 /** Why When is disabled for this run, or null when it is offered: a
- *  schedule runs autonomous on this computer, from a registry release, with
- *  the agentry command installed (D12, §5). */
+ *  schedule runs autonomous, either on this computer, from a registry
+ *  release with the agentry command installed (D12, §5), or In Agentry,
+ *  where the registry schedules runs and the account's plan does (D7;
+ *  agentry-desktop#745). */
 export function whenUnavailable(s: {
   modes: string[];
   mode: string;
   inAgentry: boolean;
   local: boolean;
   availability: { available: boolean; reason?: string } | null;
+  /** Talk to it In Agentry: a hosted session, which needs a person. */
+  session?: boolean;
+  /** The registry's offer of Later and Repeat In Agentry; null where it
+   *  makes none. */
+  hostedOffer?: { available: boolean; reason?: string; remedy?: string } | null;
 }): string | null {
   if (s.modes.length > 0 && !s.modes.includes("autonomous")) return "Needs you there to answer: this release runs interactive only, and a schedule runs with nobody there.";
-  if (s.inAgentry) return "A schedule runs on this computer: choose to run it here on Before you start. Schedules In Agentry come later.";
+  if (s.inAgentry) {
+    if (s.session) return "A session needs you there to answer, and a schedule runs autonomous, with nobody there: choose a run In Agentry on Before you start.";
+    if (!s.hostedOffer) return "This registry does not schedule runs In Agentry: choose to run it on this computer on Before you start to schedule it there.";
+    if (!s.hostedOffer.available) return [s.hostedOffer.reason, s.hostedOffer.remedy].filter(Boolean).join(" ") || "A schedule In Agentry cannot be made for this account.";
+    return null;
+  }
   if (s.mode === "interactive") return "A schedule runs autonomous, with nobody there to answer: choose autonomous on Before you start.";
   if (s.local) return "A QuickAgent installed from a folder is scheduled with the agentry command: agentry schedule add --local.";
   if (!s.availability) return "Checking whether this computer can schedule a run.";
@@ -175,11 +187,49 @@ export type FireRow = {
   exitCode?: number;
   exitClass?: string;
   message?: string;
+  /** In Agentry (agentry-desktop#745): the account's schedule there, and
+   *  the registry's reason for a fire that started no run. */
+  hosted?: boolean;
+  reason?: string;
 };
+
+/** Why a fire In Agentry started no run, in words (x-schedules.yaml
+ *  ScheduleFire.reason): a code this app does not know is shown as it is,
+ *  never guessed. */
+export function hostedReasonWords(reason: string | undefined): string {
+  switch (reason) {
+    case "run-active": return "a run of yours was still going after an hour of tries";
+    case "credits": return "there were not enough credits";
+    case "paused": return "the schedule was paused";
+    case "ended": return "the schedule had ended";
+    case "missed": return "it was not tried within the hour";
+    case "entitlement": return "your plan no longer schedules runs In Agentry, so the schedule paused";
+    case "account": return "the account was not active";
+    case "release": return "the version could not be run (gone, unscanned or changed)";
+    case "connection": return "a connection it needs is missing";
+    case "secret": return "a secret it needs is missing";
+    case "refused": return "Agentry refused the run";
+    case "unavailable": return "Agentry was not available";
+    case "interrupted": return "it was interrupted";
+  }
+  return reason || "no reason was given";
+}
 
 /** What became of an occurrence, in a few words (plan invariant 8):
  *  never "done" when nothing ran. */
-export function outcomeLabel(f: Pick<FireRow, "outcome" | "exitCode" | "exitClass" | "manual">): string {
+export function outcomeLabel(f: Pick<FireRow, "outcome" | "exitCode" | "exitClass" | "manual" | "hosted" | "reason">): string {
+  if (f.hosted) {
+    // In Agentry a fire that ran started a run, whose own page says how it
+    // ended: never "done" (the site's words, agentry-web#1346).
+    switch (f.outcome) {
+      case "due": return "Due";
+      case "ran": return "Run started";
+      case "pending": return f.reason ? `Not started yet: ${hostedReasonWords(f.reason)}` : "Starting";
+      case "skipped": return `Skipped: ${hostedReasonWords(f.reason)}. Nothing ran.`;
+      case "failed": return `Failed: ${hostedReasonWords(f.reason)}. Nothing ran.`;
+    }
+    return f.outcome;
+  }
   switch (f.outcome) {
     case "due": return "Due";
     case "ran": return f.manual ? "Ran (Run now)" : "Ran";
@@ -197,7 +247,8 @@ export function outcomeTone(outcome: string): "ok" | "bad" | "warn" | "due" {
   switch (outcome) {
     case "ran": return "ok";
     case "failed": return "bad";
-    case "missed": return "warn";
+    case "missed":
+    case "skipped": return "warn";
   }
   return "due";
 }
@@ -263,12 +314,45 @@ export function whenOf(iso: string): string {
 }
 
 /** A schedule's state, in a word, for its row. */
-export function scheduleState(s: { paused?: boolean; ended?: boolean; signedOut?: boolean; keysSealed?: boolean }): string {
+export function scheduleState(s: { paused?: boolean; ended?: boolean; signedOut?: boolean; keysSealed?: boolean; hosted?: boolean; pausedReason?: string }): string {
   if (s.ended) return "Ended";
+  if (s.hosted && s.paused) {
+    switch (s.pausedReason) {
+      case "refusals": return "Paused after three refused runs in a row: Resume checks it again";
+      case "entitlement": return "Paused: your plan no longer schedules runs In Agentry";
+      case "account": return "Paused: the account is not active";
+    }
+    return "Paused";
+  }
   if (s.paused) return "Paused";
+  if (s.hosted) return "Runs In Agentry, whether or not this computer is on";
   if (s.signedOut && !s.keysSealed) return "Keys not sealed: it does not run while you are signed out";
   if (s.signedOut) return "Runs while you are signed out too";
   return "Runs while you are signed in";
+}
+
+/** The rows of two calendars as one, by time: what is here and what is In
+ *  Agentry (agentry-desktop#745). */
+export function mergeFires<T extends { at: string }>(a: T[], b: T[], newestFirst = false): T[] {
+  const out = [...a, ...b];
+  out.sort((x, y) => (newestFirst ? (x.at < y.at ? 1 : x.at > y.at ? -1 : 0) : (x.at < y.at ? -1 : x.at > y.at ? 1 : 0)));
+  return out;
+}
+
+/** What the When step says of a schedule In Agentry the registry refused
+ *  to make, as a heading over its own sentence; the gaps it can fix in
+ *  place (secrets, connections) have their own asks. */
+export function hostedGapHeading(refusal: string): string {
+  switch (refusal) {
+    case "schedule-tier": return "Scheduling runs In Agentry is not part of this plan.";
+    case "schedule-limit": return "This account keeps its most schedules.";
+    case "when-passed": return "This repeat has nothing left to run.";
+    case "release-changed": return "This version is no longer the one it was.";
+    case "connection-missing": return "Agentry keeps no connection to a server this release signs in to.";
+    case "secret-missing":
+    case "secret-not-kept": return "A schedule's runs use secrets your account keeps.";
+  }
+  return "Agentry did not make the schedule.";
 }
 
 /** The month title: "October 2026". */
@@ -282,13 +366,18 @@ export function zoneChoices(here: string, supported: string[]): string[] {
   return here ? [here, ...rest] : rest;
 }
 
-/** Home's Scheduled card's status line (D13; agentry-desktop#744): how many
- *  schedules this computer keeps, or what kept them from being read. */
-export function scheduledCardStatus(v: { schedules: number } | null, error: string | null): string {
+/** Home's Scheduled card's status line (D13; agentry-desktop#744, #745):
+ *  how many schedules this computer keeps and the account keeps In
+ *  Agentry, or what kept them from being read. */
+export function scheduledCardStatus(v: { schedules: number; hostedSchedules?: number } | null, error: string | null): string {
   if (error) return "The schedules could not be read.";
   if (!v) return "Reading the schedules…";
-  if (v.schedules === 0) return "Nothing is scheduled on this computer yet.";
-  return `${v.schedules} schedule${v.schedules === 1 ? "" : "s"} on this computer.`;
+  const here = v.schedules, there = v.hostedSchedules ?? 0;
+  const n = (k: number) => `${k} schedule${k === 1 ? "" : "s"}`;
+  if (here === 0 && there === 0) return "Nothing is scheduled on this computer yet.";
+  if (there === 0) return `${n(here)} on this computer.`;
+  if (here === 0) return `${n(there)} In Agentry.`;
+  return `${n(here)} on this computer, ${there} In Agentry.`;
 }
 
 /** A reason from Go as a sentence: its first letter capital, one stop. */

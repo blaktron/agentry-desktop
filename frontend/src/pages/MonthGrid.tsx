@@ -60,7 +60,7 @@ export function CalendarKey() {
   return (
     <p className="muted small cal-key">
       <span className="cal-dot tone-due" /> due <span className="cal-dot tone-ok" /> ran <span className="cal-dot tone-bad" /> failed{" "}
-      <span className="cal-dot tone-warn" /> missed
+      <span className="cal-dot tone-warn" /> missed or skipped
     </p>
   );
 }

@@ -1559,6 +1559,32 @@ export namespace main {
 	}
 	
 	
+	export class CalendarFire {
+	    hosted: boolean;
+	    scheduleId: string;
+	    name: string;
+	    at: string;
+	    outcome: string;
+	    reason?: string;
+	    runId?: string;
+	    zone?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CalendarFire(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hosted = source["hosted"];
+	        this.scheduleId = source["scheduleId"];
+	        this.name = source["name"];
+	        this.at = source["at"];
+	        this.outcome = source["outcome"];
+	        this.reason = source["reason"];
+	        this.runId = source["runId"];
+	        this.zone = source["zone"];
+	    }
+	}
 	export class ModelView {
 	    id: string;
 	    displayName?: string;
@@ -2272,6 +2298,26 @@ export namespace main {
 	        this.path = source["path"];
 	    }
 	}
+	export class HostedScheduleOfferView {
+	    offered: boolean;
+	    available: boolean;
+	    reason?: string;
+	    remedy?: string;
+	    upgrade?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedScheduleOfferView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.offered = source["offered"];
+	        this.available = source["available"];
+	        this.reason = source["reason"];
+	        this.remedy = source["remedy"];
+	        this.upgrade = source["upgrade"];
+	    }
+	}
 	export class HostedSessionOfferView {
 	    offered: boolean;
 	    available: boolean;
@@ -2340,6 +2386,7 @@ export namespace main {
 	    optionalSecrets?: string[];
 	    vault: boolean;
 	    session?: HostedSessionOfferView;
+	    schedule?: HostedScheduleOfferView;
 	    publisherEarns: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -2371,7 +2418,40 @@ export namespace main {
 	        this.optionalSecrets = source["optionalSecrets"];
 	        this.vault = source["vault"];
 	        this.session = this.convertValues(source["session"], HostedSessionOfferView);
+	        this.schedule = this.convertValues(source["schedule"], HostedScheduleOfferView);
 	        this.publisherEarns = source["publisherEarns"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HostedCalendarView {
+	    fires: CalendarFire[];
+	    unavailable?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedCalendarView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fires = this.convertValues(source["fires"], CalendarFire);
+	        this.unavailable = source["unavailable"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2680,6 +2760,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class HostedRunNowView {
+	    runId?: string;
+	    refusal?: string;
+	    detail?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedRunNowView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.runId = source["runId"];
+	        this.refusal = source["refusal"];
+	        this.detail = source["detail"];
+	    }
+	}
 	
 	export class HostedRunsTermsView {
 	    holdCredits: number;
@@ -2693,6 +2789,169 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.holdCredits = source["holdCredits"];
 	        this.caps = this.convertValues(source["caps"], HostedCapsView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HostedScheduleItem {
+	    hosted: boolean;
+	    registry: string;
+	    id: string;
+	    name: string;
+	    ref: string;
+	    version: string;
+	    describe: string;
+	    when: schedules.When;
+	    paused?: boolean;
+	    pausedReason?: string;
+	    ended?: boolean;
+	    runs?: number;
+	    refusals?: number;
+	    next?: string;
+	    files?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedScheduleItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hosted = source["hosted"];
+	        this.registry = source["registry"];
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.ref = source["ref"];
+	        this.version = source["version"];
+	        this.describe = source["describe"];
+	        this.when = this.convertValues(source["when"], schedules.When);
+	        this.paused = source["paused"];
+	        this.pausedReason = source["pausedReason"];
+	        this.ended = source["ended"];
+	        this.runs = source["runs"];
+	        this.refusals = source["refusals"];
+	        this.next = source["next"];
+	        this.files = source["files"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HostedScheduleMadeView {
+	    id?: string;
+	    next?: string;
+	    refusal?: string;
+	    detail?: string;
+	    missing?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedScheduleMadeView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.next = source["next"];
+	        this.refusal = source["refusal"];
+	        this.detail = source["detail"];
+	        this.missing = source["missing"];
+	    }
+	}
+	
+	export class HostedScheduleRequest {
+	    registry: string;
+	    ref: string;
+	    name?: string;
+	    task?: string;
+	    files?: string[];
+	    knowledge?: string[];
+	    intake?: {[key: string]: string};
+	    voice: boolean;
+	    when: schedules.When;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedScheduleRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registry = source["registry"];
+	        this.ref = source["ref"];
+	        this.name = source["name"];
+	        this.task = source["task"];
+	        this.files = source["files"];
+	        this.knowledge = source["knowledge"];
+	        this.intake = source["intake"];
+	        this.voice = source["voice"];
+	        this.when = this.convertValues(source["when"], schedules.When);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HostedSchedulesView {
+	    registry: string;
+	    signedOut?: boolean;
+	    unavailable?: string;
+	    schedules: HostedScheduleItem[];
+	    limit?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostedSchedulesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.registry = source["registry"];
+	        this.signedOut = source["signedOut"];
+	        this.unavailable = source["unavailable"];
+	        this.schedules = this.convertValues(source["schedules"], HostedScheduleItem);
+	        this.limit = source["limit"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4788,7 +5047,10 @@ export namespace main {
 	    reason?: string;
 	    schedules: number;
 	    month: schedules.Fire[];
-	    next: schedules.Fire[];
+	    hostedMonth: CalendarFire[];
+	    hostedSchedules: number;
+	    hostedReason?: string;
+	    next: CalendarFire[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ScheduledCardView(source);
@@ -4799,7 +5061,10 @@ export namespace main {
 	        this.reason = source["reason"];
 	        this.schedules = source["schedules"];
 	        this.month = this.convertValues(source["month"], schedules.Fire);
-	        this.next = this.convertValues(source["next"], schedules.Fire);
+	        this.hostedMonth = this.convertValues(source["hostedMonth"], CalendarFire);
+	        this.hostedSchedules = source["hostedSchedules"];
+	        this.hostedReason = source["hostedReason"];
+	        this.next = this.convertValues(source["next"], CalendarFire);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

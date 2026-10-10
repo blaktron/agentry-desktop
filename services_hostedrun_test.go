@@ -128,6 +128,9 @@ type hostedFake struct {
 	// makes the same create again and uploads nothing again).
 	uploads int
 	creates []string
+	// routes, when set, adds routes of another extension to the fake
+	// (the schedules extension's, agentry-desktop#745).
+	routes func(mux *http.ServeMux)
 }
 
 // vaultSet is one PUT as the vault received it: the name, the body whole.
@@ -424,6 +427,9 @@ func (f *hostedFake) start(t *testing.T) string {
 			}
 			w.WriteHeader(http.StatusAccepted)
 		})
+	}
+	if f.routes != nil {
+		f.routes(mux)
 	}
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
