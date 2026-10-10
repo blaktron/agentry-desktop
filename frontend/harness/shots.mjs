@@ -429,6 +429,13 @@ const states = [
   // Pin to Home (plan quickagent-scheduling.md D13; agentry-desktop#744).
   { name: "page-scheduled-menu", url: "/pages.html", note: "the Scheduled page's options menu offers Pin to Home while Home has no Scheduled card", locator: '[data-preview="scheduled"] .page-header',
     click: '[data-preview="scheduled"] [data-options-menu]', expectSelector: '[data-preview="scheduled"] [role="menu"] [data-menu-item="pin-home"]', expectText: "Pin to Home" },
+  { name: "page-scheduled-nocli", url: "/pages.html#scheduled-nocli", note: "no agentry command on this computer (macOS before an install): the notice says to install it from Options, and the menu offers Install the agentry command (agentry-desktop#788)", locator: '[data-preview="scheduled"]',
+    click: '[data-preview="scheduled"] [data-options-menu]',
+    expectText: ["needs the agentry command, which was not found", "To install it, choose Options, then Install the agentry command."], expectSelector: '[data-preview="scheduled"] [role="menu"] [data-menu-item="install-cli"]:text-is("Install the agentry command")' },
+  { name: "page-scheduled-install-cli", url: "/pages.html#scheduled-nocli", note: "Install the agentry command: Go runs the site's install script after a native dialog; the page says where it went and what the script changed, the notice goes, and the menu now offers Reinstall (agentry-desktop#788)", locator: '[data-preview="scheduled"]',
+    click: ['[data-preview="scheduled"] [data-options-menu]', '[data-preview="scheduled"] [data-menu-item="install-cli"]', '[data-preview="scheduled"] [data-options-menu]'],
+    expectText: ["Installed agentry 0.6.93 at /Users/me/.local/bin/agentry.", "Added /Users/me/.local/bin to PATH in /Users/me/.zshrc", "What the install script printed"],
+    expectSelector: '[data-preview="scheduled"] [data-menu-item="install-cli"]:text-is("Reinstall the agentry command")', expectNone: '[data-preview="scheduled"] [data-scheduled-unavailable]' },
   { name: "page-scheduled-pin", url: "/pages.html", note: "Pin to Home: Go adds the Large Scheduled card at the end of Home, and the menu now offers Unpin", locator: '[data-preview="scheduled"]',
     click: ['[data-preview="scheduled"] [data-options-menu]', '[data-preview="scheduled"] [data-menu-item="pin-home"]', '[data-preview="scheduled"] [data-options-menu]'],
     expectText: "Pinned to Home: this month's calendar and the next three runs.", expectSelector: '[data-preview="scheduled"] [data-menu-item="unpin-home"]' },

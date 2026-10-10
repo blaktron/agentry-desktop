@@ -71,11 +71,17 @@ The product never claims an agent is "safe". The language is always:
   command's check (`agentry schedule add --check`) finds nothing a fire
   would lack; each gap is listed. The CLI keeps the schedules: the app
   reads its store under the runner home in process, and makes every change
-  with the **installed agentry command** (`/usr/bin/agentry` from the Linux
-  packages, `bin\agentry.exe` beside the Windows app), whose path each
-  schedule's entry in the system's scheduler pins. On macOS the page says
-  scheduling is not available until the app carries the command
-  (agentry-desktop#581). The app runs `agentry schedule sync` at start, and
+  with the **installed agentry command** (`bin\agentry.exe` beside the
+  Windows app; on macOS and Linux the one the site's install script put in
+  `~/.local/bin`, else the Linux packages' `/usr/bin/agentry`), whose path
+  each schedule's entry in the system's scheduler pins. On macOS and Linux
+  the page's **Options** menu offers **Install the agentry command** (or
+  **Reinstall** it, once one is found), and the notice that says the
+  command is missing or too old points there (agentry-desktop#788, D-076):
+  after a native dialog it runs the site's own `/install.sh`, which puts
+  the CLI that site serves in `~/.local/bin`, checked against the SHA-256
+  the site lists, and adds that folder to PATH in the shell's startup file
+  once; Node is left to the person. The app runs `agentry schedule sync` at start, and
   `agentry schedule reseal` after a model key, a provider key or a sign-in
   changes in Settings, so a signed-out schedule's sealed keys follow it.
   A run a schedule fired, the app open or not, shows in Recent runs marked

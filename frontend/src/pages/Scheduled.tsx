@@ -94,6 +94,12 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   // the menu offers nothing. pinSaid is what the last Pin or Unpin did.
   const [home, setHome] = useState<main.HomeLayoutView | null>(null);
   const [pinSaid, setPinSaid] = useState<{ text: string; error?: boolean } | null>(null);
+  // The Options menu's Install or Reinstall the agentry command
+  // (agentry-desktop#788, D-076): the site's install script runs in Go,
+  // after a native dialog; installed is what it did.
+  const [installing, setInstalling] = useState(false);
+  const [installed, setInstalled] = useState<main.CLIInstallView | null>(null);
+  const [installErr, setInstallErr] = useState<string | null>(null);
 
   const weeks = useMemo(() => monthGrid(month.year, month.month, now), [month, now]);
   const range = useMemo(() => gridRange(weeks), [weeks]);
@@ -154,10 +160,11 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
       .catch(() => { if (live) setOffer(null); });
     return () => { live = false; };
   }, [registry]);
-  useEffect(() => {
+  const readAvailability = useCallback(() => {
     ScheduleAPI.Availability().then(setAvailability).catch((e) =>
       setAvailability({ available: false, reason: String(e), zone: "", signedOut: { available: false, reason: String(e) }, lingerOn: false }));
   }, []);
+  useEffect(readAvailability, [readAvailability]);
   useEffect(() => {
     let live = true;
     HomeAPI.Layout().then((v) => { if (live) setHome(v); }).catch(() => {});
@@ -220,6 +227,25 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
       setPinSaid({ text: String(e), error: true });
     }
   }
+  async function installCLI() {
+    setInstalling(true);
+    setInstallErr(null);
+    setInstalled(null);
+    try {
+      const v = await ScheduleAPI.InstallCLI();
+      if (v) setInstalled(v);
+    } catch (e) {
+      setInstallErr(String(e));
+    } finally {
+      setInstalling(false);
+      readAvailability();
+    }
+  }
+  const installLabel = availability?.installCLI || "";
+  const menu = [
+    ...(homeUsable ? [{ key: onHome ? "unpin-home" : "pin-home", label: onHome ? "Unpin from Home" : "Pin to Home", onSelect: () => void pin() }] : []),
+    ...(installLabel ? [{ key: "install-cli", label: installLabel, disabled: installing, onSelect: () => void installCLI() }] : []),
+  ];
   const items: Row[] = [
     ...(list?.schedules ?? []).map((x) => ({ ...x, hosted: false as const })),
     ...(hosted?.schedules ?? []).map((x) => ({ ...x, hosted: true as const })),
@@ -232,14 +258,36 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
         title="Scheduled"
         sub="Runs for later, or on repeat like a calendar entry: on this computer, and In Agentry."
         actions={<>
-          {homeUsable && (
-            <OptionsMenu items={[{ key: onHome ? "unpin-home" : "pin-home", label: onHome ? "Unpin from Home" : "Pin to Home", onSelect: () => void pin() }]} />
-          )}
+          {menu.length > 0 && <OptionsMenu items={menu} />}
           <Button variant="primary" onClick={() => setPicking(true)} disabled={!!unavailable && !hostedOpen}>Schedule a new run</Button>
         </>}
       />
       {pinSaid && (pinSaid.error ? <ErrorBox error={pinSaid.text} /> : <p className="small home-said" role="status" data-pin-said>{pinSaid.text}</p>)}
-      {unavailable && <Notice tone="warn"><span data-scheduled-unavailable>{unavailable}</span></Notice>}
+      {unavailable && (
+        <Notice tone="warn">
+          <span data-scheduled-unavailable>{unavailable}</span>
+          {installLabel && !installing && (
+            <>{" "}<span data-install-cli-note>To {installLabel === "Install the agentry command" ? "install it" : "bring it up to date"}, choose
+              Options, then {installLabel}.</span></>
+          )}
+        </Notice>
+      )}
+      {installing && <p className="small" role="status" data-install-cli-busy>Installing the agentry command…</p>}
+      {installErr && <ErrorBox error={`The agentry command was not installed: ${installErr}`} />}
+      {installed && (
+        <Notice tone="info">
+          <span data-install-cli-done>
+            Installed {installed.version ? `agentry ${installed.version}` : "the agentry command"} at <span className="selectable">{installed.path}</span>.
+          </span>
+          {(installed.notes ?? []).map((n) => <span key={n} className="selectable" data-install-cli-note-line>{" "}{n}</span>)}
+          {installed.log && (
+            <details className="small" data-install-cli-log>
+              <summary>What the install script printed</summary>
+              <pre className="selectable">{installed.log}</pre>
+            </details>
+          )}
+        </Notice>
+      )}
       {reseal && <Notice tone="warn"><span className="selectable" data-reseal-problem>{reseal}</span></Notice>}
       {hostedSaid && (
         <Notice tone="warn">

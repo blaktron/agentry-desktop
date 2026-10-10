@@ -5,8 +5,9 @@
 // schedule's entry in the system's own scheduler pins the absolute path of
 // the agentry binary that wrote it (a systemd user timer, a LaunchAgent, a
 // Task Scheduler task). So every change goes through the installed agentry
-// command (the Linux package's /usr/bin/agentry, the Windows install's
-// bin\agentry.exe, D-061), never through this process: an entry written
+// command (the Windows install's bin\agentry.exe, D-061; the site's install
+// script's ~/.local/bin/agentry, D-076; the Linux package's /usr/bin/agentry),
+// never through this process: an entry written
 // from here would name the desktop's own executable. What the page shows is
 // read in process, through the CLI's pkg/schedule: the schedules, what each
 // fire did (fires.ndjson) and the occurrences to come.
@@ -28,6 +29,8 @@ import (
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/schedule"
+
+	"github.com/blaktron/agentry-desktop/internal/cliinstall"
 )
 
 // MinCLI is the oldest agentry that has what the desktop drives: add
@@ -37,14 +40,11 @@ var MinCLI = [3]int{0, 6, 86}
 // ErrNoCLI says why scheduling on this computer is not offered here.
 var ErrNoCLI = errors.New("scheduling a run on this computer needs the agentry command, which was not found")
 
-// errMacOS is the reason on macOS until the app carries the command
-// (agentry-desktop#581, plan cli-on-path.md M4; D14).
-var errMacOS = errors.New("scheduling a run on this computer needs the agentry command, which this app does not carry on macOS yet; `agentry schedule` works where the command is installed")
-
-// goos and executable are replaced in tests.
+// goos, executable, getenv, lookPath and statFile are replaced in tests.
 var (
 	goos       = runtime.GOOS
 	executable = os.Executable
+	getenv     = os.Getenv
 	lookPath   = exec.LookPath
 	statFile   = os.Stat
 )
@@ -52,18 +52,28 @@ var (
 // linuxPackageCLI is where the Linux packages install the command (D-061).
 const linuxPackageCLI = "/usr/bin/agentry"
 
-// FindCLI is the installed agentry this app drives: the one its installer
-// put down, else the one on PATH.
+// FindCLI is the installed agentry this app drives. On Windows, the one its
+// installer put down. On macOS and Linux, the one the site's install script
+// put in ~/.local/bin, which the Scheduled page's Options menu installs and
+// reinstalls (internal/cliinstall, agentry-desktop#788, D-076), and which an
+// app's PATH often lacks; on Linux it comes before the package's
+// /usr/bin/agentry, as it does on the person's own PATH, so a reinstall to
+// the site's latest is the one used. Else the one on PATH.
 func FindCLI() (string, error) {
 	var candidates []string
 	switch goos {
-	case "darwin":
-		return "", errMacOS
 	case "windows":
 		if exe, err := executable(); err == nil {
 			candidates = append(candidates, filepath.Join(filepath.Dir(exe), "bin", "agentry.exe"))
 		}
+	case "darwin":
+		if p := cliinstall.Path(getenv); p != "" {
+			candidates = append(candidates, p)
+		}
 	case "linux":
+		if p := cliinstall.Path(getenv); p != "" {
+			candidates = append(candidates, p)
+		}
 		candidates = append(candidates, linuxPackageCLI)
 	}
 	for _, c := range candidates {
