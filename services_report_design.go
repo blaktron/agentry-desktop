@@ -16,6 +16,7 @@ import (
 	"github.com/blaktron/agentry-cli/runnerimage/toolsrv"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/settings"
+	"github.com/blaktron/agentry/pkg/apiclient"
 	"github.com/blaktron/agentry/pkg/reportdesign"
 )
 
@@ -248,7 +249,9 @@ func accountDesign(ctx context.Context, url, token string) (doc []byte, found bo
 	if err != nil {
 		return nil, false, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	resp, err := client.GetUserReportSettingsWithResponse(ctx)
+	// No include: the design comes without its logo, as the core answers
+	// a client built before logos (agentry#1025); the app shows none yet.
+	resp, err := client.GetUserReportSettingsWithResponse(ctx, &apiclient.GetUserReportSettingsParams{})
 	if err != nil {
 		return nil, false, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
@@ -312,7 +315,7 @@ func saveReportDesign(ctx context.Context, url, token string, d *reportdesign.De
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	resp, err := client.UpdateUserReportSettingsWithBodyWithResponse(ctx, "application/json", bytes.NewReader(body))
+	resp, err := client.UpdateUserReportSettingsWithBodyWithResponse(ctx, &apiclient.UpdateUserReportSettingsParams{}, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
