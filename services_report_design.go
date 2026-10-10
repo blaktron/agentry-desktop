@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/blaktron/agentry-cli/pkg/reportthumbs"
@@ -18,6 +20,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry/pkg/apiclient"
 	"github.com/blaktron/agentry/pkg/reportdesign"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // The report design (plan report-designs.md §4, D2, D8, D10, D14, D17, D18,
@@ -37,6 +40,16 @@ import (
 // CheckReportDesign, so the page cannot disagree with the core's save. The
 // thumbnails are the pinned CLI's (pkg/reportthumbs), rendered by the
 // runner's own template.
+//
+// The logo (plan §4 "The logo", D9; agentry#1025, agentry-desktop#777) is
+// the person's own image, drawn by the pinned CLI in the title block. The
+// core keeps it beside the design and answers it only when asked
+// (include=logo), which this app always does: the page shows it, and a
+// local run carries it whole to the CLI. It is uploaded and removed on its
+// own; a Save sends the design without it, and the core keeps the stored
+// one. The page never holds its bytes in the design it edits: the view
+// gives it as a PNG data: URL beside the design, so the editor's checks do
+// not carry half a megabyte back and forth on every change.
 
 // ReportDesignView is the account's report design as the page shows it.
 // Available is false on a registry from before the setting, where the page
@@ -48,6 +61,9 @@ type ReportDesignView struct {
 	Design     *reportdesign.Design `json:"design,omitempty"`
 	Label      string               `json:"label,omitempty"`
 	Unreadable string               `json:"unreadable,omitempty"`
+	// Logo is the design's logo as a PNG data: URL, "" for none. The
+	// Design beside it never carries the logo.
+	Logo string `json:"logo,omitempty"`
 }
 
 // ReportDesignOptions are the editor's choices, all of them the core's:
@@ -239,19 +255,23 @@ func (s *SettingsAPI) ResetReportDesign(url string) (*ReportDesignView, error) {
 	return saveReportDesign(s.app.ctx, url, token, nil)
 }
 
+// withLogo asks the core for the design with its logo (agentry#1025).
+func withLogo() *apiclient.ReportSettingsInclude {
+	include := apiclient.ReportSettingsIncludeLogo
+	return &include
+}
+
 // accountDesign is the account's report design document as the registry
-// answers it: nil when never chosen. found is false on a registry from
-// before the setting. The document is the core's own bytes, not read
-// through the generated type, so a field a later core adds is kept for
-// the parse to see rather than dropped.
+// answers it, its logo included: nil when never chosen. found is false on a
+// registry from before the setting. The document is the core's own bytes,
+// not read through the generated type, so a field a later core adds is kept
+// for the parse to see rather than dropped.
 func accountDesign(ctx context.Context, url, token string) (doc []byte, found bool, err error) {
 	client, err := registry.New(url, token)
 	if err != nil {
 		return nil, false, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	// No include: the design comes without its logo, as the core answers
-	// a client built before logos (agentry#1025); the app shows none yet.
-	resp, err := client.GetUserReportSettingsWithResponse(ctx, &apiclient.GetUserReportSettingsParams{})
+	resp, err := client.GetUserReportSettingsWithResponse(ctx, &apiclient.GetUserReportSettingsParams{Include: withLogo()})
 	if err != nil {
 		return nil, false, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
@@ -296,26 +316,35 @@ func reportDesignView(doc []byte) *ReportDesignView {
 		v.Unreadable = err.Error()
 		return v
 	}
+	// Parse held the logo to a PNG within the bounds; the page draws it
+	// only as this data: URL.
+	if d.Logo != (reportdesign.Logo{}) {
+		v.Logo = "data:image/png;base64," + d.Logo.PNG
+		d.Logo = reportdesign.Logo{}
+	}
 	v.Design, v.Label = &d, designLabel(d)
 	return v
 }
 
-// saveReportDesign stores d, or clears the setting when d is nil. A design
-// the core would refuse is refused here first, in the core's words, and
-// nothing is sent.
+// saveReportDesign stores d, or clears the setting when d is nil (the
+// logo with it). A design the core would refuse is refused here first, in
+// the core's words, and nothing is sent. The design goes without a logo,
+// whatever d holds, so the core keeps the one the account has.
 func saveReportDesign(ctx context.Context, url, token string, d *reportdesign.Design) (*ReportDesignView, error) {
 	body := []byte("{}")
 	if d != nil {
-		if err := d.Validate(); err != nil {
+		sent := *d
+		sent.Logo = reportdesign.Logo{}
+		if err := sent.Validate(); err != nil {
 			return nil, err
 		}
-		body = append(append([]byte(`{"design":`), d.Canonical()...), '}')
+		body = append(append([]byte(`{"design":`), sent.Canonical()...), '}')
 	}
 	client, err := registry.New(url, token)
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
-	resp, err := client.UpdateUserReportSettingsWithBodyWithResponse(ctx, &apiclient.UpdateUserReportSettingsParams{}, "application/json", bytes.NewReader(body))
+	resp, err := client.UpdateUserReportSettingsWithBodyWithResponse(ctx, &apiclient.UpdateUserReportSettingsParams{Include: withLogo()}, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
 	}
@@ -327,6 +356,107 @@ func saveReportDesign(ctx context.Context, url, token string, d *reportdesign.De
 		return nil, err
 	}
 	return reportDesignView(doc), nil
+}
+
+// ChooseReportLogo asks for a PNG or JPEG with the system's file picker and
+// uploads it as the logo of the account's design. A cancelled pick changes
+// nothing and answers no view. The path never comes from the page: the
+// picker is opened here.
+func (s *SettingsAPI) ChooseReportLogo(url string) (*ReportDesignView, error) {
+	url, token, err := storedCredential(url)
+	if err != nil {
+		return nil, err
+	}
+	path, err := pickReportLogo(s.app.ctx)
+	if err != nil || path == "" {
+		return nil, err
+	}
+	return uploadReportLogo(s.app.ctx, url, token, path)
+}
+
+// RemoveReportLogo takes the logo off the account's design and keeps the
+// design.
+func (s *SettingsAPI) RemoveReportLogo(url string) (*ReportDesignView, error) {
+	url, token, err := storedCredential(url)
+	if err != nil {
+		return nil, err
+	}
+	return removeReportLogo(s.app.ctx, url, token)
+}
+
+// pickReportLogo is the system's file picker for a logo; a test replaces it.
+var pickReportLogo = func(ctx context.Context) (string, error) {
+	return runtime.OpenFileDialog(ctx, runtime.OpenDialogOptions{
+		Title:   "Choose your logo",
+		Filters: []runtime.FileFilter{{DisplayName: "PNG or JPEG images", Pattern: "*.png;*.jpg;*.jpeg"}},
+	})
+}
+
+// errLogoTooLarge is the core's own bound, told before the file is sent.
+var errLogoTooLarge = errors.New("a logo is at most 512 KB; nothing changed")
+
+// uploadReportLogo sends the file at path as the design's logo: one
+// multipart part named file, its bytes alone (not its name), at most the
+// core's MaxLogoUploadBytes. The core decides what the bytes are, encodes
+// the logo again from its pixels, and refuses with its own words (415 for
+// anything but a PNG or a JPEG, 413 over a bound, 409 with no design saved).
+func uploadReportLogo(ctx context.Context, url, token, path string) (*ReportDesignView, error) {
+	f, err := os.Open(path) //nolint:gosec // the file the person picked
+	if err != nil {
+		return nil, fmt.Errorf("open the logo: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, reportdesign.MaxLogoUploadBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read the logo: %w", err)
+	}
+	if len(data) > reportdesign.MaxLogoUploadBytes {
+		return nil, errLogoTooLarge
+	}
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	part, err := mw.CreateFormFile("file", "logo")
+	if err == nil {
+		_, err = part.Write(data)
+	}
+	if err == nil {
+		err = mw.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	client, err := registry.New(url, token)
+	if err != nil {
+		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
+	}
+	resp, err := client.PutUserReportLogoWithBodyWithResponse(ctx, mw.FormDataContentType(), &body)
+	if err != nil {
+		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, registry.Problem("set your logo", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
+	}
+	doc, _, err := settingsDesign(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return reportDesignView(doc), nil
+}
+
+// removeReportLogo takes the logo off, then reads the design back.
+func removeReportLogo(ctx context.Context, url, token string) (*ReportDesignView, error) {
+	client, err := registry.New(url, token)
+	if err != nil {
+		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
+	}
+	resp, err := client.DeleteUserReportLogoWithResponse(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("reach %s: %w", originOf(url), err)
+	}
+	if resp.StatusCode()/100 != 2 {
+		return nil, registry.Problem("remove your logo", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
+	}
+	return reportDesignOf(ctx, url, token)
 }
 
 // reportThemeFor is the design a local run or chat at reg takes: the

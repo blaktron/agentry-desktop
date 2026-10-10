@@ -22,6 +22,10 @@ export function ChooseDefaultOutputDir() {
   return window['go']['main']['SettingsAPI']['ChooseDefaultOutputDir']();
 }
 
+export function ChooseReportLogo(arg1) {
+  return window['go']['main']['SettingsAPI']['ChooseReportLogo'](arg1);
+}
+
 export function ClearDefaultOutputDir() {
   return window['go']['main']['SettingsAPI']['ClearDefaultOutputDir']();
 }
@@ -60,6 +64,10 @@ export function RegistryMeta(arg1) {
 
 export function RemoveRegistry(arg1) {
   return window['go']['main']['SettingsAPI']['RemoveRegistry'](arg1);
+}
+
+export function RemoveReportLogo(arg1) {
+  return window['go']['main']['SettingsAPI']['RemoveReportLogo'](arg1);
 }
 
 export function ReportDesign(arg1) {

@@ -127,7 +127,10 @@ export function startFrom(theme: ReportDesign): ReportDesign {
 /**
  * The design as the page sends it to SaveReportDesign: the fields of
  * version 2 in the core's order, and nothing else the object happens to
- * carry.
+ * carry. Never the logo (agentry#1025, agentry-desktop#777): it is uploaded
+ * and removed on its own (SettingsAPI.ChooseReportLogo, RemoveReportLogo),
+ * Go's view gives it beside the design rather than in it, and the core
+ * keeps a stored logo when a design is saved without one.
  */
 export function toDocument(d: ReportDesign): ReportDesign {
   return {
@@ -172,6 +175,16 @@ export function cssFamily(name: string, families: ReportFamily[]): string {
   const f = families.find((x) => x.name === name);
   const generic = f?.kind === "mono" ? "ui-monospace, monospace" : f?.kind === "serif" ? "Georgia, serif" : "system-ui, sans-serif";
   return f ? `"Report ${f.name}", ${generic}` : generic;
+}
+
+/** The one field of version 2 the editor neither shows nor sends: the
+ *  logo, uploaded on its own. */
+export const LOGO_FIELD = "logo";
+
+/** Whether src is a PNG data: URL, the only logo the preview and the page
+ *  draw (Go's view builds it from the core's answer). */
+export function isLogoSrc(src: unknown): src is string {
+  return typeof src === "string" && /^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(src);
 }
 
 const HEX = /^#[0-9a-f]{6}$/;

@@ -16,10 +16,13 @@
 // preview's width with container units, so the paper changes the
 // proportions as it does in the PDF. Only the core's families and a hex
 // accent reach a style (reportDesign.ts cssFamily, cssColour); the tint is
-// the core's, from CheckReportDesign.
+// the core's, from CheckReportDesign. The person's logo, when they have one,
+// sits at the title's right as the template draws it (agentry-cli#816): at
+// most 14 mm tall and 3.5 times that wide, on a small white ground on a band
+// (agentry-desktop#777); only a PNG data: URL (reportDesign.ts isLogoSrc).
 import type { CSSProperties, ReactNode } from "react";
 import "../reportFonts/fonts.css";
-import { cssColour, cssFamily, type ReportDesign, type ReportFamily } from "../reportDesign";
+import { cssColour, cssFamily, isLogoSrc, type ReportDesign, type ReportFamily } from "../reportDesign";
 
 const INK = "#1a1a1a";
 const MUTED = "#5b6068";
@@ -34,7 +37,16 @@ const PAPER: Record<string, { width: number; height: number; margin: number }> =
 // pt is a length in points of the paper, in the preview's own scale.
 const pt = (n: number) => `calc(var(--rd-pt) * ${Number(n.toFixed(3))})`;
 
-export function ReportDesignPreview({ design, tint, families }: { design: ReportDesign; tint: string; families: ReportFamily[] }) {
+// LOGO_TALL is the most a logo is drawn high, 14 mm in points; it is at
+// most 3.5 times that wide. The template's sizes.
+const LOGO_TALL = 39.7;
+
+export function ReportDesignPreview({ design, tint, families, logo = "" }: {
+  design: ReportDesign;
+  tint: string;
+  families: ReportFamily[];
+  logo?: string;
+}) {
   const paper = PAPER[design.paper] ?? PAPER.a4;
   const accent = cssColour(design.accent);
   const tinted = cssColour(tint || "#ffffff");
@@ -93,31 +105,52 @@ export function ReportDesignPreview({ design, tint, families }: { design: Report
 
   const titleText = "Quarterly review";
   const titleStyle: CSSProperties = { fontFamily: headingFont, fontWeight: 700, fontSize: pt(body * 2), lineHeight: 1.15, margin: 0, color: INK };
+  // With a logo the title block lays the title and the logo out on one
+  // line; the title stays the block's own child.
+  const src = isLogoSrc(logo) ? logo : "";
+  const beside: CSSProperties = src ? { display: "flex", alignItems: "center", justifyContent: "space-between", gap: pt(14) } : {};
+  const logoImg = (chip: boolean): ReactNode =>
+    src ? (
+      <img src={src} alt="Your logo" data-logo style={{
+        display: "block", flex: "none", width: "auto", height: "auto", maxHeight: pt(LOGO_TALL), maxWidth: pt(LOGO_TALL * 3.5),
+        ...(chip ? { background: "#ffffff", padding: pt(4), borderRadius: pt(2), boxSizing: "content-box" as const } : {}),
+      }} />
+    ) : null;
   let title: ReactNode;
   switch (design.titleBlock) {
     case "band":
       title = (
-        <div style={{ background: accent, padding: `${pt(16)} ${pt(14)}` }}>
+        <div style={{ background: accent, padding: `${pt(16)} ${pt(14)}`, ...beside }}>
           <h1 style={{ ...titleStyle, color: "#ffffff" }}>{titleText}</h1>
+          {logoImg(true)}
         </div>
       );
       break;
     case "bar":
       title = (
-        <div style={{ borderLeft: `${pt(4)} solid ${accent}`, padding: `${pt(4)} 0 ${pt(4)} ${pt(12)}` }}>
+        <div style={{ borderLeft: `${pt(4)} solid ${accent}`, padding: `${pt(4)} 0 ${pt(4)} ${pt(12)}`, ...beside }}>
           <h1 style={titleStyle}>{titleText}</h1>
+          {logoImg(false)}
         </div>
       );
       break;
     case "ruled":
       title = (
-        <div style={{ borderTop: `${pt(1)} solid ${accent}`, borderBottom: `${pt(0.5)} solid ${accent}`, padding: `${pt(body * 0.5)} 0` }}>
+        <div style={{ borderTop: `${pt(1)} solid ${accent}`, borderBottom: `${pt(0.5)} solid ${accent}`, padding: `${pt(body * 0.5)} 0`, ...beside }}>
           <h1 style={titleStyle}>{titleText}</h1>
+          {logoImg(false)}
         </div>
       );
       break;
     default:
-      title = <h1 style={titleStyle}>{titleText}</h1>;
+      title = src ? (
+        <div style={beside}>
+          <h1 style={titleStyle}>{titleText}</h1>
+          {logoImg(false)}
+        </div>
+      ) : (
+        <h1 style={titleStyle}>{titleText}</h1>
+      );
   }
 
   const cell = (y: number, i: number): CSSProperties => ({

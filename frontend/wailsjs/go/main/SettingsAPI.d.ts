@@ -13,6 +13,8 @@ export function ChooseCodingAgentProjectDir():Promise<main.CodingAgentsView>;
 
 export function ChooseDefaultOutputDir():Promise<main.RunDefaultsView>;
 
+export function ChooseReportLogo(arg1:string):Promise<main.ReportDesignView>;
+
 export function ClearDefaultOutputDir():Promise<main.RunDefaultsView>;
 
 export function ClearRunHistory():Promise<main.RunDefaultsView>;
@@ -32,6 +34,8 @@ export function Profile(arg1:string):Promise<main.ProfileView>;
 export function RegistryMeta(arg1:string):Promise<main.MetaView>;
 
 export function RemoveRegistry(arg1:string):Promise<main.SettingsView>;
+
+export function RemoveReportLogo(arg1:string):Promise<main.ReportDesignView>;
 
 export function ReportDesign(arg1:string):Promise<main.ReportDesignView>;
 

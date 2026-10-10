@@ -1214,6 +1214,7 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 @media (max-width: 1000px) { .report-design-grid { grid-template-columns: 1fr; } }
 .report-design-preview { position: sticky; top: 0; }
 .report-design-paper { background: #e5e7eb; padding: 12px; border-radius: 6px; }
+.report-design-logo { display: block; height: 48px; width: auto; max-width: 12rem; padding: 4px; margin: 4px 0 8px; background: #ffffff; border: 1px solid var(--color-border); border-radius: 4px; }
 .report-design-set { border: 0; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 4px; }
 .report-design-set.inline { flex-direction: row; flex-wrap: wrap; column-gap: 16px; }
 .report-design-set.inline > legend { width: 100%; }
