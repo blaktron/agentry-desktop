@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   canonical, CONTROLS, cssColour, cssFamily, edit, fieldLabel, fontsFor, HEADING_LABELS, PAGE_NUMBER_LABELS,
   PAPER_LABELS, QUOTE_LABELS, savedSentence, sameDesign, startFrom, THEME_FIELDS, THEME_LOOKS, TITLE_BLOCK_LABELS,
-  toDocument, type ReportDesign, type ReportFamily,
+  toDocument, isLogoSrc, type ReportDesign, type ReportFamily,
 } from "../src/reportDesign.ts";
 
 // The core's report designs as this app pins them: each theme's canonical
@@ -43,6 +43,26 @@ test("the editor's controls are exactly the fields of version 2 a person may cha
     assert.deepEqual(CONTROLS.map((c) => c.field), fields, id);
   }
   assert.deepEqual(THEME_FIELDS.filter((f) => !leaves(theme("plain")).includes(f)), []);
+  // A design with a logo (agentry#1025) has one field more, which no
+  // control sets and the save never sends: the logo is uploaded on its own.
+  const withLogo = { ...theme("modern"), logo: { png: "iVBORw0KGgo=" } } as ReportDesign;
+  const fields = leaves(withLogo).filter((f) => !THEME_FIELDS.includes(f) && f.split(".")[0] !== "logo");
+  assert.deepEqual(CONTROLS.map((c) => c.field), fields);
+  assert.deepEqual(leaves(withLogo).filter((f) => f.split(".")[0] === "logo"), ["logo.png"]);
+  assert.equal("logo" in toDocument(withLogo), false);
+  assert.equal(canonical(withLogo), canonical(theme("modern")));
+});
+
+// The logo is drawn only as a PNG data: URL (agentry-desktop#777): never a
+// URL, another type, or anything that is not base64.
+test("the page draws a logo only from a PNG data: URL", () => {
+  assert.equal(isLogoSrc("data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="), true);
+  for (const bad of [
+    "https://evil.example/logo.png", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,R0lGODlh",
+    'data:image/png;base64,iVBORw0KGgo"><script>', "data:image/png,iVBORw0KGgo", "", undefined, null, 42,
+  ]) {
+    assert.equal(isLogoSrc(bad), false, String(bad));
+  }
 });
 
 // Invariant 8: each theme, loaded into the editor, every control set to
@@ -113,7 +133,7 @@ test("the preview sets only the core's families, as the app's renamed web fonts,
 
 test("what a save and a reset say", () => {
   assert.equal(savedSentence("House (from Modern)"), "Saved. Your runs' PDF reports use House (from Modern).");
-  assert.match(savedSentence(null), /no report design: runs from this app use Plain/);
+  assert.match(savedSentence(null), /no report design, and no logo: runs from this app use Plain/);
 });
 
 // The preview's web fonts (scripts/sync-report-fonts.sh): every file is

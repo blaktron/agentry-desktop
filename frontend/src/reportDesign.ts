@@ -127,7 +127,10 @@ export function startFrom(theme: ReportDesign): ReportDesign {
 /**
  * The design as the page sends it to SaveReportDesign: the fields of
  * version 2 in the core's order, and nothing else the object happens to
- * carry.
+ * carry. Never the logo (agentry#1025, agentry-desktop#777): it is uploaded
+ * and removed on its own (SettingsAPI.ChooseReportLogo, RemoveReportLogo),
+ * Go's view gives it beside the design rather than in it, and the core
+ * keeps a stored logo when a design is saved without one.
  */
 export function toDocument(d: ReportDesign): ReportDesign {
   return {
@@ -174,6 +177,12 @@ export function cssFamily(name: string, families: ReportFamily[]): string {
   return f ? `"Report ${f.name}", ${generic}` : generic;
 }
 
+/** Whether src is a PNG data: URL, the only logo the preview and the page
+ *  draw (Go's view builds it from the core's answer). */
+export function isLogoSrc(src: unknown): src is string {
+  return typeof src === "string" && /^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(src);
+}
+
 const HEX = /^#[0-9a-f]{6}$/;
 
 /** The accent when it is #rrggbb, else black: the preview's styles take
@@ -209,12 +218,12 @@ export function fieldLabel(field: string): string {
 export function savedSentence(label: string | null): string {
   return label
     ? `Saved. Your runs' PDF reports use ${label}.`
-    : "Reset. You have no report design: runs from this app use Plain.";
+    : "Reset. You have no report design, and no logo: runs from this app use Plain.";
 }
 
 /** The line under the editor: what runs from this app draw now. */
 export function standingSentence(label: string | null): string {
   return label
-    ? `Your runs use ${label}. Reset forgets it, and runs from this app then use Plain.`
+    ? `Your runs use ${label}. Reset forgets it and your logo, and runs from this app then use Plain.`
     : "You have not saved a design: runs from this app use Plain.";
 }
