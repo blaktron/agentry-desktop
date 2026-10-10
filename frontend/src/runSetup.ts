@@ -196,9 +196,10 @@ export function requiredOf(p: { declaredSecrets: string[]; optionalSecrets?: str
 
 /**
  * What the review says of the optional keys a run may go without: on this
- * computer, each one the saved profile holds no value for, which the run
- * takes from the environment or starts without; In Agentry, each one, which
- * the run carries only where the account keeps it. "" when there are none.
+ * computer, each one the saved profile holds no value for, which can be set
+ * in Connect tools (agentry-desktop#784) and is otherwise taken from the
+ * environment or started without; In Agentry, each one, which the run
+ * carries only where the account keeps it. "" when there are none.
  */
 export function goesWithoutSentence(
   p: { optionalSecrets?: string[]; storedSecretNames?: string[] },
@@ -212,5 +213,16 @@ export function goesWithoutSentence(
   const it = keys.length === 1 ? "it" : "them";
   return inAgentry
     ? `; the run goes without ${which} unless your account keeps ${it}`
-    : `; the run goes without ${which} unless this computer's environment holds ${it}`;
+    : `; the run goes without ${which} unless you set ${it} in Connect tools or this computer's environment holds ${it}`;
+}
+
+/**
+ * Whether Connect tools offers the keys form on this computer while it is
+ * closed and no profile is saved (agentry-desktop#784): a release whose
+ * keys are all optional never opens it by itself, and without this offer an
+ * optional key could only come from the environment. A required key opens
+ * the form by itself; a saved profile offers Reconfigure… instead.
+ */
+export function offerSetKeys(p: { declaredSecrets: string[]; optionalSecrets?: string[]; exists: boolean }): boolean {
+  return !p.exists && p.declaredSecrets.length > 0 && requiredOf(p).length === 0;
 }

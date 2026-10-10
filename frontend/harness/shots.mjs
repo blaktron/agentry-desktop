@@ -48,6 +48,8 @@ const states = [
   // the keys line names the server and its secret with Run grey; a file
   // intake question shows as the form; Input files stays a disclosure.
   { name: "runpanel-keys", url: "/modals.html#runpanel-keys", note: "pr-review-brief's shape, on Review and start: keys unsaved, the line above Run names them", expectBlocker: "Save the keys for github-mcp-server-js: GITHUB_TOKEN", expectRunDisabled: true },
+  { name: "runpanel-keys-optional", url: "/modals.html#runpanel-keys-optional", note: "Connect tools with the one key optional and nothing saved: Set keys… offered (agentry-desktop#784)", expectText: "Set keys…" },
+  { name: "runpanel-keys-optional-saved", url: "/modals.html#runpanel-keys-optional-saved", note: "the optional key set at run time: Set keys…, then Save keys", click: ['button:has-text("Set keys")', 'button:has-text("Save keys")'], expectText: "Stored for this exact release: SEARCH_KEY" },
   { name: "runpanel-keys-saved", url: "/modals.html#runpanel-keys-saved", note: "Connect tools: the key saved, shown by name only", click: 'button:has-text("Save keys")', expectText: "Stored for this exact release: GITHUB_TOKEN" },
   { name: "runpanel-file-intake", url: "/modals.html#runpanel-file-intake", note: "a release that asks for a file up front: on Review and start the line names the unanswered question", expectBlocker: "The incident channel's export (a file)", expectRunDisabled: true },
   // Run defaults in the run setup (agentry-desktop#347): In Agentry chosen by

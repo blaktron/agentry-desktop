@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { declaredKeys, optionalKeys, questionRequired, requiredKeys, secretsRow } from "../src/requiredKeys.ts";
-import { goesWithoutSentence, needList, requiredOf } from "../src/runSetup.ts";
+import { goesWithoutSentence, needList, offerSetKeys, requiredOf } from "../src/runSetup.ts";
 
 const m = { secrets: ["API_TOKEN"], mcpServers: [{ secrets: ["SEARCH_KEY", "API_TOKEN"] }], requiredSecrets: [] as string[] };
 
@@ -36,11 +36,21 @@ test("RunPanel holds a run only for a required key, and says which optional ones
   const p = { declaredSecrets: ["OPT_KEY", "REQ_KEY"], optionalSecrets: ["OPT_KEY"], storedSecretNames: ["REQ_KEY"] };
   assert.deepEqual(requiredOf(p), ["REQ_KEY"]);
   assert.deepEqual(requiredOf({ declaredSecrets: ["A"] }), ["A"]);
-  assert.equal(goesWithoutSentence(p, false), "; the run goes without the optional key OPT_KEY unless this computer's environment holds it");
+  assert.equal(goesWithoutSentence(p, false), "; the run goes without the optional key OPT_KEY unless you set it in Connect tools or this computer's environment holds it");
   assert.equal(goesWithoutSentence({ ...p, storedSecretNames: ["REQ_KEY", "OPT_KEY"] }, false), "");
   assert.equal(goesWithoutSentence(p, true), "; the run goes without the optional key OPT_KEY unless your account keeps it");
   assert.equal(goesWithoutSentence({ optionalSecrets: ["A", "B"] }, true), "; the run goes without the optional keys A, B unless your account keeps them");
   assert.equal(goesWithoutSentence({ declaredSecrets: ["A"] }, true), "");
+});
+
+test("an optional key can be set at run time on this computer, not only from the environment (agentry-desktop#784)", () => {
+  // All optional, nothing saved: the form never opens by itself, so it is offered.
+  assert.equal(offerSetKeys({ declaredSecrets: ["OPT_KEY"], optionalSecrets: ["OPT_KEY"], exists: false }), true);
+  // A required key opens the form by itself; a saved profile offers Reconfigure…
+  assert.equal(offerSetKeys({ declaredSecrets: ["OPT_KEY", "REQ_KEY"], optionalSecrets: ["OPT_KEY"], exists: false }), false);
+  assert.equal(offerSetKeys({ declaredSecrets: ["OPT_KEY"], optionalSecrets: ["OPT_KEY"], exists: true }), false);
+  assert.equal(offerSetKeys({ declaredSecrets: [], optionalSecrets: [], exists: false }), false);
+  assert.equal(goesWithoutSentence({ optionalSecrets: ["A", "B"] }, false), "; the run goes without the optional keys A, B unless you set them in Connect tools or this computer's environment holds them");
 });
 
 test("the ready list says a run can start without an optional key", () => {
