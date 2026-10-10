@@ -87,6 +87,24 @@ The product never claims an agent is "safe". The language is always:
   Settings → Home lists it after the default cards with its own switch,
   **Unpin from Home** in the same menu removes it, and Reset Home removes it
   with the pins. The card reads the store in process and runs nothing.
+  **In Agentry** (agentry-desktop#745, plan M10, D-073's second addendum):
+  signed in to a registry that schedules runs, the page also lists the
+  account's schedules there, labelled *In Agentry*, on the same calendar,
+  in Upcoming and in History, and the Home card counts and shows them. A
+  fire that started a run reads *Run started* and opens the run's page In
+  Agentry; one that started none says why (skipped for credits, a run
+  still going, and so on: "Nothing ran."). Edit (name and repeat),
+  **Pause**/**Resume**, **Run now** and **Delete** call the registry's
+  schedules API with the token the app already holds (`run:read`,
+  `run:write`). A registry that does not answer leaves them out, said in a
+  sentence, and the schedules on this computer work as they did. In the run
+  setup, *Later* and *Repeat* are offered In Agentry on Pro, Promo Pro,
+  Business and Enterprise (Standard is told so, with the way up); the
+  registry's create checks every input a fire will need before it keeps
+  anything, and what it names is fixed in place: a secret the account does
+  not keep, or holds for one run, is asked for and kept; a server Agentry
+  keeps no connection to opens Connect tools in the browser, then
+  **Schedule again**.
 - **Library** — the QuickAgents installed on this computer (the shared
   install state below), and **Browse** beneath it in the sidebar, shown
   while either is open (agentry-desktop#657, D-066). The Library's search

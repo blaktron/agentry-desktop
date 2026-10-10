@@ -58,6 +58,17 @@ type Facts struct {
 	// is refused with none (409 sessions-unavailable), never queued, since
 	// a person waits on it as it starts (agentry-desktop#437).
 	HostsOnline int
+	// Schedules is true when the registry's /meta lists `schedules`: it
+	// runs a QuickAgent In Agentry later or on a repeat (agentry-desktop
+	// #745). ScheduleAllowed is whether the signed-in caller's payer may
+	// schedule one, read from the status route's `caller.session.allowed`:
+	// both are billing.AboveStandard of the payer's tier, Promo Pro counted
+	// (agentry-enterprise internal/runs sessionAllowed and internal/schedules
+	// ledgerEntitlement, which also asks that the account admits a charge;
+	// D7). The status route has no line of the schedules' own. Nil where the
+	// registry did not say; the create answers schedule-tier either way.
+	Schedules       bool
+	ScheduleAllowed *bool
 }
 
 // Offer is the answer: whether the choice appears at all, whether it can
@@ -139,6 +150,41 @@ func DecideSession(f Facts) Offer {
 		return o
 	}
 	o.Available = true
+	return o
+}
+
+// ScheduleTierReason and ScheduleTierRemedy say why a payer on Standard
+// is not offered a schedule In Agentry, and the way out, in the registry's
+// own words for its 403 schedule-tier (plan quickagent-scheduling.md D7).
+const (
+	ScheduleTierReason = "Scheduling runs In Agentry is part of Pro, Business and Enterprise."
+	ScheduleTierRemedy = "On Standard, schedule it on this computer, for no credits; or upgrade to Pro."
+)
+
+// DecideSchedule applies the rule for Later and Repeat In Agentry (plan
+// quickagent-scheduling.md §7, D7, D12; agentry-desktop#745). The choice
+// appears where the account is signed in and the registry schedules runs;
+// a payer on Standard is told so, with the way up, before anything about
+// the token, which needs the run scopes a run In Agentry already asks for
+// (the schedules routes take run:read and run:write). Whether this release
+// can run In Agentry at all is Decide's, and what a fire would lack is the
+// create's own check (D8).
+func DecideSchedule(f Facts) Offer {
+	if !f.SignedIn || !f.Schedules {
+		return Offer{}
+	}
+	o := Offer{Offered: true}
+	switch {
+	case f.ScheduleAllowed != nil && !*f.ScheduleAllowed:
+		o.Reason, o.Remedy, o.Upgrade = ScheduleTierReason, ScheduleTierRemedy, true
+	case !f.ScopesKnown:
+		o.Reason, o.Remedy = "This registry did not say what the stored token may do, so the app cannot tell whether it may schedule a run.", "Sign in again from Settings."
+	case !has(f.Scopes, ScopeRunWrite) || !has(f.Scopes, ScopeRunRead):
+		o.Reason = "The token stored for this registry does not carry " + ScopeRunRead + " and " + ScopeRunWrite + ", which scheduling a run In Agentry needs. It was minted before this app asked for them."
+		o.Remedy = "Sign in again from Settings to mint a token that carries them."
+	default:
+		o.Available = true
+	}
 	return o
 }
 

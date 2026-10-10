@@ -312,7 +312,7 @@ func TestScheduledHomeCard(t *testing.T) {
 	scheduledHome(t)
 	s.now = func() time.Time { return time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC) }
 	s.locateCLI = func() (string, error) { return "/usr/bin/agentry", nil }
-	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z")
+	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,10 +330,10 @@ func TestScheduledHomeCard(t *testing.T) {
 		t.Fatalf("the card ran the agentry command: %v", f.calls)
 	}
 	s.locateCLI = func() (string, error) { return "", schedules.ErrNoCLI }
-	if v, err = s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z"); err != nil || v.Reason != schedules.ErrNoCLI.Error() {
+	if v, err = s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z", ""); err != nil || v.Reason != schedules.ErrNoCLI.Error() {
 		t.Fatalf("no command: %+v %v", v, err)
 	}
-	if _, err := s.HomeCard("2026-01-01T00:00:00Z", "2026-12-01T00:00:00Z"); err == nil {
+	if _, err := s.HomeCard("2026-01-01T00:00:00Z", "2026-12-01T00:00:00Z", ""); err == nil {
 		t.Fatal("a year was read at once")
 	}
 }
@@ -342,7 +342,7 @@ func TestScheduledHomeCard(t *testing.T) {
 func TestScheduledHomeCardEmpty(t *testing.T) {
 	s := newScheduleAPI(t, &scheduleFake{}, false)
 	s.locateCLI = func() (string, error) { return "/usr/bin/agentry", nil }
-	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z")
+	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z", "")
 	if err != nil || v.Schedules != 0 || len(v.Month) != 0 || v.Next == nil || len(v.Next) != 0 {
 		t.Fatalf("empty card %+v %v", v, err)
 	}

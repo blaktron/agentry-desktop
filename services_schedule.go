@@ -18,7 +18,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os/user"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +28,7 @@ import (
 	cliknowledge "github.com/blaktron/agentry-cli/pkg/knowledge"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
+	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -55,6 +58,9 @@ const (
 // ScheduleAPI is the Scheduled page's and the When step's.
 type ScheduleAPI struct {
 	app *App
+	// run is the hosted runs' API, whose Knowledge list resolves the packs
+	// a schedule In Agentry attaches (agentry-desktop#745).
+	run *RunAPI
 	// Seams for tests; nil is this computer's.
 	findCLI  func(ctx context.Context) (*schedules.CLI, error)
 	home     func() (string, error)
@@ -228,16 +234,9 @@ const maxCalendarRange = 62 * 24 * time.Hour
 
 // Calendar is what happened and what is due in [from, to) (RFC 3339).
 func (s *ScheduleAPI) Calendar(from, to string) ([]schedules.Fire, error) {
-	f, err := time.Parse(time.RFC3339, from)
+	f, t, err := calendarRange(from, to)
 	if err != nil {
-		return nil, fmt.Errorf("from: %w", err)
-	}
-	t, err := time.Parse(time.RFC3339, to)
-	if err != nil {
-		return nil, fmt.Errorf("to: %w", err)
-	}
-	if !t.After(f) || t.Sub(f) > maxCalendarRange {
-		return nil, errors.New("a calendar reads at most 62 days at a time")
+		return nil, err
 	}
 	st, err := s.store()
 	if err != nil {
@@ -246,34 +245,64 @@ func (s *ScheduleAPI) Calendar(from, to string) ([]schedules.Fire, error) {
 	return st.Between(f, t, s.clock())
 }
 
+// calendarRange is a calendar's [from, to), RFC 3339, at most
+// maxCalendarRange long.
+func calendarRange(from, to string) (time.Time, time.Time, error) {
+	f, err := time.Parse(time.RFC3339, from)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("from: %w", err)
+	}
+	t, err := time.Parse(time.RFC3339, to)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("to: %w", err)
+	}
+	if !t.After(f) || t.Sub(f) > maxCalendarRange {
+		return time.Time{}, time.Time{}, errors.New("a calendar reads at most 62 days at a time")
+	}
+	return f, t, nil
+}
+
 // ScheduledCardView is Home's Scheduled card (plan
-// quickagent-scheduling.md §7, D13; agentry-desktop#744): the month's
-// occurrences and the next three to come.
+// quickagent-scheduling.md §7, D13; agentry-desktop#744, #745): the month's
+// occurrences and the next three to come, on this computer and In Agentry.
 type ScheduledCardView struct {
 	// Reason is why this computer cannot schedule a run, when the agentry
 	// command cannot be found: the card says it rather than an empty month.
 	Reason string `json:"reason,omitempty"`
 	// Schedules is how many schedules the store holds.
 	Schedules int `json:"schedules"`
-	// Month is what happened and what is due in the range asked.
-	Month []schedules.Fire `json:"month"`
-	// Next are the next occurrences due, soonest first, at most three.
-	Next []schedules.Fire `json:"next"`
+	// Month is what happened and what is due on this computer in the range
+	// asked, and HostedMonth In Agentry.
+	Month       []schedules.Fire `json:"month"`
+	HostedMonth []CalendarFire   `json:"hostedMonth"`
+	// HostedSchedules is how many the account keeps In Agentry, and
+	// HostedReason why they are not shown, when the registry did not
+	// answer.
+	HostedSchedules int    `json:"hostedSchedules"`
+	HostedReason    string `json:"hostedReason,omitempty"`
+	// Next are the next occurrences due, here or In Agentry, soonest
+	// first, at most three.
+	Next []CalendarFire `json:"next"`
 }
 
 // cardNext is how many occurrences the Home card lists (D13), and
-// cardAhead how far ahead it looks for them: a year, so a once schedule
-// months away is still found.
+// cardAhead how far ahead it looks for them: a year here, so a once
+// schedule months away is still found, and the registry's widest range In
+// Agentry.
 const (
-	cardNext  = 3
-	cardAhead = 366 * 24 * time.Hour
+	cardNext        = 3
+	cardAhead       = 366 * 24 * time.Hour
+	cardHostedAhead = hostedrun.MaxOccurrenceRange
+	// cardHostedTimeout bounds what Home waits on the registry.
+	cardHostedTimeout = 8 * time.Second
 )
 
 // HomeCard is the Scheduled card's read: the month in [from, to)
-// (RFC 3339, as Calendar takes it) and the next three occurrences. It
-// reads the store and finds the agentry command on disk; it runs nothing,
-// as Home starts nothing.
-func (s *ScheduleAPI) HomeCard(from, to string) (*ScheduledCardView, error) {
+// (RFC 3339, as Calendar takes it) and the next three occurrences, from
+// the store on this computer and, signed in to reg, from the account's
+// schedules In Agentry. It finds the agentry command on disk and runs
+// nothing, as Home starts nothing.
+func (s *ScheduleAPI) HomeCard(from, to, reg string) (*ScheduledCardView, error) {
 	month, err := s.Calendar(from, to)
 	if err != nil {
 		return nil, err
@@ -291,15 +320,31 @@ func (s *ScheduleAPI) HomeCard(from, to string) (*ScheduledCardView, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &ScheduledCardView{Schedules: len(items), Month: month, Next: []schedules.Fire{}}
+	v := &ScheduledCardView{Schedules: len(items), Month: month, HostedMonth: []CalendarFire{}, Next: []CalendarFire{}}
+	var next []CalendarFire
 	for _, f := range ahead {
-		if len(v.Next) == cardNext {
-			break
-		}
 		if f.Outcome == schedules.Due {
-			v.Next = append(v.Next, f)
+			next = append(next, CalendarFire{ScheduleID: f.ScheduleID, Name: f.Name, At: f.At, Outcome: f.Outcome})
 		}
 	}
+	if reg != "" {
+		// Calendar above has refused a range out of shape already.
+		f, t, _ := calendarRange(from, to)
+		ctx, cancel := context.WithTimeout(s.ctx(), cardHostedTimeout)
+		hv, herr := s.hostedForCard(ctx, reg, f, t, now)
+		cancel()
+		if herr != "" {
+			v.HostedReason = herr
+		} else if hv != nil {
+			v.HostedSchedules, v.HostedMonth = hv.schedules, hv.month
+			next = append(next, hv.next...)
+		}
+	}
+	sort.SliceStable(next, func(i, j int) bool { return next[i].At < next[j].At })
+	if len(next) > cardNext {
+		next = next[:cardNext]
+	}
+	v.Next = append(v.Next, next...)
 	locate := schedules.FindCLI
 	if s.locateCLI != nil {
 		locate = s.locateCLI
@@ -308,6 +353,50 @@ func (s *ScheduleAPI) HomeCard(from, to string) (*ScheduledCardView, error) {
 		v.Reason = err.Error()
 	}
 	return v, nil
+}
+
+// hostedCard is the account's schedules In Agentry as Home's card shows
+// them.
+type hostedCard struct {
+	schedules int
+	month     []CalendarFire
+	next      []CalendarFire
+}
+
+// hostedForCard reads the account's schedules In Agentry at reg for Home's
+// card: nil where nothing is listed (signed out, no schedules extension),
+// and why not where the registry did not answer.
+func (s *ScheduleAPI) hostedForCard(ctx context.Context, reg string, from, to, now time.Time) (*hostedCard, string) {
+	c, err := scheduleClient(reg)
+	if err != nil {
+		return nil, ""
+	}
+	items, _, err := c.Schedules(ctx)
+	if r := hostedrun.RefusalOf(err); r != nil && r.Status == http.StatusNotFound {
+		return nil, ""
+	}
+	if err != nil {
+		return nil, notShown(originOf(settings.Normalize(reg)) + " did not answer (" + hostedSaid(err).Error() + ")")
+	}
+	hc := &hostedCard{schedules: len(items)}
+	if len(items) == 0 {
+		return hc, ""
+	}
+	month, reach := hostedOccurrences(ctx, reg, from, to)
+	if reach != "" {
+		return nil, notShown(reach)
+	}
+	hc.month = month
+	ahead, reach := hostedOccurrences(ctx, reg, now, now.Add(cardHostedAhead))
+	if reach != "" {
+		return nil, notShown(reach)
+	}
+	for _, f := range ahead {
+		if f.Outcome == schedules.Due && len(hc.next) < cardNext {
+			hc.next = append(hc.next, f)
+		}
+	}
+	return hc, ""
 }
 
 // History is the fires recorded, newest first, at most limit (1 to 200).

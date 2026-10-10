@@ -581,7 +581,9 @@ type Refusal struct {
 	Known    bool
 	// Missing are the declared secrets a 409 secret-missing names: the
 	// ones the start asks for (agentry-desktop#300); for a 409
-	// connection-missing, the servers still to connect (agentry-desktop#667).
+	// connection-missing, the servers still to connect (agentry-desktop#667);
+	// for a schedule's 409 secret-not-kept, its `names`: the secrets set for
+	// one run only, which a schedule cannot use (agentry-desktop#745).
 	Missing []string
 }
 
@@ -616,6 +618,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 		ResetsAt string   `json:"resetsAt"`
 		Tier     string   `json:"tier"`
 		Missing  []string `json:"missing"`
+		Names    []string `json:"names"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
 		r.Detail = strings.TrimSpace(string(body))
@@ -629,6 +632,9 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 		r.Slug = r.Slug[i+1:]
 	}
 	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing
+	if len(r.Missing) == 0 {
+		r.Missing = p.Names
+	}
 	if p.Balance != nil {
 		r.Balance, r.Known = *p.Balance, true
 	}

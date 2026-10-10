@@ -67,7 +67,7 @@ func main() {
 	homeAPI := &HomeAPI{}
 	publisherAPI := &PublisherAPI{app: app}
 	selfUpdateAPI := newSelfUpdateAPI(app)
-	scheduleAPI := &ScheduleAPI{app: app}
+	scheduleAPI := &ScheduleAPI{app: app, run: runAPI}
 
 	err := wails.Run(&options.App{
 		Title:     "Agentry Desktop",

@@ -564,6 +564,35 @@ const scheduleItems = [
   { id: "cd34ef56gh", name: "acme/pr-triage", ref: "acme/pr-triage", version: "0.4.1", describe: "every Tue, Thu at 22:00 (Europe/London)",
     when: { kind: "weekly", time: "22:00", days: ["tue", "thu"], zone: "Europe/London", end: "after", times: 10 }, outDir: "/home/me/agentry-runs", paused: true },
 ];
+// Schedules In Agentry (agentry-desktop#745): #scheduled-hosted adds one
+// of the account's, which started a run, was skipped for credits and is
+// due; #scheduled-hosted-unreachable is a registry that did not answer,
+// with this computer's schedules as they are; #scheduled-hosted-standard a
+// Standard account, offered the upgrade. #home-scheduled-hosted is Home's
+// card with the same schedule merged.
+const schedHostedHash = window.location.hash.startsWith("#scheduled-hosted") || window.location.hash === "#home-scheduled-hosted";
+const HOSTED_SCHED = "6f1c2d3e-4b5a-4c6d-8e7f-8091a2b3c4d5";
+const hostedFires = window.location.hash === "#scheduled-hosted" || window.location.hash === "#home-scheduled-hosted" ? [
+  { hosted: true, scheduleId: HOSTED_SCHED, name: "Weekly report", at: schedAt(5, 7), outcome: "ran", runId: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42", zone: "Europe/London" },
+  { hosted: true, scheduleId: HOSTED_SCHED, name: "Weekly report", at: schedAt(8, 7), outcome: "skipped", reason: "credits", zone: "Europe/London" },
+] : [];
+const hostedDue = window.location.hash === "#scheduled-hosted" || window.location.hash === "#home-scheduled-hosted" ? [12, 15, 19, 22, 26, 29].map((d) => (
+  { hosted: true, scheduleId: HOSTED_SCHED, name: "Weekly report", at: schedAt(d, 7), outcome: "due", zone: "Europe/London" })) : [];
+const hostedItems = window.location.hash === "#scheduled-hosted" ? [
+  { hosted: true, registry: "https://secureagentry.net", id: HOSTED_SCHED, name: "Weekly report", ref: "demo1/incident-summarizer", version: "1.2.0",
+    describe: "every Mon, Thu at 08:00 (Europe/London)", when: { kind: "weekly", time: "08:00", days: ["mon", "thu"], zone: "Europe/London", end: "never" },
+    runs: 1, refusals: 1, next: schedAt(12, 7), files: ["channel-export.json"] },
+] : [];
+const hostedView = () => (window.location.hash === "#scheduled-hosted-signedout"
+  ? { registry: "secureagentry.net", signedOut: true, schedules: [] }
+  : window.location.hash === "#scheduled-hosted-unreachable"
+  ? { registry: "secureagentry.net", unavailable: "Your schedules In Agentry could not be read: secureagentry.net could not be reached: dial tcp: lookup secureagentry.net: no such host.", schedules: [] }
+  : { registry: "secureagentry.net", schedules: hostedItems, limit: 25 });
+const hostedOffer = () => (window.location.hash === "#scheduled-hosted-signedout" || window.location.hash === "#scheduled-hosted-unreachable" ? null
+  : window.location.hash === "#scheduled-hosted-standard"
+  ? { offered: true, available: false, upgrade: true,
+    reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.", remedy: "On Standard, schedule it on this computer, for no credits; or upgrade to Pro." }
+  : { offered: true, available: true });
 
 // Settings → Report design (agentry-desktop#759): the core's five themes
 // from the frontend tests' fixture (held to the pinned core by a Go test),
@@ -607,8 +636,17 @@ g.go = { main: {
     Edit: async () => undefined, Pause: async () => undefined, Resume: async () => undefined,
     Remove: async () => true, RunNow: async () => undefined, Add: async () => ({ id: "ab12cd34ef" }),
     HomeCard: async () => (homeHash === "#home-scheduled-empty" || homeHash === "#home-scheduled-nocli"
-      ? { schedules: 0, month: [], next: [], reason: homeHash === "#home-scheduled-nocli" ? "scheduling a run on this computer needs the agentry command, which was not found" : undefined }
-      : { schedules: scheduleItems.length, month: [...schedFires, ...schedDue], next: schedDue.slice(0, 3) }),
+      ? { schedules: 0, month: [], hostedMonth: [], hostedSchedules: 0, next: [], reason: homeHash === "#home-scheduled-nocli" ? "scheduling a run on this computer needs the agentry command, which was not found" : undefined }
+      : { schedules: scheduleItems.length, month: [...schedFires, ...schedDue], hostedMonth: [...hostedFires, ...hostedDue], hostedSchedules: schedHostedHash ? 1 : 0,
+        next: [...schedDue, ...hostedDue].sort((a, b) => (a.at < b.at ? -1 : 1)).slice(0, 3) }),
+    HostedSchedules: async () => hostedView(),
+    HostedOffer: async () => hostedOffer(),
+    HostedCalendar: async () => (window.location.hash === "#scheduled-hosted-unreachable"
+      ? { fires: [], unavailable: "Your schedules In Agentry are not shown: secureagentry.net could not be reached." }
+      : { fires: [...hostedFires, ...hostedDue] }),
+    HostedHistory: async () => ({ fires: [...hostedFires].reverse() }),
+    HostedEdit: async () => undefined, HostedPause: async () => undefined, HostedResume: async () => undefined,
+    HostedRemove: async () => true, HostedRunNow: async () => ({ runId: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42" }),
   },
   PublisherAPI: {
     // Fork (agentry-desktop#706): #agent-fork-taken answers the origin's
@@ -1178,9 +1216,10 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="home"><Shell active="home"><HomePreview /></Shell></div>
     {/* Scheduled (agentry-desktop#743): what a row opens is marked on the
         body (data-open) for a shot to see. */}
-    <div data-preview="scheduled"><Shell active="scheduled"><Scheduled now={SCHED_NOW}
-      onOpenRun={(id) => { document.body.dataset.open = `run:${id}`; }}
-      onScheduleAgent={(_reg, ns, name) => { document.body.dataset.open = `schedule:${ns}/${name}`; }} /></Shell></div>
+    <div data-preview="scheduled"><Shell active="scheduled"><Scheduled now={SCHED_NOW} registry={REG}
+      onOpenRun={(id, hosted) => { document.body.dataset.open = `${hosted ? "hosted-run" : "run"}:${id}`; }}
+      onScheduleAgent={(_reg, ns, name) => { document.body.dataset.open = `schedule:${ns}/${name}`; }}
+      onSignIn={() => { document.body.dataset.open = "sign-in"; }} /></Shell></div>
     <div data-preview="library"><Shell active="library"><Library registry={REG} onBrowse={(q) => { document.body.dataset.browse = q ?? ""; }} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="build"><Shell active="build"><Build registry={REG} onOpenLibrary={() => {}} onOpenReviewKey={() => {}} initialView={buildDescribe ? "describe" : buildView as "start" | "steps" | "advanced" | "summary"} initialStep={buildStep}
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>

@@ -292,8 +292,10 @@ export default function App() {
             )}
             {route.page === "scheduled" && (
               <Scheduled
+                registry={registry}
+                onSignIn={() => nav({ page: "settings", ...SETTINGS_FOR.homeSignIn })}
                 focus={route.focus}
-                onOpenRun={(id) => nav({ page: "run", source: "local", id, back: "scheduled" })}
+                onOpenRun={(id, hosted) => nav({ page: "run", source: hosted ? "hosted" : "local", id, ...(hosted ? { registry } : {}), back: "scheduled" })}
                 onScheduleAgent={(reg, ns, name) => nav({ page: "agent", ns, name, registry: reg, back: "scheduled", run: true, schedule: true })}
               />
             )}
