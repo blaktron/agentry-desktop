@@ -18,6 +18,11 @@
 //   #runpanel-keys         pr-review-brief's shape: keys unsaved, no intake —
 //                          the line above Run names the keys, Input files
 //                          collapsed (agentry-desktop#167)
+//   #runpanel-keys-optional  the same release with its one key optional and
+//                          nothing saved: Connect tools offers Set keys…, so
+//                          the key is set at run time and not only from the
+//                          environment (agentry-desktop#784); -saved clicks
+//                          it and saves
 //   #runpanel-file-intake  a release asking for a file up front
 //   #runpanel-unscanned    a release the registry admitted without a scan:
 //                          its own mark and consent, In Agentry not offered
@@ -163,7 +168,8 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 // release that asks for a file up front — the intake form shows and the
 // unanswered question is what the line names.
 const guidedShape = view.startsWith("runpanel-guided") || view === "toolspanel-hostile";
-const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape;
+const optionalKeysShape = view.startsWith("runpanel-keys-optional");
+const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape || optionalKeysShape;
 // A Gmail-reading release whose one server is Google's remote Gmail server,
 // signing in by OAuth with the person's own client (agentry-desktop#666).
 const signInShape = view.startsWith("runpanel-signin");
@@ -289,7 +295,7 @@ const profile = signInShape
   ? {
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
     capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
-    declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : ["GITHUB_TOKEN", "SEARCH_KEY"], storedSecretNames: [], exists: false, keep: true,
+    declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : optionalKeysShape ? ["SEARCH_KEY"] : ["GITHUB_TOKEN", "SEARCH_KEY"], storedSecretNames: [], exists: false, keep: true,
     // SEARCH_KEY is optional (agentry-desktop#655): marked so in the keys
     // form, and the line above Run names GITHUB_TOKEN alone.
     optionalSecrets: hostileGuide ? [] : ["SEARCH_KEY"],
@@ -449,6 +455,8 @@ const runOutputs = {
 const STEP_OF: Record<string, StepKey> = {
   "runpanel-keys": "review",
   "runpanel-keys-saved": "tools",
+  "runpanel-keys-optional": "tools",
+  "runpanel-keys-optional-saved": "tools",
   "runpanel-file-intake": "review",
   "runpanel-unscanned": "review",
   "runpanel-local-install": "review",
