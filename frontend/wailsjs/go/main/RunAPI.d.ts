@@ -68,6 +68,8 @@ export function ForgetRun(arg1:string):Promise<void>;
 
 export function ForgetSearchKey():Promise<main.SearchKeyView>;
 
+export function ForgetSourceKey(arg1:string,arg2:string):Promise<main.SourceKeyView>;
+
 export function GatewayRequirements(arg1:string,arg2:string,arg3:string):Promise<main.MCPView>;
 
 export function HarnessStatus():Promise<Array<main.HarnessView>>;
@@ -120,7 +122,7 @@ export function ReplayHostedSession():Promise<void>;
 
 export function RestartNow():Promise<void>;
 
-export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean):Promise<main.RunResultView>;
+export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean,arg15:Record<string, string>):Promise<main.RunResultView>;
 
 export function RunOutputs(arg1:string):Promise<main.RunOutputsView>;
 
@@ -131,6 +133,8 @@ export function RunRequirements(arg1:string,arg2:string):Promise<main.MCPView>;
 export function SaveProfile(arg1:string,arg2:string,arg3:Record<string, string>,arg4:boolean):Promise<main.ProfileStatusView>;
 
 export function SaveRunPDF(arg1:string,arg2:string):Promise<string>;
+
+export function SaveSourceKey(arg1:string,arg2:string,arg3:string):Promise<main.SourceKeyView>;
 
 export function SearchKeyStatus():Promise<main.SearchKeyView>;
 
@@ -154,6 +158,8 @@ export function SignInClaude():Promise<main.SignInView>;
 
 export function SignInCopilot(arg1:boolean):Promise<main.SignInView>;
 
+export function SourceKeyStatus(arg1:string,arg2:string):Promise<main.SourceKeyView>;
+
 export function StarAsk(arg1:string,arg2:string):Promise<main.StarAskView>;
 
 export function StarQuickAgent(arg1:string,arg2:string):Promise<void>;
@@ -162,7 +168,7 @@ export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<st
 
 export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean,arg9:boolean):Promise<main.HostedStartView>;
 
-export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean):Promise<main.SessionView>;
+export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean,arg14:Record<string, string>):Promise<main.SessionView>;
 
 export function StopAwaitingConnections():Promise<void>;
 

@@ -66,7 +66,7 @@ func TestARunIsRecordedFromTheEnginesResult(t *testing.T) {
 	})
 	before := time.Now().UTC().Add(-time.Second)
 	if _, err := r.RunAgent("https://r.example/", "acme/agent@1.0.0", "the secret task", nil, "", nil, 0, -1, false,
-		map[string]string{"since": "intake answer"}, false, false, nil, false); err != nil {
+		map[string]string{"since": "intake answer"}, false, false, nil, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	e := onlyEntry(t)
