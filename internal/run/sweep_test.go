@@ -14,12 +14,19 @@ import (
 )
 
 // Sweep removes exactly the run's labelled containers, then its volumes,
-// then every network a run can make — and nothing it was not asked about.
+// then every network a run can make and every other network carrying the
+// run's label, such as an input source's (agentry-desktop#828) — and
+// nothing it was not asked about: another run's network stays.
 func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 	isolateRunEnv(t)
 	fake := &dockerx.Fake{
 		ByLabel:         map[string][]string{"agentry.run=ab12cd34": {"agentry-ab12cd34-agent", "agentry-ab12cd34-gateway"}},
 		LeftoverVolumes: []string{"agentry-ab12cd34-session"},
+		Networks: []dockerx.Labeled{
+			{Name: "agentry-ab12cd34-net", Labels: map[string]string{"agentry.run": "ab12cd34"}},
+			{Name: "agentry-ab12cd34-src-code", Labels: map[string]string{"agentry.run": "ab12cd34"}},
+			{Name: "agentry-ef56ab78-src-code", Labels: map[string]string{"agentry.run": "ef56ab78"}},
+		},
 	}
 	withFakeDocker(t, fake)
 
@@ -36,14 +43,19 @@ func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 		"RemoveForce agentry-ab12cd34-gateway",
 		"VolumesByLabel agentry.run=ab12cd34",
 		"VolumeRemove agentry-ab12cd34-session",
+		"NetworksByLabel agentry.run=ab12cd34",
 		"NetworkRemove agentry-ab12cd34-net",
 		"NetworkRemove agentry-ab12cd34-egress",
 		"NetworkRemove agentry-ab12cd34-web",
 		"NetworkRemove agentry-ab12cd34-relays",
 		"NetworkRemove agentry-ab12cd34-relays-out",
+		"NetworkRemove agentry-ab12cd34-src-code",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("calls:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if len(fake.Networks) != 1 || fake.Networks[0].Name != "agentry-ef56ab78-src-code" {
+		t.Fatalf("networks left: %v; want only the other run's", fake.Networks)
 	}
 }
 
@@ -114,10 +126,9 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// The five networks, and the session store's volume, which the sweep
 	// finds by its label. "-src-" is an input source's network
 	// (agentry-cli#833), named by the source's id as well as the run's, so
-	// no name from a run id alone finds it: the engine's teardown removes
-	// it, and a run killed mid-fetch leaves it for agentry-cli#852 (neither
-	// client's sweep can list networks by label yet). The desktop offers no
-	// input sources today.
+	// no name from a run id alone finds it: runNetworks finds it, and any
+	// other the engine labels with the run, by the run's label
+	// (agentry-cli#852, agentry-desktop#828).
 	want := []string{"-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
