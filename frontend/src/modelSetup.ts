@@ -139,9 +139,10 @@ export function keptLine(k: KeptSignIn): string {
 export const removeLabel = (k: KeptSignIn) => (k.connected ? "Disconnect" : "Remove");
 
 /** How model setup asks for the model on a way: from the plan's own list
- *  (ChatGPT), from Claude Code's aliases, or typed (the big catalogues,
- *  plan D33, and Copilot until its list is asked of Copilot CLI,
- *  agentry-cli#808). */
+ *  (ChatGPT, and Copilot once its list is asked of Copilot CLI,
+ *  agentry-cli#808 and agentry-desktop#811), from Claude Code's aliases, or
+ *  typed (the big catalogues, plan D33, and Copilot before its list).
+ *  planModels is the way's own list: ChatGPT's, or Copilot's ids. */
 export interface ModelAsk {
   mode: "plan" | "pick" | "typed" | "key";
   options: string[];
@@ -162,12 +163,47 @@ export function modelAsk(provider: string, way: WayId, planModels: string[]): Mo
     case "claude":
       return { mode: "pick", options: ["sonnet", "opus", "haiku"], placeholder: "sonnet, opus, or a Claude model id", defaultModel: "sonnet" };
     case "copilot":
-      return { mode: "typed", options: [], placeholder: "auto lets Copilot choose (the only choice on Copilot Free)", defaultModel: "auto" };
+      if (planModels.length > 0) {
+        return { mode: "plan", options: copilotOffered(planModels), placeholder: "", defaultModel: COPILOT_AUTO };
+      }
+      return { mode: "typed", options: [], placeholder: "auto lets Copilot choose (the only choice on Copilot Free)", defaultModel: COPILOT_AUTO };
     case "connect":
       return { mode: "typed", options: [], placeholder: `the model id, such as ${CONNECT_EXAMPLES[provider] ?? "provider/model"}`, defaultModel: "" };
     default:
       return { mode: "key", options: [], placeholder: "", defaultModel: providerChoice(provider)?.model ?? "" };
   }
+}
+
+/** The Copilot model that lets Copilot choose, the only one on Copilot
+ *  Free; always offered, first. */
+export const COPILOT_AUTO = "auto";
+
+/** What Copilot's model field offers: auto first, then each listed id
+ *  once, in Copilot CLI's order. A model the plan disables is never in the
+ *  list (the CLI leaves it out). */
+export function copilotOffered(ids: string[]): string[] {
+  const out = [COPILOT_AUTO];
+  for (const id of ids) if (id && !out.includes(id)) out.push(id);
+  return out;
+}
+
+/** A listed Copilot model as the field names it: the id, GitHub's name
+ *  where it differs, and the premium-request multiplier where GitHub gave
+ *  one (0 is "not given", never "free"). */
+export interface CopilotModelInfo { id: string; name: string; multiplier: number }
+export function copilotModelLabel(id: string, models: CopilotModelInfo[]): string {
+  if (id === COPILOT_AUTO) return "auto — Copilot chooses";
+  const m = models.find((x) => x.id === id);
+  const parts: string[] = [];
+  if (m?.name && m.name !== id) parts.push(m.name);
+  if (m && m.multiplier > 0) parts.push(`${m.multiplier}× premium requests`);
+  return parts.length > 0 ? `${id} — ${parts.join(", ")}` : id;
+}
+
+/** The model to keep when a Copilot list arrives: the one chosen while
+ *  the plan still offers it, else auto (as `agentry setup` does). */
+export function copilotModelAfterList(current: string, ids: string[]): string {
+  return copilotOffered(ids).includes(current.trim()) ? current.trim() : COPILOT_AUTO;
 }
 
 /** The Copilot plans, by the name GitHub sells them under; each names the

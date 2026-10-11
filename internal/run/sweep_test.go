@@ -123,9 +123,14 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}
 	// One for the run network, one for the proxy's egress, one in the
-	// relays' loop, one for the web tools, and an input source's own
-	// (agentry-cli#852, above).
-	if creates != 5 {
-		t.Fatalf("the engine makes a network in %d places, and the sweep knows 5: revisit runNetworks before taking this agentry-cli", creates)
+	// relays' loop, one for the web tools, an input source's own
+	// (agentry-cli#852, above), and a Copilot model list's
+	// (agentry-cli#808, agentry-desktop#811). The list's is named as a run
+	// network is ("-net", and "-egress" for its proxy under a runtime), from
+	// a run id of its own that no run record holds: a list killed midway is
+	// found by engine.SweepAbandoned, which the app runs before a run, from
+	// its containers' owner labels, and takes the networks by these names.
+	if creates != 6 {
+		t.Fatalf("the engine makes a network in %d places, and the sweep knows 6: revisit runNetworks before taking this agentry-cli", creates)
 	}
 }

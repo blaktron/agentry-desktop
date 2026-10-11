@@ -16,13 +16,16 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/mcpauth"
 	"github.com/blaktron/agentry-cli/pkg/runner/claudesignin"
+	"github.com/blaktron/agentry-cli/pkg/runner/copilotmodels"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelsignin"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 )
 
 // Seams for tests: each flow's vendor endpoints (nil in production), and
@@ -196,6 +199,47 @@ func ChatGPTModels(ctx context.Context) ([]string, error) {
 		chatgptEndpoints(&flow)
 	}
 	return flow.Models(ctx, a.Token)
+}
+
+// CopilotModel is one model a Copilot plan offers, for the model field:
+// its id, GitHub's display name and premium-request multiplier where
+// GitHub gave them.
+type CopilotModel struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	Multiplier float64 `json:"multiplier"`
+}
+
+// CopilotModels lists the models the kept Copilot sign-in's plan offers for
+// plan (individual, business, enterprise), asked of Copilot CLI in a run's
+// container through the CLI's own copilotmodels.List (agentry-cli#808): the
+// runner and Copilot CLI images are made present first, as setup makes
+// them, so a first list can take minutes; logw has their progress. A plan
+// the account's policy disables a model on does not list it.
+func CopilotModels(ctx context.Context, plan string, logw io.Writer) ([]CopilotModel, error) {
+	home, err := Home()
+	if err != nil {
+		return nil, err
+	}
+	pol, err := loadPolicyIfPresent()
+	if err != nil {
+		return nil, err
+	}
+	if pol == nil {
+		pol = policy.Default()
+	}
+	got, err := copilotmodels.List(ctx, newDockerClient(), copilotmodels.Request{
+		Home: home, Keys: connectionKeys(), Policy: pol, CopilotPlan: plan,
+		RunnerImage: runnerImageTag(pol), ImageCtxDir: filepath.Join(home, "image"), Log: logw,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CopilotModel, 0, len(got))
+	for _, m := range got {
+		out = append(out, CopilotModel{ID: m.ID, Name: m.Name, Multiplier: m.Multiplier})
+	}
+	return out, nil
 }
 
 // claude is the CLI's Claude sign-in on this computer's daemon and store.

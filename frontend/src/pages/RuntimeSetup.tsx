@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { main } from "../../wailsjs/go/models";
+import { main, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {
-  COPILOT_PLANS, PROVIDERS, keptFor, modelAsk, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  COPILOT_PLANS, PROVIDERS, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn, type WayId,
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
@@ -78,6 +78,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   const [kept, setKept] = useState<KeptSignIn[]>([]);
   const [planModels, setPlanModels] = useState<string[]>([]);
   const [copilotPlan, setCopilotPlan] = useState("individual");
+  // The models the Copilot plan offers, asked of Copilot CLI
+  // (agentry-desktop#811): null until listed; and why a list failed.
+  const [copilotModels, setCopilotModels] = useState<run.CopilotModel[] | null>(null);
+  const [copilotListError, setCopilotListError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
 
@@ -136,6 +140,37 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       dockerCheckPending.current = false;
       setCheckingDocker(false);
     }
+  }
+
+  // Ask Copilot CLI which models plan offers the kept sign-in. It may build
+  // the runner and Copilot CLI images first, so its progress is the setup
+  // log's. A failure is said and the model is typed instead; it never
+  // blocks Save.
+  async function listCopilotModels(plan: string) {
+    setBusy("Asking Copilot CLI which models your plan offers — a first list builds images and can take minutes…");
+    setError(null);
+    setNotice(null);
+    setCopilotListError(null);
+    setLog([]);
+    onBusy?.(true);
+    try {
+      const got = (await RunAPI.CopilotModels(plan)) ?? [];
+      setCopilotModels(got);
+      setModel((cur) => copilotModelAfterList(cur, got.map((m) => m.id)));
+    } catch (e) {
+      setCopilotModels(null);
+      setCopilotListError(String(e));
+    } finally {
+      setBusy(null);
+      onBusy?.(false);
+    }
+  }
+
+  // A plan names the Copilot API host the list reaches: a list already
+  // asked for is asked again for the new plan.
+  function changeCopilotPlan(plan: string) {
+    setCopilotPlan(plan);
+    if (copilotModels !== null) void listCopilotModels(plan);
   }
 
   // The way the saved policy pays, for a choice to start on its model.
@@ -302,7 +337,9 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // variable. The backend refuses the same cases; this just says so first.
   const ways = waysFor(provider);
   const currentWay = ways.find((w) => w.id === way) ?? ways[0];
-  const ask = modelAsk(provider, way, planModels);
+  const copilotIds = (copilotModels ?? []).map((m) => m.id);
+  const ask = modelAsk(provider, way, way === "copilot" ? copilotIds : planModels);
+  const copilotKept = way === "copilot" && currentWay ? keptFor(currentWay, kept) : undefined;
   const signInHint = currentWay && way !== "key" ? signInSaveHint(currentWay, keptFor(currentWay, kept), model) : "";
   const needsKey = keyMode === "keyring" && !forgetKey && !hasKey;
   const needsVar = keyMode === "env" && !apiKeyEnv.trim();
@@ -386,13 +423,29 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
                   setPlanModels(models);
                   setModel((cur) => cur || models[0]);
                 }
+                // Another account may be offered other models.
+                setCopilotModels(null);
+                setCopilotListError(null);
                 void refreshKept();
               }}
-              onRemoved={() => void refreshKept()}
+              onRemoved={() => { setCopilotModels(null); setCopilotListError(null); void refreshKept(); }}
             />
+            {way === "copilot" && (
+              <label className="field">
+                <span className="field-label">Your Copilot plan</span>
+                <Select value={copilotPlan} onChange={(e) => changeCopilotPlan(e.target.value)} disabled={!!busy}>
+                  {COPILOT_PLANS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </Select>
+              </label>
+            )}
             <label className="field">
               <span className="field-label">Model</span>
-              {ask.mode === "plan" && ask.options.length > 0 ? (
+              {way === "copilot" && ask.mode === "plan" ? (
+                // Only what the plan offers: a model it disables is not listed.
+                <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
+                  {ask.options.map((m) => <option key={m} value={m}>{copilotModelLabel(m, copilotModels ?? [])}</option>)}
+                </Select>
+              ) : ask.mode === "plan" && ask.options.length > 0 ? (
                 <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
                   {ask.options.map((m) => <option key={m} value={m}>{m}</option>)}
                   {!ask.options.includes(model) && model && <option value={model}>{model}</option>}
@@ -406,14 +459,20 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
                 <Input type="text" className="mono" placeholder={ask.placeholder} value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
               )}
               {way === "connect" && <span className="muted small field-hint">Agentry does not list these models: type the id the provider shows. A model that cannot call tools will not work.</span>}
+              {way === "copilot" && copilotListError && (
+                <span className="muted small field-hint">Could not list your plan's models ({copilotListError}). Type the model id instead.</span>
+              )}
             </label>
-            {way === "copilot" && (
-              <label className="field">
-                <span className="field-label">Your Copilot plan</span>
-                <Select value={copilotPlan} onChange={(e) => setCopilotPlan(e.target.value)} disabled={!!busy}>
-                  {COPILOT_PLANS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                </Select>
-              </label>
+            {way === "copilot" && copilotKept && !copilotKept.broken && (
+              <div className="row">
+                <Button
+                  disabled={!!busy || !status?.dockerOk || checkingDocker}
+                  title={!status?.dockerOk ? "docker must be available first" : "Copilot CLI lists the models your plan offers, in a run's container"}
+                  onClick={() => void listCopilotModels(copilotPlan)}
+                >
+                  {copilotModels === null ? "List my plan's models" : "List again"}
+                </Button>
+              </div>
             )}
             <p className="muted small">
               Runs on this computer use this sign-in; runs in Agentry never do. The policy records which sign-in to use,

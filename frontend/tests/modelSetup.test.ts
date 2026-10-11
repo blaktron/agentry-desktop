@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAUDE_SIGN_IN_LABEL, PROVIDERS, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  CLAUDE_SIGN_IN_LABEL, PROVIDERS, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn,
 } from "../src/modelSetup.ts";
 
@@ -102,4 +102,22 @@ test("Settings' summary says what pays where a sign-in does", async () => {
   assert.equal(paidBy("copilot-signin"), "your Copilot plan");
   assert.equal(paidBy("api"), "");
   assert.equal(paidBy(""), "");
+});
+
+test("a Copilot plan's listed models are offered, auto first, each once (agentry-desktop#811)", () => {
+  assert.equal(modelAsk("copilot", "copilot", []).mode, "typed", "before the list, the id is typed");
+  const ask = modelAsk("copilot", "copilot", ["claude-sonnet-5.5", "gpt-5-mini", "claude-sonnet-5.5"]);
+  assert.equal(ask.mode, "plan");
+  assert.deepEqual(ask.options, ["auto", "claude-sonnet-5.5", "gpt-5-mini"]);
+  assert.equal(ask.defaultModel, "auto");
+  assert.deepEqual(copilotOffered(["auto", "gpt-5-mini"]), ["auto", "gpt-5-mini"], "a listed auto is not offered twice");
+  const models = [
+    { id: "claude-opus-5.5", name: "Claude Opus 5.5", multiplier: 10 },
+    { id: "gpt-5-mini", name: "gpt-5-mini", multiplier: 0 },
+  ];
+  assert.equal(copilotModelLabel("auto", models), "auto — Copilot chooses");
+  assert.equal(copilotModelLabel("claude-opus-5.5", models), "claude-opus-5.5 — Claude Opus 5.5, 10× premium requests");
+  assert.equal(copilotModelLabel("gpt-5-mini", models), "gpt-5-mini", "a multiplier GitHub did not give is not shown as free");
+  assert.equal(copilotModelAfterList("gpt-5-mini", ["gpt-5-mini"]), "gpt-5-mini");
+  assert.equal(copilotModelAfterList("claude-opus-5.5", ["gpt-5-mini"]), "auto", "a model the plan no longer offers falls back to auto");
 });

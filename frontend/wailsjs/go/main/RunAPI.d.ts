@@ -40,6 +40,8 @@ export function ConnectAccount(arg1:string):Promise<main.SignInView>;
 
 export function Connections():Promise<main.KeptConnectionsView>;
 
+export function CopilotModels(arg1:string):Promise<Array<run.CopilotModel>>;
+
 export function DeleteHostedSecret(arg1:string,arg2:string):Promise<void>;
 
 export function DiscardHostedConnect():Promise<void>;
