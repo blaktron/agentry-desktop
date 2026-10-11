@@ -1011,6 +1011,7 @@ g.go = { main: {
       { vendor: "poe", provider: "poe", kind: "api", connected: true, keyExpiresAt: "2026-11-11T00:00:00Z", image: true, createdAt: "2026-10-11T12:00:00Z" },
     ] : []),
     ChatGPTModels: async () => ["gpt-5.2", "gpt-5-mini"],
+    CopilotModels: async () => [{ id: "claude-sonnet-5.5", name: "Claude Sonnet 5.5", multiplier: 1 }],
     RemoveModelSignIn: async () => "revoked at the vendor",
     JevKeyStatus: async () => jevKeyView,
     StoreJevKey: async () => ({ stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true }),

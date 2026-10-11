@@ -6200,6 +6200,22 @@ export namespace reportdesign {
 
 export namespace run {
 	
+	export class CopilotModel {
+	    id: string;
+	    name: string;
+	    multiplier: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new CopilotModel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.multiplier = source["multiplier"];
+	    }
+	}
 	export class KeptClient {
 	    issuer: string;
 	    clientId: string;

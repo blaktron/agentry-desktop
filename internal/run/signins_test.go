@@ -15,6 +15,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/mcpauth"
 	"github.com/blaktron/agentry-cli/pkg/mcpauth/mcpauthtest"
 	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
+	"github.com/blaktron/agentry-cli/pkg/runner/adapter/copilottest"
 	"github.com/blaktron/agentry-cli/pkg/runner/connection"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/harnessbuild"
@@ -302,5 +303,79 @@ func TestUseYourClaudeSubscriptionSignsInThroughTheBrowser(t *testing.T) {
 	}
 	if pol := loadedPolicy(t); adapter.DefaultFor(pol) != adapter.ClaudeImageAdapterName {
 		t.Fatalf("model %+v runs on %s", pol.Model, adapter.DefaultFor(pol))
+	}
+}
+
+// A Copilot plan's models are asked of Copilot CLI through the CLI's own
+// list (agentry-cli#808): in a run's container behind a proxy allowing
+// GitHub's API and the chosen plan's host alone, the kept sign-in's token
+// handed over the session and never to docker; a disabled model is not
+// listed. With nothing kept there is nothing to list.
+func TestCopilotModelsAreListedThroughCopilotCLI(t *testing.T) {
+	signInFixture(t)
+	if _, err := CopilotModels(context.Background(), "individual", io.Discard); err == nil {
+		t.Fatal("listed with no Copilot sign-in kept")
+	}
+	// The plan is the page's: anything but GitHub's three is refused before
+	// docker is asked anything.
+	refusing := &dockerx.Fake{}
+	withFakeDocker(t, refusing)
+	if _, err := CopilotModels(context.Background(), "api.example.com", io.Discard); err == nil || len(refusing.Calls) != 0 {
+		t.Fatalf("a plan that is not one: %v, docker calls %v", err, refusing.Ops())
+	}
+	t.Setenv("AGENTRY_GITHUB_APP_CLIENT_ID", mcpauthtest.GitHubClientID)
+	v := mcpauthtest.NewGitHub(t)
+	old := githubEndpoints
+	githubEndpoints = func(f *mcpauth.GitHub) {
+		fake := v.Flow()
+		present := f.Present
+		*f = fake
+		f.Present = present
+	}
+	t.Cleanup(func() { githubEndpoints = old })
+	t.Cleanup(modelsignin.RegisterVendor(modelsignin.Copilot, modelsignin.CopilotVendor{Flow: v.Flow()}))
+	var b signInPerson
+	if _, err := SignInCopilot(context.Background(), b.ui(nil), false); err != nil {
+		t.Fatal(err)
+	}
+
+	pol := policy.Default()
+	h, _ := pol.Images.HarnessImageFor(adapter.CopilotImageAdapterName)
+	srv := &copilottest.Server{Models: []map[string]any{
+		{"id": "claude-sonnet-5.5", "name": "Claude Sonnet 5.5", "billing": map[string]any{"multiplier": 1}},
+		{"id": "claude-opus-5.5", "policy": map[string]any{"state": "disabled"}},
+	}}
+	d := &dockerx.Fake{
+		ExistingImages: map[string]bool{h.Ref: true, runnerImageTag(pol): true, pol.Images.Gateway: true},
+		Labels:         map[string]map[string]string{h.Ref: {harnessbuild.LabelArtifact: h.Artifact}},
+		Foreground: map[string]*dockerx.FakeForeground{"-models": {Handler: func(_ context.Context, _ dockerx.RunSpec, stdin io.Reader, stdout, _ io.Writer) (int, error) {
+			if err := srv.Serve(stdin, stdout); err != nil {
+				return 1, err
+			}
+			return 0, nil
+		}}},
+	}
+	withFakeDocker(t, d)
+	var log strings.Builder
+	got, err := CopilotModels(context.Background(), "business", &log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noSecret(t, []any{got, log.String()}, v.AccessPrefix, v.RefreshPrefix)
+	if len(got) != 1 || got[0].ID != "claude-sonnet-5.5" || got[0].Name != "Claude Sonnet 5.5" || got[0].Multiplier != 1 {
+		t.Fatalf("models %+v", got)
+	}
+	proxy, ok := d.FindRun("-proxy")
+	if !ok || !strings.Contains(strings.Join(proxy.Argv, " "), "api.business.githubcopilot.com:443") {
+		t.Fatalf("proxy %+v", proxy)
+	}
+	var calls []any
+	for _, c := range d.Calls {
+		calls = append(calls, c)
+	}
+	noSecret(t, calls, v.AccessPrefix, v.RefreshPrefix)
+	_, _, toks, _, _ := srv.Snapshot()
+	if len(toks) != 1 || !strings.HasPrefix(toks[0]["accessToken"].(string), v.AccessPrefix) {
+		t.Fatalf("tokens %v", toks)
 	}
 }

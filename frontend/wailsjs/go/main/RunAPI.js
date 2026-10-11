@@ -74,6 +74,10 @@ export function Connections() {
   return window['go']['main']['RunAPI']['Connections']();
 }
 
+export function CopilotModels(arg1) {
+  return window['go']['main']['RunAPI']['CopilotModels'](arg1);
+}
+
 export function DeleteHostedSecret(arg1, arg2) {
   return window['go']['main']['RunAPI']['DeleteHostedSecret'](arg1, arg2);
 }

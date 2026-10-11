@@ -63,12 +63,16 @@ const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].
 // waiting in the browser (the shot clicks Sign in with ChatGPT, which never
 // answers here); #2-copilotcode Sign in with GitHub showing GitHub's code,
 // copied (the shot clicks the button; the code arrives as the event);
-// #2-connected an OpenRouter account connected, its model typed.
-const signInState = ["chatgpt", "claudekept", "waiting", "copilotcode", "connected"].includes(suffix) ? suffix : "";
-const signInProvider = { chatgpt: "openai", waiting: "openai", claudekept: "anthropic", copilotcode: "copilot", connected: "openrouter" }[signInState] ?? "";
-const signInKind = { claudekept: "claude-signin" }[signInState] ?? "";
+// #2-connected an OpenRouter account connected, its model typed;
+// #2-copilotkept a Copilot sign-in kept, its plan's models listed by
+// Copilot CLI once asked (agentry-desktop#811; the shot clicks List).
+const signInState = ["chatgpt", "claudekept", "waiting", "copilotcode", "connected", "copilotkept"].includes(suffix) ? suffix : "";
+const signInProvider = { chatgpt: "openai", waiting: "openai", claudekept: "anthropic", copilotcode: "copilot", connected: "openrouter", copilotkept: "copilot" }[signInState] ?? "";
+const signInKind = { claudekept: "claude-signin", copilotkept: "copilot-signin" }[signInState] ?? "";
 const keptSignIns = signInState === "claudekept"
   ? [{ vendor: "claude", provider: "anthropic", kind: "claude-signin", connected: false, account: "you@example.com (Example Org)", image: true, createdAt: "2026-10-11T12:00:00Z" }]
+  : signInState === "copilotkept"
+    ? [{ vendor: "copilot", provider: "copilot", kind: "copilot-signin", connected: false, account: "octocat", image: true, createdAt: "2026-10-11T12:00:00Z" }]
   : signInState === "connected"
     ? [{ vendor: "openrouter", provider: "openrouter", kind: "api", connected: true, account: "you", image: true, createdAt: "2026-10-11T12:00:00Z" }]
     : [];
@@ -84,7 +88,7 @@ const setup = {
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
   ...(signInProvider ? {
     provider: signInProvider, apiKeyKind: signInKind, providerSetUp: signInState !== "chatgpt" && signInState !== "copilotcode",
-    model: { claudekept: "sonnet", connected: "anthropic/claude-sonnet-4.5" }[signInState] ?? "",
+    model: { claudekept: "sonnet", connected: "anthropic/claude-sonnet-4.5", copilotkept: "auto" }[signInState] ?? "",
     apiKeyEnv: "", keysStored: [],
   } : {}),
 };
@@ -177,6 +181,11 @@ g.go = { main: {
     ChooseHarness: async (name: string) => harnesses.map((h) => ({ ...h, chosen: h.name === name, pathFromPolicy: h.name === name })),
     ModelSignIns: async () => keptSignIns,
     ChatGPTModels: async () => ["gpt-5.2", "gpt-5.2-codex", "gpt-5-mini"],
+    CopilotModels: async () => [
+      { id: "claude-sonnet-5.5", name: "Claude Sonnet 5.5", multiplier: 1 },
+      { id: "claude-opus-5.5", name: "Claude Opus 5.5", multiplier: 10 },
+      { id: "gpt-5-mini", name: "GPT-5 mini", multiplier: 0 },
+    ],
     SignInChatGPT: async () => new Promise(() => {}),
     SignInClaude: async () => ({ signedIn: { vendor: "claude", account: "you@example.com", models: [] } }),
     SignInCopilot: async () => {
