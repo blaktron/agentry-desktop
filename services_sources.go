@@ -40,17 +40,25 @@ func (r *RunAPI) SourceKeyStatus(qtype, answer string) (*SourceKeyView, error) {
 // of the answer, never a name the page chose. It holds no job lock: the
 // key is read when a run is prepared, so a run under way keeps the token
 // it started with.
+//
+// A schedule that runs while the person is signed out has the key sealed
+// beside it (agentry-cli#854, DR-84), so a save re-seals them, as every
+// other key change does.
 func (r *RunAPI) SaveSourceKey(qtype, answer, token string) (*SourceKeyView, error) {
 	if err := run.SaveSourceKey(qtype, answer, token); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.SourceKeyStatus(qtype, answer)
 }
 
-// ForgetSourceKey removes the key saved for the host of answer.
+// ForgetSourceKey removes the key saved for the host of answer, and from
+// the keys sealed beside the schedules that run while the person is
+// signed out.
 func (r *RunAPI) ForgetSourceKey(qtype, answer string) (*SourceKeyView, error) {
 	if err := run.ForgetSourceKey(qtype, answer); err != nil {
 		return nil, err
 	}
+	resealSchedules(r.app)
 	return r.SourceKeyStatus(qtype, answer)
 }

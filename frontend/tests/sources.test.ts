@@ -13,7 +13,7 @@ const repo = { id: "codebase", prompt: "The repository to audit", type: "reposit
 const file = { id: "report", prompt: "The report to read", type: "url", required: false };
 const text = { id: "focus", prompt: "What to look at", type: "text", required: false };
 const ok = (host: string, saved = false): SourceKey => ({ host, saved, keychainOff: false });
-const here = { inAgentry: false, scheduling: false, signedOut: false };
+const here = { inAgentry: false, scheduling: false };
 
 test("the source types are repository and url, and nothing else", () => {
   assert.deepEqual(["repository", "url", "text", "file", "secret", "choice"].map(isSourceType), [true, true, false, false, false, false]);
@@ -78,14 +78,13 @@ test("a run In Agentry does not take a source yet", () => {
   assert.deepEqual(sourceBlockers([file], {}, {}, {}, { ...here, inAgentry: true }), []);
 });
 
-test("a schedule reads the saved key: a typed token must be saved, and signed out cannot read it yet", () => {
+test("a schedule reads the saved key: a typed token must be saved, signed out or not", () => {
   const sched = { ...here, scheduling: true };
   const v = { codebase: "https://github.com/acme/app" };
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, { codebase: "tok" }, sched), ["A schedule uses the key saved for github.com: save the token for github.com, or clear it."]);
+  // Signed out too: the saved key is sealed beside the schedule (agentry-cli#854).
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com", true) }, {}, sched), []);
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, {}, sched), [], "a public repository schedules with no key");
-  assert.match(sourceBlockers([repo], v, { codebase: ok("github.com", true) }, {}, { ...sched, signedOut: true })[0], /signed out cannot use the key saved for github\.com yet \(agentry-cli#854\)/);
-  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, {}, { ...sched, signedOut: true }), [], "signed out with no key is a public fetch");
 });
 
 test("a run is given only the tokens typed for its answered source questions", () => {
