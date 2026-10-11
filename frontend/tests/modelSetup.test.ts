@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAUDE_SIGN_IN_LABEL, PROVIDERS, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  CLAUDE_SIGN_IN_LABEL, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn,
 } from "../src/modelSetup.ts";
 
@@ -120,4 +120,11 @@ test("a Copilot plan's listed models are offered, auto first, each once (agentry
   assert.equal(copilotModelLabel("gpt-5-mini", models), "gpt-5-mini", "a multiplier GitHub did not give is not shown as free");
   assert.equal(copilotModelAfterList("gpt-5-mini", ["gpt-5-mini"]), "gpt-5-mini");
   assert.equal(copilotModelAfterList("claude-opus-5.5", ["gpt-5-mini"]), "auto", "a model the plan no longer offers falls back to auto");
+});
+
+test("a Copilot list that fails says why in the page's words (agentry-desktop#811)", () => {
+  const refused = "copilot models: session.create: … 401 Unauthorized (GitHub refused the sign-in's token: sign in again with agentry model-signins add copilot)";
+  assert.equal(copilotListFailure(refused), "GitHub refused the kept sign-in: use Sign in again above, then list again.");
+  assert.doesNotMatch(copilotListFailure(refused), /agentry model-signins/, "the page never sends the person to the CLI");
+  assert.equal(copilotListFailure("docker is not running"), "Could not list your plan's models (docker is not running). Type the model id instead.");
 });

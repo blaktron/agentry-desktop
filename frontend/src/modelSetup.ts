@@ -206,6 +206,14 @@ export function copilotModelAfterList(current: string, ids: string[]): string {
   return copilotOffered(ids).includes(current.trim()) ? current.trim() : COPILOT_AUTO;
 }
 
+/** Why a Copilot list failed, said for this page: GitHub refusing the
+ *  sign-in points at the page's own Sign in again, not at the CLI's
+ *  command; anything else is said as it came. */
+export function copilotListFailure(err: string): string {
+  if (/sign in again/i.test(err)) return "GitHub refused the kept sign-in: use Sign in again above, then list again.";
+  return `Could not list your plan's models (${err}). Type the model id instead.`;
+}
+
 /** The Copilot plans, by the name GitHub sells them under; each names the
  *  Copilot API host runs reach. */
 export const COPILOT_PLANS: { id: string; label: string }[] = [

@@ -6,7 +6,7 @@ import { main, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {
-  COPILOT_PLANS, PROVIDERS, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  COPILOT_PLANS, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, keptFor, modelAsk, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
   type KeptSignIn, type WayId,
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
@@ -460,7 +460,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
               )}
               {way === "connect" && <span className="muted small field-hint">Agentry does not list these models: type the id the provider shows. A model that cannot call tools will not work.</span>}
               {way === "copilot" && copilotListError && (
-                <span className="muted small field-hint">Could not list your plan's models ({copilotListError}). Type the model id instead.</span>
+                <span className="muted small field-hint">{copilotListFailure(copilotListError)}</span>
               )}
             </label>
             {way === "copilot" && copilotKept && !copilotKept.broken && (
