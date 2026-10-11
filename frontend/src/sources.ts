@@ -87,7 +87,7 @@ export function sourceBlockers(
   values: Record<string, string>,
   keys: Record<string, SourceKey | null>,
   typed: Record<string, string>,
-  at: { inAgentry: boolean; scheduling: boolean; signedOut: boolean },
+  at: { inAgentry: boolean; scheduling: boolean },
 ): string[] {
   const out: string[] = [];
   const given = qs.filter((q) => isSourceType(q.type) && (values[q.id] ?? "").trim() !== "");
@@ -111,10 +111,10 @@ export function sourceBlockers(
     const host = key.host ?? "its host";
     // A schedule's fire has no setup to type into: it reads the saved key
     // (D13), so a token typed here would be lost.
+    // A schedule that runs while you are signed out has the saved key
+    // sealed beside it (agentry-cli#854), so it holds nothing more.
     if ((typed[q.id] ?? "").trim() !== "") {
       out.push(`A schedule uses the key saved for ${host}: save the token for ${host}, or clear it.`);
-    } else if (at.signedOut && key.saved) {
-      out.push(`A schedule that runs while you are signed out cannot use the key saved for ${host} yet (agentry-cli#854): run it only while you are signed in.`);
     }
   }
   return out;
