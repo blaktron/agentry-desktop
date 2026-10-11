@@ -147,6 +147,20 @@ func (r *RunAPI) ChatGPTModels() ([]string, error) {
 	return run.ChatGPTModels(r.ctx())
 }
 
+// CopilotModels lists the models the kept Copilot sign-in's plan offers,
+// asked of Copilot CLI (agentry-cli#808). It may build the runner and
+// Copilot CLI images first, so it takes the docker job and reports their
+// progress on the setup log.
+func (r *RunAPI) CopilotModels(plan string) ([]run.CopilotModel, error) {
+	if err := r.acquire(jobSetup, "the listing of your Copilot plan's models"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	return run.CopilotModels(r.ctx(), plan, logw)
+}
+
 // RemoveModelSignIn removes one kept sign-in or connected account and
 // says what became of it at the vendor. A Claude sign-in's removal runs
 // Claude Code's own logout in its image, which takes the docker job.
