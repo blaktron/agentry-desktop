@@ -112,14 +112,20 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	}
 	sort.Strings(got)
 	// The five networks, and the session store's volume, which the sweep
-	// finds by its label.
-	want := []string{"-egress", "-net", "-relays", "-relays-out", "-session", "-web"}
+	// finds by its label. "-src-" is an input source's network
+	// (agentry-cli#833), named by the source's id as well as the run's, so
+	// no name from a run id alone finds it: the engine's teardown removes
+	// it, and a run killed mid-fetch leaves it for agentry-cli#852 (neither
+	// client's sweep can list networks by label yet). The desktop offers no
+	// input sources today.
+	want := []string{"-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}
 	// One for the run network, one for the proxy's egress, one in the
-	// relays' loop, one for the web tools.
-	if creates != 4 {
-		t.Fatalf("the engine makes a network in %d places, and the sweep knows 4: revisit runNetworks before taking this agentry-cli", creates)
+	// relays' loop, one for the web tools, and an input source's own
+	// (agentry-cli#852, above).
+	if creates != 5 {
+		t.Fatalf("the engine makes a network in %d places, and the sweep knows 5: revisit runNetworks before taking this agentry-cli", creates)
 	}
 }

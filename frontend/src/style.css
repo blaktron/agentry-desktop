@@ -851,6 +851,18 @@ button.ghost:hover, .btn.ghost:hover {
 .key-source > label.row { flex-wrap: nowrap; align-items: flex-start; }
 .key-source > label.row input[type="radio"] { margin-top: 4px; flex: none; }
 .key-source label.inline { display: inline; }
+/* Model setup's ways to pay (agentry-desktop#734): a radio and its words on
+   one line, as .key-source draws its own; the form's inputs are otherwise
+   full width. */
+.way-choice { display: grid; gap: 6px; margin: 4px 0 4px; }
+.way-choice > label.row { flex-wrap: nowrap; align-items: flex-start; }
+.way-choice > label.row input[type="radio"] { width: auto; margin-top: 4px; flex: none; }
+.signin-way { margin: 6px 0 12px; }
+.signin-waiting { display: grid; gap: 8px; justify-items: start; }
+/* GitHub's device code: large, spaced, selectable, for someone typing or
+   pasting it on GitHub's page. */
+.signin-code { font-size: 1.8em; letter-spacing: 0.18em; font-weight: 600; margin: 2px 0 6px; }
+.kept-signins { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border); }
 .key-store { margin: 4px 0 4px 22px; display: grid; gap: 6px; }
 details.advanced { margin: 4px 0 10px; }
 details.advanced > summary { cursor: pointer; user-select: none; }

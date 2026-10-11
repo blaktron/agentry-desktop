@@ -22,6 +22,10 @@ export function ApplySetup(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['RunAPI']['ApplySetup'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function ApplySignInSetup(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['RunAPI']['ApplySignInSetup'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function AttachHostedRun(arg1, arg2) {
   return window['go']['main']['RunAPI']['AttachHostedRun'](arg1, arg2);
 }
@@ -42,6 +46,14 @@ export function CancelHostedRun() {
   return window['go']['main']['RunAPI']['CancelHostedRun']();
 }
 
+export function CancelSignIn() {
+  return window['go']['main']['RunAPI']['CancelSignIn']();
+}
+
+export function ChatGPTModels() {
+  return window['go']['main']['RunAPI']['ChatGPTModels']();
+}
+
 export function ChooseHarness(arg1) {
   return window['go']['main']['RunAPI']['ChooseHarness'](arg1);
 }
@@ -52,6 +64,10 @@ export function ChosenHarnesses() {
 
 export function Connect(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['Connect'](arg1, arg2, arg3);
+}
+
+export function ConnectAccount(arg1) {
+  return window['go']['main']['RunAPI']['ConnectAccount'](arg1);
 }
 
 export function Connections() {
@@ -158,6 +174,10 @@ export function ListModels(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['ListModels'](arg1, arg2, arg3);
 }
 
+export function ModelSignIns() {
+  return window['go']['main']['RunAPI']['ModelSignIns']();
+}
+
 export function OpenHostedConnect(arg1, arg2) {
   return window['go']['main']['RunAPI']['OpenHostedConnect'](arg1, arg2);
 }
@@ -196,6 +216,10 @@ export function ReleaseConnections(arg1, arg2) {
 
 export function RemoveAgentryImages() {
   return window['go']['main']['RunAPI']['RemoveAgentryImages']();
+}
+
+export function RemoveModelSignIn(arg1) {
+  return window['go']['main']['RunAPI']['RemoveModelSignIn'](arg1);
 }
 
 export function RemoveRecordedRun(arg1) {
@@ -264,6 +288,18 @@ export function SetupStatus() {
 
 export function ShowRunFolder(arg1) {
   return window['go']['main']['RunAPI']['ShowRunFolder'](arg1);
+}
+
+export function SignInChatGPT(arg1) {
+  return window['go']['main']['RunAPI']['SignInChatGPT'](arg1);
+}
+
+export function SignInClaude() {
+  return window['go']['main']['RunAPI']['SignInClaude']();
+}
+
+export function SignInCopilot(arg1) {
+  return window['go']['main']['RunAPI']['SignInCopilot'](arg1);
 }
 
 export function StarAsk(arg1, arg2) {

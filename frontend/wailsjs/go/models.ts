@@ -5494,6 +5494,38 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SignInView {
+	    signedIn?: run.SignedIn;
+	    cancelled?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SignInView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.signedIn = this.convertValues(source["signedIn"], run.SignedIn);
+	        this.cancelled = source["cancelled"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	export class StarAskView {
 	    ask: boolean;
@@ -6198,6 +6230,34 @@ export namespace run {
 	        this.sharesGrantWith = source["sharesGrantWith"];
 	    }
 	}
+	export class ModelSignIn {
+	    vendor: string;
+	    provider: string;
+	    kind: string;
+	    connected: boolean;
+	    account?: string;
+	    broken?: string;
+	    keyExpiresAt?: string;
+	    createdAt: string;
+	    image: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelSignIn(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vendor = source["vendor"];
+	        this.provider = source["provider"];
+	        this.kind = source["kind"];
+	        this.connected = source["connected"];
+	        this.account = source["account"];
+	        this.broken = source["broken"];
+	        this.keyExpiresAt = source["keyExpiresAt"];
+	        this.createdAt = source["createdAt"];
+	        this.image = source["image"];
+	    }
+	}
 	export class OwnClientGuide {
 	    issuer: string;
 	    vendor?: string;
@@ -6289,6 +6349,23 @@ export namespace run {
 		    }
 		    return a;
 		}
+	}
+	
+	export class SignedIn {
+	    vendor: string;
+	    account?: string;
+	    models: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SignedIn(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vendor = source["vendor"];
+	        this.account = source["account"];
+	        this.models = source["models"];
+	    }
 	}
 
 }
