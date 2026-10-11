@@ -76,6 +76,10 @@ const keptSignIns = signInState === "claudekept"
   : signInState === "connected"
     ? [{ vendor: "openrouter", provider: "openrouter", kind: "api", connected: true, account: "you", image: true, createdAt: "2026-10-11T12:00:00Z" }]
     : [];
+// #2-unlisted: a hand-written policy names a provider no tile shows
+// (agentry-desktop#830): no tile lit, the line under them saying so, and
+// the form paid by a key.
+const unlisted = suffix === "unlisted";
 // The runtime's events, so a binding can answer through them as Go does.
 const handlers: Record<string, ((...a: any[]) => void)[]> = {};
 const setup = {
@@ -91,6 +95,7 @@ const setup = {
     model: { claudekept: "sonnet", connected: "anthropic/claude-sonnet-4.5", copilotkept: "auto" }[signInState] ?? "",
     apiKeyEnv: "", keysStored: [],
   } : {}),
+  ...(unlisted ? { provider: "mistral", model: "mistral-large-latest", apiKeyEnv: "MISTRAL_API_KEY", apiKeySource: "env", keysStored: [] } : {}),
 };
 
 const settingsView = {

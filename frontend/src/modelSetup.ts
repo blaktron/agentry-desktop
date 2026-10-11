@@ -28,6 +28,9 @@ export interface Way {
 export interface ProviderChoice {
   id: string;
   label: string;
+  /** The tile's name (agentry-desktop#830): the label without its
+   *  parenthesis, which the logo already says. */
+  short: string;
   /** The table's default model ("" where the person types it). */
   model: string;
   apiKeyEnv: string;
@@ -52,33 +55,33 @@ export const COPILOT_AUTO = "auto";
  *  mirror the CLI's provider table (pkg/runner/setup), which fills any
  *  gap. */
 export const PROVIDERS: ProviderChoice[] = [
-  { id: "anthropic", label: "Anthropic (Claude)", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", ways: [
+  { id: "anthropic", label: "Anthropic (Claude)", short: "Anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", ways: [
     { id: "claude", label: CLAUDE_SIGN_IN_LABEL, vendor: "claude", kind: "claude-signin",
       hint: "Claude Code signs you in itself, in Anthropic's own page in your browser. Your Claude plan pays for the runs on this computer." },
     key("The Max and Team plans include monthly API credits, spent through a key from the Console organization linked to the plan."),
   ] },
-  { id: "openai", label: "OpenAI (ChatGPT)", model: "gpt-5.2", apiKeyEnv: "OPENAI_API_KEY", ways: [
+  { id: "openai", label: "OpenAI (ChatGPT)", short: "OpenAI", model: "gpt-5.2", apiKeyEnv: "OPENAI_API_KEY", ways: [
     { id: "chatgpt", label: "Sign in with ChatGPT", vendor: "chatgpt", kind: "chatgpt-plan",
       hint: "Sign in on OpenAI's page in your browser. Your ChatGPT plan pays for the runs on this computer." },
     key("A key from your OpenAI Platform account, billed there."),
   ] },
-  { id: "copilot", label: "GitHub Copilot", model: COPILOT_AUTO, apiKeyEnv: "", ways: [
+  { id: "copilot", label: "GitHub Copilot", short: "GitHub Copilot", model: COPILOT_AUTO, apiKeyEnv: "", ways: [
     { id: "copilot", label: "Sign in with GitHub", vendor: "copilot", kind: "copilot-signin",
       hint: "GitHub's page opens in your browser and asks for a short code, which the app copies for you. Your Copilot plan pays for the runs on this computer." },
   ] },
-  { id: "openrouter", label: "OpenRouter", model: "", apiKeyEnv: "OPENROUTER_API_KEY", ways: [
+  { id: "openrouter", label: "OpenRouter", short: "OpenRouter", model: "", apiKeyEnv: "OPENROUTER_API_KEY", ways: [
     connect("openrouter", "OpenRouter"), key("A key from your OpenRouter account."),
   ] },
-  { id: "poe", label: "Poe", model: "", apiKeyEnv: "POE_API_KEY", ways: [
+  { id: "poe", label: "Poe", short: "Poe", model: "", apiKeyEnv: "POE_API_KEY", ways: [
     connect("poe", "Poe"), key("A key from poe.com/api/keys."),
   ] },
-  { id: "huggingface", label: "Hugging Face", model: "", apiKeyEnv: "HF_TOKEN", ways: [
+  { id: "huggingface", label: "Hugging Face", short: "Hugging Face", model: "", apiKeyEnv: "HF_TOKEN", ways: [
     connect("huggingface", "Hugging Face"), key("An access token from your Hugging Face settings.", "Access token"),
   ] },
-  { id: "google", label: "Google (Gemini)", model: "gemini-3-pro", apiKeyEnv: "GEMINI_API_KEY", ways: [
+  { id: "google", label: "Google (Gemini)", short: "Google Gemini", model: "gemini-3-pro", apiKeyEnv: "GEMINI_API_KEY", ways: [
     key("A key from Google AI Studio."),
   ] },
-  { id: "custom", label: "Custom endpoint (OpenAI-compatible)", model: "", apiKeyEnv: "CUSTOM_API_KEY", ways: [
+  { id: "custom", label: "Custom endpoint (OpenAI-compatible)", short: "Custom endpoint", model: "", apiKeyEnv: "CUSTOM_API_KEY", ways: [
     key("The key your endpoint expects."),
   ] },
 ];
@@ -86,6 +89,22 @@ export const PROVIDERS: ProviderChoice[] = [
 export const providerChoice = (id: string): ProviderChoice | undefined => PROVIDERS.find((p) => p.id === id);
 
 export const providerLabel = (id: string) => providerChoice(id)?.label ?? id;
+
+/** What a provider's tile says it can be paid with, from its ways, so the
+ *  tiles show every choice before one is picked (agentry-desktop#830):
+ *  "Claude plan or API key", "Your account or access token". */
+export function tileOffer(p: ProviderChoice): string {
+  const words = p.ways.map((w) => {
+    switch (w.id) {
+      case "claude": return "Claude plan";
+      case "chatgpt": return "ChatGPT plan";
+      case "copilot": return "Copilot plan";
+      case "connect": return "your account";
+      default: return w.label === "API key" ? w.label : w.label.toLowerCase();
+    }
+  }).join(" or ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 /** The ways provider offers, a sign-in first; a provider not in the list
  *  (one a hand-written policy names) is paid by a key. */
