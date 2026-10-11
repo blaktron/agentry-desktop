@@ -8,8 +8,8 @@
 // SecureAgentry-brand asset — the desktop is the open-core client. The app
 // icon (build/appicon.svg) draws the same paths; brand_test.go holds them
 // together.
-const MARK_SHIELD = "M24 3 41 10.5 V 23 C 41 34.5 34 42.5 24 46.5 C 14 42.5 7 34.5 7 23 V 10.5 Z";
-const MARK_FACET = "M24 3 41 10.5 V 23 C 41 34.5 34 42.5 24 46.5 Z";
+export const MARK_SHIELD = "M24 3 41 10.5 V 23 C 41 34.5 34 42.5 24 46.5 C 14 42.5 7 34.5 7 23 V 10.5 Z";
+export const MARK_FACET = "M24 3 41 10.5 V 23 C 41 34.5 34 42.5 24 46.5 Z";
 const MARK_A = "M24 9.5 L35 38 Q29.5 32 24 32 Q18.5 32 13 38 Z M24 19.2 L27.2 27.4 H20.8 Z";
 
 export function Mark({ size = 22, className = "" }: { size?: number; className?: string }) {

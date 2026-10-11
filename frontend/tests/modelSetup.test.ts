@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAUDE_SIGN_IN_LABEL, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  CLAUDE_SIGN_IN_LABEL, PROVIDERS, copilotListFailure, copilotModelAfterList, copilotModelLabel, copilotOffered, keptFor, keptLine, modelAsk, removeLabel, savedWay, signInSaveHint, startingModel, tileOffer, waysFor,
   type KeptSignIn,
 } from "../src/modelSetup.ts";
 
@@ -127,4 +127,23 @@ test("a Copilot list that fails says why in the page's words (agentry-desktop#81
   assert.equal(copilotListFailure(refused), "GitHub refused the kept sign-in: use Sign in again above, then list again.");
   assert.doesNotMatch(copilotListFailure(refused), /agentry model-signins/, "the page never sends the person to the CLI");
   assert.equal(copilotListFailure("docker is not running"), "Could not list your plan's models (docker is not running). Type the model id instead.");
+});
+
+// The provider tiles (agentry-desktop#830): eight, so two rows of four, each
+// named without the label's parenthesis and saying what it can be paid with,
+// in the ways' own words.
+test("eight provider tiles, each saying what it can be paid with", () => {
+  assert.equal(PROVIDERS.length, 8, "two rows of four");
+  const offers = Object.fromEntries(PROVIDERS.map((p) => [p.id, `${p.short}: ${tileOffer(p)}`]));
+  assert.deepEqual(offers, {
+    anthropic: "Anthropic: Claude plan or API key",
+    openai: "OpenAI: ChatGPT plan or API key",
+    copilot: "GitHub Copilot: Copilot plan",
+    openrouter: "OpenRouter: Your account or API key",
+    poe: "Poe: Your account or API key",
+    huggingface: "Hugging Face: Your account or access token",
+    google: "Google Gemini: API key",
+    custom: "Custom endpoint: API key",
+  });
+  for (const p of PROVIDERS) assert.doesNotMatch(p.short, /[()]/, p.id);
 });

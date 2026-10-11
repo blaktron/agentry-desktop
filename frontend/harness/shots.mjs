@@ -278,7 +278,7 @@ const states = [
   // still typeable; a stored subscription token and its sentence.
   // Reached by Back from the AI Review key step (#462), as a person would.
   { name: "wizard-runtime", url: "/wizard.html#3", note: "the runtime step: provider, key, model", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Set up the runtime" },
-  { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — Use your Claude subscription leads, the API key one choice away (agentry-desktop#734)", locator: ".wizard" },
+  { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — Use your Claude subscription leads, the API key one choice away (agentry-desktop#734); the eight provider tiles above (agentry-desktop#830)", locator: ".wizard", expectText: ["Anthropic", "Claude plan or API key", "OpenAI", "GitHub Copilot", "OpenRouter", "Poe", "Hugging Face", "Google Gemini", "Custom endpoint"] },
   { name: "wizard-runtime-models", url: "/wizard.html#2-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-nomodels", url: "/wizard.html#2-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-subscription", url: "/wizard.html#2-subscription", note: "a stored Anthropic subscription token: what it drives", locator: ".wizard" },
@@ -300,6 +300,9 @@ const states = [
   { name: "wizard-runtime-signin-copilot", url: "/wizard.html#2-copilotcode", note: "Sign in with GitHub: GitHub's code shown and copied", locator: ".wizard", click: '.wizard button:has-text("Sign in with GitHub")', expectText: ["WDJB-MJHT", "it is copied"] },
   { name: "wizard-runtime-copilot-models", url: "/wizard.html#2-copilotkept", note: "a Copilot sign-in kept: the plan before the model, and the models Copilot CLI lists offered, auto first (agentry-desktop#811)", locator: ".wizard", click: '.wizard button:has-text("List my plan\'s models")', expectText: ["Your Copilot plan", "auto — Copilot chooses", "claude-opus-5.5 — Claude Opus 5.5, 10× premium requests", "List again"] },
   { name: "wizard-runtime-signin-connected", url: "/wizard.html#2-connected", note: "an OpenRouter account connected: the model typed, Disconnect", locator: ".wizard", expectText: ["Connect your account", "Connected as you", "Disconnect"] },
+  // The provider tiles (agentry-desktop#830): a provider only a hand-written
+  // policy names lights no tile, and the line under them says so.
+  { name: "wizard-runtime-unlisted", url: "/wizard.html#2-unlisted", note: "a policy naming a provider no tile shows: no tile chosen, the line saying it is paid by a key", locator: ".wizard", expectText: ["Your runner policy names mistral, which is not one of these"] },
   { name: "settings-agent-runs-advanced", url: "/pages.html?settings=provider", note: "Settings → Provider settings with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
   { name: "settings-model-signins-kept", url: "/pages.html?settings=provider#signins", note: "Settings → Model provider: every sign-in and connected account kept on this computer, with Remove and Disconnect (agentry-desktop#734)", locator: '[data-preview="settings"] .kept-signins', expectText: ["Kept on this computer", "Signed in as chris@example.com", "Connected — the key works until 2026-11-11", "Disconnect"] },
   { name: "settings-agent-runs-custom-http", url: "/pages.html?settings=provider#setup-custom-http", note: "Settings → Provider settings, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https (agentry-desktop#317)", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
@@ -1125,7 +1128,7 @@ try {
       if (state.saveCustom) {
         // The custom provider, its URL, a key and a model typed, then
         // Save: the mock stores the key and refuses the save.
-        await page.locator("select").first().selectOption("custom");
+        await page.getByRole("radio", { name: "Custom endpoint (OpenAI-compatible)" }).click();
         await page.locator('input[placeholder="https://llm.example.net/v1"]').fill("llm.example.net/v1");
         await page.locator('input[type="password"]').first().fill("sk-preview-key");
         await page.locator('input[placeholder^="pick one with Get models"]').fill("qwen3.8-flash");
