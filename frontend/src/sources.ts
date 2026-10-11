@@ -76,7 +76,7 @@ export function sourceRecap(q: Q, answer: string, key: SourceKey | null, typed: 
   if (a === "") return "no answer";
   if (q.type === "repository") {
     const { url, ref } = splitRepository(a);
-    return `${url}, ${ref.trim() ? `at ${ref.trim()}` : "its default branch"}, ${tokenWords(key, typed)}`;
+    return `${key?.shown || url}, ${ref.trim() ? `at ${ref.trim()}` : "its default branch"}, ${tokenWords(key, typed)}`;
   }
   return `${key?.shown || a}, ${tokenWords(key, typed)}`;
 }
@@ -116,6 +116,21 @@ export function sourceBlockers(
     } else if (at.signedOut && key.saved) {
       out.push(`A schedule that runs while you are signed out cannot use the key saved for ${host} yet (agentry-cli#854): run it only while you are signed in.`);
     }
+  }
+  return out;
+}
+
+/** A token typed in the setup, with the host it was typed for. */
+export type TypedToken = { host: string; token: string };
+
+/** The typed tokens that still apply, by question id: each one's host is the
+ *  host its question's address names now. An address edited to another host
+ *  leaves its token behind, so it is neither shown nor sent there. */
+export function typedTokens(typed: Record<string, TypedToken>, keys: Record<string, SourceKey | null>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [id, t] of Object.entries(typed)) {
+    const host = keys[id]?.host;
+    if (host && t.host === host) out[id] = t.token;
   }
   return out;
 }

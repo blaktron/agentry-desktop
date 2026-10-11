@@ -36,7 +36,7 @@ import { ServerSignIns, asConns } from "./ConnectTools";
 import { connectionBlockers, signInRecap } from "../connections";
 import { WhenStep, type Availability, type CheckState } from "./WhenStep";
 import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
-import { isSourceType, sourceBlockers, sourceRecap, tokensForRun, type SourceKey } from "../sources";
+import { isSourceType, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
 import { SourceQuestion } from "./SourceQuestion";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
@@ -87,11 +87,13 @@ export default function RunPanel({
   // Run form.
   const [task, setTask] = useState(f0?.task ?? "");
   const [intakeValues, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
-  // An input source's access token typed for this run, by question id
-  // (agentry-desktop#794): sent with the run for its fetch step alone, and
-  // never kept with the setup's answers (RunForm), so Back to the setup
-  // does not carry it.
-  const [sourceTokens, setSourceTokens] = useState<Record<string, string>>({});
+  // An input source's access token typed for this run, by question id,
+  // with the host it was typed for (agentry-desktop#794): sent with the run
+  // for its fetch step alone, and not kept with the setup's answers
+  // (RunForm), so Back to the setup does not carry it. An address edited to
+  // another host leaves it behind (typedTokens), so a token typed for one
+  // host never goes to another.
+  const [sourceTokens, setSourceTokens] = useState<Record<string, TypedToken>>({});
   // Go's word on each source answer (RunAPI.SourceKeyStatus): the CLI's
   // parse of the address, and whether a key is saved for its host. Kept
   // with the answer it judged, so a changed answer reads as unchecked.
@@ -340,6 +342,7 @@ export default function RunPanel({
     const c = sourceChecks[q.id];
     sourceKeys[q.id] = c && c.answer === (intakeValues[q.id] ?? "").trim() ? c.key : null;
   }
+  const typed = typedTokens(sourceTokens, sourceKeys);
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
   // Talk to it In Agentry (agentry-desktop#403) is mode "hosted-session": a
@@ -433,7 +436,7 @@ export default function RunPanel({
       blockers.push(`${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`);
     }
   }
-  blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, sourceTokens, {
+  blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, {
     inAgentry, scheduling, signedOut: when.signedOut && !!availability?.signedOut.available,
   }));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
@@ -538,7 +541,7 @@ export default function RunPanel({
       const q = profile.intake.find((q) => intakeMissing.includes(q.id));
       if (q) return `${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`;
       // An address the run would refuse holds Next here, where it is fixed.
-      const s = sourceBlockers(sourceQs, intakeValues, sourceKeys, sourceTokens, { inAgentry: false, scheduling: false, signedOut: false });
+      const s = sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, { inAgentry: false, scheduling: false, signedOut: false });
       if (s.length > 0) return s[0];
     }
     return null;
@@ -746,7 +749,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, sourceTokens)),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed)),
       );
       onClose();
     } catch (e) {
@@ -895,7 +898,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, sourceTokens)),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed)),
       );
       onClose();
     } catch (e) {
@@ -1351,7 +1354,7 @@ export default function RunPanel({
                       a secret answer is injected like a declared key and never shown to the agent.
                       {sourceQs.length > 0 && (
                         <> A repository or a file at an address is fetched before the run into <span className="mono">/inputs/&lt;question&gt;/</span>,
-                        read-only, and <span className="mono">intake.json</span> names what was fetched, never the token.</>
+                        read-only, and <span className="mono">intake.json</span> names the address and what was fetched; the access token is not written there.</>
                       )}
                     </p>
                     {profile.intake.map((q) => isSourceType(q.type) ? (
@@ -1362,8 +1365,8 @@ export default function RunPanel({
                         onChange={(v) => setIntakeValues({ ...intakeValues, [q.id]: v })}
                         sourceKey={sourceKeys[q.id]}
                         onKey={(key) => setSourceChecks((c) => ({ ...c, [q.id]: { answer: (intakeValues[q.id] ?? "").trim(), key } }))}
-                        typed={sourceTokens[q.id] ?? ""}
-                        onTyped={(t) => setSourceTokens((s) => ({ ...s, [q.id]: t }))}
+                        typed={typed[q.id] ?? ""}
+                        onTyped={(t) => setSourceTokens((s) => ({ ...s, [q.id]: { host: sourceKeys[q.id]?.host ?? "", token: t } }))}
                         disabled={running}
                         onError={setRunErr}
                       />
@@ -1492,7 +1495,7 @@ export default function RunPanel({
                     <dd>
                       <span className="selectable">
                         {isSourceType(q.type)
-                          ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], sourceTokens[q.id] ?? "")
+                          ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], typed[q.id] ?? "")
                           : (intakeValues[q.id] ?? "").trim() || "no answer"}
                       </span>
                       <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label={`Edit ${q.prompt}`}>Edit</Button>

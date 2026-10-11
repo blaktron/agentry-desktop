@@ -448,8 +448,15 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	// it yet (agentry-enterprise#55), and a run nobody consented to would
 	// carry a receipt that says nothing of it. The page withholds the
 	// mode; this is the same rule in Go, for any caller of the binding.
-	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil && sig.Unscanned() {
-		return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
+	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil {
+		if sig.Unscanned() {
+			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
+		}
+		// The page holds this too; the same rule in Go, for any caller
+		// of the binding (agentry-desktop#794).
+		if id := run.AnsweredSource(sig.Manifest, intakeAnswers); id != "" {
+			return nil, run.ErrSourceInAgentry(id)
+		}
 	}
 	attach, err := r.packsInAgentry(reg, packs)
 	if err != nil {

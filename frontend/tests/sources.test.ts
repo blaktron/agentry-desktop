@@ -6,13 +6,13 @@
 // with that run alone.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSourceType, joinRepository, sourceBlockers, sourceNeed, sourceRecap, splitRepository, tokenLine, tokensForRun, type SourceKey } from "../src/sources.ts";
+import { isSourceType, joinRepository, sourceBlockers, sourceNeed, sourceRecap, splitRepository, tokenLine, tokensForRun, typedTokens, type SourceKey } from "../src/sources.ts";
 import { needList } from "../src/runSetup.ts";
 
 const repo = { id: "codebase", prompt: "The repository to audit", type: "repository", required: true };
 const file = { id: "report", prompt: "The report to read", type: "url", required: false };
 const text = { id: "focus", prompt: "What to look at", type: "text", required: false };
-const ok = (host: string, saved = false): SourceKey => ({ host, shown: `https://${host}/x`, saved, keychainOff: false });
+const ok = (host: string, saved = false): SourceKey => ({ host, saved, keychainOff: false });
 const here = { inAgentry: false, scheduling: false, signedOut: false };
 
 test("the source types are repository and url, and nothing else", () => {
@@ -92,4 +92,14 @@ test("a run is given only the tokens typed for its answered source questions", (
   const values = { codebase: "https://github.com/acme/app", report: "", focus: "x" };
   assert.deepEqual(tokensForRun([repo, file, text], values, { codebase: " tok ", report: "unused", focus: "never" }), { codebase: "tok" });
   assert.deepEqual(tokensForRun([repo], values, { codebase: "  " }), {});
+});
+
+test("a token typed for one host is neither shown nor sent once the address names another", () => {
+  const typed = { codebase: { host: "github.com", token: "tok" } };
+  assert.deepEqual(typedTokens(typed, { codebase: ok("github.com") }), { codebase: "tok" });
+  assert.deepEqual(typedTokens(typed, { codebase: ok("gitlab.example.org") }), {}, "edited to another host");
+  assert.deepEqual(typedTokens(typed, { codebase: null }), {}, "while the new address is checked");
+  assert.deepEqual(typedTokens(typed, { codebase: { problem: "bad", saved: false, keychainOff: false } }), {});
+  // Back on the host it was typed for, it applies again.
+  assert.deepEqual(typedTokens(typed, { codebase: ok("github.com", true) }), { codebase: "tok" });
 });

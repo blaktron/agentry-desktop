@@ -410,8 +410,13 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 	ctx := s.ctx()
 	// An unscanned release is not run In Agentry from here (D-029), so it
 	// is not scheduled there either.
-	if sig, err := run.ResolveSignature(ctx, reg, req.Ref, false); err == nil && sig.Unscanned() {
-		return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55), so it is not scheduled there either", req.Ref)
+	if sig, err := run.ResolveSignature(ctx, reg, req.Ref, false); err == nil {
+		if sig.Unscanned() {
+			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55), so it is not scheduled there either", req.Ref)
+		}
+		if id := run.AnsweredSource(sig.Manifest, req.Intake); id != "" {
+			return nil, run.ErrSourceInAgentry(id)
+		}
 	}
 	var packs []string
 	if s.run != nil {

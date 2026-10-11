@@ -119,7 +119,7 @@ export function SourceQuestion({
           )}
           <p className="muted small" style={{ margin: "0 0 4px" }}>
             {tokenLine(sourceKey, typed, repository)}{" "}
-            Only the step that fetches it before the run uses the token: never the agent, its tools or the run's outputs.
+            The token is handed to the step that fetches the address before the run, on its standard input, and is not given to the agent or its tools.
           </p>
           {sourceKey?.saved && (
             <div className="row" style={{ gap: 8 }}>

@@ -131,7 +131,7 @@ func giveSourceTokens(a *intake.Answers, given map[string]string, warn func(stri
 	}
 	for id, tok := range given {
 		if strings.TrimSpace(tok) != "" && !known[id] {
-			return fmt.Errorf("an access token was given for %q, which is not an input source this run was given", id)
+			return fmt.Errorf("an access token was given for %q, which is not one of this run's input sources", id)
 		}
 	}
 	for _, s := range srcs {
@@ -148,4 +148,27 @@ func giveSourceTokens(a *intake.Answers, given map[string]string, warn func(stri
 		}
 	}
 	return nil
+}
+
+// AnsweredSource names the first input-source question of m that answers
+// gives an address, "" when none does. A run In Agentry is held for one
+// (agentry-enterprise#516): the CLI on the run host refuses a source until
+// hosted sources are built, so the desktop says so before anything is
+// uploaded or any credit is held.
+func AnsweredSource(m *manifest.Manifest, answers map[string]string) string {
+	if m == nil {
+		return ""
+	}
+	for _, q := range m.Intake {
+		if q.Type.IsSource() && strings.TrimSpace(answers[q.ID]) != "" {
+			return q.ID
+		}
+	}
+	return ""
+}
+
+// ErrSourceInAgentry is why a run or a schedule In Agentry given an input
+// source is held.
+func ErrSourceInAgentry(id string) error {
+	return fmt.Errorf("a run In Agentry does not take a repository or a file address yet (agentry-enterprise#516), and %q was given one: run it on this computer", id)
 }
