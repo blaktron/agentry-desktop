@@ -6216,7 +6216,6 @@ export namespace run {
 	        this.multiplier = source["multiplier"];
 	    }
 	}
-	
 	export class KeptClient {
 	    issuer: string;
 	    clientId: string;
