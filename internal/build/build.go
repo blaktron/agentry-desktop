@@ -838,7 +838,7 @@ func (m *Model) inputsLines() []string {
 		out = append(out, "  kinds: "+seq(kinds))
 	}
 	if view != "" {
-		out = append(out, "  view: "+view)
+		out = append(out, "  view: "+q(view))
 	}
 	return out
 }

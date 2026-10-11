@@ -1021,8 +1021,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
               )}
               {q.type === "url" && (
                 <p className="muted small" style={{ margin: "6px 0 0" }}>
-                  The person gives the https address of one file. The run fetches it before the agent starts and the agent reads it as an
-                  uploaded file.
+                  The person gives the https address of one file. The run fetches it before the agent starts, and the agent reads the file as it
+                  would one the person added.
                 </p>
               )}
               {q.type === "choice" && (
