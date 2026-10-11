@@ -678,8 +678,9 @@ var (
 
 // resealSchedules re-seals in the background, so a key change returns at
 // once (the command may take a while), and coalesces the changes made
-// while one runs into one more.
-func resealSchedules(app *App) {
+// while one runs into one more. A variable so a test can see that a key
+// change asks for it.
+var resealSchedules = func(app *App) {
 	resealState.Lock()
 	if resealState.running {
 		resealState.again = true

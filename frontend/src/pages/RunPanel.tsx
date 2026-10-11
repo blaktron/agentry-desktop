@@ -437,7 +437,7 @@ export default function RunPanel({
     }
   }
   blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, {
-    inAgentry, scheduling, signedOut: when.signedOut && !!availability?.signedOut.available,
+    inAgentry, scheduling,
   }));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
@@ -541,7 +541,7 @@ export default function RunPanel({
       const q = profile.intake.find((q) => intakeMissing.includes(q.id));
       if (q) return `${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`;
       // An address the run would refuse holds Next here, where it is fixed.
-      const s = sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, { inAgentry: false, scheduling: false, signedOut: false });
+      const s = sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, { inAgentry: false, scheduling: false });
       if (s.length > 0) return s[0];
     }
     return null;
