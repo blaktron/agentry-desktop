@@ -44,6 +44,10 @@ const connect = (vendor: string, name: string): Way => ({
   hint: `${name} makes a key for Agentry in your browser, billed to your ${name} account. Nothing to copy or paste.`,
 });
 
+/** The Copilot model that lets Copilot choose, the only one on Copilot
+ *  Free; always offered, first. */
+export const COPILOT_AUTO = "auto";
+
 /** The providers model setup offers, in the order shown. The defaults
  *  mirror the CLI's provider table (pkg/runner/setup), which fills any
  *  gap. */
@@ -58,7 +62,7 @@ export const PROVIDERS: ProviderChoice[] = [
       hint: "Sign in on OpenAI's page in your browser. Your ChatGPT plan pays for the runs on this computer." },
     key("A key from your OpenAI Platform account, billed there."),
   ] },
-  { id: "copilot", label: "GitHub Copilot", model: "auto", apiKeyEnv: "", ways: [
+  { id: "copilot", label: "GitHub Copilot", model: COPILOT_AUTO, apiKeyEnv: "", ways: [
     { id: "copilot", label: "Sign in with GitHub", vendor: "copilot", kind: "copilot-signin",
       hint: "GitHub's page opens in your browser and asks for a short code, which the app copies for you. Your Copilot plan pays for the runs on this computer." },
   ] },
@@ -173,10 +177,6 @@ export function modelAsk(provider: string, way: WayId, planModels: string[]): Mo
       return { mode: "key", options: [], placeholder: "", defaultModel: providerChoice(provider)?.model ?? "" };
   }
 }
-
-/** The Copilot model that lets Copilot choose, the only one on Copilot
- *  Free; always offered, first. */
-export const COPILOT_AUTO = "auto";
 
 /** What Copilot's model field offers: auto first, then each listed id
  *  once, in Copilot CLI's order. A model the plan disables is never in the

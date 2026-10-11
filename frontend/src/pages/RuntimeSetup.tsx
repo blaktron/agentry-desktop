@@ -82,6 +82,8 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // (agentry-desktop#811): null until listed; and why a list failed.
   const [copilotModels, setCopilotModels] = useState<run.CopilotModel[] | null>(null);
   const [copilotListError, setCopilotListError] = useState<string | null>(null);
+  // Whether a list was asked for, failed or not: a plan change asks again.
+  const [copilotAsked, setCopilotAsked] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
 
@@ -142,7 +144,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     }
   }
 
-  // Ask Copilot CLI which models plan offers the kept sign-in. It may build
+  // Ask Copilot CLI which models the plan offers the kept sign-in. It may build
   // the runner and Copilot CLI images first, so its progress is the setup
   // log's. A failure is said and the model is typed instead; it never
   // blocks Save.
@@ -151,6 +153,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     setError(null);
     setNotice(null);
     setCopilotListError(null);
+    setCopilotAsked(true);
     setLog([]);
     onBusy?.(true);
     try {
@@ -170,7 +173,14 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // asked for is asked again for the new plan.
   function changeCopilotPlan(plan: string) {
     setCopilotPlan(plan);
-    if (copilotModels !== null) void listCopilotModels(plan);
+    if (copilotAsked) void listCopilotModels(plan);
+  }
+
+  // A new account, its removal or another provider: no list stands.
+  function resetCopilotList() {
+    setCopilotModels(null);
+    setCopilotListError(null);
+    setCopilotAsked(false);
   }
 
   // The way the saved policy pays, for a choice to start on its model.
@@ -197,6 +207,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
 
   function pickProvider(id: string) {
     setProvider(id);
+    resetCopilotList();
     pickWay(id, savedWay(id, status?.provider ?? "", status?.apiKeyKind ?? "", kept, status?.providerSetUp));
     // A key is the provider's: one typed for Anthropic must not reach
     // OpenAI's endpoint on Get models, nor be stored under it on Save.
@@ -424,11 +435,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
                   setModel((cur) => cur || models[0]);
                 }
                 // Another account may be offered other models.
-                setCopilotModels(null);
-                setCopilotListError(null);
+                resetCopilotList();
                 void refreshKept();
               }}
-              onRemoved={() => { setCopilotModels(null); setCopilotListError(null); void refreshKept(); }}
+              onRemoved={() => { resetCopilotList(); void refreshKept(); }}
             />
             {way === "copilot" && (
               <label className="field">
@@ -464,7 +474,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
               )}
             </label>
             {way === "copilot" && copilotKept && !copilotKept.broken && (
-              <div className="row">
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
                 <Button
                   disabled={!!busy || !status?.dockerOk || checkingDocker}
                   title={!status?.dockerOk ? "docker must be available first" : "Copilot CLI lists the models your plan offers, in a run's container"}
@@ -472,6 +482,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
                 >
                   {copilotModels === null ? "List my plan's models" : "List again"}
                 </Button>
+                {!status?.dockerOk && <span className="muted small">Docker must be running to list your plan's models.</span>}
               </div>
             )}
             <p className="muted small">

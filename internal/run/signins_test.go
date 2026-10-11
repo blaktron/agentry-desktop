@@ -316,6 +316,13 @@ func TestCopilotModelsAreListedThroughCopilotCLI(t *testing.T) {
 	if _, err := CopilotModels(context.Background(), "individual", io.Discard); err == nil {
 		t.Fatal("listed with no Copilot sign-in kept")
 	}
+	// The plan is the page's: anything but GitHub's three is refused before
+	// docker is asked anything.
+	refusing := &dockerx.Fake{}
+	withFakeDocker(t, refusing)
+	if _, err := CopilotModels(context.Background(), "api.example.com", io.Discard); err == nil || len(refusing.Calls) != 0 {
+		t.Fatalf("a plan that is not one: %v, docker calls %v", err, refusing.Ops())
+	}
 	t.Setenv("AGENTRY_GITHUB_APP_CLIENT_ID", mcpauthtest.GitHubClientID)
 	v := mcpauthtest.NewGitHub(t)
 	old := githubEndpoints
@@ -349,10 +356,12 @@ func TestCopilotModelsAreListedThroughCopilotCLI(t *testing.T) {
 		}}},
 	}
 	withFakeDocker(t, d)
-	got, err := CopilotModels(context.Background(), "business", io.Discard)
+	var log strings.Builder
+	got, err := CopilotModels(context.Background(), "business", &log)
 	if err != nil {
 		t.Fatal(err)
 	}
+	noSecret(t, []any{got, log.String()}, v.AccessPrefix, v.RefreshPrefix)
 	if len(got) != 1 || got[0].ID != "claude-sonnet-5.5" || got[0].Name != "Claude Sonnet 5.5" || got[0].Multiplier != 1 {
 		t.Fatalf("models %+v", got)
 	}

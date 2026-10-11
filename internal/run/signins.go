@@ -217,6 +217,11 @@ type CopilotModel struct {
 // them, so a first list can take minutes; logw has their progress. A plan
 // the account's policy disables a model on does not list it.
 func CopilotModels(ctx context.Context, plan string, logw io.Writer) ([]CopilotModel, error) {
+	// The plan comes from the page and names the host the list's proxy
+	// allows: one of GitHub's three, held before anything is built.
+	if _, err := policy.CopilotProxyAllow(plan); err != nil {
+		return nil, err
+	}
 	home, err := Home()
 	if err != nil {
 		return nil, err
