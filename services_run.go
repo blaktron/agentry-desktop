@@ -191,7 +191,7 @@ type SessionEventView struct {
 // timeout, none by default, which Go reads here from desktop.yaml
 // (agentry-desktop#468, D-052). maxTurns is the tool-call budget, as a
 // run's: -1 keeps the policy's, 0 lifts it.
-func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool) (*SessionView, error) {
+func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {
 		return nil, err
@@ -252,6 +252,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 		AcceptUnscanned:        acceptUnscanned,
 		AllowVulnerableMCP:     allowVulnerableMCP,
 		Intake:                 intakeAnswers,
+		SourceTokens:           sourceTokens,
 		PathPicked:             r.app.requirePicked,
 		Unsafe:                 unsafe,
 		PlanCompiled:           func(u bool) { r.setUnsafeLive(live, u) },
@@ -1013,7 +1014,10 @@ type RunResultView struct {
 // knowledge names the knowledge packs kept on this computer to attach
 // (plan knowledge.md §4.5): each is opened from the local store once the
 // gates have passed, and its opened copy is removed when the run returns.
-func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool) (*RunResultView, error) {
+// sourceTokens are access tokens for this run's input sources, by question
+// id (agentry-desktop#794): each reaches that source's fetch step alone, and
+// a source given none uses the key saved for its host (services_sources.go).
+func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string) (*RunResultView, error) {
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
 	// off while the dialog is up.
@@ -1076,6 +1080,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		AcceptUnscanned:    acceptUnscanned,
 		AllowVulnerableMCP: allowVulnerableMCP,
 		Intake:             intakeAnswers,
+		SourceTokens:       sourceTokens,
 		PathPicked:         r.app.requirePicked,
 		Unsafe:             unsafe,
 		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },

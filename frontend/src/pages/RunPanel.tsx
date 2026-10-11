@@ -36,6 +36,8 @@ import { ServerSignIns, asConns } from "./ConnectTools";
 import { connectionBlockers, signInRecap } from "../connections";
 import { WhenStep, type Availability, type CheckState } from "./WhenStep";
 import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
+import { isSourceType, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
+import { SourceQuestion } from "./SourceQuestion";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it (agentry-desktop#743). */
@@ -85,6 +87,17 @@ export default function RunPanel({
   // Run form.
   const [task, setTask] = useState(f0?.task ?? "");
   const [intakeValues, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
+  // An input source's access token typed for this run, by question id,
+  // with the host it was typed for (agentry-desktop#794): sent with the run
+  // for its fetch step alone, and not kept with the setup's answers
+  // (RunForm), so Back to the setup does not carry it. An address edited to
+  // another host leaves it behind (typedTokens), so a token typed for one
+  // host never goes to another.
+  const [sourceTokens, setSourceTokens] = useState<Record<string, TypedToken>>({});
+  // Go's word on each source answer (RunAPI.SourceKeyStatus): the CLI's
+  // parse of the address, and whether a key is saved for its host. Kept
+  // with the answer it judged, so a changed answer reads as unchecked.
+  const [sourceChecks, setSourceChecks] = useState<Record<string, { answer: string; key: SourceKey }>>({});
   const [mode, setMode] = useState(f0?.mode ?? "");
   const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
@@ -305,6 +318,31 @@ export default function RunPanel({
   const optionalNames = profile?.optionalSecrets ?? [];
   const needsProfile = !!profile && requiredNames.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
+  const sourceQs = (profile?.intake ?? []).filter((q) => isSourceType(q.type));
+  // Each source answer is checked in Go after a pause in typing; an older
+  // answer's late word is kept under that answer and so never shown.
+  const sourceAnswers = JSON.stringify(sourceQs.map((q) => [q.id, q.type, (intakeValues[q.id] ?? "").trim()]));
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      for (const q of sourceQs) {
+        const answer = (intakeValues[q.id] ?? "").trim();
+        if (answer === "" || sourceChecks[q.id]?.answer === answer) continue;
+        const keep = (key: SourceKey) => setSourceChecks((c) => ({ ...c, [q.id]: { answer, key } }));
+        Promise.resolve()
+          .then(() => RunAPI.SourceKeyStatus(q.type, answer))
+          .then(keep)
+          .catch((e) => keep({ problem: String(e), saved: false, keychainOff: false }));
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceAnswers]);
+  const sourceKeys: Record<string, SourceKey | null> = {};
+  for (const q of sourceQs) {
+    const c = sourceChecks[q.id];
+    sourceKeys[q.id] = c && c.answer === (intakeValues[q.id] ?? "").trim() ? c.key : null;
+  }
+  const typed = typedTokens(sourceTokens, sourceKeys);
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
   // Talk to it In Agentry (agentry-desktop#403) is mode "hosted-session": a
@@ -398,6 +436,9 @@ export default function RunPanel({
       blockers.push(`${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`);
     }
   }
+  blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, {
+    inAgentry, scheduling, signedOut: when.signedOut && !!availability?.signedOut.available,
+  }));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
   if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
@@ -499,6 +540,9 @@ export default function RunPanel({
     if (step === "details" && profile) {
       const q = profile.intake.find((q) => intakeMissing.includes(q.id));
       if (q) return `${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`;
+      // An address the run would refuse holds Next here, where it is fixed.
+      const s = sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, { inAgentry: false, scheduling: false, signedOut: false });
+      if (s.length > 0) return s[0];
     }
     return null;
   }
@@ -705,7 +749,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed)),
       );
       onClose();
     } catch (e) {
@@ -854,7 +898,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed)),
       );
       onClose();
     } catch (e) {
@@ -1308,8 +1352,25 @@ export default function RunPanel({
                     <p className="muted small" style={{ marginTop: 0 }}>
                       Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
                       a secret answer is injected like a declared key and never shown to the agent.
+                      {sourceQs.length > 0 && (
+                        <> A repository or a file at an address is fetched before the run into <span className="mono">/inputs/&lt;question&gt;/</span>,
+                        read-only, and <span className="mono">intake.json</span> names the address and what was fetched; the access token is not written there.</>
+                      )}
                     </p>
-                    {profile.intake.map((q) => (
+                    {profile.intake.map((q) => isSourceType(q.type) ? (
+                      <SourceQuestion
+                        key={q.id}
+                        q={q}
+                        value={intakeValues[q.id] ?? ""}
+                        onChange={(v) => setIntakeValues({ ...intakeValues, [q.id]: v })}
+                        sourceKey={sourceKeys[q.id]}
+                        onKey={(key) => setSourceChecks((c) => ({ ...c, [q.id]: { answer: (intakeValues[q.id] ?? "").trim(), key } }))}
+                        typed={typed[q.id] ?? ""}
+                        onTyped={(t) => setSourceTokens((s) => ({ ...s, [q.id]: { host: sourceKeys[q.id]?.host ?? "", token: t } }))}
+                        disabled={running}
+                        onError={setRunErr}
+                      />
+                    ) : (
                       <div className="row" key={q.id} style={{ marginBottom: 8 }}>
                         <span style={{ minWidth: 260 }}>{q.prompt}{q.required ? " *" : ""}</span>
                         {q.type === "choice" ? (
@@ -1432,7 +1493,11 @@ export default function RunPanel({
                   <Fragment key={q.id}>
                     <dt>{q.prompt}</dt>
                     <dd>
-                      <span className="selectable">{(intakeValues[q.id] ?? "").trim() || "no answer"}</span>
+                      <span className="selectable">
+                        {isSourceType(q.type)
+                          ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], typed[q.id] ?? "")
+                          : (intakeValues[q.id] ?? "").trim() || "no answer"}
+                      </span>
                       <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label={`Edit ${q.prompt}`}>Edit</Button>
                     </dd>
                   </Fragment>

@@ -46,6 +46,15 @@ and a file name with a right-to-left override; `shots.mjs` fails them if any
 `img`, `script`, `iframe`, `onclick` or `javascript:` link appears in the
 result view.
 
+Input sources (agentry-desktop#794) are shown on a release that asks for a
+repository and, optionally, a file at an address: `#runpanel-source-details`
+(nothing answered), `-saved` (a key saved for github.com: the run uses it,
+another token can be typed, the key removed), `-typed` (a host with no
+saved key: the token field and Save for the host), `-review` (Review and
+start names the ref and where the token comes from; a url's query shows as
+`?…`) and `-hosted` (In Agentry held). The stubbed `SourceKeyStatus`
+refuses an address that is not https, as the CLI's parser does.
+
 Talk to it In Agentry, a hosted session (agentry-desktop#403), has three
 setup states on an interactive-only copy of the release:
 `#runpanel-session-offer` (the choice made, with what a session costs from

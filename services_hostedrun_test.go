@@ -30,6 +30,7 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/schedules"
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -128,6 +129,9 @@ type hostedFake struct {
 	// makes the same create again and uploads nothing again).
 	uploads int
 	creates []string
+	// intake is the release's intake block as manifest YAML, "" for none
+	// (a repository question, agentry-desktop#794).
+	intake string
 	// routes, when set, adds routes of another extension to the fake
 	// (the schedules extension's, agentry-desktop#745).
 	routes func(mux *http.ServeMux)
@@ -183,7 +187,7 @@ func (f *hostedFake) start(t *testing.T) string {
 		defer f.mu.Unlock()
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": "/att", "digest": "sha256:" + strings.Repeat("ab", 32),
-			"manifest": hostedManifestDoc(t, f.modes, f.secrets), "namespace": "acme", "name": "reporter",
+			"manifest": hostedManifestDoc(t, f.modes, f.secrets, f.intake), "namespace": "acme", "name": "reporter",
 			"version": "1.0.0", "yanked": false,
 		})
 	})
@@ -503,7 +507,7 @@ func hostedJSON(w http.ResponseWriter, status int, v any) {
 
 // hostedManifestDoc is the resolve result's manifest — the typed struct's
 // own JSON, which is what a real registry serves.
-func hostedManifestDoc(t *testing.T, modes, secrets []string) map[string]any {
+func hostedManifestDoc(t *testing.T, modes, secrets []string, intake ...string) map[string]any {
 	t.Helper()
 	y := "schemaVersion: \"2\"\nname: reporter\nnamespace: acme\nversion: 1.0.0\nsummary: \"hosted run fixture\"\n" +
 		"modes: [" + strings.Join(modes, ", ") + "]\nentrypoints:\n  instruction: SKILL.md\ncapabilities:\n" +
@@ -511,7 +515,7 @@ func hostedManifestDoc(t *testing.T, modes, secrets []string) map[string]any {
 	if len(secrets) > 0 {
 		y += "  secrets: [" + strings.Join(secrets, ", ") + "]\n"
 	}
-	y += "publish:\n  include: [agent.yaml, SKILL.md]\n"
+	y += "publish:\n  include: [agent.yaml, SKILL.md]\n" + strings.Join(intake, "")
 	m, err := manifest.Parse([]byte(y))
 	if err != nil {
 		t.Fatalf("fixture manifest: %v", err)
@@ -1137,5 +1141,41 @@ func TestHostedKnowledgeNeedsTheTokensKnowledgeRead(t *testing.T) {
 	}
 	if v.KnowledgeAttach || !strings.Contains(v.KnowledgeNote, "knowledge:read") {
 		t.Fatalf("availability = %+v", v)
+	}
+}
+
+// A run or a schedule In Agentry given an input source is held in Go
+// before anything is uploaded or created (agentry-desktop#794): the run
+// host's CLI refuses a source until agentry-enterprise#516. An optional
+// source left empty holds nothing.
+func TestARunInAgentryGivenASourceIsHeldBeforeAnythingIsSent(t *testing.T) {
+	f := &hostedFake{enabled: true, modes: []string{"autonomous"},
+		intake: "intake:\n  - id: codebase\n    prompt: \"The repository\"\n    type: repository\n    required: false\n"}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	out := t.TempDir()
+	r.app.markPicked(out)
+
+	_, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": "https://github.com/acme/app"}, nil, false, false)
+	if err == nil || !strings.Contains(err.Error(), "agentry-enterprise#516") || !strings.Contains(err.Error(), "codebase") {
+		t.Fatalf("want the hold naming the question, got %v", err)
+	}
+	s := &ScheduleAPI{app: r.app, run: r}
+	_, err = s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"codebase": "https://github.com/acme/app"},
+		When: schedules.When{Kind: "daily", Time: "07:00"}})
+	if err == nil || !strings.Contains(err.Error(), "agentry-enterprise#516") {
+		t.Fatalf("schedule: want the hold, got %v", err)
+	}
+	f.mu.Lock()
+	uploads, creates := f.uploads, len(f.creates)
+	f.mu.Unlock()
+	if uploads != 0 || creates != 0 {
+		t.Fatalf("the registry was sent %d uploads and %d creates", uploads, creates)
+	}
+
+	// Left empty, the optional source holds nothing: the run is created.
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"codebase": " "}, nil, false, false); err != nil {
+		t.Fatalf("an unanswered source: %v", err)
 	}
 }

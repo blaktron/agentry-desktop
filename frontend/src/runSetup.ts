@@ -5,6 +5,8 @@
 // manifest the same way (agentry-web lib/run-setup), so a release asks for
 // the same things on either client.
 
+import { isSourceType, sourceNeed } from "./sources.ts";
+
 export type StepKey = "start" | "files" | "knowledge" | "tools" | "details" | "review";
 
 export const STEP_LABEL: Record<StepKey, string> = {
@@ -72,6 +74,11 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
   }
   for (const q of release.intake) {
     if (q.type === "file") continue;
+    // A repository or a file at an address (agentry-desktop#794).
+    if (isSourceType(q.type)) {
+      out.push(sourceNeed(q));
+      continue;
+    }
     out.push(`Your answer to “${q.prompt}”${q.required ? "" : " (optional)"}.`);
   }
   // A server that signs in by OAuth is connected on Connect tools
