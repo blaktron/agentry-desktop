@@ -72,8 +72,13 @@ func Sweep(ctx context.Context, runID string) error {
 		}
 	}
 	// Networks last, since one with a container attached cannot go. Absent
-	// is not an error.
-	for _, n := range runNetworks(ctx, d, runID) {
+	// is not an error. A list that fails is: the fixed names still go, and
+	// the error keeps the run's record for the next start to ask again.
+	nets, err := runNetworks(ctx, d, runID, label)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("list networks: %w", err))
+	}
+	for _, n := range nets {
 		if err := d.NetworkRemove(ctx, n); err != nil {
 			errs = append(errs, fmt.Errorf("remove network %s: %w", n, err))
 		}
@@ -96,21 +101,21 @@ func Sweep(ctx context.Context, runID string) error {
 // (agentry-cli#852, agentry-desktop#828). The names are the engine's own
 // and not exported, so they are restated here as engine.SweepAbandoned
 // restates them, held to the engine by
-// TestSweepNamesEveryNetworkTheEngineMakes, and stand when docker cannot
-// list.
-func runNetworks(ctx context.Context, d dockerx.Client, runID string) []string {
+// TestSweepNamesEveryNetworkTheEngineMakes, and are returned with the
+// error when docker cannot list.
+func runNetworks(ctx context.Context, d dockerx.Client, runID, label string) ([]string, error) {
 	p := "agentry-" + runID
 	names := []string{p + "-net", p + "-egress", p + "-web", p + "-relays", p + "-relays-out"}
-	labelled, err := d.NetworksByLabel(ctx, "agentry.run="+runID)
+	labelled, err := d.NetworksByLabel(ctx, label)
 	if err != nil {
-		return names
+		return names, err
 	}
 	for _, n := range labelled {
 		if !slices.Contains(names, n) {
 			names = append(names, n)
 		}
 	}
-	return names
+	return names, nil
 }
 
 // SweepFiles is Sweep's file half, which needs no docker: it removes what a

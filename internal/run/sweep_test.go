@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,6 +57,38 @@ func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 	}
 	if len(fake.Networks) != 1 || fake.Networks[0].Name != "agentry-ef56ab78-src-code" {
 		t.Fatalf("networks left: %v; want only the other run's", fake.Networks)
+	}
+}
+
+// unlistedNetworks is a daemon that answers everything but a list of
+// networks.
+type unlistedNetworks struct{ *dockerx.Fake }
+
+func (unlistedNetworks) NetworksByLabel(context.Context, string) ([]string, error) {
+	return nil, errors.New("network ls refused")
+}
+
+// A docker that cannot list networks still has every network the engine
+// names asked for, and the failure is reported, so the run's record stays
+// for the next start to sweep again.
+func TestSweepRemovesTheNamedNetworksWhenTheListFails(t *testing.T) {
+	isolateRunEnv(t)
+	fake := &dockerx.Fake{}
+	withFakeDocker(t, unlistedNetworks{fake})
+
+	err := Sweep(context.Background(), "ab12cd34")
+	if err == nil || !strings.Contains(err.Error(), "list networks: network ls refused") {
+		t.Fatalf("err %v; want the list's failure reported", err)
+	}
+	var removed []string
+	for _, c := range fake.Calls {
+		if c.Op == "NetworkRemove" {
+			removed = append(removed, c.Arg)
+		}
+	}
+	want := "agentry-ab12cd34-net agentry-ab12cd34-egress agentry-ab12cd34-web agentry-ab12cd34-relays agentry-ab12cd34-relays-out"
+	if strings.Join(removed, " ") != want {
+		t.Fatalf("removed %v; want %s", removed, want)
 	}
 }
 
