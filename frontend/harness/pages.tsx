@@ -1002,6 +1002,16 @@ g.go = { main: {
       return `${u.trim()} uses plain http: the API key and the prompts travel unencrypted to ${m[1]}. Use https if the endpoint supports it.`;
     },
     ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" }] }),
+    // Model sign-ins (agentry-desktop#734): #signins keeps a ChatGPT
+    // sign-in, a Claude one and a connected Poe account whose key expires,
+    // listed under Kept on this computer with Remove and Disconnect.
+    ModelSignIns: async () => (window.location.hash === "#signins" ? [
+      { vendor: "chatgpt", provider: "openai", kind: "chatgpt-plan", connected: false, account: "chris@example.com", image: true, createdAt: "2026-10-11T12:00:00Z" },
+      { vendor: "claude", provider: "anthropic", kind: "claude-signin", connected: false, account: "chris@example.com (Example Org)", image: true, createdAt: "2026-10-11T12:00:00Z" },
+      { vendor: "poe", provider: "poe", kind: "api", connected: true, keyExpiresAt: "2026-11-11T00:00:00Z", image: true, createdAt: "2026-10-11T12:00:00Z" },
+    ] : []),
+    ChatGPTModels: async () => ["gpt-5.2", "gpt-5-mini"],
+    RemoveModelSignIn: async () => "revoked at the vendor",
     JevKeyStatus: async () => jevKeyView,
     StoreJevKey: async () => ({ stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true }),
     ForgetJevKey: async () => ({ stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false }),

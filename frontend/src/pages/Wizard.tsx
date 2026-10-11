@@ -251,9 +251,10 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
           intro={
             <>
               QuickAgents run in isolated containers with tools served by a per-run Docker MCP
-              Gateway. Choose the LLM provider those runs use and paste its key — it is kept on this
-              machine — then Get models asks the endpoint what it serves. Preparing the images is
-              optional now; your first run prepares them if you skip it.
+              Gateway. Choose the AI provider those runs use and how to pay for it: sign in with a
+              plan you already have (ChatGPT, Claude, GitHub Copilot) or connect your account, or use
+              an API key, kept on this machine. Preparing the images is optional now; your first run
+              prepares them if you skip it.
             </>
           }
         />

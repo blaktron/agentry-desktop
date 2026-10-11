@@ -14,9 +14,12 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/adapter"
+	"github.com/blaktron/agentry-cli/pkg/runner/claudesignin"
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 	"github.com/blaktron/agentry-cli/pkg/runner/gateway"
 	"github.com/blaktron/agentry-cli/pkg/runner/modelkey"
+	"github.com/blaktron/agentry-cli/pkg/runner/modelsignin"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/setup"
 )
@@ -160,10 +163,19 @@ func providersToAsk(policyProvider string) []string {
 }
 
 // imagesReady reports whether the three images a run needs are present:
-// the pinned gateway and harness images plus the locally built runner
-// image (§R7).
+// the pinned gateway image, the harness image model setup's choice runs on
+// (docker-agent's for a key, a model sign-in's own), and the locally built
+// runner image (§R7).
 func imagesReady(ctx context.Context, docker dockerx.Client, pol *policy.Policy) bool {
-	for _, ref := range []string{pol.Images.Gateway, pol.Images.HarnessDockerAgent, runnerImageTag(pol)} {
+	harness := pol.Images.HarnessDockerAgent
+	if name := adapter.DefaultFor(pol); name != adapter.DefaultName {
+		h, ok := pol.Images.HarnessImageFor(name)
+		if !ok {
+			return false
+		}
+		harness = h.Ref
+	}
+	for _, ref := range []string{pol.Images.Gateway, harness, runnerImageTag(pol)} {
 		ok, err := docker.ImageExists(ctx, ref)
 		if err != nil || !ok {
 			return false
@@ -189,6 +201,17 @@ type SetupOpts struct {
 	ForgetKey    bool
 	BaseURL      string
 	PullImages   bool
+	// APIKeyKind names a model sign-in as the way to pay (chatgpt-plan,
+	// claude-signin, copilot-signin; agentry-desktop#734): the sign-in is
+	// made beforehand (SignInChatGPT, SignInClaude, SignInCopilot), and
+	// this records it as the active choice. "" or api is a key.
+	APIKeyKind string
+	// Connect records a connected account (OpenRouter, Poe, Hugging Face)
+	// as the way to pay, connected beforehand (ConnectAccount).
+	Connect bool
+	// CopilotPlan is the Copilot plan the account is on (individual,
+	// business, enterprise), which names the Copilot API host runs reach.
+	CopilotPlan string
 }
 
 // ApplySetup writes the LLM provider preference into the operator policy
@@ -227,6 +250,9 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	// since D-042, with the form's warning).
 	if err := checkBaseURL(provider, opts.BaseURL); err != nil {
 		return err
+	}
+	if policy.IsModelSignIn(opts.APIKeyKind) || opts.Connect {
+		return applySignInSetup(ctx, home, policyPath, provider, opts, logw)
 	}
 	// The kind (agentry-cli#171) is read from the value while this
 	// process holds it — a key stored now, or below the one the keychain
@@ -294,15 +320,103 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	if !opts.PullImages {
 		return nil
 	}
+	return prepareImages(ctx, home, pol, logw)
+}
+
+// prepareImages stands up the gateway plane and the harness image model
+// setup's choice runs on, and no other harness's (model sign-ins D7): the
+// pinned docker-agent image for a key, or the Codex, Claude Code or
+// Copilot CLI image for a model sign-in, pulled or built on this machine
+// from its pinned artifact.
+func prepareImages(ctx context.Context, home string, pol *policy.Policy, logw io.Writer) error {
 	docker := newDockerClient()
-	// Setup prepares the whole plane before any agent is chosen, so the
-	// harness image is wanted here whatever a later run turns out to use.
+	name := adapter.DefaultFor(pol)
+	ownImage := name == adapter.DefaultName
 	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw,
-		true); err != nil {
+		ownImage); err != nil {
 		return fmt.Errorf("gateway/docker environment: %w", err)
+	}
+	if !ownImage {
+		h, ok := pol.Images.HarnessImageFor(name)
+		if !ok {
+			return fmt.Errorf("the policy names no %s harness image", name)
+		}
+		if err := gateway.EnsureHarnessImage(ctx, docker, name, h, logw); err != nil {
+			return fmt.Errorf("the %s harness image: %w", name, err)
+		}
 	}
 	_, _ = fmt.Fprintln(logw, "setup complete — gateway, harness, and runner images ready; QuickAgents can run")
 	return nil
+}
+
+// errSignInFirst is setup's refusal of a choice nothing is signed in to:
+// the page signs in, then saves.
+func errSignInFirst(what string) error {
+	return fmt.Errorf("%s: sign in first, then save", what)
+}
+
+// applySignInSetup records a model sign-in or a connected account as model
+// setup's active choice, through the CLI's own setup.ConfigureModel, with
+// what this computer keeps standing in for its sign-in: setup signs nothing
+// in here, and refuses a choice that is not signed in.
+func applySignInSetup(ctx context.Context, home, policyPath, provider string, opts SetupOpts, logw io.Writer) error {
+	store := modelsignin.Open(home, nil)
+	kept := func(vendor string) string {
+		r, err := store.Get(vendor)
+		if err != nil || r.Broken != "" {
+			return ""
+		}
+		if r.Label == "" {
+			return "an account " + vendor + " did not name"
+		}
+		return r.Label
+	}
+	pol, _, err := policy.EnsureDefault(policyPath)
+	if err != nil {
+		return fmt.Errorf("operator policy: %w", err)
+	}
+	err = setup.ConfigureModel(&formPrompter{log: logw}, pol, setup.ModelOpts{
+		Provider:       provider,
+		Model:          opts.Model,
+		APIKeyKind:     opts.APIKeyKind,
+		CopilotPlan:    opts.CopilotPlan,
+		ConnectAccount: opts.Connect,
+		Yes:            true,
+		ChatGPT: setup.ChatGPTOffer{
+			Kept: func() string { return kept(modelsignin.ChatGPT) },
+			SignIn: func(fresh bool) (string, []string, error) {
+				acct := kept(modelsignin.ChatGPT)
+				if fresh || acct == "" {
+					return "", nil, errSignInFirst("Sign in with ChatGPT")
+				}
+				models, _ := ChatGPTModels(ctx) // the model is the form's; the list only names a default
+				return acct, models, nil
+			},
+		},
+		Claude: setup.ClaudeOffer{
+			Kept:   func() string { return claudesignin.Kept(home) },
+			SignIn: func() (string, error) { return "", errSignInFirst(setup.ClaudeSignInLabel) },
+		},
+		Copilot: setup.CopilotOffer{
+			Kept:   func() string { return kept(modelsignin.Copilot) },
+			SignIn: func() (string, error) { return "", errSignInFirst("Sign in with GitHub") },
+		},
+		Connect: setup.ConnectOffer{
+			Kept:    func(p string) string { return kept(modelsignin.ConnectedVendor(p)) },
+			Connect: func(p string) (string, error) { return "", errSignInFirst(setup.ConnectLabel) },
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if err := policy.Save(policyPath, pol); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(logw, "policy written: %s\n", policyPath)
+	if !opts.PullImages {
+		return nil
+	}
+	return prepareImages(ctx, home, pol, logw)
 }
 
 // formPrompter satisfies setup.Prompter for a GUI whose answers arrived as
@@ -389,8 +503,20 @@ func keyFromPolicyVariable(provider string) string {
 // records them (agentry-desktop#139). A keychain that cannot be reached is
 // a named refusal.
 func StoreModelKey(provider, key string, logw io.Writer) error {
-	_, err := storeModelKey(provider, key, logw)
-	return err
+	if _, err := storeModelKey(provider, key, logw); err != nil {
+		return err
+	}
+	// A pasted key takes the place of a connected account's key in the
+	// same keychain entry, so the connect is forgotten, as the CLI's setup
+	// does (agentry-cli#742): what it says names the vendor's own page.
+	if setup.IsConnectProvider(provider) {
+		if s, _, err := signInStore(); err == nil {
+			if outcome, err := s.ForgetConnected(context.Background(), modelsignin.ConnectedVendor(provider)); err == nil && outcome != "" {
+				_, _ = fmt.Fprintln(logw, outcome)
+			}
+		}
+	}
+	return nil
 }
 
 // storeModelKey is the one store path: the keychain write, the line that

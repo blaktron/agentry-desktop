@@ -9,6 +9,7 @@ import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Tool
 import { fmtDuration } from "../usage";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
+import { paidBy } from "../modelSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
 import { AIReviewKeyCard } from "./AIReviewKey";
@@ -405,7 +406,7 @@ export function runStatus(s: main.SetupStatusView): string {
 // "saved" only when the keychain holds it and the policy reads it there.
 export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyView | null): string {
   const parts: string[] = [];
-  if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}` : "No provider chosen yet");
+  if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}${paidBy(s.apiKeyKind ?? "") ? `, paid by ${paidBy(s.apiKeyKind ?? "")}` : ""}` : "No provider chosen yet");
   if (k) {
     const standing = keyStanding(k);
     parts.push(standing === "env" ? `AI Review key from $${k.envName}` : standing === "saved" ? "AI Review key saved" : "No AI Review key");

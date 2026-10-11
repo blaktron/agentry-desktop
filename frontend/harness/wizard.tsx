@@ -57,6 +57,23 @@ const prepareRefused = location.hash.endsWith("-prepare-refused");
 const keyOnly = suffix === "keyonly";
 const harnessesMissing = suffix === "missing" || nothing || keyOnly;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
+// Model sign-ins (agentry-desktop#734): #2-chatgpt OpenAI with nothing
+// kept (Sign in with ChatGPT leads, the key second); #2-claudekept the
+// Claude subscription chosen and signed in; #2-waiting a ChatGPT sign-in
+// waiting in the browser (the shot clicks Sign in with ChatGPT, which never
+// answers here); #2-copilotcode Sign in with GitHub showing GitHub's code,
+// copied (the shot clicks the button; the code arrives as the event);
+// #2-connected an OpenRouter account connected, its model typed.
+const signInState = ["chatgpt", "claudekept", "waiting", "copilotcode", "connected"].includes(suffix) ? suffix : "";
+const signInProvider = { chatgpt: "openai", waiting: "openai", claudekept: "anthropic", copilotcode: "copilot", connected: "openrouter" }[signInState] ?? "";
+const signInKind = { claudekept: "claude-signin" }[signInState] ?? "";
+const keptSignIns = signInState === "claudekept"
+  ? [{ vendor: "claude", provider: "anthropic", kind: "claude-signin", connected: false, account: "you@example.com (Example Org)", image: true, createdAt: "2026-10-11T12:00:00Z" }]
+  : signInState === "connected"
+    ? [{ vendor: "openrouter", provider: "openrouter", kind: "api", connected: true, account: "you", image: true, createdAt: "2026-10-11T12:00:00Z" }]
+    : [];
+// The runtime's events, so a binding can answer through them as Go does.
+const handlers: Record<string, ((...a: any[]) => void)[]> = {};
 const setup = {
   dockerOk: dockerState === "", imagesReady: !nothing && !keyOnly, policyExists: !nothing,
   providerSetUp: !nothing && !keyOnly,
@@ -65,6 +82,11 @@ const setup = {
   apiKeySource: nothing || keyOnly ? "" : "keyring", keysStored: nothing || keyOnly ? [] : ["anthropic"], keyStoreErr: "",
   apiKeyKind: subscription ? "subscription" : "", keyNotice: subscription ? catalog.notice : "",
   baseUrl: "", timeoutSeconds: 900, maxTurns: 60,
+  ...(signInProvider ? {
+    provider: signInProvider, apiKeyKind: signInKind, providerSetUp: signInState !== "chatgpt" && signInState !== "copilotcode",
+    model: { claudekept: "sonnet", connected: "anthropic/claude-sonnet-4.5" }[signInState] ?? "",
+    apiKeyEnv: "", keysStored: [],
+  } : {}),
 };
 
 const settingsView = {
@@ -153,6 +175,18 @@ g.go = { main: {
       return catalog;
     },
     ChooseHarness: async (name: string) => harnesses.map((h) => ({ ...h, chosen: h.name === name, pathFromPolicy: h.name === name })),
+    ModelSignIns: async () => keptSignIns,
+    ChatGPTModels: async () => ["gpt-5.2", "gpt-5.2-codex", "gpt-5-mini"],
+    SignInChatGPT: async () => new Promise(() => {}),
+    SignInClaude: async () => ({ signedIn: { vendor: "claude", account: "you@example.com", models: [] } }),
+    SignInCopilot: async () => {
+      setTimeout(() => (handlers["signin:code"] ?? []).forEach((h) => h({ vendor: "copilot", page: "https://github.com/login/device", code: "WDJB-MJHT" })), 50);
+      return new Promise(() => {});
+    },
+    ConnectAccount: async () => new Promise(() => {}),
+    CancelSignIn: async () => true,
+    RemoveModelSignIn: async () => "revoked at the vendor",
+    ApplySignInSetup: async () => setup,
   },
   SettingsAPI: {
     AddRegistry: async () => settingsView,
@@ -162,7 +196,9 @@ g.go = { main: {
     MarkOnboarded: async () => settingsView,
   },
 } };
-g.runtime = { EventsOn: () => () => {}, EventsOnMultiple: () => () => {}, EventsOnce: () => () => {}, EventsOff: () => {}, EventsEmit: () => {}, LogPrint: () => {}, ClipboardSetText: async () => true };
+g.runtime = {
+  EventsOn: (name: string, cb: (...a: any[]) => void) => { (handlers[name] ??= []).push(cb); return () => { handlers[name] = (handlers[name] ?? []).filter((h) => h !== cb); }; },
+  EventsOnMultiple: (name: string, cb: (...a: any[]) => void) => { (handlers[name] ??= []).push(cb); return () => { handlers[name] = (handlers[name] ?? []).filter((h) => h !== cb); }; }, EventsOnce: () => () => {}, EventsOff: () => {}, EventsEmit: () => {}, LogPrint: () => {}, ClipboardSetText: async () => true };
 
 import Wizard from "../src/pages/Wizard";
 import { Wordmark } from "../src/ui";
