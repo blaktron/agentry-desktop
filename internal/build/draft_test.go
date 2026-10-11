@@ -179,3 +179,35 @@ func TestFromDraftKeepsAcceptsAndDropsShips(t *testing.T) {
 		t.Fatalf("a draft with no knowledge: %+v %v", plain.KnowledgePrompt, err)
 	}
 }
+
+// A draft that asks for a repository and declares what files it takes
+// (agentry-desktop#806, #822) is held whole: the question's type and the
+// inputs block are kept, and neither is named as left out.
+func TestFromDraftKeepsSourceQuestionsAndInputs(t *testing.T) {
+	withSource := strings.Replace(draftManifest,
+		`"intake": [{"id": "notes", "prompt": "The meeting notes", "type": "file", "required": true}],`,
+		`"intake": [{"id": "codebase", "prompt": "The repository to audit", "type": "repository", "required": true}],
+		 "inputs": {"kinds": ["code"], "view": "text"},`, 1)
+	if withSource == draftManifest {
+		t.Fatal("the fixture's intake line moved")
+	}
+	m, notes, err := FromDraft([]byte(withSource), "# Audit\n", "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range notes {
+		if strings.Contains(n, "left out") {
+			t.Fatalf("a note says a field was left out: %q", n)
+		}
+	}
+	if len(m.Intake) != 1 || m.Intake[0].Type != "repository" || strings.Join(m.InputKinds, ",") != "code" || m.InputView != "text" {
+		t.Fatalf("the draft: intake %+v, inputs %q %q", m.Intake, m.InputKinds, m.InputView)
+	}
+	y := m.manifestYAML()
+	if !strings.Contains(y, "type: repository") || !strings.Contains(y, "kinds: [code]") || !strings.Contains(y, "view: text") {
+		t.Fatalf("the saved manifest:\n%s", y)
+	}
+	if c := m.Check(); c.First != nil || len(c.Warnings) != 0 {
+		t.Fatalf("the decoded draft: first %+v, warnings %q", c.First, c.Warnings)
+	}
+}

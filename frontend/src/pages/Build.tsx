@@ -1005,11 +1005,26 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                     <option value="choice">choice</option>
                     <option value="file">file</option>
                     <option value="secret">secret</option>
+                    <option value="repository">repository</option>
+                    <option value="url">url</option>
                   </select>
                 </label>
                 <RequiredBox m={m} q={q} onChange={(required) => patch({ required })} />
                 <Button type="button" onClick={() => set({ intake: m.intake.filter((_, j) => j !== i) })}>remove</Button>
               </div>
+              {q.type === "repository" && (
+                <p className="muted small" style={{ margin: "6px 0 0" }}>
+                  The person gives a git repository&apos;s https address, and a branch, tag or commit if they want one. The run fetches it
+                  before the agent starts, into <span className="mono">/inputs/{q.id || "<id>"}/</span>, with the key they saved for its host, or
+                  none for a public one.
+                </p>
+              )}
+              {q.type === "url" && (
+                <p className="muted small" style={{ margin: "6px 0 0" }}>
+                  The person gives the https address of one file. The run fetches it before the agent starts, and the agent reads the file as it
+                  would one the person added.
+                </p>
+              )}
               {q.type === "choice" && (
                 <label className="small" style={{ display: "block", marginTop: 6 }}>choices
                   <ListInput value={q.choices ?? []} onChange={(v) => patch({ choices: v })} placeholder="emea, apac, amer" />

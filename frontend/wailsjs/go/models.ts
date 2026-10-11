@@ -330,6 +330,8 @@ export namespace build {
 	    instructionFile: string;
 	    instructions: string;
 	    intake: IntakeRow[];
+	    inputKinds: string[];
+	    inputView: string;
 	    opening: string;
 	    idleTimeoutSeconds: number;
 	    guide: GuideModel;
@@ -372,6 +374,8 @@ export namespace build {
 	        this.instructionFile = source["instructionFile"];
 	        this.instructions = source["instructions"];
 	        this.intake = this.convertValues(source["intake"], IntakeRow);
+	        this.inputKinds = source["inputKinds"];
+	        this.inputView = source["inputView"];
 	        this.opening = source["opening"];
 	        this.idleTimeoutSeconds = source["idleTimeoutSeconds"];
 	        this.guide = this.convertValues(source["guide"], GuideModel);

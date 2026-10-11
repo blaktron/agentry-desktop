@@ -66,6 +66,13 @@ type Model struct {
 	Instructions string `json:"instructions"`
 	// Intake are the up-front questions (manifest v2 intake, plan §3.5).
 	Intake []IntakeRow `json:"intake"`
+	// InputKinds and InputView are the manifest's inputs block (V12,
+	// DEV-218), carried unchanged from Load to the next save: the form has
+	// no editor for them, and a save that dropped them would change what
+	// files the release takes and how its agent reads them
+	// (agentry-desktop#822). V13 reads InputKinds for a repository question.
+	InputKinds []string `json:"inputKinds"`
+	InputView  string   `json:"inputView"`
 	// Opening is interactive.opening: the agent's first line in a session
 	// started without a task (only meaningful with interactive in Modes).
 	Opening string `json:"opening"`
@@ -151,7 +158,7 @@ type ConnectRow struct {
 type IntakeRow struct {
 	ID       string   `json:"id"`
 	Prompt   string   `json:"prompt"`
-	Type     string   `json:"type"` // text | secret | choice | file
+	Type     string   `json:"type"` // text | secret | choice | file | repository | url
 	Required bool     `json:"required"`
 	Choices  []string `json:"choices"`
 }
@@ -293,7 +300,7 @@ func validMode(s string) bool { return s == "autonomous" || s == "interactive" }
 func Default(namespace string) *Model {
 	return &Model{
 		Modes: []string{"autonomous"}, Version: "0.1.0", License: "MIT", Namespace: namespace,
-		InstructionFile: defaultInstructionFile, Intake: []IntakeRow{},
+		InstructionFile: defaultInstructionFile, Intake: []IntakeRow{}, InputKinds: []string{},
 		EgressMode: "none", FSRead: "workspace", FSWrite: "none",
 		Tags: []string{}, EgressHosts: []string{}, FSReadPaths: []string{}, FSWritePaths: []string{},
 		ExecCommands: []string{}, Secrets: []string{}, RequiredSecrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
@@ -483,7 +490,11 @@ func (m *Model) formProblems() []SectionProblem {
 			add(SectionQuestions, "intake question %s: the prompt is required", id)
 		}
 		switch q.Type {
-		case "", "text", "file":
+		// A repository or url question asks for an input source the run
+		// fetches (DEV-240, agentry-desktop#806): no choices, no secret of
+		// its own; the core's V13 warns on a repository with inputs.kinds
+		// that lack code.
+		case "", "text", "file", "repository", "url":
 		case "choice":
 			if len(compact(q.Choices)) == 0 {
 				add(SectionQuestions, "intake question %s: a choice question needs its choices", id)
@@ -493,7 +504,7 @@ func (m *Model) formProblems() []SectionProblem {
 				add(SectionQuestions, "intake question %s: a secret answer is carried by a key of its own named %s — add it under Files, commands and data", id, strings.ToUpper(id))
 			}
 		default:
-			add(SectionQuestions, "intake question %s: unknown type %q (text, secret, choice, file)", id, q.Type)
+			add(SectionQuestions, "intake question %s: unknown type %q (text, secret, choice, file, repository, url)", id, q.Type)
 		}
 		if q.Type != "choice" && len(compact(q.Choices)) > 0 {
 			add(SectionQuestions, "intake question %s: choices only apply to a choice question", id)
@@ -816,6 +827,22 @@ func (m *Model) intakeLines() []string {
 	return out
 }
 
+// inputsLines is the inputs block as it was loaded (agentry-desktop#822).
+func (m *Model) inputsLines() []string {
+	kinds, view := compact(m.InputKinds), strings.TrimSpace(m.InputView)
+	if len(kinds) == 0 && view == "" {
+		return nil
+	}
+	out := []string{"inputs:"}
+	if len(kinds) > 0 {
+		out = append(out, "  kinds: "+seq(kinds))
+	}
+	if view != "" {
+		out = append(out, "  view: "+q(view))
+	}
+	return out
+}
+
 func (g GuideModel) empty() bool {
 	return strings.TrimSpace(g.Overview) == "" && len(compact(g.Prepare)) == 0 && strings.TrimSpace(g.Files) == "" &&
 		strings.TrimSpace(g.Task) == "" && len(g.Connect) == 0
@@ -1106,6 +1133,7 @@ func (m *Model) manifestYAML() string {
 	out = append(out, m.publishingRest()...)
 	block(m.entrypointLines())
 	block(m.intakeLines())
+	block(m.inputsLines())
 	block(m.guideLines())
 	block(m.interactiveLines())
 	block(m.runtimeLines())
@@ -1308,6 +1336,10 @@ func decodeManifest(raw []byte) (*Model, error) {
 			Required bool     `yaml:"required"`
 			Choices  []string `yaml:"choices"`
 		} `yaml:"intake"`
+		Inputs struct {
+			Kinds []string `yaml:"kinds"`
+			View  string   `yaml:"view"`
+		} `yaml:"inputs"`
 		Interactive struct {
 			Opening            string `yaml:"opening"`
 			IdleTimeoutSeconds int    `yaml:"idleTimeoutSeconds"`
@@ -1414,6 +1446,7 @@ func decodeManifest(raw []byte) (*Model, error) {
 	for _, qn := range doc.Intake {
 		m.Intake = append(m.Intake, IntakeRow{ID: qn.ID, Prompt: qn.Prompt, Type: qn.Type, Required: qn.Required, Choices: orEmpty(qn.Choices)})
 	}
+	m.InputKinds, m.InputView = orEmpty(doc.Inputs.Kinds), doc.Inputs.View
 	m.Opening, m.IdleTimeoutSeconds = doc.Interactive.Opening, doc.Interactive.IdleTimeoutSeconds
 	m.Guide = GuideModel{Overview: doc.Guide.Overview, Prepare: orEmpty(doc.Guide.Prepare), Files: doc.Guide.Files, Task: doc.Guide.Task, Connect: []ConnectRow{}}
 	for _, name := range sortedKeys(doc.Guide.Connect) {

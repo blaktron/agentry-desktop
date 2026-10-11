@@ -102,6 +102,7 @@ var draftFields = map[string]any{
 	"authors":     []any{map[string]any{"name": nil, "email": nil}},
 	"entrypoints": map[string]any{"instruction": nil, "skill": nil},
 	"intake":      []any{map[string]any{"id": nil, "prompt": nil, "type": nil, "required": nil, "choices": nil}},
+	"inputs":      map[string]any{"kinds": nil, "view": nil},
 	"interactive": map[string]any{"opening": nil, "idleTimeoutSeconds": nil},
 	"guide":       map[string]any{"overview": nil, "prepare": nil, "files": nil, "task": nil, "connect": nil},
 	"runtime":     map[string]any{"models": nil, "interfaces": nil},
