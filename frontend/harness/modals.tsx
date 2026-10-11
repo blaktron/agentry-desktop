@@ -239,6 +239,15 @@ const guide = hostileGuide
     },
   };
 const fileIntakeShape = view === "runpanel-file-intake";
+// Input sources (agentry-desktop#794): a release that asks for a
+// repository and, optionally, a file at an address. #runpanel-source-details
+// opens with nothing answered; -saved has the repository answered on a host
+// whose key is saved; -typed has a token typed for an unsaved host;
+// -review and -hosted are Review and start, on this computer and In
+// Agentry; -schedule is Repeat with a typed token, which a schedule refuses.
+const sourceShape = view.startsWith("runpanel-source");
+const sourceAnswered = sourceShape && view !== "runpanel-source-details";
+const sourceSavedHost = view === "runpanel-source-saved" || view === "runpanel-source-review" || view === "runpanel-source-hosted";
 // An intake prompt as long as blaktron/binary-reverse-engineer@0.1.0's,
 // which once took the recap's whole width (agentry-desktop#420).
 const longPromptShape = view === "runpanel-step-review-long";
@@ -322,7 +331,12 @@ const profile = signInShape
     capabilityLines: ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
     declaredSecrets: ["PAGERDUTY_TOKEN"], storedSecretNames: ["PAGERDUTY_TOKEN"], exists: true, keep: true,
     modes: sessionShape ? ["interactive"] : ["autonomous", "interactive"],
-    intake: fileIntakeShape
+    intake: sourceShape
+      ? [
+        { id: "codebase", prompt: "The repository to audit", type: "repository", required: true, choices: [] },
+        { id: "advisory", prompt: "The advisory to check it against (a PDF or a page)", type: "url", required: false, choices: [] },
+      ]
+      : fileIntakeShape
       ? [{ id: "channel_export", prompt: "The incident channel's export (a file)", type: "file", required: true, choices: [] }]
       : localFinished || hostedSecrets || sessionShape || hostedSchedule ? []
       : longPromptShape
@@ -478,6 +492,12 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-step-files": "files",
   "runpanel-step-tools": "tools",
   "runpanel-step-details": "details",
+  "runpanel-source-details": "details",
+  "runpanel-source-saved": "details",
+  "runpanel-source-typed": "details",
+  "runpanel-source-review": "review",
+  "runpanel-source-hosted": "review",
+  "runpanel-source-schedule": "review",
   "runpanel-step-review": "review",
   "runpanel-voice": "review",
   "runpanel-step-review-long": "review",
@@ -538,6 +558,15 @@ g.go = { main: {
       : { id: "6f1c2d3e-4b5a-4c6d-8e7f-8091a2b3c4d5", next: "2026-10-10T07:00:00Z" }),
   },
   RunAPI: {
+    // Go's word on a source answer: an http address is refused as the CLI
+    // refuses it; github.com has a key saved in the -saved states.
+    SourceKeyStatus: async (type: string, answer: string) => {
+      if (!answer.startsWith("https://")) return { problem: 'the repository address must be https, not "http"', saved: false, keychainOff: false };
+      const host = new URL(answer.split("#")[0]).hostname.toLowerCase();
+      return { host, shown: answer.split("#")[0].replace(/\?.*$/, "?…"), saved: sourceSavedHost && host === "github.com", keychainOff: false };
+    },
+    SaveSourceKey: async (_t: string, answer: string) => ({ host: new URL(answer.split("#")[0]).hostname, shown: answer, saved: true, keychainOff: false }),
+    ForgetSourceKey: async (_t: string, answer: string) => ({ host: new URL(answer.split("#")[0]).hostname, shown: answer, saved: false, keychainOff: false }),
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
     ProfileStatus: async () => profile,
     // Saving the keys makes the profile exist: the line above Run goes and
@@ -727,7 +756,16 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         initialMode={hostedState === "hosted" || hostedState === "hosted-followed" || hostedState === "unavailable" || hostedKnowledge || hostedSecrets || hostedEarns || hostedSignIn || hostedSchedule || hostedKeysTools ? "hosted"
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
-        initialWhen={view.startsWith("runpanel-schedule") ? "repeat" : undefined}
+        initialWhen={view.startsWith("runpanel-schedule") || view === "runpanel-source-schedule" ? "repeat" : undefined}
+        initialForm={sourceAnswered ? {
+          mode: view === "runpanel-source-hosted" ? "hosted" : "autonomous", task: "", inputs: [], pickedFiles: [],
+          intakeValues: {
+            codebase: view === "runpanel-source-typed" || view === "runpanel-source-schedule" ? "https://git.example.org/acme/payments#release-2026.10" : "https://github.com/acme/payments#v4.2.0",
+            ...(view === "runpanel-source-review" ? { advisory: "https://advisories.example.com/GHSA-2026-0042.pdf?sig=8f2c" } : {}),
+          },
+          attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
+          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+        } : undefined}
       />
     </>,
   );

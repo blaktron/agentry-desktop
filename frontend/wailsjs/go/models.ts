@@ -5527,6 +5527,28 @@ export namespace main {
 		}
 	}
 	
+	export class SourceKeyView {
+	    problem?: string;
+	    host?: string;
+	    shown?: string;
+	    saved: boolean;
+	    keychainOff: boolean;
+	    keyStoreErr?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SourceKeyView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.problem = source["problem"];
+	        this.host = source["host"];
+	        this.shown = source["shown"];
+	        this.saved = source["saved"];
+	        this.keychainOff = source["keychainOff"];
+	        this.keyStoreErr = source["keyStoreErr"];
+	    }
+	}
 	export class StarAskView {
 	    ask: boolean;
 	    name?: string;

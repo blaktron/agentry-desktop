@@ -130,6 +130,10 @@ export function ForgetSearchKey() {
   return window['go']['main']['RunAPI']['ForgetSearchKey']();
 }
 
+export function ForgetSourceKey(arg1, arg2) {
+  return window['go']['main']['RunAPI']['ForgetSourceKey'](arg1, arg2);
+}
+
 export function GatewayRequirements(arg1, arg2, arg3) {
   return window['go']['main']['RunAPI']['GatewayRequirements'](arg1, arg2, arg3);
 }
@@ -234,8 +238,8 @@ export function RestartNow() {
   return window['go']['main']['RunAPI']['RestartNow']();
 }
 
-export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14) {
-  return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14);
+export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15) {
+  return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
 }
 
 export function RunOutputs(arg1) {
@@ -256,6 +260,10 @@ export function SaveProfile(arg1, arg2, arg3, arg4) {
 
 export function SaveRunPDF(arg1, arg2) {
   return window['go']['main']['RunAPI']['SaveRunPDF'](arg1, arg2);
+}
+
+export function SaveSourceKey(arg1, arg2, arg3) {
+  return window['go']['main']['RunAPI']['SaveSourceKey'](arg1, arg2, arg3);
 }
 
 export function SearchKeyStatus() {
@@ -302,6 +310,10 @@ export function SignInCopilot(arg1) {
   return window['go']['main']['RunAPI']['SignInCopilot'](arg1);
 }
 
+export function SourceKeyStatus(arg1, arg2) {
+  return window['go']['main']['RunAPI']['SourceKeyStatus'](arg1, arg2);
+}
+
 export function StarAsk(arg1, arg2) {
   return window['go']['main']['RunAPI']['StarAsk'](arg1, arg2);
 }
@@ -318,8 +330,8 @@ export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg
   return window['go']['main']['RunAPI']['StartHostedSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
-export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13) {
-  return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13);
+export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14) {
+  return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14);
 }
 
 export function StopAwaitingConnections() {

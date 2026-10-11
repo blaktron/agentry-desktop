@@ -397,6 +397,11 @@ type Request struct {
 	// Intake answers the manifest's up-front questions by id (plan §3.5);
 	// a required question without an answer refuses the run.
 	Intake map[string]string
+	// SourceTokens are access tokens given in the run setup for this run,
+	// by the id of an input-source question (plan input-sources.md D5;
+	// agentry-desktop#794). Each goes to that source's fetch step alone;
+	// a source with none uses the key saved for its host, else none.
+	SourceTokens map[string]string `json:"-"`
 	// PathPicked, when set, judges every host path the request carries
 	// that the caller did not already judge — a file-typed intake answer
 	// — before it is staged: the desktop passes the native picker's
@@ -752,6 +757,12 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	}
 	answers, err := intake.Collect(nil, m.Intake, req.Intake, m.Capabilities.Secrets)
 	if err != nil {
+		finishProfile(logw, prof, profDir, keep)
+		return nil, engine.Classify(engine.ExitCLI, err)
+	}
+	if err := giveSourceTokens(answers, req.SourceTokens, func(msg string) {
+		_, _ = fmt.Fprintf(logw, "warning: %s\n", msg)
+	}); err != nil {
 		finishProfile(logw, prof, profDir, keep)
 		return nil, engine.Classify(engine.ExitCLI, err)
 	}
