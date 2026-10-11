@@ -272,6 +272,9 @@ func (downDocker) PSByLabel(context.Context, string) ([]string, error) { return 
 func (downDocker) VolumesByLabel(context.Context, string) ([]string, error) {
 	return nil, errDockerDown
 }
+func (downDocker) NetworksByLabel(context.Context, string) ([]string, error) {
+	return nil, errDockerDown
+}
 func (downDocker) NetworkRemove(context.Context, string) error { return errDockerDown }
 
 // A secrets file does not wait for Docker: with the daemon down at start the
