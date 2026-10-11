@@ -273,7 +273,7 @@ const states = [
   // still typeable; a stored subscription token and its sentence.
   // Reached by Back from the AI Review key step (#462), as a person would.
   { name: "wizard-runtime", url: "/wizard.html#3", note: "the runtime step: provider, key, model", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Set up the runtime" },
-  { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — the key field is there", locator: ".wizard" },
+  { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — Use your Claude subscription leads, the API key one choice away (agentry-desktop#734)", locator: ".wizard" },
   { name: "wizard-runtime-models", url: "/wizard.html#2-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-nomodels", url: "/wizard.html#2-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
   { name: "wizard-runtime-subscription", url: "/wizard.html#2-subscription", note: "a stored Anthropic subscription token: what it drives", locator: ".wizard" },
@@ -286,7 +286,16 @@ const states = [
   { name: "wizard-runtime-preparing", url: "/wizard.html#2-preparing", note: "images preparing: Continue and Back held until the pull ends", locator: ".wizard", prepare: "held" },
   { name: "wizard-runtime-prepared", url: "/wizard.html#2-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
   { name: "wizard-runtime-prepare-refused", url: "/wizard.html#2-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
+  // Model sign-ins (agentry-desktop#734): a sign-in leads, a key second;
+  // a kept sign-in says who; waiting in the browser; GitHub's code copied;
+  // a connected account. No state asks anyone to paste a code.
+  { name: "wizard-runtime-signin-chatgpt", url: "/wizard.html#2-chatgpt", note: "OpenAI with nothing kept: Sign in with ChatGPT leads, the API key second", locator: ".wizard", expectText: ["How to pay for the models", "Sign in with ChatGPT", "API key"] },
+  { name: "wizard-runtime-signin-claude", url: "/wizard.html#2-claudekept", note: "the Claude subscription chosen and signed in: who, Remove, the model, Save", locator: ".wizard", expectText: ["Use your Claude subscription (runs Claude Code)", "Signed in as you@example.com (Example Org)", "Remove"] },
+  { name: "wizard-runtime-signin-waiting", url: "/wizard.html#2-chatgpt", note: "a ChatGPT sign-in waiting in the browser: Cancel, nothing to paste", locator: ".wizard", click: '.wizard button:has-text("Sign in with ChatGPT")', expectText: ["Waiting for you in your browser…", "Cancel"] },
+  { name: "wizard-runtime-signin-copilot", url: "/wizard.html#2-copilotcode", note: "Sign in with GitHub: GitHub's code shown and copied", locator: ".wizard", click: '.wizard button:has-text("Sign in with GitHub")', expectText: ["WDJB-MJHT", "it is copied"] },
+  { name: "wizard-runtime-signin-connected", url: "/wizard.html#2-connected", note: "an OpenRouter account connected: the model typed, Disconnect", locator: ".wizard", expectText: ["Connect your account", "Connected as you", "Disconnect"] },
   { name: "settings-agent-runs-advanced", url: "/pages.html?settings=provider", note: "Settings → Provider settings with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
+  { name: "settings-model-signins-kept", url: "/pages.html?settings=provider#signins", note: "Settings → Model provider: every sign-in and connected account kept on this computer, with Remove and Disconnect (agentry-desktop#734)", locator: '[data-preview="settings"] .kept-signins', expectText: ["Kept on this computer", "Signed in as chris@example.com", "Connected — the key works until 2026-11-11", "Disconnect"] },
   { name: "settings-agent-runs-custom-http", url: "/pages.html?settings=provider#setup-custom-http", note: "Settings → Provider settings, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https (agentry-desktop#317)", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
   // Settings → Coding agents (agentry-desktop#148, D6): the coding agent,
   // the export it implies, its folder, the switch off by default; and

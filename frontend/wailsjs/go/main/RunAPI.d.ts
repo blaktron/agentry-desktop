@@ -14,6 +14,8 @@ export function AgentryImages():Promise<main.ImagesView>;
 
 export function ApplySetup(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean,arg6:string,arg7:boolean):Promise<main.SetupStatusView>;
 
+export function ApplySignInSetup(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string,arg6:boolean):Promise<main.SetupStatusView>;
+
 export function AttachHostedRun(arg1:string,arg2:string):Promise<main.HostedStartView>;
 
 export function AttachHostedRunAtStart(arg1:string):Promise<main.HostedStartView>;
@@ -24,11 +26,17 @@ export function CancelConnect():Promise<boolean>;
 
 export function CancelHostedRun():Promise<main.HostedRunView>;
 
+export function CancelSignIn():Promise<boolean>;
+
+export function ChatGPTModels():Promise<Array<string>>;
+
 export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
 export function ChosenHarnesses():Promise<Array<main.HarnessView>>;
 
 export function Connect(arg1:string,arg2:string,arg3:string):Promise<main.ConnectView>;
+
+export function ConnectAccount(arg1:string):Promise<main.SignInView>;
 
 export function Connections():Promise<main.KeptConnectionsView>;
 
@@ -82,6 +90,8 @@ export function KeepsSecrets(arg1:string):Promise<boolean>;
 
 export function ListModels(arg1:string,arg2:string,arg3:string):Promise<main.CatalogView>;
 
+export function ModelSignIns():Promise<Array<run.ModelSignIn>>;
+
 export function OpenHostedConnect(arg1:string,arg2:string):Promise<void>;
 
 export function OpenRunPDF(arg1:string,arg2:string):Promise<void>;
@@ -101,6 +111,8 @@ export function RecordedRun(arg1:string):Promise<main.RecordedRunView>;
 export function ReleaseConnections(arg1:string,arg2:string):Promise<run.ReleaseConnections>;
 
 export function RemoveAgentryImages():Promise<dockerimages.Report>;
+
+export function RemoveModelSignIn(arg1:string):Promise<string>;
 
 export function RemoveRecordedRun(arg1:string):Promise<void>;
 
@@ -135,6 +147,12 @@ export function SetUnsafeMode(arg1:boolean):Promise<main.RunDefaultsView>;
 export function SetupStatus():Promise<main.SetupStatusView>;
 
 export function ShowRunFolder(arg1:string):Promise<void>;
+
+export function SignInChatGPT(arg1:boolean):Promise<main.SignInView>;
+
+export function SignInClaude():Promise<main.SignInView>;
+
+export function SignInCopilot(arg1:boolean):Promise<main.SignInView>;
 
 export function StarAsk(arg1:string,arg2:string):Promise<main.StarAskView>;
 

@@ -5,19 +5,17 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
+import {
+  COPILOT_PLANS, PROVIDERS, keptFor, modelAsk, providerLabel, savedWay, signInSaveHint, startingModel, waysFor,
+  type KeptSignIn, type WayId,
+} from "../modelSetup";
+import { KeptSignIns, SignInWay } from "./ModelSignIn";
 
-// The §P1 provider table, mirrored for form prefills; the Go side
-// (pkg/runner/setup) holds the authoritative copy and fills any gaps. The
-// label is the product's name — a person picks "Anthropic", not a
-// provider id (agentry-desktop#131).
-const PROVIDERS: { id: string; label: string; model: string; apiKeyEnv: string }[] = [
-  { id: "anthropic", label: "Anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY" },
-  { id: "openai", label: "OpenAI", model: "gpt-5.2", apiKeyEnv: "OPENAI_API_KEY" },
-  { id: "google", label: "Google", model: "gemini-3-pro", apiKeyEnv: "GEMINI_API_KEY" },
-  { id: "custom", label: "Custom endpoint (OpenAI-compatible)", model: "", apiKeyEnv: "CUSTOM_API_KEY" },
-];
-
-export const providerLabel = (id: string) => PROVIDERS.find((p) => p.id === id)?.label ?? id;
+// The provider table (src/modelSetup.ts) mirrors the CLI's for form
+// prefills; the Go side (pkg/runner/setup) holds the authoritative copy and
+// fills any gaps. The label is the product's name — a person picks
+// "Anthropic", not a provider id (agentry-desktop#131).
+export { providerLabel };
 
 /** "Agent runs" (RUNNER-PLAN-2 §P1, req 5): the LLM provider QuickAgent
  * runs use, written into the same operator policy the CLI reads
@@ -73,17 +71,30 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // wrong endpoint's models.
   const [catalog, setCatalog] = useState<main.CatalogView | null>(null);
   const [keyNotice, setKeyNotice] = useState<string | null>(null);
+  // How the provider's models are paid for (agentry-desktop#734): a model
+  // sign-in, a connected account, or a key; what this computer keeps; the
+  // models a ChatGPT plan offers; and the Copilot plan.
+  const [way, setWay] = useState<WayId>("key");
+  const [kept, setKept] = useState<KeptSignIn[]>([]);
+  const [planModels, setPlanModels] = useState<string[]>([]);
+  const [copilotPlan, setCopilotPlan] = useState("individual");
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => {
     let live = true;
-    RunAPI.SetupStatus()
-      .then((s) => {
+    Promise.all([RunAPI.SetupStatus(), RunAPI.ModelSignIns().catch(() => [] as KeptSignIn[])])
+      .then(([s, k]) => {
         if (!live) return;
         setStatus(s);
+        setKept(k ?? []);
         setProvider(s.provider || "anthropic");
-        setModel(s.model);
+        const prov = s.provider || "anthropic";
+        const w = savedWay(prov, s.provider, s.apiKeyKind ?? "", k ?? [], s.providerSetUp);
+        setWay(w);
+        // A sign-in way starts on the saved model where the policy already
+        // pays that way, else on the way's own default (Copilot's auto).
+        setModel(w === "key" ? s.model : startingModel(prov, w, { provider: s.provider, model: s.model, way: savedWay(prov, s.provider, s.apiKeyKind ?? "", k ?? []) }, []));
         setApiKeyEnv(s.apiKeyEnv);
         setBaseURL(s.baseUrl ?? "");
         // The keychain, unless this is Settings and the policy chose the
@@ -127,8 +138,31 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     }
   }
 
+  // The way the saved policy pays, for a choice to start on its model.
+  const saved = { provider: status?.provider ?? "", model: status?.model ?? "", way: savedWay(status?.provider ?? "", status?.provider ?? "", status?.apiKeyKind ?? "", kept, status?.providerSetUp) };
+
+  async function refreshKept() {
+    try {
+      setKept((await RunAPI.ModelSignIns()) ?? []);
+    } catch { /* the list stays as it was */ }
+  }
+
+  function pickWay(id: string, w: WayId) {
+    setWay(w);
+    setError(null);
+    setNotice(null);
+    if (w !== "key") setModel(startingModel(id, w, saved, planModels));
+    if (w === "chatgpt" && planModels.length === 0 && keptFor(waysFor(id)[0], kept)) {
+      RunAPI.ChatGPTModels().then((m) => {
+        setPlanModels(m ?? []);
+        setModel((cur) => cur || (m ?? [])[0] || "");
+      }).catch(() => undefined);
+    }
+  }
+
   function pickProvider(id: string) {
     setProvider(id);
+    pickWay(id, savedWay(id, status?.provider ?? "", status?.apiKeyKind ?? "", kept, status?.providerSetUp));
     // A key is the provider's: one typed for Anthropic must not reach
     // OpenAI's endpoint on Get models, nor be stored under it on Save.
     setApiKey("");
@@ -137,8 +171,34 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     setKeyNotice(null);
     const row = PROVIDERS.find((p) => p.id === id);
     if (row) {
-      setModel(row.model);
+      if (savedWay(id, status?.provider ?? "", status?.apiKeyKind ?? "", kept, status?.providerSetUp) === "key") setModel(row.model);
       setApiKeyEnv(row.apiKeyEnv);
+    }
+  }
+
+  // Save for a sign-in or a connected account: the CLI's own setup makes
+  // what is kept the active choice, and refuses one nothing is signed in to.
+  async function applySignIn(pullImages: boolean) {
+    setBusy(pullImages ? "Preparing images — pulls and a local build can take minutes…" : "Writing policy…");
+    setError(null);
+    setNotice(null);
+    if (pullImages) {
+      setLog([]);
+      onBusy?.(true);
+    }
+    try {
+      const w = waysFor(provider).find((x) => x.id === way);
+      const s = await RunAPI.ApplySignInSetup(provider, model.trim(), w?.id === "connect" ? "" : w?.kind ?? "", w?.id === "connect",
+        way === "copilot" ? copilotPlan : "", pullImages);
+      setStatus(s);
+      setNotice(pullImages
+        ? "Setup complete — QuickAgents on this computer run on your sign-in, and the images are ready."
+        : `Saved: QuickAgents on this computer run on ${w?.label ?? "your sign-in"}.`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+      if (pullImages) onBusy?.(false);
     }
   }
 
@@ -240,6 +300,10 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // Save needs a key behind the source it records: one typed now or one
   // stored already for the keychain, the variable's name for the
   // variable. The backend refuses the same cases; this just says so first.
+  const ways = waysFor(provider);
+  const currentWay = ways.find((w) => w.id === way) ?? ways[0];
+  const ask = modelAsk(provider, way, planModels);
+  const signInHint = currentWay && way !== "key" ? signInSaveHint(currentWay, keptFor(currentWay, kept), model) : "";
   const needsKey = keyMode === "keyring" && !forgetKey && !hasKey;
   const needsVar = keyMode === "env" && !apiKeyEnv.trim();
   const canSave = !busy && !(needsBaseURL && !baseURL.trim()) && !needsKey && !needsVar && !!model.trim();
@@ -301,107 +365,182 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
           </Select>
         </label>
 
-        {needsBaseURL && (
-          <label className="field">
-            <span className="field-label">Endpoint URL</span>
-            <Input
-              type="text" className="mono" placeholder="https://llm.example.net/v1"
-              value={baseURL} onChange={(e) => changeBaseURL(e.target.value)} disabled={!!busy}
-            />
-            <span className="muted small field-hint">The base URL of an OpenAI-compatible endpoint; the run can reach this host and nothing else. Use https where the endpoint offers it.</span>
-          </label>
+        {ways.length > 1 && (
+          <div className="field way-choice">
+            <span className="field-label">How to pay for the models</span>
+            {ways.map((w) => (
+              <label key={w.id} className="row" style={{ gap: 6 }}>
+                <input type="radio" name="way" checked={way === w.id} disabled={!!busy} onChange={() => pickWay(provider, w.id)} />
+                <span>{w.label}</span>
+              </label>
+            ))}
+          </div>
         )}
-        {needsBaseURL && endpointWarning && <Notice tone="warn">{endpointWarning}</Notice>}
 
-        {keyMode === "keyring" && (
-          <label className="field">
-            <span className="field-label">API key</span>
-            <div className="row">
-              <Input
-                type="password" className="grow mono" autoComplete="off"
-                placeholder={keyStoredForProvider ? "stored on this machine — paste a new one to replace it" : "Paste your API key"}
-                value={apiKey} onChange={(e) => { setApiKey(e.target.value); setKeyNotice(status?.keyNotice ?? null); }} disabled={!!busy || forgetKey}
-              />
+        {currentWay && way !== "key" && (
+          <>
+            <SignInWay
+              way={currentWay} kept={kept} disabled={!!busy}
+              onSignedIn={(models) => {
+                if (models.length > 0) {
+                  setPlanModels(models);
+                  setModel((cur) => cur || models[0]);
+                }
+                void refreshKept();
+              }}
+              onRemoved={() => void refreshKept()}
+            />
+            <label className="field">
+              <span className="field-label">Model</span>
+              {ask.mode === "plan" && ask.options.length > 0 ? (
+                <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
+                  {ask.options.map((m) => <option key={m} value={m}>{m}</option>)}
+                  {!ask.options.includes(model) && model && <option value={model}>{model}</option>}
+                </Select>
+              ) : ask.mode === "pick" ? (
+                <>
+                  <Input type="text" className="mono" list="claude-models" placeholder={ask.placeholder} value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
+                  <datalist id="claude-models">{ask.options.map((m) => <option key={m} value={m} />)}</datalist>
+                </>
+              ) : (
+                <Input type="text" className="mono" placeholder={ask.placeholder} value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
+              )}
+              {way === "connect" && <span className="muted small field-hint">Agentry does not list these models: type the id the provider shows. A model that cannot call tools will not work.</span>}
+            </label>
+            {way === "copilot" && (
+              <label className="field">
+                <span className="field-label">Your Copilot plan</span>
+                <Select value={copilotPlan} onChange={(e) => setCopilotPlan(e.target.value)} disabled={!!busy}>
+                  {COPILOT_PLANS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </Select>
+              </label>
+            )}
+            <p className="muted small">
+              Runs on this computer use this sign-in; runs in Agentry never do. The policy records which sign-in to use,
+              never what it holds.
+            </p>
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <Button disabled={!!busy || !!signInHint} title={signInHint} onClick={() => applySignIn(false)}>
+                Save
+              </Button>
               <Button
-                disabled={!!busy || !hasKey || (needsBaseURL && !baseURL.trim())}
-                title={!hasKey ? "paste the key first" : needsBaseURL && !baseURL.trim() ? "enter the endpoint's URL first" : "ask the endpoint which models it serves"}
-                onClick={getModels}
+                variant="primary"
+                disabled={!!busy || !!signInHint || !status?.dockerOk || checkingDocker}
+                title={!status?.dockerOk ? "docker must be available first" : signInHint}
+                onClick={() => applySignIn(true)}
               >
-                Get models
+                Prepare images now
               </Button>
             </div>
-            <span className="muted small field-hint">
-              Kept in this machine's keychain, next to your registry sign-in — not in a file, and never shown here.
-              {status?.keyStoreErr && keyMode === "keyring" ? <> The keychain could not be asked: {status.keyStoreErr}.</> : null}
-            </span>
-          </label>
+          </>
         )}
-        {keyNotice && <Notice tone="warn">{keyNotice.charAt(0).toUpperCase() + keyNotice.slice(1)}.</Notice>}
 
-        <label className="field">
-          <span className="field-label">Model</span>
-          {catalog && catalog.models.length > 0 ? (
-            <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
-              {catalog.models.map((m) => (
-                <option key={m.id} value={m.id}>{m.displayName ? `${m.displayName} — ${m.id}` : m.id}</option>
-              ))}
-              {!catalog.models.some((m) => m.id === model) && model && <option value={model}>{model}</option>}
-            </Select>
-          ) : (
-            <Input type="text" className="mono" placeholder="pick one with Get models, or type a model id" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
+        {way === "key" && (
+          <>
+          {needsBaseURL && (
+            <label className="field">
+              <span className="field-label">Endpoint URL</span>
+              <Input
+                type="text" className="mono" placeholder="https://llm.example.net/v1"
+                value={baseURL} onChange={(e) => changeBaseURL(e.target.value)} disabled={!!busy}
+              />
+              <span className="muted small field-hint">The base URL of an OpenAI-compatible endpoint; the run can reach this host and nothing else. Use https where the endpoint offers it.</span>
+            </label>
           )}
-        </label>
+          {needsBaseURL && endpointWarning && <Notice tone="warn">{endpointWarning}</Notice>}
 
-        {advanced && (
-          <details className="advanced">
-            <summary className="muted small">Advanced</summary>
-            <div className="key-source">
-              <label className="row" style={{ gap: 6 }}>
-                <input type="radio" name="keyMode" checked={keyMode === "keyring"} disabled={!!busy} onChange={() => setKeyMode("keyring")} />
-                <span>Keep the key on this machine (the keychain). Anything running as you while your session is unlocked can read it, as it can your registry sign-in.</span>
-              </label>
-              <label className="row" style={{ gap: 6 }}>
-                <input type="radio" name="keyMode" checked={keyMode === "env"} disabled={!!busy} onChange={() => { setKeyMode("env"); setApiKey(""); }} />
-                <span>Read the key from an environment variable instead — for a key you set yourself in the environment this app is launched from (a dock- or menu-launched app has none).</span>
-              </label>
-              {keyMode === "env" && (
-                <label className="row grow key-store" style={{ gap: 6 }}>
-                  <span className="muted small nowrap">variable name</span>
-                  <Input type="text" className="grow mono" placeholder="e.g. ANTHROPIC_API_KEY" value={apiKeyEnv} onChange={(e) => setApiKeyEnv(e.target.value)} disabled={!!busy} />
-                  <Button disabled={!!busy || !apiKeyEnv.trim() || (needsBaseURL && !baseURL.trim())} title="ask the endpoint with the saved policy's variable, as a run would (save first after renaming it)" onClick={getModels}>Get models</Button>
+          {keyMode === "keyring" && (
+            <label className="field">
+              <span className="field-label">API key</span>
+              <div className="row">
+                <Input
+                  type="password" className="grow mono" autoComplete="off"
+                  placeholder={keyStoredForProvider ? "stored on this machine — paste a new one to replace it" : "Paste your API key"}
+                  value={apiKey} onChange={(e) => { setApiKey(e.target.value); setKeyNotice(status?.keyNotice ?? null); }} disabled={!!busy || forgetKey}
+                />
+                <Button
+                  disabled={!!busy || !hasKey || (needsBaseURL && !baseURL.trim())}
+                  title={!hasKey ? "paste the key first" : needsBaseURL && !baseURL.trim() ? "enter the endpoint's URL first" : "ask the endpoint which models it serves"}
+                  onClick={getModels}
+                >
+                  Get models
+                </Button>
+              </div>
+              <span className="muted small field-hint">
+                Kept in this machine's keychain, next to your registry sign-in — not in a file, and never shown here.
+                {status?.keyStoreErr && keyMode === "keyring" ? <> The keychain could not be asked: {status.keyStoreErr}.</> : null}
+              </span>
+            </label>
+          )}
+          {keyNotice && <Notice tone="warn">{keyNotice.charAt(0).toUpperCase() + keyNotice.slice(1)}.</Notice>}
+
+          <label className="field">
+            <span className="field-label">Model</span>
+            {catalog && catalog.models.length > 0 ? (
+              <Select value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy}>
+                {catalog.models.map((m) => (
+                  <option key={m.id} value={m.id}>{m.displayName ? `${m.displayName} — ${m.id}` : m.id}</option>
+                ))}
+                {!catalog.models.some((m) => m.id === model) && model && <option value={model}>{model}</option>}
+              </Select>
+            ) : (
+              <Input type="text" className="mono" placeholder="pick one with Get models, or type a model id" value={model} onChange={(e) => setModel(e.target.value)} disabled={!!busy} />
+            )}
+          </label>
+
+          {advanced && (
+            <details className="advanced">
+              <summary className="muted small">Advanced</summary>
+              <div className="key-source">
+                <label className="row" style={{ gap: 6 }}>
+                  <input type="radio" name="keyMode" checked={keyMode === "keyring"} disabled={!!busy} onChange={() => setKeyMode("keyring")} />
+                  <span>Keep the key on this machine (the keychain). Anything running as you while your session is unlocked can read it, as it can your registry sign-in.</span>
                 </label>
-              )}
-              {keyStoredForProvider && (
-                <label className="inline muted small key-store">
-                  <input type="checkbox" checked={forgetKey} disabled={!!busy} onChange={(e) => { setForgetKey(e.target.checked); if (e.target.checked) setApiKey(""); }} />{" "}
-                  Forget the stored key for {providerLabel(provider)} on save
+                <label className="row" style={{ gap: 6 }}>
+                  <input type="radio" name="keyMode" checked={keyMode === "env"} disabled={!!busy} onChange={() => { setKeyMode("env"); setApiKey(""); }} />
+                  <span>Read the key from an environment variable instead — for a key you set yourself in the environment this app is launched from (a dock- or menu-launched app has none).</span>
                 </label>
-              )}
-            </div>
-          </details>
+                {keyMode === "env" && (
+                  <label className="row grow key-store" style={{ gap: 6 }}>
+                    <span className="muted small nowrap">variable name</span>
+                    <Input type="text" className="grow mono" placeholder="e.g. ANTHROPIC_API_KEY" value={apiKeyEnv} onChange={(e) => setApiKeyEnv(e.target.value)} disabled={!!busy} />
+                    <Button disabled={!!busy || !apiKeyEnv.trim() || (needsBaseURL && !baseURL.trim())} title="ask the endpoint with the saved policy's variable, as a run would (save first after renaming it)" onClick={getModels}>Get models</Button>
+                  </label>
+                )}
+                {keyStoredForProvider && (
+                  <label className="inline muted small key-store">
+                    <input type="checkbox" checked={forgetKey} disabled={!!busy} onChange={(e) => { setForgetKey(e.target.checked); if (e.target.checked) setApiKey(""); }} />{" "}
+                    Forget the stored key for {providerLabel(provider)} on save
+                  </label>
+                )}
+              </div>
+            </details>
+          )}
+
+          <p className="muted small">
+            The policy records the provider, the model and where the key comes from — never the key. The agent
+            container&apos;s only route out is the endpoint this names.
+          </p>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button disabled={!canSave} title={saveHint} onClick={() => apply(false)}>
+              Save provider settings
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!canSave || !status?.dockerOk || checkingDocker}
+              title={!status?.dockerOk ? "docker must be available first" : saveHint}
+              onClick={() => apply(true)}
+            >
+              Prepare images now
+            </Button>
+          </div>
+          </>
         )}
-
-        <p className="muted small">
-          The policy records the provider, the model and where the key comes from — never the key. The agent
-          container&apos;s only route out is the endpoint this names.
-        </p>
-        <div className="row" style={{ justifyContent: "flex-end" }}>
-          <Button disabled={!canSave} title={saveHint} onClick={() => apply(false)}>
-            Save provider settings
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!canSave || !status?.dockerOk || checkingDocker}
-            title={!status?.dockerOk ? "docker must be available first" : saveHint}
-            onClick={() => apply(true)}
-          >
-            Prepare images now
-          </Button>
-        </div>
         {busy && <Spinner label={busy} />}
         {log.length > 0 && (
           <pre ref={logRef} className="run-log selectable">{log.join("\n")}</pre>
         )}
+        {advanced && <KeptSignIns kept={kept} onChanged={() => void refreshKept()} />}
       </Card>
     </div>
   );

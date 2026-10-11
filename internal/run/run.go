@@ -35,6 +35,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/intake"
 	"github.com/blaktron/agentry-cli/pkg/runner/localinstall"
 	"github.com/blaktron/agentry-cli/pkg/runner/mcpinstall"
+	"github.com/blaktron/agentry-cli/pkg/runner/modelsignin"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/runner/profile"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
@@ -549,7 +550,12 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// and desktop runs share one consent history (D-010).
 	recordCapabilities(m, meta, home, logw)
 
-	ad, err := adapter.Get(adapter.DefaultName)
+	// The harness model setup needs (adapter.DefaultFor): docker-agent for
+	// a key, the Codex, Claude Code or Copilot CLI image for a model
+	// sign-in (agentry-desktop#734, model sign-ins M9). The desktop always
+	// ran docker-agent before.
+	adapterName := adapter.DefaultFor(pol)
+	ad, err := adapter.Get(adapterName)
 	if err != nil {
 		return nil, err
 	}
@@ -594,7 +600,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if err != nil {
 		return nil, err
 	}
-	plan, planDir, err := ensurePlan(logw, home, m, meta, installDir, workspaceDir, pol, polSHA, adapter.DefaultName, serverSpecs, mode, unsafe)
+	plan, planDir, err := ensurePlan(logw, home, m, meta, installDir, workspaceDir, pol, polSHA, adapterName, serverSpecs, mode, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -613,12 +619,24 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		plan.Enforcement["mcpServers.vulnerabilities"] = vulnLine
 	}
 
-	// The last argument asks for the pinned harness image. A host-run
-	// harness runs no container, so pulling it would be a download nobody
-	// asked for; the desktop only compiles the default container adapter
-	// today, and the plan is the honest place to read that from.
-	if err := gateway.EnsureInstalled(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw,
-		plan.Harness.Host == nil); err != nil {
+	// The person's model sign-in, when the plan spends one, as `agentry
+	// run` hands it (engine.ModelSignInFor), and a connected account's key
+	// readied (a Hugging Face token renewed into the keychain entry the run
+	// reads, a Poe key past its expiry refused), before any image is
+	// prepared for a run that could not start. A desktop run on this
+	// machine is never a hosted one.
+	signIns := modelsignin.Open(home, connectionKeys())
+	if err := signIns.ReadyForRun(ctx, plan); err != nil {
+		return nil, engine.Classify(engine.ExitPolicy, err)
+	}
+	signIn, renewSignIn, err := engine.ModelSignInFor(ctx, signIns, plan, false)
+	if err != nil {
+		return nil, err
+	}
+	// The images the plan names, its harness's included: pulled, or for
+	// Claude Code and Copilot CLI built on this machine from their pinned
+	// artifacts, never one the plan does not use (model sign-ins D7).
+	if err := gateway.EnsureInstalledFor(ctx, docker, pol, runnerImageTag(pol), filepath.Join(home, "image"), logw, plan); err != nil {
 		return nil, fmt.Errorf("gateway/docker environment: %w", err)
 	}
 	// The per-QuickAgent exec image the plan names when the agent declares
@@ -757,31 +775,33 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	return &prepared{
 		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
 		params: engine.Params{
-			Plan:            plan,
-			PlanDir:         planDir,
-			WorkspaceSrc:    workspaceDir,
-			RunRoot:         installDir,
-			RunnerHome:      home,
-			OutDir:          outDir,
-			Task:            task,
-			InputPaths:      req.InputPaths,
-			Knowledge:       knowledgePacks,
-			Voice:           req.Voice,
-			ReportTheme:     req.ReportTheme,
-			Intake:          answers,
-			Adapter:         ad,
-			Policy:          pol,
-			PolicyFile:      &polFile,
-			SecretOverrides: overrides,
-			ServersDir:      serversDir,
-			ExecPackages:    execPackages,
-			Connections:     conns.tokens,
-			RenewConnection: conns.renew,
-			Budgets:         budgets,
-			Attestation:     meta.Attestation,
-			RunID:           runID,
-			Stderr:          logw,
-			OnUsage:         req.OnUsage,
+			Plan:             plan,
+			PlanDir:          planDir,
+			WorkspaceSrc:     workspaceDir,
+			RunRoot:          installDir,
+			RunnerHome:       home,
+			OutDir:           outDir,
+			Task:             task,
+			InputPaths:       req.InputPaths,
+			Knowledge:        knowledgePacks,
+			Voice:            req.Voice,
+			ReportTheme:      req.ReportTheme,
+			Intake:           answers,
+			Adapter:          ad,
+			Policy:           pol,
+			PolicyFile:       &polFile,
+			SecretOverrides:  overrides,
+			ServersDir:       serversDir,
+			ExecPackages:     execPackages,
+			Connections:      conns.tokens,
+			RenewConnection:  conns.renew,
+			ModelSignIn:      signIn,
+			RenewModelSignIn: renewSignIn,
+			Budgets:          budgets,
+			Attestation:      meta.Attestation,
+			RunID:            runID,
+			Stderr:           logw,
+			OnUsage:          req.OnUsage,
 		},
 	}, nil
 }
