@@ -1,10 +1,11 @@
-// The first-run guided setup (agentry-desktop#41, plan §5). A linear,
-// skippable, re-runnable flow that only ORCHESTRATES services the app
+// The first-run guided setup (agentry-desktop#41, plan §5). A skippable,
+// re-runnable flow, linear but for one fork after Sign in, Local or Cloud
+// (agentry-desktop#842, wizardPath.ts), that only ORCHESTRATES services the app
 // already has — SettingsAPI sign-in and RunAPI runtime setup — and adds no
 // state of its own beyond the persisted `onboarded` flag (set by the App
 // through SettingsAPI.MarkOnboarded when the wizard closes). It opens over
 // the app on first start (App gates it) and is re-runnable from Settings.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
@@ -16,8 +17,13 @@ import { AIReviewKeyCard, type ReviewKeyState } from "./AIReviewKey";
 import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
 import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } from "../wizardRecap";
 import { keyStanding } from "../keyRecommendation";
+import { cloudOpen, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
+import { CloudFigure, LocalFigure } from "./WizardFigures";
 
-const STEPS = ["Welcome", "Sign in", "Runtime", "AI Review key", "Coding agent", "Done"];
+const LABELS: Record<WizardStep, string> = {
+  welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime",
+  reviewkey: "AI Review key", codingagent: "Coding agent", done: "Done", cloud: "Your data in the cloud",
+};
 
 const norm = (u: string) => u.trim().replace(/\/+$/, "");
 
@@ -27,7 +33,7 @@ const norm = (u: string) => u.trim().replace(/\/+$/, "");
 export type WizardOutcome = { kind: "done" } | { kind: "later"; missing: string[] };
 
 export default function Wizard({
-  settings, activeRegistry, onChanged, onSelectRegistry, onFinish, initialStep = 0, probeOnEntry = false,
+  settings, activeRegistry, onChanged, onSelectRegistry, onFinish, initialStep = "welcome", probeOnEntry = false,
 }: {
   settings: main.SettingsView;
   activeRegistry: string;
@@ -37,10 +43,21 @@ export default function Wizard({
   onFinish: (outcome: WizardOutcome) => void;
   // Harness-only: render straight to a given step for screenshots, and
   // let the Coding agent step probe on entry so its results can be shown.
-  initialStep?: number;
+  initialStep?: WizardStep;
   probeOnEntry?: boolean;
 }) {
-  const [step, setStep] = useState(initialStep);
+  const [step, setStep] = useState<WizardStep>(initialStep);
+  // Which path the person picked after Sign in (agentry-desktop#842); null
+  // until they pick, and the steps' dots follow it.
+  const [path, setPath] = useState<WizardPath | null>(pathOf(initialStep));
+  const steps = stepsFor(path);
+  const at = steps.indexOf(step);
+  const next = () => setStep((s) => stepAfter(s, path) ?? s);
+  const back = () => setStep((s) => stepBefore(s, path) ?? s);
+  function choose(p: WizardPath) {
+    setPath(p);
+    setStep(stepAfter("where", p) ?? "where");
+  }
 
   return (
     <div className="wizard-backdrop">
@@ -51,35 +68,39 @@ export default function Wizard({
             <strong>Set up Agentry Desktop</strong>
           </div>
           <div className="wizard-steps" aria-hidden>
-            {STEPS.map((label, i) => (
-              <span key={label} className={`wizard-dot${i === step ? " active" : ""}${i < step ? " done" : ""}`} title={label} />
+            {steps.map((name, i) => (
+              <span key={name} className={`wizard-dot${i === at ? " active" : ""}${i < at ? " done" : ""}`} title={LABELS[name]} />
             ))}
           </div>
         </div>
 
-        {step === 0 && <Welcome onSetUp={() => setStep(1)} onSkip={() => onFinish({ kind: "done" })} />}
-        {step === 1 && (
+        {step === "welcome" && <Welcome onSetUp={next} onSkip={() => onFinish({ kind: "done" })} />}
+        {step === "signin" && (
           <SignInStep
             settings={settings}
             activeRegistry={activeRegistry}
             onChanged={onChanged}
             onSelectRegistry={onSelectRegistry}
-            onBack={() => setStep(0)}
-            onNext={() => setStep(2)}
+            onBack={back}
+            onNext={next}
           />
         )}
-        {step === 2 && <RuntimeStep onBack={() => setStep(1)} onNext={() => setStep(3)} />}
-        {step === 3 && <ReviewKeyStep onBack={() => setStep(2)} onNext={() => setStep(4)} />}
-        {step === 4 && <CodingAgentStep onBack={() => setStep(3)} onNext={() => setStep(5)} probeOnEntry={probeOnEntry} />}
-        {step === 5 && (
+        {step === "where" && (
+          <WhereStep signedIn={cloudOpen(settings.registries, activeRegistry)} onChoose={choose} onBack={back} />
+        )}
+        {step === "runtime" && <RuntimeStep onBack={back} onNext={next} />}
+        {step === "reviewkey" && <ReviewKeyStep onBack={back} onNext={next} />}
+        {step === "codingagent" && <CodingAgentStep onBack={back} onNext={next} probeOnEntry={probeOnEntry} />}
+        {step === "done" && (
           <DoneStep
             settings={settings}
             activeRegistry={activeRegistry}
-            onBack={() => setStep(4)}
-            onStartOver={() => setStep(1)}
+            onBack={back}
+            onStartOver={() => { setPath(null); setStep("signin"); }}
             onFinish={onFinish}
           />
         )}
+        {step === "cloud" && <CloudStep onBack={back} onFinish={() => onFinish({ kind: "done" })} />}
       </div>
     </div>
   );
@@ -236,6 +257,82 @@ function SignInStep({
         <Button variant="primary" onClick={onNext} disabled={busy}>Continue</Button>
       </div>
     </>
+  );
+}
+
+// WhereStep (agentry-desktop#842, the operator's request of 2026-10-12):
+// where the person's QuickAgents run, as two cards in the start pages'
+// light-line frame (cards.tsx). Local goes on to the setup this computer
+// needs; Cloud needs none of it, so it ends on a page about how the
+// person's data is kept there. Cloud is held shut, with "Please sign in"
+// across it, until the registry being browsed is signed in, since a hosted
+// run is started and paid for under that sign-in. Local records the choice
+// in Run defaults on the click; Cloud records it on Finish, so Back from its
+// page leaves Run defaults as they were.
+function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose: (p: WizardPath) => void; onBack: () => void }) {
+  async function local() {
+    // This computer is also the default, so a write that fails changes
+    // nothing a fresh install relies on, and it must not hold the setup.
+    await SettingsAPI.SetRunWhere(runWhereFor("local")).catch(() => {});
+    onChoose("local");
+  }
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>Where will your QuickAgents run?</h1>
+        <p className="page-sub">
+          On this computer, or in Agentry&apos;s cloud. Each run&apos;s setup still lets you pick either, and
+          Settings → Run defaults changes where it starts.
+        </p>
+        <div className="wizard-choices">
+          <ChoiceCard
+            title="Local"
+            blurb="Run QuickAgents on this computer, in containers, with the AI provider you choose. Next you set up Docker and your provider, and if you like an AI Review key and a coding agent."
+            figure={<LocalFigure />}
+            onOpen={() => void local()}
+          />
+          <ChoiceCard
+            title="Cloud"
+            blurb="Run QuickAgents on Agentry's servers, paid with credits from your account. Nothing to install or set up on this computer."
+            figure={<CloudFigure />}
+            onOpen={() => onChoose("cloud")}
+            locked={!signedIn}
+          />
+        </div>
+        {!signedIn && (
+          <p className="muted small">Cloud runs are started and paid for under your Agentry account. Go back to sign in.</p>
+        )}
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+      </div>
+    </>
+  );
+}
+
+// ChoiceCard is one of WhereStep's two cards: the frame, figure and title
+// button of the start pages' cards (CardFrame), with a locked state CardFrame
+// has no need for. Locked, the card is greyed and its button disabled, and
+// "Please sign in" is written across it in the accent's light, not greyed.
+function ChoiceCard({ title, blurb, figure, onOpen, locked = false }: {
+  title: string;
+  blurb: string;
+  figure: ReactNode;
+  onOpen: () => void;
+  locked?: boolean;
+}) {
+  const lockId = `wizard-lock-${title.toLowerCase()}`;
+  return (
+    <div className={`card build-way wizard-choice${locked ? " is-locked" : ""}`}>
+      <div className="build-way-figure">{figure}</div>
+      <h2 className="build-way-title">
+        <button type="button" className="build-way-main" onClick={onOpen} disabled={locked} aria-describedby={locked ? lockId : undefined}>
+          {title}
+        </button>
+      </h2>
+      <p className="build-way-blurb">{blurb}</p>
+      {locked && <div className="wizard-choice-lock" id={lockId}>Please sign in</div>}
+    </div>
   );
 }
 
@@ -480,6 +577,58 @@ function DoneStep({
         <Button variant="ghost" onClick={onBack}>Back</Button>
         <div className="grow" />
         <Button variant="primary" onClick={() => onFinish({ kind: "done" })}>Finish</Button>
+      </div>
+    </>
+  );
+}
+
+// CloudStep (agentry-desktop#842): how the person's data is kept in
+// Agentry's cloud, in the operator's terms, and the end of the Cloud path.
+// Each sentence names what is sealed and when it is opened, and what is
+// not sealed, as the wiki's sealed-output, knowledge-store, Writing Voice
+// and vault pages and the enterprise runs code have it (fact-checked for
+// agentry-desktop#842): a run's task, its uploads and its receipt rest
+// unsealed, and Agentry holds the keys, so nothing here says end-to-end.
+// Finish records Cloud in Run defaults and closes the wizard as Done does.
+function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function finish() {
+    setBusy(true); setError(null);
+    try {
+      await SettingsAPI.SetRunWhere(runWhereFor("cloud"));
+      onFinish();
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="wizard-body">
+        <h1>Your data in Agentry&apos;s cloud</h1>
+        <p className="page-sub">
+          These are stored encrypted, and decrypted only when they are needed: while a run of yours uses them,
+          while we check what you add, or as you download them.
+        </p>
+        <ErrorBox error={error} />
+        <ul className="wizard-cloud-list">
+          <li><strong>Knowledge packs and your Writing Voice</strong> are sealed under keys kept for your account.</li>
+          <li><strong>Secrets and connections</strong> you keep for hosted runs are held encrypted in a vault, and a run is given them only while it runs.</li>
+          <li><strong>A run&apos;s results</strong> are sealed to your account&apos;s key on the machine that ran it, and decrypted as you download them.</li>
+        </ul>
+        <p className="page-sub">
+          A run&apos;s task, the files you upload for it and its receipt are not stored encrypted, and Agentry holds
+          the keys to what is, so this is not end-to-end encryption.{" "}
+          We do our best to keep your data safe and secure.{" "}
+          Nothing needs to be set up on this computer for cloud runs; to run here as well, choose Run setup again in
+          Settings any time.
+        </p>
+      </div>
+      <div className="wizard-foot">
+        <Button variant="ghost" onClick={onBack} disabled={busy}>Back</Button>
+        <div className="grow" />
+        <Button variant="primary" onClick={() => void finish()} disabled={busy}>Finish</Button>
       </div>
     </>
   );
