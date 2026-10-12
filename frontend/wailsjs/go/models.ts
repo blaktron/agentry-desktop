@@ -3178,6 +3178,24 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class InstructionsView {
+	    path: string;
+	    content: string;
+	    truncated: boolean;
+	    binary: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new InstructionsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.content = source["content"];
+	        this.truncated = source["truncated"];
+	        this.binary = source["binary"];
+	    }
+	}
 	export class IntakeQuestionView {
 	    id: string;
 	    prompt: string;

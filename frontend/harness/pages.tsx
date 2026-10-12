@@ -760,6 +760,9 @@ g.go = { main: {
       return detail;
     },
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
+    // The Agent tab's second card (#835): the release's instruction file, as text.
+    Instructions: async () => ({ path: "AGENT.md", truncated: false, binary: false,
+      content: "# Incident summarizer\n\nRead the incident channel export in the workspace and write report.md:\n\n1. A one-paragraph summary of what happened.\n2. A timeline, one line per event, oldest first.\n3. Open actions, each with an owner.\n\nRedact anything that looks like a secret before it reaches the report.\n" }),
     Report: async () => (unscanned ? { versionStatus: "published", scanStatus: "skipped", verdict: "unscanned", findings: [] } : report),
     Provenance: async () => prov,
   },

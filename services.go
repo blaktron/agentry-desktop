@@ -21,6 +21,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/trust"
 
+	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/registry"
@@ -701,6 +702,50 @@ func (b *BrowseAPI) Readme(reg, ns, name, version string) (string, error) {
 		return "", err
 	}
 	return registry.Readme(b.app.ctx, client, ns, name, version)
+}
+
+// InstructionsView is a release's instruction file as the Agent tab shows
+// it under the README (agentry-desktop#835): the path the manifest names
+// (`AGENT.md` when it names none) and its text. The text is shown as text,
+// never rendered: the client parses no markdown from the archive (§10.3).
+type InstructionsView struct {
+	Path string `json:"path"`
+	// Content is "" with Binary set when the registry would not read the
+	// file as text.
+	Content   string `json:"content"`
+	Truncated bool   `json:"truncated"`
+	Binary    bool   `json:"binary"`
+}
+
+// Instructions reads a version's instruction file: the manifest's
+// entrypoint, then that file through the version's file endpoint, the
+// same pair Edit reads (services_build_edit.go).
+func (b *BrowseAPI) Instructions(reg, ns, name, version string) (*InstructionsView, error) {
+	client, err := registry.New(reg, settings.TokenFor(reg))
+	if err != nil {
+		return nil, err
+	}
+	mresp, err := client.GetVersionManifestWithResponse(b.app.ctx, ns, name, version)
+	if err != nil {
+		return nil, fmt.Errorf("fetch the manifest of %s: %w", version, err)
+	}
+	if mresp.JSON200 == nil {
+		return nil, registry.Problem("manifest", mresp.StatusCode(), mresp.ApplicationproblemJSONDefault, mresp.Body)
+	}
+	path := build.ReleaseInstructionPath(mresp.Body)
+	fresp, err := client.GetVersionFileWithResponse(b.app.ctx, ns, name, version, &apiclient.GetVersionFileParams{Path: path})
+	if err != nil {
+		return nil, fmt.Errorf("fetch %s of %s: %w", path, version, err)
+	}
+	if fresp.JSON200 == nil {
+		return nil, registry.Problem("file", fresp.StatusCode(), fresp.ApplicationproblemJSONDefault, fresp.Body)
+	}
+	f := fresp.JSON200
+	out := &InstructionsView{Path: path, Truncated: f.Truncated, Binary: f.Binary || f.Content == nil}
+	if !out.Binary {
+		out.Content = *f.Content
+	}
+	return out, nil
 }
 
 // FindingView is one report-card finding.
