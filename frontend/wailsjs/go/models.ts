@@ -6054,10 +6054,31 @@ export namespace receipt {
 	        this.sha256 = source["sha256"];
 	    }
 	}
+	export class ReasonCount {
+	    cap: string;
+	    limit: number;
+	    of: string;
+	    count: number;
+	    more?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReasonCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cap = source["cap"];
+	        this.limit = source["limit"];
+	        this.of = source["of"];
+	        this.count = source["count"];
+	        this.more = source["more"];
+	    }
+	}
 	export class Reason {
 	    code: string;
 	    names?: string[];
 	    detail?: string;
+	    count?: ReasonCount;
 	
 	    static createFrom(source: any = {}) {
 	        return new Reason(source);
@@ -6068,7 +6089,26 @@ export namespace receipt {
 	        this.code = source["code"];
 	        this.names = source["names"];
 	        this.detail = source["detail"];
+	        this.count = this.convertValues(source["count"], ReasonCount);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
