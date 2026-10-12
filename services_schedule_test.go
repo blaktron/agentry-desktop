@@ -29,6 +29,8 @@ type scheduleFake struct {
 	// readyErr is its answer.
 	readied  []string
 	readyErr error
+	// version is what agentry --version prints, "" for nothing.
+	version string
 }
 
 func (f *scheduleFake) exec(_ context.Context, _ string, args []string) ([]byte, []byte, error) {
@@ -38,6 +40,8 @@ func (f *scheduleFake) exec(_ context.Context, _ string, args []string) ([]byte,
 		return []byte(f.check), nil, nil
 	case slices.Contains(args, "add"):
 		return []byte(`{"id":"ab12cd34ef"}`), nil, nil
+	case slices.Contains(args, "--version"):
+		return []byte(f.version), nil, nil
 	}
 	return nil, nil, nil
 }
@@ -68,10 +72,15 @@ func newScheduleAPI(t *testing.T, f *scheduleFake, lingers bool) *ScheduleAPI {
 			return &schedules.CLI{Path: "/usr/bin/agentry", Exec: f.exec}, nil
 		},
 		lingerOn: func() bool { return lingers },
-		readyScheduleHosts: func(_ context.Context, _, ref string, _ map[string]string, given map[string]run.HostSignIn, _ func(string, string) error, _ func(string) (bool, error), _ func(string)) error {
-			f.readied = append(f.readied, fmt.Sprintf("%s %d", ref, len(given)))
+		readyScheduleHosts: func(_ context.Context, s run.ScheduleHosts) (int, error) {
+			f.readied = append(f.readied, fmt.Sprintf("%s %d", s.Ref, len(s.Given)))
 			f.calls = append(f.calls, []string{"(ready hosts)"})
-			return f.readyErr
+			if len(s.Given) > 0 && s.Before != nil {
+				if err := s.Before(); err != nil {
+					return 0, err
+				}
+			}
+			return len(s.Given), f.readyErr
 		},
 	}
 }
@@ -387,5 +396,26 @@ func TestScheduleAddReadiesTargetHostsBeforeTheCommand(t *testing.T) {
 	}
 	if len(f.adds()) != 1 {
 		t.Fatalf("a schedule was made for a host not readied: %q", f.adds())
+	}
+}
+
+// Only an agentry that readies target hosts (v0.6.111, agentry-cli#863)
+// makes a schedule of a QuickAgent that asks for a server: an older one is
+// refused before any host is readied or any sign-in kept.
+func TestScheduleAddOfATargetHostNeedsANewEnoughAgentry(t *testing.T) {
+	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.110 default registry: https://secureagentry.net"}
+	s := newScheduleAPI(t, f, true)
+	out := t.TempDir()
+	s.app.markPicked(out)
+	given := map[string]run.HostSignIn{"server": {Password: "pw"}}
+	if _, err := s.Add(scheduleReq(out), given); err == nil || !strings.Contains(err.Error(), "needs agentry v0.6.111 or later") {
+		t.Fatalf("an older agentry: %v", err)
+	}
+	if len(f.adds()) != 0 {
+		t.Fatal("a schedule was made by an agentry that does not know target hosts")
+	}
+	f.version = "agentry version 0.6.111 default registry: https://secureagentry.net"
+	if _, err := s.Add(scheduleReq(out), given); err != nil {
+		t.Fatal(err)
 	}
 }

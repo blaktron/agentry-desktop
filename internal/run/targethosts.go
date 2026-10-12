@@ -140,7 +140,15 @@ func (setupAsker) Ask(string, string) (string, error) { return "", errNoSignIn }
 
 func (setupAsker) AskSecret(string) (string, error) { return "", nil }
 
-func (s setupAsker) Confirm(prompt string, _ bool) (bool, error) { return s.trust(prompt) }
+// Confirm puts only a host key's question to the dialog, which is titled
+// for one: any other question the CLI might ask (saving a sign-in it
+// prompted for, which the setup never lets it do) is answered no.
+func (s setupAsker) Confirm(prompt string, _ bool) (bool, error) {
+	if !strings.Contains(prompt, "host key") || !strings.Contains(prompt, "SHA256:") {
+		return false, nil
+	}
+	return s.trust(prompt)
+}
 
 // hostFlags are the setup's sign-ins as the CLI's flags take them: a key
 // file's path, and the names of the values held in getenv. Nothing is
@@ -269,44 +277,74 @@ func TargetHostIDs(m *manifest.Manifest) []string {
 	return m.Capabilities.TargetHosts
 }
 
+// ScheduleHosts is a schedule being made, as ReadyScheduleHosts readies
+// its target hosts.
+type ScheduleHosts struct {
+	Registry, Ref string
+	// Answers are the schedule's intake answers, by question id.
+	Answers map[string]string
+	// Given are the setup's sign-ins; Picked, Trust and Say are as a
+	// run's (hostReadiness).
+	Given  map[string]HostSignIn
+	Picked func(what, path string) error
+	Trust  func(prompt string) (bool, error)
+	Say    func(string)
+	// Before is asked once the release is known to declare a target
+	// host, before anything is readied or kept: the agentry command that
+	// makes the schedule must be one that knows them.
+	Before func() error
+}
+
 // ReadyScheduleHosts readies, as a schedule on this computer is made, each
 // target host the release asks for (plan D12): the host key is accepted
 // now, in the native dialog where no file holds it, and the sign-in, from
 // the setup or the keychain, is kept in the keychain, where the schedule's
 // fires read it. The agentry command that then makes the schedule finds
-// both and pins the key (agentry-cli#863). A release with none readies
-// nothing; a sign-in given for one refuses.
-func ReadyScheduleHosts(ctx context.Context, regURL, ref string, answers map[string]string, given map[string]HostSignIn, picked func(what, path string) error, trust func(string) (bool, error), say func(string)) error {
-	sig, err := ResolveSignature(ctx, regURL, ref, false)
+// both and pins the key (agentry-cli#863). It reports how many hosts it
+// readied, each sign-in now in the keychain: a release with none readies
+// nothing, and a sign-in given for one refuses.
+func ReadyScheduleHosts(ctx context.Context, s ScheduleHosts) (int, error) {
+	sig, err := ResolveSignature(ctx, s.Registry, s.Ref, false)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	ids := TargetHostIDs(sig.Manifest)
+	if len(ids) > 0 && s.Before != nil {
+		if err := s.Before(); err != nil {
+			return 0, err
+		}
+	}
 	a := &intake.Answers{Hosts: map[string]*targethost.Host{}}
 	for _, id := range ids {
-		v := strings.TrimSpace(answers[id])
+		v := strings.TrimSpace(s.Answers[id])
 		if v == "" {
-			return engine.Classify(engine.ExitUsage, fmt.Errorf("target host %s: a schedule is given its server when it is made: answer it", id))
+			return 0, engine.Classify(engine.ExitUsage, fmt.Errorf("target host %s: a schedule is given its server when it is made: answer it", id))
 		}
 		ans, err := targethost.ParseAnswer(v)
 		if err != nil {
-			return engine.Classify(engine.ExitUsage, fmt.Errorf("target host %s: %w", id, err))
+			return 0, engine.Classify(engine.ExitUsage, fmt.Errorf("target host %s: %w", id, err))
 		}
 		a.Hosts[id] = &targethost.Host{ID: id, Answer: ans}
 	}
+	if len(ids) == 0 {
+		return 0, readyTargetHosts(ctx, a, ids, hostReadiness{given: s.Given})
+	}
 	home, err := Home()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	pf, err := policy.Resolve("")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	pol, _, err := policy.EnsureDefault(pf.Path)
 	if err != nil {
-		return fmt.Errorf("operator policy: %w", err)
+		return 0, fmt.Errorf("operator policy: %w", err)
 	}
-	return readyTargetHosts(ctx, a, ids, hostReadiness{pol: pol, home: home, given: given, picked: picked, trust: trust, say: say, keep: true})
+	if err := readyTargetHosts(ctx, a, ids, hostReadiness{pol: pol, home: home, given: s.Given, picked: s.Picked, trust: s.Trust, say: s.Say, keep: true}); err != nil {
+		return 0, err
+	}
+	return len(ids), nil
 }
 
 // RefuseHostedTargetHosts refuses a run or a schedule In Agentry of a

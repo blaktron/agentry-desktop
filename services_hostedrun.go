@@ -322,13 +322,13 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	// What the release declares, from the resolve alone: reading the
 	// operator policy or an MCP profile to answer this would make the mode
 	// depend on the machine it is offered on.
-	modes, secrets, optional, targetHosts, err := run.Declared(ctx, reg, ref)
+	d, err := run.Declared(ctx, reg, ref)
 	if err != nil {
 		return nil, err
 	}
-	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = modes, secrets, optional
-	facts.TargetHosts, v.TargetHosts = len(targetHosts) > 0, len(targetHosts) > 0
-	v.DeclaredSecrets, v.OptionalSecrets = secrets, emptyNotNil(optional)
+	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = d.Modes, d.Secrets, d.Optional
+	facts.TargetHosts, v.TargetHosts = len(d.TargetHosts) > 0, len(d.TargetHosts) > 0
+	v.DeclaredSecrets, v.OptionalSecrets = d.Secrets, emptyNotNil(d.Optional)
 
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
 

@@ -221,15 +221,27 @@ type ProfileInfo struct {
 // availability rule (services_hostedrun.go) reads this rather than
 // ProfileStatus, because a hosted run must touch nothing on this machine:
 // no operator policy, no MCP profile, no docker (hosted-runs.md §4.7).
-func Declared(ctx context.Context, regURL, ref string) (modes, secrets, optional, targetHosts []string, err error) {
+func Declared(ctx context.Context, regURL, ref string) (*Declaration, error) {
 	sig, err := ResolveSignature(ctx, regURL, ref, false)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, err
 	}
+	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest)}
 	for _, mode := range sig.Manifest.SupportedModes() {
-		modes = append(modes, string(mode))
+		d.Modes = append(d.Modes, string(mode))
 	}
-	return modes, allSecretNames(sig.Manifest), optionalSecretNames(sig.Manifest), TargetHostIDs(sig.Manifest), nil
+	return d, nil
+}
+
+// Declaration is what Declared reads from a release's resolve.
+type Declaration struct {
+	// Modes are the run modes it declares.
+	Modes []string
+	// Secrets are every secret name, its own and its servers', and
+	// Optional those a run can start without.
+	Secrets, Optional []string
+	// TargetHosts are its host questions' ids.
+	TargetHosts []string
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a

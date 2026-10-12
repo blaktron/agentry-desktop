@@ -531,3 +531,16 @@ func TestAPreparedRunGivesTheEngineTheReadiedTargetHost(t *testing.T) {
 		t.Fatalf("no sign-in: exit %d %+v: %v", code, r, err)
 	}
 }
+
+// The dialog is titled "Accept this host key?": only the CLI's host key
+// question reaches it, never another of its confirms.
+func TestOnlyAHostKeyQuestionReachesTheDialog(t *testing.T) {
+	d := &dialog{answer: true}
+	a := setupAsker{trust: d.trust}
+	if ok, _ := a.Confirm("Save this sign-in for admin@h in the system keychain, for later runs?", false); ok || len(d.asked) != 0 {
+		t.Fatalf("another question reached the dialog: %v %q", ok, d.asked)
+	}
+	if ok, _ := a.Confirm("The host key of admin@h (192.0.2.1, port 22) is not known:\n  ED25519 SHA256:abc\nAccept it?", false); !ok || len(d.asked) != 1 {
+		t.Fatalf("the host key question: %v %q", ok, d.asked)
+	}
+}

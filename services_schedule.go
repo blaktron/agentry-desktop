@@ -76,7 +76,7 @@ type ScheduleAPI struct {
 	installRun     func(ctx context.Context) (cliinstall.Result, error)
 	// readyScheduleHosts readies a schedule's target hosts; nil is
 	// run.ReadyScheduleHosts.
-	readyScheduleHosts func(ctx context.Context, reg, ref string, answers map[string]string, given map[string]run.HostSignIn, picked func(string, string) error, trust func(string) (bool, error), say func(string)) error
+	readyScheduleHosts func(ctx context.Context, s run.ScheduleHosts) (int, error)
 
 	mu sync.Mutex
 	// running is the Run now under way, by schedule id.
@@ -503,7 +503,7 @@ func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.Host
 		return nil, err
 	}
 	hctx, hcancel := context.WithTimeout(s.ctx(), cliTimeout)
-	err = s.readyHosts(hctx, req, hostSignIns)
+	err = s.readyHosts(hctx, c, req, hostSignIns)
 	hcancel()
 	if err != nil {
 		return nil, err
@@ -522,19 +522,31 @@ func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.Host
 // sign-in kept in the keychain (run.ReadyScheduleHosts). A release that
 // asks for none readies nothing; a sign-in given for one refuses. What it
 // reports goes to the app's log.
-func (s *ScheduleAPI) readyHosts(ctx context.Context, req schedules.Request, given map[string]run.HostSignIn) error {
+func (s *ScheduleAPI) readyHosts(ctx context.Context, c *schedules.CLI, req schedules.Request, given map[string]run.HostSignIn) error {
 	ready := s.readyScheduleHosts
 	if ready == nil {
 		ready = run.ReadyScheduleHosts
 	}
-	saved := false
-	err := ready(ctx, req.Registry, req.Ref, req.Intake, given, s.app.keyFiles.require, s.app.trustHostKey, func(msg string) {
-		saved = saved || strings.Contains(msg, "is kept in the system keychain")
-		log.Printf("agentry-desktop: schedule %s: %s", req.Ref, msg)
+	n, err := ready(ctx, run.ScheduleHosts{
+		Registry: req.Registry, Ref: req.Ref, Answers: req.Intake, Given: given,
+		Picked: s.app.keyFiles.require, Trust: s.app.trustHostKey,
+		Say: func(msg string) { log.Printf("agentry-desktop: schedule %s: %s", req.Ref, msg) },
+		// Only an agentry that readies target hosts pins the key a fire
+		// holds the host to (agentry-cli#863).
+		Before: func() error {
+			line, err := c.Version(ctx)
+			if err != nil {
+				return fmt.Errorf("the agentry command did not answer: %w", err)
+			}
+			if why := schedules.OlderThan(line, schedules.MinTargetHostsCLI, "scheduling a QuickAgent that asks for a server"); why != "" {
+				return errors.New(why)
+			}
+			return nil
+		},
 	})
 	// A sign-in kept now reaches the schedules that run while the person
 	// is signed out, as every other key change does.
-	if saved {
+	if n > 0 {
 		resealSchedules(s.app)
 	}
 	return err
