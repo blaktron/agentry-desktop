@@ -207,11 +207,14 @@ func HostedSourceTokens(m *manifest.Manifest, answers, typed map[string]string, 
 // Two sources on one host given different tokens are refused: a host keeps
 // one key.
 func HostedScheduleKeys(m *manifest.Manifest, answers, typed map[string]string, warn func(string)) (map[string]string, error) {
+	keys := map[string]string{}
+	if m == nil {
+		return keys, nil
+	}
 	tokens, err := HostedSourceTokens(m, answers, typed, warn)
 	if err != nil {
 		return nil, err
 	}
-	keys := map[string]string{}
 	for _, q := range m.Intake {
 		tok, ok := tokens[q.ID]
 		if !ok {

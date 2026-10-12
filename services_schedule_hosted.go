@@ -416,6 +416,7 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		}
 	}
 	ctx := s.ctx()
+	var keys map[string]string
 	// An unscanned release is not run In Agentry from here (D-029), so it
 	// is not scheduled there either.
 	if sig, err := run.ResolveSignature(ctx, reg, req.Ref, false); err == nil {
@@ -425,23 +426,14 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		// A schedule's fire has no setup to send a one-run token from: it
 		// uses the key Agentry keeps for each source's host
 		// (agentry-enterprise#532). A source given a token here has it
-		// saved there, with the person's leave, before the schedule is
-		// made; without the leave, the schedule is held, since its fires
-		// would fetch without the token the person meant them to use.
-		keys, err := run.HostedScheduleKeys(sig.Manifest, req.Intake, req.SourceTokens, nil)
-		if err != nil {
+		// saved there, with the person's leave, once the schedule is made;
+		// without the leave, the schedule is held, since its fires would
+		// fetch without the token the person meant them to use.
+		if keys, err = run.HostedScheduleKeys(sig.Manifest, req.Intake, req.SourceTokens, nil); err != nil {
 			return nil, err
 		}
 		if len(keys) > 0 && !req.SaveSourceKeys {
-			return nil, fmt.Errorf("a schedule In Agentry fetches its input sources with the keys Agentry keeps for their hosts: tick \u201cSave in Agentry\u201d to keep this token there for %s, or schedule it on this computer", strings.Join(sortedKeys(keys), ", "))
-		}
-		for _, host := range sortedKeys(keys) {
-			if err := c.SetSourceKey(ctx, host, keys[host]); err != nil {
-				if r := hostedrun.RefusalOf(err); r != nil {
-					return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence()}, nil
-				}
-				return nil, err
-			}
+			return nil, fmt.Errorf("a schedule In Agentry fetches its input sources with the keys Agentry keeps for their hosts: tick \u201cSave in Agentry\u201d to keep the token there for %s, or schedule it on this computer", strings.Join(sortedKeys(keys), ", "))
 		}
 	} else if len(req.SourceTokens) > 0 {
 		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not saved: %w", req.Ref, err)
@@ -475,6 +467,21 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional}, nil
 		}
 		return nil, err
+	}
+	// The keys its fires use, saved once the schedule is made, so a
+	// refused create leaves none behind; one that cannot be saved takes
+	// the schedule back, so it never fires without the key it was given.
+	for _, host := range sortedKeys(keys) {
+		if err := c.SetSourceKey(ctx, host, keys[host]); err != nil {
+			if derr := c.DeleteSchedule(context.WithoutCancel(ctx), made.ID); derr != nil {
+				emitEvent(s.app, eventSchedulesChanged)
+				return nil, fmt.Errorf("the schedule was made, but the key for %s could not be saved in Agentry (%v), and the schedule could not be taken back (%v): delete it on the Scheduled page, or save the key on the site's Secrets page", host, err, derr)
+			}
+			if r := hostedrun.RefusalOf(err); r != nil {
+				return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence()}, nil
+			}
+			return nil, err
+		}
 	}
 	emitEvent(s.app, eventSchedulesChanged)
 	return &HostedScheduleMadeView{ID: made.ID, Next: made.NextAt}, nil

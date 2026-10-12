@@ -506,3 +506,27 @@ func TestHostedAddSavesASourcesKeyInAgentryWithLeave(t *testing.T) {
 		t.Fatalf("a public source saved a key: %d", sets)
 	}
 }
+
+// A key the vault refuses once the schedule is made (a key saved from the
+// site, which a token may not replace: 409 secret-kept) takes the schedule
+// back, so it never fires without the key it was given, and the refusal
+// is the When step's to show.
+func TestHostedAddTakesTheScheduleBackWhenItsKeyIsNotSaved(t *testing.T) {
+	isolateHostedKeychain(t)
+	sr := &scheduleRoutes{}
+	s, reg, _ := hostedScheduleAPI(t, sr, func(f *hostedFake) {
+		f.intake = "intake:\n  - id: codebase\n    prompt: \"The repository\"\n    type: repository\n"
+		f.vaultAnswer = func(w http.ResponseWriter, _ []byte) {
+			hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/secret-kept", "title": "The key is kept", "detail": "Change it on the Secrets page."})
+		}
+	})
+	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"codebase": "https://github.com/acme/app"},
+		SourceTokens: map[string]string{"codebase": "ghp-typed-for-the-schedule"}, SaveSourceKeys: true, When: schedules.When{Kind: "daily", Time: "07:00", Zone: "UTC"}})
+	if err != nil || made.ID != "" || made.Refusal != "secret-kept" {
+		t.Fatalf("HostedAdd = %+v, %v", made, err)
+	}
+	calls := sr.calls()
+	if len(calls) != 2 || !strings.HasPrefix(calls[0], "POST /api/v1/x/schedules/") || calls[1] != "DELETE /api/v1/x/schedules/"+hostedScheduleID {
+		t.Fatalf("calls %v", calls)
+	}
+}

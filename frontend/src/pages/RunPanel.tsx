@@ -440,6 +440,9 @@ export default function RunPanel({
     }
   }
   const agentryHosts = agentryKeyHosts(sourceQs, intakeValues, sourceKeys, typed);
+  // A tick given for one set of hosts is not leave for another.
+  const agentryHostsKey = agentryHosts.join(" ");
+  useEffect(() => setSaveInAgentry(false), [agentryHostsKey]);
   blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, {
     inAgentry, scheduling, saveInAgentry,
   }));
@@ -1428,8 +1431,9 @@ export default function RunPanel({
                       <label className="check-row small">
                         <input type="checkbox" checked={saveInAgentry} onChange={(e) => setSaveInAgentry(e.target.checked)} disabled={running} />
                         <span>
-                          Save in Agentry: keep the token for {agentryHosts.join(", ")} in your Agentry vault, where this schedule&rsquo;s runs read it each time
-                          they fetch. It replaces a key you saved there for that host before, and you can delete it on the site&rsquo;s Secrets page.
+                          Save in Agentry: copy the token for {agentryHosts.join(", ")} (the one typed here, or else the key saved on this computer) to your Agentry
+                          vault as that host&rsquo;s key, once the schedule is made. This schedule&rsquo;s runs read it each time they fetch. It replaces a key you saved
+                          there for that host before, and you can delete it on the site&rsquo;s Secrets page.
                         </span>
                       </label>
                     )}
@@ -1510,7 +1514,7 @@ export default function RunPanel({
                     <dd>
                       <span className="selectable">
                         {isSourceType(q.type)
-                          ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], typed[q.id] ?? "")
+                          ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], typed[q.id] ?? "", inAgentry)
                           : (intakeValues[q.id] ?? "").trim() || "no answer"}
                       </span>
                       <Button variant="link" onClick={() => goTo(steps.indexOf("details"))} aria-label={`Edit ${q.prompt}`}>Edit</Button>

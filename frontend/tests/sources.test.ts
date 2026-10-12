@@ -84,6 +84,8 @@ test("a run In Agentry takes a source, its token sent with the start (agentry-de
   assert.match(tokenLine(ok("github.com"), "tok", true, true), /sent the token typed here: Agentry holds it for this run alone/);
   assert.match(tokenLine(ok("github.com", true), "", true, true), /sent the key saved on this computer for github.com/);
   assert.match(tokenLine(ok("github.com"), "", true, true), /uses the key saved in Agentry for github.com, if there is one/);
+  assert.equal(sourceRecap(repo, "https://github.com/acme/app", ok("github.com", true), "", true),
+    "https://github.com/acme/app, its default branch, with the key saved on this computer for github.com, sent to Agentry for this run alone");
 });
 
 test("a schedule In Agentry saves a source's token there, with leave (agentry-enterprise#532)", () => {

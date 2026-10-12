@@ -72,22 +72,26 @@ export function tokenLine(key: SourceKey | null, typed: string, isRepository: bo
     : `No key is saved for ${host}. A public file needs none.`;
 }
 
-/** Where a source's token comes from, for Review and start. */
-export function tokenWords(key: SourceKey | null, typed: string): string {
-  if (typed.trim() !== "") return "with the access token typed for this run";
-  if (key?.saved && key.host) return `with the key saved for ${key.host}`;
-  return "with no access token";
+/** Where a source's token comes from, for Review and start. In Agentry
+ *  the token, typed or saved on this computer, is sent with the start
+ *  (agentry-desktop#833). */
+export function tokenWords(key: SourceKey | null, typed: string, inAgentry = false): string {
+  if (typed.trim() !== "") return inAgentry ? "with the access token typed for this run, sent to Agentry for this run alone" : "with the access token typed for this run";
+  if (key?.saved && key.host) {
+    return inAgentry ? `with the key saved on this computer for ${key.host}, sent to Agentry for this run alone` : `with the key saved for ${key.host}`;
+  }
+  return inAgentry ? "with no access token from this computer" : "with no access token";
 }
 
 /** A source answer as Review and start shows it. */
-export function sourceRecap(q: Q, answer: string, key: SourceKey | null, typed: string): string {
+export function sourceRecap(q: Q, answer: string, key: SourceKey | null, typed: string, inAgentry = false): string {
   const a = answer.trim();
   if (a === "") return "no answer";
   if (q.type === "repository") {
     const { url, ref } = splitRepository(a);
-    return `${key?.shown || url}, ${ref.trim() ? `at ${ref.trim()}` : "its default branch"}, ${tokenWords(key, typed)}`;
+    return `${key?.shown || url}, ${ref.trim() ? `at ${ref.trim()}` : "its default branch"}, ${tokenWords(key, typed, inAgentry)}`;
   }
-  return `${key?.shown || a}, ${tokenWords(key, typed)}`;
+  return `${key?.shown || a}, ${tokenWords(key, typed, inAgentry)}`;
 }
 
 /** What still holds Run for the source questions, each in a sentence. */
