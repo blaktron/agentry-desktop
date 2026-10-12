@@ -478,6 +478,13 @@ The product never claims an agent is "safe". The language is always:
   server's plain configuration included. Opening an existing workspace and
   saving it keeps every field; only comments are lost, and the page says
   so. The folder is chosen at the first save.
+- **Report bug** (agentry-desktop#841, plan `report-bug.md` §6) — a small
+  link directly above the version in the sidebar's bottom-left corner. It
+  opens a card with a text box, Cancel and Submit. Submit files the text with
+  the active registry's bug-reports extension as the account signed in there,
+  with the app's version and OS and nothing else. Agentry's staff read it on
+  the site and email you when it is fixed. Signed out, the card offers Sign in
+  instead. A registry without the extension says it does not take bug reports.
 - **Settings** opens on five cards, each a link to its own page with a
   **← Settings** link back; a card says in one line where things stand
   (read from this computer only, never from a registry) and links straight
