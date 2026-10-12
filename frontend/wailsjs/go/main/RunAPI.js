@@ -58,6 +58,10 @@ export function ChooseHarness(arg1) {
   return window['go']['main']['RunAPI']['ChooseHarness'](arg1);
 }
 
+export function ChooseHostKeyFile(arg1) {
+  return window['go']['main']['RunAPI']['ChooseHostKeyFile'](arg1);
+}
+
 export function ChosenHarnesses() {
   return window['go']['main']['RunAPI']['ChosenHarnesses']();
 }
@@ -114,6 +118,10 @@ export function ForgetHarness(arg1) {
   return window['go']['main']['RunAPI']['ForgetHarness'](arg1);
 }
 
+export function ForgetHostSignIn(arg1) {
+  return window['go']['main']['RunAPI']['ForgetHostSignIn'](arg1);
+}
+
 export function ForgetHybridKey() {
   return window['go']['main']['RunAPI']['ForgetHybridKey']();
 }
@@ -124,6 +132,10 @@ export function ForgetJevKey() {
 
 export function ForgetOwnClient(arg1) {
   return window['go']['main']['RunAPI']['ForgetOwnClient'](arg1);
+}
+
+export function ForgetRecentHost(arg1) {
+  return window['go']['main']['RunAPI']['ForgetRecentHost'](arg1);
 }
 
 export function ForgetRun(arg1) {
@@ -206,6 +218,10 @@ export function ProfileStatus(arg1, arg2) {
   return window['go']['main']['RunAPI']['ProfileStatus'](arg1, arg2);
 }
 
+export function RecentHosts() {
+  return window['go']['main']['RunAPI']['RecentHosts']();
+}
+
 export function RecentRuns(arg1, arg2) {
   return window['go']['main']['RunAPI']['RecentRuns'](arg1, arg2);
 }
@@ -242,8 +258,8 @@ export function RestartNow() {
   return window['go']['main']['RunAPI']['RestartNow']();
 }
 
-export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15) {
-  return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
+export function RunAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16) {
+  return window['go']['main']['RunAPI']['RunAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16);
 }
 
 export function RunOutputs(arg1) {
@@ -334,8 +350,8 @@ export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg
   return window['go']['main']['RunAPI']['StartHostedSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
 }
 
-export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14) {
-  return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14);
+export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15) {
+  return window['go']['main']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
 }
 
 export function StopAwaitingConnections() {
@@ -360,6 +376,10 @@ export function StoreModelKey(arg1, arg2) {
 
 export function StoreSearchKey(arg1, arg2) {
   return window['go']['main']['RunAPI']['StoreSearchKey'](arg1, arg2);
+}
+
+export function TargetHostStatus(arg1) {
+  return window['go']['main']['RunAPI']['TargetHostStatus'](arg1);
 }
 
 export function TestHybridKey() {

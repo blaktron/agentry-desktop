@@ -69,6 +69,12 @@ type Facts struct {
 	// registry did not say; the create answers schedule-tier either way.
 	Schedules       bool
 	ScheduleAllowed *bool
+	// TargetHosts is true when the release declares a target host
+	// (capabilities.targetHosts; plan runtime-hosts.md D11): it works a
+	// machine the person names over SSH, which only a run on their own
+	// computer does, so no choice In Agentry appears for it
+	// (agentry-desktop#812).
+	TargetHosts bool
 }
 
 // Offer is the answer: whether the choice appears at all, whether it can
@@ -88,11 +94,12 @@ type Offer struct {
 	Upgrade bool
 }
 
-// Decide applies the rule. Not signed in, no runs extension, or a release
-// that does not declare the autonomous mode means the choice is absent and
-// the local modes are exactly as they were.
+// Decide applies the rule. Not signed in, no runs extension, a release
+// that does not declare the autonomous mode, or one that declares a target
+// host means the choice is absent and the local modes are exactly as they
+// were.
 func Decide(f Facts) Offer {
-	if !f.SignedIn || !f.Extension || !declares(f.Modes, "autonomous") {
+	if !f.SignedIn || !f.Extension || !declares(f.Modes, "autonomous") || f.TargetHosts {
 		return Offer{}
 	}
 	o := Offer{Offered: true}
@@ -134,7 +141,7 @@ const (
 // (Standard) is told so, with the way up, before anything about the token.
 func DecideSession(f Facts) Offer {
 	if !f.SignedIn || !f.Extension || !declares(f.Modes, ModeInteractive) ||
-		!f.StatusKnown || !f.SessionsEnabled || f.SessionAllowed == nil {
+		!f.StatusKnown || !f.SessionsEnabled || f.SessionAllowed == nil || f.TargetHosts {
 		return Offer{}
 	}
 	o := Offer{Offered: true}
@@ -170,7 +177,7 @@ const (
 // can run In Agentry at all is Decide's, and what a fire would lack is the
 // create's own check (D8).
 func DecideSchedule(f Facts) Offer {
-	if !f.SignedIn || !f.Schedules {
+	if !f.SignedIn || !f.Schedules || f.TargetHosts {
 		return Offer{}
 	}
 	o := Offer{Offered: true}

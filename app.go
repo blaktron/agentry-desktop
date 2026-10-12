@@ -32,6 +32,13 @@ type App struct {
 	pickDirectory func(ctx context.Context, title string) (string, error)
 	mu            sync.Mutex
 	picked        map[string]bool
+	// keyFiles are the private keys the native picker returned for a
+	// target host's sign-in (ChooseHostKeyFile), kept apart from picked:
+	// a key is never an input, and an input never a key.
+	keyFiles keyFilePicks
+	// pickKeyFile is the native file picker ChooseHostKeyFile opens; nil
+	// is the OS's, and a test substitutes one.
+	pickKeyFile func(ctx context.Context, opts runtime.OpenDialogOptions) (string, error)
 }
 
 // NewApp creates the application struct.

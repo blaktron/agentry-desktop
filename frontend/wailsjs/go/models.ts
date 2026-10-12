@@ -2409,6 +2409,7 @@ export namespace main {
 	    remedy?: string;
 	    signedIn: boolean;
 	    extension: boolean;
+	    targetHosts?: boolean;
 	    enabled: boolean;
 	    runnersOnline: number;
 	    queued: number;
@@ -2441,6 +2442,7 @@ export namespace main {
 	        this.remedy = source["remedy"];
 	        this.signedIn = source["signedIn"];
 	        this.extension = source["extension"];
+	        this.targetHosts = source["targetHosts"];
 	        this.enabled = source["enabled"];
 	        this.runnersOnline = source["runnersOnline"];
 	        this.queued = source["queued"];
@@ -5605,6 +5607,34 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ask = source["ask"];
 	        this.name = source["name"];
+	    }
+	}
+	export class TargetHostView {
+	    problem?: string;
+	    answer?: string;
+	    user?: string;
+	    host?: string;
+	    port?: number;
+	    account?: string;
+	    saved: boolean;
+	    keychainOff: boolean;
+	    keyStoreErr?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TargetHostView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.problem = source["problem"];
+	        this.answer = source["answer"];
+	        this.user = source["user"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.account = source["account"];
+	        this.saved = source["saved"];
+	        this.keychainOff = source["keychainOff"];
+	        this.keyStoreErr = source["keyStoreErr"];
 	    }
 	}
 	export class UnsafeNoticeView {

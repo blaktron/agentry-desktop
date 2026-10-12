@@ -600,6 +600,9 @@ func TestOfferMatrix(t *testing.T) {
 		{"scopes unreadable", with(func(f *Facts) { f.ScopesKnown = false; f.Scopes = nil }), true, false, "did not say what the stored token may do", "Sign in again"},
 		{"runs turned off", with(func(f *Facts) { f.Enabled = false }), true, false, "not taking hosted runs", "this machine"},
 		{"status unreadable", with(func(f *Facts) { f.StatusKnown = false }), true, false, "did not answer", "this machine"},
+		// A target host is reached only from this computer (plan
+		// runtime-hosts.md D11; agentry-desktop#812).
+		{"a target host", with(func(f *Facts) { f.TargetHosts = true }), false, false, "", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -749,6 +752,27 @@ func onlyTheToken(t *testing.T, sent []sentRequest, canaries map[string]string) 
 		}
 		if strings.Contains(strings.ToLower(flat), "worker") {
 			t.Fatalf("%s: a worker credential reached the request", where)
+		}
+	}
+}
+
+// A release that declares a target host is offered no session and no
+// schedule In Agentry either (plan runtime-hosts.md D11; agentry-desktop
+// #812), whatever else holds.
+func TestATargetHostIsOfferedNothingInAgentry(t *testing.T) {
+	yes := true
+	f := Facts{
+		SignedIn: true, Extension: true, Modes: []string{"autonomous", ModeInteractive}, Scopes: []string{ScopeRunRead, ScopeRunWrite},
+		ScopesKnown: true, Enabled: true, StatusKnown: true, SessionsEnabled: true, SessionAllowed: &yes, HostsOnline: 1,
+		Schedules: true, ScheduleAllowed: &yes,
+	}
+	if !Decide(f).Available || !DecideSession(f).Available || !DecideSchedule(f).Available {
+		t.Fatal("the base facts should offer all three")
+	}
+	f.TargetHosts = true
+	for name, o := range map[string]Offer{"run": Decide(f), "session": DecideSession(f), "schedule": DecideSchedule(f)} {
+		if o != (Offer{}) {
+			t.Errorf("%s: %+v, want no offer", name, o)
 		}
 	}
 }

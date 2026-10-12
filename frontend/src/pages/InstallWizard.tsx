@@ -219,7 +219,7 @@ export default function InstallWizard({
               <label className="check-row">
                 <input type="checkbox" checked={acceptCaps} onChange={(e) => setAcceptCaps(e.target.checked)} />
                 <span>
-                  <strong>{plan.requiresWidenedConfirm ? "Accept the widened capability contract." : "Accept the declared network/exec capabilities."}</strong>{" "}
+                  <strong>{plan.requiresWidenedConfirm ? "Accept the widened capability contract." : `Accept the declared ${declaredWords(plan.capabilities)}.`}</strong>{" "}
                   <span className="muted">The agent may do what is listed above once your tools run it.</span>
                 </span>
               </label>
@@ -252,6 +252,15 @@ export default function InstallWizard({
   );
 }
 
+// declaredWords names what a first install's consent accepts: the network
+// and exec capabilities, a target host (agentry-desktop#812), or both.
+function declaredWords(caps: install.Plan["capabilities"]): string {
+  const what: string[] = [];
+  if (caps.egressHosts?.length || caps.execCommands?.length) what.push("network/exec capabilities");
+  if (caps.targetHosts?.length) what.push(caps.targetHosts.length === 1 ? "target host" : "target hosts");
+  return what.length ? what.join(" and ") : "capabilities";
+}
+
 function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[]; secrets: string }) {
   const rows: [string, string][] = [];
   const list = (v?: string[]) => (v && v.length ? v.join(", ") : "");
@@ -264,6 +273,12 @@ function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilitie
   // required asks for no new consent (plan optional-secrets.md D6).
   if (secrets) rows.push(["secrets", secrets]);
   if (list(caps.dataAccess)) rows.push(["data access", list(caps.dataAccess)]);
+  // A target host (plan runtime-hosts.md §8; agentry-desktop#812): a
+  // machine the person names when it runs, worked as the account they sign
+  // in with, in the CLI's consent words.
+  if (list(caps.targetHosts)) {
+    rows.push(["target hosts", `${list(caps.targetHosts)}: asks for a server when it runs, and can run any command on it as the account you sign in with`]);
+  }
   // The knowledge packs the release ships in its archive (plan knowledge.md
   // §4.6): part of the contract, each with its size from the archive.
   if (list(caps.knowledge)) {

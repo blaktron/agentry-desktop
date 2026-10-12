@@ -32,6 +32,8 @@ export function ChatGPTModels():Promise<Array<string>>;
 
 export function ChooseHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
+export function ChooseHostKeyFile(arg1:string):Promise<string>;
+
 export function ChosenHarnesses():Promise<Array<main.HarnessView>>;
 
 export function Connect(arg1:string,arg2:string,arg3:string):Promise<main.ConnectView>;
@@ -60,11 +62,15 @@ export function EndpointWarning(arg1:string):Promise<string>;
 
 export function ForgetHarness(arg1:string):Promise<Array<main.HarnessView>>;
 
+export function ForgetHostSignIn(arg1:string):Promise<main.TargetHostView>;
+
 export function ForgetHybridKey():Promise<main.HybridKeyView>;
 
 export function ForgetJevKey():Promise<main.JevKeyView>;
 
 export function ForgetOwnClient(arg1:string):Promise<boolean>;
+
+export function ForgetRecentHost(arg1:string):Promise<Array<string>>;
 
 export function ForgetRun(arg1:string):Promise<void>;
 
@@ -106,6 +112,8 @@ export function PrereqStatus():Promise<main.PrereqView>;
 
 export function ProfileStatus(arg1:string,arg2:string):Promise<main.ProfileStatusView>;
 
+export function RecentHosts():Promise<Array<string>>;
+
 export function RecentRuns(arg1:string,arg2:number):Promise<main.RecentRunsView>;
 
 export function RecordedReview(arg1:string):Promise<main.ReviewView>;
@@ -124,7 +132,7 @@ export function ReplayHostedSession():Promise<void>;
 
 export function RestartNow():Promise<void>;
 
-export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean,arg15:Record<string, string>):Promise<main.RunResultView>;
+export function RunAgent(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:number,arg9:boolean,arg10:Record<string, string>,arg11:boolean,arg12:boolean,arg13:Array<string>,arg14:boolean,arg15:Record<string, string>,arg16:Record<string, run.HostSignIn>):Promise<main.RunResultView>;
 
 export function RunOutputs(arg1:string):Promise<main.RunOutputsView>;
 
@@ -170,7 +178,7 @@ export function StartHostedRun(arg1:string,arg2:string,arg3:string,arg4:Array<st
 
 export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:Record<string, string>,arg7:Array<string>,arg8:boolean,arg9:boolean,arg10:Record<string, string>):Promise<main.HostedStartView>;
 
-export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean,arg14:Record<string, string>):Promise<main.SessionView>;
+export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean,arg14:Record<string, string>,arg15:Record<string, run.HostSignIn>):Promise<main.SessionView>;
 
 export function StopAwaitingConnections():Promise<void>;
 
@@ -183,6 +191,8 @@ export function StoreJevKey(arg1:string):Promise<main.JevKeyView>;
 export function StoreModelKey(arg1:string,arg2:string):Promise<main.SetupStatusView>;
 
 export function StoreSearchKey(arg1:string,arg2:string):Promise<main.SearchKeyView>;
+
+export function TargetHostStatus(arg1:string):Promise<main.TargetHostView>;
 
 export function TestHybridKey():Promise<main.HybridKeyTestView>;
 

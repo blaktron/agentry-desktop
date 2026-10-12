@@ -96,6 +96,15 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
   if (Array.isArray(c.dataAccess) && c.dataAccess.length > 0) {
     badges.push(<span key="da" className="badge">data: {c.dataAccess.join(", ")}</span>);
   }
+  // A target host (agentry-desktop#812): a server the person names when it
+  // runs, worked over SSH as the account they sign in with.
+  if (Array.isArray(c.targetHosts) && c.targetHosts.length > 0) {
+    badges.push(
+      <span key="th" className="badge bad" title="Asks for a server when it runs, and can run any command on it as the account you sign in with">
+        target hosts: {c.targetHosts.join(", ")}
+      </span>,
+    );
+  }
 
   if (badges.length === 0) {
     return <span className="badge ok">no capabilities declared (pure text)</span>;

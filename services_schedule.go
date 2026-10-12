@@ -74,6 +74,9 @@ type ScheduleAPI struct {
 	// install of the agentry command (services_schedule_cli.go).
 	installOffered func() bool
 	installRun     func(ctx context.Context) (cliinstall.Result, error)
+	// readyScheduleHosts readies a schedule's target hosts; nil is
+	// run.ReadyScheduleHosts.
+	readyScheduleHosts func(ctx context.Context, reg, ref string, answers map[string]string, given map[string]run.HostSignIn, picked func(string, string) error, trust func(string) (bool, error), say func(string)) error
 
 	mu sync.Mutex
 	// running is the Run now under way, by schedule id.
@@ -470,7 +473,14 @@ type ScheduleMadeView struct {
 // Add makes the schedule req describes: checked again, the person's
 // consents asked in one native dialog, then made by the agentry command,
 // which pins the version, installs it and writes its alarm.
-func (s *ScheduleAPI) Add(req schedules.Request) (*ScheduleMadeView, error) {
+//
+// A release that asks for a target host has each host readied first, with
+// the person here (plan runtime-hosts.md D12; agentry-desktop#812): a host
+// key no known_hosts file holds is put to them in a native dialog, and the
+// sign-in, hostSignIns' for that host or the one saved, is kept in the
+// system keychain, where the schedule's fires read it. The command then
+// finds both, and pins the key.
+func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.HostSignIn) (*ScheduleMadeView, error) {
 	unsafe := unsafeModeOn()
 	if err := s.gates(&req, unsafe); err != nil {
 		return nil, err
@@ -492,6 +502,12 @@ func (s *ScheduleAPI) Add(req schedules.Request) (*ScheduleMadeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	hctx, hcancel := context.WithTimeout(s.ctx(), cliTimeout)
+	err = s.readyHosts(hctx, req, hostSignIns)
+	hcancel()
+	if err != nil {
+		return nil, err
+	}
 	actx, acancel := context.WithTimeout(s.ctx(), cliAddTimeout)
 	defer acancel()
 	id, err := c.Add(actx, req, yes)
@@ -500,6 +516,28 @@ func (s *ScheduleAPI) Add(req schedules.Request) (*ScheduleMadeView, error) {
 	}
 	emitEvent(s.app, eventSchedulesChanged)
 	return &ScheduleMadeView{ID: id}, nil
+}
+
+// readyHosts readies the target hosts of the release req schedules, each
+// sign-in kept in the keychain (run.ReadyScheduleHosts). A release that
+// asks for none readies nothing; a sign-in given for one refuses. What it
+// reports goes to the app's log.
+func (s *ScheduleAPI) readyHosts(ctx context.Context, req schedules.Request, given map[string]run.HostSignIn) error {
+	ready := s.readyScheduleHosts
+	if ready == nil {
+		ready = run.ReadyScheduleHosts
+	}
+	saved := false
+	err := ready(ctx, req.Registry, req.Ref, req.Intake, given, s.app.keyFiles.require, s.app.trustHostKey, func(msg string) {
+		saved = saved || strings.Contains(msg, "is kept in the system keychain")
+		log.Printf("agentry-desktop: schedule %s: %s", req.Ref, msg)
+	})
+	// A sign-in kept now reaches the schedules that run while the person
+	// is signed out, as every other key change does.
+	if saved {
+		resealSchedules(s.app)
+	}
+	return err
 }
 
 // askScheduleConsent asks, in one native dialog, for every consent making

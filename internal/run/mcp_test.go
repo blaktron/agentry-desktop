@@ -212,3 +212,13 @@ func TestOptionalSecretsInTheConsentAndTheKeysForm(t *testing.T) {
 		t.Fatal("a release without optional secrets has no optionalSecrets line")
 	}
 }
+
+// A target host is a line of its own, in the CLI's consent words, and a
+// release that declares only one is not "pure text" (agentry-desktop#812).
+func TestCapabilityLinesNameATargetHost(t *testing.T) {
+	lines := capabilityLines(manifest.Capabilities{TargetHosts: []string{"server", "backup"}})
+	want := "targetHosts: server, backup (asks for a server when it runs, and can run any command on it as the account you sign in with)"
+	if len(lines) == 0 || lines[len(lines)-1] != want {
+		t.Fatalf("lines %q, want the last to be %q", lines, want)
+	}
+}

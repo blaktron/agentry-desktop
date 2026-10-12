@@ -977,3 +977,15 @@ func TestAFlipBetweenOptionalAndRequiredAsksNoNewConsent(t *testing.T) {
 		t.Fatalf("a new optional secret did not widen the contract: %+v", d)
 	}
 }
+
+// A first install of a release that declares a target host asks for the
+// capability consent, as the CLI's install gate does (agentry-cli#861,
+// agentry-desktop#812).
+func TestATargetHostNeedsTheCapabilityConsent(t *testing.T) {
+	if needsCapabilityConfirm(manifest.Capabilities{}) {
+		t.Fatal("nothing declared asks for consent")
+	}
+	if !needsCapabilityConfirm(manifest.Capabilities{TargetHosts: []string{"server"}}) {
+		t.Fatal("a target host asks for no consent")
+	}
+}

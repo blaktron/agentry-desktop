@@ -6,6 +6,7 @@
 // the same things on either client.
 
 import { isSourceType, sourceNeed } from "./sources.ts";
+import { hostNeed, isHostType } from "./hosts.ts";
 
 export type StepKey = "start" | "files" | "knowledge" | "tools" | "details" | "review";
 
@@ -79,6 +80,11 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
       out.push(sourceNeed(q));
       continue;
     }
+    // A server to work over SSH (agentry-desktop#812).
+    if (isHostType(q.type)) {
+      out.push(hostNeed(q));
+      continue;
+    }
     out.push(`Your answer to “${q.prompt}”${q.required ? "" : " (optional)"}.`);
   }
   // A server that signs in by OAuth is connected on Connect tools
@@ -104,7 +110,7 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
 // without a scan (which is never run In Agentry from this app). Nothing is
 // started by it: Run is still the person's click on Review and start, after
 // the credits the run holds are shown.
-export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean } | null;
+export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean; targetHosts?: boolean } | null;
 // RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
 // (settings.RunWhereHere, settings.RunWhereAgentry).
 export type RunWhere = "here" | "agentry";
@@ -125,6 +131,8 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
       ? "the app could not tell whether this registry offers a run In Agentry for it"
       : hosted.signedIn === false
         ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
+        : hosted.targetHosts
+        ? "it works a server you name over SSH, which only a run on this computer does"
         : !hosted.offered
           ? "a run In Agentry is not offered for this QuickAgent on this registry"
           : "In Agentry is unavailable for it (the notice below says why)";
