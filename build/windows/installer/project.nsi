@@ -211,7 +211,7 @@ Section "-un.RemoveDockerImages"
         ${ElseIf} $0 = 2
             DetailPrint "Docker did not answer; its images were not removed"
             ${IfNot} ${Silent}
-                MessageBox MB_OK|MB_ICONINFORMATION "Docker was not running, so the Docker images Agentry put on this computer were not removed. The uninstall goes on. To remove them later, start Docker Desktop and remove the images named ghcr.io/blaktron/agentry-*, agentry-runner and agentry-runner-exec."
+                MessageBox MB_OK|MB_ICONINFORMATION "Docker was not running, so the Docker images Agentry put on this computer were not removed. The uninstall goes on. To remove them later, start Docker Desktop and use Settings, Run defaults, Docker images in Agentry, or remove the images labelled org.agentry.image and those named ghcr.io/blaktron/agentry-*, agentry-runner, agentry-runner-exec, agentry-decode, agentry-hostlink-local, agentry-claude-code and agentry-copilot."
             ${EndIf}
         ${ElseIf} $0 <> 0
             DetailPrint "Some Docker images were not removed (exit code $0)"
@@ -271,6 +271,6 @@ SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_APP} "Removes the application and the agentry command from $INSTDIR, the command's entry on your Path, its Start Menu shortcut, its Apps & features entry and its WebView2 cache. Your settings and sign-in stay."
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_KEEP_IMAGES} "Leaves the Docker images Agentry downloaded and built in Docker: every ghcr.io/blaktron/agentry-* image, the agentry-runner and agentry-runner-exec builds, and the exact images the runner policy pins. Unticked, those are removed, one by one; no other image is selected. The agentry CLI uses the same images."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_KEEP_IMAGES} "Leaves the Docker images Agentry downloaded and built in Docker: every image the runner built (labelled org.agentry.image, untagged leftovers included), every ghcr.io/blaktron/agentry-* image, the runner, exec, decode, host link and harness builds by name, and the exact images the runner policy pins. Unticked, those are removed, one by one; an image you labelled org.agentry.image yourself counts as Agentry's, a name you gave one of them keeps it, and no other image is selected. The agentry CLI uses the same images."
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_UN_SETTINGS} "Also deletes %USERPROFILE%\.config\agentry (settings, installed agents, pinned keys), %USERPROFILE%\.agentry\runner (runner policy and profiles) — or where AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME point — and every agentry entry in Windows Credential Manager (registry sign-ins and the model key). The agentry CLI shares all of these."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END

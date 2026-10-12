@@ -41,10 +41,10 @@ func TestImagesMainExitCodes(t *testing.T) {
 	if code := ImagesMain(&out, d); code != ImagesRemoved {
 		t.Fatalf("all removed: code %d\n%s", code, out.String())
 	}
-	if len(d.removed) != 2 || strings.Contains(strings.Join(d.removed, " "), "postgres") {
+	if len(d.removed) != 2 || strings.Contains(strings.Join(d.removed, " "), "sha256:3") {
 		t.Fatalf("removed %v", d.removed)
 	}
-	d = &fakeDocker{images: imgs, refuse: "agentry-runner:0.6.25"}
+	d = &fakeDocker{images: imgs, refuse: "sha256:1"}
 	if code := ImagesMain(&out, d); code != ImagesSomeStayed {
 		t.Fatalf("one refused: code %d", code)
 	}

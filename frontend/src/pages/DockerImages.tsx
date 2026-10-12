@@ -60,8 +60,11 @@ export function DockerImagesCard() {
         </Notice>
       )}
       <p className="muted small">
-        Listed are every ghcr.io/blaktron/agentry-* image, the agentry-runner and agentry-runner-exec builds, and the exact
-        images the runner policy pins. No other image is selected.
+        Listed are every image the runner built (labelled org.agentry.image, untagged leftovers included), every
+        ghcr.io/blaktron/agentry-* image, the runner&apos;s earlier builds by name, and the exact images the runner policy
+        pins. Each is removed by its image ID; one that also carries a name you gave it loses only Agentry&apos;s names
+        and stays. An image you labelled org.agentry.image yourself is taken as Agentry&apos;s. No other image is
+        selected.
       </p>
     </Card>
   );
