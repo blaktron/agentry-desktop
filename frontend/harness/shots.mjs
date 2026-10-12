@@ -279,32 +279,32 @@ const states = [
   // the model list Get models filled; the failed listing with the model
   // still typeable; a stored subscription token and its sentence.
   // Reached by Back from the AI Review key step (#462), as a person would.
-  { name: "wizard-runtime", url: "/wizard.html#3", note: "the runtime step: provider, key, model", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Set up the runtime" },
-  { name: "wizard-runtime-fresh", url: "/wizard.html#2-nothing", note: "a fresh machine: no policy, nothing stored — Use your Claude subscription leads, the API key one choice away (agentry-desktop#734); the eight provider tiles above (agentry-desktop#830)", locator: ".wizard", expectText: ["Anthropic", "Claude plan or API key", "OpenAI", "GitHub Copilot", "OpenRouter", "Poe", "Hugging Face", "Google Gemini", "Custom endpoint"] },
-  { name: "wizard-runtime-models", url: "/wizard.html#2-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
-  { name: "wizard-runtime-nomodels", url: "/wizard.html#2-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
-  { name: "wizard-runtime-subscription", url: "/wizard.html#2-subscription", note: "a stored Anthropic subscription token: what it drives", locator: ".wizard" },
+  { name: "wizard-runtime", url: "/wizard.html#4", note: "the runtime step: provider, key, model", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Set up the runtime" },
+  { name: "wizard-runtime-fresh", url: "/wizard.html#3-nothing", note: "a fresh machine: no policy, nothing stored — Use your Claude subscription leads, the API key one choice away (agentry-desktop#734); the eight provider tiles above (agentry-desktop#830)", locator: ".wizard", expectText: ["Anthropic", "Claude plan or API key", "OpenAI", "GitHub Copilot", "OpenRouter", "Poe", "Hugging Face", "Google Gemini", "Custom endpoint"] },
+  { name: "wizard-runtime-models", url: "/wizard.html#3-models", note: "after Get models: the endpoint's list", locator: ".wizard", getModels: true },
+  { name: "wizard-runtime-nomodels", url: "/wizard.html#3-nomodels", note: "Get models failed: the answer shown, the model typeable", locator: ".wizard", getModels: true },
+  { name: "wizard-runtime-subscription", url: "/wizard.html#3-subscription", note: "a stored Anthropic subscription token: what it drives", locator: ".wizard" },
   // The save refused after the key was stored (agentry-desktop#141): the
   // custom provider, a URL the backend refuses — the refusal shown, the
   // key field saying the key is on this machine, Save still offered.
-  { name: "wizard-runtime-refused", url: "/wizard.html#2-refused", note: "a refused save after the key was stored: the key stays, no re-typing", locator: ".wizard", saveCustom: true },
+  { name: "wizard-runtime-refused", url: "/wizard.html#3-refused", note: "a refused save after the key was stored: the key stays, no re-typing", locator: ".wizard", saveCustom: true },
   // The image pull (agentry-desktop#145): the step holds its Continue and
   // Back while it runs, and releases them when it ends or is refused.
-  { name: "wizard-runtime-preparing", url: "/wizard.html#2-preparing", note: "images preparing: Continue and Back held until the pull ends", locator: ".wizard", prepare: "held" },
-  { name: "wizard-runtime-prepared", url: "/wizard.html#2-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
-  { name: "wizard-runtime-prepare-refused", url: "/wizard.html#2-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
+  { name: "wizard-runtime-preparing", url: "/wizard.html#3-preparing", note: "images preparing: Continue and Back held until the pull ends", locator: ".wizard", prepare: "held" },
+  { name: "wizard-runtime-prepared", url: "/wizard.html#3-prepared", note: "images prepared: Continue and Back released", locator: ".wizard", prepare: "released" },
+  { name: "wizard-runtime-prepare-refused", url: "/wizard.html#3-prepare-refused", note: "the pull refused: the reason shown, Continue and Back released", locator: ".wizard", prepare: "released" },
   // Model sign-ins (agentry-desktop#734): a sign-in leads, a key second;
   // a kept sign-in says who; waiting in the browser; GitHub's code copied;
   // a connected account. No state asks anyone to paste a code.
-  { name: "wizard-runtime-signin-chatgpt", url: "/wizard.html#2-chatgpt", note: "OpenAI with nothing kept: Sign in with ChatGPT leads, the API key second", locator: ".wizard", expectText: ["How to pay for the models", "Sign in with ChatGPT", "API key"] },
-  { name: "wizard-runtime-signin-claude", url: "/wizard.html#2-claudekept", note: "the Claude subscription chosen and signed in: who, Remove, the model, Save", locator: ".wizard", expectText: ["Use your Claude subscription (runs Claude Code)", "Signed in as you@example.com (Example Org)", "Remove"] },
-  { name: "wizard-runtime-signin-waiting", url: "/wizard.html#2-chatgpt", note: "a ChatGPT sign-in waiting in the browser: Cancel, nothing to paste", locator: ".wizard", click: '.wizard button:has-text("Sign in with ChatGPT")', expectText: ["Waiting for you in your browser…", "Cancel"] },
-  { name: "wizard-runtime-signin-copilot", url: "/wizard.html#2-copilotcode", note: "Sign in with GitHub: GitHub's code shown and copied", locator: ".wizard", click: '.wizard button:has-text("Sign in with GitHub")', expectText: ["WDJB-MJHT", "it is copied"] },
-  { name: "wizard-runtime-copilot-models", url: "/wizard.html#2-copilotkept", note: "a Copilot sign-in kept: the plan before the model, and the models Copilot CLI lists offered, auto first (agentry-desktop#811)", locator: ".wizard", click: '.wizard button:has-text("List my plan\'s models")', expectText: ["Your Copilot plan", "auto — Copilot chooses", "claude-opus-5.5 — Claude Opus 5.5, 10× premium requests", "List again"] },
-  { name: "wizard-runtime-signin-connected", url: "/wizard.html#2-connected", note: "an OpenRouter account connected: the model typed, Disconnect", locator: ".wizard", expectText: ["Connect your account", "Connected as you", "Disconnect"] },
+  { name: "wizard-runtime-signin-chatgpt", url: "/wizard.html#3-chatgpt", note: "OpenAI with nothing kept: Sign in with ChatGPT leads, the API key second", locator: ".wizard", expectText: ["How to pay for the models", "Sign in with ChatGPT", "API key"] },
+  { name: "wizard-runtime-signin-claude", url: "/wizard.html#3-claudekept", note: "the Claude subscription chosen and signed in: who, Remove, the model, Save", locator: ".wizard", expectText: ["Use your Claude subscription (runs Claude Code)", "Signed in as you@example.com (Example Org)", "Remove"] },
+  { name: "wizard-runtime-signin-waiting", url: "/wizard.html#3-chatgpt", note: "a ChatGPT sign-in waiting in the browser: Cancel, nothing to paste", locator: ".wizard", click: '.wizard button:has-text("Sign in with ChatGPT")', expectText: ["Waiting for you in your browser…", "Cancel"] },
+  { name: "wizard-runtime-signin-copilot", url: "/wizard.html#3-copilotcode", note: "Sign in with GitHub: GitHub's code shown and copied", locator: ".wizard", click: '.wizard button:has-text("Sign in with GitHub")', expectText: ["WDJB-MJHT", "it is copied"] },
+  { name: "wizard-runtime-copilot-models", url: "/wizard.html#3-copilotkept", note: "a Copilot sign-in kept: the plan before the model, and the models Copilot CLI lists offered, auto first (agentry-desktop#811)", locator: ".wizard", click: '.wizard button:has-text("List my plan\'s models")', expectText: ["Your Copilot plan", "auto — Copilot chooses", "claude-opus-5.5 — Claude Opus 5.5, 10× premium requests", "List again"] },
+  { name: "wizard-runtime-signin-connected", url: "/wizard.html#3-connected", note: "an OpenRouter account connected: the model typed, Disconnect", locator: ".wizard", expectText: ["Connect your account", "Connected as you", "Disconnect"] },
   // The provider tiles (agentry-desktop#830): a provider only a hand-written
   // policy names lights no tile, and the line under them says so.
-  { name: "wizard-runtime-unlisted", url: "/wizard.html#2-unlisted", note: "a policy naming a provider no tile shows: no tile chosen, the line saying it is paid by a key", locator: ".wizard", expectText: ["Your runner policy names mistral, which is not one of these"] },
+  { name: "wizard-runtime-unlisted", url: "/wizard.html#3-unlisted", note: "a policy naming a provider no tile shows: no tile chosen, the line saying it is paid by a key", locator: ".wizard", expectText: ["Your runner policy names mistral, which is not one of these"] },
   { name: "settings-agent-runs-advanced", url: "/pages.html?settings=provider", note: "Settings → Provider settings with Advanced open: the variable and Forget", locator: '[data-preview="settings"] .card:has(details.advanced)', openAdvanced: true },
   { name: "settings-model-signins-kept", url: "/pages.html?settings=provider#signins", note: "Settings → Model provider: every sign-in and connected account kept on this computer, with Remove and Disconnect (agentry-desktop#734)", locator: '[data-preview="settings"] .kept-signins', expectText: ["Kept on this computer", "Signed in as chris@example.com", "Connected — the key works until 2026-11-11", "Disconnect"] },
   { name: "settings-agent-runs-custom-http", url: "/pages.html?settings=provider#setup-custom-http", note: "Settings → Provider settings, a custom endpoint over plain http off this machine: saved, and the warning under the URL recommends https (agentry-desktop#317)", locator: '[data-preview="settings"] .card:has-text("Endpoint URL")', expectText: "uses plain http: the API key and the prompts travel unencrypted to gpu-box.lan" },
@@ -341,16 +341,16 @@ const states = [
   { name: "agent-install-coding-agent", url: "/pages.html", note: "the agent page's one-off link opens the wizard preset to the Claude skill", locator: ".modal", click: '[data-preview="agent"] button:has-text("Install into Claude Code")' },
   // The Welcome's Coding agent step, on the same list Settings uses
   // (agentry-desktop#148 moved it): unchanged for the person.
-  { name: "wizard-coding-agent", url: "/wizard.html#4", note: "the welcome's coding agent step after Look: Claude Code found and chosen, Codex missing", locator: ".wizard" },
+  { name: "wizard-coding-agent", url: "/wizard.html#5", note: "the welcome's coding agent step after Look: Claude Code found and chosen, Codex missing", locator: ".wizard" },
   // Reached by Skip on the AI Review key step (#462), as a person would.
-  { name: "wizard-coding-agent-unprobed", url: "/wizard.html#3", note: "the step as it opens, reached by Skip on the AI Review key step: what the policy records, nothing run", locator: ".wizard", click: '.wizard-foot button:has-text("Skip")', expectText: "Your coding agent" },
+  { name: "wizard-coding-agent-unprobed", url: "/wizard.html#4", note: "the step as it opens, reached by Skip on the AI Review key step: what the policy records, nothing run", locator: ".wizard", click: '.wizard-foot button:has-text("Skip")', expectText: "Your coding agent" },
   // The AI Review key step (#462): Provider settings' card in the wizard,
   // with Skip only while there is no key. Reached by Continue from Runtime
   // and by Back from Coding agent; and a save the keychain refuses.
-  { name: "wizard-review-key", url: "/wizard.html#2", note: "the AI Review key step with no key, reached by Continue from Runtime: the recommendation, the TypeSafe link, the field, Skip and Continue", locator: ".wizard", click: '.wizard-foot button:has-text("Continue")', expectText: ["Your AI Review key", KEY_RECOMMENDATION, "Get a key from TypeSafe", "No key saved. Drafting on this computer is off until you add one."], expectOrder: [".wizard-foot button", ["Back", "Skip", "Continue"]] },
-  { name: "wizard-review-key-saved", url: "/wizard.html#4-saved", note: "the step with a key saved, reached by Back from Coding agent: saved, never shown, and no Skip", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: ["Your AI Review key", "Saved in this computer's keychain."], expectOrder: [".wizard-foot button", ["Back", "Continue"]] },
-  { name: "wizard-review-key-refused", url: "/wizard.html#3-refused", note: "a save the keychain refuses: the reason shown, no key saved, Skip still offered", locator: ".wizard", fill: [['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"]], click: '.wizard button:has-text("Save")', expectText: ["store the key in the OS keychain", "No key saved."], expectOrder: [".wizard-foot button", ["Back", "Skip", "Continue"]], expectValue: ['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"] },
-  { name: "wizard-review-key-saving", url: "/wizard.html#3-slow", note: "a save in flight: Back, Skip and Continue held until it answers, as the Runtime step holds its own while images pull", locator: ".wizard", fill: [['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"]], click: '.wizard button:has-text("Save")', expectText: "Saving…", expectFootDisabled: true },
+  { name: "wizard-review-key", url: "/wizard.html#3", note: "the AI Review key step with no key, reached by Continue from Runtime: the recommendation, the TypeSafe link, the field, Skip and Continue", locator: ".wizard", click: '.wizard-foot button:has-text("Continue")', expectText: ["Your AI Review key", KEY_RECOMMENDATION, "Get a key from TypeSafe", "No key saved. Drafting on this computer is off until you add one."], expectOrder: [".wizard-foot button", ["Back", "Skip", "Continue"]] },
+  { name: "wizard-review-key-saved", url: "/wizard.html#5-saved", note: "the step with a key saved, reached by Back from Coding agent: saved, never shown, and no Skip", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: ["Your AI Review key", "Saved in this computer's keychain."], expectOrder: [".wizard-foot button", ["Back", "Continue"]] },
+  { name: "wizard-review-key-refused", url: "/wizard.html#4-refused", note: "a save the keychain refuses: the reason shown, no key saved, Skip still offered", locator: ".wizard", fill: [['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"]], click: '.wizard button:has-text("Save")', expectText: ["store the key in the OS keychain", "No key saved."], expectOrder: [".wizard-foot button", ["Back", "Skip", "Continue"]], expectValue: ['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"] },
+  { name: "wizard-review-key-saving", url: "/wizard.html#4-slow", note: "a save in flight: Back, Skip and Continue held until it answers, as the Runtime step holds its own while images pull", locator: ".wizard", fill: [['.wizard input[aria-label="Jev key"]', "tsk-example-not-a-key"]], click: '.wizard button:has-text("Save")', expectText: "Saving…", expectFootDisabled: true },
   // Every page under the shell and every step of the first-run wizard, so a
   // change to the token table (agentry-desktop#49) is seen everywhere it
   // lands, not only in the states above.
@@ -854,11 +854,20 @@ const states = [
   { name: "chat", url: "/modals.html#chat", note: "a session's chat pane", locator: ".chat-pane" },
   { name: "wizard-welcome", url: "/wizard.html#0", note: "the first-run wizard: welcome", locator: ".wizard" },
   { name: "wizard-signin", url: "/wizard.html#1", note: "the first-run wizard: sign-in", locator: ".wizard" },
+  // Local or Cloud after Sign in (agentry-desktop#842): Cloud locked with
+  // "Please sign in" across it until a registry is signed in; Local goes on
+  // to the runtime; Cloud to its data page, whose Finish records it.
+  { name: "wizard-where", url: "/wizard.html#1", note: "Local or Cloud, reached by Skip on Sign in: Cloud greyed, Please sign in across it in the accent's light", locator: ".wizard", click: '.wizard-foot button:has-text("Skip, browse anonymously")', expectText: ["Where will your QuickAgents run?", "Local", "Cloud", "Please sign in"], expectSelector: ".wizard-choice.is-locked button:disabled" },
+  { name: "wizard-where-signedin", url: "/wizard.html#2-signedin", note: "Local or Cloud signed in: both cards open", locator: ".wizard", expectText: ["Local", "Cloud"], expectNoText: "Please sign in", expectNone: ".wizard-choice.is-locked" },
+  { name: "wizard-where-local", url: "/wizard.html#2", note: "Local picked: on to the runtime, Run defaults set to this computer", locator: ".wizard", click: '.wizard-choice button:has-text("Local")', expectText: "Set up the runtime", expectRunWhere: "here" },
+  { name: "wizard-cloud", url: "/wizard.html#2-signedin", note: "Cloud picked signed in: how data in Agentry's cloud is kept, Back and Finish", locator: ".wizard", click: '.wizard-choice button:has-text("Cloud")', expectText: ["Your data in Agentry's cloud", "stored encrypted", "Back", "Finish"] },
+  { name: "wizard-cloud-back", url: "/wizard.html#cloud", note: "Back from the Cloud page: the choice again, with Local's seven dots, nothing written", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Where will your QuickAgents run?", expectDots: 7, expectRunWhere: "" },
+  { name: "wizard-cloud-finish", url: "/wizard.html#cloud", note: "Finish on the Cloud page records Cloud in Run defaults", locator: ".wizard", click: '.wizard-foot button:has-text("Finish")', expectRunWhere: "agentry" },
   // Reached by Continue from Coding agent, and the key's own Continue before
   // it (#462): the two renumbered steps forward.
-  { name: "wizard-done", url: "/wizard.html#3-saved", note: "the first-run wizard: done, reached by Continue from the AI Review key step and from Coding agent, with the key's row", locator: ".wizard", click: ['.wizard-foot button:has-text("Continue")', '.wizard-foot button:has-text("Continue")'], expectText: ["You're set up", "Provider anthropic (claude-sonnet-4-5) written to the runner policy", "AI Review key saved"] },
-  { name: "wizard-done-key-only", url: "/wizard.html#5-keyonly", note: "done after the AI Review key alone was saved: the policy its save wrote is not a provider set up, so the ending is still Nothing set up", locator: ".wizard", expectText: ["Nothing is set up yet", "The runner policy has only the default provider, anthropic (claude-sonnet-4-5), with its key read from $ANTHROPIC_API_KEY", "AI Review key saved"] },
-  { name: "wizard-done-nothing", url: "/wizard.html#5-nothing", note: "the first-run wizard: every step skipped, the Nothing set up ending, the key's row pending", locator: ".wizard", expectText: ["Nothing is set up yet", "No AI Review key — drafting on this computer is off until you add one in Settings"] },
+  { name: "wizard-done", url: "/wizard.html#4-saved", note: "the first-run wizard: done, reached by Continue from the AI Review key step and from Coding agent, with the key's row", locator: ".wizard", click: ['.wizard-foot button:has-text("Continue")', '.wizard-foot button:has-text("Continue")'], expectText: ["You're set up", "Provider anthropic (claude-sonnet-4-5) written to the runner policy", "AI Review key saved"] },
+  { name: "wizard-done-key-only", url: "/wizard.html#6-keyonly", note: "done after the AI Review key alone was saved: the policy its save wrote is not a provider set up, so the ending is still Nothing set up", locator: ".wizard", expectText: ["Nothing is set up yet", "The runner policy has only the default provider, anthropic (claude-sonnet-4-5), with its key read from $ANTHROPIC_API_KEY", "AI Review key saved"] },
+  { name: "wizard-done-nothing", url: "/wizard.html#6-nothing", note: "the first-run wizard: every step skipped, the Nothing set up ending, the key's row pending", locator: ".wizard", expectText: ["Nothing is set up yet", "No AI Review key — drafting on this computer is off until you add one in Settings"] },
 ];
 
 const wanted = process.env.STATES ? process.env.STATES.split(",").map((s) => s.trim()) : null;
@@ -1043,6 +1052,16 @@ try {
         // harness's App.OpenExternal records each address (#461).
         const opened = await page.evaluate(() => window.__opened ?? []);
         if (JSON.stringify(opened) !== JSON.stringify(state.expectOpened)) throw new Error(`${state.name}: opened ${JSON.stringify(opened)}, not ${JSON.stringify(state.expectOpened)}`);
+      }
+      if (state.expectDots) {
+        const n = await page.locator(".wizard-dot").count();
+        if (n !== state.expectDots) throw new Error(`${state.name}: ${n} step dots, not ${state.expectDots}`);
+      }
+      if (state.expectRunWhere !== undefined) {
+        // What the wizard wrote to Run defaults → Where to run: the harness's
+        // SettingsAPI.SetRunWhere records it (agentry-desktop#842).
+        const where = await page.evaluate(() => window.__runWhere ?? "");
+        if (where !== state.expectRunWhere) throw new Error(`${state.name}: Where to run is "${where}", not "${state.expectRunWhere}"`);
       }
       if (state.expectFootDisabled) {
         // The wizard's footer is held while the step's work is in flight.
