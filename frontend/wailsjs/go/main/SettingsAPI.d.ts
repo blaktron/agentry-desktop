@@ -37,6 +37,8 @@ export function RemoveRegistry(arg1:string):Promise<main.SettingsView>;
 
 export function RemoveReportLogo(arg1:string):Promise<main.ReportDesignView>;
 
+export function ReportBug(arg1:string,arg2:string):Promise<main.BugReportResult>;
+
 export function ReportDesign(arg1:string):Promise<main.ReportDesignView>;
 
 export function ReportDesignOptions():Promise<main.ReportDesignOptions>;

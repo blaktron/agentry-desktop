@@ -35,6 +35,13 @@ const KEY_RECOMMENDATION = "Agentry's AI Review is powered by TypeSafe AI's Jev 
 
 // One entry per state the panel can be in, as the issue lists them.
 const states = [
+  // Report bug (agentry-desktop#841): the card over the page, and the link above the version.
+  { name: "bugreport", url: "/modals.html#bugreport", note: "signed in: the box, Cancel and Submit", expectText: "Tell us what went wrong" },
+  { name: "bugreport-signedout", url: "/modals.html#bugreport-signedout", note: "signed out: Sign in instead of the box", expectText: "Sign in to report a bug, so we can email you when it is fixed." },
+  { name: "bugreport-short", url: "/modals.html#bugreport-short", note: "a text below 10 characters: Submit held, and why", expectText: "A bug report is at least 10 characters." },
+  { name: "bugreport-filed", url: "/modals.html#bugreport-filed", note: "filed: the thanks, before the card closes itself", expectText: "Thanks. Your report reached the Agentry team" },
+  { name: "bugreport-limited", url: "/modals.html#bugreport-limited", note: "the registry's ten-an-hour refusal, in its words", expectText: "You have sent 10 bug reports in the last hour. Try again later." },
+  { name: "bugreport-absent", url: "/modals.html#bugreport-absent", note: "a registry without the bug-reports extension", expectText: "This registry does not take bug reports." },
   { name: "runpanel-modes", url: "/modals.html#runpanel", note: "Before you start: what it does, what to have ready, where to run it (In Agentry beside the local modes)", expectText: "What to have ready" },
   { name: "runpanel-in-agentry", url: "/modals.html#runpanel-hosted", note: "In Agentry chosen: the hold, the balance, the caps", expectNoText: "Its publisher earns" },
   { name: "runpanel-in-agentry-earns", url: "/modals.html#runpanel-hosted-earns", note: "In Agentry chosen for a release whose publisher is in Publisher Earnings: the line under the cost (agentry-desktop#613)", expectText: "Its publisher earns a share of the credits runs of it spend. What you pay does not change." },

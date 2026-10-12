@@ -131,6 +131,8 @@ export const SETTINGS_FOR = {
   // the Publisher section's Sign in, and its "sign in again" notice for a
   // sign-in without agent:manage (agentry-desktop#705)
   publisherSignIn: { section: "registry", part: "registries" },
+  // the Report bug card's Sign in, signed out or refused (agentry-desktop#841)
+  bugReportSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
   describeKey: { section: "provider", part: "ai-review-key" },
   // Review Your QuickAgents locally, which needs the AI Review key (#469)

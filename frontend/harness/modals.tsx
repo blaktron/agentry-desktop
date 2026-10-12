@@ -31,6 +31,15 @@
 //                          servers, one with plain env (agentry-desktop#62)
 //   #toolspanel | #chat    the other two run surfaces
 //
+// Report bug (agentry-desktop#841), the card over the page with the
+// sidebar's foot showing the link above the version:
+//   #bugreport             signed in: the box, Cancel and Submit
+//   #bugreport-signedout   signed out: Sign in instead of the box
+//   #bugreport-short       a text below 10 characters: Submit held, and why
+//   #bugreport-filed       Submit filed it: the thanks (the card then closes)
+//   #bugreport-limited     the registry's ten-an-hour refusal, in its words
+//   #bugreport-absent      a registry without the extension
+//
 // The guided run setup (agentry-desktop#226) shows one step at a time, so
 // each state opens on the step that shows it (STEP_OF below), and four
 // more show the steps themselves:
@@ -661,6 +670,10 @@ g.go = { main: {
   App: { OpenExternal: async () => {}, ChooseFiles: async () => [] },
 } };
 g.go.main.SettingsAPI.OpenUpgrade = async () => {};
+g.go.main.SettingsAPI.ReportBug = async () =>
+  view === "bugreport-limited" ? { filed: false, reason: "limited", message: "You have sent 10 bug reports in the last hour. Try again later." }
+    : view === "bugreport-absent" ? { filed: false, reason: "absent" }
+      : { filed: true };
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
 // shim). A run In Agentry sends no log (agentry-desktop#182), so nothing
 // is scripted on runner:run-log.
@@ -682,6 +695,7 @@ import { attachHostedRun } from "../src/runs";
 import type { StepKey } from "../src/runSetup";
 import InstallWizard from "../src/pages/InstallWizard";
 import ToolsPanel from "../src/pages/ToolsPanel";
+import BugReportDialog from "../src/pages/BugReportDialog";
 import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
@@ -700,6 +714,7 @@ function Backdrop() {
       <div className="sidebar"><div className="brand"><Wordmark sub="Desktop" /></div>
         <SidebarNav page="browse" />
         {unsafeShape && <div className="foot"><UnsafeBadge /><div>v0.6.28</div></div>}
+        {view.startsWith("bugreport") && <div className="foot"><button type="button" className="report-bug">Report bug</button><div>v0.6.99</div><div className="nowrap">secureagentry.net</div></div>}
       </div>
       <div className="content" />
       {unsafeShape && <UnsafeGlow />}
@@ -731,6 +746,20 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);
+} else if (view.startsWith("bugreport")) {
+  // The text a state needs is typed, and Submit pressed, the way a person
+  // would, once the card is drawn.
+  createRoot(el).render(<><Backdrop /><BugReportDialog registry="https://secureagentry.net" signedIn={view !== "bugreport-signedout"} onClose={() => {}} onSignIn={() => {}} /></>);
+  const typed = view === "bugreport-short" ? "It broke." : view === "bugreport" ? "" : "The run card overlaps the version in the sidebar when the window is narrow.";
+  if (typed) {
+    setTimeout(() => {
+      const box = document.querySelector<HTMLTextAreaElement>("textarea");
+      if (!box) return;
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, typed);
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+      if (view !== "bugreport-short") setTimeout(() => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Submit")?.click(), 50);
+    }, 50);
+  }
 } else if (view === "toolspanel" || view === "toolspanel-hostile") {
   createRoot(el).render(<><Backdrop /><ToolsPanel registry="https://secureagentry.net" ns="demo1" name="incident-summarizer" version="1.2.0" onClose={() => {}} /></>);
 } else {

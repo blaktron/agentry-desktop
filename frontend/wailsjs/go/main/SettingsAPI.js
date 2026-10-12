@@ -70,6 +70,10 @@ export function RemoveReportLogo(arg1) {
   return window['go']['main']['SettingsAPI']['RemoveReportLogo'](arg1);
 }
 
+export function ReportBug(arg1, arg2) {
+  return window['go']['main']['SettingsAPI']['ReportBug'](arg1, arg2);
+}
+
 export function ReportDesign(arg1) {
   return window['go']['main']['SettingsAPI']['ReportDesign'](arg1);
 }
