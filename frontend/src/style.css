@@ -453,7 +453,7 @@ table.declared-servers td { overflow-wrap: anywhere; }
 
 /* Invisible-character placeholders the API/scanner emit in excerpts: make
    them impossible to miss (§10.3 GlassWorm lesson). */
-.excerpt .agy-invisible, .readme .agy-invisible, .run-result-view .agy-invisible, .guide-text .agy-invisible {
+.excerpt .agy-invisible, .readme .agy-invisible, .run-result-view .agy-invisible, .guide-text .agy-invisible, .agent-instructions .agy-invisible {
   background: var(--color-sev-high);
   /* The page ground, not white: dark sev-high is a light red, and white on
      it measured 2.77:1 on the site (agentry-web#19). */
@@ -478,8 +478,11 @@ table.declared-servers td { overflow-wrap: anywhere; }
 .readme pre code { background: none; padding: 0; }
 .readme a, .guide-text a { color: var(--color-accent); text-decoration: underline; }
 .readme blockquote { border-left: 3px solid var(--color-border); padding-left: 1em; color: var(--color-muted); margin: 0.75em 0; }
+.readme img { max-width: 100%; height: auto; }
+.readme table { border-collapse: collapse; margin: 0.75em 0; display: block; overflow-x: auto; }
+.readme th, .readme td { border: 1px solid var(--color-border); padding: 0.4em 0.7em; }
 
-/* ---------- the instruction file under it (agentry-desktop#835): text, never rendered ---------- */
+/* ---------- the instruction file under the README (agentry-desktop#835): text, never rendered ---------- */
 .agent-instructions h3 { margin: 0 0 4px; font-size: 15px; }
 .agent-instructions .instructions-text {
   background: var(--color-bg);
@@ -494,9 +497,6 @@ table.declared-servers td { overflow-wrap: anywhere; }
   font-size: 13px;
   line-height: 1.55;
 }
-.readme img { max-width: 100%; height: auto; }
-.readme table { border-collapse: collapse; margin: 0.75em 0; display: block; overflow-x: auto; }
-.readme th, .readme td { border: 1px solid var(--color-border); padding: 0.4em 0.7em; }
 
 /* ---------- modal ---------- */
 

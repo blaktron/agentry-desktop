@@ -1,13 +1,9 @@
 // The Agent tab's instruction file card (agentry-desktop#835).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AGENT_TAB_LABEL, instructionsNote } from "../src/instructions.ts";
+import { instructionsNote } from "../src/instructions.ts";
 
 const file = { path: "AGENT.md", content: "# Do the task\n", truncated: false, binary: false };
-
-test("the tab is named Agent", () => {
-  assert.equal(AGENT_TAB_LABEL, "Agent");
-});
 
 test("a whole file needs no note; anything less says what is missing", () => {
   assert.equal(instructionsNote(null, null), null, "still reading");

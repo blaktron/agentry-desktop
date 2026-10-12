@@ -2,9 +2,6 @@
 // instruction file under its README, shown as text. A module of its own,
 // with no JSX, so node's test runner can import it.
 
-/** The tab that holds the README and the instruction file. */
-export const AGENT_TAB_LABEL = "Agent";
-
 /** What BrowseAPI.Instructions answers (main.InstructionsView). */
 export type Instructions = { path: string; content: string; truncated: boolean; binary: boolean };
 

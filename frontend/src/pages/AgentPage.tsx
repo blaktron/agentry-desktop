@@ -20,7 +20,7 @@ import ForkDialog from "./ForkDialog";
 import { ORIGIN_GONE, forkable, forkCopyNotice, forkCountLine, forkOfLabel } from "../fork";
 import { FORK_STAYS_PRIVATE } from "../publisher";
 import { PinButton, useHomeLayout } from "./home/PinButton";
-import { AGENT_TAB_LABEL, instructionsNote } from "../instructions";
+import { instructionsNote } from "../instructions";
 import { RevealText } from "../reveal";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
@@ -35,7 +35,7 @@ function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
 type Tab = "agent" | "mcp" | "report" | "versions" | "provenance";
 
 const TAB_LABELS: Record<Tab, string> = {
-  agent: AGENT_TAB_LABEL,
+  agent: "Agent",
   mcp: "MCP servers & tools",
   report: "security report",
   versions: "versions",
@@ -261,6 +261,7 @@ export default function AgentPage({
   const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
   const codingAgent = codingAgentName(codingAgents);
   const copyNotice = forkCopyNotice(a);
+  const instructionsLine = instructionsNote(instructions, instructionsErr);
 
   return (
     <div>
@@ -421,10 +422,11 @@ export default function AgentPage({
           </Card>
           {detail.latest && (
             <Card className="agent-instructions">
-              <h3 className="mono selectable">{instructions?.path ?? "Instruction file"}</h3>
+              {/* The path is the author's manifest's, so it is revealed too. */}
+              <h3 className="mono selectable">{instructions ? <RevealText text={instructions.path} /> : "Instruction file"}</h3>
               <p className="muted small">What the agent is told to do, as the release has it.</p>
               {!instructions && !instructionsErr && <Spinner />}
-              {instructionsNote(instructions, instructionsErr) && <p className="muted small" data-instructions-note>{instructionsNote(instructions, instructionsErr)}</p>}
+              {instructionsLine && <p className="muted small" data-instructions-note><RevealText text={instructionsLine} /></p>}
               {/* The file as text, never rendered (§10.3): React escapes it,
                   its links are not live, and every invisible character is
                   drawn as a chip (the GlassWorm lesson). */}

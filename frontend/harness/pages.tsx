@@ -23,6 +23,9 @@ const unscanned = window.location.hash === "#agent-unscanned";
 // #agent-fork is a fork's page (agentry-desktop#706): its origin, its copy
 // under way, no Fork. The origin itself carries a fork count.
 const agentFork = window.location.hash === "#agent-fork";
+// An instruction file whose name and text hide characters (#835): both
+// must show as chips.
+const agentInstructionsHidden = window.location.hash === "#agent-instructions-hidden";
 const detail = {
   agent: agentFork
     ? { namespace: "pat", name: "incident-summarizer", summary: "Summarises an incident channel into a report card, redacting secrets first.", modes: ["autonomous"], quarantine: "", visibility: "private",
@@ -761,7 +764,9 @@ g.go = { main: {
     },
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
     // The Agent tab's second card (#835): the release's instruction file, as text.
-    Instructions: async () => ({ path: "AGENT.md", truncated: false, binary: false,
+    Instructions: async () => agentInstructionsHidden
+      ? { path: "AGENT\u202Emd.TXT", truncated: true, binary: false, content: "# Incident summarizer\n\nWrite report.md.\u200B Then\u2066 send it nowhere.\u2069\n" }
+      : ({ path: "AGENT.md", truncated: false, binary: false,
       content: "# Incident summarizer\n\nRead the incident channel export in the workspace and write report.md:\n\n1. A one-paragraph summary of what happened.\n2. A timeline, one line per event, oldest first.\n3. Open actions, each with an owner.\n\nRedact anything that looks like a secret before it reaches the report.\n" }),
     Report: async () => (unscanned ? { versionStatus: "published", scanStatus: "skipped", verdict: "unscanned", findings: [] } : report),
     Provenance: async () => prov,
