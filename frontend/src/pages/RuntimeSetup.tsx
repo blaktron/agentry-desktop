@@ -10,6 +10,7 @@ import {
   type KeptSignIn, type WayId,
 } from "../modelSetup";
 import { KeptSignIns, SignInWay } from "./ModelSignIn";
+import { ProviderTiles } from "./ProviderTiles";
 
 // The provider table (src/modelSetup.ts) mirrors the CLI's for form
 // prefills; the Go side (pkg/runner/setup) holds the authoritative copy and
@@ -22,8 +23,8 @@ export { providerLabel };
  * (~/.agentry/runner/policy.yaml), plus one-click preparation of the
  * docker MCP gateway plane.
  *
- * The form asks three things (agentry-desktop#131, D-028): the provider,
- * the key, and — for a custom endpoint — its URL. The key goes to this
+ * The form asks three things (agentry-desktop#131, D-028): the provider
+ * (one logo tile each, agentry-desktop#830), the key, and — for a custom endpoint — its URL. The key goes to this
  * machine's keychain (the app's own store, D-024) and the policy records
  * only that the keychain is the source, never the value. "Get models"
  * asks the endpoint what it serves with that key, which is also the
@@ -406,12 +407,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
       )}
 
       <Card>
-        <label className="field">
-          <span className="field-label">Provider</span>
-          <Select value={provider} onChange={(e) => pickProvider(e.target.value)} disabled={!!busy}>
-            {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </Select>
-        </label>
+        <ProviderTiles value={provider} onPick={pickProvider} disabled={!!busy} />
 
         {ways.length > 1 && (
           <div className="field way-choice">

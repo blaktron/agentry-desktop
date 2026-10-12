@@ -276,7 +276,12 @@ provider's row says the policy has only the default and where its key is
 read from, and the key's row is checked. `#2-refused` is a save the backend
 refuses after the key was stored: `shots.mjs` types the custom endpoint's
 form, clicks Save, and fails unless the refusal shows and the key field is
-empty and says the key is stored (agentry-desktop#141, #378). The wizard's
+empty and says the key is stored (agentry-desktop#141, #378); it picks
+the Custom endpoint tile by its radio role and name, as a person with a
+screen reader would. The runtime step picks the provider from eight logo
+tiles (agentry-desktop#830): `wizard-runtime-fresh` holds their names, and
+`#2-unlisted` (`wizard-runtime-unlisted`) is a policy naming a provider no
+tile shows, with no tile lit and the line under them saying so. The wizard's
 mock answers every binding the step calls, `EndpointWarning` included; a
 missing one throws inside an effect and unmounts the whole wizard.
 
