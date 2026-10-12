@@ -614,12 +614,13 @@ function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => v
         <h1>Your data in Agentry&apos;s cloud</h1>
         <p className="page-sub">
           These are stored encrypted, and decrypted only when they are needed: while a run of yours uses them,
-          while we check what you add, or as you download them.
+          while we check what you add, or as you view or download them.
         </p>
         <ErrorBox error={error} />
         <ul className="wizard-cloud-list">
           <li><strong>Knowledge packs and your Writing Voice</strong> are sealed under keys kept for your account.</li>
           <li><strong>Secrets and connections</strong> you keep for hosted runs are held encrypted in a vault, and a run is given them only while it runs.</li>
+          <li><strong>Your hosted runs</strong>: the task, your answers, the files you give a run and its receipt are encrypted with keys only the vault can unlock, and opened as you view the run and while it runs. A scheduled run&apos;s task, answers and files are kept the same way.</li>
           <li><strong>A run&apos;s results</strong> are sealed to your account&apos;s key on the machine that ran it, and decrypted as you download them.</li>
         </ul>
         <p className="page-sub">
