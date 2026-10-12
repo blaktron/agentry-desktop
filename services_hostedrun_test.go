@@ -133,6 +133,9 @@ type hostedFake struct {
 	// intake is the release's intake block as manifest YAML, "" for none
 	// (a repository question, agentry-desktop#794).
 	intake string
+	// targetHosts is the release's capabilities.targetHosts, nil for none
+	// (agentry-desktop#812); its host questions go in intake.
+	targetHosts []string
 	// routes, when set, adds routes of another extension to the fake
 	// (the schedules extension's, agentry-desktop#745).
 	routes func(mux *http.ServeMux)
@@ -188,7 +191,7 @@ func (f *hostedFake) start(t *testing.T) string {
 		defer f.mu.Unlock()
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": "/att", "digest": "sha256:" + strings.Repeat("ab", 32),
-			"manifest": hostedManifestDoc(t, f.modes, f.secrets, f.intake), "namespace": "acme", "name": "reporter",
+			"manifest": hostedManifestDoc(t, f.modes, f.secrets, f.targetHosts, f.intake), "namespace": "acme", "name": "reporter",
 			"version": "1.0.0", "yanked": false,
 		})
 	})
@@ -525,13 +528,16 @@ func hostedJSON(w http.ResponseWriter, status int, v any) {
 
 // hostedManifestDoc is the resolve result's manifest — the typed struct's
 // own JSON, which is what a real registry serves.
-func hostedManifestDoc(t *testing.T, modes, secrets []string, intake ...string) map[string]any {
+func hostedManifestDoc(t *testing.T, modes, secrets, targetHosts []string, intake ...string) map[string]any {
 	t.Helper()
 	y := "schemaVersion: \"2\"\nname: reporter\nnamespace: acme\nversion: 1.0.0\nsummary: \"hosted run fixture\"\n" +
 		"modes: [" + strings.Join(modes, ", ") + "]\nentrypoints:\n  instruction: SKILL.md\ncapabilities:\n" +
 		"  network:\n    egress: [api.example.com]\n"
 	if len(secrets) > 0 {
 		y += "  secrets: [" + strings.Join(secrets, ", ") + "]\n"
+	}
+	if len(targetHosts) > 0 {
+		y += "  targetHosts: [" + strings.Join(targetHosts, ", ") + "]\n"
 	}
 	y += "publish:\n  include: [agent.yaml, SKILL.md]\n" + strings.Join(intake, "")
 	m, err := manifest.Parse([]byte(y))
@@ -1250,5 +1256,40 @@ func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 	}
 	if b, _ := json.Marshal(start); strings.Contains(string(b), typed) {
 		t.Fatalf("the refusal shows the token: %s", b)
+	}
+}
+
+// A release that declares a target host is offered nothing In Agentry, and
+// a start made anyway is refused before anything is uploaded or created
+// (plan runtime-hosts.md D11; agentry-desktop#812).
+func TestATargetHostReleaseIsNeitherOfferedNorStartedInAgentry(t *testing.T) {
+	f := &hostedFake{
+		enabled: true, targetHosts: []string{"server"},
+		intake: "intake:\n  - id: server\n    prompt: \"The server\"\n    type: host\n    required: true\n",
+	}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Offered || v.Available || !v.TargetHosts || (v.Session != nil && v.Session.Offered) || (v.Schedule != nil && v.Schedule.Offered) {
+		t.Fatalf("availability = %+v", v)
+	}
+	input := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(input, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	r.app.markPicked(filepath.Dir(input), out)
+	_, err = r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", []string{input}, out, map[string]string{"server": "admin@203.0.113.4"}, nil, false, false, nil)
+	if err == nil || !strings.Contains(err.Error(), "only a run on this computer") {
+		t.Fatalf("start: %v", err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.uploads != 0 || len(f.creates) != 0 {
+		t.Fatalf("uploads %d, creates %d", f.uploads, len(f.creates))
 	}
 }

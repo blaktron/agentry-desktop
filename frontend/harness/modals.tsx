@@ -257,6 +257,14 @@ const fileIntakeShape = view === "runpanel-file-intake";
 const sourceShape = view.startsWith("runpanel-source");
 const sourceAnswered = sourceShape && view !== "runpanel-source-details";
 const sourceSavedHost = view === "runpanel-source-saved" || view === "runpanel-source-review" || view === "runpanel-source-hosted";
+// Target hosts (agentry-desktop#812): a release that asks for a server.
+// #runpanel-host-where is Before you start, In Agentry not offered;
+// #runpanel-host-details opens with nothing answered and the recent hosts;
+// -key has a server with no saved sign-in (the key file and sudo fields);
+// -saved has one whose sign-in is saved; -review is Review and start.
+const hostShape = view.startsWith("runpanel-host-") || view === "install-target-host";
+const hostAnswered = hostShape && view !== "runpanel-host-details" && view !== "runpanel-host-where";
+const hostSaved = view === "runpanel-host-saved" || view === "runpanel-host-review";
 // An intake prompt as long as blaktron/binary-reverse-engineer@0.1.0's,
 // which once took the recap's whole width (agentry-desktop#420).
 const longPromptShape = view === "runpanel-step-review-long";
@@ -340,7 +348,9 @@ const profile = signInShape
     capabilityLines: ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
     declaredSecrets: ["PAGERDUTY_TOKEN"], storedSecretNames: ["PAGERDUTY_TOKEN"], exists: true, keep: true,
     modes: sessionShape ? ["interactive"] : ["autonomous", "interactive"],
-    intake: sourceShape
+    intake: hostShape
+      ? [{ id: "server", prompt: "The server to set up", type: "host", required: true, choices: [] }]
+      : sourceShape
       ? [
         { id: "codebase", prompt: "The repository to audit", type: "repository", required: true, choices: [] },
         { id: "advisory", prompt: "The advisory to check it against (a PDF or a page)", type: "url", required: false, choices: [] },
@@ -413,6 +423,9 @@ const availability = {
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
   declaredSecrets: hostedDeclared, optionalSecrets: hostedOptionalNames, vault: true,
   publisherEarns: hostedEarns,
+  // A release with a target host is offered nothing In Agentry
+  // (agentry-desktop#812).
+  ...(hostShape ? { offered: false, available: false, targetHosts: true } : {}),
   // Later and Repeat In Agentry follow the plan: Standard is offered them
   // unavailable, with the way up (agentry-desktop#745).
   schedule: hostedSchedule && view !== "runpanel-schedule-hosted-standard"
@@ -507,6 +520,11 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-source-review": "review",
   "runpanel-source-hosted": "review",
   "runpanel-source-schedule": "review",
+  "runpanel-host-where": "start",
+  "runpanel-host-details": "details",
+  "runpanel-host-key": "details",
+  "runpanel-host-saved": "details",
+  "runpanel-host-review": "review",
   "runpanel-step-review": "review",
   "runpanel-voice": "review",
   "runpanel-step-review-long": "review",
@@ -574,6 +592,19 @@ g.go = { main: {
       const host = new URL(answer.split("#")[0]).hostname.toLowerCase();
       return { host, shown: answer.split("#")[0].replace(/\?.*$/, "?…"), saved: sourceSavedHost && host === "github.com", keychainOff: false };
     },
+    // Go's word on a host answer: the CLI's parse; web-01 has a sign-in
+    // saved in the -saved and -review states.
+    TargetHostStatus: async (answer: string) => {
+      const m = /^(?:([^@:]+)@)?([^:@]+)(?::(\d+))?$/.exec(answer.trim());
+      if (!m || answer.includes(" ")) return { problem: `"${answer}" is not a host: answer as [user@]host[:port], as ssh takes it`, saved: false, keychainOff: false };
+      const user = m[1] || "chris", host = m[2], port = Number(m[3] || 22);
+      const shown = `${user}@${host}${port === 22 ? "" : `:${port}`}`;
+      return { answer: shown, user, host, port, account: `host:${user}@${host.toLowerCase()}:${port}`, saved: hostSaved && host === "web-01.example.net", keychainOff: false };
+    },
+    RecentHosts: async () => ["admin@web-01.example.net", "deploy@203.0.113.10:2222"],
+    ForgetRecentHost: async () => ["admin@web-01.example.net"],
+    ForgetHostSignIn: async (answer: string) => ({ answer, saved: false, keychainOff: false }),
+    ChooseHostKeyFile: async () => "/home/chris/.ssh/id_ed25519",
     SaveSourceKey: async (_t: string, answer: string) => ({ host: new URL(answer.split("#")[0]).hostname, shown: answer, saved: true, keychainOff: false }),
     ForgetSourceKey: async (_t: string, answer: string) => ({ host: new URL(answer.split("#")[0]).hostname, shown: answer, saved: false, keychainOff: false }),
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
@@ -637,7 +668,9 @@ g.go = { main: {
       modes: ["autonomous"], summary: "Summarises an incident channel into a report card, redacting secrets first.",
       digest: "sha256:9c356fd0d20fef07123ba7c4a1b2c3d4e5f6a7b8", yanked: false,
       attestation: att, unsigned: false, unscanned: view === "install-unscanned",
-      capabilities: view === "install-ships-knowledge"
+      capabilities: view === "install-target-host"
+        ? { fsRead: "workspace", fsWrite: "workspace", targetHosts: ["server"] }
+        : view === "install-ships-knowledge"
         ? { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", fsWritePaths: ["reports"], secrets: ["PAGERDUTY_TOKEN"], knowledge: ["pagerduty-docs"] }
         : { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
       shippedKnowledge: view === "install-ships-knowledge" ? [{ name: "pagerduty-docs", bytes: 4_404_019 }] : [],
@@ -742,7 +775,7 @@ function ChatSample() {
 }
 
 const el = document.getElementById("root")!;
-if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge") {
+if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge" || view === "install-target-host") {
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);
@@ -786,7 +819,12 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
           : view === "runpanel-session-offer" ? "hosted-session" : view === "runpanel-chat-review" ? "interactive" : undefined}
         initialStep={STEP_OF[view]}
         initialWhen={view.startsWith("runpanel-schedule") || view === "runpanel-source-schedule" ? "repeat" : undefined}
-        initialForm={sourceAnswered ? {
+        initialForm={hostAnswered ? {
+          mode: "autonomous", task: "", inputs: [], pickedFiles: [],
+          intakeValues: { server: view === "runpanel-host-key" ? "deploy@203.0.113.10:2222" : "admin@web-01.example.net" },
+          attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
+          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+        } : sourceAnswered ? {
           mode: view === "runpanel-source-hosted" ? "hosted" : "autonomous", task: "", inputs: [], pickedFiles: [],
           intakeValues: {
             codebase: view === "runpanel-source-typed" || view === "runpanel-source-schedule" ? "https://git.example.org/acme/payments#release-2026.10" : "https://github.com/acme/payments#v4.2.0",

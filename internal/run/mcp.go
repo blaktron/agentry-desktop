@@ -207,6 +207,13 @@ func capabilityLines(c manifest.Capabilities) []string {
 		}
 		lines = append(lines, line)
 	}
+	// Target hosts (plan runtime-hosts.md §8; agentry-desktop#812): a
+	// machine the person names at the run's start, worked as the account
+	// they sign in with (the CLI's line).
+	if len(c.TargetHosts) > 0 {
+		lines = append(lines, "targetHosts: "+renderList(c.TargetHosts)+
+			" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
+	}
 	// Shipped knowledge (plan knowledge.md §4.6): packs inside the release
 	// the agent reads, part of what is consented to (the CLI's line).
 	if len(c.Knowledge) > 0 {
@@ -255,7 +262,7 @@ func isZeroCapabilities(c manifest.Capabilities) bool {
 	return c.Network.Egress.IsZero() &&
 		c.Filesystem.Read.IsZero() && c.Filesystem.Write.IsZero() &&
 		c.Exec.IsZero() &&
-		len(c.Secrets) == 0 && len(c.DataAccess) == 0 && len(c.Knowledge) == 0
+		len(c.Secrets) == 0 && len(c.DataAccess) == 0 && len(c.Knowledge) == 0 && len(c.TargetHosts) == 0
 }
 
 func renderEgress(e manifest.Egress) string {

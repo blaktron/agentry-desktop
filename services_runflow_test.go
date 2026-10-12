@@ -81,7 +81,7 @@ func flowAPI(t *testing.T, engine func(context.Context, run.Request, io.Writer) 
 }
 
 func runAgent(r *RunAPI) (*RunResultView, error) {
-	return r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil)
+	return r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
 }
 
 // A run on this computer reports its progress as it goes

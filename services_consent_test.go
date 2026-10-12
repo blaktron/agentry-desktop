@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 
@@ -38,7 +40,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		"InstallDocker":    func() error { _, err := r.InstallDocker(); return err },
 		"AddToDockerGroup": func() error { _, err := r.AddToDockerGroup(); return err },
 		"RunAgent unsigned": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil, nil)
 			return err
 		},
 		"InstallAPI.Confirm unscanned": func() error {
@@ -64,7 +66,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	}
 	// A consent-free run raises no dialog: nothing to confirm.
 	before := len(asked)
-	_, _ = r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil)
+	_, _ = r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
 	if len(asked) != before {
 		t.Fatalf("a run with no consent flags raised a dialog: %v", asked[before:])
 	}
@@ -75,11 +77,11 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	before = len(asked)
 	for name, call := range map[string]func() error{
 		"RunAgent": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, true, false, nil, false, nil, nil)
 			return err
 		},
 		"StartSession": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, false, nil, true, false, nil, false, nil, nil)
 			return err
 		},
 	} {
@@ -104,15 +106,15 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 	typed := filepath.Join(t.TempDir(), "typed")
 	for name, call := range map[string]func() error{
 		"RunAgent inputs": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{typed}, "", nil, 0, 0, false, nil, false, false, nil, false, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{typed}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
 			return err
 		},
 		"RunAgent outDir": func() error {
-			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, 0, false, nil, false, false, nil, false, nil)
+			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, 0, false, nil, false, false, nil, false, nil, nil)
 			return err
 		},
 		"StartSession outDir": func() error {
-			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, false, nil, false, false, nil, false, nil)
+			_, err := r.StartSession("https://r.example", "acme/x@1.0.0", "go", nil, typed, nil, 0, false, nil, false, false, nil, false, nil, nil)
 			return err
 		},
 		"BuildAPI.Save": func() error { return b.Save(typed, build.Model{}) },
@@ -150,5 +152,35 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 	var nilErr error
 	if err := app.requirePicked("output directory", ""); !errors.Is(err, nilErr) {
 		t.Fatalf("the empty path is the binding's default and must pass: %v", err)
+	}
+}
+
+// A target host's key file is chosen in a picker of its own, recorded
+// apart from the run's inputs (agentry-desktop#812): a key picked there is
+// never an input a run stages, and an input picked as one is never a key
+// sent to a host. A cancelled pick records nothing.
+func TestAHostKeyPickIsNeverAnInputAndAnInputNeverAKey(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "id_ed25519")
+	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { return true, nil }}
+	app.pickKeyFile = func(context.Context, runtime.OpenDialogOptions) (string, error) { return keyPath, nil }
+	r := &RunAPI{app: app}
+	if got, err := r.ChooseHostKeyFile("admin@server"); err != nil || got != keyPath {
+		t.Fatalf("pick: %q %v", got, err)
+	}
+	if err := app.keyFiles.require("the key file", keyPath); err != nil {
+		t.Fatalf("a picked key is refused as a key: %v", err)
+	}
+	if _, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", []string{keyPath}, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err == nil || !strings.Contains(err.Error(), "file dialog") {
+		t.Fatalf("a picked key was taken as an input: %v", err)
+	}
+	input := filepath.Join(t.TempDir(), "notes.txt")
+	app.markPicked(input)
+	if err := app.keyFiles.require("the key file", input); err == nil {
+		t.Fatal("an input pick was taken as a key")
+	}
+	app.pickKeyFile = func(context.Context, runtime.OpenDialogOptions) (string, error) { return "", nil }
+	other := filepath.Join(t.TempDir(), "id_rsa")
+	if got, err := r.ChooseHostKeyFile(""); got != "" || err != nil || app.keyFiles.require("k", other) == nil {
+		t.Fatalf("a cancelled pick: %q %v", got, err)
 	}
 }

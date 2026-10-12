@@ -184,7 +184,20 @@ The product never claims an agent is "safe". The language is always:
   log. Home's Recent runs and the run page read it, and only by run id;
   Settings → Run defaults → **Remember recent runs** (on by default) turns
   it off, which forgets every run as before, and **Clear run history**
-  empties it. One local job runs at a time: a run, a chat, a
+  empties it. A QuickAgent that asks for a server (a **target host**,
+  agentry-desktop#812, D-082) takes it in Details as `user@host[:port]`,
+  with the sign-in saved for that account and host, or a private key file
+  from the file dialog (and its passphrase) or a password, and an optional
+  sudo password; **Save this sign-in** keeps it in the keychain as the CLI's
+  own entry, service `agentry`, account `host:<user>@<host>:<port>` (a key
+  as its file's path). When the run starts, a host key neither your
+  `~/.ssh/known_hosts` nor the runner home's `known_hosts` holds is shown in
+  a dialog with its type and SHA256 fingerprint, and accepting it keeps it
+  in the runner home's file; a changed key refuses the run. The servers runs
+  reached are listed as recent hosts in `recent-hosts.json` beside
+  `desktop.yaml` (0600, the last ten, addresses and account names only).
+  Such a QuickAgent runs on this computer only: nothing In Agentry is
+  offered for it. One local job runs at a time: a run, a chat, a
   draft, a knowledge build or a review started meanwhile is refused with
   what is running. What a run needs while it is live
   (its containers, volumes and networks, and a scratch directory under the

@@ -55,6 +55,16 @@ start names the ref and where the token comes from; a url's query shows as
 `?…`) and `-hosted` (In Agentry held). The stubbed `SourceKeyStatus`
 refuses an address that is not https, as the CLI's parser does.
 
+Target hosts (agentry-desktop#812) are shown on a release that asks for a
+server: `#runpanel-host-where` (Before you start: what to have ready, and
+In Agentry not offered, with why), `#runpanel-host-details` (nothing
+answered, this computer's recent hosts), `-key` (a server on port 2222 with
+no saved sign-in: a key file or a password, sudo, Save), `-saved` (a sign-in
+saved for web-01: the run uses it, another can be given, it can be removed)
+and `-review` (Review and start says where the sign-in comes from), and
+`#install-target-host` is the install review's target hosts row. The stubbed
+`TargetHostStatus` refuses an answer with a space, as the CLI's parser does.
+
 Talk to it In Agentry, a hosted session (agentry-desktop#403), has three
 setup states on an interactive-only copy of the release:
 `#runpanel-session-offer` (the choice made, with what a session costs from

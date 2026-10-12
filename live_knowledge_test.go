@@ -114,7 +114,7 @@ func TestLiveKnowledge(t *testing.T) {
 	outDir := t.TempDir()
 	app.markPicked(outDir)
 	run, err := r.RunAgent(reg, ref, "Use the knowledge tools to find how to restart the widget service and what queue depth means paging someone. Answer in two sentences and cite the page.",
-		nil, outDir, nil, 0, -1, true, nil, false, false, []string{name}, false, nil)
+		nil, outDir, nil, 0, -1, true, nil, false, false, []string{name}, false, nil, nil)
 	if err != nil {
 		t.Fatalf("run with %s attached: %v\n%s", name, err, strings.Join(log, "\n"))
 	}

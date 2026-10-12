@@ -423,6 +423,11 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		if sig.Unscanned() {
 			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55), so it is not scheduled there either", req.Ref)
 		}
+		// A target host is reached only from this computer (plan
+		// runtime-hosts.md D11; agentry-desktop#812).
+		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
+			return nil, err
+		}
 		// A schedule's fire has no setup to send a one-run token from: it
 		// uses the key Agentry keeps for each source's host
 		// (agentry-enterprise#532). A source given a token here has it

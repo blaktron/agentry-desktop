@@ -102,7 +102,12 @@ type HostedAvailabilityView struct {
 
 	SignedIn  bool `json:"signedIn"`
 	Extension bool `json:"extension"`
-	Enabled   bool `json:"enabled"`
+	// TargetHosts says the release declares a target host, which only a
+	// run on this computer reaches (plan runtime-hosts.md D11): no choice
+	// In Agentry is offered for it, and the setup says why
+	// (agentry-desktop#812).
+	TargetHosts bool `json:"targetHosts,omitempty"`
+	Enabled     bool `json:"enabled"`
 	// RunnersOnline counts what can take a run now: the pull workers and
 	// the sandbox hosts the registry pushes to.
 	RunnersOnline int `json:"runnersOnline"`
@@ -317,12 +322,13 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	// What the release declares, from the resolve alone: reading the
 	// operator policy or an MCP profile to answer this would make the mode
 	// depend on the machine it is offered on.
-	modes, secrets, optional, err := run.Declared(ctx, reg, ref)
+	d, err := run.Declared(ctx, reg, ref)
 	if err != nil {
 		return nil, err
 	}
-	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = modes, secrets, optional
-	v.DeclaredSecrets, v.OptionalSecrets = secrets, emptyNotNil(optional)
+	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = d.Modes, d.Secrets, d.Optional
+	facts.TargetHosts, v.TargetHosts = len(d.TargetHosts) > 0, len(d.TargetHosts) > 0
+	v.DeclaredSecrets, v.OptionalSecrets = d.Secrets, emptyNotNil(d.Optional)
 
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
 
@@ -458,6 +464,12 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil {
 		if sig.Unscanned() {
 			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
+		}
+		// A target host is reached only from this computer (plan
+		// runtime-hosts.md D11): the page offers no run In Agentry for it,
+		// and this is the same rule in Go (agentry-desktop#812).
+		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
+			return nil, err
 		}
 		// Each input source's token: typed for this run, else the key
 		// saved on this computer for its host (agentry-desktop#833).
