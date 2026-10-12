@@ -619,9 +619,10 @@ function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => v
         </ul>
         <p className="page-sub">
           A run&apos;s task, the files you upload for it and its receipt are not stored encrypted, and Agentry holds
-          the keys to what is, so this is not end-to-end encryption. We do our best to keep your data safe and
-          secure. Nothing needs to be set up on this computer for cloud runs; to run here as well, choose Run setup
-          again in Settings any time.
+          the keys to what is, so this is not end-to-end encryption.{" "}
+          We do our best to keep your data safe and secure.{" "}
+          Nothing needs to be set up on this computer for cloud runs; to run here as well, choose Run setup again in
+          Settings any time.
         </p>
       </div>
       <div className="wizard-foot">

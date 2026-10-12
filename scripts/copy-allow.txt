@@ -35,3 +35,9 @@ minisign's own signed-comment field, named not claimed :: trusted comment
 # about anything.
 minisign's signed-comment field, in the update check :: TrustedComment
 minisign's signed-comment field, in the update check :: trustedComment
+
+# The first-run wizard's Cloud page (agentry-desktop#842, D-081): the
+# operator's own sentence, asked for word for word on 2026-10-12. It states
+# an effort, not a property: the sentences around it name exactly what is
+# sealed, what is not, and that Agentry holds the keys.
+operator's words on the Cloud page, an effort not a claim :: We do our best to keep your data safe and secure.
