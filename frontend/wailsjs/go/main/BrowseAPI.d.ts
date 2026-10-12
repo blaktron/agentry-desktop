@@ -5,6 +5,8 @@ import {trust} from '../models';
 
 export function Agent(arg1:string,arg2:string,arg3:string):Promise<main.AgentDetailView>;
 
+export function Instructions(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.InstructionsView>;
+
 export function Provenance(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<trust.AttestationResult>;
 
 export function Readme(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;

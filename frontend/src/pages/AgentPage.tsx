@@ -20,6 +20,8 @@ import ForkDialog from "./ForkDialog";
 import { ORIGIN_GONE, forkable, forkCopyNotice, forkCountLine, forkOfLabel } from "../fork";
 import { FORK_STAYS_PRIVATE } from "../publisher";
 import { PinButton, useHomeLayout } from "./home/PinButton";
+import { instructionsNote } from "../instructions";
+import { RevealText } from "../reveal";
 
 /** A README link goes to the OS browser (http/https) or nowhere; never this window. */
 function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
@@ -30,10 +32,10 @@ function openReadmeLinkOutside(e: MouseEvent<HTMLDivElement>) {
   if (/^https?:\/\//i.test(href)) BrowserOpenURL(href);
 }
 
-type Tab = "readme" | "mcp" | "report" | "versions" | "provenance";
+type Tab = "agent" | "mcp" | "report" | "versions" | "provenance";
 
 const TAB_LABELS: Record<Tab, string> = {
-  readme: "readme",
+  agent: "Agent",
   mcp: "MCP servers & tools",
   report: "security report",
   versions: "versions",
@@ -69,12 +71,16 @@ export default function AgentPage({
 }) {
   const [detail, setDetail] = useState<main.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("readme");
+  const [tab, setTab] = useState<Tab>("agent");
   const [forkOpen, setForkOpen] = useState(false);
   // Bumped when a fork's copy ends, so the page is read again whole (its
   // first version, readme and report arrive with it).
   const [rev, setRev] = useState(0);
   const [readme, setReadme] = useState<string | null>(null);
+  // The release's instruction file, under the README on the Agent tab
+  // (agentry-desktop#835).
+  const [instructions, setInstructions] = useState<main.InstructionsView | null>(null);
+  const [instructionsErr, setInstructionsErr] = useState<string | null>(null);
   const [report, setReport] = useState<main.ReportView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [prov, setProv] = useState<trust.AttestationResult | null>(null);
@@ -199,12 +205,15 @@ export default function AgentPage({
     setDetail(null);
     setError(null);
     setReadme(null);
+    setInstructions(null);
+    setInstructionsErr(null);
     setReport(null);
     setProv(null);
     BrowseAPI.Agent(registry, ns, name).then(async (d) => {
       setDetail(d);
       if (d.latest) {
         BrowseAPI.Readme(registry, ns, name, d.latest).then(setReadme).catch(() => setReadme(""));
+        BrowseAPI.Instructions(registry, ns, name, d.latest).then(setInstructions).catch((e) => setInstructionsErr(String(e)));
         BrowseAPI.Report(registry, ns, name, d.latest).then(setReport).catch((e) => setReportErr(String(e)));
         BrowseAPI.Provenance(registry, ns, name, d.latest, d.latestDigest ?? "", d.latestScanStatus ?? "").then(setProv).catch(() => {});
       }
@@ -252,6 +261,7 @@ export default function AgentPage({
   const totalFindings = Object.values(counts).reduce((n, v) => n + v, 0);
   const codingAgent = codingAgentName(codingAgents);
   const copyNotice = forkCopyNotice(a);
+  const instructionsLine = instructionsNote(instructions, instructionsErr);
 
   return (
     <div>
@@ -388,27 +398,44 @@ export default function AgentPage({
       )}
 
       <div className="tabs">
-        {(["readme", "mcp", "report", "versions", "provenance"] as Tab[]).map((t) => (
+        {(["agent", "mcp", "report", "versions", "provenance"] as Tab[]).map((t) => (
           <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
             {t === "report" ? `security report${report ? ` (${totalFindings})` : ""}` : TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
-      {tab === "readme" && (
-        <Card>
-          {readme === null && <Spinner />}
-          {readme === "" && <div className="empty">No README.</div>}
-          {/* Server-sanitized HTML (§10.3): the API strips scripts/handlers
-              and marks invisible characters; the client never parses raw
-              markdown from the archive. The window's CSP (internal/webview)
-              is the second layer. Links never navigate this window: an
-              http(s) link opens in the OS browser, anything else is
-              inert — the page that runs here has the machine as its API. */}
-          {readme && (
-            <div className="readme selectable" onClick={openReadmeLinkOutside} dangerouslySetInnerHTML={{ __html: readme }} />
+      {tab === "agent" && (
+        <>
+          <Card>
+            {readme === null && <Spinner />}
+            {readme === "" && <div className="empty">No README.</div>}
+            {/* Server-sanitized HTML (§10.3): the API strips scripts/handlers
+                and marks invisible characters; the client never parses raw
+                markdown from the archive. The window's CSP (internal/webview)
+                is the second layer. Links never navigate this window: an
+                http(s) link opens in the OS browser, anything else is
+                inert — the page that runs here has the machine as its API. */}
+            {readme && (
+              <div className="readme selectable" onClick={openReadmeLinkOutside} dangerouslySetInnerHTML={{ __html: readme }} />
+            )}
+          </Card>
+          {detail.latest && (
+            <Card className="agent-instructions">
+              {/* The path is the author's manifest's, so it is revealed too. */}
+              <h3 className="mono selectable">{instructions ? <RevealText text={instructions.path} /> : "Instruction file"}</h3>
+              <p className="muted small">What the agent is told to do, as the release has it.</p>
+              {!instructions && !instructionsErr && <Spinner />}
+              {instructionsLine && <p className="muted small" data-instructions-note><RevealText text={instructionsLine} /></p>}
+              {/* The file as text, never rendered (§10.3): React escapes it,
+                  its links are not live, and every invisible character is
+                  drawn as a chip (the GlassWorm lesson). */}
+              {instructions && !instructions.binary && instructions.content.trim() && (
+                <pre className="instructions-text mono selectable"><RevealText text={instructions.content} /></pre>
+              )}
+            </Card>
           )}
-        </Card>
+        </>
       )}
 
       {tab === "mcp" && (

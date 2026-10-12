@@ -6,6 +6,10 @@ export function Agent(arg1, arg2, arg3) {
   return window['go']['main']['BrowseAPI']['Agent'](arg1, arg2, arg3);
 }
 
+export function Instructions(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['BrowseAPI']['Instructions'](arg1, arg2, arg3, arg4);
+}
+
 export function Provenance(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['BrowseAPI']['Provenance'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
