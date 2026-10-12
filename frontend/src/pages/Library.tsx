@@ -160,6 +160,7 @@ export default function Library({
     if (c.fsWrite && c.fsWrite !== "none") bits.push(`fs write: ${c.fsWrite}`);
     if (c.fsRead && c.fsRead !== "none") bits.push(`fs read: ${c.fsRead}`);
     if (c.secrets?.length) bits.push(`secrets: ${c.secrets.join(", ")}`);
+    if (c.targetHosts?.length) bits.push(`target hosts: ${c.targetHosts.join(", ")}`);
     return bits.length ? bits.join(" · ") : "no capabilities accepted";
   }
 

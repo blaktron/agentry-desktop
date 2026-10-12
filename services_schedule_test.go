@@ -13,6 +13,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
 	"github.com/blaktron/agentry-cli/pkg/schedule"
 
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 )
 
@@ -23,6 +24,13 @@ type scheduleFake struct {
 	check  string
 	asked  []string
 	answer bool
+	// readied records each readying of the schedule's target hosts, as
+	// "<ref> <sign-ins given>", in the order of the command's calls;
+	// readyErr is its answer.
+	readied  []string
+	readyErr error
+	// version is what agentry --version prints, "" for nothing.
+	version string
 }
 
 func (f *scheduleFake) exec(_ context.Context, _ string, args []string) ([]byte, []byte, error) {
@@ -32,6 +40,8 @@ func (f *scheduleFake) exec(_ context.Context, _ string, args []string) ([]byte,
 		return []byte(f.check), nil, nil
 	case slices.Contains(args, "add"):
 		return []byte(`{"id":"ab12cd34ef"}`), nil, nil
+	case slices.Contains(args, "--version"):
+		return []byte(f.version), nil, nil
 	}
 	return nil, nil, nil
 }
@@ -62,6 +72,16 @@ func newScheduleAPI(t *testing.T, f *scheduleFake, lingers bool) *ScheduleAPI {
 			return &schedules.CLI{Path: "/usr/bin/agentry", Exec: f.exec}, nil
 		},
 		lingerOn: func() bool { return lingers },
+		readyScheduleHosts: func(_ context.Context, s run.ScheduleHosts) (int, error) {
+			f.readied = append(f.readied, fmt.Sprintf("%s %d", s.Ref, len(s.Given)))
+			f.calls = append(f.calls, []string{"(ready hosts)"})
+			if len(s.Given) > 0 && s.Before != nil {
+				if err := s.Before(); err != nil {
+					return 0, err
+				}
+			}
+			return len(s.Given), f.readyErr
+		},
 	}
 }
 
@@ -76,7 +96,7 @@ func TestScheduleAddTakesOnlyPickedPaths(t *testing.T) {
 	f := &scheduleFake{check: readyCheck, answer: true}
 	s := newScheduleAPI(t, f, true)
 	out := t.TempDir()
-	if _, err := s.Add(scheduleReq(out)); err == nil || !strings.Contains(err.Error(), "file dialog") {
+	if _, err := s.Add(scheduleReq(out), nil); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("an unpicked output folder: %v", err)
 	}
 	s.app.markPicked(out)
@@ -109,7 +129,7 @@ func TestScheduleAddAsksOnlyWhatItNeeds(t *testing.T) {
 	s.app.markPicked(out)
 
 	// Nothing to consent to: no dialog and no --yes.
-	made, err := s.Add(scheduleReq(out))
+	made, err := s.Add(scheduleReq(out), nil)
 	if err != nil || made.ID != "ab12cd34ef" {
 		t.Fatalf("add %+v %v", made, err)
 	}
@@ -123,7 +143,7 @@ func TestScheduleAddAsksOnlyWhatItNeeds(t *testing.T) {
 	s.lingerOn = func() bool { return false }
 	req := scheduleReq(out)
 	req.SignedOut = true
-	if _, err := s.Add(req); err != nil {
+	if _, err := s.Add(req, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.asked) != 1 || !strings.Contains(f.asked[0], "widens the declared capabilities") || !strings.Contains(f.asked[0], "start when this computer starts") {
@@ -138,7 +158,7 @@ func TestScheduleAddAsksOnlyWhatItNeeds(t *testing.T) {
 	s.lingerOn = func() bool { return true }
 	req = scheduleReq(out)
 	req.AllowUnsigned = true
-	if _, err := s.Add(req); err != nil {
+	if _, err := s.Add(req, nil); err != nil {
 		t.Fatal(err)
 	}
 	if last := f.adds()[2]; slices.Contains(last, "--yes") || !slices.Contains(last, "--allow-unsigned") || len(f.asked) != 2 {
@@ -148,7 +168,7 @@ func TestScheduleAddAsksOnlyWhatItNeeds(t *testing.T) {
 	// A No makes nothing.
 	f.answer = false
 	f.check = `{"ready":true,"gaps":[],"needsConsent":true,"installed":true,"signedOut":{"available":true}}`
-	if _, err := s.Add(scheduleReq(out)); !errors.Is(err, errNotConfirmed) {
+	if _, err := s.Add(scheduleReq(out), nil); !errors.Is(err, errNotConfirmed) {
 		t.Fatalf("declined: %v", err)
 	}
 	if len(f.adds()) != 3 {
@@ -161,7 +181,7 @@ func TestScheduleAddRefusesWhatAFireWouldLack(t *testing.T) {
 	s := newScheduleAPI(t, f, true)
 	out := t.TempDir()
 	s.app.markPicked(out)
-	if _, err := s.Add(scheduleReq(out)); err == nil || !strings.Contains(err.Error(), "no model key") {
+	if _, err := s.Add(scheduleReq(out), nil); err == nil || !strings.Contains(err.Error(), "no model key") {
 		t.Fatalf("add with a gap: %v", err)
 	}
 	if len(f.adds()) != 0 || len(f.asked) != 0 {
@@ -345,5 +365,57 @@ func TestScheduledHomeCardEmpty(t *testing.T) {
 	v, err := s.HomeCard("2026-09-28T00:00:00Z", "2026-11-02T00:00:00Z", "")
 	if err != nil || v.Schedules != 0 || len(v.Month) != 0 || v.Next == nil || len(v.Next) != 0 {
 		t.Fatalf("empty card %+v %v", v, err)
+	}
+}
+
+// A schedule's target hosts are readied with the person here, after the
+// consent and before the agentry command makes it, with the sign-ins the
+// setup gave (agentry-desktop#812): the command then finds the key accepted
+// and the sign-in kept. A host that cannot be readied makes no schedule.
+func TestScheduleAddReadiesTargetHostsBeforeTheCommand(t *testing.T) {
+	f := &scheduleFake{check: readyCheck, answer: true}
+	s := newScheduleAPI(t, f, true)
+	out := t.TempDir()
+	s.app.markPicked(out)
+	given := map[string]run.HostSignIn{"server": {Password: "pw", Save: true}}
+	if _, err := s.Add(scheduleReq(out), given); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(f.readied, []string{"acme/digest@1.2.0 1"}) {
+		t.Fatalf("readied %q", f.readied)
+	}
+	i := slices.IndexFunc(f.calls, func(c []string) bool { return c[0] == "(ready hosts)" })
+	j := slices.IndexFunc(f.calls, func(c []string) bool { return slices.Contains(c, "add") && !slices.Contains(c, "--check") })
+	if i < 0 || j < 0 || i > j {
+		t.Fatalf("hosts readied at %d, schedule added at %d: %q", i, j, f.calls)
+	}
+
+	f.readyErr = errors.New("target host server: the host key was not accepted")
+	if _, err := s.Add(scheduleReq(out), given); err == nil || !strings.Contains(err.Error(), "not accepted") {
+		t.Fatalf("a host not readied: %v", err)
+	}
+	if len(f.adds()) != 1 {
+		t.Fatalf("a schedule was made for a host not readied: %q", f.adds())
+	}
+}
+
+// Only an agentry that readies target hosts (v0.6.111, agentry-cli#863)
+// makes a schedule of a QuickAgent that asks for a server: an older one is
+// refused before any host is readied or any sign-in kept.
+func TestScheduleAddOfATargetHostNeedsANewEnoughAgentry(t *testing.T) {
+	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.110 default registry: https://secureagentry.net"}
+	s := newScheduleAPI(t, f, true)
+	out := t.TempDir()
+	s.app.markPicked(out)
+	given := map[string]run.HostSignIn{"server": {Password: "pw"}}
+	if _, err := s.Add(scheduleReq(out), given); err == nil || !strings.Contains(err.Error(), "needs agentry v0.6.111 or later") {
+		t.Fatalf("an older agentry: %v", err)
+	}
+	if len(f.adds()) != 0 {
+		t.Fatal("a schedule was made by an agentry that does not know target hosts")
+	}
+	f.version = "agentry version 0.6.111 default registry: https://secureagentry.net"
+	if _, err := s.Add(scheduleReq(out), given); err != nil {
+		t.Fatal(err)
 	}
 }

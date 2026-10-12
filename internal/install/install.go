@@ -183,7 +183,8 @@ type Plan struct {
 	// MCPServers is each declared MCP server's pin, tool allowlist and
 	// plain env, for the review (agentry-desktop#62); never a secret.
 	MCPServers []mcpview.Server `json:"mcpServers"`
-	// NeedsCapabilityConfirm: first install declaring egress or exec (§11).
+	// NeedsCapabilityConfirm: first install declaring egress, exec or a
+	// target host (§11; plan runtime-hosts.md §8, agentry-desktop#812).
 	NeedsCapabilityConfirm bool `json:"needsCapabilityConfirm"`
 	// PrevVersion is the version currently at this key ("" on first install).
 	PrevVersion string `json:"prevVersion,omitempty"`
@@ -395,8 +396,16 @@ func readRecord(plan *Plan, m *manifest.Manifest) {
 		plan.Diff = &d
 		plan.RequiresWidenedConfirm = d.HasWidened()
 	} else {
-		plan.NeedsCapabilityConfirm = len(m.Capabilities.Network.Egress.Hosts) > 0 || len(m.Capabilities.Exec.Commands) > 0
+		plan.NeedsCapabilityConfirm = needsCapabilityConfirm(m.Capabilities)
 	}
+}
+
+// needsCapabilityConfirm reports whether a first install of c asks for
+// the capability consent: declared network egress or exec (§11), or a
+// target host, a machine the person names and the agent works as the
+// account they sign in with (the CLI's install gate, agentry-cli#861).
+func needsCapabilityConfirm(c manifest.Capabilities) bool {
+	return len(c.Network.Egress.Hosts) > 0 || len(c.Exec.Commands) > 0 || len(c.TargetHosts) > 0
 }
 
 // PrepareExport derives a coding-agent export from a pending runner plan

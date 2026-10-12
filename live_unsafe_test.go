@@ -114,7 +114,7 @@ func TestLiveUnsafeMode(t *testing.T) {
 		if err := os.MkdirAll(out, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		return r.RunAgent(reg, ref, task, []string{input}, out, nil, 0, -1, false, nil, false, false, nil, false, nil)
+		return r.RunAgent(reg, ref, task, []string{input}, out, nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
 	}
 
 	// 1. Off: refused, as today.

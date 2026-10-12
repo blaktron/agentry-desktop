@@ -215,20 +215,33 @@ type ProfileInfo struct {
 }
 
 // Declared reports what a release declares, from the registry's resolve
-// alone: the run modes, and every secret name — its own and its declared
-// MCP servers' — that a run would have to supply. The In-Agentry
+// alone: the run modes, every secret name — its own and its declared
+// MCP servers' — that a run would have to supply, and its target hosts,
+// which only a run on this computer reaches. The In-Agentry
 // availability rule (services_hostedrun.go) reads this rather than
 // ProfileStatus, because a hosted run must touch nothing on this machine:
 // no operator policy, no MCP profile, no docker (hosted-runs.md §4.7).
-func Declared(ctx context.Context, regURL, ref string) (modes, secrets, optional []string, err error) {
+func Declared(ctx context.Context, regURL, ref string) (*Declaration, error) {
 	sig, err := ResolveSignature(ctx, regURL, ref, false)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
+	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest)}
 	for _, mode := range sig.Manifest.SupportedModes() {
-		modes = append(modes, string(mode))
+		d.Modes = append(d.Modes, string(mode))
 	}
-	return modes, allSecretNames(sig.Manifest), optionalSecretNames(sig.Manifest), nil
+	return d, nil
+}
+
+// Declaration is what Declared reads from a release's resolve.
+type Declaration struct {
+	// Modes are the run modes it declares.
+	Modes []string
+	// Secrets are every secret name, its own and its servers', and
+	// Optional those a run can start without.
+	Secrets, Optional []string
+	// TargetHosts are its host questions' ids.
+	TargetHosts []string
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
@@ -402,6 +415,21 @@ type Request struct {
 	// agentry-desktop#794). Each goes to that source's fetch step alone;
 	// a source with none uses the key saved for its host, else none.
 	SourceTokens map[string]string `json:"-"`
+	// HostSignIns are the sign-ins given in the run setup for its target
+	// hosts, by the id of a host question (plan runtime-hosts.md D6, D14;
+	// agentry-desktop#812). A host with none signs in with the one saved
+	// for it in the system keychain, or the run is refused.
+	HostSignIns map[string]HostSignIn `json:"-"`
+	// TrustHostKey asks the person, in a native dialog the page cannot
+	// answer, whether to accept a target host's key that neither their
+	// known_hosts nor the runner home's holds; prompt is the CLI's own,
+	// naming the key's type and SHA256 fingerprint. nil is no one to ask,
+	// and such a key refuses the run (plan D7).
+	TrustHostKey func(prompt string) (bool, error)
+	// KeyFilePicked judges a target host's key file: one the native
+	// picker returned for that purpose, or the run is refused (D-030). The
+	// desktop always passes it.
+	KeyFilePicked func(what, path string) error
 	// PathPicked, when set, judges every host path the request carries
 	// that the caller did not already judge — a file-typed intake answer
 	// — before it is staged: the desktop passes the native picker's
@@ -765,6 +793,16 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	}); err != nil {
 		finishProfile(logw, prof, profDir, keep)
 		return nil, engine.Classify(engine.ExitCLI, err)
+	}
+	// Each target host, readied as `agentry run` readies it, once the
+	// images are in place and before anything of the run starts
+	// (agentry-desktop#812).
+	if err := readyTargetHosts(ctx, answers, m.Capabilities.TargetHosts, hostReadiness{
+		pol: pol, home: home, given: req.HostSignIns, picked: req.KeyFilePicked, trust: req.TrustHostKey,
+		say: func(msg string) { _, _ = fmt.Fprintln(logw, msg) },
+	}); err != nil {
+		finishProfile(logw, prof, profDir, keep)
+		return nil, err
 	}
 	if len(answers.Secrets) > 0 {
 		merged := map[string]string{}

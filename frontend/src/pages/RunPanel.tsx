@@ -38,6 +38,8 @@ import { WhenStep, type Availability, type CheckState } from "./WhenStep";
 import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
 import { agentryKeyHosts, isSourceType, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
 import { SourceQuestion } from "./SourceQuestion";
+import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostForm, type TargetHost } from "../hosts";
+import { HostQuestion } from "./HostQuestion";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it (agentry-desktop#743). */
@@ -101,6 +103,17 @@ export default function RunPanel({
   // parse of the address, and whether a key is saved for its host. Kept
   // with the answer it judged, so a changed answer reads as unchecked.
   const [sourceChecks, setSourceChecks] = useState<Record<string, { answer: string; key: SourceKey }>>({});
+  // A target host's sign-in typed for this run, by question id, with the
+  // keychain account it was typed for (agentry-desktop#812): sent with the
+  // run for its host link alone, and not kept with the setup's answers
+  // (RunForm). An address edited to another account leaves it behind
+  // (formFor), so a sign-in typed for one host never goes to another.
+  const [hostForms, setHostForms] = useState<Record<string, HostForm>>({});
+  // Go's word on each host answer (RunAPI.TargetHostStatus), kept with the
+  // answer it judged, as sourceChecks are.
+  const [hostChecks, setHostChecks] = useState<Record<string, { answer: string; host: TargetHost }>>({});
+  // The hosts this computer's runs reached, newest first: addresses only.
+  const [recentHosts, setRecentHosts] = useState<string[]>([]);
   const [mode, setMode] = useState(f0?.mode ?? "");
   const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
@@ -346,6 +359,36 @@ export default function RunPanel({
     sourceKeys[q.id] = c && c.answer === (intakeValues[q.id] ?? "").trim() ? c.key : null;
   }
   const typed = typedTokens(sourceTokens, sourceKeys);
+  // Target hosts (agentry-desktop#812): each answer read in Go after a
+  // pause in typing, with the CLI's parser; nothing reaches the host here.
+  const hostQs = (profile?.intake ?? []).filter((q) => isHostType(q.type));
+  const hostAnswers = JSON.stringify(hostQs.map((q) => [q.id, (intakeValues[q.id] ?? "").trim()]));
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      for (const q of hostQs) {
+        const answer = (intakeValues[q.id] ?? "").trim();
+        if (answer === "" || hostChecks[q.id]?.answer === answer) continue;
+        const keep = (host: TargetHost) => setHostChecks((c) => ({ ...c, [q.id]: { answer, host } }));
+        Promise.resolve()
+          .then(() => RunAPI.TargetHostStatus(answer))
+          .then(keep)
+          .catch((e) => keep({ problem: String(e), saved: false, keychainOff: false }));
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostAnswers]);
+  useEffect(() => {
+    if (hostQs.length === 0) return;
+    Promise.resolve().then(() => RunAPI.RecentHosts()).then((h) => setRecentHosts(h ?? [])).catch(() => setRecentHosts([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostQs.length]);
+  const hostKeys: Record<string, TargetHost | null> = {};
+  for (const q of hostQs) {
+    const c = hostChecks[q.id];
+    hostKeys[q.id] = c && c.answer === (intakeValues[q.id] ?? "").trim() ? c.host : null;
+  }
+  const hostSignIns = () => signInsForRun(hostQs, intakeValues, hostKeys, hostForms);
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
   // Talk to it In Agentry (agentry-desktop#403) is mode "hosted-session": a
@@ -446,6 +489,7 @@ export default function RunPanel({
   blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, {
     inAgentry, scheduling, saveInAgentry,
   }));
+  blockers.push(...hostBlockers(hostQs, intakeValues, hostKeys, hostForms, { inAgentry, scheduling }));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
   if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
@@ -550,6 +594,9 @@ export default function RunPanel({
       // An address the run would refuse holds Next here, where it is fixed.
       const s = sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, { inAgentry: false, scheduling: false });
       if (s.length > 0) return s[0];
+      // So does a server's address, or a sign-in not yet given.
+      const h = hostBlockers(hostQs, intakeValues, hostKeys, hostForms, { inAgentry: false, scheduling: false });
+      if (h.length > 0) return h[0];
     }
     return null;
   }
@@ -695,7 +742,7 @@ export default function RunPanel({
     setRunning(true);
     setRunErr(null);
     try {
-      const made = await ScheduleAPI.Add(req);
+      const made = await ScheduleAPI.Add(req, hostSignIns());
       window.dispatchEvent(new CustomEvent(SCHEDULED_EVENT, { detail: made.id }));
       onClose();
     } catch (e) {
@@ -757,7 +804,7 @@ export default function RunPanel({
       startLocalChat(
         { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() },
         agentRef, task, profile?.opening ?? "",
-        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed)),
+        () => RunAPI.StartSession(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, turns, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns()),
       );
       onClose();
     } catch (e) {
@@ -906,7 +953,7 @@ export default function RunPanel({
       await startLocalRun(
         { panel: { registry, ns, name, version, summary, attestation, local }, form },
         agentRef,
-        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed)),
+        () => RunAPI.RunAgent(registry, agentRef, task, inputs, outDir.trim(), keepTouched ? keep : null, t, mt, unsigned && acceptUnsigned, intakeAnswers(), vuln.send, unscanned && acceptUnscanned, attached, writeInVoice, tokensForRun(sourceQs, intakeValues, typed), hostSignIns()),
       );
       onClose();
     } catch (e) {
@@ -1080,6 +1127,11 @@ export default function RunPanel({
               )}
               {unscanned && hosted?.offered && (
                 <p className="muted small">A run In Agentry is not offered for this release: the registry admitted it without a scan.</p>
+              )}
+              {/* A target host is reached only from this computer (plan
+                  runtime-hosts.md D11; agentry-desktop#812). */}
+              {hosted?.targetHosts && (
+                <p className="muted small">A run In Agentry is not offered for this QuickAgent: it works a server you name over SSH, which only a run on this computer does.</p>
               )}
               <details className="advanced">
                 <summary className="muted small">The declared contract, with its digest</summary>
@@ -1365,7 +1417,23 @@ export default function RunPanel({
                         read-only, and <span className="mono">intake.json</span> names the address and what was fetched; the access token is not written there.</>
                       )}
                     </p>
-                    {profile.intake.map((q) => isSourceType(q.type) ? (
+                    {profile.intake.map((q) => isHostType(q.type) ? (
+                      <HostQuestion
+                        key={q.id}
+                        q={q}
+                        value={intakeValues[q.id] ?? ""}
+                        onChange={(v) => setIntakeValues({ ...intakeValues, [q.id]: v })}
+                        status={hostKeys[q.id]}
+                        onStatus={(host) => setHostChecks((c) => ({ ...c, [q.id]: { answer: (intakeValues[q.id] ?? "").trim(), host } }))}
+                        form={formFor(hostForms, q.id, hostKeys[q.id])}
+                        onForm={(f) => setHostForms((forms) => ({ ...forms, [q.id]: f }))}
+                        recent={recentHosts}
+                        onRecent={setRecentHosts}
+                        disabled={running}
+                        onError={setRunErr}
+                        scheduling={schedulingHere}
+                      />
+                    ) : isSourceType(q.type) ? (
                       <SourceQuestion
                         key={q.id}
                         q={q}
@@ -1513,7 +1581,9 @@ export default function RunPanel({
                     <dt>{q.prompt}</dt>
                     <dd>
                       <span className="selectable">
-                        {isSourceType(q.type)
+                        {isHostType(q.type)
+                          ? hostRecap(intakeValues[q.id] ?? "", hostKeys[q.id], formFor(hostForms, q.id, hostKeys[q.id]), schedulingHere)
+                          : isSourceType(q.type)
                           ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], typed[q.id] ?? "", inAgentry)
                           : (intakeValues[q.id] ?? "").trim() || "no answer"}
                       </span>

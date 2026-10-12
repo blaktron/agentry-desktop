@@ -37,6 +37,11 @@ import (
 // --check, reseal and check-signed-out (agentry-cli#777).
 var MinCLI = [3]int{0, 6, 86}
 
+// MinTargetHostsCLI is the oldest agentry whose schedule add readies a
+// target host and pins its key (agentry-cli#863): a QuickAgent that asks
+// for a server is scheduled only through it (agentry-desktop#812).
+var MinTargetHostsCLI = [3]int{0, 6, 111}
+
 // ErrNoCLI says why scheduling on this computer is not offered here.
 var ErrNoCLI = errors.New("scheduling a run on this computer needs the agentry command, which was not found")
 
@@ -95,6 +100,12 @@ var versionPattern = regexp.MustCompile(`\bv?(\d+)\.(\d+)\.(\d+)`)
 // TooOld reports why the version line of an agentry is older than MinCLI,
 // or "" when it is new enough or names no version (a build from source).
 func TooOld(versionLine string) string {
+	return OlderThan(versionLine, MinCLI, "scheduling a run on this computer")
+}
+
+// OlderThan reports why the version line of an agentry is older than min,
+// which what needs, or "" when it is new enough or names no version.
+func OlderThan(versionLine string, min [3]int, what string) string {
 	m := versionPattern.FindStringSubmatch(versionLine)
 	if m == nil {
 		return ""
@@ -104,9 +115,9 @@ func TooOld(versionLine string) string {
 		got[i], _ = strconv.Atoi(m[i+1])
 	}
 	for i := range got {
-		if got[i] != MinCLI[i] {
-			if got[i] < MinCLI[i] {
-				return fmt.Sprintf("scheduling a run on this computer needs agentry v%d.%d.%d or later, and the agentry command found is %s.%s.%s: update it", MinCLI[0], MinCLI[1], MinCLI[2], m[1], m[2], m[3])
+		if got[i] != min[i] {
+			if got[i] < min[i] {
+				return fmt.Sprintf("%s needs agentry v%d.%d.%d or later, and the agentry command found is %s.%s.%s: update it", what, min[0], min[1], min[2], m[1], m[2], m[3])
 			}
 			return ""
 		}
