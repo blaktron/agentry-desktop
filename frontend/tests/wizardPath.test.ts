@@ -3,7 +3,7 @@
 // open only to someone signed in to the registry the app browses.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cloudOpen, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor } from "../src/wizardPath.ts";
+import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor } from "../src/wizardPath.ts";
 
 test("Local keeps the setup as it was, after the choice", () => {
   assert.deepEqual(stepsFor("local"), ["welcome", "signin", "where", "runtime", "reviewkey", "codingagent", "done"]);
@@ -57,4 +57,11 @@ test("Cloud needs a sign-in to the registry being browsed", () => {
 test("each path sets where runs start", () => {
   assert.equal(runWhereFor("local"), "here");
   assert.equal(runWhereFor("cloud"), "agentry");
+});
+
+test("back on the choice, the path is open again and the dots show Local's", () => {
+  assert.equal(pathAt("where", "cloud"), null);
+  assert.equal(pathAt("signin", "local"), null);
+  assert.equal(pathAt("runtime", "local"), "local");
+  assert.equal(pathAt("cloud", "cloud"), "cloud");
 });

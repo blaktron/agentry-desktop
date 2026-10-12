@@ -861,6 +861,7 @@ const states = [
   { name: "wizard-where-signedin", url: "/wizard.html#2-signedin", note: "Local or Cloud signed in: both cards open", locator: ".wizard", expectText: ["Local", "Cloud"], expectNoText: "Please sign in", expectNone: ".wizard-choice.is-locked" },
   { name: "wizard-where-local", url: "/wizard.html#2", note: "Local picked: on to the runtime, Run defaults set to this computer", locator: ".wizard", click: '.wizard-choice button:has-text("Local")', expectText: "Set up the runtime", expectRunWhere: "here" },
   { name: "wizard-cloud", url: "/wizard.html#2-signedin", note: "Cloud picked signed in: how data in Agentry's cloud is kept, Back and Finish", locator: ".wizard", click: '.wizard-choice button:has-text("Cloud")', expectText: ["Your data in Agentry's cloud", "stored encrypted", "Back", "Finish"] },
+  { name: "wizard-cloud-back", url: "/wizard.html#cloud", note: "Back from the Cloud page: the choice again, with Local's seven dots, nothing written", locator: ".wizard", click: '.wizard-foot button:has-text("Back")', expectText: "Where will your QuickAgents run?", expectDots: 7, expectRunWhere: "" },
   { name: "wizard-cloud-finish", url: "/wizard.html#cloud", note: "Finish on the Cloud page records Cloud in Run defaults", locator: ".wizard", click: '.wizard-foot button:has-text("Finish")', expectRunWhere: "agentry" },
   // Reached by Continue from Coding agent, and the key's own Continue before
   // it (#462): the two renumbered steps forward.
@@ -1052,7 +1053,11 @@ try {
         const opened = await page.evaluate(() => window.__opened ?? []);
         if (JSON.stringify(opened) !== JSON.stringify(state.expectOpened)) throw new Error(`${state.name}: opened ${JSON.stringify(opened)}, not ${JSON.stringify(state.expectOpened)}`);
       }
-      if (state.expectRunWhere) {
+      if (state.expectDots) {
+        const n = await page.locator(".wizard-dot").count();
+        if (n !== state.expectDots) throw new Error(`${state.name}: ${n} step dots, not ${state.expectDots}`);
+      }
+      if (state.expectRunWhere !== undefined) {
         // What the wizard wrote to Run defaults → Where to run: the harness's
         // SettingsAPI.SetRunWhere records it (agentry-desktop#842).
         const where = await page.evaluate(() => window.__runWhere ?? "");
