@@ -254,6 +254,22 @@ code, pre, .mono {
 /* "0.2.0 is available" beside the version, when a check found a newer
    Agentry Desktop (#87). A button, not a link: it opens Settings, where the
    card explains what it is and where to get it — nothing here downloads. */
+/* Report bug, small, directly above the version (agentry-desktop#841): a
+   button that opens the card over the page, drawn as the foot's quiet text. */
+.sidebar .foot .report-bug {
+  display: block;
+  margin-bottom: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.sidebar .foot .report-bug:hover { color: var(--color-fg); text-decoration: none; }
+
 .sidebar .foot .update-line { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
 .sidebar .foot .update-line button {
   padding: 0;

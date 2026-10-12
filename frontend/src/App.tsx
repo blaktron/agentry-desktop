@@ -28,6 +28,7 @@ import { CornerHost } from "./progress";
 import { attachHosted } from "./drafts";
 import Validate from "./pages/Validate";
 import Build from "./pages/Build";
+import BugReportDialog from "./pages/BugReportDialog";
 import Settings, { SETTINGS_FOR, SettingsPart, SettingsSection } from "./pages/Settings";
 import Wizard, { WizardOutcome } from "./pages/Wizard";
 import { Recover } from "./Recover";
@@ -102,6 +103,8 @@ export default function App() {
   const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
+  // The Report bug card over the page (agentry-desktop#841).
+  const [reportingBug, setReportingBug] = useState(false);
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
   // A newer Agentry Desktop, when the last check found one (#87). Reading the
@@ -235,6 +238,10 @@ export default function App() {
             {unsafeShown && (
               <UnsafeBadge running={!settings?.unsafeMode} onOpen={() => setRoute({ page: "settings", ...SETTINGS_FOR.unsafeMode })} />
             )}
+            {/* Report bug, directly above the version (plan report-bug.md
+                §6; agentry-desktop#841): a card over the page, filed with
+                the active registry as the person signed in there. */}
+            <button type="button" className="report-bug" onClick={() => setReportingBug(true)}>Report bug</button>
             {version && <div>v{version}</div>}
             {newer?.available && !newer.dismissed && (
               <div className="update-line">
@@ -266,6 +273,17 @@ export default function App() {
             <div className="nowrap" title={registry}>{registry.replace(/^https?:\/\//, "")}</div>
           </div>
         </div>
+        {reportingBug && (
+          <BugReportDialog
+            registry={registry}
+            signedIn={signedIn}
+            onClose={() => setReportingBug(false)}
+            onSignIn={() => {
+              setReportingBug(false);
+              nav({ page: "settings", ...SETTINGS_FOR.bugReportSignIn });
+            }}
+          />
+        )}
         <div className="content">
           {/* A render fault shows its way back here, under a sidebar that
               still works (agentry-desktop#351). */}

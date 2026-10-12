@@ -1563,6 +1563,22 @@ export namespace main {
 	}
 	
 	
+	export class BugReportResult {
+	    filed: boolean;
+	    reason?: string;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BugReportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filed = source["filed"];
+	        this.reason = source["reason"];
+	        this.message = source["message"];
+	    }
+	}
 	export class CLIInstallView {
 	    path: string;
 	    version?: string;
