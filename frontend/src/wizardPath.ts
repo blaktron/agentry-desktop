@@ -39,6 +39,14 @@ export function stepBefore(step: WizardStep, path: WizardPath | null): WizardSte
   return i > 0 ? steps[i - 1] : null;
 }
 
+// The path the wizard is on once it stands on this step: back on a step
+// both paths share, the choice is open again, so the dots show Local's
+// until the person picks once more (the live check of #842 found Cloud's
+// four dots kept on the choice after Back).
+export function pathAt(step: WizardStep, path: WizardPath | null): WizardPath | null {
+  return pathOf(step) === null ? null : path;
+}
+
 // Cloud is open only to someone signed in to the registry the app is
 // browsing: a hosted run is started, paid for and read back under that
 // sign-in. With no registry chosen yet, any signed-in registry counts, as

@@ -17,7 +17,7 @@ import { AIReviewKeyCard, type ReviewKeyState } from "./AIReviewKey";
 import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
 import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } from "../wizardRecap";
 import { keyStanding } from "../keyRecommendation";
-import { cloudOpen, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
+import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure } from "./WizardFigures";
 
 const LABELS: Record<WizardStep, string> = {
@@ -53,7 +53,11 @@ export default function Wizard({
   const steps = stepsFor(path);
   const at = steps.indexOf(step);
   const next = () => setStep((s) => stepAfter(s, path) ?? s);
-  const back = () => setStep((s) => stepBefore(s, path) ?? s);
+  function back() {
+    const prev = stepBefore(step, path) ?? step;
+    setStep(prev);
+    setPath(pathAt(prev, path));
+  }
   function choose(p: WizardPath) {
     setPath(p);
     setStep(stepAfter("where", p) ?? "where");
@@ -584,11 +588,12 @@ function DoneStep({
 
 // CloudStep (agentry-desktop#842): how the person's data is kept in
 // Agentry's cloud, in the operator's terms, and the end of the Cloud path.
-// Each sentence names what is sealed and when it is opened, and what is
-// not sealed, as the wiki's sealed-output, knowledge-store, Writing Voice
-// and vault pages and the enterprise runs code have it (fact-checked for
-// agentry-desktop#842): a run's task, its uploads and its receipt rest
-// unsealed, and Agentry holds the keys, so nothing here says end-to-end.
+// It names what is sealed and when it is opened, as the wiki's sealed-output,
+// knowledge-store, Writing Voice and vault pages and the enterprise runs code
+// have it (fact-checked for agentry-desktop#842), and nothing beyond: what is
+// not sealed, and that Agentry holds the keys, is the docs' to say, not this
+// page's (the operator, 2026-10-12). Nothing here claims all of a person's
+// data is sealed, or that only they can open it.
 // Finish records Cloud in Run defaults and closes the wizard as Done does.
 function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -618,11 +623,7 @@ function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => v
           <li><strong>A run&apos;s results</strong> are sealed to your account&apos;s key on the machine that ran it, and decrypted as you download them.</li>
         </ul>
         <p className="page-sub">
-          A run&apos;s task, the files you upload for it and its receipt are not stored encrypted, and Agentry holds
-          the keys to what is, so this is not end-to-end encryption.{" "}
-          We do our best to keep your data safe and secure.{" "}
-          Nothing needs to be set up on this computer for cloud runs; to run here as well, choose Run setup again in
-          Settings any time.
+          We do our best to keep your data safe and secure.
         </p>
       </div>
       <div className="wizard-foot">
