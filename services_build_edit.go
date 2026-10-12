@@ -122,23 +122,11 @@ func readRelease(ctx context.Context, url, token, ns, name, version string) (*re
 		return nil, fmt.Errorf("%s is not a published version of %s/%s", version, ns, name)
 	}
 	rel.Next = build.NextMinor(all)
-	mresp, err := client.GetVersionManifestWithResponse(ctx, ns, name, rel.Version)
+	manifest, path, f, err := readInstructionFile(ctx, client, ns, name, rel.Version)
 	if err != nil {
-		return nil, fmt.Errorf("fetch the manifest of %s: %w", rel.Version, err)
+		return nil, err
 	}
-	if mresp.JSON200 == nil {
-		return nil, registry.Problem("manifest", mresp.StatusCode(), mresp.ApplicationproblemJSONDefault, mresp.Body)
-	}
-	rel.Manifest = mresp.Body
-	rel.Path = build.ReleaseInstructionPath(mresp.Body)
-	fresp, err := client.GetVersionFileWithResponse(ctx, ns, name, rel.Version, &apiclient.GetVersionFileParams{Path: rel.Path})
-	if err != nil {
-		return nil, fmt.Errorf("fetch %s of %s: %w", rel.Path, rel.Version, err)
-	}
-	if fresp.JSON200 == nil {
-		return nil, registry.Problem("file", fresp.StatusCode(), fresp.ApplicationproblemJSONDefault, fresp.Body)
-	}
-	f := fresp.JSON200
+	rel.Manifest, rel.Path = manifest, path
 	switch {
 	case f.Truncated:
 		return nil, fmt.Errorf("%s of %s is too long for the Build tab to edit; edit it with agentry publish", rel.Path, rel.Version)

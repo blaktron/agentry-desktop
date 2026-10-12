@@ -30,6 +30,10 @@ type editFake struct {
 	fork     map[string]any
 	versions []map[string]any
 	file     map[string]any
+	// manifest, when set, replaces editManifest; fileStatus, when set, is
+	// the file endpoint's refusal (agentry-desktop#835).
+	manifest   string
+	fileStatus int
 	// asked are the paths the fake served, for what was and was not read.
 	asked []string
 }
@@ -88,8 +92,14 @@ func newEditFake(t *testing.T) *editFake {
 		if !auth(w, r) {
 			return
 		}
+		f.mu.Lock()
+		m := f.manifest
+		f.mu.Unlock()
+		if m == "" {
+			m = editManifest
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(editManifest))
+		_, _ = w.Write([]byte(m))
 	})
 	mux.HandleFunc("GET /api/v1/agents/chris/meeting-actions/versions/{v}/file", func(w http.ResponseWriter, r *http.Request) {
 		if !auth(w, r) {
@@ -97,6 +107,10 @@ func newEditFake(t *testing.T) *editFake {
 		}
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.fileStatus != 0 {
+			hostedJSON(w, f.fileStatus, map[string]any{"title": "version is quarantined", "status": f.fileStatus})
+			return
+		}
 		hostedJSON(w, http.StatusOK, f.file)
 	})
 	srv := httptest.NewServer(mux)
