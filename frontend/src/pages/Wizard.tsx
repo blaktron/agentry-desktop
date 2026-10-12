@@ -618,7 +618,7 @@ function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => v
         </p>
         <ErrorBox error={error} />
         <ul className="wizard-cloud-list">
-          <li><strong>Knowledge packs and your Writing Voice</strong> are sealed under keys kept for your account.</li>
+          <li><strong>Knowledge packs and your Writing Voice</strong> are sealed. The keys that open your knowledge packs, your Writing Voice and your runs&apos; results are sealed by a key that never leaves our vault. Each time one is opened it is a vault call, recorded in its audit log and allowed only to the parts of Agentry that need it.</li>
           <li><strong>Secrets and connections</strong> you keep for hosted runs are held encrypted in a vault, and a run is given them only while it runs.</li>
           <li><strong>Your hosted runs</strong>: the task, your answers, the files you give a run and its receipt are encrypted with keys only the vault can unlock, and opened as you view the run and while it runs. A scheduled run&apos;s task, answers and files are kept the same way.</li>
           <li><strong>A run&apos;s results</strong> are sealed to your account&apos;s key on the machine that ran it, and decrypted as you download them.</li>
