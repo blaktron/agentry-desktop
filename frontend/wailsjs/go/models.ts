@@ -1019,6 +1019,7 @@ export namespace installed {
 	    mcpRemote?: {[key: string]: RemoteSnapshot};
 	    mcpServerOAuth?: {[key: string]: manifest.MCPOAuth};
 	    knowledge?: string[];
+	    targetHosts?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CapSnapshot(source);
@@ -1040,6 +1041,7 @@ export namespace installed {
 	        this.mcpRemote = this.convertValues(source["mcpRemote"], RemoteSnapshot, true);
 	        this.mcpServerOAuth = this.convertValues(source["mcpServerOAuth"], manifest.MCPOAuth, true);
 	        this.knowledge = source["knowledge"];
+	        this.targetHosts = source["targetHosts"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
