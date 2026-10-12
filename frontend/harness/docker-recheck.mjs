@@ -45,7 +45,7 @@ try {
   await defaults.getByText("Checking Docker…", { exact: true }).waitFor();
   await page.evaluate(() => window.finishDockerCheck());
   await defaults.getByRole("button", { name: "Check again", exact: true }).waitFor({ state: "hidden" });
-  await page.goto(`${base}/wizard.html#2-waking`);
+  await page.goto(`${base}/wizard.html#3-waking`);
   await page.getByText("docker available", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Prepare images now", exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Prepare images now", exact: true }).isEnabled(), true);

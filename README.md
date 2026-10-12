@@ -11,13 +11,18 @@ The product never claims an agent is "safe". The language is always:
 
 ## Surfaces
 
-- **First run** — a skippable wizard until the app is onboarded, in six
-  steps: Welcome, Sign in, Runtime (the model provider and the images),
-  **AI Review key** (agentry-desktop#462, D-051: the recommendation to get
-  your own TypeSafe key, with *Get a key from TypeSafe*, and the field that
-  keeps it in the keychain), Coding agent, and Done. Done lists what is set
-  up and what is not; "nothing is set up yet" goes by whether a model
-  provider was set up, and the AI Review key's row never counts toward it.
+- **First run** — a skippable wizard until the app is onboarded: Welcome,
+  Sign in, then **Local or Cloud** (agentry-desktop#842, D-081), two cards
+  with a light-line figure each. **Local** goes on through Runtime (the
+  model provider and the images), **AI Review key** (agentry-desktop#462,
+  D-051: the recommendation to get your own TypeSafe key, with *Get a key
+  from TypeSafe*, and the field that keeps it in the keychain), Coding
+  agent, and Done. **Cloud** is locked, with *Please sign in* across it,
+  until the registry is signed in; it ends on one page saying how data kept
+  in Agentry's cloud is protected, with Back and Finish. Each choice sets
+  Settings → Run defaults → Where to run. Done lists what is set up and what
+  is not; "nothing is set up yet" goes by whether a model provider was set
+  up, and the AI Review key's row never counts toward it.
 - **Home** — the page the app opens on (agentry-desktop#658, D-067): a card
   per thing that is yours, in the Build, Voice and Knowledge cards'
   language. **Recent runs** (agentry-desktop#659, D-068) lists the last
