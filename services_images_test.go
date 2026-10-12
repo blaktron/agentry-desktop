@@ -48,7 +48,7 @@ func TestRemoveAgentryImagesAsksAndRemovesOnlyAgentrys(t *testing.T) {
 	}
 	answer = true
 	rep, err := r.RemoveAgentryImages()
-	if err != nil || len(rep.Removed) != 1 || len(f.removed) != 1 || f.removed[0] != "agentry-runner:0.6.25" {
+	if err != nil || len(rep.Removed) != 1 || len(f.removed) != 1 || f.removed[0] != "sha256:1" || rep.Removed[0] != "agentry-runner:0.6.25" {
 		t.Fatalf("report %+v, removed %v, err %v", rep, f.removed, err)
 	}
 

@@ -47,10 +47,19 @@ export function sourceNeed(q: Q): string {
     : `The https address of the file for “${q.prompt}”${opt}. A file behind a sign-in needs an access token, which can be saved on this computer for its host.`;
 }
 
-/** The sentence beside the token field: which token the run uses. */
-export function tokenLine(key: SourceKey | null, typed: string, isRepository: boolean): string {
+/** The sentence beside the token field: which token the run uses. In
+ *  Agentry (agentry-desktop#833) the token is sent with the run's start,
+ *  and Agentry holds it for that run alone; a source sent none uses the key
+ *  saved in Agentry for its host, if any (agentry-enterprise#532). */
+export function tokenLine(key: SourceKey | null, typed: string, isRepository: boolean, inAgentry = false): string {
   if (!key || key.problem || !key.host) return "";
   const host = key.host;
+  if (inAgentry) {
+    const held = "Agentry holds it for this run alone and deletes it when the run ends.";
+    if (typed.trim() !== "") return `This run In Agentry is sent the token typed here: ${held}`;
+    if (key.saved) return `This run In Agentry is sent the key saved on this computer for ${host}: ${held}`;
+    return `No key is saved on this computer for ${host}. In Agentry the run uses the key saved in Agentry for ${host}, if there is one, and otherwise fetches with no token.`;
+  }
   if (typed.trim() !== "") {
     return key.saved
       ? `This run uses the token typed here, not the key saved for ${host}. It is not saved.`
@@ -63,22 +72,26 @@ export function tokenLine(key: SourceKey | null, typed: string, isRepository: bo
     : `No key is saved for ${host}. A public file needs none.`;
 }
 
-/** Where a source's token comes from, for Review and start. */
-export function tokenWords(key: SourceKey | null, typed: string): string {
-  if (typed.trim() !== "") return "with the access token typed for this run";
-  if (key?.saved && key.host) return `with the key saved for ${key.host}`;
-  return "with no access token";
+/** Where a source's token comes from, for Review and start. In Agentry
+ *  the token, typed or saved on this computer, is sent with the start
+ *  (agentry-desktop#833). */
+export function tokenWords(key: SourceKey | null, typed: string, inAgentry = false): string {
+  if (typed.trim() !== "") return inAgentry ? "with the access token typed for this run, sent to Agentry for this run alone" : "with the access token typed for this run";
+  if (key?.saved && key.host) {
+    return inAgentry ? `with the key saved on this computer for ${key.host}, sent to Agentry for this run alone` : `with the key saved for ${key.host}`;
+  }
+  return inAgentry ? "with no access token from this computer" : "with no access token";
 }
 
 /** A source answer as Review and start shows it. */
-export function sourceRecap(q: Q, answer: string, key: SourceKey | null, typed: string): string {
+export function sourceRecap(q: Q, answer: string, key: SourceKey | null, typed: string, inAgentry = false): string {
   const a = answer.trim();
   if (a === "") return "no answer";
   if (q.type === "repository") {
     const { url, ref } = splitRepository(a);
-    return `${key?.shown || url}, ${ref.trim() ? `at ${ref.trim()}` : "its default branch"}, ${tokenWords(key, typed)}`;
+    return `${key?.shown || url}, ${ref.trim() ? `at ${ref.trim()}` : "its default branch"}, ${tokenWords(key, typed, inAgentry)}`;
   }
-  return `${key?.shown || a}, ${tokenWords(key, typed)}`;
+  return `${key?.shown || a}, ${tokenWords(key, typed, inAgentry)}`;
 }
 
 /** What still holds Run for the source questions, each in a sentence. */
@@ -87,16 +100,11 @@ export function sourceBlockers(
   values: Record<string, string>,
   keys: Record<string, SourceKey | null>,
   typed: Record<string, string>,
-  at: { inAgentry: boolean; scheduling: boolean },
+  at: { inAgentry: boolean; scheduling: boolean; saveInAgentry?: boolean },
 ): string[] {
   const out: string[] = [];
   const given = qs.filter((q) => isSourceType(q.type) && (values[q.id] ?? "").trim() !== "");
   if (given.length === 0) return out;
-  if (at.inAgentry) {
-    // A hosted run refuses a source until agentry-enterprise#516.
-    out.push("A run In Agentry does not take a repository or a file address yet: run it on this computer.");
-    return out;
-  }
   for (const q of given) {
     const key = keys[q.id];
     if (!key) {
@@ -109,6 +117,15 @@ export function sourceBlockers(
     }
     if (!at.scheduling) continue;
     const host = key.host ?? "its host";
+    if (at.inAgentry) {
+      // A schedule In Agentry's fires use the key Agentry keeps for the
+      // host (agentry-enterprise#532): a token here is saved there, with
+      // leave, or the fires would fetch without it.
+      if (((typed[q.id] ?? "").trim() !== "" || key.saved) && !at.saveInAgentry) {
+        out.push(`A schedule In Agentry fetches with the key Agentry keeps for ${host}: tick \u201cSave in Agentry\u201d to keep the token there, or schedule it on this computer.`);
+      }
+      continue;
+    }
     // A schedule's fire has no setup to type into: it reads the saved key
     // (D13), so a token typed here would be lost.
     // A schedule that runs while you are signed out has the saved key
@@ -143,6 +160,23 @@ export function tokensForRun(qs: Q[], values: Record<string, string>, typed: Rec
     if (!isSourceType(q.type) || (values[q.id] ?? "").trim() === "") continue;
     const t = (typed[q.id] ?? "").trim();
     if (t !== "") out[q.id] = t;
+  }
+  return out;
+}
+
+/** The hosts a schedule In Agentry would save a key for: each answered
+ *  source's host with a token, typed or saved on this computer. */
+export function agentryKeyHosts(
+  qs: Q[],
+  values: Record<string, string>,
+  keys: Record<string, SourceKey | null>,
+  typed: Record<string, string>,
+): string[] {
+  const out: string[] = [];
+  for (const q of qs) {
+    const key = keys[q.id];
+    if (!isSourceType(q.type) || (values[q.id] ?? "").trim() === "" || !key?.host || key.problem) continue;
+    if (((typed[q.id] ?? "").trim() !== "" || key.saved) && !out.includes(key.host)) out.push(key.host);
   }
   return out;
 }

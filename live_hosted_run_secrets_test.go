@@ -69,7 +69,7 @@ func TestLiveHostedRunWithASecret(t *testing.T) {
 
 	out := t.TempDir()
 	r.app.markPicked(out)
-	start, err := r.StartHostedRun(reg, ref, "List the open issues of octocat/Hello-World and stop.", nil, out, nil, nil, false, false)
+	start, err := r.StartHostedRun(reg, ref, "List the open issues of octocat/Hello-World and stop.", nil, out, nil, nil, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestLiveHostedRunWithASecret(t *testing.T) {
 	}
 	out2 := t.TempDir()
 	r.app.markPicked(out2)
-	start, err = r.StartHostedRun(reg, ref, "List the open issues of octocat/Hello-World and stop.", nil, out2, nil, nil, false, false)
+	start, err = r.StartHostedRun(reg, ref, "List the open issues of octocat/Hello-World and stop.", nil, out2, nil, nil, false, false, nil)
 	if err != nil || start.Run == nil {
 		t.Fatalf("the second start: %+v, %v", start, err)
 	}

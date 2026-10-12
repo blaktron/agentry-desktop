@@ -272,3 +272,85 @@ func TestAPreparedRunGivesTheEngineTheSourceAndItsToken(t *testing.T) {
 		t.Fatalf("want exit %d, got %v", engine.ExitCLI, err)
 	}
 }
+
+// sourceManifest asks for a repository, a file at an address and a text
+// answer.
+func sourceManifest() *manifest.Manifest {
+	return &manifest.Manifest{Intake: []manifest.IntakeQuestion{
+		{ID: "typed", Prompt: "p", Type: manifest.IntakeRepository},
+		{ID: "saved", Prompt: "p", Type: manifest.IntakeRepository},
+		{ID: "anonymous", Prompt: "p", Type: manifest.IntakeRepository},
+		{ID: "doc", Prompt: "p", Type: manifest.IntakeURL},
+		{ID: "note", Prompt: "p", Type: manifest.IntakeText},
+	}}
+}
+
+// A run In Agentry sends each answered source its token for the create's
+// sourceTokens (agentry-desktop#833): typed for this run, else the key
+// saved on this computer for its host, else none; an unanswered source and
+// a text answer send nothing; a token typed for a question that is no
+// answered source refuses the run, and so does an address the CLI would
+// refuse.
+func TestARunInAgentrySendsEachSourceItsToken(t *testing.T) {
+	sourceKeychain(t)
+	if err := SaveSourceKey("repository", repoAnswer, testSourceToken); err != nil {
+		t.Fatal(err)
+	}
+	m := sourceManifest()
+	answers := map[string]string{
+		"typed":     "https://github.com/acme/one",
+		"saved":     "https://github.com/acme/two#v1.2.0",
+		"anonymous": "https://gitlab.example.org/acme/three",
+		"doc":       "  ",
+		"note":      "https://github.com/acme/not-a-source",
+	}
+	got, err := HostedSourceTokens(m, answers, map[string]string{"typed": " " + testTypedToken + " "}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"typed": testTypedToken, "saved": testSourceToken}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("sourceTokens %v; want %v", got, want)
+	}
+	for name, typed := range map[string]map[string]string{
+		"a token for a text question":      {"note": testTypedToken},
+		"a token for an unanswered source": {"doc": testTypedToken},
+		"a token for a question it lacks":  {"nope": testTypedToken},
+	} {
+		if _, err := HostedSourceTokens(m, answers, typed, nil); err == nil {
+			t.Errorf("%s: sent", name)
+		} else {
+			noToken(t, name, err.Error())
+		}
+	}
+	bad := map[string]string{"typed": "http://github.com/acme/one"}
+	if _, err := HostedSourceTokens(m, bad, nil, nil); err == nil || !strings.Contains(err.Error(), "typed") {
+		t.Fatalf("an address the CLI refuses: %v", err)
+	}
+}
+
+// A schedule In Agentry saves each source's token in Agentry as its
+// host's key (agentry-enterprise#532): one key a host, so two sources on
+// one host given different tokens are refused; a source with no token
+// saves nothing.
+func TestAScheduleInAgentrySavesOneKeyAHost(t *testing.T) {
+	sourceKeychain(t)
+	if err := SaveSourceKey("repository", repoAnswer, testSourceToken); err != nil {
+		t.Fatal(err)
+	}
+	m := sourceManifest()
+	answers := map[string]string{"saved": "https://github.com/acme/two", "anonymous": "https://gitlab.example.org/acme/three"}
+	keys, err := HostedScheduleKeys(m, answers, nil, nil)
+	if err != nil || fmt.Sprint(keys) != fmt.Sprint(map[string]string{"github.com": testSourceToken}) {
+		t.Fatalf("keys %v %v", keys, err)
+	}
+	two := map[string]string{"typed": "https://github.com/acme/one", "saved": "https://github.com/acme/two"}
+	if _, err := HostedScheduleKeys(m, two, map[string]string{"typed": testTypedToken}, nil); err == nil || !strings.Contains(err.Error(), "github.com") {
+		t.Fatalf("two tokens for github.com: %v", err)
+	} else {
+		noToken(t, "the refusal", err.Error())
+	}
+	if keys, err := HostedScheduleKeys(m, two, map[string]string{"typed": testSourceToken}, nil); err != nil || len(keys) != 1 {
+		t.Fatalf("the same token for both: %v %v", keys, err)
+	}
+}

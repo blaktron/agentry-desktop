@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -91,7 +93,7 @@ func (f *fakeDocker) Remove(_ context.Context, ref string) error {
 // RemoveAll removes each selected image by its own ref, never by a broad
 // prune, and reports what it could not remove without stopping at it.
 func TestRemoveAllRemovesEachAndReportsWhatStayed(t *testing.T) {
-	d := &fakeDocker{images: listed, refuse: map[string]string{"agentry-runner:0.6.25": "image is being used by running container"}}
+	d := &fakeDocker{images: listed, refuse: map[string]string{"sha256:a4": "image is being used by running container"}}
 	rep, err := RemoveAll(context.Background(), d, Policy{})
 	if err != nil {
 		t.Fatal(err)
@@ -157,9 +159,9 @@ func TestSelectTakesAPolicyRefExactly(t *testing.T) {
 // nothing a later listing would add.
 func TestRemoveTakesTheConfirmedList(t *testing.T) {
 	d := &fakeDocker{images: listed}
-	rep := Remove(context.Background(), d, []Image{{Repository: "agentry-runner", Tag: "0.6.25"}})
-	if len(rep.Removed) != 1 || len(d.removed) != 1 || d.removed[0] != "agentry-runner:0.6.25" {
-		t.Fatalf("removed %v", d.removed)
+	rep := Remove(context.Background(), d, []Image{{Repository: "agentry-runner", Tag: "0.6.25", ID: "sha256:a4"}})
+	if len(rep.Removed) != 1 || rep.Removed[0] != "agentry-runner:0.6.25" || len(d.removed) != 1 || d.removed[0] != "sha256:a4" {
+		t.Fatalf("removed %v, report %+v", d.removed, rep)
 	}
 }
 
@@ -234,5 +236,140 @@ func TestSelectTakesTheUnsafeModeImages(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("selected\n %v\nwant\n %v", got, want)
+	}
+}
+
+// Docker Desktop's containerd store names an image pulled as
+// repo:tag@digest by that whole reference, so the repository:tag the list
+// shows answers "No such image" (agentry-desktop#846). Images are removed
+// by ID, and reported by the name the list showed.
+func TestRemoveByIDOnTheContainerdStore(t *testing.T) {
+	typst := Image{Repository: "ghcr.io/blaktron/agentry-typst", Tag: "2026.10.09.2", Digest: "sha256:da55", ID: "sha256:da55"}
+	d := &fakeDocker{refuse: map[string]string{typst.Ref(): "Error response from daemon: No such image: " + typst.Ref()}}
+	rep := Remove(context.Background(), d, []Image{typst})
+	if len(rep.Failed) != 0 || !reflect.DeepEqual(rep.Removed, []string{"ghcr.io/blaktron/agentry-typst:2026.10.09.2"}) || !reflect.DeepEqual(d.removed, []string{"sha256:da55"}) {
+		t.Fatalf("removed %v, report %+v", d.removed, rep)
+	}
+}
+
+// An ID listed under several selected names is removed once, and every
+// name is reported; an ID the daemon no longer has was removed with
+// another (or by someone else) and is reported removed, not failed.
+func TestRemoveTakesEachIDOnce(t *testing.T) {
+	a := Image{Repository: "agentry-runner", Tag: "c1", ID: "sha256:c1"}
+	b := Image{Repository: "local/runner", Tag: "7", ID: "sha256:c1"}
+	absent := Image{Repository: "<none>", Tag: "<none>", ID: "sha256:c2", Labelled: true}
+	d := &fakeDocker{refuse: map[string]string{"sha256:c2": "Error response from daemon: No such image: sha256:c2"}}
+	rep := Remove(context.Background(), d, []Image{a, b, absent, {Repository: "agentry-decode", Tag: "x"}})
+	if !reflect.DeepEqual(d.removed, []string{"sha256:c1"}) || len(rep.Removed) != 3 || rep.Removed[2] != "untagged Agentry build c2 (already gone)" || len(rep.Failed) != 1 {
+		t.Fatalf("removed %v, report %+v", d.removed, rep)
+	}
+}
+
+// An ID that also carries names not in the confirmed list is refused by
+// `docker image rm <id>` without --force: its listed names are removed one
+// by one instead, the containerd store's whole repo:tag@digest where the
+// short name is unknown, and the image itself stays for its other name.
+func TestRemoveUntagsOnlyTheListedNamesOfASharedImage(t *testing.T) {
+	ours := Image{Repository: "ghcr.io/blaktron/agentry-alpine", Tag: "3.22", Digest: "sha256:5291", ID: "sha256:5291"}
+	d := &fakeDocker{refuse: map[string]string{
+		"sha256:5291":                          "Error response from daemon: conflict: unable to delete 5291 (must be forced) - image is referenced in multiple repositories",
+		"ghcr.io/blaktron/agentry-alpine:3.22": "Error response from daemon: No such image: ghcr.io/blaktron/agentry-alpine:3.22",
+	}}
+	rep := Remove(context.Background(), d, []Image{ours})
+	if !reflect.DeepEqual(d.removed, []string{"ghcr.io/blaktron/agentry-alpine:3.22@sha256:5291"}) || len(rep.Removed) != 1 || len(rep.Failed) != 0 {
+		t.Fatalf("removed %v, report %+v", d.removed, rep)
+	}
+}
+
+// Every image carrying the runner's build label is Agentry's, an untagged
+// one included (a build a newer one replaced, a stage the classic builder
+// left: agentry-cli#892); an untagged image without it is not. Builds the
+// runner made before the label are found by their repositories.
+func TestSelectTakesLabelledAndLegacyBuilds(t *testing.T) {
+	imgs := []Image{
+		{Repository: "<none>", Tag: "<none>", ID: "sha256:9a00112233445566", Labelled: true},
+		{Repository: "<none>", Tag: "<none>", ID: "sha256:9b"},
+		{Repository: "agentry-decode", Tag: "ab994f89e54d6afc", ID: "sha256:9c"},
+		{Repository: "agentry-hostlink-local", Tag: "9aa7edc824bdd4c3", ID: "sha256:9d"},
+		{Repository: "agentry-claude-code", Tag: "2.1.296", ID: "sha256:9e"},
+		{Repository: "agentry-copilot", Tag: "1.0.95", ID: "sha256:9f"},
+		{Repository: "agentry-decode-extra", Tag: "1", ID: "sha256:90"},
+		{Repository: "local/renamed", Tag: "1", ID: "sha256:91", Labelled: true},
+	}
+	got := refs(Select(imgs, Policy{}))
+	want := []string{"untagged Agentry build 9a0011223344", "agentry-decode:ab994f89e54d6afc", "agentry-hostlink-local:9aa7edc824bdd4c3", "agentry-claude-code:2.1.296", "agentry-copilot:1.0.95", "local/renamed:1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("selected\n %v\nwant\n %v", got, want)
+	}
+}
+
+// The real listing: the plain list marked by the label filter, and the
+// untagged labelled images only the dangling filter shows (measured on the
+// classic and the containerd store, agentry-desktop#846).
+func TestCLIListMarksAndAddsLabelledImages(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a shell-script docker")
+	}
+	dir := t.TempDir()
+	script := `#!/bin/sh
+case "$*" in
+  *"--filter dangling=true --filter label=org.agentry.image --format"*) printf '<none>\t<none>\t<none>\tsha256:d1\t377MB\n' ;;
+  *"-q --no-trunc --filter label=org.agentry.image"*) printf 'sha256:r1\n' ;;
+  "image ls --digests --no-trunc --format {{.Repository}}"*) printf 'agentry-runner\tc1\t<none>\tsha256:r1\t202MB\npostgres\t16\tsha256:p\tsha256:p1\t400MB\n' ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+`
+	bin := filepath.Join(dir, "docker")
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, err := (&CLI{Bin: bin}).List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || !got[0].Labelled || got[1].Labelled || got[2].ID != "sha256:d1" || !got[2].Labelled {
+		t.Fatalf("listed %+v", got)
+	}
+}
+
+// The files, host link and harness images a policy repoints are its refs
+// too (agentry-desktop#846): before, only the gateway, harness, builder,
+// runtimes and Unsafe Mode base were.
+func TestReadPolicyReadsTheFilesHostLinkAndHarnessPins(t *testing.T) {
+	home := t.TempDir()
+	pol := policy.Default()
+	files := "registry.example.test/files:1@sha256:" + strings.Repeat("a", 64)
+	hostlink := "registry.example.test/hostlink:1@sha256:" + strings.Repeat("b", 64)
+	pol.Images.Files, pol.Images.Hostlink = files, hostlink
+	pol.Images.HarnessImages = map[string]policy.HarnessImage{"codex-image": {Ref: "registry.example.test/codex:1@sha256:" + strings.Repeat("c", 64)}}
+	if err := policy.Save(policy.PathIn(home), pol); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(ReadPolicy(home).Refs, " ")
+	for _, want := range []string{files, hostlink, "registry.example.test/codex:1@sha256:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("refs %q lack %q", got, want)
+		}
+	}
+}
+
+// A name the person tagged one of Agentry's images with is theirs: the
+// label alone does not select it, so the image is untagged of Agentry's
+// name and kept for theirs. A refusal over a container that uses the
+// image is reported, never taken for several names.
+func TestALabelledImageKeepsANameThePersonGaveIt(t *testing.T) {
+	imgs := []Image{
+		{Repository: "agentry-runner", Tag: "c1", ID: "sha256:e1", Labelled: true},
+		{Repository: "mine", Tag: "1", ID: "sha256:e1", Labelled: true},
+		{Repository: "local/renamed", Tag: "1", ID: "sha256:e2", Labelled: true},
+	}
+	if got, want := refs(Select(imgs, Policy{})), []string{"agentry-runner:c1", "local/renamed:1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("selected %v, want %v", got, want)
+	}
+	d := &fakeDocker{refuse: map[string]string{"sha256:e2": "Error response from daemon: conflict: unable to delete e2 (must be forced) - image is being used by stopped container 0f"}}
+	rep := Remove(context.Background(), d, []Image{imgs[2]})
+	if len(d.removed) != 0 || len(rep.Failed) != 1 {
+		t.Fatalf("removed %v, report %+v", d.removed, rep)
 	}
 }

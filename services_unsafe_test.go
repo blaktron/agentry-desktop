@@ -499,7 +499,7 @@ func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
 
 	outDir := t.TempDir()
 	r.app.markPicked(outDir)
-	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", nil, outDir, nil, nil, false, false)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", nil, outDir, nil, nil, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,12 +7,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
+	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 )
 
@@ -438,5 +442,91 @@ func TestHostedSchedulesSignedOut(t *testing.T) {
 	}
 	if o, err := s.HostedOffer("https://elsewhere.example"); o != nil || err != nil {
 		t.Fatalf("an offer signed out: %+v, %v", o, err)
+	}
+}
+
+// A schedule In Agentry given a source with a token (typed, or the key
+// saved on this computer for its host) saves it in Agentry as the host's
+// key before the schedule is made, with the person's leave, since its
+// fires use the key Agentry keeps (agentry-enterprise#532); without the
+// leave it is held, nothing sent. A public source with no token is
+// scheduled as given, and no key is saved (agentry-desktop#833).
+func TestHostedAddSavesASourcesKeyInAgentryWithLeave(t *testing.T) {
+	isolateHostedKeychain(t)
+	sr := &scheduleRoutes{}
+	s, reg, f := hostedScheduleAPI(t, sr, func(f *hostedFake) {
+		f.intake = "intake:\n  - id: codebase\n    prompt: \"The repository\"\n    type: repository\n"
+	})
+	const saved = "ghp-saved-for-the-schedule-4d2b"
+	if err := run.SaveSourceKey("repository", "https://github.com/acme/app", saved); err != nil {
+		t.Fatal(err)
+	}
+	req := HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"codebase": "https://github.com/acme/app"},
+		When: schedules.When{Kind: "daily", Time: "07:00", Zone: "UTC"}}
+
+	_, err := s.HostedAdd(req)
+	if err == nil || !strings.Contains(err.Error(), "github.com") || strings.Contains(err.Error(), saved) {
+		t.Fatalf("without leave: %v", err)
+	}
+	f.mu.Lock()
+	sets := len(f.vaultSets)
+	f.mu.Unlock()
+	if sets != 0 || len(sr.calls()) != 0 {
+		t.Fatalf("without leave, %d keys saved and calls %v", sets, sr.calls())
+	}
+
+	req.SaveSourceKeys = true
+	made, err := s.HostedAdd(req)
+	if err != nil || made.ID != hostedScheduleID {
+		t.Fatalf("with leave: %+v %v", made, err)
+	}
+	f.mu.Lock()
+	got := slices.Clone(f.vaultSets)
+	f.mu.Unlock()
+	if len(got) != 1 || got[0].Name != "source-key:github.com" || !strings.Contains(got[0].Body, saved) {
+		t.Fatalf("keys saved: %+v", got)
+	}
+	for _, c := range sr.calls() {
+		if strings.Contains(c, saved) {
+			t.Fatalf("the schedule's create carries the key: %s", c)
+		}
+	}
+
+	// A public source with no token: scheduled, no key saved.
+	keyring.MockInit()
+	pub := HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"codebase": "https://gitlab.com/acme/public"},
+		When: schedules.When{Kind: "daily", Time: "07:00", Zone: "UTC"}}
+	if made, err := s.HostedAdd(pub); err != nil || made.ID != hostedScheduleID {
+		t.Fatalf("a public source: %+v %v", made, err)
+	}
+	f.mu.Lock()
+	sets = len(f.vaultSets)
+	f.mu.Unlock()
+	if sets != 1 {
+		t.Fatalf("a public source saved a key: %d", sets)
+	}
+}
+
+// A key the vault refuses once the schedule is made (a key saved from the
+// site, which a token may not replace: 409 secret-kept) takes the schedule
+// back, so it never fires without the key it was given, and the refusal
+// is the When step's to show.
+func TestHostedAddTakesTheScheduleBackWhenItsKeyIsNotSaved(t *testing.T) {
+	isolateHostedKeychain(t)
+	sr := &scheduleRoutes{}
+	s, reg, _ := hostedScheduleAPI(t, sr, func(f *hostedFake) {
+		f.intake = "intake:\n  - id: codebase\n    prompt: \"The repository\"\n    type: repository\n"
+		f.vaultAnswer = func(w http.ResponseWriter, _ []byte) {
+			hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/secret-kept", "title": "The key is kept", "detail": "Change it on the Secrets page."})
+		}
+	})
+	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"codebase": "https://github.com/acme/app"},
+		SourceTokens: map[string]string{"codebase": "ghp-typed-for-the-schedule"}, SaveSourceKeys: true, When: schedules.When{Kind: "daily", Time: "07:00", Zone: "UTC"}})
+	if err != nil || made.ID != "" || made.Refusal != "secret-kept" {
+		t.Fatalf("HostedAdd = %+v, %v", made, err)
+	}
+	calls := sr.calls()
+	if len(calls) != 2 || !strings.HasPrefix(calls[0], "POST /api/v1/x/schedules/") || calls[1] != "DELETE /api/v1/x/schedules/"+hostedScheduleID {
+		t.Fatalf("calls %v", calls)
 	}
 }
