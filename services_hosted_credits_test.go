@@ -101,7 +101,7 @@ func TestARunInAgentryReachesThePageInCreditsOnly(t *testing.T) {
 
 			outDir := t.TempDir()
 			r.app.markPicked(outDir)
-			start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false)
+			start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, outDir, nil, nil, false, false, nil)
 			if err != nil || start.Run == nil {
 				t.Fatalf("start = %+v, %v", start, err)
 			}

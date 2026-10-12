@@ -2923,6 +2923,8 @@ export namespace main {
 	    voice: boolean;
 	    when: schedules.When;
 	    askOptionalSecrets?: boolean;
+	    sourceTokens?: {[key: string]: string};
+	    saveSourceKeys?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedScheduleRequest(source);
@@ -2940,6 +2942,8 @@ export namespace main {
 	        this.voice = source["voice"];
 	        this.when = this.convertValues(source["when"], schedules.When);
 	        this.askOptionalSecrets = source["askOptionalSecrets"];
+	        this.sourceTokens = source["sourceTokens"];
+	        this.saveSourceKeys = source["saveSourceKeys"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -362,10 +362,17 @@ type CreateRequest struct {
 	// release's optional secrets too (agentry-enterprise#517): the token
 	// cannot list the account's secrets (DEV-165), so this is how a start
 	// learns which optional keys to ask for (agentry-desktop#795).
-	AskOptionalSecrets bool   `json:"ask_optional_secrets,omitempty"`
-	Op                 string `json:"op,omitempty"`
-	Brief              string `json:"brief,omitempty"`
-	Note               string `json:"note,omitempty"`
+	AskOptionalSecrets bool `json:"ask_optional_secrets,omitempty"`
+	// SourceTokens are a run's access tokens for its input sources, by
+	// the id of the repository or url question its Intake answers
+	// (agentry-enterprise#516, agentry-desktop#833): the registry holds
+	// each in the vault for this run alone and hands it to that source's
+	// fetch on the sandbox host. Never in Intake, never logged, and
+	// scrubbed from any refusal the create answers.
+	SourceTokens map[string]string `json:"sourceTokens,omitempty"`
+	Op           string            `json:"op,omitempty"`
+	Brief        string            `json:"brief,omitempty"`
+	Note         string            `json:"note,omitempty"`
 	// Web is a knowledge build's Search the web choice
 	// (agentry-enterprise#296); nil leaves it to the registry's default, on
 	// for a new pack with no documents and off otherwise. A knowledge
@@ -489,6 +496,17 @@ func (c *Client) Create(ctx context.Context, cr CreateRequest) (*Run, error) {
 	}
 	var run Run
 	if err := c.do("start the run", req, http.StatusCreated, &run); err != nil {
+		// A registry that echoed the body must not put a token in what
+		// the app shows (D-024's rule for a value sent once).
+		if r := RefusalOf(err); r != nil {
+			for _, tok := range cr.SourceTokens {
+				r = scrubRefusal(r, tok)
+			}
+			return nil, r
+		}
+		for _, tok := range cr.SourceTokens {
+			err = scrub(err, tok)
+		}
 		return nil, err
 	}
 	return &run, nil

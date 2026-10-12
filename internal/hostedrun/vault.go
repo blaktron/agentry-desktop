@@ -79,6 +79,43 @@ func (c *Client) DeleteSecret(ctx context.Context, name string) error {
 	return c.do("delete "+name, req, http.StatusNoContent, nil)
 }
 
+// sourceHost is a host a key may be saved for, as the vault holds it:
+// lower-case LDH labels (agentry-enterprise#532).
+var sourceHost = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
+
+// SetSourceKey saves value in the account's vault as the key for an input
+// source's host (agentry-enterprise#532): kept, used by a hosted run of the
+// account's for a source on that host it gives no token for, and by a
+// hosted schedule's fires. The host is the one the CLI's parse of a
+// source's answer reads, never one the page names. A key the account saved
+// from a signed-in session is refused (409 secret-kept): a token may not
+// replace it (DEV-165).
+func (c *Client) SetSourceKey(ctx context.Context, host, value string) error {
+	if !sourceHost.MatchString(host) {
+		return fmt.Errorf("no key can be saved in Agentry for the host %q", host)
+	}
+	body, err := json.Marshal(struct {
+		Value string `json:"value"`
+	}{value})
+	if err != nil {
+		return err
+	}
+	req, err := c.request(ctx, http.MethodPut, c.base+"/api/v1/x/vault/me/source-keys/"+url.PathEscape(host), bytes.NewReader(body), "application/json")
+	if err != nil {
+		return err
+	}
+	res, err := c.HTTP.Do(req)
+	if err != nil {
+		return fmt.Errorf("save the key for %s: %w", host, scrub(err, value))
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode == http.StatusOK || res.StatusCode == http.StatusCreated {
+		return nil
+	}
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	return scrubRefusal(refusalFrom("save the key for "+host, res.StatusCode, raw), value)
+}
+
 // scrubRefusal removes value from every field a refusal shows.
 func scrubRefusal(r *Refusal, value string) *Refusal {
 	if value == "" {

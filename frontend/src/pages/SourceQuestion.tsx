@@ -13,7 +13,7 @@ import { Button } from "../ui";
 import { joinRepository, splitRepository, tokenLine, type SourceKey } from "../sources";
 
 export function SourceQuestion({
-  q, value, onChange, sourceKey, onKey, typed, onTyped, disabled, onError,
+  q, value, onChange, sourceKey, onKey, typed, onTyped, disabled, onError, inAgentry = false,
 }: {
   q: { id: string; prompt: string; type: string; required: boolean };
   value: string;
@@ -26,6 +26,9 @@ export function SourceQuestion({
   onTyped: (token: string) => void;
   disabled: boolean;
   onError: (e: string) => void;
+  /** The run goes In Agentry: its token is sent with the start
+   *  (agentry-desktop#833). */
+  inAgentry?: boolean;
 }) {
   const repository = q.type === "repository";
   const { url, ref } = repository ? splitRepository(value) : { url: value, ref: "" };
@@ -118,8 +121,10 @@ export function SourceQuestion({
             </div>
           )}
           <p className="muted small" style={{ margin: "0 0 4px" }}>
-            {tokenLine(sourceKey, typed, repository)}{" "}
-            The token is handed to the step that fetches the address before the run, on its standard input, and is not given to the agent or its tools.
+            {tokenLine(sourceKey, typed, repository, inAgentry)}{" "}
+            {inAgentry
+              ? "On the sandbox host the token is handed to the step that fetches the address before the run, and is not given to the agent or its tools."
+              : "The token is handed to the step that fetches the address before the run, on its standard input, and is not given to the agent or its tools."}
           </p>
           {sourceKey?.saved && (
             <div className="row" style={{ gap: 8 }}>
