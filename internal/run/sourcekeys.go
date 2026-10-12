@@ -150,25 +150,81 @@ func giveSourceTokens(a *intake.Answers, given map[string]string, warn func(stri
 	return nil
 }
 
-// AnsweredSource names the first input-source question of m that answers
-// gives an address, "" when none does. A run In Agentry is held for one
-// (agentry-enterprise#516): the CLI on the run host refuses a source until
-// hosted sources are built, so the desktop says so before anything is
-// uploaded or any credit is held.
-func AnsweredSource(m *manifest.Manifest, answers map[string]string) string {
+// HostedSourceTokens are what a run In Agentry sends as its create's
+// sourceTokens (agentry-enterprise#516, agentry-desktop#833): for each
+// input-source question of m the answers give an address to, the token
+// typed for this run, else the key saved on this computer for the host the
+// CLI's own parse reads from the answer, else none, and the fetch on the
+// sandbox host is anonymous (or uses the key the account saved in Agentry
+// for that host, agentry-enterprise#532). The registry holds each token in
+// the account's vault for that run alone. A token typed for an id that is
+// no answered source refuses the run, as giveSourceTokens does, and an
+// answer the CLI would refuse is said here rather than at the host. A
+// keychain that cannot be read is said through warn.
+func HostedSourceTokens(m *manifest.Manifest, answers, typed map[string]string, warn func(string)) (map[string]string, error) {
+	out := map[string]string{}
 	if m == nil {
-		return ""
+		return out, nil
 	}
+	answered := map[string]bool{}
 	for _, q := range m.Intake {
-		if q.Type.IsSource() && strings.TrimSpace(answers[q.ID]) != "" {
-			return q.ID
+		answer := strings.TrimSpace(answers[q.ID])
+		if !q.Type.IsSource() || answer == "" {
+			continue
+		}
+		answered[q.ID] = true
+		s, err := parseSource(string(q.Type), answer)
+		if err != nil {
+			return nil, fmt.Errorf("the input source %s: %w", q.ID, err)
+		}
+		if tok := strings.TrimSpace(typed[q.ID]); tok != "" {
+			out[q.ID] = tok
+			continue
+		}
+		saved, err := sources.SavedToken(s.Host)
+		if err != nil && warn != nil {
+			warn(err.Error())
+		}
+		if saved != "" {
+			out[q.ID] = saved
 		}
 	}
-	return ""
+	for id, tok := range typed {
+		if strings.TrimSpace(tok) != "" && !answered[id] {
+			return nil, fmt.Errorf("an access token was given for %q, which is not one of this run's input sources", id)
+		}
+	}
+	return out, nil
 }
 
-// ErrSourceInAgentry is why a run or a schedule In Agentry given an input
-// source is held.
-func ErrSourceInAgentry(id string) error {
-	return fmt.Errorf("a run In Agentry does not take a repository or a file address yet (agentry-enterprise#516), and %q was given one: run it on this computer", id)
+// HostedScheduleKeys are the keys a schedule In Agentry saves in the
+// account's vault for its fires (agentry-enterprise#532), by host: for
+// each answered source with a token (typed for this schedule, else the key
+// saved on this computer for its host), that token. A schedule's fire has
+// no setup to send a one-run token from, so it uses the key saved in
+// Agentry for each source's host; one with no token here is fetched with
+// the key Agentry already keeps for the host, if any, else anonymously.
+// Two sources on one host given different tokens are refused: a host keeps
+// one key.
+func HostedScheduleKeys(m *manifest.Manifest, answers, typed map[string]string, warn func(string)) (map[string]string, error) {
+	tokens, err := HostedSourceTokens(m, answers, typed, warn)
+	if err != nil {
+		return nil, err
+	}
+	keys := map[string]string{}
+	for _, q := range m.Intake {
+		tok, ok := tokens[q.ID]
+		if !ok {
+			continue
+		}
+		s, err := parseSource(string(q.Type), strings.TrimSpace(answers[q.ID]))
+		if err != nil {
+			return nil, err
+		}
+		if prev, ok := keys[s.Host]; ok && prev != tok {
+			return nil, fmt.Errorf("two input sources on %s were given different tokens; Agentry keeps one key for a host", s.Host)
+		}
+		keys[s.Host] = tok
+	}
+	return keys, nil
 }

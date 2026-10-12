@@ -367,6 +367,14 @@ type HostedScheduleRequest struct {
 	// asks for it (agentry-desktop#795); a schedule made again after the
 	// ask leaves it false.
 	AskOptionalSecrets bool `json:"askOptionalSecrets,omitempty"`
+	// SourceTokens are tokens typed in the setup for the release's input
+	// sources, by question id; SaveSourceKeys is the person's leave to save
+	// each source's token (typed, else the key saved on this computer for
+	// its host) in Agentry as the key for that host, which a schedule's
+	// fires use (agentry-enterprise#532, agentry-desktop#833). A token
+	// crosses the app's IPC inward only.
+	SourceTokens   map[string]string `json:"sourceTokens,omitempty"`
+	SaveSourceKeys bool              `json:"saveSourceKeys,omitempty"`
 }
 
 // HostedScheduleMadeView is a schedule just made In Agentry, or the gap
@@ -414,9 +422,29 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		if sig.Unscanned() {
 			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55), so it is not scheduled there either", req.Ref)
 		}
-		if id := run.AnsweredSource(sig.Manifest, req.Intake); id != "" {
-			return nil, run.ErrSourceInAgentry(id)
+		// A schedule's fire has no setup to send a one-run token from: it
+		// uses the key Agentry keeps for each source's host
+		// (agentry-enterprise#532). A source given a token here has it
+		// saved there, with the person's leave, before the schedule is
+		// made; without the leave, the schedule is held, since its fires
+		// would fetch without the token the person meant them to use.
+		keys, err := run.HostedScheduleKeys(sig.Manifest, req.Intake, req.SourceTokens, nil)
+		if err != nil {
+			return nil, err
 		}
+		if len(keys) > 0 && !req.SaveSourceKeys {
+			return nil, fmt.Errorf("a schedule In Agentry fetches its input sources with the keys Agentry keeps for their hosts: tick \u201cSave in Agentry\u201d to keep this token there for %s, or schedule it on this computer", strings.Join(sortedKeys(keys), ", "))
+		}
+		for _, host := range sortedKeys(keys) {
+			if err := c.SetSourceKey(ctx, host, keys[host]); err != nil {
+				if r := hostedrun.RefusalOf(err); r != nil {
+					return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence()}, nil
+				}
+				return nil, err
+			}
+		}
+	} else if len(req.SourceTokens) > 0 {
+		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not saved: %w", req.Ref, err)
 	}
 	var packs []string
 	if s.run != nil {
@@ -566,4 +594,14 @@ func (s *ScheduleAPI) HostedRunNow(reg, id string) (*HostedRunNowView, error) {
 	}
 	emitEvent(s.app, eventSchedulesChanged)
 	return &HostedRunNowView{RunID: runID}, nil
+}
+
+// sortedKeys are m's keys, sorted.
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

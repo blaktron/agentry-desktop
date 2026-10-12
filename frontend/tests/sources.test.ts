@@ -6,7 +6,7 @@
 // with that run alone.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSourceType, joinRepository, sourceBlockers, sourceNeed, sourceRecap, splitRepository, tokenLine, tokensForRun, typedTokens, type SourceKey } from "../src/sources.ts";
+import { agentryKeyHosts, isSourceType, joinRepository, sourceBlockers, sourceNeed, sourceRecap, splitRepository, tokenLine, tokensForRun, typedTokens, type SourceKey } from "../src/sources.ts";
 import { needList } from "../src/runSetup.ts";
 
 const repo = { id: "codebase", prompt: "The repository to audit", type: "repository", required: true };
@@ -71,11 +71,30 @@ test("an unanswered source holds nothing here; an unchecked or refused address h
   assert.deepEqual(sourceBlockers([repo], { codebase: "https://github.com/acme/app" }, { codebase: ok("github.com") }, { codebase: "tok" }, here), []);
 });
 
-test("a run In Agentry does not take a source yet", () => {
-  const b = sourceBlockers([repo], { codebase: "https://github.com/acme/app" }, { codebase: ok("github.com") }, {}, { ...here, inAgentry: true });
-  assert.deepEqual(b, ["A run In Agentry does not take a repository or a file address yet: run it on this computer."]);
-  // An optional source left empty does not hold a run In Agentry.
-  assert.deepEqual(sourceBlockers([file], {}, {}, {}, { ...here, inAgentry: true }), []);
+test("a run In Agentry takes a source, its token sent with the start (agentry-desktop#833)", () => {
+  const v = { codebase: "https://github.com/acme/app" };
+  const there = { ...here, inAgentry: true };
+  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, {}, there), []);
+  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com", true) }, { codebase: "tok" }, there), []);
+  // An address the CLI refuses still holds it.
+  assert.deepEqual(
+    sourceBlockers([repo], { codebase: "http://github.com/acme/app" }, { codebase: { problem: "must be https", saved: false, keychainOff: false } }, {}, there),
+    ["Fix the address for “The repository to audit”: must be https."],
+  );
+  assert.match(tokenLine(ok("github.com"), "tok", true, true), /sent the token typed here: Agentry holds it for this run alone/);
+  assert.match(tokenLine(ok("github.com", true), "", true, true), /sent the key saved on this computer for github.com/);
+  assert.match(tokenLine(ok("github.com"), "", true, true), /uses the key saved in Agentry for github.com, if there is one/);
+});
+
+test("a schedule In Agentry saves a source's token there, with leave (agentry-enterprise#532)", () => {
+  const sched = { ...here, inAgentry: true, scheduling: true };
+  const v = { codebase: "https://github.com/acme/app" };
+  const hold = ["A schedule In Agentry fetches with the key Agentry keeps for github.com: tick \u201cSave in Agentry\u201d to keep the token there, or schedule it on this computer."];
+  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, { codebase: "tok" }, sched), hold);
+  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com", true) }, {}, sched), hold);
+  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com", true) }, {}, { ...sched, saveInAgentry: true }), []);
+  assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, {}, sched), [], "a public repository, or one Agentry already keeps a key for");
+  assert.deepEqual(agentryKeyHosts([repo, file], { ...v, report: "https://files.example.com/r.pdf" }, { codebase: ok("github.com", true), report: ok("files.example.com") }, {}), ["github.com"]);
 });
 
 test("a schedule reads the saved key: a typed token must be saved, signed out or not", () => {

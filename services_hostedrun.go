@@ -393,8 +393,14 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // agentry-enterprise#517), so the panel asks for it as for a required one;
 // the start the ask makes again leaves it false, so an optional key left
 // empty is gone without.
-func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice, askOptional bool) (*HostedStartView, error) {
-	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice, askOptional)
+//
+// sourceTokens are tokens typed in the setup for the release's input
+// sources, by question id (agentry-desktop#833): each answered source is
+// sent its typed token, else the key saved on this computer for its host,
+// in the create's sourceTokens, which the registry holds for this run
+// alone (HostedSourceTokens).
+func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice, askOptional bool, sourceTokens map[string]string) (*HostedStartView, error) {
+	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice, askOptional, sourceTokens)
 }
 
 // startHosted is StartHostedRun and StartHostedSession: the same gates, the
@@ -404,7 +410,7 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 // writeInVoice asks the run to write in the account's live Writing Voice
 // (plan writing-voice.md §5, D5): the registry checks there is one, and at
 // the hand-off gives the run the live version as it stands then.
-func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice, askOptional bool) (view *HostedStartView, err error) {
+func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice, askOptional bool, typedTokens map[string]string) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	// runMayExist: the registry created the run, or a create's answer never
@@ -448,15 +454,18 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	// it yet (agentry-enterprise#55), and a run nobody consented to would
 	// carry a receipt that says nothing of it. The page withholds the
 	// mode; this is the same rule in Go, for any caller of the binding.
+	var sourceTokens map[string]string
 	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil {
 		if sig.Unscanned() {
 			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
 		}
-		// The page holds this too; the same rule in Go, for any caller
-		// of the binding (agentry-desktop#794).
-		if id := run.AnsweredSource(sig.Manifest, intakeAnswers); id != "" {
-			return nil, run.ErrSourceInAgentry(id)
+		// Each input source's token: typed for this run, else the key
+		// saved on this computer for its host (agentry-desktop#833).
+		if sourceTokens, err = run.HostedSourceTokens(sig.Manifest, intakeAnswers, typedTokens, nil); err != nil {
+			return nil, err
 		}
+	} else if len(typedTokens) > 0 {
+		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not sent: %w", ref, err)
 	}
 	attach, err := r.packsInAgentry(reg, packs)
 	if err != nil {
@@ -474,7 +483,7 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		}
 		return nil, err
 	}
-	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice, AskOptionalSecrets: askOptional}
+	req := hostedrun.CreateRequest{Ref: ref, Task: task, Intake: intakeAnswers, Inputs: ids, Knowledge: attach, Mode: mode, Voice: writeInVoice, AskOptionalSecrets: askOptional, SourceTokens: sourceTokens}
 	created, err := client.Create(ctx, req)
 	if err != nil {
 		if refusal := hostedrun.RefusalOf(err); refusal != nil {

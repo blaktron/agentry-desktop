@@ -36,7 +36,7 @@ import { ServerSignIns, asConns } from "./ConnectTools";
 import { connectionBlockers, signInRecap } from "../connections";
 import { WhenStep, type Availability, type CheckState } from "./WhenStep";
 import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
-import { isSourceType, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
+import { agentryKeyHosts, isSourceType, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
 import { SourceQuestion } from "./SourceQuestion";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
@@ -94,6 +94,9 @@ export default function RunPanel({
   // another host leaves it behind (typedTokens), so a token typed for one
   // host never goes to another.
   const [sourceTokens, setSourceTokens] = useState<Record<string, TypedToken>>({});
+  // Leave to save a source's token in Agentry for a schedule's fires there
+  // (agentry-enterprise#532, agentry-desktop#833).
+  const [saveInAgentry, setSaveInAgentry] = useState(false);
   // Go's word on each source answer (RunAPI.SourceKeyStatus): the CLI's
   // parse of the address, and whether a key is saved for its host. Kept
   // with the answer it judged, so a changed answer reads as unchecked.
@@ -436,8 +439,9 @@ export default function RunPanel({
       blockers.push(`${q.type === "file" ? "Choose" : "Answer"}: ${q.prompt}`);
     }
   }
+  const agentryHosts = agentryKeyHosts(sourceQs, intakeValues, sourceKeys, typed);
   blockers.push(...sourceBlockers(sourceQs, intakeValues, sourceKeys, typed, {
-    inAgentry, scheduling,
+    inAgentry, scheduling, saveInAgentry,
   }));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
@@ -719,6 +723,7 @@ export default function RunPanel({
       const made = await ScheduleAPI.HostedAdd(main.HostedScheduleRequest.createFrom({
         registry, ref: agentRef, task: task.trim(), files: inputs, knowledge: attached, intake: intakeAnswers(), voice: writeInVoice, when: spec,
         askOptionalSecrets: askOptional,
+        sourceTokens: tokensForRun(sourceQs, intakeValues, typed), saveSourceKeys: saveInAgentry,
       }));
       if (made.refusal) {
         setScheduleGap(made);
@@ -770,8 +775,8 @@ export default function RunPanel({
     setHostedRefusal(null);
     try {
       const call = sessionInAgentry
-        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional)
-        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional);
+        ? () => RunAPI.StartHostedSession(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed))
+        : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed));
       const started = await startedInAgentry(call);
       // A server Agentry keeps no connection to for this version: Connect
       // tools opens in the browser now, at Start (plan D5), and the start
@@ -1369,6 +1374,7 @@ export default function RunPanel({
                         onTyped={(t) => setSourceTokens((s) => ({ ...s, [q.id]: { host: sourceKeys[q.id]?.host ?? "", token: t } }))}
                         disabled={running}
                         onError={setRunErr}
+                        inAgentry={inAgentry}
                       />
                     ) : (
                       <div className="row" key={q.id} style={{ marginBottom: 8 }}>
@@ -1418,6 +1424,15 @@ export default function RunPanel({
                         )}
                       </div>
                     ))}
+                    {schedulingThere && agentryHosts.length > 0 && (
+                      <label className="check-row small">
+                        <input type="checkbox" checked={saveInAgentry} onChange={(e) => setSaveInAgentry(e.target.checked)} disabled={running} />
+                        <span>
+                          Save in Agentry: keep the token for {agentryHosts.join(", ")} in your Agentry vault, where this schedule&rsquo;s runs read it each time
+                          they fetch. It replaces a key you saved there for that host before, and you can delete it on the site&rsquo;s Secrets page.
+                        </span>
+                      </label>
+                    )}
                     {intakeMissing.length > 0 && <p className="muted small">Required: {intakeMissing.join(", ")}</p>}
                   </Card>
                 </>
