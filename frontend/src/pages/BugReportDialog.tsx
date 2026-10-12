@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { Button, ErrorBox, Modal, Notice, Textarea } from "../ui";
-import { BUG_REPORT_MAX, bugReportOutcome, bugTextProblem } from "../bugReport";
+import { bugReportOutcome, bugTextProblem } from "../bugReport";
 
 // Report bug (plan report-bug.md §6, D1, D2, D6; agentry-desktop#841): the
 // card the sidebar's link above the version opens. Signed out, it says so
@@ -21,12 +21,16 @@ export default function BugReportDialog({ registry, signedIn, onClose, onSignIn 
   const [error, setError] = useState<string | null>(null);
   const filed = outcome?.tone === "ok";
 
-  // Filed: the thanks stays a moment, then the card closes itself.
+  // Filed: the thanks stays a moment, then the card closes itself. The
+  // latest onClose is read through a ref, so a re-render of the app does
+  // not restart the wait.
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     if (!filed) return;
-    const t = setTimeout(onClose, 2500);
+    const t = setTimeout(() => close.current(), 2500);
     return () => clearTimeout(t);
-  }, [filed, onClose]);
+  }, [filed]);
 
   async function submit() {
     setBusy(true);
@@ -62,7 +66,6 @@ export default function BugReportDialog({ registry, signedIn, onClose, onSignIn 
           <Textarea
             aria-label="What went wrong"
             rows={8}
-            maxLength={BUG_REPORT_MAX}
             value={text}
             onChange={(e) => setText(e.target.value)}
             autoFocus

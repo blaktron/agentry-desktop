@@ -45,10 +45,15 @@ type BugReportResult struct {
 // ReportBug files text as a bug report from this app with the registry at
 // url, the active one, with its stored credential. An error is only an
 // address Settings' rule refuses; every answer of the registry is a result.
+// The address is held to storedCredential's rule (D-030) before the token
+// is looked up; a missing token is a result here, not an error, so the
+// card can offer Sign in.
 func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 	url = settings.Normalize(url)
-	if err := settings.ValidateURL(url); err != nil {
-		return nil, err
+	if settings.ValidateURL(url) != nil {
+		// Named by origin only: the address may carry a credential someone
+		// typed into it (agentry-desktop#541).
+		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
 	body := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"))
 	if n := utf8.RuneCountInString(body); n < bugReportMin || n > bugReportMax {
@@ -73,13 +78,24 @@ func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	res, err := registry.HTTPClient.Do(req)
+	res, err := noRedirects(registry.HTTPClient).Do(req)
 	if err != nil {
 		return &BugReportResult{Reason: "unreachable"}, nil
 	}
 	defer func() { _ = res.Body.Close() }()
 	answer, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
 	return bugReportOutcome(res.StatusCode, answer), nil
+}
+
+// noRedirects is client with redirects answered, not followed: the bearer
+// token is set by hand, and Go keeps it on a redirect within the same
+// domain whatever the scheme, so a redirect to http:// would carry it in
+// clear (the CLI refuses redirects on its token path the same way, DR-71).
+// A redirect is then an answer the card reads as the registry refusing.
+func noRedirects(c *http.Client) *http.Client {
+	cp := *c
+	cp.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &cp
 }
 
 // bugReportOutcome reads the registry's answer to a filing. A 403 is a
@@ -89,7 +105,7 @@ func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 func bugReportOutcome(status int, answer []byte) *BugReportResult {
 	slug, detail := registry.ProblemSlug(nil, answer)
 	switch {
-	case status == http.StatusCreated || status == http.StatusOK:
+	case status == http.StatusCreated:
 		return &BugReportResult{Filed: true}
 	case status == http.StatusNotFound:
 		return &BugReportResult{Reason: "absent"}

@@ -91,9 +91,30 @@ func TestReportBugFilesAsTheDesktopWithTheStoredCredential(t *testing.T) {
 	}
 
 	// A registry address held to Settings' rule: no token goes over http to
-	// a host that is not this machine.
+	// a host that is not this machine, and the refusal names the origin
+	// only, never a credential typed into the address.
 	if _, err := sapi.ReportBug("http://registry.example", "Something broke here."); err == nil {
 		t.Fatal("a cleartext registry address was accepted")
+	}
+	if _, err := sapi.ReportBug("http://me:hunter2@registry.example", "Something broke here."); err == nil || strings.Contains(err.Error(), "hunter2") {
+		t.Fatalf("userinfo address: %v", err)
+	}
+
+	// A redirect is not followed: the token and the report stay with the
+	// registry that was asked.
+	var elsewhere int
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		elsewhere++
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer other.Close()
+	redirect := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	})
+	srv.Config.Handler = redirect
+	res, err = sapi.ReportBug(srv.URL, "Something broke here.")
+	if err != nil || res.Filed || elsewhere != 0 {
+		t.Fatalf("a redirect was followed: %+v, %v, %d requests elsewhere", res, err, elsewhere)
 	}
 }
 

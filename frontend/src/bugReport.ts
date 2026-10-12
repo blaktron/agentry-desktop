@@ -22,9 +22,12 @@ export function bugTextProblem(text: string): string | null {
 
 export const BUG_REPORT_THANKS = "Thanks. Your report reached the Agentry team, and we will email you when it is fixed.";
 
+/** Why a report was not filed: the one word services_bugreport.go returns. */
+export type BugReportReason = "text" | "signin" | "absent" | "limited" | "refused" | "unreachable";
+
 export interface BugReportAnswer {
   filed: boolean;
-  reason?: string;
+  reason?: BugReportReason | string;
   message?: string;
 }
 
@@ -42,6 +45,7 @@ export function bugReportOutcome(r: BugReportAnswer): { tone: "ok" | "warn"; sen
       return { tone: "warn", sentence: `A bug report is ${BUG_REPORT_MIN} to ${BUG_REPORT_MAX.toLocaleString("en-US")} characters.` };
     case "unreachable":
       return { tone: "warn", sentence: "The registry did not take the report just now. Try again in a moment." };
+    case "refused":
     default:
       return { tone: "warn", sentence: r.message ? `Not sent: ${r.message}` : "Not sent: the registry refused the report." };
   }
