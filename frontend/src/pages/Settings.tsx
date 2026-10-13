@@ -139,9 +139,6 @@ export const SETTINGS_FOR = {
   reviewKey: { section: "provider", part: "ai-review-key" },
   // the sidebar's Unsafe Mode badge
   unsafeMode: { section: "run-defaults", part: "unsafe" },
-  // the Voice panel's links to the two always-attach switches (D11)
-  voiceHere: { section: "run-defaults", part: "voice" },
-  voiceAccount: { section: "profile", part: "account-voice" },
 } satisfies Record<string, { section: SettingsSection; part?: SettingsPart }>;
 
 export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id === s)?.title ?? "Settings";
