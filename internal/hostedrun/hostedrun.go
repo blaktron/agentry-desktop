@@ -154,13 +154,13 @@ type BuildWebTerms struct {
 // the execution plane's shape, and — signed in — the caller's block.
 type Status struct {
 	Enabled bool `json:"enabled"`
-	// WorkersOnline counts the pull workers and HostsOnline the sandbox
-	// hosts the registry pushes runs to (agentry-enterprise#83); either
-	// runs a queued run, so RunnersOnline is what a person is told.
-	WorkersOnline int     `json:"workersOnline"`
-	HostsOnline   int     `json:"hostsOnline"`
-	Queued        int     `json:"queued"`
-	Caller        *Caller `json:"caller,omitempty"`
+	// HostsOnline counts the sandbox hosts the registry pushes runs to
+	// (agentry-enterprise#83), the one kind of runner since the pull
+	// worker went (agentry-enterprise#86): the route's workersOnline is
+	// always 0 and is not read (agentry-desktop#882).
+	HostsOnline int     `json:"hostsOnline"`
+	Queued      int     `json:"queued"`
+	Caller      *Caller `json:"caller,omitempty"`
 	// KnowledgeBuild is absent from a registry from before the build kind.
 	KnowledgeBuild *BuildPrice `json:"knowledgeBuild,omitempty"`
 	// KnowledgeAttach says whether a run here may attach knowledge packs,
@@ -195,8 +195,8 @@ type Attached struct {
 	Digest string `json:"digest,omitempty"`
 }
 
-// RunnersOnline is how many runners, of either kind, can take a run now.
-func (s *Status) RunnersOnline() int { return s.WorkersOnline + s.HostsOnline }
+// RunnersOnline is how many runners can take a run now: the sandbox hosts.
+func (s *Status) RunnersOnline() int { return s.HostsOnline }
 
 // Artefact is one named object of a run: an input or an output.
 type Artefact struct {
