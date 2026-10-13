@@ -6,7 +6,7 @@
 // with that run alone.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agentryKeyHosts, isSourceType, joinRepository, sourceBlockers, sourceNeed, sourceRecap, splitRepository, tokenLine, tokensForRun, typedTokens, type SourceKey } from "../src/sources.ts";
+import { agentryKeyHosts, bindTypedTokens, isSourceType, joinRepository, shownToken, sourceBlockers, sourceNeed, sourceRecap, splitRepository, tokenFieldLabel, tokenLine, tokensForRun, typedTokens, type SourceKey } from "../src/sources.ts";
 import { needList } from "../src/runSetup.ts";
 
 const repo = { id: "codebase", prompt: "The repository to audit", type: "repository", required: true };
@@ -40,8 +40,13 @@ test("what to have ready names the address and the token, required or optional",
 });
 
 test("the token line says which token the run uses", () => {
-  assert.equal(tokenLine(null, "", true), "");
-  assert.equal(tokenLine({ problem: "the repository address must be https", saved: false, keychainOff: false }, "", true), "");
+  // Before the address is checked, or when it is refused, the line still
+  // says what a token is for (agentry-desktop#869): the field is there.
+  assert.match(tokenLine(null, "", true), /A public repository needs no token; a private one needs an access token/);
+  assert.match(tokenLine({ problem: "the repository address must be https", saved: false, keychainOff: false }, "", true), /a private one needs an access token/);
+  assert.match(tokenLine(null, "", false), /A public file needs no token/);
+  assert.match(tokenLine(null, "tok", true), /used for the repository's host once its address is checked/);
+  assert.match(tokenLine(null, "", true, true), /In Agentry/);
   assert.match(tokenLine(ok("github.com"), "", true), /No key is saved for github\.com\. A public repository needs none/);
   assert.match(tokenLine(ok("github.com", true), "", true), /uses the key saved on this computer for github\.com/);
   assert.match(tokenLine(ok("github.com", true), "tok", true), /uses the token typed here, not the key saved for github\.com/);
@@ -122,4 +127,31 @@ test("a token typed for one host is neither shown nor sent once the address name
   assert.deepEqual(typedTokens(typed, { codebase: { problem: "bad", saved: false, keychainOff: false } }), {});
   // Back on the host it was typed for, it applies again.
   assert.deepEqual(typedTokens(typed, { codebase: ok("github.com", true) }), { codebase: "tok" });
+});
+
+test("the token field is labelled before the host is known, and names it after (agentry-desktop#869)", () => {
+  assert.equal(tokenFieldLabel(null, true), "Access token, for a private repository");
+  assert.equal(tokenFieldLabel({ problem: "the repository address must be https", saved: false, keychainOff: false }, true), "Access token, for a private repository");
+  assert.equal(tokenFieldLabel(null, false), "Access token, for a file behind a sign-in");
+  assert.equal(tokenFieldLabel(ok("github.com"), true), "Access token for github.com");
+});
+
+test("a token typed before the host is known binds to the first host, and is shown until then (agentry-desktop#869)", () => {
+  const early = { repo: { host: "", token: "tok" } };
+  // Unchecked: shown in the field, sent nowhere.
+  assert.equal(shownToken(early.repo, null), "tok");
+  assert.deepEqual(typedTokens(early, { repo: null }), {});
+  assert.equal(bindTypedTokens(early, { repo: null }), early, "nothing to bind returns the same object");
+  // Refused: still unbound.
+  assert.equal(bindTypedTokens(early, { repo: { problem: "the repository address must be https", saved: false, keychainOff: false } }), early);
+  // The first host the address resolves to takes it.
+  const bound = bindTypedTokens(early, { repo: ok("github.com") });
+  assert.deepEqual(bound, { repo: { host: "github.com", token: "tok" } });
+  assert.deepEqual(typedTokens(bound, { repo: ok("github.com") }), { repo: "tok" });
+  assert.equal(shownToken(bound.repo, ok("github.com")), "tok");
+  // Then edited to another host: left behind, neither shown nor sent (D-079).
+  assert.equal(bindTypedTokens(bound, { repo: ok("gitlab.com") }), bound, "a bound token never moves");
+  assert.deepEqual(typedTokens(bound, { repo: ok("gitlab.com") }), {});
+  assert.equal(shownToken(bound.repo, ok("gitlab.com")), "");
+  assert.equal(shownToken(undefined, ok("github.com")), "");
 });

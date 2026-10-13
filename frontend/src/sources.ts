@@ -52,7 +52,18 @@ export function sourceNeed(q: Q): string {
  *  and Agentry holds it for that run alone; a source sent none uses the key
  *  saved in Agentry for its host, if any (agentry-enterprise#532). */
 export function tokenLine(key: SourceKey | null, typed: string, isRepository: boolean, inAgentry = false): string {
-  if (!key || key.problem || !key.host) return "";
+  if (!key || key.problem || !key.host) {
+    // The field is drawn before the address is checked (agentry-desktop#869),
+    // so the line says what a token is for even with no host yet.
+    const what = isRepository ? "repository" : "file";
+    if (typed.trim() !== "") return `This token is used for the ${what}'s host once its address is checked.`;
+    const need = isRepository
+      ? "A public repository needs no token; a private one needs an access token, typed here."
+      : "A public file needs no token; one behind a sign-in needs an access token, typed here.";
+    return inAgentry
+      ? `${need} In Agentry it is sent with the run's start and held for that run alone.`
+      : `${need} Once the address is checked, it can be saved on this computer for its host.`;
+  }
   const host = key.host;
   if (inAgentry) {
     const held = "Agentry holds it for this run alone and deletes it when the run ends.";
@@ -137,8 +148,39 @@ export function sourceBlockers(
   return out;
 }
 
-/** A token typed in the setup, with the host it was typed for. */
+/** The token field's label: the host once the address names one, and
+ *  before that what the token is for (agentry-desktop#869). */
+export function tokenFieldLabel(key: SourceKey | null, isRepository: boolean): string {
+  if (key && !key.problem && key.host) return `Access token for ${key.host}`;
+  return isRepository ? "Access token, for a private repository" : "Access token, for a file behind a sign-in";
+}
+
+/** A token typed in the setup, with the host it was typed for: "" when it
+ *  was typed before its question's address named a host. */
 export type TypedToken = { host: string; token: string };
+
+/** Binds each token typed before its question's host was known to the
+ *  first host the address resolves to (agentry-desktop#869). A token bound
+ *  to a host keeps it, so an address edited to another host still leaves
+ *  it behind (typedTokens). Returns `typed` itself when nothing binds. */
+export function bindTypedTokens(typed: Record<string, TypedToken>, keys: Record<string, SourceKey | null>): Record<string, TypedToken> {
+  let out = typed;
+  for (const [id, t] of Object.entries(typed)) {
+    const key = keys[id];
+    if (t.host !== "" || !key || key.problem || !key.host) continue;
+    if (out === typed) out = { ...typed };
+    out[id] = { host: key.host, token: t.token };
+  }
+  return out;
+}
+
+/** What a source question's token field shows: a token typed before the
+ *  host was known, or one typed for the host its address names now. */
+export function shownToken(t: TypedToken | undefined, key: SourceKey | null): string {
+  if (!t) return "";
+  if (t.host === "") return t.token;
+  return key && !key.problem && key.host === t.host ? t.token : "";
+}
 
 /** The typed tokens that still apply, by question id: each one's host is the
  *  host its question's address names now. An address edited to another host
