@@ -1,7 +1,9 @@
 // A repository or url intake question in the run setup's Details step
 // (plan input-sources.md §5, D3, D5, D13; agentry-desktop#794): the
 // address (and, for a repository, the branch, tag or commit), then the
-// access token. A key saved for the address's host is offered and used
+// access token, drawn from the start so a private source's token has a
+// place before the address is checked (agentry-desktop#869). A key saved
+// for the address's host is offered and used
 // unless another token is typed for this run; a typed token can be saved
 // for the host in the system keychain, where the CLI and a schedule's fire
 // read it too. Go checks the address with the CLI's own parser and never
@@ -10,7 +12,7 @@
 import { useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { Button } from "../ui";
-import { joinRepository, splitRepository, tokenLine, type SourceKey } from "../sources";
+import { joinRepository, splitRepository, tokenFieldLabel, tokenLine, type SourceKey } from "../sources";
 
 export function SourceQuestion({
   q, value, onChange, sourceKey, onKey, typed, onTyped, disabled, onError, inAgentry = false,
@@ -37,7 +39,9 @@ export function SourceQuestion({
   const [saving, setSaving] = useState(false);
   const answered = value.trim() !== "";
   const host = sourceKey && !sourceKey.problem ? sourceKey.host : undefined;
-  const showField = !!host && (!sourceKey?.saved || another);
+  // Drawn whatever the address holds (agentry-desktop#869); with a key
+  // saved for its host, only on "Use another token".
+  const showField = !sourceKey?.saved || another;
 
   async function save() {
     setSaving(true);
@@ -98,34 +102,34 @@ export function SourceQuestion({
       )}
       {answered && sourceKey?.problem && <p className="small" style={{ color: "var(--color-sev-high)", margin: "0 0 6px" }}>{sourceKey.problem}</p>}
       {answered && !sourceKey && <p className="muted small" style={{ margin: "0 0 6px" }}>Checking the address…</p>}
+      {showField && (
+        <div className="row" style={{ marginBottom: 6 }}>
+          <span style={{ minWidth: 260 }} className="muted small">{tokenFieldLabel(sourceKey, repository)} (optional)</span>
+          <input
+            type="password"
+            className="grow mono"
+            autoComplete="off"
+            placeholder={sourceKey?.saved ? "a token for this run only" : "optional"}
+            aria-label={`${q.prompt}: ${tokenFieldLabel(sourceKey, repository).toLowerCase()}`}
+            value={typed}
+            onChange={(e) => onTyped(e.target.value)}
+            disabled={disabled}
+          />
+          {host && !sourceKey?.keychainOff && (
+            <Button onClick={save} disabled={disabled || typed.trim() === ""} busy={saving} busyLabel="Saving…">
+              {sourceKey?.saved ? `Replace the saved key` : `Save for ${host}`}
+            </Button>
+          )}
+        </div>
+      )}
+      <p className="muted small" style={{ margin: "0 0 4px" }}>
+        {tokenLine(sourceKey, typed, repository, inAgentry)}{" "}
+        {inAgentry
+          ? "On the sandbox host the token is handed to the step that fetches the address before the run, and is not given to the agent or its tools."
+          : "The token is handed to the step that fetches the address before the run, on its standard input, and is not given to the agent or its tools."}
+      </p>
       {host && (
         <>
-          {showField && (
-            <div className="row" style={{ marginBottom: 6 }}>
-              <span style={{ minWidth: 260 }} className="muted small">Access token for {host}</span>
-              <input
-                type="password"
-                className="grow mono"
-                autoComplete="off"
-                placeholder={sourceKey?.saved ? "a token for this run only" : "optional"}
-                aria-label={`${q.prompt}: the access token for ${host}`}
-                value={typed}
-                onChange={(e) => onTyped(e.target.value)}
-                disabled={disabled}
-              />
-              {!sourceKey?.keychainOff && (
-                <Button onClick={save} disabled={disabled || typed.trim() === ""} busy={saving} busyLabel="Saving…">
-                  {sourceKey?.saved ? `Replace the saved key` : `Save for ${host}`}
-                </Button>
-              )}
-            </div>
-          )}
-          <p className="muted small" style={{ margin: "0 0 4px" }}>
-            {tokenLine(sourceKey, typed, repository, inAgentry)}{" "}
-            {inAgentry
-              ? "On the sandbox host the token is handed to the step that fetches the address before the run, and is not given to the agent or its tools."
-              : "The token is handed to the step that fetches the address before the run, on its standard input, and is not given to the agent or its tools."}
-          </p>
           {sourceKey?.saved && (
             <div className="row" style={{ gap: 8 }}>
               {another ? (

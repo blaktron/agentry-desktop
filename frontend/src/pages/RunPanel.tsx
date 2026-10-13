@@ -36,7 +36,7 @@ import { ServerSignIns, asConns } from "./ConnectTools";
 import { connectionBlockers, signInRecap } from "../connections";
 import { WhenStep, type Availability, type CheckState } from "./WhenStep";
 import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
-import { agentryKeyHosts, isSourceType, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
+import { agentryKeyHosts, bindTypedTokens, isSourceType, shownToken, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
 import { SourceQuestion } from "./SourceQuestion";
 import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostForm, type TargetHost } from "../hosts";
 import { HostQuestion } from "./HostQuestion";
@@ -94,7 +94,8 @@ export default function RunPanel({
   // for its fetch step alone, and not kept with the setup's answers
   // (RunForm), so Back to the setup does not carry it. An address edited to
   // another host leaves it behind (typedTokens), so a token typed for one
-  // host never goes to another.
+  // host never goes to another; one typed before the address named a host
+  // binds to the first host it names (bindTypedTokens, agentry-desktop#869).
   const [sourceTokens, setSourceTokens] = useState<Record<string, TypedToken>>({});
   // Leave to save a source's token in Agentry for a schedule's fires there
   // (agentry-enterprise#532, agentry-desktop#833).
@@ -359,6 +360,14 @@ export default function RunPanel({
     sourceKeys[q.id] = c && c.answer === (intakeValues[q.id] ?? "").trim() ? c.key : null;
   }
   const typed = typedTokens(sourceTokens, sourceKeys);
+  // A token typed before its address was checked binds to the first host
+  // the address names (agentry-desktop#869); bindTypedTokens returns the
+  // same object when nothing binds, so this settles at once.
+  const sourceHosts = JSON.stringify(sourceQs.map((q) => [q.id, sourceKeys[q.id]?.host ?? ""]));
+  useEffect(() => {
+    setSourceTokens((s) => bindTypedTokens(s, sourceKeys));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceHosts]);
   // Target hosts (agentry-desktop#812): each answer read in Go after a
   // pause in typing, with the CLI's parser; nothing reaches the host here.
   const hostQs = (profile?.intake ?? []).filter((q) => isHostType(q.type));
@@ -1441,7 +1450,7 @@ export default function RunPanel({
                         onChange={(v) => setIntakeValues({ ...intakeValues, [q.id]: v })}
                         sourceKey={sourceKeys[q.id]}
                         onKey={(key) => setSourceChecks((c) => ({ ...c, [q.id]: { answer: (intakeValues[q.id] ?? "").trim(), key } }))}
-                        typed={typed[q.id] ?? ""}
+                        typed={shownToken(sourceTokens[q.id], sourceKeys[q.id])}
                         onTyped={(t) => setSourceTokens((s) => ({ ...s, [q.id]: { host: sourceKeys[q.id]?.host ?? "", token: t } }))}
                         disabled={running}
                         onError={setRunErr}
