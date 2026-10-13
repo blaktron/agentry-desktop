@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -134,7 +135,8 @@ func TestUnpackStopsAtTheReportedSize(t *testing.T) {
 	}
 }
 
-// A pull worker's run lists its outputs file by file; they come down as
+// A run of the deleted pull worker lists its outputs file by file (dev keeps
+// such runs until the 30-day sweep, about 2026-10-24); they come down as
 // they are, into the same folder shape a pushed run's bundle makes.
 func TestDownloadAPulledRunsOutputs(t *testing.T) {
 	f := &fakeRuns{enabled: true, outputs: map[string][]byte{
@@ -774,5 +776,23 @@ func TestATargetHostIsOfferedNothingInAgentry(t *testing.T) {
 		if o != (Offer{}) {
 			t.Errorf("%s: %+v, want no offer", name, o)
 		}
+	}
+}
+
+// TestWorkersOnlineIsNotCounted (agentry-desktop#882): the status route
+// still sends workersOnline, always 0 since the pull worker went
+// (agentry-enterprise#86); a status that carries it decodes as before, and
+// only the sandbox hosts count as runners, whatever it says.
+func TestWorkersOnlineIsNotCounted(t *testing.T) {
+	var st Status
+	if err := json.Unmarshal([]byte(`{"enabled":true,"workersOnline":3,"hostsOnline":0,"queued":1}`), &st); err != nil {
+		t.Fatal(err)
+	}
+	if !st.Enabled || st.Queued != 1 || st.RunnersOnline() != 0 {
+		t.Fatalf("status %+v counts %d runners, want 0", st, st.RunnersOnline())
+	}
+	st.HostsOnline = 2
+	if st.RunnersOnline() != 2 {
+		t.Fatalf("two hosts count as %d runners", st.RunnersOnline())
 	}
 }

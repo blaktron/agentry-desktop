@@ -106,9 +106,12 @@ func OutputPath(dir, name string) (string, error) {
 
 // PushedOutput is the one output a pushed run keeps (agentry-enterprise#83):
 // the run's out folder as a tar, sealed to the runner's key by the host
-// and opened by the registry as it serves the download. A pull worker
-// uploads the folder file by file and never names a file at the top level
-// this way, so the name alone says which kind of run this is.
+// and opened by the registry as it serves the download. A run of the
+// deleted pull worker (agentry-enterprise#86) listed its folder file by file
+// and never named a file at the top level this way, so the name alone says
+// which kind of run this is. Dev keeps such runs, from before 2026-09-24,
+// until the 30-day sweep (about 2026-10-24; production never ran one), so
+// the per-file path stays until then.
 const PushedOutput = "output.tar"
 
 // DownloadOutputs writes every output of a finished run into dir, creating
