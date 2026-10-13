@@ -3,6 +3,11 @@ import {createRoot} from 'react-dom/client'
 import './style.css'
 import App from './App'
 import {Recover} from './Recover'
+import {installDropGuard} from './dropGuard'
+
+// A file or link dropped where no page takes it must not open in place of
+// the app (agentry-desktop#644).
+installDropGuard(window)
 
 const container = document.getElementById('root')
 
