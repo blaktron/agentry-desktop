@@ -108,8 +108,8 @@ type HostedAvailabilityView struct {
 	// (agentry-desktop#812).
 	TargetHosts bool `json:"targetHosts,omitempty"`
 	Enabled     bool `json:"enabled"`
-	// RunnersOnline counts what can take a run now: the pull workers and
-	// the sandbox hosts the registry pushes to.
+	// RunnersOnline counts what can take a run now: the sandbox hosts the
+	// registry pushes to.
 	RunnersOnline int `json:"runnersOnline"`
 	Queued        int `json:"queued"`
 
