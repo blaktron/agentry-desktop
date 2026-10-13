@@ -78,24 +78,16 @@ func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	res, err := noRedirects(registry.HTTPClient).Do(req)
+	// The shared client answers a redirect instead of following it, as it
+	// does for every request carrying the token (registry.KeepTokenHome,
+	// agentry-desktop#856); the card reads one as the registry refusing.
+	res, err := registry.HTTPClient.Do(req)
 	if err != nil {
 		return &BugReportResult{Reason: "unreachable"}, nil
 	}
 	defer func() { _ = res.Body.Close() }()
 	answer, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
 	return bugReportOutcome(res.StatusCode, answer), nil
-}
-
-// noRedirects is client with redirects answered, not followed: the bearer
-// token is set by hand, and Go keeps it on a redirect within the same
-// domain whatever the scheme, so a redirect to http:// would carry it in
-// clear (the CLI refuses redirects on its token path the same way, DR-71).
-// A redirect is then an answer the card reads as the registry refusing.
-func noRedirects(c *http.Client) *http.Client {
-	cp := *c
-	cp.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &cp
 }
 
 // bugReportOutcome reads the registry's answer to a filing. A 403 is a

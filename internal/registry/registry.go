@@ -47,8 +47,33 @@ func ExtractLimits() pkgarchive.ExtractLimits {
 const httpTimeout = 5 * time.Minute
 
 // HTTPClient is the one client every request goes through (also handed to
-// pkg/trust so key fetches share the timeout).
-var HTTPClient = &http.Client{Timeout: httpTimeout}
+// pkg/trust so key fetches share the timeout). A request on it that carries
+// the stored token never follows a redirect (KeepTokenHome).
+var HTTPClient = &http.Client{Timeout: httpTimeout, CheckRedirect: KeepTokenHome}
+
+// maxRedirects is net/http's own limit, kept for the requests that still
+// follow one: setting CheckRedirect replaces the default that enforced it.
+const maxRedirects = 10
+
+// KeepTokenHome is the redirect policy of every client the stored token
+// travels on (agentry-desktop#856). A request that carries an Authorization
+// header is answered with the redirect, never sent on: Go keeps a hand-set
+// Authorization on a redirect within the same domain or its subdomains,
+// whatever the scheme, so following one could carry the token to http:// or
+// to another host, past the https rule D-030 holds the registry address to
+// before its token is looked up (the CLI refuses redirects on its token path
+// the same way, DR-71). A request without one, a public read, follows
+// redirects as net/http does by default; that is decided on purpose, as the
+// rule exists for the token.
+func KeepTokenHome(_ *http.Request, via []*http.Request) error {
+	if via[0].Header.Get("Authorization") != "" {
+		return http.ErrUseLastResponse
+	}
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
+	}
+	return nil
+}
 
 // New builds a generated client rooted at {registry}/api/v1, attaching
 // "Authorization: Bearer <token>" when a token is known.

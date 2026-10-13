@@ -326,3 +326,32 @@ func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
 	default:
 	}
 }
+
+// The hand-rolled /x/ calls set the token themselves, so they hold
+// agentry-desktop#856's rule through the shared client: a registry whose
+// billing route answers 307 to another server gets the refusal, and the
+// other server sees nothing.
+func TestTheSubscriptionReadNeverFollowsARedirect(t *testing.T) {
+	var elsewhere int
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		elsewhere++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kind":"user","tier":"standard"}`))
+	}))
+	defer other.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"1","apiVersion":"v1","features":{},"extensions":["billing"]}`))
+	})
+	mux.HandleFunc("GET /api/v1/x/billing/account", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	sub, err := fetchSubscription(context.Background(), srv.URL, "agy_test")
+	if err == nil || sub != nil || elsewhere != 0 {
+		t.Fatalf("sub=%+v err=%v, %d requests elsewhere; want the redirect refused and none", sub, err, elsewhere)
+	}
+}
