@@ -24,6 +24,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/blaktron/agentry-desktop/internal/registry"
 )
 
 // The plan's input limits (§4.4), enforced in the app before an upload so
@@ -408,8 +410,8 @@ func New(regURL, token string) *Client {
 	return &Client{
 		base:     strings.TrimRight(regURL, "/"),
 		token:    token,
-		HTTP:     &http.Client{Timeout: 2 * time.Minute},
-		Download: &http.Client{},
+		HTTP:     &http.Client{Timeout: 2 * time.Minute, CheckRedirect: registry.KeepTokenHome},
+		Download: &http.Client{CheckRedirect: registry.KeepTokenHome},
 	}
 }
 
