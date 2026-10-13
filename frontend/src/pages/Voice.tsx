@@ -46,9 +46,10 @@ export type VoiceView = "start" | "local" | "cloud";
 
 export default function Voice({ registry, onOpenSettings }: {
   registry: string;
-  /** Opens Settings at the voice's switch: "here" (Run defaults),
-   *  "account" (Profile), or "sign-in" (Registry settings). */
-  onOpenSettings: (which: "here" | "account" | "sign-in") => void;
+  /** Opens Registry settings, to sign in. The two default switches are on
+   *  the Local and Cloud pages themselves (plan voice-page-redesign.md D4),
+   *  so the page links to neither Settings copy (agentry-desktop#676). */
+  onOpenSettings: () => void;
 }) {
   const [page, setPage] = useState<VoiceView>("start");
   const [view, setView] = useState<main.VoiceView | null>(null);
@@ -144,7 +145,7 @@ export default function Voice({ registry, onOpenSettings }: {
         {!view.signedIn ? (
           <Notice tone="info">
             Sign in to <span className="mono">{registry}</span> to keep a voice in your account, reviewed by AI Review, which runs In Agentry write in.{" "}
-            <Button variant="link" onClick={() => onOpenSettings("sign-in")}>Registry settings</Button>
+            <Button variant="link" onClick={onOpenSettings}>Registry settings</Button>
           </Notice>
         ) : !view.accountOffered ? (
           <Notice tone="info">This registry keeps no Writing Voices, so your voice stays on this computer.</Notice>

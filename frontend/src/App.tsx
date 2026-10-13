@@ -388,9 +388,7 @@ export default function App() {
             {route.page === "voice" && (
               <Voice
                 registry={registry}
-                onOpenSettings={(which) =>
-                  nav({ page: "settings", ...(which === "here" ? SETTINGS_FOR.voiceHere : which === "account" ? SETTINGS_FOR.voiceAccount : SETTINGS_FOR.knowledgeSignIn) })
-                }
+                onOpenSettings={() => nav({ page: "settings", ...SETTINGS_FOR.knowledgeSignIn })}
               />
             )}
             {route.page === "knowledge" && (

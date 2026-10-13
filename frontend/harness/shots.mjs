@@ -722,14 +722,11 @@ const states = [
     click: '[data-preview="settings"] .settings-card-parts button:has-text("AI Review key")', expectSection: "provider", expectPart: "ai-review-key" },
   // A deep link to a part a section's own read renders, or one that read
   // pushes down, lands at the part once the page has filled in
-  // (agentry-desktop#673): Home's Recent runs card and the Voice page's two
-  // links (the sidebar's Unsafe Mode badge is settings-deeplink-unsafe, below).
+  // (agentry-desktop#673): Home's Recent runs card (the sidebar's Unsafe Mode
+  // badge is settings-deeplink-unsafe, below). The Voice page's two links went
+  // with its redesign, and their states with them (agentry-desktop#676).
   { name: "settings-deeplink-run-history", url: "/pages.html", note: "Home's Recent runs card opens Run defaults at Recent runs (agentry-desktop#673)", locator: '[data-preview="settings"]',
     click: '[data-deeplink="homeRunHistory"]', expectSection: "run-defaults", expectPart: "history" },
-  { name: "settings-deeplink-voice-here", url: "/pages.html", note: "the Voice page's link for this computer opens Run defaults at Writing Voice, below the parts Run defaults' read adds (agentry-desktop#673)", locator: '[data-preview="settings"]',
-    click: '[data-deeplink="voiceHere"]', expectSection: "run-defaults", expectPart: "voice" },
-  { name: "settings-deeplink-voice-account", url: "/pages.html", note: "the Voice page's link for the account opens Profile at Writing Voice, below the parts the profile's read adds (agentry-desktop#673)", locator: '[data-preview="settings"]',
-    click: '[data-deeplink="voiceAccount"]', expectSection: "profile", expectPart: "account-voice" },
   { name: "settings-back-registry", url: "/pages.html?settings=registry", note: "← Settings on Registry settings returns to the cards", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] button:has-text("← Settings")', expectSection: "landing" },
   { name: "settings-back-updates", url: "/pages.html?settings=updates", note: "← Settings on Update settings returns to the cards", locator: '[data-preview="settings"]',
