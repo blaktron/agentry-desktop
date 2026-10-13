@@ -11,9 +11,10 @@ const { installDropGuard } = await import("../src/dropGuard.ts");
 
 // jsdom has no DragEvent or DataTransfer: a plain event carrying a
 // dataTransfer stand-in with the two fields the guard reads.
-function drag(type: string, types: string[]) {
+function drag(type: string, types: string[], data: Record<string, string> = {}) {
   const event = new window.Event(type, { bubbles: true, cancelable: true }) as Event & { dataTransfer: { types: string[]; dropEffect: string } };
-  Object.defineProperty(event, "dataTransfer", { value: { types, dropEffect: "copy" } });
+  // As a browser does, the data is readable only on drop.
+  Object.defineProperty(event, "dataTransfer", { value: { types, dropEffect: "copy", getData: (t: string) => (type === "drop" ? (data[t] ?? "") : "") } });
   return event;
 }
 
@@ -56,7 +57,8 @@ describe("the window's drop guard", () => {
     test(`lets text's or a link's ${type} reach a field and the voice editor`, () => {
       for (const types of [TEXT, LINK]) {
         for (const id of ["field", "area", "editor", "inside"]) {
-          const event = drag(type, types);
+          // A link's URI list is readable on drop, as the WebKitGTK probe read it.
+          const event = drag(type, types, { "text/uri-list": "https://example.com/dropped\r\n", "text/plain": "https://example.com/dropped" });
           document.getElementById(id)!.dispatchEvent(event);
           assert.equal(event.defaultPrevented, false, `${types.join("+")} ${type} on #${id}`);
           assert.equal(event.dataTransfer.dropEffect, "copy");
@@ -64,6 +66,33 @@ describe("the window's drop guard", () => {
       }
     });
   }
+
+  // WebKitGTK reports a file manager's drag with no "Files" among its types:
+  // text/uri-list and text/html, the URI list withheld from the page (read
+  // as ""), as measured in a WebKitGTK 4.1 probe on 2026-10-13. Over a field
+  // the guard cannot tell it from a link until the drop, where a URI list
+  // that is listed but withheld, or that names a file: URI, is a file's.
+  test("cancels a drop into a field whose URI list is withheld, as WebKitGTK gives a file's", () => {
+    for (const id of ["field", "area", "editor"]) {
+      const file = drag("drop", ["text/uri-list", "text/html"], { "text/html": '<a style="color: rgb(0, 0, 0)">file:///home/me/evil.html</a>' });
+      document.getElementById(id)!.dispatchEvent(file);
+      assert.equal(file.defaultPrevented, true, `withheld URI list on #${id}`);
+    }
+  });
+
+  test("cancels a drop into a field whose URI list names a file, and keeps a link's", () => {
+    for (const id of ["field", "area", "editor"]) {
+      const file = drag("drop", LINK, { "text/uri-list": "# a comment\r\nfile:///home/me/evil.html\r\n", "text/plain": "file:///home/me/evil.html" });
+      document.getElementById(id)!.dispatchEvent(file);
+      assert.equal(file.defaultPrevented, true, `file URI on #${id}`);
+      const upper = drag("drop", LINK, { "text/uri-list": "FILE:///x" });
+      document.getElementById(id)!.dispatchEvent(upper);
+      assert.equal(upper.defaultPrevented, true, `FILE: URI on #${id}`);
+      const link = drag("drop", LINK, { "text/uri-list": "https://example.com/a\r\n", "text/plain": "https://example.com/a" });
+      document.getElementById(id)!.dispatchEvent(link);
+      assert.equal(link.defaultPrevented, false, `link on #${id}`);
+    }
+  });
 
   test("cancels a drop with no data transfer at all, and one onto the window itself", () => {
     const bare = new window.Event("drop", { bubbles: true, cancelable: true });

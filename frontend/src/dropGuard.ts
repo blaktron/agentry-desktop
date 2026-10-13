@@ -7,7 +7,13 @@
 //
 // - every drag that carries a file, wherever it is dropped, the voice
 //   editor and the text fields included (ProseMirror inserts only a drop's
-//   text or HTML, and filters those through the schema, agentry-desktop#612);
+//   text or HTML, and filters those through the schema, agentry-desktop#612).
+//   A drag reports a file as "Files" among its types, except in WebKitGTK,
+//   which reports a file manager's drag as text/uri-list and text/html and
+//   withholds the URI list from the page (it reads as ""), and a field would
+//   take the file's address as text. Data is readable only on drop, so a
+//   drop whose URI list is listed but withheld, or names a file: URI, is
+//   cancelled there (measured in WebKitGTK 4.1 in the GUI box, 2026-10-13);
 // - a drag of text or a link anywhere but a text field or the voice editor,
 //   where it would otherwise navigate or open.
 //
@@ -19,14 +25,25 @@
 
 const DRAG_EVENTS = ["dragenter", "dragover", "drop"] as const;
 
-type DragLike = Event & { dataTransfer?: { types?: ArrayLike<string> | null; dropEffect?: string } | null };
+type DragLike = Event & { dataTransfer?: { types?: ArrayLike<string> | null; dropEffect?: string; getData?: (format: string) => string } | null };
 
 // carriesFiles is whether the drag holds a file: "Files" among its types,
-// which every engine the desktop runs on (WebKitGTK, WebView2, WKWebView)
-// sets for a drag from the file manager.
+// as a browser reports a dragged file, or, on drop, a URI list that is
+// listed but withheld or that names a file: URI, as WebKitGTK reports one
+// (above). A link's URI list is readable, so a link is not a file.
 function carriesFiles(event: DragLike): boolean {
   const types = event.dataTransfer?.types;
-  return !!types && Array.from(types).includes("Files");
+  if (types && Array.from(types).includes("Files")) return true;
+  if (event.type !== "drop" || !types || !Array.from(types).includes("text/uri-list")) return false;
+  let uris = "";
+  try {
+    uris = event.dataTransfer?.getData?.("text/uri-list") ?? "";
+  } catch {
+    return true; // listed, and not readable: withheld
+  }
+  // A URI list's comment lines start "#".
+  const entries = uris.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+  return entries.length === 0 || entries.some((line) => /^file:/i.test(line));
 }
 
 // takesText is whether a drop of text on this target is the person typing
