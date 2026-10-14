@@ -308,19 +308,26 @@ func readyImagesFake() *dockerx.Fake {
 			fixtureExecTag() + ":" + gateway.ExecPackagesFile: "busybox\n",
 			dec.Tag + ":" + decode.FilesPackagesFile:          "pandoc-cli-3.6.4-r0\n",
 		},
-		LogsByName: map[string]string{},
 	}
-	// On macOS and Windows the engine runs the gateway's docker filter as a
-	// container of the run's own and waits for its ready line (agentry-cli
-	// #322, since v0.6.117), so the ready fake's filter container says it,
-	// as the CLI's own engine test scripts it. The map is written once, as
-	// the container starts, before anything else of the run reads logs.
+	answerFilterReady(fake)
+	return fake
+}
+
+// answerFilterReady makes a fake's docker filter container say it is ready.
+// On macOS and Windows the engine runs the gateway's docker filter as a
+// container of the run's own and waits for its ready line (agentry-cli
+// #322, since v0.6.117), so a fake a run reaches the gateway on must answer
+// it, as the CLI's own engine test scripts it. The map is written once, as
+// the container starts, before anything else of the run reads logs.
+func answerFilterReady(fake *dockerx.Fake) {
+	if fake.LogsByName == nil {
+		fake.LogsByName = map[string]string{}
+	}
 	fake.OnDetached = func(r dockerx.RunSpec) {
 		if len(r.Argv) > 0 && r.Argv[0] == "docker-filter" {
 			fake.LogsByName[r.Name] = sockfilter.SidecarReady + "\n"
 		}
 	}
-	return fake
 }
 
 // decodeImage is the decode image a run with inputs builds from the

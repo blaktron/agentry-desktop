@@ -193,6 +193,7 @@ func unsafeRunFixture(t *testing.T) (string, *dockerx.Fake) {
 		},
 		ImageFiles: unsafeFiles(testUnsafeBase),
 	}
+	answerFilterReady(fake)
 	scriptHappyAgent(fake)
 	withFakeDocker(t, fake)
 	t.Setenv("ANTHROPIC_API_KEY", "sk-test-key")

@@ -829,12 +829,13 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		overrides = merged
 	}
 	// RunnerHome is the home the CLI shares. Where relays share the host's
-	// one network (macOS and Windows, which have no daemon filter), a run whose plan needs relays
-	// holds its relays.lock for the whole run, so a desktop run and a CLI
-	// run cannot both list an empty relay network and start relays side by
-	// side (agentry-cli#268; desktop#258); sessions take it the same way. On
-	// Linux each run's relays are on networks of its own (agentry-cli#220)
-	// and the engine takes no lock.
+	// one network (a platform with no docker filter), a run whose plan needs
+	// relays holds its relays.lock for the whole run, so a desktop run and a
+	// CLI run cannot both list an empty relay network and start relays side
+	// by side (agentry-cli#268; desktop#258); sessions take it the same way.
+	// Behind the filter, on Linux since agentry-cli#220 and on macOS and
+	// Windows since agentry-cli#322 (v0.6.117), each run's relays are on
+	// networks of its own and the engine takes no lock.
 	return &prepared{
 		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
 		params: engine.Params{
