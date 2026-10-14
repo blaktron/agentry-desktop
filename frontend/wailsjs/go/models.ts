@@ -2412,7 +2412,6 @@ export namespace main {
 	    signedIn: boolean;
 	    extension: boolean;
 	    targetHosts?: boolean;
-	    browser?: boolean;
 	    enabled: boolean;
 	    runnersOnline: number;
 	    queued: number;
@@ -2446,7 +2445,6 @@ export namespace main {
 	        this.signedIn = source["signedIn"];
 	        this.extension = source["extension"];
 	        this.targetHosts = source["targetHosts"];
-	        this.browser = source["browser"];
 	        this.enabled = source["enabled"];
 	        this.runnersOnline = source["runnersOnline"];
 	        this.queued = source["queued"];

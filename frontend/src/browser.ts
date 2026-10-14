@@ -81,13 +81,64 @@ export function siteProblem(answer: string): string | null {
   return null;
 }
 
-/** The blockers a site answer raises before Run, in the setup's words. */
-export function siteBlockers(qs: SiteQ[], values: Record<string, string>): string[] {
+// LOCAL_ONLY_SUFFIXES are names a public resolver never answers for a site
+// on the internet: the registry's list (agentry-enterprise#565
+// internal/runs/browser.go localOnlySuffixes) and the site's
+// (agentry-web lib/run-setup.ts); a change there is a change here.
+const LOCAL_ONLY_SUFFIXES = [".localhost", ".local", ".internal", ".home.arpa"];
+
+// publicIPv4 says an IPv4 literal is on the public internet: none of the
+// IPv4 ranges the runner's one public list refuses (agentry-cli
+// runnerimage/netaddr, which the registry's browser-site check uses).
+function publicIPv4(host: string): boolean {
+  const [a, b, c] = host.split(".").map(Number);
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return true;
+}
+
+// hostedSiteProblem is what a run In Agentry cannot open in a site answer,
+// as a clause, or null: a port other than 80 and 443, which is all a
+// sandbox host lets out, an address that is not public, or a name only a
+// local network answers (plan D2: a private address is a run on this
+// computer's alone; agentry-desktop#903). The registry refuses the same at
+// create (409 browser-site), and the run's CLI resolves a name and refuses
+// a private answer before anything starts.
+export function hostedSiteProblem(answer: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(answer.trim());
+  } catch {
+    return null; // siteProblem says it
+  }
+  if (u.port !== "" && u.port !== "80" && u.port !== "443") return `names port ${u.port}, and a run In Agentry opens sites on ports 80 and 443 only`;
+  const host = u.hostname.toLowerCase().replace(/\.$/, "");
+  const local = ", and a run In Agentry opens public sites only: run it on this computer to test a site on your network";
+  if (host.startsWith("[")) {
+    const v6 = host.slice(1, -1);
+    if (v6.startsWith("::") || /^64:ff9b:/.test(v6) || /^2002:/.test(v6) || /^f[c-d]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6)) return `is not a public address${local}`;
+    return null;
+  }
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return publicIPv4(host) ? null : `is not a public address${local}`;
+  if (!host.includes(".") || LOCAL_ONLY_SUFFIXES.some((s) => host.endsWith(s))) return `names a host only a local network answers${local}`;
+  return null;
+}
+
+/** The blockers a site answer raises before Run, in the setup's words; In
+ *  Agentry also what no sandbox host can open (hostedSiteProblem). */
+export function siteBlockers(qs: SiteQ[], values: Record<string, string>, inAgentry = false): string[] {
   const out: string[] = [];
   for (const q of qs) {
     const a = (values[q.id] ?? "").trim();
     if (a === "") continue; // a required one is the generic "Answer:" blocker
-    const p = siteProblem(a);
+    const p = siteProblem(a) ?? (inAgentry ? hostedSiteProblem(a) : null);
     if (p) out.push(`The site for “${q.prompt}” ${p}.`);
   }
   return out;

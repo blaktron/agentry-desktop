@@ -504,7 +504,9 @@ export default function RunPanel({
     inAgentry, scheduling, saveInAgentry,
   }));
   blockers.push(...hostBlockers(hostQs, intakeValues, hostKeys, hostForms, { inAgentry, scheduling }));
-  blockers.push(...siteBlockers(siteQs, intakeValues));
+  // In Agentry a site must be one a sandbox host can open
+  // (agentry-desktop#903), as the registry checks it again.
+  blockers.push(...siteBlockers(siteQs, intakeValues, inAgentry));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
   if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
@@ -1147,11 +1149,6 @@ export default function RunPanel({
                   runtime-hosts.md D11; agentry-desktop#812). */}
               {hosted?.targetHosts && (
                 <p className="muted small">A run In Agentry is not offered for this QuickAgent: it works a server you name over SSH, which only a run on this computer does.</p>
-              )}
-              {/* No run In Agentry carries a browser yet (plan
-                  browser-testing.md M7; agentry-desktop#878). */}
-              {hosted?.browser && !hosted?.targetHosts && (
-                <p className="muted small">A run In Agentry is not offered for this QuickAgent: it drives a web browser, which no run In Agentry has yet, so it runs on this computer for now.</p>
               )}
               <details className="advanced">
                 <summary className="muted small">The declared contract, with its digest</summary>

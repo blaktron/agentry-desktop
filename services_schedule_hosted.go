@@ -428,10 +428,6 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
 			return nil, err
 		}
-		// Nor does a run In Agentry carry a browser yet (agentry-desktop#878).
-		if err := run.RefuseHostedBrowser(sig.Manifest); err != nil {
-			return nil, err
-		}
 		// A schedule's fire has no setup to send a one-run token from: it
 		// uses the key Agentry keeps for each source's host
 		// (agentry-enterprise#532). A source given a token here has it
