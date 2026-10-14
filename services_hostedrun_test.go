@@ -136,6 +136,10 @@ type hostedFake struct {
 	// targetHosts is the release's capabilities.targetHosts, nil for none
 	// (agentry-desktop#812); its host questions go in intake.
 	targetHosts []string
+	// browser is the release's capabilities.browser as YAML lines under
+	// capabilities, "" for none (agentry-desktop#903); its site questions
+	// go in intake.
+	browser string
 	// routes, when set, adds routes of another extension to the fake
 	// (the schedules extension's, agentry-desktop#745).
 	routes func(mux *http.ServeMux)
@@ -191,7 +195,7 @@ func (f *hostedFake) start(t *testing.T) string {
 		defer f.mu.Unlock()
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": "/att", "digest": "sha256:" + strings.Repeat("ab", 32),
-			"manifest": hostedManifestDoc(t, f.modes, f.secrets, f.targetHosts, f.intake), "namespace": "acme", "name": "reporter",
+			"manifest": hostedManifestDoc(t, f.modes, f.secrets, f.targetHosts, f.browser, f.intake), "namespace": "acme", "name": "reporter",
 			"version": "1.0.0", "yanked": false,
 		})
 	})
@@ -528,7 +532,7 @@ func hostedJSON(w http.ResponseWriter, status int, v any) {
 
 // hostedManifestDoc is the resolve result's manifest — the typed struct's
 // own JSON, which is what a real registry serves.
-func hostedManifestDoc(t *testing.T, modes, secrets, targetHosts []string, intake ...string) map[string]any {
+func hostedManifestDoc(t *testing.T, modes, secrets, targetHosts []string, browser string, intake ...string) map[string]any {
 	t.Helper()
 	y := "schemaVersion: \"2\"\nname: reporter\nnamespace: acme\nversion: 1.0.0\nsummary: \"hosted run fixture\"\n" +
 		"modes: [" + strings.Join(modes, ", ") + "]\nentrypoints:\n  instruction: SKILL.md\ncapabilities:\n" +
@@ -539,6 +543,7 @@ func hostedManifestDoc(t *testing.T, modes, secrets, targetHosts []string, intak
 	if len(targetHosts) > 0 {
 		y += "  targetHosts: [" + strings.Join(targetHosts, ", ") + "]\n"
 	}
+	y += browser
 	y += "publish:\n  include: [agent.yaml, SKILL.md]\n" + strings.Join(intake, "")
 	m, err := manifest.Parse([]byte(y))
 	if err != nil {
@@ -1256,6 +1261,59 @@ func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 	}
 	if b, _ := json.Marshal(start); strings.Contains(string(b), typed) {
 		t.Fatalf("the refusal shows the token: %s", b)
+	}
+}
+
+// A release that declares a browser is offered a run, a session and a
+// schedule In Agentry since browser testing M7 (agentry-desktop#903,
+// agentry-enterprise#565), and its start sends the site as a plain answer:
+// no source token, though a key is saved on this computer for its host,
+// and an http address is taken (a site is not an https-only source).
+func TestABrowserReleaseIsOfferedAndStartedInAgentry(t *testing.T) {
+	isolateHostedKeychain(t)
+	f := &hostedFake{
+		enabled: true, modes: []string{"autonomous"},
+		browser: "  browser:\n    sites: [site]\n",
+		intake:  "intake:\n  - id: site\n    prompt: \"Which site should I test?\"\n    type: url\n    required: true\n",
+	}
+	reg := f.start(t)
+	signIn(t, reg)
+	if err := run.SaveSourceKey("url", "https://shop.example.com/", "ghp-saved-for-the-sites-host-5d1"); err != nil {
+		t.Fatal(err)
+	}
+	r, _ := newRunAPI(t)
+	v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !v.Offered || !v.Available || v.TargetHosts {
+		t.Fatalf("availability = %+v", v)
+	}
+	for _, site := range []string{"https://shop.example.com/login", "http://shop.example.com/"} {
+		r, _ := newRunAPI(t)
+		out := t.TempDir()
+		r.app.markPicked(out)
+		if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "test it", nil, out, map[string]string{"site": site}, nil, false, false, nil); err != nil {
+			t.Fatalf("start with %s: %v", site, err)
+		}
+	}
+	f.mu.Lock()
+	creates := slices.Clone(f.creates)
+	f.mu.Unlock()
+	if len(creates) != 2 {
+		t.Fatalf("creates %d", len(creates))
+	}
+	for i, want := range []string{"https://shop.example.com/login", "http://shop.example.com/"} {
+		var body struct {
+			Intake       map[string]string `json:"intake"`
+			SourceTokens map[string]string `json:"sourceTokens"`
+		}
+		if err := json.Unmarshal([]byte(creates[i]), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Intake["site"] != want || body.SourceTokens != nil || strings.Contains(creates[i], "ghp-saved") {
+			t.Fatalf("create %d: %s", i, creates[i])
+		}
 	}
 }
 
