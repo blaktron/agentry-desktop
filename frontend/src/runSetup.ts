@@ -118,7 +118,7 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
 // without a scan (which is never run In Agentry from this app). Nothing is
 // started by it: Run is still the person's click on Review and start, after
 // the credits the run holds are shown.
-export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean; targetHosts?: boolean; browser?: boolean } | null;
+export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean; targetHosts?: boolean } | null;
 // RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
 // (settings.RunWhereHere, settings.RunWhereAgentry).
 export type RunWhere = "here" | "agentry";
@@ -141,8 +141,6 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
         ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
         : hosted.targetHosts
         ? "it works a server you name over SSH, which only a run on this computer does"
-        : hosted.browser
-        ? "a run In Agentry has no browser yet"
         : !hosted.offered
           ? "a run In Agentry is not offered for this QuickAgent on this registry"
           : "In Agentry is unavailable for it (the notice below says why)";

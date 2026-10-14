@@ -13,6 +13,7 @@ package run
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/zalando/go-keyring"
@@ -169,7 +170,7 @@ func HostedSourceTokens(m *manifest.Manifest, answers, typed map[string]string, 
 	answered := map[string]bool{}
 	for _, q := range m.Intake {
 		answer := strings.TrimSpace(answers[q.ID])
-		if !q.Type.IsSource() || answer == "" {
+		if !q.Type.IsSource() || answer == "" || browserSite(m, q.ID) {
 			continue
 		}
 		answered[q.ID] = true
@@ -195,6 +196,14 @@ func HostedSourceTokens(m *manifest.Manifest, answers, typed map[string]string, 
 		}
 	}
 	return out, nil
+}
+
+// browserSite says a url question is the site the release's browser opens
+// (capabilities.browser.sites): the runner never fetches it, so it takes
+// no token and no saved key, In Agentry as on this computer (DR-96;
+// agentry-desktop#903).
+func browserSite(m *manifest.Manifest, id string) bool {
+	return m.Capabilities.Browser != nil && slices.Contains(m.Capabilities.Browser.Sites, id)
 }
 
 // HostedScheduleKeys are the keys a schedule In Agentry saves in the
