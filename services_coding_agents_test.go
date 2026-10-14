@@ -300,3 +300,19 @@ func TestContractDialogNamesShippedKnowledge(t *testing.T) {
 		t.Fatalf("update dialog:\n%s", got)
 	}
 }
+
+// The consent dialog names a target host and a browser, either of which
+// asks for it alone, in the CLI's words (agentry-desktop#812, #878).
+func TestContractDialogNamesATargetHostAndABrowser(t *testing.T) {
+	plan := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.0.0", NeedsCapabilityConfirm: true,
+		Capabilities: installed.Snapshot(manifest.Capabilities{TargetHosts: []string{"server"}, Browser: &manifest.Browser{Sites: []string{"site"}}})}
+	got := contractConsentText(plan, nil)
+	for _, want := range []string{
+		"• target hosts: server (asks for a server when it runs, and can run any command on it as the account you sign in with)",
+		"• browser: a web browser that can open the site you name for site and its subdomains",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("dialog:\n%s\nwant %q", got, want)
+		}
+	}
+}

@@ -605,6 +605,8 @@ func TestOfferMatrix(t *testing.T) {
 		// A target host is reached only from this computer (plan
 		// runtime-hosts.md D11; agentry-desktop#812).
 		{"a target host", with(func(f *Facts) { f.TargetHosts = true }), false, false, "", ""},
+		// Nor does a run In Agentry carry a browser yet (agentry-desktop#878).
+		{"a browser", with(func(f *Facts) { f.Browser = true }), false, false, "", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -794,5 +796,21 @@ func TestWorkersOnlineIsNotCounted(t *testing.T) {
 	st.HostsOnline = 2
 	if st.RunnersOnline() != 2 {
 		t.Fatalf("two hosts count as %d runners", st.RunnersOnline())
+	}
+}
+
+// A release that declares a browser is offered no run, session or schedule
+// In Agentry until hosted runs carry one (agentry-desktop#878).
+func TestABrowserIsOfferedNothingInAgentry(t *testing.T) {
+	yes := true
+	f := Facts{
+		SignedIn: true, Extension: true, Modes: []string{"autonomous", ModeInteractive}, Scopes: []string{ScopeRunRead, ScopeRunWrite},
+		ScopesKnown: true, Enabled: true, StatusKnown: true, SessionsEnabled: true, SessionAllowed: &yes, HostsOnline: 1,
+		Schedules: true, ScheduleAllowed: &yes, Browser: true,
+	}
+	for name, o := range map[string]Offer{"run": Decide(f), "session": DecideSession(f), "schedule": DecideSchedule(f)} {
+		if o != (Offer{}) {
+			t.Errorf("%s: %+v, want no offer", name, o)
+		}
 	}
 }

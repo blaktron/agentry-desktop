@@ -9,6 +9,8 @@ import { ChooseDirectory } from "../../wailsjs/go/main/App";
 import { install } from "../../wailsjs/go/models";
 import { DeclaredServersTable, ErrorBox, SignedBadge, Spinner, fmtBinaryBytes, shortDigest } from "../ui";
 import { secretsRow } from "../requiredKeys";
+import { browserCap, browserLine } from "../browser";
+
 
 const TARGETS: { id: string; label: string; needsDir: boolean; hint: string }[] = [
   { id: "claude-skill", label: "Claude skill", needsDir: false, hint: "installs into ~/.claude/skills (or a folder you pick)" },
@@ -253,12 +255,15 @@ export default function InstallWizard({
 }
 
 // declaredWords names what a first install's consent accepts: the network
-// and exec capabilities, a target host (agentry-desktop#812), or both.
+// and exec capabilities, a target host (agentry-desktop#812), a browser
+// (agentry-desktop#878), or several: "Accept the declared browser."
 function declaredWords(caps: install.Plan["capabilities"]): string {
   const what: string[] = [];
   if (caps.egressHosts?.length || caps.execCommands?.length) what.push("network/exec capabilities");
   if (caps.targetHosts?.length) what.push(caps.targetHosts.length === 1 ? "target host" : "target hosts");
-  return what.length ? what.join(" and ") : "capabilities";
+  if (caps.browser) what.push("browser");
+  if (what.length <= 1) return what[0] ?? "capabilities";
+  return `${what.slice(0, -1).join(", ")} and ${what[what.length - 1]}`;
 }
 
 function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilities"]; shipped?: install.ShippedPack[]; secrets: string }) {
@@ -279,6 +284,10 @@ function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilitie
   if (list(caps.targetHosts)) {
     rows.push(["target hosts", `${list(caps.targetHosts)}: asks for a server when it runs, and can run any command on it as the account you sign in with`]);
   }
+  // A browser (plan browser-testing.md §5; agentry-desktop#878): where it
+  // may go and the secrets it may type, in the CLI's consent words.
+  const browser = browserCap(caps.browser);
+  if (browser) rows.push(["browser", browserLine(browser)]);
   // The knowledge packs the release ships in its archive (plan knowledge.md
   // §4.6): part of the contract, each with its size from the archive.
   if (list(caps.knowledge)) {

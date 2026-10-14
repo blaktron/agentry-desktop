@@ -212,6 +212,11 @@ type ProfileInfo struct {
 	// in the run setup's Knowledge step and never to the agent; nil when it
 	// asks for nothing.
 	AcceptsKnowledge *manifest.KnowledgeAccepts
+	// BrowserSites are the url questions the release's browser names as
+	// sites (capabilities.browser.sites; agentry-desktop#878): the run setup
+	// asks each for the site to test, an http or https address, never as an
+	// input source to fetch. Nil when it declares no browser.
+	BrowserSites []string
 }
 
 // Declared reports what a release declares, from the registry's resolve
@@ -226,7 +231,7 @@ func Declared(ctx context.Context, regURL, ref string) (*Declaration, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest)}
+	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest), Browser: sig.Manifest.Capabilities.Browser != nil}
 	for _, mode := range sig.Manifest.SupportedModes() {
 		d.Modes = append(d.Modes, string(mode))
 	}
@@ -242,6 +247,9 @@ type Declaration struct {
 	Secrets, Optional []string
 	// TargetHosts are its host questions' ids.
 	TargetHosts []string
+	// Browser says it declares a browser (capabilities.browser), which no
+	// run In Agentry carries yet (agentry-desktop#878).
+	Browser bool
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a
@@ -275,6 +283,9 @@ func profileInfo(sig *Signature) (*ProfileInfo, error) {
 		Intake:          sig.Manifest.Intake,
 		Guide:           sig.Manifest.Guide,
 		ShipsKnowledge:  sig.Manifest.ShippedPacks(),
+	}
+	if b := sig.Manifest.Capabilities.Browser; b != nil {
+		info.BrowserSites = b.Sites
 	}
 	if k := sig.Manifest.Knowledge; k != nil {
 		info.AcceptsKnowledge = k.Accepts
@@ -783,7 +794,10 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			}
 		}
 	}
-	answers, err := intake.Collect(nil, m.Intake, req.Intake, m.Capabilities.Secrets)
+	// CollectRun, not Collect: a url question the browser names as a site
+	// is the browser's address, never an input source to fetch
+	// (agentry-cli#915; agentry-desktop#878).
+	answers, err := intake.CollectRun(nil, m, req.Intake, nil)
 	if err != nil {
 		finishProfile(logw, prof, profDir, keep)
 		return nil, engine.Classify(engine.ExitCLI, err)
@@ -815,12 +829,13 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		overrides = merged
 	}
 	// RunnerHome is the home the CLI shares. Where relays share the host's
-	// one network (macOS and Windows, which have no daemon filter), a run whose plan needs relays
-	// holds its relays.lock for the whole run, so a desktop run and a CLI
-	// run cannot both list an empty relay network and start relays side by
-	// side (agentry-cli#268; desktop#258); sessions take it the same way. On
-	// Linux each run's relays are on networks of its own (agentry-cli#220)
-	// and the engine takes no lock.
+	// one network (a platform with no docker filter), a run whose plan needs
+	// relays holds its relays.lock for the whole run, so a desktop run and a
+	// CLI run cannot both list an empty relay network and start relays side
+	// by side (agentry-cli#268; desktop#258); sessions take it the same way.
+	// Behind the filter, on Linux since agentry-cli#220 and on macOS and
+	// Windows since agentry-cli#322 (v0.6.117), each run's relays are on
+	// networks of its own and the engine takes no lock.
 	return &prepared{
 		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
 		params: engine.Params{

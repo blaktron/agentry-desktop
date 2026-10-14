@@ -4,10 +4,8 @@ package run
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -20,17 +18,19 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
-// TestRunTakesTheHostRelayLock is desktop#258's acceptance: the desktop
-// passes the runner home it shares with the CLI as engine.Params.RunnerHome,
-// so where relays share the host's one network (macOS, which has no daemon
-// filter) a desktop run whose plan needs relays is refused (exit 13) while
-// another run on the host holds <runner home>/relays.lock, and no gateway
-// starts beside it (agentry-cli#268). On Linux, since agentry-cli#220 (DR-22
-// narrowed, the CLI's v0.6.0), a run's relays are on networks of its own
-// behind the daemon filter and the engine takes no lock, so a held lock
-// refuses nothing there. The lock is held here the way the CLI's engine
-// holds it, flock on the same file; the desktop's own params come from
-// prepare, the path Run and StartSession both take.
+// TestRunTakesTheHostRelayLock is desktop#258's acceptance, as the engine
+// has narrowed it: the desktop passes the runner home it shares with the
+// CLI as engine.Params.RunnerHome, where the engine takes
+// <runner home>/relays.lock for a relay run that shares the host's one
+// relay network (agentry-cli#268). Behind the daemon filter a run's relays
+// are on networks of its own and no lock is taken: on Linux since
+// agentry-cli#220 (DR-22 narrowed, the CLI's v0.6.0), and on macOS since the
+// filter runs there as a container of the run's (agentry-cli#322, v0.6.117;
+// agentry-desktop#878). So on every platform this test runs on, a held lock
+// refuses nothing and the run makes its own two relay networks. The lock is
+// held here the way the CLI's engine holds it, flock on the same file; the
+// desktop's own params come from prepare, the path Run and StartSession
+// both take.
 func TestRunTakesTheHostRelayLock(t *testing.T) {
 	_, regURL, fd, home := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -74,28 +74,16 @@ func TestRunTakesTheHostRelayLock(t *testing.T) {
 	}
 
 	_, err = engine.Run(context.Background(), p.docker, p.params)
-	if runtime.GOOS == "linux" {
-		if err != nil {
-			t.Fatalf("on Linux a relay run's networks are its own (agentry-cli#220), so a held %s must refuse nothing, got %v", engine.RelayLockFile, err)
-		}
-		var own []string
-		for _, op := range fd.Ops() {
-			if strings.HasPrefix(op, "NetworkCreate") && strings.Contains(op, "-relays") {
-				own = append(own, op)
-			}
-		}
-		if len(own) < 2 {
-			t.Fatalf("a Linux relay run makes its own two relay networks (agentry-cli#220); saw %v in %v", own, fd.Ops())
-		}
-		return
+	if err != nil {
+		t.Fatalf("behind the docker filter a relay run's networks are its own (agentry-cli#220, #322), so a held %s must refuse nothing, got %v", engine.RelayLockFile, err)
 	}
-	var ce *engine.ClassifiedError
-	if !errors.As(err, &ce) || ce.Code != engine.ExitGateway || !strings.Contains(err.Error(), engine.RelayLockFile) {
-		t.Fatalf("a relay run while the host relay lock is held must be refused with exit %d naming %s, got %v", engine.ExitGateway, engine.RelayLockFile, err)
-	}
+	var own []string
 	for _, op := range fd.Ops() {
-		if strings.HasPrefix(op, "RunDetached:") && strings.Contains(op, "gateway") {
-			t.Fatalf("a gateway started while another run held the relay lock: %v", fd.Ops())
+		if strings.HasPrefix(op, "NetworkCreate") && strings.Contains(op, "-relays") {
+			own = append(own, op)
 		}
+	}
+	if len(own) < 2 {
+		t.Fatalf("a relay run behind the filter makes its own two relay networks (agentry-cli#220); saw %v in %v", own, fd.Ops())
 	}
 }

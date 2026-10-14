@@ -156,6 +156,17 @@ func gatewayToolRows(c manifest.Capabilities) []ToolRow {
 			GrantedBy: "exec.commands — restricted to " + strings.Join(x.Commands, ", "),
 		})
 	}
+	// A browser (agentry-cli#915, DR-96; agentry-desktop#878): the browser
+	// server's tools the runner's allowlist passes, through a proxy that
+	// holds the line's scope; without browser_evaluate when it may type
+	// secrets (plan §7.1). One row, as the site's table has it.
+	if b := c.Browser; b != nil {
+		note := "browser — a headless Chromium held to " + mcpview.BrowserReach(b) + "; screenshots and saved pages go to reports/browser/"
+		if len(b.Secrets) > 0 {
+			note += "; types " + strings.Join(b.Secrets, ", ") + " by name, never reading them back"
+		}
+		rows = append(rows, ToolRow{Tool: strings.Join(mcpview.BrowserTools(b), ", "), GrantedBy: note})
+	}
 	return rows
 }
 
@@ -214,6 +225,11 @@ func capabilityLines(c manifest.Capabilities) []string {
 		lines = append(lines, "targetHosts: "+renderList(c.TargetHosts)+
 			" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
 	}
+	// A browser (agentry-cli#915; agentry-desktop#878): where it may go and
+	// what it may type (the CLI's line).
+	if c.Browser != nil {
+		lines = append(lines, "browser: "+mcpview.BrowserLine(c.Browser))
+	}
 	// Shipped knowledge (plan knowledge.md §4.6): packs inside the release
 	// the agent reads, part of what is consented to (the CLI's line).
 	if len(c.Knowledge) > 0 {
@@ -262,7 +278,8 @@ func isZeroCapabilities(c manifest.Capabilities) bool {
 	return c.Network.Egress.IsZero() &&
 		c.Filesystem.Read.IsZero() && c.Filesystem.Write.IsZero() &&
 		c.Exec.IsZero() &&
-		len(c.Secrets) == 0 && len(c.DataAccess) == 0 && len(c.Knowledge) == 0 && len(c.TargetHosts) == 0
+		len(c.Secrets) == 0 && len(c.DataAccess) == 0 && len(c.Knowledge) == 0 && len(c.TargetHosts) == 0 &&
+		c.Browser == nil
 }
 
 func renderEgress(e manifest.Egress) string {

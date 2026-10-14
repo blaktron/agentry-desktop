@@ -3,6 +3,8 @@
 import React from "react";
 import { mcpview, trust } from "../wailsjs/go/models";
 import { RevealText } from "./reveal";
+import { browserBadge, browserCap, browserLine } from "./browser";
+
 
 // The shared primitives and the brand live in their own modules; re-export
 // them here so a page imports everything design-related from "../ui".
@@ -102,6 +104,16 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
     badges.push(
       <span key="th" className="badge bad" title="Asks for a server when it runs, and can run any command on it as the account you sign in with">
         target hosts: {c.targetHosts.join(", ")}
+      </span>,
+    );
+  }
+  // A browser (agentry-desktop#878): any public site reads as "*" egress
+  // does; a browser held to the person's site as listed egress does.
+  const browser = browserCap(c.browser);
+  if (browser) {
+    badges.push(
+      <span key="br" className={`badge ${browser.scope === "public" ? "bad" : "warn"}`} title={browserLine(browser)}>
+        {browserBadge(browser)}
       </span>,
     );
   }

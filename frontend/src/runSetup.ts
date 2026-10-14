@@ -6,6 +6,7 @@
 // the same things on either client.
 
 import { isSourceType, sourceNeed } from "./sources.ts";
+import { isSiteQuestion, siteNeed } from "./browser.ts";
 import { hostNeed, isHostType } from "./hosts.ts";
 
 export type StepKey = "start" | "files" | "knowledge" | "tools" | "details" | "review";
@@ -36,6 +37,8 @@ interface Question {
   prompt: string;
   type: string;
   required: boolean;
+  /** A url question the browser names as its site (agentry-desktop#878). */
+  site?: boolean;
 }
 
 /** The "what to have ready" line for the servers that sign in by OAuth
@@ -75,6 +78,11 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
   }
   for (const q of release.intake) {
     if (q.type === "file") continue;
+    // The site its browser tests (agentry-desktop#878).
+    if (isSiteQuestion(q)) {
+      out.push(siteNeed(q));
+      continue;
+    }
     // A repository or a file at an address (agentry-desktop#794).
     if (isSourceType(q.type)) {
       out.push(sourceNeed(q));
@@ -110,7 +118,7 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
 // without a scan (which is never run In Agentry from this app). Nothing is
 // started by it: Run is still the person's click on Review and start, after
 // the credits the run holds are shown.
-export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean; targetHosts?: boolean } | null;
+export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean; targetHosts?: boolean; browser?: boolean } | null;
 // RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
 // (settings.RunWhereHere, settings.RunWhereAgentry).
 export type RunWhere = "here" | "agentry";
@@ -133,6 +141,8 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
         ? "a run In Agentry needs you signed in to this registry (Settings → Registry settings)"
         : hosted.targetHosts
         ? "it works a server you name over SSH, which only a run on this computer does"
+        : hosted.browser
+        ? "a run In Agentry has no browser yet"
         : !hosted.offered
           ? "a run In Agentry is not offered for this QuickAgent on this registry"
           : "In Agentry is unavailable for it (the notice below says why)";

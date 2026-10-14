@@ -222,3 +222,29 @@ func TestCapabilityLinesNameATargetHost(t *testing.T) {
 		t.Fatalf("lines %q, want the last to be %q", lines, want)
 	}
 }
+
+// A browser is a line of its own, in the CLI's consent words, a release
+// that declares only one is not "pure text", and the tools table has the
+// browser server's row (agentry-desktop#878).
+func TestCapabilityLinesAndToolsNameABrowser(t *testing.T) {
+	c := manifest.Capabilities{Browser: &manifest.Browser{Sites: []string{"site"}, Secrets: []string{"SITE_USER"}}, Secrets: []string{"SITE_USER"}}
+	lines := strings.Join(capabilityLines(c), "\n")
+	want := "browser: a web browser that can open the site you name for site and its subdomains; it can type SITE_USER into the site's sign-in forms (it never sees them)"
+	if !strings.Contains(lines, want) || strings.Contains(lines, "pure text") {
+		t.Fatalf("lines:\n%s\nwant a line %q", lines, want)
+	}
+	if got := capabilityLines(manifest.Capabilities{Browser: &manifest.Browser{Scope: manifest.BrowserScopePublic}}); got[0] == "none declared (pure text agent)" {
+		t.Fatalf("a browser alone read as pure text: %q", got)
+	}
+	rows := gatewayToolRows(c)
+	last := rows[len(rows)-1]
+	if !strings.Contains(last.Tool, "browser_navigate") || strings.Contains(last.Tool, "browser_evaluate") ||
+		!strings.Contains(last.GrantedBy, "held to the site you name for site and its subdomains") || !strings.Contains(last.GrantedBy, "types SITE_USER by name") {
+		t.Fatalf("browser row %+v", last)
+	}
+	for _, r := range gatewayToolRows(manifest.Capabilities{}) {
+		if strings.Contains(r.Tool, "browser_") {
+			t.Fatalf("a release without a browser has a browser row: %+v", r)
+		}
+	}
+}
