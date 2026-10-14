@@ -107,7 +107,11 @@ type HostedAvailabilityView struct {
 	// In Agentry is offered for it, and the setup says why
 	// (agentry-desktop#812).
 	TargetHosts bool `json:"targetHosts,omitempty"`
-	Enabled     bool `json:"enabled"`
+	// Browser says the release declares a browser, which no run In
+	// Agentry carries yet (plan browser-testing.md M7): no choice In
+	// Agentry is offered for it either (agentry-desktop#878).
+	Browser bool `json:"browser,omitempty"`
+	Enabled bool `json:"enabled"`
 	// RunnersOnline counts what can take a run now: the sandbox hosts the
 	// registry pushes to.
 	RunnersOnline int `json:"runnersOnline"`
@@ -328,6 +332,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	}
 	facts.Modes, facts.DeclaredSecrets, facts.OptionalSecrets = d.Modes, d.Secrets, d.Optional
 	facts.TargetHosts, v.TargetHosts = len(d.TargetHosts) > 0, len(d.TargetHosts) > 0
+	facts.Browser, v.Browser = d.Browser, d.Browser
 	v.DeclaredSecrets, v.OptionalSecrets = d.Secrets, emptyNotNil(d.Optional)
 
 	facts.Scopes, facts.ScopesKnown = tokenScopes(ctx, reg, token)
@@ -469,6 +474,10 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		// runtime-hosts.md D11): the page offers no run In Agentry for it,
 		// and this is the same rule in Go (agentry-desktop#812).
 		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
+			return nil, err
+		}
+		// Nor does a run In Agentry carry a browser yet (agentry-desktop#878).
+		if err := run.RefuseHostedBrowser(sig.Manifest); err != nil {
 			return nil, err
 		}
 		// Each input source's token: typed for this run, else the key

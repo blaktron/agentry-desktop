@@ -38,6 +38,8 @@ import { WhenStep, type Availability, type CheckState } from "./WhenStep";
 import { defaultWhen, hostedGapHeading, whenProblem, whenSpec, whenUnavailable, type WhenChoice, type WhenForm } from "../scheduled";
 import { agentryKeyHosts, bindTypedTokens, isSourceType, shownToken, sourceBlockers, sourceRecap, tokensForRun, typedTokens, type SourceKey, type TypedToken } from "../sources";
 import { SourceQuestion } from "./SourceQuestion";
+import { SiteQuestion } from "./SiteQuestion";
+import { isSiteQuestion, siteBlockers } from "../browser";
 import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostForm, type TargetHost } from "../hosts";
 import { HostQuestion } from "./HostQuestion";
 
@@ -335,7 +337,10 @@ export default function RunPanel({
   const optionalNames = profile?.optionalSecrets ?? [];
   const needsProfile = !!profile && requiredNames.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
-  const sourceQs = (profile?.intake ?? []).filter((q) => isSourceType(q.type));
+  // A url question the browser names is its site, not a source
+  // (agentry-desktop#878): asked as an address, never fetched.
+  const sourceQs = (profile?.intake ?? []).filter((q) => isSourceType(q.type) && !isSiteQuestion(q));
+  const siteQs = (profile?.intake ?? []).filter(isSiteQuestion);
   // Each source answer is checked in Go after a pause in typing; an older
   // answer's late word is kept under that answer and so never shown.
   const sourceAnswers = JSON.stringify(sourceQs.map((q) => [q.id, q.type, (intakeValues[q.id] ?? "").trim()]));
@@ -499,6 +504,7 @@ export default function RunPanel({
     inAgentry, scheduling, saveInAgentry,
   }));
   blockers.push(...hostBlockers(hostQs, intakeValues, hostKeys, hostForms, { inAgentry, scheduling }));
+  blockers.push(...siteBlockers(siteQs, intakeValues));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
   if (!inAgentry && unsigned && !acceptUnsigned) blockers.push("Tick \u201cRun an unsigned release\u201d.");
@@ -1142,6 +1148,11 @@ export default function RunPanel({
               {hosted?.targetHosts && (
                 <p className="muted small">A run In Agentry is not offered for this QuickAgent: it works a server you name over SSH, which only a run on this computer does.</p>
               )}
+              {/* No run In Agentry carries a browser yet (plan
+                  browser-testing.md M7; agentry-desktop#878). */}
+              {hosted?.browser && !hosted?.targetHosts && (
+                <p className="muted small">A run In Agentry is not offered for this QuickAgent: it drives a web browser, which no run In Agentry has yet, so it runs on this computer for now.</p>
+              )}
               <details className="advanced">
                 <summary className="muted small">The declared contract, with its digest</summary>
                 {/* Declared contract: what a Run click accepts. */}
@@ -1425,6 +1436,9 @@ export default function RunPanel({
                         <> A repository or a file at an address is fetched before the run into <span className="mono">/inputs/&lt;question&gt;/</span>,
                         read-only, and <span className="mono">intake.json</span> names the address and what was fetched; the access token is not written there.</>
                       )}
+                      {siteQs.length > 0 && (
+                        <> The site to test is not fetched: its address goes to <span className="mono">intake.json</span>, and the run&apos;s browser opens it.</>
+                      )}
                     </p>
                     {profile.intake.map((q) => isHostType(q.type) ? (
                       <HostQuestion
@@ -1441,6 +1455,14 @@ export default function RunPanel({
                         disabled={running}
                         onError={setRunErr}
                         scheduling={schedulingHere}
+                      />
+                    ) : isSiteQuestion(q) ? (
+                      <SiteQuestion
+                        key={q.id}
+                        q={q}
+                        value={intakeValues[q.id] ?? ""}
+                        onChange={(v) => setIntakeValues({ ...intakeValues, [q.id]: v })}
+                        disabled={running}
                       />
                     ) : isSourceType(q.type) ? (
                       <SourceQuestion
@@ -1592,6 +1614,8 @@ export default function RunPanel({
                       <span className="selectable">
                         {isHostType(q.type)
                           ? hostRecap(intakeValues[q.id] ?? "", hostKeys[q.id], formFor(hostForms, q.id, hostKeys[q.id]), schedulingHere)
+                          : isSiteQuestion(q)
+                          ? (intakeValues[q.id] ?? "").trim() || "no answer"
                           : isSourceType(q.type)
                           ? sourceRecap(q, intakeValues[q.id] ?? "", sourceKeys[q.id], typed[q.id] ?? "", inAgentry)
                           : (intakeValues[q.id] ?? "").trim() || "no answer"}

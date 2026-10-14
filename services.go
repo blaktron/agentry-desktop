@@ -24,6 +24,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/build"
 	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/registry"
 	"github.com/blaktron/agentry-desktop/internal/run"
 	"github.com/blaktron/agentry-desktop/internal/settings"
@@ -1211,6 +1212,15 @@ func contractConsentText(plan, export *install.Plan) string {
 		}
 		if len(c.Secrets) > 0 {
 			lines = append(lines, "  • secrets: "+strings.Join(c.Secrets, ", "))
+		}
+		// A target host and a browser, in the CLI's consent words
+		// (agentry-desktop#812, #878): either one alone asks for this
+		// consent, so the dialog names it.
+		if len(c.TargetHosts) > 0 {
+			lines = append(lines, "  • target hosts: "+strings.Join(c.TargetHosts, ", ")+" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
+		}
+		if c.Browser != nil {
+			lines = append(lines, "  • browser: "+mcpview.BrowserLine(c.Browser))
 		}
 		if len(c.Knowledge) > 0 {
 			lines = append(lines, "  • knowledge: ships "+shippedKnowledgeText(plan))

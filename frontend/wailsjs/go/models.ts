@@ -1020,6 +1020,7 @@ export namespace installed {
 	    mcpServerOAuth?: {[key: string]: manifest.MCPOAuth};
 	    knowledge?: string[];
 	    targetHosts?: string[];
+	    browser?: manifest.Browser;
 	
 	    static createFrom(source: any = {}) {
 	        return new CapSnapshot(source);
@@ -1042,6 +1043,7 @@ export namespace installed {
 	        this.mcpServerOAuth = this.convertValues(source["mcpServerOAuth"], manifest.MCPOAuth, true);
 	        this.knowledge = source["knowledge"];
 	        this.targetHosts = source["targetHosts"];
+	        this.browser = this.convertValues(source["browser"], manifest.Browser);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2410,6 +2412,7 @@ export namespace main {
 	    signedIn: boolean;
 	    extension: boolean;
 	    targetHosts?: boolean;
+	    browser?: boolean;
 	    enabled: boolean;
 	    runnersOnline: number;
 	    queued: number;
@@ -2443,6 +2446,7 @@ export namespace main {
 	        this.signedIn = source["signedIn"];
 	        this.extension = source["extension"];
 	        this.targetHosts = source["targetHosts"];
+	        this.browser = source["browser"];
 	        this.enabled = source["enabled"];
 	        this.runnersOnline = source["runnersOnline"];
 	        this.queued = source["queued"];
@@ -3226,6 +3230,7 @@ export namespace main {
 	    type: string;
 	    required: boolean;
 	    choices: string[];
+	    site?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new IntakeQuestionView(source);
@@ -3238,6 +3243,7 @@ export namespace main {
 	        this.type = source["type"];
 	        this.required = source["required"];
 	        this.choices = source["choices"];
+	        this.site = source["site"];
 	    }
 	}
 	export class JevKeyTestView {
@@ -5891,6 +5897,24 @@ export namespace main {
 
 export namespace manifest {
 	
+	export class Browser {
+	    sites?: string[];
+	    hosts?: string[];
+	    scope?: string;
+	    secrets?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Browser(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sites = source["sites"];
+	        this.hosts = source["hosts"];
+	        this.scope = source["scope"];
+	        this.secrets = source["secrets"];
+	    }
+	}
 	export class CapabilityDiff {
 	    widened?: string[];
 	    narrowed?: string[];

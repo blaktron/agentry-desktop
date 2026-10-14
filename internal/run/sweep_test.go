@@ -50,6 +50,7 @@ func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 		"NetworkRemove agentry-ab12cd34-web",
 		"NetworkRemove agentry-ab12cd34-relays",
 		"NetworkRemove agentry-ab12cd34-relays-out",
+		"NetworkRemove agentry-ab12cd34-browser",
 		"NetworkRemove agentry-ab12cd34-src-code",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -86,7 +87,7 @@ func TestSweepRemovesTheNamedNetworksWhenTheListFails(t *testing.T) {
 			removed = append(removed, c.Arg)
 		}
 	}
-	want := "agentry-ab12cd34-net agentry-ab12cd34-egress agentry-ab12cd34-web agentry-ab12cd34-relays agentry-ab12cd34-relays-out"
+	want := "agentry-ab12cd34-net agentry-ab12cd34-egress agentry-ab12cd34-web agentry-ab12cd34-relays agentry-ab12cd34-relays-out agentry-ab12cd34-browser"
 	if strings.Join(removed, " ") != want {
 		t.Fatalf("removed %v; want %s", removed, want)
 	}
@@ -162,7 +163,11 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// no name from a run id alone finds it: runNetworks finds it, and any
 	// other the engine labels with the run, by the run's label
 	// (agentry-cli#852, agentry-desktop#828).
-	want := []string{"-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
+	// "-browser" is the browser's own network (agentry-cli#915), named
+	// above; "-docker" is the volume of the docker filter's container on
+	// Docker Desktop (agentry-cli f02eac9), labelled with the run and so
+	// removed with the session's by label (agentry-desktop#878).
+	want := []string{"-browser", "-docker", "-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}
@@ -172,8 +177,8 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	// (agentry-cli#808): named as a run's "-net" (and "-egress"), under a
 	// run id no run record holds, so a list killed midway is removed by
 	// engine.SweepAbandoned, which the engine runs before each run, from its
-	// containers' owner labels.
-	if creates != 6 {
-		t.Fatalf("the engine makes a network in %d places, and the sweep knows 6: revisit runNetworks before taking this agentry-cli", creates)
+	// containers' owner labels; and the browser's own (agentry-cli#915).
+	if creates != 7 {
+		t.Fatalf("the engine makes a network in %d places, and the sweep knows 7: revisit runNetworks before taking this agentry-cli", creates)
 	}
 }

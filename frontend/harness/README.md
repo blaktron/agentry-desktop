@@ -65,6 +65,13 @@ and `-review` (Review and start says where the sign-in comes from), and
 `#install-target-host` is the install review's target hosts row. The stubbed
 `TargetHostStatus` refuses an answer with a space, as the CLI's parser does.
 
+A browser (agentry-desktop#878) is shown on a release whose url question is
+its browser's site: `#runpanel-site-where` (Before you start: what to have
+ready names the site to test, and In Agentry not offered, with why),
+`#runpanel-site-details` (the address field with no token, holding an
+answer with no scheme) and `-review`; `#install-browser` is the install
+review's browser row in the CLI's consent words.
+
 Talk to it In Agentry, a hosted session (agentry-desktop#403), has three
 setup states on an interactive-only copy of the release:
 `#runpanel-session-offer` (the choice made, with what a session costs from
