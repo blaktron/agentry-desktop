@@ -197,7 +197,16 @@ The product never claims an agent is "safe". The language is always:
   reached are listed as recent hosts in `recent-hosts.json` beside
   `desktop.yaml` (0600, the last ten, addresses and account names only).
   Such a QuickAgent runs on this computer only: nothing In Agentry is
-  offered for it. One local job runs at a time: a run, a chat, a
+  offered for it. A QuickAgent that tests websites declares a **browser**
+  (`capabilities.browser`, agentry-desktop#878): the install review, the
+  consent dialog, the Library and the agent page name it in the CLI's
+  consent words (where it may go, and the keys it may type into the site's
+  sign-in forms), the agent page lists the browser's tools, and Details asks
+  each site question as the address of the site to test (`https://` or
+  `http://`, a staging server on your network included), never as a file to
+  fetch. The run's browser, its proxy and its tools are the CLI's
+  (v0.6.117). Nothing In Agentry is offered for it until hosted runs carry a
+  browser. One local job runs at a time: a run, a chat, a
   draft, a knowledge build or a review started meanwhile is refused with
   what is running. What a run needs while it is live
   (its containers, volumes and networks, and a scratch directory under the

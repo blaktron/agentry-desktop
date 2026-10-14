@@ -8,6 +8,8 @@ import { filterInstalled, registryQuery, registrySearchLabel } from "../library"
 import InstallWizard from "./InstallWizard";
 import RunPanel from "./RunPanel";
 import { PinButton, homeFullLine, useHomeLayout } from "./home/PinButton";
+import { browserCap, browserReach } from "../browser";
+
 
 type UpdateMap = Record<string, install.UpdateInfo>;
 
@@ -161,6 +163,9 @@ export default function Library({
     if (c.fsRead && c.fsRead !== "none") bits.push(`fs read: ${c.fsRead}`);
     if (c.secrets?.length) bits.push(`secrets: ${c.secrets.join(", ")}`);
     if (c.targetHosts?.length) bits.push(`target hosts: ${c.targetHosts.join(", ")}`);
+    // A browser (agentry-desktop#878), where it may go.
+    const browser = browserCap(c.browser);
+    if (browser) bits.push(`browser: ${browserReach(browser)}`);
     return bits.length ? bits.join(" · ") : "no capabilities accepted";
   }
 

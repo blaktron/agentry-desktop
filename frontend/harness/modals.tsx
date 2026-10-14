@@ -265,6 +265,12 @@ const sourceSavedHost = view === "runpanel-source-saved" || view === "runpanel-s
 const hostShape = view.startsWith("runpanel-host-") || view === "install-target-host";
 const hostAnswered = hostShape && view !== "runpanel-host-details" && view !== "runpanel-host-where";
 const hostSaved = view === "runpanel-host-saved" || view === "runpanel-host-review";
+// A browser (agentry-desktop#878): a release whose url question is its
+// browser's site. #runpanel-site-where is Before you start, In Agentry not
+// offered; #runpanel-site-details is Details with an address that is no
+// site; #runpanel-site-review is Review and start with one.
+const siteShape = view.startsWith("runpanel-site-");
+const siteAnswer = view === "runpanel-site-details" ? "staging.example.com" : view === "runpanel-site-review" ? "https://staging.example.com" : "";
 // An intake prompt as long as blaktron/binary-reverse-engineer@0.1.0's,
 // which once took the recap's whole width (agentry-desktop#420).
 const longPromptShape = view === "runpanel-step-review-long";
@@ -345,11 +351,15 @@ const profile = signInShape
   }
   : {
     ref: "demo1/incident-summarizer@1.2.0", digest: "sha256:9c356fd0d20fef07",
-    capabilityLines: ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
+    capabilityLines: siteShape
+      ? ["network.egress: none", "secrets: none", "browser: a web browser that can open the site you name for site and its subdomains, and fonts.googleapis.com"]
+      : ["network egress: api.pagerduty.com", "filesystem: read workspace, write reports/", "secrets: PAGERDUTY_TOKEN"],
     declaredSecrets: ["PAGERDUTY_TOKEN"], storedSecretNames: ["PAGERDUTY_TOKEN"], exists: true, keep: true,
     modes: sessionShape ? ["interactive"] : ["autonomous", "interactive"],
     intake: hostShape
       ? [{ id: "server", prompt: "The server to set up", type: "host", required: true, choices: [] }]
+      : siteShape
+      ? [{ id: "site", prompt: "Which site should I test?", type: "url", required: true, choices: [], site: true }]
       : sourceShape
       ? [
         { id: "codebase", prompt: "The repository to audit", type: "repository", required: true, choices: [] },
@@ -426,6 +436,8 @@ const availability = {
   // A release with a target host is offered nothing In Agentry
   // (agentry-desktop#812).
   ...(hostShape ? { offered: false, available: false, targetHosts: true } : {}),
+  // Nor is one with a browser, until hosted runs carry one (agentry-desktop#878).
+  ...(siteShape ? { offered: false, available: false, browser: true } : {}),
   // Later and Repeat In Agentry follow the plan: Standard is offered them
   // unavailable, with the way up (agentry-desktop#745).
   schedule: hostedSchedule && view !== "runpanel-schedule-hosted-standard"
@@ -521,6 +533,9 @@ const STEP_OF: Record<string, StepKey> = {
   "runpanel-source-hosted": "review",
   "runpanel-source-schedule": "review",
   "runpanel-host-where": "start",
+  "runpanel-site-where": "start",
+  "runpanel-site-details": "details",
+  "runpanel-site-review": "review",
   "runpanel-host-details": "details",
   "runpanel-host-key": "details",
   "runpanel-host-saved": "details",
@@ -670,6 +685,8 @@ g.go = { main: {
       attestation: att, unsigned: false, unscanned: view === "install-unscanned",
       capabilities: view === "install-target-host"
         ? { fsRead: "workspace", fsWrite: "workspace", targetHosts: ["server"] }
+        : view === "install-browser"
+        ? { fsRead: "none", fsWrite: "none", secrets: ["SITE_USER", "SITE_PASSWORD"], browser: { sites: ["site"], hosts: ["fonts.googleapis.com", "fonts.gstatic.com"], secrets: ["SITE_USER", "SITE_PASSWORD"] } }
         : view === "install-ships-knowledge"
         ? { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", fsWritePaths: ["reports"], secrets: ["PAGERDUTY_TOKEN"], knowledge: ["pagerduty-docs"] }
         : { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
@@ -775,7 +792,7 @@ function ChatSample() {
 }
 
 const el = document.getElementById("root")!;
-if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge" || view === "install-target-host") {
+if (view === "install-unscanned" || view === "install-mcp-env" || view === "install-ships-knowledge" || view === "install-target-host" || view === "install-browser") {
   createRoot(el).render(<><Backdrop /><InstallWizard registry="https://secureagentry.net" agentRef="demo1/incident-summarizer@1.2.0" onClose={() => {}} /></>);
 } else if (view === "chat") {
   createRoot(el).render(<ChatSample />);
@@ -822,6 +839,11 @@ if (view === "install-unscanned" || view === "install-mcp-env" || view === "inst
         initialForm={hostAnswered ? {
           mode: "autonomous", task: "", inputs: [], pickedFiles: [],
           intakeValues: { server: view === "runpanel-host-key" ? "deploy@203.0.113.10:2222" : "admin@web-01.example.net" },
+          attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
+          acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
+        } : siteAnswer ? {
+          mode: "autonomous", task: "", inputs: [], pickedFiles: [],
+          intakeValues: { site: siteAnswer },
           attach: [], outDir: "", timeoutSec: "", maxTurns: "", keep: true, keepTouched: false,
           acceptUnsigned: false, acceptUnscanned: false, allowVulnerableMCP: false,
         } : sourceAnswered ? {

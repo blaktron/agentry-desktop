@@ -989,3 +989,23 @@ func TestATargetHostNeedsTheCapabilityConsent(t *testing.T) {
 		t.Fatal("a target host asks for no consent")
 	}
 }
+
+// A first install of a release that declares a browser asks for the
+// capability consent, as the CLI's install gate does (agentry-cli#915,
+// agentry-desktop#878), and an update that widens the line asks again.
+func TestABrowserNeedsTheCapabilityConsent(t *testing.T) {
+	b := &manifest.Browser{Sites: []string{"site"}}
+	if !needsCapabilityConfirm(manifest.Capabilities{Browser: b}) {
+		t.Fatal("a browser asks for no consent")
+	}
+	before := manifest.Capabilities{Browser: b}
+	for name, after := range map[string]*manifest.Browser{
+		"a host":   {Sites: []string{"site"}, Hosts: []string{"cdn.example.com"}},
+		"a secret": {Sites: []string{"site"}, Secrets: []string{"SITE_USER"}},
+		"public":   {Sites: []string{"site"}, Scope: manifest.BrowserScopePublic},
+	} {
+		if d := installed.DiffCapabilities(installed.Snapshot(before), installed.Snapshot(manifest.Capabilities{Browser: after, Secrets: after.Secrets})); !d.HasWidened() {
+			t.Errorf("%s did not widen the contract: %+v", name, d)
+		}
+	}
+}

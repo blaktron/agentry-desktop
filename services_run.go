@@ -12,11 +12,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/blaktron/agentry/pkg/manifest"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/receipt"
@@ -904,6 +907,10 @@ type IntakeQuestionView struct {
 	Type     string   `json:"type"`
 	Required bool     `json:"required"`
 	Choices  []string `json:"choices"`
+	// Site says a url question is the browser's site to test
+	// (capabilities.browser.sites; agentry-desktop#878): asked as an http or
+	// https address, never as an input source to fetch with a token.
+	Site bool `json:"site,omitempty"`
 }
 
 func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
@@ -925,7 +932,8 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 		v.AcceptsKnowledge = &KnowledgeAcceptsView{Prompt: a.Prompt, Required: a.Required}
 	}
 	for _, q := range p.Intake {
-		v.Intake = append(v.Intake, IntakeQuestionView{ID: q.ID, Prompt: q.Prompt, Type: string(q.Type), Required: q.Required, Choices: emptyNotNil(q.Choices)})
+		site := q.Type == manifest.IntakeURL && slices.Contains(p.BrowserSites, q.ID)
+		v.Intake = append(v.Intake, IntakeQuestionView{ID: q.ID, Prompt: q.Prompt, Type: string(q.Type), Required: q.Required, Choices: emptyNotNil(q.Choices), Site: site})
 	}
 	if g := p.Guide; g != nil {
 		v.Guide = &GuideView{Overview: g.Overview, Prepare: emptyNotNil(g.Prepare), Files: g.Files, Task: g.Task, Connect: map[string]string{}}
