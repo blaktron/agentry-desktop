@@ -231,7 +231,7 @@ func Declared(ctx context.Context, regURL, ref string) (*Declaration, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest), Browser: sig.Manifest.Capabilities.Browser != nil}
+	d := &Declaration{Secrets: allSecretNames(sig.Manifest), Optional: optionalSecretNames(sig.Manifest), TargetHosts: TargetHostIDs(sig.Manifest)}
 	for _, mode := range sig.Manifest.SupportedModes() {
 		d.Modes = append(d.Modes, string(mode))
 	}
@@ -247,9 +247,6 @@ type Declaration struct {
 	Secrets, Optional []string
 	// TargetHosts are its host questions' ids.
 	TargetHosts []string
-	// Browser says it declares a browser (capabilities.browser), which no
-	// run In Agentry carries yet (agentry-desktop#878).
-	Browser bool
 }
 
 // ProfileStatus resolves a ref and reports its profile state. Keep on a

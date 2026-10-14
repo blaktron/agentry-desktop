@@ -329,6 +329,36 @@ func TestARunInAgentrySendsEachSourceItsToken(t *testing.T) {
 	}
 }
 
+// A browser's site is no source In Agentry (agentry-desktop#903): a key
+// saved for its host is not sent, an http:// site is not put through the
+// https-only source parse, and a token typed for it refuses the run, as for
+// any question that is no source.
+func TestABrowserSiteTakesNoTokenInAgentry(t *testing.T) {
+	sourceKeychain(t)
+	if err := SaveSourceKey("url", "https://shop.example.com/", testSourceToken); err != nil {
+		t.Fatal(err)
+	}
+	m := &manifest.Manifest{
+		Intake:       []manifest.IntakeQuestion{{ID: "site", Prompt: "p", Type: manifest.IntakeURL}, {ID: "doc", Prompt: "p", Type: manifest.IntakeURL}},
+		Capabilities: manifest.Capabilities{Browser: &manifest.Browser{Sites: []string{"site"}}},
+	}
+	for _, site := range []string{"https://shop.example.com/login", "http://shop.example.com/"} {
+		got, err := HostedSourceTokens(m, map[string]string{"site": site, "doc": "https://shop.example.com/spec.pdf"}, nil, nil)
+		if err != nil || got["site"] != "" || got["doc"] != testSourceToken {
+			t.Fatalf("site %s: %v %v", site, got, err)
+		}
+	}
+	if _, err := HostedSourceTokens(m, map[string]string{"site": "https://shop.example.com/"}, map[string]string{"site": testTypedToken}, nil); err == nil {
+		t.Fatal("a token typed for the site was sent")
+	} else {
+		noToken(t, "a token for the site", err.Error())
+	}
+	keys, err := HostedScheduleKeys(m, map[string]string{"site": "https://shop.example.com/"}, nil, nil)
+	if err != nil || len(keys) != 0 {
+		t.Fatalf("a schedule's keys for a site: %v %v", keys, err)
+	}
+}
+
 // A schedule In Agentry saves each source's token in Agentry as its
 // host's key (agentry-enterprise#532): one key a host, so two sources on
 // one host given different tokens are refused; a source with no token

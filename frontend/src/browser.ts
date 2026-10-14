@@ -83,7 +83,8 @@ export function siteProblem(answer: string): string | null {
 
 // LOCAL_ONLY_SUFFIXES are names a public resolver never answers for a site
 // on the internet: the registry's list (agentry-enterprise#565
-// internal/runs/browser.go localOnlySuffixes) and the site's.
+// internal/runs/browser.go localOnlySuffixes) and the site's
+// (agentry-web lib/run-setup.ts); a change there is a change here.
 const LOCAL_ONLY_SUFFIXES = [".localhost", ".local", ".internal", ".home.arpa"];
 
 // publicIPv4 says an IPv4 literal is on the public internet: none of the

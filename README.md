@@ -205,8 +205,9 @@ The product never claims an agent is "safe". The language is always:
   each site question as the address of the site to test (`https://` or
   `http://`, a staging server on your network included), never as a file to
   fetch. The run's browser, its proxy and its tools are the CLI's
-  (v0.6.117). Nothing In Agentry is offered for it until hosted runs carry a
-  browser. One local job runs at a time: a run, a chat, a
+  (v0.6.117). In Agentry it runs too (agentry-desktop#903), its site held to
+  what a sandbox host can open (a public address, ports 80 and 443) and never
+  sent as a source. One local job runs at a time: a run, a chat, a
   draft, a knowledge build or a review started meanwhile is refused with
   what is running. What a run needs while it is live
   (its containers, volumes and networks, and a scratch directory under the
