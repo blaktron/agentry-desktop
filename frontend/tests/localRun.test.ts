@@ -1,4 +1,4 @@
-// A run on this computer, followed by its id (agentry-desktop#465): what the
+// A run on this computer, followed by its id: what the
 // store takes from Go's reports, and what it never takes.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -58,7 +58,7 @@ test("how it ended, for the card", () => {
   assert.deepEqual(outcome(early), { line: "You stopped the run before the QuickAgent started.", tone: "warn" });
 });
 
-// A run that ended blocked (exit 18, agentry-cli#629, agentry-desktop#680)
+// A run that ended blocked (exit 18)
 // is a warning that says who stopped it, never an error and never a pass.
 test("a blocked run says who stopped it, as a warning", () => {
   const blocked = (reason: unknown, error = "") =>

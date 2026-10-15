@@ -1,5 +1,5 @@
 // A deep link's part is followed while its page fills in, and the person
-// ends the follow (agentry-desktop#673).
+// ends the follow.
 import { window } from "./dom.ts";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

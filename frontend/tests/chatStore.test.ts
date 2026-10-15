@@ -1,4 +1,4 @@
-// The chat store (agentry-desktop#467), driven by scripted events and calls
+// The chat store, driven by scripted events and calls
 // in place of Go: the store starts the session once however often the flow
 // switches between dialog and card, collects a chat the engine ended with
 // nothing open, and follows a chat In Agentry by its run's id.

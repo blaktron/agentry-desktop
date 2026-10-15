@@ -1,13 +1,13 @@
-// Review Your QuickAgents locally (agentry-desktop#469): the action on
+// Review Your QuickAgents locally: the action on
 // Validate, the review's progress dialog and corner card, and its report, by
 // location.hash, under the shell chrome with the bindings mocked (the
 // pattern drafts.tsx uses). Not shipped.
 //
 //   #validate          Validate with a folder chosen: the action beside it
 //   #validate-nokey    the same without an AI Review key: add one
-//   #validate-clean    a clean folder answered as Go sent it before
-//                      agentry-desktop#534 (every list null, no readErrors):
-//                      PASSED, never the page's error boundary
+//   #validate-clean    a clean folder answered with every list null
+//                      and no readErrors: PASSED, never the page's error
+//                      boundary
 //   #review-running    a review under way: the stage, time, turns, tokens
 //                      over its folded log, Stop the review
 //   #card-running      the same shrunk to its corner card

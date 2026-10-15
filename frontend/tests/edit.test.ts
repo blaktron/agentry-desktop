@@ -1,4 +1,4 @@
-// Edit on the QuickAgent page (agentry-desktop#500; DEV-199): offered on the
+// Edit on the QuickAgent page: offered on the
 // registry's canPublish for a QuickAgent with a published release, carried
 // from the page to the Build tab once, and kept beside the form only while
 // the form still names the QuickAgent.

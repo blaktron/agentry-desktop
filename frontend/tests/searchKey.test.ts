@@ -1,4 +1,4 @@
-// The person's own web search key (agentry-desktop#301): the card's words
+// The person's own web search key: the card's words
 // for where the key stands, and for a save that replaces another
 // provider's key, decided once.
 import { test } from "node:test";

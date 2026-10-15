@@ -1,4 +1,4 @@
-// Model setup's rules (agentry-desktop#734, plan model-sign-ins.md §4.1):
+// Model setup's rules:
 // the ways each provider offers, a sign-in first; which one the saved
 // policy uses; what is kept; and what a choice needs before Save.
 import { test } from "node:test";
@@ -42,7 +42,7 @@ test("the saved policy's way: its sign-in kind, a kept connect, else a key", () 
   assert.equal(savedWay("openai", "openai", "chatgpt-plan", []), "chatgpt");
   assert.equal(savedWay("openai", "openai", "", []), "key");
   assert.equal(savedWay("anthropic", "anthropic", "claude-signin", []), "claude");
-  assert.equal(savedWay("anthropic", "anthropic", "subscription", []), "key", "DR-26's pasted setup-token is a key here");
+  assert.equal(savedWay("anthropic", "anthropic", "subscription", []), "key", "a pasted setup-token is a key here");
   assert.equal(savedWay("copilot", "copilot", "copilot-signin", []), "copilot");
   assert.equal(savedWay("openrouter", "openrouter", "", [openrouter]), "connect");
   assert.equal(savedWay("openrouter", "openrouter", "", []), "key", "a pasted key forgets the connect");
@@ -74,7 +74,7 @@ test("how each way asks for the model", () => {
   assert.equal(modelAsk("copilot", "copilot", []).defaultModel, "auto");
   const hf = modelAsk("huggingface", "connect", []);
   assert.equal(hf.mode, "typed");
-  assert.equal(hf.defaultModel, "", "the person types the model id (D33)");
+  assert.equal(hf.defaultModel, "", "the person types the model id");
   assert.match(hf.placeholder, /:groq/);
   assert.equal(modelAsk("anthropic", "key", []).defaultModel, "claude-sonnet-4-5");
 });
@@ -104,7 +104,7 @@ test("Settings' summary says what pays where a sign-in does", async () => {
   assert.equal(paidBy(""), "");
 });
 
-test("a Copilot plan's listed models are offered, auto first, each once (agentry-desktop#811)", () => {
+test("a Copilot plan's listed models are offered, auto first, each once", () => {
   assert.equal(modelAsk("copilot", "copilot", []).mode, "typed", "before the list, the id is typed");
   const ask = modelAsk("copilot", "copilot", ["claude-sonnet-5.5", "gpt-5-mini", "claude-sonnet-5.5"]);
   assert.equal(ask.mode, "plan");
@@ -122,14 +122,14 @@ test("a Copilot plan's listed models are offered, auto first, each once (agentry
   assert.equal(copilotModelAfterList("claude-opus-5.5", ["gpt-5-mini"]), "auto", "a model the plan no longer offers falls back to auto");
 });
 
-test("a Copilot list that fails says why in the page's words (agentry-desktop#811)", () => {
+test("a Copilot list that fails says why in the page's words", () => {
   const refused = "copilot models: session.create: … 401 Unauthorized (GitHub refused the sign-in's token: sign in again with agentry model-signins add copilot)";
   assert.equal(copilotListFailure(refused), "GitHub refused the kept sign-in: use Sign in again above, then list again.");
   assert.doesNotMatch(copilotListFailure(refused), /agentry model-signins/, "the page never sends the person to the CLI");
   assert.equal(copilotListFailure("docker is not running"), "Could not list your plan's models (docker is not running). Type the model id instead.");
 });
 
-// The provider tiles (agentry-desktop#830): eight, so two rows of four, each
+// The provider tiles: eight, so two rows of four, each
 // named without the label's parenthesis and saying what it can be paid with,
 // in the ways' own words.
 test("eight provider tiles, each saying what it can be paid with", () => {

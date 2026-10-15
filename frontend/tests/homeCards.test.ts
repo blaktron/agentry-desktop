@@ -1,5 +1,4 @@
-// Home's card registry (plan desktop-home-and-library.md §4.4, D-067;
-// agentry-desktop#658): which of the layout's cards the page draws, in what
+// Home's card registry: which of the layout's cards the page draws, in what
 // order, at what size.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -28,7 +27,7 @@ test("a default card is drawn once however often the layout names it; a pinned c
   assert.deepEqual(drawn[0].pins, []);
 });
 
-test("a Pinned card is drawn only while it holds a pin (agentry-desktop#660)", () => {
+test("a Pinned card is drawn only while it holds a pin", () => {
   const drawn = cardsToDraw([{ kind: "pinned" }, { kind: "pinned", pins: [] }, { kind: "installed" }], all);
   assert.deepEqual(kinds(drawn), ["installed"]);
 });
@@ -42,7 +41,7 @@ test("each kind has a title for Settings to name it by", () => {
   for (const d of Object.values(HOME_CARDS)) assert.ok(d.title.length > 0, d.kind);
 });
 
-// Settings → Home (agentry-desktop#661): one switch per default card, and
+// Settings → Home: one switch per default card, and
 // the landing card's status line.
 import { HOME_DEFAULTS, cardSwitches, homeStatus } from "../src/homeCards.ts";
 
@@ -77,8 +76,7 @@ test("a layout this app keeps rather than uses says so, and counts nothing", () 
   assert.equal(homeStatus(view(defaults, { unreadable: true })), "The arrangement cannot be read; the default cards are shown.");
 });
 
-// The Scheduled card (plan quickagent-scheduling.md D13;
-// agentry-desktop#744): one Large card, pinned from the Scheduled page,
+// The Scheduled card: one Large card, pinned from the Scheduled page,
 // listed in Settings → Home after the defaults.
 import { scheduledOnHome } from "../src/homeCards.ts";
 

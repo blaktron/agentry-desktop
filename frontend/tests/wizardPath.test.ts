@@ -1,4 +1,4 @@
-// The first-run wizard's Local and Cloud paths (agentry-desktop#842): Local
+// The first-run wizard's Local and Cloud paths: Local
 // keeps every step the wizard had, Cloud ends on its data page, and Cloud is
 // open only to someone signed in to the registry the app browses.
 import { test } from "node:test";

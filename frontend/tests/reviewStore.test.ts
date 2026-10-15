@@ -1,4 +1,4 @@
-// The review store (agentry-desktop#469), driven by scripted events and calls
+// The review store, driven by scripted events and calls
 // in place of Go: a review is followed from its first report to its report;
 // a No in the native dialog and a refusal change nothing; a second review
 // never touches the one being followed until its own has begun; Stop and

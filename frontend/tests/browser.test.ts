@@ -1,10 +1,9 @@
-// The browser in the desktop (plan browser-testing.md §5, D2, D9;
-// agentry-desktop#878): the install review, the badge and the Library say
+// The browser in the desktop: the install review, the badge and the Library say
 // it in the CLI's consent words; the run setup asks a site question as the
 // address of the site to test, never as a source to fetch, and holds it to
-// what the CLI's browser.ParseSite takes; and since browser testing M7 a
+// what the CLI's browser.ParseSite takes; and a
 // run In Agentry is offered for it, its site held to what a sandbox host
-// can open (agentry-desktop#903).
+// can open.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { browserBadge, browserCap, browserLine, browserReach, hostedSiteProblem, isSiteQuestion, siteBlockers, siteProblem } from "../src/browser.ts";
@@ -59,9 +58,9 @@ test("what to have ready names the site, not a file to fetch", () => {
   assert.ok(!list.some((l) => l.includes("https address of the file")), list.join("\n"));
 });
 
-test("a site In Agentry is one a sandbox host can open (agentry-desktop#903)", () => {
+test("a site In Agentry is one a sandbox host can open", () => {
   const q = { id: "site", prompt: "Which site should I test?", type: "url", required: true, site: true };
-  // On this computer a staging server on the person's network is taken (plan D2).
+  // On this computer a staging server on the person's network is taken.
   assert.deepEqual(siteBlockers([q], { site: "http://192.168.1.20:8080/" }), []);
   for (const a of ["https://shop.example.com/login", "http://shop.example.com:443/", "http://93.184.215.14/"]) {
     assert.deepEqual(siteBlockers([q], { site: a }, true), [], a);

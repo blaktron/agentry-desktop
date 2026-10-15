@@ -1,5 +1,4 @@
-// A declared MCP server the registry's gate rates high (agentry-desktop#459,
-// D-055): on this computer it runs only in Unsafe Mode, with the person's
+// A declared MCP server the registry's gate rates high: on this computer it runs only in Unsafe Mode, with the person's
 // consent; In Agentry it has no way through; a server rated medium or low
 // carries no refusal and asks for nothing.
 import { test } from "node:test";

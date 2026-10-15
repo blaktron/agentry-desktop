@@ -1,6 +1,4 @@
-// What Recent runs and the run page say of a run (plan
-// desktop-home-and-library.md §4.6, §4.7, D8, D13; D-068;
-// agentry-desktop#659).
+// What Recent runs and the run page say of a run.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { builtinPlace, emptyLine, headline, howItEnded, nameOf, rowLine, versionOf, whatRan, whenRan, whereRan } from "../src/recentRuns.ts";
@@ -25,7 +23,7 @@ test("where and how it ended, here in the app's words and In Agentry in the site
   assert.equal(whereRan({ where: "agentry" }), "In Agentry");
   assert.equal(howItEnded({ where: "here", outcome: "ok" }), "Finished");
   assert.equal(howItEnded({ where: "here", outcome: "stopped" }), "Stopped");
-  // A run that ended blocked (exit 18, #680) is neither an error nor a pass.
+  // A run that ended blocked (exit 18) is neither an error nor a pass.
   assert.equal(howItEnded({ where: "here", outcome: "blocked", exitCode: 18 }), "Blocked");
   assert.equal(headline({ kind: "run", outcome: "blocked", exitCode: 18 }), "It was blocked: the QuickAgent could not do the task with what it had.");
   assert.equal(howItEnded({ where: "here", outcome: "error", exitCode: 3 }), "Ended in an error (exit 3)");
@@ -53,7 +51,7 @@ test("when is relative, and a run still moving says when it started", () => {
   );
 });
 
-test("a built-in's run page links to its own place, a review's report is on the page (D13)", () => {
+test("a built-in's run page links to its own place, a review's report is on the page", () => {
   assert.deepEqual(builtinPlace("draft"), { label: "Open in Build", page: "build" });
   assert.deepEqual(builtinPlace("knowledge"), { label: "Open in Knowledge", page: "knowledge" });
   assert.deepEqual(builtinPlace("voice"), { label: "Open in Voice", page: "voice" });

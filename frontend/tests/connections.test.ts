@@ -1,4 +1,4 @@
-// The run setup's sign-ins (agentry-desktop#666): what the page says of a
+// The run setup's sign-ins: what the page says of a
 // connection, and what it holds Run for.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,7 +17,7 @@ test("a server not connected holds Run on this computer, by name, until it is", 
 });
 
 test("In Agentry this computer's connections do not count, and nothing holds Run but a registry that keeps none", () => {
-  // Agentry keeps its own (plan D19): the start asks for what it lacks.
+  // Agentry keeps its own: the start asks for what it lacks.
   for (const c of [none, connected]) {
     assert.deepEqual(connectionBlockers([c], true), []);
     const b = connectionBlockers([c], true, false);

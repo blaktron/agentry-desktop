@@ -1,4 +1,4 @@
-// The run store (agentry-desktop#465), driven by scripted events and calls in
+// The run store, driven by scripted events and calls in
 // place of Go: a second Run never touches the run being followed, a refused
 // start changes nothing, and Stop and Dismiss reach the run they mean.
 import { test } from "node:test";
