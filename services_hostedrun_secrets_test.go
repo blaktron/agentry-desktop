@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-// The availability view names what a release declares, so the panel can
-// say before a start what it will ask for (agentry-desktop#300).
+// The availability view names what a release declares, so the panel can say
+// before a start what it will ask for.
 func TestHostedAvailabilityNamesTheDeclaredSecrets(t *testing.T) {
 	f := &hostedFake{enabled: true, secrets: []string{"GITHUB_TOKEN", "SEARCH_KEY"}, extensions: []string{"billing", "runs", "vault"},
 		scopes: []string{"agent:read", "user:profile", "run:read", "run:write", "secret:write"}}
@@ -44,10 +44,10 @@ func captureLogs(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-// SetHostedSecret is a call of its own, as the model key's is (D-024): the
-// value reaches the vault once, with keep as a literal boolean, and is in
-// no log line, no event the panel receives and no error — whatever the
-// registry answers.
+// SetHostedSecret is a call of its own, as the model key's is: the value
+// reaches the vault once, with keep as a literal boolean, and is in no log
+// line, no event the panel receives and no error — whatever the registry
+// answers.
 func TestSetHostedSecretIsItsOwnCallAndLogsNothing(t *testing.T) {
 	const value = "ghp_desktop-do-not-leak-300"
 	logs := captureLogs(t)
@@ -98,9 +98,9 @@ func TestSetHostedSecretIsItsOwnCallAndLogsNothing(t *testing.T) {
 }
 
 // A secret set for a start that then does not start is deleted again — the
-// ones held for one run, never one the person kept — and a start that
-// does start leaves them for the vault to remove when the run ends
-// (plan D12; the site does the same, agentry-web#600).
+// ones held for one run, never one the person kept — and a start that does
+// start leaves them for the vault to remove when the run ends (the site does
+// the same).
 func TestAStartThatDoesNotStartDeletesItsHeldSecrets(t *testing.T) {
 	f := &hostedFake{enabled: true, refuse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/problem+json")
@@ -167,8 +167,8 @@ func TestStartHostedRunReportsTheMissingSecrets(t *testing.T) {
 	}
 }
 
-// The token goes to no URL Settings would refuse (D-039): plain http to a
-// host off this machine is refused before any token is looked up.
+// The token goes to no URL Settings would refuse: plain http to a host off
+// this machine is refused before any token is looked up.
 func TestSetHostedSecretHoldsTheURLRule(t *testing.T) {
 	signIn(t, "https://registry.example")
 	r, _ := newRunAPI(t)
@@ -207,10 +207,10 @@ func TestACreateWithNoAnswerLeavesTheHeldSecrets(t *testing.T) {
 	}
 }
 
-// agentry-desktop#795: a start asked to ask for the optional keys sends
-// ask_optional_secrets, and one not asked sends nothing of it; the
-// registry's secret-missing reaches the panel with the names it asks for
-// and the optional ones among them, which the ask may leave empty.
+// A start asked to ask for the optional keys sends ask_optional_secrets, and
+// one not asked sends nothing of it; the registry's secret-missing reaches
+// the panel with the names it asks for and the optional ones among them,
+// which the ask may leave empty.
 func TestAStartAsksForTheOptionalKeysOnlyWhenTold(t *testing.T) {
 	f := &hostedFake{enabled: true}
 	reg := f.start(t)

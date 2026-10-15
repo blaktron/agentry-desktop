@@ -1,10 +1,10 @@
 package main
 
-// A run In Agentry with a knowledge pack attached, live (agentry-desktop#275;
-// agentry-enterprise#172): the bound methods driven as the run panel drives
-// them, against a real registry that attaches knowledge to a hosted run,
-// with the output folder picker answered by the test. Skipped unless the
-// variables are set, because the run spends the account's credits:
+// A run In Agentry with a knowledge pack attached, live: the bound methods
+// driven as the run panel drives them, against a real registry that attaches
+// knowledge to a hosted run, with the output folder picker answered by the
+// test. Skipped unless the variables are set, because the run spends the
+// account's credits:
 //
 //	AGENTRY_LIVE_HOSTED_RUN_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_RUN_TOKEN=<a PAT with run:read, run:write, knowledge:read, user:profile> \

@@ -1,9 +1,9 @@
 package draft
 
-// A hosted draft's draft.json read as data (plan builder-rework.md §7.5,
-// D15, D16; #281). The file was written on a sandbox host by a model that
-// read the web: it decodes into the form's Model as text, known fields
-// only, or it is refused, and either way nothing is written.
+// A hosted draft's draft.json read as data. The file was written on a
+// sandbox host by a model that read the web: it decodes into the form's
+// Model as text, known fields only, or it is refused, and either way
+// nothing is written.
 
 import (
 	"encoding/json"
@@ -168,8 +168,8 @@ func TestDecodeHoldsAHostileDraftJSONAsData(t *testing.T) {
 			d["sources"] = s
 		}),
 		"a negative count": draftDoc(t, func(d map[string]any) { d["aiReview"].(map[string]any)["read"] = -1 }),
-		// AI Review's check of the finished draft (aiReview.check,
-		// agentry-cli#418), each text and list of it held to a bound.
+		// AI Review's check of the finished draft (aiReview.check),
+		// each text and list of it held to a bound.
 		"too many findings": withCheck(t, func(c map[string]any) {
 			var f []any
 			for range maxDraftList + 1 {

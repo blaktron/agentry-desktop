@@ -1,9 +1,7 @@
-// Describe it's Knowledge pick (agentry-desktop#497; plan
-// knowledge-and-drafter.md K4, D3, D4): which of the person's packs a draft
+// Describe it's Knowledge pick: which of the person's packs a draft
 // may read where it is made, what the picked ones hold against the draft's
 // bound, and which a draft on this computer scans first. Pure, so its rules
-// are tested without the app; the words are the site's
-// (agentry-web components/run-setup KnowledgePick, lib/run-setup).
+// are tested without the app; the words are the site's.
 //
 // On this computer a draft reads packs kept here; one that has no scan in
 // Agentry for this copy is scanned first by AI Review with the person's own

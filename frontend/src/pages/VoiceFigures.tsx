@@ -1,9 +1,8 @@
-// The Voice page's two figures (plan voice-page-redesign.md §4.1,
-// agentry-desktop#610), drawn as the Build page's are (DEV-201) and in the
-// language of the site's (agentry-web components/voice-ways.tsx): light
-// lines with a spark running each. They picture the card's own sentence and
-// claim nothing beyond it, so they are hidden from the accessibility tree.
-// CSS keyframes only, and still under prefers-reduced-motion.
+// The Voice page's two figures, drawn as the Build page's are and in the
+// language of the site's: light lines with a spark running each. They picture
+// the card's own sentence and claim nothing beyond it, so they are hidden from
+// the accessibility tree. CSS keyframes only, and still under
+// prefers-reduced-motion.
 import { ACCENT, AMBER, Beam, Figure, Part, SKY, VIOLET } from "./BuildWays";
 
 // LocalVoiceFigure: lines of writing on this computer's screen run into one

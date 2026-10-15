@@ -12,13 +12,12 @@ import {
   type ForksFilter, type ListSort, type StateFilter, type VisibilityFilter,
 } from "../publisher";
 
-// The Publisher section (plan forks-and-publisher.md §4.2, D12; M6,
-// agentry-desktop#705): the QuickAgents in the signed-in person's namespace
+// The Publisher section: the QuickAgents in the signed-in person's namespace
 // and their organizations', searched, filtered and sorted as the site's
 // Publisher list is, with the owner actions on each. Every action is asked
 // again in a native dialog by Go and decided by the registry; the page says
 // what happened in the words Go returns.
-// A fork just made from an agent page (agentry-desktop#706): the section
+// A fork just made from an agent page: the section
 // opens on its namespace and follows it until its first version is
 // published or stops.
 export type FollowFork = { namespace: string; name: string; sentence: string };
@@ -178,7 +177,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
 
   const here = view.namespaces.find((n) => n.handle === ns);
   const admin = !!here?.admin;
-  // A sign-in from before agentry#993 cannot take the owner actions; one
+  // An older sign-in cannot take the owner actions; one
   // whose scopes the registry did not report is offered them, and the
   // registry decides.
   const scopeless = view.scopesKnown && !view.canManage;

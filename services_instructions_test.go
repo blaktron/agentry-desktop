@@ -1,8 +1,8 @@
 package main
 
-// The Agent tab's instruction file (agentry-desktop#835), against the fake
-// registry Edit's tests use: the path is the manifest's entrypoint, and the
-// file comes back as text with the registry's truncation and binary flags.
+// The Agent tab's instruction file, against the fake registry Edit's tests
+// use: the path is the manifest's entrypoint, and the file comes back as
+// text with the registry's truncation and binary flags.
 
 import (
 	"context"

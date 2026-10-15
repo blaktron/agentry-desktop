@@ -1,15 +1,15 @@
 // Package applog is the logger the desktop hands the Wails runtime. It
 // exists because of one line in the framework: when the dispatcher cannot
 // parse a bound call's arguments, or the bound method panics, Wails v2 logs
-// "process message error: <message> -> <err>" at error level, and <message>
-// is the raw JSON of the call, arguments included (agentry-desktop#102).
-// Five of the app's calls carry a secret as an argument: the personal
-// access token on SignIn, MCP secret values on SaveProfile, the model key
-// on StoreModelKey, the person's AI Review key on StoreJevKey and a run In
-// Agentry's secret on SetHostedSecret (agentry-desktop#300). No
-// secret reaches a log (ARCHITECTURE §9), so this logger rewrites that line to the kind of message, the method name and
-// the error, and withholds the arguments. It also withholds the trace-level
-// "json call result data" line, whose body is a call's result.
+// "process message error: <message> -> <err>" at error level, and <message> is
+// the raw JSON of the call, arguments included. Five of the app's calls carry a
+// secret as an argument: the personal access token on SignIn, MCP secret values
+// on SaveProfile, the model key on StoreModelKey, the person's AI Review key on
+// StoreJevKey and a run In Agentry's secret on SetHostedSecret. No secret
+// reaches a log, so this logger rewrites that line to the
+// kind of message, the method name and the error, and withholds the arguments.
+// It also withholds the trace-level "json call result data" line, whose body is
+// a call's result.
 //
 // Everything else passes through to the inner logger unchanged. The error
 // text itself is kept: it is what diagnoses a stale binding, and it is the

@@ -1,7 +1,6 @@
 package main
 
-// Create knowledge from a brief alone, live (agentry-desktop#498; plan
-// knowledge-and-drafter.md D15, D16): the bound methods driven as the
+// Create knowledge from a brief alone, live: the bound methods driven as the
 // Knowledge panel drives them, on this computer and In Agentry, with no
 // document. Each is skipped unless its variables are set, because each
 // spends a model's tokens or the account's credits.

@@ -1,5 +1,4 @@
-// What Home's cards say (plan desktop-home-and-library.md §4.3;
-// agentry-desktop#658): the Installed QuickAgents card's line and names,
+// What Home's cards say: the Installed QuickAgents card's line and names,
 // and the lead line.
 import { test } from "node:test";
 import assert from "node:assert/strict";

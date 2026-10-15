@@ -1,10 +1,9 @@
-// Browser sign-in (core DEV-058): the desktop half. The app opens the
-// registry's authorize page in the system browser — sign-in there goes
-// through whatever the registry mandates (the directory service under
-// DEV-057, MFA included) — and receives a freshly minted PAT on a one-shot
-// loopback listener. The token then takes exactly the pasted-PAT path:
-// verified against the registry, stored keychain-first, signing keys
-// pinned on first use.
+// Browser sign-in: the desktop half. The app opens the registry's authorize
+// page in the system browser — sign-in there goes through whatever the
+// registry mandates (the directory service, MFA included) — and receives a
+// freshly minted PAT on a one-shot loopback listener. The token then takes
+// exactly the pasted-PAT path: verified against the registry, stored
+// keychain-first, signing keys pinned on first use.
 package main
 
 import (
@@ -28,7 +27,7 @@ var browserSignInMu sync.Mutex
 // browserSignInCancel ends the in-flight flow's wait (nil when none is in
 // flight). It exists for the Settings page's "Cancel sign-in": a closed
 // browser window, or an authorize page that never completes, must not hold
-// the app for the whole authflow timeout (agentry-desktop#24).
+// the app for the whole authflow timeout.
 var (
 	browserSignInCancelMu sync.Mutex
 	browserSignInCancel   context.CancelFunc
@@ -79,31 +78,28 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 }
 
 // requestedScopes are the scopes this app's surfaces need, named on the
-// authorize page's URL. Browse and install, Build → publish and identity
-// are what the registry has always minted for a desktop sign-in; a run In
-// Agentry adds run:read and run:write (plan hosted-runs.md §6, agentry
-// #348), Knowledge knowledge:read and knowledge:write, the Writing
-// Voice voice:read and voice:write, and the Publisher section
-// agent:manage. The registry
-// decides what it grants — the scope set of a desktop
-// grant is fixed server-side so no caller can widen it — so this names
-// what the app asks for, and HostedAvailability reads back what the token
-// actually carries. A registry that does not know the parameter ignores
-// it, and every other surface keeps working with the token it mints.
+// authorize page's URL. Browse and install, Build → publish and identity are
+// what the registry has always minted for a desktop sign-in; a run In
+// Agentry adds run:read and run:write, Knowledge knowledge:read and
+// knowledge:write, the Writing Voice voice:read and voice:write, and the
+// Publisher section agent:manage. The registry decides what it grants — the
+// scope set of a desktop grant is fixed server-side so no caller can widen
+// it — so this names what the app asks for, and HostedAvailability reads
+// back what the token actually carries. A registry that does not know the
+// parameter ignores it, and every other surface keeps working with the token
+// it mints.
 var requestedScopes = []string{
 	"agent:read", "agent:publish", "repo:read", "repo:write", "user:profile",
 	hostedrun.ScopeRunRead, hostedrun.ScopeRunWrite,
 	// The Knowledge panel's packs in Agentry, and the wrap and unwrap of
-	// their keys (plan knowledge.md §4.3); the core's desktop grant has
-	// carried both since agentry#609.
+	// their keys; the core's desktop grant carries both.
 	"knowledge:read", "knowledge:write",
 	// The Writing Voice in the account, its Submit and Use, and the Voice
-	// Writer In Agentry (plan writing-voice.md V6); the core's sign-in
-	// grant has carried both since agentry#809 (DEV-191).
+	// Writer In Agentry; the core's sign-in grant carries both.
 	hostedrun.ScopeVoiceRead, hostedrun.ScopeVoiceWrite,
 	// The Publisher section's owner actions: make a QuickAgent public or
-	// private, retire, restore and delete it (plan forks-and-publisher.md
-	// M6); the core's sign-in grant carries it since agentry#993 (DEV-225).
+	// private, retire, restore and delete it; the core's sign-in grant
+	// carries it.
 	"agent:manage",
 }
 

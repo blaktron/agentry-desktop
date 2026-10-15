@@ -1,9 +1,7 @@
-// The guided run setup's pure parts (plan guided-runs.md §4, M3;
-// agentry-desktop#226): which steps a release gets, and the "what to have
-// ready" list derived from the manifest while no release carries its
-// author's own guide (plan D2). The site's run setup reads the same
-// manifest the same way (agentry-web lib/run-setup), so a release asks for
-// the same things on either client.
+// The guided run setup's pure parts: which steps a release gets, and the "what
+// to have ready" list derived from the manifest while no release carries its
+// author's own guide. The site's run setup reads the same manifest the same
+// way, so a release asks for the same things on either client.
 
 import { isSourceType, sourceNeed } from "./sources.ts";
 import { isSiteQuestion, siteNeed } from "./browser.ts";
@@ -23,7 +21,7 @@ export const STEP_LABEL: Record<StepKey, string> = {
 // setupSteps leaves Connect tools out when the release declares neither an
 // MCP server nor a key, and Knowledge out when no pack can be attached (none
 // is kept on this computer, or the run is In Agentry, which attaches packs
-// from Knowledge M7): a step with nothing on it is not shown.
+// from the Knowledge step): a step with nothing on it is not shown.
 export function setupSteps(release: { servers: number; secrets: number; knowledge?: boolean }): StepKey[] {
   const steps: StepKey[] = ["start", "files"];
   if (release.knowledge) steps.push("knowledge");
@@ -37,12 +35,11 @@ interface Question {
   prompt: string;
   type: string;
   required: boolean;
-  /** A url question the browser names as its site (agentry-desktop#878). */
+  /** A url question the browser names as its site. */
   site?: boolean;
 }
 
-/** The "what to have ready" line for the servers that sign in by OAuth
- *  (agentry-desktop#666). */
+/** The "what to have ready" line for the servers that sign in by OAuth. */
 export function signInNeed(count: number): string | null {
   if (count === 0) return null;
   return count === 1
@@ -61,13 +58,13 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
   if (fileQs.length > 0) {
     for (const q of fileQs) out.push(`A file for “${q.prompt}”${q.required ? "" : " (optional)"}.`);
   } else if (release.files) {
-    // The author's guide says which files (guided-runs.md §4).
+    // The author's guide says which files.
     out.push(release.files);
   } else {
     out.push("Any files the task is about. This is optional: a run can start with none.");
   }
   if (release.secrets.length > 0) {
-    // A key the release marks optional (agentry-desktop#655) can be left
+    // A key the release marks optional can be left
     // out altogether: the run starts without it.
     const optional = (release.optional ?? []).filter((k) => release.secrets.includes(k));
     out.push(
@@ -78,25 +75,24 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
   }
   for (const q of release.intake) {
     if (q.type === "file") continue;
-    // The site its browser tests (agentry-desktop#878).
+    // The site its browser tests.
     if (isSiteQuestion(q)) {
       out.push(siteNeed(q));
       continue;
     }
-    // A repository or a file at an address (agentry-desktop#794).
+    // A repository or a file at an address.
     if (isSourceType(q.type)) {
       out.push(sourceNeed(q));
       continue;
     }
-    // A server to work over SSH (agentry-desktop#812).
+    // A server to work over SSH.
     if (isHostType(q.type)) {
       out.push(hostNeed(q));
       continue;
     }
     out.push(`Your answer to “${q.prompt}”${q.required ? "" : " (optional)"}.`);
   }
-  // A server that signs in by OAuth is connected on Connect tools
-  // (agentry-desktop#666).
+  // A server that signs in by OAuth is connected on Connect tools.
   const signIn = signInNeed(release.signIns ?? 0);
   if (signIn) out.push(signIn);
   out.push("A sentence or two saying what you want done, if you want more than its own instruction.");
@@ -111,13 +107,12 @@ export function needList(release: { intake: Question[]; secrets: string[]; optio
   return out;
 }
 
-// Run defaults' "where to run" (plan settings-cards.md D13;
-// agentry-desktop#347) only pre-selects the Where step. inAgentryByDefault
-// says whether it may pick In Agentry for this run: the default says so, the
-// mode is offered and available here, and the release is not one admitted
-// without a scan (which is never run In Agentry from this app). Nothing is
-// started by it: Run is still the person's click on Review and start, after
-// the credits the run holds are shown.
+// Run defaults' "where to run" only pre-selects the Where step.
+// inAgentryByDefault says whether it may pick In Agentry for this run: the
+// default says so, the mode is offered and available here, and the release is
+// not one admitted without a scan (which is never run In Agentry from this
+// app). Nothing is started by it: Run is still the person's click on Review and
+// start, after the credits the run holds are shown.
 export type HostedOffer = { offered: boolean; available: boolean; signedIn?: boolean; targetHosts?: boolean } | null;
 // RunWhere is Run defaults' "where to run", as Go keeps it in desktop.yaml
 // (settings.RunWhereHere, settings.RunWhereAgentry).
@@ -148,8 +143,7 @@ export function whereFallback(where: string | undefined, hosted: HostedOffer, un
 }
 
 /** The run setup's answers, as the person left them: kept with a run on
- *  this computer so that Back to the setup reopens the setup as it was
- *  (agentry-desktop#465). */
+ *  this computer so that Back to the setup reopens the setup as it was. */
 export type RunForm = {
   mode: string;
   task: string;
@@ -168,7 +162,7 @@ export type RunForm = {
 };
 
 /** What the run setup does with a declared MCP server the registry's gate
- *  rates high (agentry-desktop#459, D-055). On this computer it runs only
+ *  rates high. On this computer it runs only
  *  in Unsafe Mode, and there only with the person's consent for the run,
  *  which Go asks again in a native dialog; with the switch off the setup
  *  offers no consent and says how to get through. A run In Agentry has no
@@ -211,7 +205,7 @@ export function vulnerableServerStep(s: { refused: boolean; inAgentry: boolean; 
   };
 }
 
-/** The declared keys a run cannot start without (agentry-desktop#655). */
+/** The declared keys a run cannot start without. */
 export function requiredOf(p: { declaredSecrets: string[]; optionalSecrets?: string[] }): string[] {
   const optional = new Set(p.optionalSecrets ?? []);
   return p.declaredSecrets.filter((k) => !optional.has(k));
@@ -220,7 +214,7 @@ export function requiredOf(p: { declaredSecrets: string[]; optionalSecrets?: str
 /**
  * What the review says of the optional keys a run may go without: on this
  * computer, each one the saved profile holds no value for, which can be set
- * in Connect tools (agentry-desktop#784) and is otherwise taken from the
+ * in Connect tools and is otherwise taken from the
  * environment or started without; In Agentry, each one, which the run
  * carries only where the account keeps it. "" when there are none.
  */
@@ -240,7 +234,7 @@ export function goesWithoutSentence(
 }
 
 /**
- * Whether the start's ask In Agentry can be saved (agentry-desktop#795):
+ * Whether the start's ask In Agentry can be saved:
  * every key the registry named that is not optional has a value; an
  * optional one may stay empty, and the run then goes without it.
  */
@@ -256,7 +250,7 @@ export function askToSet(names: string[], values: Record<string, string>): strin
 
 /**
  * Whether Connect tools offers the keys form on this computer while it is
- * closed and no profile is saved (agentry-desktop#784): a release whose
+ * closed and no profile is saved: a release whose
  * keys are all optional never opens it by itself, and without this offer an
  * optional key could only come from the environment. A required key opens
  * the form by itself; a saved profile offers Reconfigure… instead.

@@ -1,13 +1,12 @@
-// A session's chat, as logic (plan hosted-sessions.md §6; agentry-desktop
-// #403): what each event does to the conversation, and the hosted status
-// strip's words. SessionChat draws it for both transports — the engine's
-// session on this machine (runner:session-event) and a hosted session In
-// Agentry (runner:hosted-session-event), which Go hands over in the same
-// shape. It matches the site's lib/session-chat.ts (agentry-web#748)
-// element by element: the You, Runner and Agent labels, streamed agent
-// text replaced by the finished turn, the same notes, and "Session ended:
-// out of credits" where a minute the balance could not cover stopped it.
-// Every text here is data the agent or the person wrote, drawn as text.
+// A session's chat, as logic: what each event does to the conversation, and the
+// hosted status strip's words. SessionChat draws it for both transports — the
+// engine's session on this machine (runner:session-event) and a hosted session
+// In Agentry (runner:hosted-session-event), which Go hands over in the same
+// shape. It matches the site's chat element by element: the You, Runner and
+// Agent labels, streamed agent text replaced by the finished turn, the same
+// notes, and "Session ended: out of credits" where a minute the balance could
+// not cover stopped it. Every text here is data the agent or the person wrote,
+// drawn as text.
 import type { main } from "../wailsjs/go/models";
 
 /** One session event (main.SessionEventView on the Go side; it travels
@@ -24,7 +23,7 @@ export interface SessionEvent {
   digest?: string;
   reason?: string;
   /** A usage event's tokens for its turn (this machine's harnesses; a
-   *  session In Agentry carries none, agentry-desktop#457). totalTokens is
+   *  session In Agentry carries none). totalTokens is
    *  a harness's that gives no input/output split. */
   inputTokens?: number;
   outputTokens?: number;
@@ -64,7 +63,7 @@ export interface Chat {
   lastSeq: number;
 }
 
-/** SESSION_TRANSPORT_SENTENCE is plan D2's copy, beside a hosted session's
+/** SESSION_TRANSPORT_SENTENCE is the copy beside a hosted session's
  * input only. Go sends the same words with the offer
  * (SessionTransportSentence); this one stands in where the offer was not
  * read, as for a session the panel reattached to. */
@@ -154,14 +153,14 @@ export function clock(ms: number): string {
  * release, the turns and tool calls, the tokens its usage reported and the
  * provider's dollar cost, and whether the agent is answering or how it
  * ended. Never credits: the person's own provider is paid in its own
- * terms (agentry-desktop#457). */
+ * terms. */
 export function localStatusLine(ref: string, c: Pick<Chat, "turns" | "tools" | "tokens" | "cost" | "ended">, busy: boolean): string {
   return `${ref} · interactive · ${c.turns} turn${c.turns === 1 ? "" : "s"} · ${c.tools} tool call${c.tools === 1 ? "" : "s"}` +
     `${c.tokens > 0 ? ` · ${c.tokens.toLocaleString("en-US")} tokens` : ""}` +
     `${c.cost > 0 ? ` · $${c.cost.toFixed(4)}` : ""}${busy ? " · thinking…" : ""}${c.ended ? ` · ended (${c.ended})` : ""}`;
 }
 
-/** hostedStatusLine is the strip under a hosted session (plan §6): the
+/** hostedStatusLine is the strip under a hosted session: the
  * release, the mode, the turns and tool calls; once it runs, the time it
  * has run, the free minutes left, the credits its time has cost and when
  * it closes if nothing happens; and whether the agent is answering, or how
@@ -204,15 +203,14 @@ export function hostedStatusLine(a: {
 }
 
 // A chat with a QuickAgent, on this computer or In Agentry, as the app follows
-// it above the pages (agentry-desktop#467; plan
-// desktop-review-key-and-run-cards.md §5.3; D4): the store starts the session
+// it above the pages: the store starts the session
 // and owns its events, so the chat's dialog and its corner card only draw it,
 // and a switch between them never starts a second session. When the engine
 // ends a chat on this computer the store collects its result itself, whether
 // or not the dialog is open, so the run lock and the containers are released.
 // A chat In Agentry is followed as a hosted session is: its frames, its state
-// and, once its output is down, its last word as a run (D-046). One chat per
-// app (D-017). Pure, so the store (runs.ts) and its tests share one set of
+// and, once its output is down, its last word as a run. One chat per
+// app. Pure, so the store (runs.ts) and its tests share one set of
 // rules.
 
 /** A hosted session's state (main.HostedSessionStateView). */
@@ -301,7 +299,7 @@ export type HostedChatStart = {
   task: string;
 };
 
-/** The one chat the app follows (agentry-desktop#467, D-017). */
+/** The one chat the app follows. */
 export function createChatStore<S>(deps: ChatDeps) {
   let c: ChatRecord | null = null;
   let setup: S | null = null;
@@ -466,7 +464,7 @@ export function createChatStore<S>(deps: ChatDeps) {
       }
     },
 
-    /** Gives the agent files a native picker returned (D-030). */
+    /** Gives the agent files a native picker returned. */
     async addFiles(paths: string[]): Promise<void> {
       if (!c || c.over || paths.length === 0) return;
       const g = gen;

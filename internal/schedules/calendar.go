@@ -182,7 +182,7 @@ func (st Store) FindRun(runID string) (Fire, bool) {
 }
 
 // maxPerSchedule caps the occurrences one schedule puts on a calendar
-// range: at most one a day (D2), so a month needs 31.
+// range: at most one a day, so a month needs 31.
 const maxPerSchedule = 62
 
 // Between is what happened and what is due in [from, to): the recorded

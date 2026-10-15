@@ -18,14 +18,13 @@ import (
 type App struct {
 	ctx context.Context
 
-	// The renderer is not a principal (D-030). Every bound method is
-	// reachable from page script, so what the page asserts — a ticked
-	// consent box, a path it typed — is a claim, not a decision. Two
-	// things stand between a claim and an action: a consent is asked
-	// again in a native dialog the page cannot answer (confirm), and a
-	// filesystem path is accepted only when a native picker in this
-	// process returned it, or Go made it for the Build tab's Save (D-060)
-	// (picked).
+	// The renderer is not a principal. Every bound method is reachable from
+	// page script, so what the page asserts — a ticked consent box, a path
+	// it typed — is a claim, not a decision. Two things stand between a
+	// claim and an action: a consent is asked again in a native dialog the
+	// page cannot answer (confirm), and a filesystem path is accepted only
+	// when a native picker in this process returned it, or Go made it for
+	// the Build tab's Save (picked).
 	confirm func(ctx context.Context, title, message string) (bool, error)
 	// pickDirectory is the native directory picker ("" when cancelled);
 	// a test substitutes one, the way it does for confirm.
@@ -123,10 +122,10 @@ func (a *App) requirePicked(what, p string) error {
 }
 
 // requireOutputDir is requirePicked for a run's output folder, which may
-// also be the one Run defaults saved (D-044): Go reads it from its own
-// settings file, so the page cannot name it, and it admits that folder
-// exactly — as an output folder only, never a folder under it and never an
-// input, which still needs this session's picker.
+// also be the one Run defaults saved: Go reads it from its own settings
+// file, so the page cannot name it, and it admits that folder exactly — as
+// an output folder only, never a folder under it and never an input, which
+// still needs this session's picker.
 func (a *App) requireOutputDir(p string) error {
 	err := a.requirePicked("output directory", p)
 	if err == nil {
@@ -138,9 +137,9 @@ func (a *App) requireOutputDir(p string) error {
 	return err
 }
 
-// isSavedOutputDir says whether p is Run defaults' saved output folder, which
-// every run shares and so hands each run a folder of its own inside it
-// (D-044), whether or not it was also picked in this session.
+// isSavedOutputDir says whether p is Run defaults' saved output folder,
+// which every run shares and so hands each run a folder of its own inside
+// it, whether or not it was also picked in this session.
 func isSavedOutputDir(p string) bool {
 	if p == "" {
 		return false
@@ -150,10 +149,10 @@ func isSavedOutputDir(p string) bool {
 }
 
 // requirePickedResolved is requirePicked for a path whose bytes leave the
-// machine (a document a build uploads, agentry-desktop#274): the path must
-// be one a picker returned, or under one, both as written and once links
-// are resolved. requirePicked compares the paths as text, so a link inside
-// a picked folder could otherwise name a file outside it.
+// machine (a document a build uploads): the path must be one a picker
+// returned, or under one, both as written and once links are resolved.
+// requirePicked compares the paths as text, so a link inside a picked folder
+// could otherwise name a file outside it.
 func (a *App) requirePickedResolved(what, p string) error {
 	if err := a.requirePicked(what, p); err != nil {
 		return err
@@ -216,7 +215,7 @@ func (a *App) chooseDirectory(title string) (string, error) {
 
 // pickDirectoryUnmarked opens the native directory picker and records
 // nothing in the picked set: for a folder chosen for one use only, as Run
-// defaults' output folder is (D-044).
+// defaults' output folder is.
 func (a *App) pickDirectoryUnmarked(title string) (string, error) {
 	if a.pickDirectory == nil {
 		return "", fmt.Errorf("no directory picker is available")
@@ -226,7 +225,7 @@ func (a *App) pickDirectoryUnmarked(title string) (string, error) {
 
 // ChooseFiles opens the native multi-file picker and returns the chosen
 // paths (empty when the user cancelled) — the run surface's input-files
-// channel (RUNNER-PLAN-2 §P4) is fed from here.
+// channel is fed from here.
 func (a *App) ChooseFiles(title string) ([]string, error) {
 	files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
 	if err != nil {

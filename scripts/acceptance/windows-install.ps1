@@ -1,29 +1,27 @@
 <#
 .SYNOPSIS
-The Windows installer's acceptance, run by hand on a Windows machine
-(agentry-desktop#83; plan agentry-notes/plans/desktop-installers.md §8):
-install release N-1, write known settings and a Credential Manager entry,
-install release N over it, prove every byte and the credential survive,
+The Windows installer's acceptance, run by hand on a Windows machine:
+install the previous release, write known settings and a Credential Manager entry,
+install the new release over it, prove every byte and the credential survive,
 uninstall silently and prove they still do; then, with -RemoveSettings, run
 the removal the uninstaller's tick box runs and prove exactly those things
 went. A silent uninstall also removes the Docker images Agentry put on the
-machine, since "Keep my Docker images" is off by default (agentry-desktop#424):
-run it where losing those images is fine; the next run fetches them again. Until #55 gives CI a Windows runner this is the operator's step, and
-the issue comment says whether it ran.
+machine, since "Keep my Docker images" is off by default:
+run it where losing those images is fine; the next run fetches them again.
+CI has no Windows runner for this, so it is run by hand.
 
-Since agentry-desktop#580 (D-061) an installer that carries the agentry CLI
-is held to it too: bin\agentry.exe is installed, its directory is on the
-user Path exactly once after the install and after the reinstall (the same
-file twice), agentry --version answers through the Path a new terminal reads,
-and the uninstall takes that one entry off and leaves every other entry as
-it was.
+An installer that carries the agentry CLI is held to it too: bin\agentry.exe
+is installed, its directory is on the user Path exactly once after the
+install and after the reinstall (the same file twice), agentry --version
+answers through the Path a new terminal reads, and the uninstall takes that
+one entry off and leaves every other entry as it was.
 
 .EXAMPLE
   .\windows-install.ps1 -Old .\agentry-desktop-0.1.1-windows-amd64-setup.exe -New .\agentry-desktop-0.2.0-windows-amd64-setup.exe
   .\windows-install.ps1 -Old $setup -New $setup -RemoveSettings   # the same file twice is a reinstall
 
 Run in a user session, never elevated: a UAC prompt anywhere is a failure of
-D11 and the script says so if it finds itself running as administrator.
+the per-user install and the script says so if it finds itself running as administrator.
 Uses a throwaway credential (agentry:acceptance.example.invalid) and never
 reads or writes a real one; the settings it writes are its own files, so
 run it on a machine (or account) whose Agentry configuration you can lose,
@@ -42,7 +40,7 @@ function Fail([string]$m) { Write-Host "FAIL: $m" -ForegroundColor Red; exit 1 }
 function Ok([string]$m) { Write-Host "ok: $m" }
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if ($isAdmin) { Fail "running elevated; the installer must be proven from a plain user session (D11)" }
+if ($isAdmin) { Fail "running elevated; the installer must be proven from a plain user session" }
 
 $instDir = Join-Path $env:LOCALAPPDATA 'Programs\Agentry Desktop'
 $exe = Join-Path $instDir 'agentry-desktop.exe'
@@ -151,7 +149,7 @@ if ($RemoveSettings) {
 $p = Start-Process -FilePath $uninst -ArgumentList '/S' -Wait -PassThru
 if ($p.ExitCode -ne 0) { Fail "uninstall.exe /S exited $($p.ExitCode)" }
 # The uninstaller copies itself to %TEMP% and finishes after the process
-# returns; its Docker images step (agentry-desktop#424) waits on Docker for
+# returns; its Docker images step waits on Docker for
 # up to three minutes first, so wait for the application to go rather than
 # for a fixed time.
 $deadline = (Get-Date).AddMinutes(4)

@@ -35,7 +35,7 @@ func toolNames(rows []ToolRow) []string {
 
 func TestGatewayToolRowsPureText(t *testing.T) {
 	rows := gatewayToolRows(manifest.Capabilities{})
-	// The operator channels exist for every contract (§P4); nothing else.
+	// The operator channels exist for every contract; nothing else.
 	want := []string{"write_report", "list_inputs", "read_input"}
 	if got := toolNames(rows); !reflect.DeepEqual(got, want) {
 		t.Fatalf("pure-text tools = %v, want %v", got, want)
@@ -103,8 +103,8 @@ func TestEmbeddedMatchesExporter(t *testing.T) {
 	}
 }
 
-// TestRequirementsFromRegistry pins the §P6 req-3/4 section end to end:
-// the resolved release's declared contract drives every field, and the
+// TestRequirementsFromRegistry pins the MCP section end to end: the
+// resolved release's declared contract drives every field, and the
 // embedded list is the exporter's own mapping.
 func TestRequirementsFromRegistry(t *testing.T) {
 	isolateRunEnv(t)
@@ -162,7 +162,7 @@ func TestCapabilityLines(t *testing.T) {
 }
 
 // Each declared server gets one line, in declaration order, so the agent
-// page can put a server's env beneath its own line (agentry-desktop#62).
+// page can put a server's env beneath its own line.
 func TestDeclaredServerLinesPairWithTheDeclaredServers(t *testing.T) {
 	declared := mcpview.Of(manifest.Capabilities{MCPServers: []manifest.MCPServer{
 		{NPM: "@acme/a", Version: "1.0.0", Tools: []string{"t1", "t2"}, Env: map[string]string{"MODE": "ro"}},
@@ -183,7 +183,7 @@ func TestDeclaredServerLinesPairWithTheDeclaredServers(t *testing.T) {
 }
 
 // A remote server is named by its address, not as a package pin with an
-// empty version (agentry-desktop#666's live check).
+// empty version.
 func TestARemoteServersCapabilityLineIsItsAddress(t *testing.T) {
 	c := manifest.Capabilities{MCPServers: []manifest.MCPServer{{URL: "https://gmailmcp.googleapis.com/mcp/v1", Auth: manifest.AuthOAuth}}}
 	lines := strings.Join(capabilityLines(c), "\n")
@@ -192,9 +192,9 @@ func TestARemoteServersCapabilityLineIsItsAddress(t *testing.T) {
 	}
 }
 
-// Optional secrets (DEV-212, agentry-desktop#655): the consent lines say
-// which declared secrets a run can start without, as the CLI's do, and
-// optionalSecretNames reads only names the release declares.
+// Optional secrets: the consent lines say which declared secrets a run
+// can start without, as the CLI's do, and optionalSecretNames reads
+// only names the release declares.
 func TestOptionalSecretsInTheConsentAndTheKeysForm(t *testing.T) {
 	m := &manifest.Manifest{Capabilities: manifest.Capabilities{
 		Secrets:         []string{"REQ_KEY", "OPT_KEY"},
@@ -214,7 +214,7 @@ func TestOptionalSecretsInTheConsentAndTheKeysForm(t *testing.T) {
 }
 
 // A target host is a line of its own, in the CLI's consent words, and a
-// release that declares only one is not "pure text" (agentry-desktop#812).
+// release that declares only one is not "pure text".
 func TestCapabilityLinesNameATargetHost(t *testing.T) {
 	lines := capabilityLines(manifest.Capabilities{TargetHosts: []string{"server", "backup"}})
 	want := "targetHosts: server, backup (asks for a server when it runs, and can run any command on it as the account you sign in with)"
@@ -225,7 +225,7 @@ func TestCapabilityLinesNameATargetHost(t *testing.T) {
 
 // A browser is a line of its own, in the CLI's consent words, a release
 // that declares only one is not "pure text", and the tools table has the
-// browser server's row (agentry-desktop#878).
+// browser server's row.
 func TestCapabilityLinesAndToolsNameABrowser(t *testing.T) {
 	c := manifest.Capabilities{Browser: &manifest.Browser{Sites: []string{"site"}, Secrets: []string{"SITE_USER"}}, Secrets: []string{"SITE_USER"}}
 	lines := strings.Join(capabilityLines(c), "\n")

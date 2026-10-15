@@ -7,22 +7,20 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// Summary is the Build tab's summary (plan builder-simplify.md §4.1, D7;
-// agentry-desktop#344), the one short page a QuickAgent is submitted from,
-// whether the Drafter wrote it or the person did in the form: how it works,
-// then what it needs. The plumbing (the Drafter's notes, sources and AI
-// Review's counts, the namespace, version, licence, tags, include list,
-// file name and run mode) stays in the form views.
+// Summary is the Build tab's summary, the one short page a QuickAgent is
+// submitted from, whether the Drafter wrote it or the person did in the
+// form: how it works, then what it needs. The plumbing (the Drafter's
+// notes, sources and AI Review's counts, the namespace, version, licence,
+// tags, include list, file name and run mode) stays in the form views.
 //
-// The capability contract is shown in full before Submit (the plan's §3):
-// every key, website, MCP server with its tools, hosts and configuration,
-// and file, command or data grant the model declares is here, and nothing
-// it does not declare. The run modes and the intake questions stay in the
-// form: neither widens what a run may touch (a secret question is carried
-// by a declared key, which is listed). It mirrors the site's
-// lib/builder-summary.ts summarize (agentry-web#651), the knowledge lines
-// included since agentry-desktop#497: the packs it ships and the one it asks
-// a person for, one line each, only those declared.
+// The capability contract is shown in full before Submit: every key,
+// website, MCP server with its tools, hosts and configuration, and file,
+// command or data grant the model declares is here, and nothing it does not
+// declare. The run modes and the intake questions stay in the form: neither
+// widens what a run may touch (a secret question is carried by a declared
+// key, which is listed). It mirrors the site's lib/builder-summary.ts
+// summarize, the knowledge lines included: the packs it ships and the one it
+// asks a person for, one line each, only those declared.
 type Summary struct {
 	Name    string `json:"name"`
 	Summary string `json:"summary"`
@@ -46,13 +44,12 @@ type Summary struct {
 // SummaryKey is one key the QuickAgent or a server of it needs.
 type SummaryKey struct {
 	Name string `json:"name"`
-	// Help is the guide's help for it (Markdown, DEV-167), or "".
+	// Help is the guide's help for it (Markdown), or "".
 	Help string `json:"help"`
 	// UsedBy is who asks for it: "the QuickAgent" for its own, and each
 	// server's reference.
 	UsedBy []string `json:"usedBy"`
-	// Optional says a run can start without it (`optionalSecrets`,
-	// agentry-desktop#655).
+	// Optional says a run can start without it (`optionalSecrets`).
 	Optional bool `json:"optional"`
 }
 
@@ -75,8 +72,8 @@ type SummaryServer struct {
 	// Config is the names of its plain configuration (env); the values
 	// are in the form.
 	Config []string `json:"config"`
-	// Remote is a server run at its vendor, declared by its address
-	// (agentry-desktop#668).
+	// Remote is a server run at its vendor, declared by its
+	// address.
 	Remote bool `json:"remote"`
 	// SignIn says how it signs in, in the site's sentences
 	// (agentry-web lib/builder-summary.ts signInLines): a remote server's
@@ -88,10 +85,10 @@ type SummaryServer struct {
 // issuerNotGiven stands in for a sign-in's issuer before it is given.
 const issuerNotGiven = "an issuer not given yet"
 
-// SignInLines says how a server signs in (plan mcp-oauth-connections.md
-// §3.9, §6): what the first run asks of whoever runs it, and that a run
-// gets an access token and nothing else (D8). It never vouches for a
-// vendor: of a remote server it says what Agentry checks and what it cannot.
+// SignInLines says how a server signs in: what the first run asks of whoever
+// runs it, and that a run gets an access token and nothing else. It never
+// vouches for a vendor: of a remote server it says what Agentry checks and
+// what it cannot.
 // A token file's template and a token setting's value are shown whole,
 // unlike configuration's names: what is written beside the token is
 // contract. The words are the site's.

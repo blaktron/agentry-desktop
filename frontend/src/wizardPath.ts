@@ -1,5 +1,4 @@
-// The first-run wizard's two paths (agentry-desktop#842, the operator's
-// request of 2026-10-12). After Sign in the person picks where their
+// The first-run wizard's two paths After Sign in the person picks where their
 // QuickAgents run: Local walks the rest of the setup as it was (Runtime, AI
 // Review key, Coding agent, Done); Cloud, open only to someone signed in,
 // says how their data in Agentry's cloud is kept and finishes there, since
@@ -41,8 +40,8 @@ export function stepBefore(step: WizardStep, path: WizardPath | null): WizardSte
 
 // The path the wizard is on once it stands on this step: back on a step
 // both paths share, the choice is open again, so the dots show Local's
-// until the person picks once more (the live check of #842 found Cloud's
-// four dots kept on the choice after Back).
+// until the person picks once more, not Cloud's four dots kept on the choice
+// after Back.
 export function pathAt(step: WizardStep, path: WizardPath | null): WizardPath | null {
   return pathOf(step) === null ? null : path;
 }

@@ -1,11 +1,10 @@
-// The one draft this app is making, here or In Agentry (plan
-// builder-rework.md §7.1; #281, #282), kept outside every page. A draft
-// takes minutes and Build unmounts on every tab change, so the draft in
-// flight, how far it has got, what it has said and the draft or refusal it
-// ends with live here. Describe it starts one; the progress dialog and its
-// corner card (DraftFlow, mounted by App above the pages, agentry-desktop#410)
-// follow it; and whichever page is showing when it lands takes the draft
-// (takeLandedDraft). One can be in flight at a time.
+// The one draft this app is making, here or In Agentry, kept outside
+// every page. A draft takes minutes and Build unmounts on every tab
+// change, so the draft in flight, how far it has got, what it has said and
+// the draft or refusal it ends with live here. Describe it starts one; the
+// progress dialog and its corner card (DraftFlow, mounted by App above the
+// pages) follow it; and whichever page is showing when it lands takes the
+// draft (takeLandedDraft). One can be in flight at a time.
 import { useEffect, useState } from "react";
 import * as BuildAPI from "../wailsjs/go/main/BuildAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
@@ -112,7 +111,7 @@ function begin(w: Where) {
 }
 
 // revising names the QuickAgent an Edit with AI revision drafts the next
-// version of (agentry-desktop#501), so the flow says so; null for a draft
+// version of, so the flow says so; null for a draft
 // from a description. A revision In Agentry attached at start says it
 // through its record (HostedDraftView.revises).
 let revising: string | null = null;
@@ -181,15 +180,15 @@ function startHosted(call: () => Promise<main.HostedDraftStartView>) {
 }
 
 /** Starts a draft in the place chosen, and opens its progress dialog.
- *  packs are the knowledge packs it reads first, by name (#497). */
+ *  packs are the knowledge packs it reads first, by name. */
 export function startDraft(registry: string, w: Where, text: string, hints: string[], packs: string[] = []) {
   if (w === "agentry") startHosted(() => BuildAPI.DescribeInAgentry(registry, text, hints, packs));
   else startLocal(() => BuildAPI.DescribeOnThisComputer(registry, text, hints, packs));
 }
 
 /** Starts Edit with AI's revision of ns/name's current release in the place
- *  chosen (agentry-desktop#501), followed as a draft is: the same progress
- *  dialog, card and landing, and the Build tab opens it as a revision. */
+ *  chosen, followed as a draft is: the same progress dialog, card and
+ *  landing, and the Build tab opens it as a revision. */
 export function startRevision(registry: string, w: Where, ns: string, name: string, instructions: string, problems: string) {
   if (w === "agentry") startHosted(() => BuildAPI.ReviseInAgentry(registry, ns, name, instructions, problems));
   else startLocal(() => BuildAPI.ReviseOnThisComputer(registry, ns, name, instructions, problems));

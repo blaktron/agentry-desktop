@@ -1,9 +1,8 @@
-// The run setup's When (plan quickagent-scheduling.md §7, D12, D19; D-073;
-// agentry-desktop#743, #745): Now, the default, or Later or Repeat, which make
+// The run setup's When: Now, the default, or Later or Repeat, which make
 // the run a schedule: on this computer, or In Agentry when the run goes
 // there. With Later or Repeat, Review and start's button reads Schedule. On
 // this computer it stays off until the agentry command's check says a
-// scheduled run would have everything it needs (D8), and each gap it names
+// scheduled run would have everything it needs, and each gap it names
 // is shown here; In Agentry the registry's create is that check, and the
 // setup asks for what it names. The same fields edit a schedule's repeat on
 // the Scheduled page.
@@ -17,7 +16,7 @@ export type Availability = {
   signedOut: { available: boolean; reason?: string };
   lingerOn: boolean;
   /** The Scheduled page's Options entry that installs or reinstalls the
-   *  agentry command, "" or absent where none is offered (D-076). */
+   *  agentry command, "" or absent where none is offered. */
   installCLI?: string;
 };
 
@@ -134,8 +133,8 @@ export function RepeatFields({ form, onChange, disabled }: { form: WhenForm; onC
   );
 }
 
-/** The signed-out box (D19), with its disabled reason, and the linger
- *  sentence the first time (D17). */
+/** The signed-out box, with its disabled reason, and the linger
+ *  sentence the first time. */
 export function SignedOutBox({ form, onChange, availability, disabled }: {
   form: WhenForm;
   onChange: (w: WhenForm) => void;
@@ -161,7 +160,7 @@ export function SignedOutBox({ form, onChange, availability, disabled }: {
   );
 }
 
-/** What a schedule In Agentry holds for each run (agentry-desktop#745):
+/** What a schedule In Agentry holds for each run:
  *  the registry's numbers, as Review and start states a run's. */
 export type HostedTerms = { holdCredits: number; balance: number; balanceKnown: boolean };
 
@@ -175,10 +174,10 @@ export function WhenStep({ form, onChange, unavailable, availability, check, dis
   check: CheckState;
   disabled?: boolean;
   /** The run goes In Agentry: a schedule there, which the registry keeps
-   *  and checks when it is made (D8; agentry-desktop#745), with each run's
+   *  and checks when it is made, with each run's
    *  hold and the balance. */
   inAgentry?: HostedTerms | null;
-  /** The way up, where the plan is what holds When In Agentry (D7). */
+  /** The way up, where the plan is what holds When In Agentry. */
   onUpgrade?: () => void;
 }) {
   const choose = (choice: WhenForm["choice"]) => onChange({ ...form, choice });

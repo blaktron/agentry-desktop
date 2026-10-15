@@ -8,9 +8,8 @@ import (
 	"unicode/utf8"
 )
 
-// Edit with AI (agentry-desktop#501; plan drafter-revisions.md §5, D9,
-// D10): a revision of a QuickAgent's current release, drafted In Agentry
-// for a payer above Standard, or on this computer for anyone who may
+// Edit with AI: a revision of a QuickAgent's current release, drafted In
+// Agentry for a payer above Standard, or on this computer for anyone who may
 // publish to it with their own keys.
 
 // MaxRevisionTextBytes bounds each of the person's two texts, as the
@@ -51,8 +50,8 @@ func CheckRevision(instructions, problems string) (string, string, error) {
 // (DecideDraft) and the status route's caller.revise: offered where a
 // draft is, and available where a draft is and the payer may revise. A
 // Standard payer is told it is Pro and above, with the way out: the same
-// revision on this computer with their own keys, or a higher tier (D10).
-// A registry that predates caller.revise offers no revision In Agentry.
+// revision on this computer with their own keys, or a higher tier. A
+// registry that sends no caller.revise offers no revision In Agentry.
 func DecideRevise(f DraftFacts) Offer {
 	o := DecideDraft(f)
 	if !o.Offered || !f.SignedIn || !o.Available {

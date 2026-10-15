@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Build the universal macOS application on the Mac build host, from here.
+# Build the universal macOS application on a Mac build host, from here.
 #
-#   scripts/build-darwin.sh [user@host]        (default: agentry@maxbookpro)
+#   scripts/build-darwin.sh user@host
 #
 # macOS is the one target that cannot be cross-built: the Wails macOS front
 # end is Objective-C behind cgo and needs clang and Apple's SDK. So this
-# script runs on the workstation, prepares the tree, ships it to a Mac that
-# carries the toolchain (plan agentry-notes/plans/macos-build-host.md, M1),
-# builds there with the Makefile's own package-darwin target (WAILS_FLAGS=-m,
+# script runs on another machine, prepares the tree, ships it to a Mac that
+# carries the toolchain (Go, Node, the Wails CLI, Xcode's command line
+# tools), builds there with the Makefile's own package-darwin target (WAILS_FLAGS=-m,
 # see the Makefile for why), and brings the zip and the dmg back. The Mac
 # never needs a GitHub credential: the private modules are vendored here,
 # where the credential helper lives, and the vendor directory travels with the
@@ -33,7 +33,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-HOST=${1:-agentry@maxbookpro}
+HOST=${1:?usage: scripts/build-darwin.sh user@host}
 VERSION=$( (git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev) | sed "s/^v//")
 SMOKE=${BUILD_DARWIN_SMOKE:-1}
 
@@ -60,19 +60,17 @@ echo "== building on $HOST"
 EXTRA_LDFLAGS="-w -s"
 if [ -n "${AGENTRY_DEFAULT_REGISTRY:-}" ]; then
   # The registry and the update channel are baked together: the same site
-  # serves both (plan §7, D5), and a build that carried one without the other
-  # would either talk to the wrong place or never look for a newer release
-  # (agentry-desktop#87).
+  # serves both, and a build that carried one without the other would
+  # either talk to the wrong place or never look for a newer release.
   EXTRA_LDFLAGS="$EXTRA_LDFLAGS -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY}"
   EXTRA_LDFLAGS="$EXTRA_LDFLAGS -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json"
 fi
 # The remote shell is zsh; ~/.zshenv puts Go, Node and the Wails CLI on PATH
-# for non-interactive sessions (plan M1). VERSION overrides the Makefile's
+# for non-interactive sessions. VERSION overrides the Makefile's
 # git describe, which has no .git to read; WAILS_FLAGS=-m is explained there.
-# -skipbindings for the reason both Mac CI jobs pass it: the checked-in
+# -skipbindings for the reason the Mac CI jobs pass it: the checked-in
 # bindings are the ones `make bindings` respelled, and a build that
-# regenerated them would ship a models.ts that does not type-check
-# (agentry-desktop#97, #107).
+# regenerated them would ship a models.ts that does not type-check.
 "${SSH[@]}" "$HOST" "cd $REMOTE_DIR && \
   make package-darwin WAILS_FLAGS='-m -skipbindings' VERSION='$VERSION' EXTRA_LDFLAGS='$EXTRA_LDFLAGS' && \
   cd build/bin && lipo -info agentry-desktop.app/Contents/MacOS/agentry-desktop && \

@@ -1,14 +1,13 @@
 package hostedrun
 
-// What a finished run says (plan §5). The outcome is the registry's, read
-// from the run and never re-derived here; this file only decides how each
-// one reads, so the seven outcomes are distinguishable and honest — a
-// refusal says the platform's own verification refused the release and the
-// credits came back, an error says the platform could not run it. A run In
-// Agentry is stated in credits, time and turns, so no line names tokens
-// (agentry-desktop#457): budget is the runner's turn budget or a policy's
-// cost budget, and interrupted is a cancel or the sandbox host's stop at
-// what the hold may buy, as the site words them (agentry-web lib/runs.ts).
+// What a finished run says. The outcome is the registry's, read from the run
+// and never re-derived here; this file only decides how each one reads, so the
+// seven outcomes are distinguishable and honest — a refusal says the platform's
+// own verification refused the release and the credits came back, an error says
+// the platform could not run it. A run In Agentry is stated in credits, time
+// and turns, so no line names tokens: budget is the runner's turn budget or a
+// policy's cost budget, and interrupted is a cancel or the sandbox host's stop
+// at what the hold may buy, as the site words them.
 
 // The outcomes a finished run carries.
 const (
@@ -19,10 +18,10 @@ const (
 	OutcomeBudget      = "budget"
 	OutcomeInterrupted = "interrupted"
 	OutcomeError       = "error"
-	// OutcomeBlocked: the QuickAgent could not do its task with what the run
-	// had (the CLI's exit 18; agentry-enterprise#437, DEV-216). The registry
-	// settles it when the QuickAgent said so and refunds it when the
-	// runner's own tools failed it; the run's settled credits say which.
+	// OutcomeBlocked: the QuickAgent could not do its task with what the run had
+	// (the CLI's exit 18). The registry settles it when the QuickAgent said so and
+	// refunds it when the runner's own tools failed it; the run's settled credits
+	// say which.
 	OutcomeBlocked = "blocked"
 )
 

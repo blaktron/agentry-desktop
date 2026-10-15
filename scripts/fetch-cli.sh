@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# The agentry CLI the desktop's packages carry (agentry-desktop#580; plan
-# agentry-notes/plans/cli-on-path.md §6, D3, D5, D8; D-061).
+# The agentry CLI the desktop's packages carry.
 #
 #   scripts/fetch-cli.sh OUT_DIR        (release; GH_TOKEN reads agentry-cli)
 #
@@ -21,12 +20,11 @@
 #   - the two binaries and BUILD-INFO against the release's SHA256SUMS;
 #   - BUILD-INFO: product agentry-cli, this version, a tag push, and the
 #     registry this desktop bakes in (a dev desktop never carries a CLI that
-#     talks to production, or the reverse: DEV-066's "one page, one
-#     registry");
+#     talks to production, or the reverse);
 #   - SHA256SUMS.minisig, when the release has one, against the key set
 #     this build carries and for this product and version
-#     (internal/cmd/verifysums; a CLI release's sums are signed once
-#     agentry-cli has the estate's key, and are unsigned before that);
+#     (internal/cmd/verifysums; a CLI release's sums are signed with the
+#     release key, and earlier releases carry no signature);
 #   - BUILD-INFO claims a Windows signature (signed_windows=authenticode …):
 #     the signature itself is verified against the pinned Microsoft root and
 #     the CN build/release.env names when the installer is read back
@@ -159,7 +157,7 @@ bi="$work/BUILD-INFO"
 [ "$(info "$bi" default_registry)" = "${registry%/}" ] || die "$tag bakes $(info "$bi" default_registry), not this desktop's $registry"
 case "$(info "$bi" signed_windows)" in
   authenticode\ CN=*) ;;
-  *) die "$tag's Windows exe is not signed (BUILD-INFO signed_windows is empty); the desktop carries only a signed CLI (plan D5)" ;;
+  *) die "$tag's Windows exe is not signed (BUILD-INFO signed_windows is empty); the desktop carries only a signed CLI" ;;
 esac
 
 mkdir -p "$out"

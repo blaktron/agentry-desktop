@@ -1,4 +1,4 @@
-// The subscription's words (agentry-desktop#415, plan promo-codes.md §7),
+// The subscription's words,
 // run by node's own test runner: `npm test`, which CI runs beside the build.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -35,7 +35,7 @@ test("an account that may still redeem reads as Standard, with its allowance", (
   assert.equal(changesPhrase(s), null);
 });
 
-// Credit packs (agentry-desktop#511): the card's condition, its numbers and
+// Credit packs: the card's condition, its numbers and
 // labels, and the owed sentence.
 const PACKS = [
   { id: "1250", credits: 1250, baseCredits: 1000, amount: 999, currency: "usd" },

@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# The desktop's copy check (plan hosted-runs.md §3, agentry-desktop#77).
+# The desktop's copy check.
 #
 #   scripts/copy-check.sh              run the check over the working tree
 #   scripts/copy-check.sh --self-test  prove it fails when it should
 #
 # The honest posture is a rule about words: the app says what ran and what
 # was enforced, and never calls a QuickAgent, a run or a registry "safe",
-# "secure", "guaranteed" or "trusted". The site's prose gate holds the same
-# line for the website (agentry-web scripts/prose/); this is the desktop's
-# half, over the copy this app ships — the frontend's own sources, the
-# Go files the bound surfaces return their sentences from, and the Windows
-# installer's pages.
+# "secure", "guaranteed" or "trusted". The website has a prose gate for the
+# same line; this is the desktop's half, over the copy this app ships — the
+# frontend's own sources, the Go files the bound surfaces return their
+# sentences from, and the Windows installer's pages.
 #
 # A word that is there because the rule is what the sentence is about — a
 # comment quoting the rule, a protocol value named "safe" — passes by being
@@ -18,7 +17,7 @@
 # is a claim that the span is honest, and is worth arguing in a PR. The span
 # exempts itself, not its line: every allowed span is cut out of the line
 # and the rest is checked again, so a never-word beside an allowed span
-# still fails (agentry-desktop#127).
+# still fails.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,12 +28,10 @@ ALLOW="${COPY_CHECK_ALLOW:-$HERE/copy-allow.txt}"
 
 # The words, matched whole and case-insensitively. "secure" does not match
 # secureagentry.net: a word boundary needs a non-word character after it.
-# The product's old name is a never-word too: it was renamed QuickAgent on
-# 2026-09-28 (agentry#734).
+# BriefAgent is a never-word too: the product is called QuickAgent.
 WORDS='safe|safely|secure|securely|secured|guarantee|guarantees|guaranteed|trusted|briefagent|briefagents'
-# The Knowledge panel's copy also never calls a pack "private" (plan
-# knowledge.md §3; agentry-desktop#273): it says what holds the pack's key
-# instead. Checked over its own files only, since "private" is the product's
+# The Knowledge panel's copy also never calls a pack "private": it says
+# what holds the pack's key instead. Checked over its own files only, since "private" is the product's
 # word elsewhere (a private QuickAgent, a private organization agent).
 KNOWLEDGE_WORDS="$WORDS|private|privately"
 
@@ -45,7 +42,7 @@ copy_files() {
   [ -d "$ROOT/frontend/src" ] && find "$ROOT/frontend/src" -type f \( -name '*.ts' -o -name '*.tsx' \) -print
   find "$ROOT" -maxdepth 1 -type f -name '*.go' ! -name '*_test.go' -print
   [ -d "$ROOT/internal" ] && find "$ROOT/internal" -type f -name '*.go' ! -name '*_test.go' -print
-  # The Windows installer's pages (desktop#83); wails_tools.nsh is generated
+  # The Windows installer's pages; wails_tools.nsh is generated
   # and carries no sentence of ours.
   [ -d "$ROOT/build/windows/installer" ] && find "$ROOT/build/windows/installer" -maxdepth 1 -type f -name '*.nsi' -print
   return 0
@@ -100,7 +97,7 @@ check_tree() {
     while IFS= read -r hit; do
       # What is left once the allowed spans are gone must carry no word.
       # (>/dev/null, not -q: grep -q would cut the writer off and pipefail
-      # would read its EPIPE as the answer; agentry-desktop#236.)
+      # would read its EPIPE as the answer.)
       if ! strip_allowed "${hit#*:}" | grep -iE "\\b($words)\\b" >/dev/null; then
         continue
       fi
@@ -143,7 +140,7 @@ if [ "${1:-}" = "--self-test" ]; then
   # alone must pass.
   # All the spans, then the first line in the shell: `| head -1` would cut
   # allowed_spans' printf off mid-loop ("printf: write error: Broken pipe"
-  # in the CI log; agentry-desktop#236).
+  # in the CI log).
   span="$(COPY_CHECK_ALLOW="$ALLOW" ALLOW="$ALLOW" allowed_spans)"
   span="${span%%$'\n'*}"
   if [ -n "$span" ]; then

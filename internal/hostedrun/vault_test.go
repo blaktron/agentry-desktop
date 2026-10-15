@@ -11,8 +11,8 @@ import (
 )
 
 // fakeVault serves the vault's two write routes as the enterprise build
-// does (agentry-enterprise#251): a token with secret:write sets and
-// deletes; the body is recorded whole.
+// does: a token with secret:write sets and deletes; the body is
+// recorded whole.
 type fakeVault struct {
 	mu     sync.Mutex
 	bodies []string
@@ -50,8 +50,7 @@ func (f *fakeVault) start(t *testing.T) string {
 }
 
 // The value travels once, in the body, with keep as a literal boolean —
-// false as well as true, never left out (plan hosted-credentials-vault.md
-// D12, agentry-desktop#300).
+// false as well as true, never left out.
 func TestSetSecretSendsTheValueOnceWithALiteralKeep(t *testing.T) {
 	f := &fakeVault{}
 	c := New(f.start(t), testToken)
@@ -100,8 +99,8 @@ func TestSetSecretRefusesANameBeforeAnyRequest(t *testing.T) {
 }
 
 // No refusal and no error carries the value, whatever the registry says —
-// even a registry that echoes the body back (D-024's rule: the value is
-// never logged, never shown).
+// even a registry that echoes the body back (the value is never logged,
+// never shown).
 func TestAVaultRefusalNeverCarriesTheValue(t *testing.T) {
 	const value = "ghp_do-not-leak-300"
 	answers := map[string]func(w http.ResponseWriter, r *http.Request, body []byte){

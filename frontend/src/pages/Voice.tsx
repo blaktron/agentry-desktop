@@ -1,18 +1,14 @@
-// The Voice page (plan writing-voice.md §8, D6, D11, D12; agentry-desktop
-// #510, D-054; reshaped by plan voice-page-redesign.md §4, §7, §8,
-// agentry-desktop#610, D-063): two cards, as the Build page's (DEV-201).
-// Local Voice opens this computer's voice: its editor, Download Cloud
-// version and Upload to Cloud (each warning in a native dialog when it
-// would put an older voice over a newer one, D2), Edit with AI, the switch
-// Settings' Run defaults also shows (D4), and Delete. Cloud Voice opens the
-// account's voice as the site's Voice settings page has it (plan §4.3,
-// §5.2, agentry-desktop#611): the version waiting for AI Review with its
-// findings and Discard, the editor, Edit with AI run In Agentry, the
-// switch Settings' Profile also shows, and Restore previous and Delete.
+// The Voice page: two cards, as the Build page's. Local Voice opens this
+// computer's voice: its editor, Download Cloud version and Upload to Cloud
+// (each warning in a native dialog when it would put an older voice over a
+// newer one), Edit with AI, the switch Settings' Run defaults also shows, and
+// Delete. Cloud Voice opens the account's voice as the site's Voice settings
+// page has it: the version waiting for AI Review with its findings and Discard,
+// the editor, Edit with AI run In Agentry, the switch Settings' Profile also
+// shows, and Restore previous and Delete.
 //
 // The editor is WYSIWYG: it reads VOICE.md as Markdown and saves Markdown,
-// in one view (plan voice-page-redesign.md §6, D1, agentry-desktop#612,
-// reversing D12's textarea and Preview). Saving this computer's voice is
+// in one view, with no Preview. Saving this computer's voice is
 // free and immediate; saving the account's makes a version AI Review reads
 // before it is live, and an untouched editor saves nothing on either.
 // Edit with AI is one dialog on each page: an AI Edit with a note and
@@ -47,8 +43,8 @@ export type VoiceView = "start" | "local" | "cloud";
 export default function Voice({ registry, onOpenSettings }: {
   registry: string;
   /** Opens Registry settings, to sign in. The two default switches are on
-   *  the Local and Cloud pages themselves (plan voice-page-redesign.md D4),
-   *  so the page links to neither Settings copy (agentry-desktop#676). */
+   *  the Local and Cloud pages themselves,
+   *  so the page links to neither Settings copy. */
   onOpenSettings: () => void;
 }) {
   const [page, setPage] = useState<VoiceView>("start");
@@ -173,7 +169,7 @@ export default function Voice({ registry, onOpenSettings }: {
   );
 }
 
-// LocalVoice is the Local Voice page (plan §4.2): this computer's voice,
+// LocalVoice is the Local Voice page: this computer's voice,
 // Download Cloud version, Upload to Cloud and Edit with AI above its
 // editor, the switch, and Delete at the foot.
 function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
@@ -300,7 +296,7 @@ function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
   );
 }
 
-// EditWithAI is the one dialog of plan §7 (D3) on this computer: what
+// EditWithAI is the one dialog on this computer: what
 // should change and optional samples from the native pickers for an AI
 // Edit, or samples and an optional brief for a Create where there is no
 // voice here. It shows the run's progress and Stop, and the page reloads
@@ -384,12 +380,12 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
   );
 }
 
-// CloudVoice is the Cloud Voice page (plan §4.3): the site's Voice
-// settings page (§5.2) in the desktop. In order: the version waiting for
+// CloudVoice is the Cloud Voice page: the site's Voice
+// settings page in the desktop. In order: the version waiting for
 // AI Review, where there is one, with its findings and Discard; the editor
 // on the newest version, with Edit with AI In Agentry under it; the switch
-// Settings' Profile also shows (D4); Restore previous and Delete at the
-// foot (D5). No Download or Upload: those are this computer's (D7).
+// Settings' Profile also shows; Restore previous and Delete at the
+// foot. No Download or Upload: those are this computer's.
 function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
   view: main.VoiceView;
   registry: string;
@@ -561,7 +557,7 @@ function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
   );
 }
 
-// PendingVersion is the version waiting in the account (D5): in review,
+// PendingVersion is the version waiting in the account: in review,
 // which the page follows, or flagged with what AI Review found; Discard on
 // it either way.
 function PendingVersion({ version, live, busy, onDiscard }: {
@@ -628,7 +624,7 @@ function SamplesPicker({ label, samples, onChange, hint }: {
   );
 }
 
-// CloudEditWithAI is the one dialog of plan §7 (D3) on the Cloud page: the
+// CloudEditWithAI is the one dialog on the Cloud page: the
 // Voice Writer In Agentry at the registry's flat price, an AI Edit of the
 // account's newest version with a note and optional samples, or a Create
 // from samples where the account keeps no voice (Go decides which,
@@ -733,8 +729,7 @@ function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose 
   );
 }
 
-// VoiceEditor is the voice's editor (plan voice-page-redesign.md §6, D1,
-// reversing writing-voice D12; agentry-desktop#612): a WYSIWYG editor that
+// VoiceEditor is the voice's editor: a WYSIWYG editor that
 // reads VOICE.md as Markdown and saves Markdown, in one view, with no
 // Preview. Tiptap is loaded with import() once the editor is drawn
 // (VoiceWysiwyg.tsx), so the app's main bundle does not carry it. Until it
@@ -773,7 +768,7 @@ function VoiceEditor({ initial, note, busy, onSave }: {
         else setPlain("unheld");
       })
       .catch(() => {
-        // The textarea stays: it saves as it did before the editor.
+        // The textarea stays, with the same save rules.
         if (live) setPlain("unloaded");
       });
     return () => {
@@ -836,7 +831,7 @@ function VoiceEditor({ initial, note, busy, onSave }: {
 type Wysiwyg = { View: typeof import("../VoiceWysiwyg").default; doc: JSONContent };
 
 // VoiceSwitch is a voice's always-attach switch, for Settings: this
-// computer's under Run defaults, the account's under Profile (D11).
+// computer's under Run defaults, the account's under Profile.
 export function VoiceSwitch({ registry, place }: { registry: string; place: "here" | "account" }) {
   const [view, setView] = useState<main.VoiceView | null>(null);
   const [error, setError] = useState<string | null>(null);

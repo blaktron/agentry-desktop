@@ -3,7 +3,7 @@
 # token for the Artifact Signing service, and prints THAT token on standard
 # output — nothing else goes there, so `token=$(scripts/signing-token.sh)` is
 # the whole contract. The caller masks it (`::add-mask::`) and hands it on
-# through the environment (agentry-desktop#151, #54; plan os-code-signing.md D6).
+# through the environment.
 #
 # The exchange is the OAuth client-credentials grant with the OIDC token as
 # the client assertion, against the Entra app registration whose one

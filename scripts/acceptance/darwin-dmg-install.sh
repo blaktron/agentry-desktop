@@ -2,17 +2,16 @@
 # Proves the promise the dmg makes about an upgrade: dragging the bundle onto
 # Applications over a copy that is already there replaces the application and
 # leaves every byte of the person's configuration, and their sign-in, where
-# they were (agentry-desktop#85; plan desktop-installers.md §8, and the
-# invariant table's "an upgrade never touches ~/.config/agentry,
-# ~/.agentry/runner or the keychain").
+# they were: an upgrade never touches ~/.config/agentry, ~/.agentry/runner
+# or the keychain.
 #
 #   scripts/acceptance/darwin-dmg-install.sh <out.dmg> [previous.dmg]
 #
 # With one image, the same image installs twice — a valid first run followed
 # by an upgrade to the same version, which is what a reinstall is; step 1
 # plants a file in the first copy that the second does not have, so the
-# difference a real N-1 would make is modelled rather than skipped, and both
-# workflows run it this way. With two, the first is the release already
+# difference a real previous release would make is modelled rather than
+# skipped, and the release workflow runs it this way. With two, the first is the release already
 # installed and the second the upgrade; pass a previous release's image when
 # one exists to have the real thing.
 #
@@ -44,14 +43,13 @@
 # console session allows it, which is the one part of this that exercises the
 # built application rather than the copy.
 #
-# The keychain half runs everywhere, including on the runner, which has no
-# console session and so no login keychain in its search list at all
-# (agentry-desktop#106): a keychain this script creates and unlocks is named
-# explicitly, which needs no session. What that proves is the claim being made
+# The keychain half runs everywhere, including on a runner that has no
+# console session and so no login keychain in its search list at all: a
+# keychain this script creates and unlocks is named explicitly, which needs
+# no session. What that proves is the claim being made
 # — a drag of the bundle disturbs no keychain item — and it proves it without
 # putting a real credential anywhere near the test. It is NOT a check of the
-# login keychain, which is what internal/settings actually uses and what #106
-# is about.
+# login keychain, which is what internal/settings actually uses.
 #
 # macOS ships bash 3.2, so: no arrays, no associative arrays, no mapfile.
 set -euo pipefail
@@ -69,7 +67,7 @@ fail() { echo "darwin-dmg-install: FAIL: $*" >&2; exit 1; }
 # service "agentry" in the login keychain, and an acceptance run must not be
 # able to read or delete a real sign-in. The password below unlocks a keychain
 # that exists for the length of this script and holds one made-up string; it
-# is not a credential of the estate's.
+# is not a credential.
 KEYCHAIN_PASSWORD="acceptance-only-not-a-secret"
 KEYCHAIN_SERVICE="agentry-dmg-acceptance"
 KEYCHAIN_ACCOUNT="dev.example.net"
@@ -80,9 +78,9 @@ apps="$work/Applications"
 mnt="$work/mnt"
 # The keychain is a FILE inside this run's own directory, not a name in
 # ~/Library/Keychains: `security` takes a path, so two of these can run at
-# once on the Mac without one deleting the other's, and a run that is killed
-# before its trap fires leaves the file in TMPDIR rather than in the runner
-# user's keychain folder, where it would accumulate unnoticed.
+# once without one deleting the other's, and a run that is killed before its
+# trap fires leaves the file in TMPDIR rather than in the user's keychain
+# folder, where it would accumulate unnoticed.
 KEYCHAIN="$work/acceptance.keychain"
 export AGENTRY_CONFIG_DIR="$work/config/agentry"
 export AGENTRY_RUNNER_HOME="$work/runner"
@@ -94,7 +92,7 @@ cleanup() {
   security delete-keychain "$KEYCHAIN" >/dev/null 2>&1 || true
   rm -rf "$work"
 }
-# INT and TERM as well as EXIT: a cancelled CI job on this persistent Mac must
+# INT and TERM as well as EXIT: a cancelled CI job on a persistent machine must
 # not leave an image attached at a path nothing will detach again.
 trap cleanup EXIT INT TERM
 
@@ -168,13 +166,12 @@ echo "== 5. the upgrade replaced the bundle rather than merging into it"
 [ ! -e "$stale" ] || fail "$(basename "$stale") from the previous release survived the upgrade: the drag merged instead of replacing"
 
 echo "== 6. the bundle installed from the image runs"
-# The issue's launch smoke, on the copy that came off the dmg and through the
-# upgrade rather than on the build output the ci job launches. A window needs
-# the runner's user logged in at the console; without one WindowServer refuses
-# and this is reported skipped, not failed, as D-021 already does for the
-# build's own smoke. AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME are exported
-# above so that this launch reads the temporary directories and not the
-# machine's real configuration. Nothing is asserted about the configuration
+# A launch smoke on the copy that came off the dmg and through the upgrade,
+# rather than on the build output the ci job launches. A window needs the
+# user logged in at the console; without one WindowServer refuses and this
+# is reported skipped, not failed, as the build's own smoke does. AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME
+# are exported above so that this launch reads the temporary directories
+# and not the machine's real configuration. Nothing is asserted about the configuration
 # afterwards: an app that writes its own settings on launch is behaving, and
 # what this script claims about configuration is claimed of the drag, above.
 if launchctl print "gui/$(id -u)" >/dev/null 2>&1; then

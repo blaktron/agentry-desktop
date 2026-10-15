@@ -1,10 +1,9 @@
 package build
 
-// The draft's decode (plan builder-rework.md §7.5, D15, D16; #282, and
-// #281's hosted draft after it): the Drafter's manifest, which it writes as
-// JSON, becomes the form's Model as data. Known fields only; what the form
-// cannot hold is dropped and said; a value of the wrong shape refuses the
-// draft; a path is text, and nothing is read or written.
+// The draft's decode, on this computer and In Agentry: the Drafter's manifest,
+// which it writes as JSON, becomes the form's Model as data. Known fields only;
+// what the form cannot hold is dropped and said; a value of the wrong shape
+// refuses the draft; a path is text, and nothing is read or written.
 
 import (
 	"os"
@@ -146,10 +145,10 @@ func TestFromDraftHoldsAHostileDraftAsData(t *testing.T) {
 	}
 }
 
-// A draft's knowledge block (agentry-desktop#497; plan knowledge-and-drafter.md
-// K4, D4): the Drafter declares knowledge.accepts when the QuickAgent needs a
-// pack at run time, and the form keeps it. It never ships the person's pack:
-// a draft's knowledge.ships is dropped and named, as the site's importer does.
+// A draft's knowledge block: the Drafter declares knowledge.accepts when the
+// QuickAgent needs a pack at run time, and the form keeps it. It never ships
+// the person's pack: a draft's knowledge.ships is dropped and named, as the
+// site's importer does.
 func TestFromDraftKeepsAcceptsAndDropsShips(t *testing.T) {
 	withKnowledge := strings.Replace(draftManifest, `"publish":`,
 		`"knowledge": {"accepts": {"prompt": "Attach the team's runbook: the commands it quotes come from it.", "required": true},
@@ -180,9 +179,9 @@ func TestFromDraftKeepsAcceptsAndDropsShips(t *testing.T) {
 	}
 }
 
-// A draft that asks for a repository and declares what files it takes
-// (agentry-desktop#806, #822) is held whole: the question's type and the
-// inputs block are kept, and neither is named as left out.
+// A draft that asks for a repository and declares what files it takes is
+// held whole: the question's type and the inputs block are kept, and
+// neither is named as left out.
 func TestFromDraftKeepsSourceQuestionsAndInputs(t *testing.T) {
 	withSource := strings.Replace(draftManifest,
 		`"intake": [{"id": "notes", "prompt": "The meeting notes", "type": "file", "required": true}],`,

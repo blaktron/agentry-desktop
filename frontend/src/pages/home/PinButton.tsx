@@ -4,7 +4,7 @@ import { main } from "../../../wailsjs/go/models";
 import { Button } from "../../ui";
 import { homeFullSentence, pinOffer } from "../../pins";
 
-// Pin to Home (plan desktop-home-and-library.md D5, D11; agentry-desktop#660),
+// Pin to Home,
 // on a Library row and on an installed QuickAgent's page. Go keeps the pins
 // and places each one; the page reads the layout and asks for one change.
 // A pin is kept on this computer only and is not a star: no registry is
@@ -24,7 +24,7 @@ export function useHomeLayout(): [main.HomeLayoutView | null, (v: main.HomeLayou
   return [layout, setLayout, reread];
 }
 
-/** The sentence a page shows while Home holds every pin it can (D5), so a
+/** The sentence a page shows while Home holds every pin it can, so a
  * held Pin button is explained, not silent. */
 export function homeFullLine(layout: main.HomeLayoutView | null): string | null {
   if (!layout || layout.newer || layout.unreadable) return null;
@@ -41,7 +41,7 @@ export function PinButton({ agentRef, registry, layout, onLayout }: {
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // A layout this app keeps rather than uses takes no pin (D-067).
+  // A layout this app keeps rather than uses takes no pin.
   if (!layout || layout.newer || layout.unreadable) return null;
   const offer = pinOffer(layout.cards, layout, agentRef, registry);
   async function toggle() {

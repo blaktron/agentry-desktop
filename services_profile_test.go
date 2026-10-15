@@ -10,7 +10,7 @@ import (
 )
 
 // profileRegistry is a registry with the billing and runs extensions and a
-// directory, answering the Profile card's reads (agentry-desktop#423).
+// directory, answering the Profile card's reads.
 func profileRegistry(t *testing.T, directory, runs bool) (*httptest.Server, *string) {
 	t.Helper()
 	displayName := "Chris"
@@ -78,10 +78,10 @@ func profileRegistry(t *testing.T, directory, runs bool) (*httptest.Server, *str
 }
 
 // The Profile card reads what the site's Profile and Subscription cards
-// show, with the desktop's own credential (agentry-desktop#423): the user
-// with whether the email is verified, how the account signed up, the
-// subscription with its promo trial, knowledge and private-agent answers,
-// and the caller's hosted-run caps.
+// show, with the desktop's own credential: the user with whether the email
+// is verified, how the account signed up, the subscription with its promo
+// trial, knowledge and private-agent answers, and the caller's hosted-run
+// caps.
 func TestProfileReadsTheAccountTheSignUpAndTheRunCaps(t *testing.T) {
 	srv, _ := profileRegistry(t, true, true)
 	app := &App{ctx: context.Background()}
@@ -158,10 +158,10 @@ func TestSetDisplayNameSavesThroughTheRegistry(t *testing.T) {
 	}
 }
 
-// A page-supplied registry URL is held to Settings' rule before its token
-// is looked up (D-030): the keychain keys a token by host, so an http://
-// spelling of an added https registry must be refused, not answered with
-// that registry's token in clear. The refusal comes before any lookup.
+// A page-supplied registry URL is held to Settings' rule before its token is
+// looked up: the keychain keys a token by host, so an http:// spelling of an
+// added https registry must be refused, not answered with that registry's
+// token in clear. The refusal comes before any lookup.
 func TestProfileBindingsRefuseAPlainHTTPRegistry(t *testing.T) {
 	s := &SettingsAPI{app: &App{ctx: context.Background()}}
 	const plain = "http://registry.example.test"

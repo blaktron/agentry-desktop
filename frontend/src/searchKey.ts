@@ -1,6 +1,6 @@
 import type { main } from "../wailsjs/go/models";
 
-// The person's own web search key (agentry-desktop#301): where it stands,
+// The person's own web search key: where it stands,
 // and what saving a key for another provider does, decided once for the
 // Settings card. Pure, with a type-only import, so node's own test runner
 // can hold it without a browser. The providers and their names come from

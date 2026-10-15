@@ -1,4 +1,4 @@
-// "Set up tools": the §P3 guided MCP-profile configuration as a
+// "Set up tools": the guided MCP-profile configuration as a
 // standalone modal — the same form the run panel embeds, reachable from
 // an installed QuickAgent without starting a run. Masked inputs, secret
 // NAMES only; an empty field means "resolve from the environment at run

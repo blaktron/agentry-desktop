@@ -3,7 +3,7 @@ import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { main, dockerimages } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice } from "../ui";
 
-// Run defaults → Docker images (agentry-desktop#424): the images Agentry
+// Run defaults → Docker images: the images Agentry
 // put on this computer, chosen by name, and a button that removes them
 // after a native confirmation. The Windows uninstaller removes them unless
 // "Keep my Docker images" is ticked; the Linux packages and the macOS app

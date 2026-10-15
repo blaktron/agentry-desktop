@@ -1,16 +1,15 @@
 package main
 
-// Schedules In Agentry (plan quickagent-scheduling.md §6, §7, M10;
-// agentry-desktop#745; D-073 addendum): the When step's Later and Repeat for
-// a run In Agentry, and the account's hosted schedules on the Scheduled page
-// and Home's card beside the ones on this computer, labelled In Agentry.
+// Schedules In Agentry: the When step's Later and Repeat for a run In
+// Agentry, and the account's hosted schedules on the Scheduled page and
+// Home's card beside the ones on this computer, labelled In Agentry.
 //
-// The registry keeps them (the enterprise schedules extension, M7) and
-// decides every refusal; the app drives its routes with the token it already
-// holds, whose run:read and run:write are what they take, and keeps nothing
-// of its own. A registry that cannot be reached leaves the hosted half
-// unavailable, in a sentence, and the local half as it was: no read here
-// answers an error the page would draw over the schedules on this computer.
+// The registry keeps them (the enterprise schedules extension) and decides
+// every refusal; the app drives its routes with the token it already holds,
+// whose run:read and run:write are what they take, and keeps nothing of its
+// own. A registry that cannot be reached leaves the hosted half unavailable,
+// in a sentence, and the local half as it was: no read here answers an error
+// the page would draw over the schedules on this computer.
 
 import (
 	"context"
@@ -193,9 +192,9 @@ func hostedSaid(err error) error {
 // HostedOffer is whether a new schedule can be made In Agentry at reg
 // (DecideSchedule): nil where none is offered (signed out, a registry
 // without schedules, or one that did not answer). The page reads it once,
-// apart from the list it reads at every change: its facts are four reads
-// of the registry, and an edge that spaces out a burst made a refresh that
-// read them every time outlast its time (agentry-desktop#745's live check).
+// apart from the list it reads at every change: its facts are four reads of
+// the registry, and an edge that spaces out a burst made a refresh that read
+// them every time outlast its time.
 func (s *ScheduleAPI) HostedOffer(reg string) (*HostedScheduleOfferView, error) {
 	reg = settings.Normalize(reg)
 	if settings.ValidateURL(reg) != nil {
@@ -348,10 +347,10 @@ func (s *ScheduleAPI) HostedHistory(reg string, limit int) (*HostedCalendarView,
 	return v, nil
 }
 
-// HostedScheduleRequest is a schedule In Agentry as the run setup
-// describes it: the run's own answers, and When. Files are paths this
-// session's picker returned (D-030), uploaded when it is made; Knowledge
-// names the account's packs kept in Agentry.
+// HostedScheduleRequest is a schedule In Agentry as the run setup describes
+// it: the run's own answers, and When. Files are paths this session's picker
+// returned, uploaded when it is made; Knowledge names the account's packs
+// kept in Agentry.
 type HostedScheduleRequest struct {
 	Registry  string            `json:"registry"`
 	Ref       string            `json:"ref"`
@@ -364,15 +363,13 @@ type HostedScheduleRequest struct {
 	When      schedules.When    `json:"when"`
 	// AskOptionalSecrets makes the registry's check refuse an optional
 	// secret the account does not keep, as a required one, so the When step
-	// asks for it (agentry-desktop#795); a schedule made again after the
-	// ask leaves it false.
+	// asks for it; a schedule made again after the ask leaves it false.
 	AskOptionalSecrets bool `json:"askOptionalSecrets,omitempty"`
 	// SourceTokens are tokens typed in the setup for the release's input
 	// sources, by question id; SaveSourceKeys is the person's leave to save
 	// each source's token (typed, else the key saved on this computer for
 	// its host) in Agentry as the key for that host, which a schedule's
-	// fires use (agentry-enterprise#532, agentry-desktop#833). A token
-	// crosses the app's IPC inward only.
+	// fires use. A token crosses the app's IPC inward only.
 	SourceTokens   map[string]string `json:"sourceTokens,omitempty"`
 	SaveSourceKeys bool              `json:"saveSourceKeys,omitempty"`
 }
@@ -389,17 +386,17 @@ type HostedScheduleMadeView struct {
 	Detail  string   `json:"detail,omitempty"`
 	Missing []string `json:"missing,omitempty"`
 	// Optional are the release's optional secrets a secret-missing names:
-	// those of Missing the ask may leave empty (agentry-desktop#795).
+	// those of Missing the ask may leave empty.
 	Optional []string `json:"optional,omitempty"`
 }
 
 // HostedAdd makes the schedule req describes In Agentry. The registry's
-// create is the check (D8): it runs the run's own create, stopped before
-// anything is held, as the schedule's fires will, and stores nothing unless
-// every input a fire needs is in place. A gap comes back as the refusal,
-// not an error, for the When step to offer its fix and make the schedule
-// again; the files go up at each try (an upload nobody claims is swept by
-// the registry after a day).
+// create is the check: it runs the run's own create, stopped before anything
+// is held, as the schedule's fires will, and stores nothing unless every
+// input a fire needs is in place. A gap comes back as the refusal, not an
+// error, for the When step to offer its fix and make the schedule again; the
+// files go up at each try (an upload nobody claims is swept by the registry
+// after a day).
 func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeView, error) {
 	when, err := hostedRecurrence(req.When)
 	if err != nil {
@@ -417,23 +414,22 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 	}
 	ctx := s.ctx()
 	var keys map[string]string
-	// An unscanned release is not run In Agentry from here (D-029), so it
-	// is not scheduled there either.
+	// An unscanned release is not run In Agentry from here, so it is not
+	// scheduled there either.
 	if sig, err := run.ResolveSignature(ctx, reg, req.Ref, false); err == nil {
 		if sig.Unscanned() {
-			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55), so it is not scheduled there either", req.Ref)
+			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent, so it is not scheduled there either", req.Ref)
 		}
-		// A target host is reached only from this computer (plan
-		// runtime-hosts.md D11; agentry-desktop#812).
+		// A target host is reached only from this computer.
 		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
 			return nil, err
 		}
 		// A schedule's fire has no setup to send a one-run token from: it
-		// uses the key Agentry keeps for each source's host
-		// (agentry-enterprise#532). A source given a token here has it
-		// saved there, with the person's leave, once the schedule is made;
-		// without the leave, the schedule is held, since its fires would
-		// fetch without the token the person meant them to use.
+		// uses the key Agentry keeps for each source's host. A source given
+		// a token here has it saved there, with the person's leave, once the
+		// schedule is made; without the leave, the schedule is held, since
+		// its fires would fetch without the token the person meant them to
+		// use.
 		if keys, err = run.HostedScheduleKeys(sig.Manifest, req.Intake, req.SourceTokens, nil); err != nil {
 			return nil, err
 		}
@@ -560,8 +556,8 @@ func (s *ScheduleAPI) HostedResume(reg, id string) error {
 	})
 }
 
-// HostedRemove deletes a schedule In Agentry after a native Yes/No
-// (D-070); the runs it started stay. A No is no error.
+// HostedRemove deletes a schedule In Agentry after a native Yes/No; the runs
+// it started stay. A No is no error.
 func (s *ScheduleAPI) HostedRemove(reg, id, name string) (bool, error) {
 	if err := checkHostedID(id); err != nil {
 		return false, err

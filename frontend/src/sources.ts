@@ -1,11 +1,10 @@
-// Input sources in the run setup (plan input-sources.md §5, D3, D5, D13;
-// agentry-desktop#794): a QuickAgent asks for a repository or a file at a
-// web address with an intake question of that type, and the setup asks for
-// it in the run's own flow, with an optional access token beside it. The
-// token is used by the run's fetch step alone; it can be saved for its host
-// in the system keychain, where the CLI and a schedule's fire read it too.
-// These are the setup's pure parts; Go checks each address with the CLI's
-// own parser (RunAPI.SourceKeyStatus) and never returns a token.
+// Input sources in the run setup: a QuickAgent asks for a repository or a file
+// at a web address with an intake question of that type, and the setup asks for
+// it in the run's own flow, with an optional access token beside it. The token
+// is used by the run's fetch step alone; it can be saved for its host in the
+// system keychain, where the CLI and a schedule's fire read it too. These are
+// the setup's pure parts; Go checks each address with the CLI's own parser
+// (RunAPI.SourceKeyStatus) and never returns a token.
 
 /** The intake question types that ask for an input source. */
 export const SOURCE_TYPES = ["repository", "url"] as const;
@@ -48,12 +47,12 @@ export function sourceNeed(q: Q): string {
 }
 
 /** The sentence beside the token field: which token the run uses. In
- *  Agentry (agentry-desktop#833) the token is sent with the run's start,
+ *  Agentry the token is sent with the run's start,
  *  and Agentry holds it for that run alone; a source sent none uses the key
- *  saved in Agentry for its host, if any (agentry-enterprise#532). */
+ *  saved in Agentry for its host, if any. */
 export function tokenLine(key: SourceKey | null, typed: string, isRepository: boolean, inAgentry = false): string {
   if (!key || key.problem || !key.host) {
-    // The field is drawn before the address is checked (agentry-desktop#869),
+    // The field is drawn before the address is checked,
     // so the line says what a token is for even with no host yet.
     const what = isRepository ? "repository" : "file";
     if (typed.trim() !== "") return `This token is used for the ${what}'s host once its address is checked.`;
@@ -84,8 +83,7 @@ export function tokenLine(key: SourceKey | null, typed: string, isRepository: bo
 }
 
 /** Where a source's token comes from, for Review and start. In Agentry
- *  the token, typed or saved on this computer, is sent with the start
- *  (agentry-desktop#833). */
+ *  the token, typed or saved on this computer, is sent with the start. */
 export function tokenWords(key: SourceKey | null, typed: string, inAgentry = false): string {
   if (typed.trim() !== "") return inAgentry ? "with the access token typed for this run, sent to Agentry for this run alone" : "with the access token typed for this run";
   if (key?.saved && key.host) {
@@ -129,18 +127,17 @@ export function sourceBlockers(
     if (!at.scheduling) continue;
     const host = key.host ?? "its host";
     if (at.inAgentry) {
-      // A schedule In Agentry's fires use the key Agentry keeps for the
-      // host (agentry-enterprise#532): a token here is saved there, with
-      // leave, or the fires would fetch without it.
+      // A schedule In Agentry's fires use the key Agentry keeps for the host: a
+      // token here is saved there, with leave, or the fires would fetch without
+      // it.
       if (((typed[q.id] ?? "").trim() !== "" || key.saved) && !at.saveInAgentry) {
         out.push(`A schedule In Agentry fetches with the key Agentry keeps for ${host}: tick \u201cSave in Agentry\u201d to keep the token there, or schedule it on this computer.`);
       }
       continue;
     }
-    // A schedule's fire has no setup to type into: it reads the saved key
-    // (D13), so a token typed here would be lost.
-    // A schedule that runs while you are signed out has the saved key
-    // sealed beside it (agentry-cli#854), so it holds nothing more.
+    // A schedule's fire has no setup to type into: it reads the saved key, so a
+    // token typed here would be lost. A schedule that runs while you are signed
+    // out has the saved key sealed beside it, so it holds nothing more.
     if ((typed[q.id] ?? "").trim() !== "") {
       out.push(`A schedule uses the key saved for ${host}: save the token for ${host}, or clear it.`);
     }
@@ -149,7 +146,7 @@ export function sourceBlockers(
 }
 
 /** The token field's label: the host once the address names one, and
- *  before that what the token is for (agentry-desktop#869). */
+ *  before that what the token is for. */
 export function tokenFieldLabel(key: SourceKey | null, isRepository: boolean): string {
   if (key && !key.problem && key.host) return `Access token for ${key.host}`;
   return isRepository ? "Access token, for a private repository" : "Access token, for a file behind a sign-in";
@@ -160,7 +157,7 @@ export function tokenFieldLabel(key: SourceKey | null, isRepository: boolean): s
 export type TypedToken = { host: string; token: string };
 
 /** Binds each token typed before its question's host was known to the
- *  first host the address resolves to (agentry-desktop#869). A token bound
+ *  first host the address resolves to. A token bound
  *  to a host keeps it, so an address edited to another host still leaves
  *  it behind (typedTokens). Returns `typed` itself when nothing binds. */
 export function bindTypedTokens(typed: Record<string, TypedToken>, keys: Record<string, SourceKey | null>): Record<string, TypedToken> {

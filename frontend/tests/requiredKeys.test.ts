@@ -1,5 +1,4 @@
-// The Builder's Required/Optional choice per key (plan optional-secrets.md
-// D2, D7; agentry-desktop#655).
+// The Builder's Required/Optional choice per key.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { declaredKeys, optionalKeys, questionRequired, requiredKeys, secretsRow } from "../src/requiredKeys.ts";
@@ -43,7 +42,7 @@ test("RunPanel holds a run only for a required key, and says which optional ones
   assert.equal(goesWithoutSentence({ declaredSecrets: ["A"] }, true), "");
 });
 
-test("an optional key can be set at run time on this computer, not only from the environment (agentry-desktop#784)", () => {
+test("an optional key can be set at run time on this computer, not only from the environment", () => {
   // All optional, nothing saved: the form never opens by itself, so it is offered.
   assert.equal(offerSetKeys({ declaredSecrets: ["OPT_KEY"], optionalSecrets: ["OPT_KEY"], exists: false }), true);
   // A required key opens the form by itself; a saved profile offers Reconfigure…
@@ -66,7 +65,7 @@ test("the consent names every declared secret, an optional one marked, as before
   assert.equal(secretsRow(undefined, undefined), "");
 });
 
-test("the start's ask In Agentry needs every required key and lets an optional one stay empty (agentry-desktop#795)", () => {
+test("the start's ask In Agentry needs every required key and lets an optional one stay empty", () => {
   const names = ["OPT_KEY", "REQ_KEY"];
   assert.equal(askReady(names, ["OPT_KEY"], {}), false);
   assert.equal(askReady(names, ["OPT_KEY"], { REQ_KEY: "r" }), true);

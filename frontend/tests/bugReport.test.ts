@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BUG_REPORT_THANKS, bugReportLength, bugReportOutcome, bugTextProblem } from "../src/bugReport.ts";
 
-// Report bug's words (agentry-desktop#841): the text counted as the
+// Report bug's words: the text counted as the
 // registry counts it, and one sentence, with Sign in where it helps, for
 // each answer the binding returns.
 

@@ -15,13 +15,12 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/owner"
 )
 
-// The crash path (agentry-desktop#198). A killed or crashed app runs no
-// hook, so a run it had in flight keeps its agent, gateway and proxy
-// containers up. The app therefore records each run it starts — its run id
-// and the process that owns it — in a small file under the runner home,
-// removes the file when the run ends, and at the next start, and when it
-// quits, sweeps the run of any record whose owner is provably gone (D-034;
-// the quit half and the sweep's reach beyond docker, agentry-desktop#463).
+// The crash path. A killed or crashed app runs no hook, so a run it had in
+// flight keeps its agent, gateway and proxy containers up. The app
+// therefore records each run it starts — its run id and the process that
+// owns it — in a small file under the runner home, removes the file when
+// the run ends, and at the next start, and when it quits, sweeps the run of
+// any record whose owner is provably gone.
 //
 // A record names one run id, minted by the process that wrote it and used
 // by nobody else, so sweeping by that id can never reach the CLI's runs or
@@ -30,23 +29,22 @@ import (
 // record, a pid the kernel reused — which leaves litter for a later start,
 // never a run swept mid-turn that is live where this process can see it.
 //
-// That judgement is this machine's and this pid namespace's, and the
-// runner home is taken to be one machine's. A home shared with another
-// machine, or with a container of its own pid namespace, has desktops that
-// cannot see each other's pids: the owner of a run live over there reads
-// as gone here, and its record, and since agentry-desktop#463 its scratch
-// directory, would be swept from under it. A record does not name its
-// machine because no identity tried for it was stable enough: a host name
-// follows the network on macOS, and a record that stopped matching would
-// leave a killed run's secrets file for good, which is the worse fault
-// (agentry-desktop#480).
+// That judgement is this machine's and this pid namespace's, and the runner
+// home is taken to be one machine's. A home shared with another machine, or
+// with a container of its own pid namespace, has desktops that cannot see
+// each other's pids: the owner of a run live over there reads as gone here,
+// and its record, and its scratch directory, would be swept from under it.
+// A record does not name its machine because no identity tried for it was
+// stable enough: a host name follows the network on macOS, and a record
+// that stopped matching would leave a killed run's secrets file for good,
+// which is the worse fault.
 //
 // Where the CLI's owner package can identify a process across pid reuse
 // (Linux: pid plus start time), the record carries the start time and is
 // judged by it; elsewhere by the pid alone, which is enough here because a
 // record's run id is exclusive to its writer. The CLI's own sweep
-// (engine.SweepAbandoned, agentry-cli#161) labels containers instead and
-// removes nothing off Linux, which is where most desktops run.
+// (engine.SweepAbandoned) labels containers instead and removes nothing off
+// Linux, which is where most desktops run.
 
 // InFlightDirName is the runner-home subdirectory holding the records.
 const InFlightDirName = "desktop-runs"
@@ -59,9 +57,9 @@ type inFlight struct {
 	// (Linux); zero elsewhere.
 	Start uint64 `json:"start,omitempty"`
 	// Stage is where a review's pre-step staged its copy of the QuickAgent
-	// (RecordStage, agentry-desktop#469): outside the runner home, in the
-	// system's temp directory, so the run's own sweep does not reach it,
-	// and the record that is forgotten removes it.
+	// (RecordStage): outside the runner home, in the system's temp directory, so
+	// the run's own sweep does not reach it, and the record that is forgotten
+	// removes it.
 	Stage string `json:"stage,omitempty"`
 }
 
@@ -158,9 +156,9 @@ func SweepOrphaned(ctx context.Context, dir string, sweep func(context.Context, 
 // SweepAtQuit is SweepOrphaned for an app that is closing, after it has torn
 // down what it had live: every record this process still holds is swept as
 // well, since nothing of this process's is running any more. Those are the
-// run the quit's bounded wait gave up on, and a run that ended leaving
-// files its engine could not delete, whose record the app kept for this
-// (agentry-desktop#463). Another live process's record is still left alone.
+// run the quit's bounded wait gave up on, and a run that ended leaving files
+// its engine could not delete, whose record the app kept for this. Another
+// live process's record is still left alone.
 func SweepAtQuit(ctx context.Context, dir string, sweep func(context.Context, string) error) ([]string, error) {
 	return sweepRecorded(ctx, dir, true, sweep)
 }

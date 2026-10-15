@@ -1,35 +1,28 @@
-// Build (desktop D-013): author a QuickAgent as a form, save it as a real
+// Build: author a QuickAgent as a form, save it as a real
 // workspace (the same files `agentry init` writes), validate it with the
 // registry's own scanners, and publish it through the full pipeline. The
 // form is an editor for agent.yaml — the manifest stays the contract, and
 // nothing here bypasses a publication gate.
 //
-// Since agentry-desktop#280 (plan builder-rework.md M2, D2–D4, D13, D19)
-// the tab opens on a start page, and the form has two views of one Model:
+// The tab opens on a start page, and the form has two views of one Model:
 // Step by step, one section at a time on the step chrome in primitives.tsx,
-// and Advanced, every section at once as the page always was. Switching
-// keeps everything. A step is checked before Next by BuildAPI.Check, which
-// runs the form's rules and the core's own V-rules over the model without
-// touching disk, and shows the lines the step writes once it passes. The
-// folder is chosen at Save, so a person can start without one.
+// and Advanced, every section at once. Switching keeps everything. A step
+// is checked before Next by BuildAPI.Check, which runs the form's rules and
+// the core's own V-rules over the model without touching disk, and shows
+// the lines the step writes once it passes. The folder is chosen at Save,
+// so a person can start without one.
 //
-// Since #282 (plan builder-rework.md M8, D5, D25) the start page has a third
-// way in, Describe it (listed first since #421, in the site's order): a draft made by the built-in Drafter
-// (BuildDescribe.tsx), since #281 (M7) In Agentry as well as on this
-// computer, decoded into the Model and opened on Review with the Drafter's
-// notes beside it and Describe again under them.
-//
-// Since #598 (DEV-201) the start page is two cards, as the site's /build:
-// Describe it to AI, which opens Describe it, and Build it by hand, which
-// opens Step by step and offers Advanced (BuildWays.tsx).
-//
-// Since #344 (plan builder-simplify.md M5, D3, D4, D7, D10) a draft lands on
-// the summary (BuildSummary.tsx): how it works and what it needs, then
-// Submit, private unless switched, with the folder asked through the native
-// picker at its first save (D-030; since #585 Go makes it under the default
-// output folder, no dialog, D-060). Both form views end on the same summary
+// The start page is two cards, as the site's /build: Describe it to AI,
+// which opens Describe it, and Build it by hand, which opens Step by step
+// and offers Advanced (BuildWays.tsx). Describe it makes a draft with the
+// built-in Drafter (BuildDescribe.tsx), In Agentry or on this computer; the
+// draft is decoded into the Model and lands on the summary
+// (BuildSummary.tsx): how it works and what it needs, then Save, Install
+// and Submit. The folder is made at its first save under the default
+// output folder, with no dialog. Both form views end on the same summary
 // through Continue to submit, so it is the one publish page, and Review
-// keeps the Drafter's notes folded under "How it was drafted".
+// keeps the Drafter's notes folded under "How it was drafted", with
+// Describe again under them.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
@@ -51,7 +44,7 @@ import { isRemote, reachRow, REMOTE_CHECK, serverRef } from "../remoteServers";
 import { RevealText } from "../reveal";
 
 const DATA_ACCESS = ["email", "calendar", "files", "tickets", "code", "messages", "payments", "other"];
-// The §19 instruction-file quota, as internal/build's maxInstructionBytes.
+// The instruction-file quota, as internal/build's maxInstructionBytes.
 const MAX_INSTRUCTION_BYTES = 1 << 20;
 
 // What the tab was holding when the person last left it. Build unmounts on
@@ -64,7 +57,7 @@ type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
 type StepKey = SectionKey | "review";
 
-// The eight steps of plan D4, each with what it is for in two sentences.
+// The eight steps, each with what it is for in two sentences.
 const STEPS: { key: StepKey; label: string; intro: string }[] = [
   { key: "basics", label: "Basics", intro: "Name the QuickAgent and say in one line what it does. Then choose how it runs." },
   { key: "instructions", label: "Instructions", intro: "The instruction file tells the agent its one job. Say what it is given, the steps it takes and what it returns." },
@@ -127,7 +120,7 @@ function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: strin
   const when = at && !Number.isNaN(at.getTime()) ? ` as of ${at.toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
   switch (c.status) {
     case "vulnerable": {
-      // Weighed at the gate's rating (D-055): a run refuses only an
+      // Weighed at the gate's rating: a run refuses only an
       // advisory the gate rates high or critical, so only that is "high".
       const advs = c.advisories ?? [];
       const n = advs.length;
@@ -147,7 +140,7 @@ function checkSentence(c: mcpvuln.Status): { tone: "muted" | "high"; text: strin
 
 type PatchRow = (row: Partial<build.MCPServerRow>) => void;
 
-// A remote server's row (OAuth connections M11, agentry-desktop#668): its
+// A remote server's row: its
 // address, how it signs in, and the scopes or the key that goes with that.
 // The Go model writes only these (MCPServerRow.Declared), so a package's
 // fields a source switch hides are kept for switching back, never written.
@@ -194,7 +187,7 @@ function RemoteServerRow({ srv, patch, source, remove }: { srv: build.MCPServerR
   );
 }
 
-// A package server's OAuth sign-in (the manifest's oauth block, DEV-215):
+// A package server's OAuth sign-in (the manifest's oauth block):
 // the issuer, the scopes, and how the access token reaches the server.
 function SignInFields({ srv, patch }: { srv: build.MCPServerRow; patch: PatchRow }) {
   const o = srv.oauth;
@@ -301,8 +294,8 @@ function localReach(m: build.Model): { what: string; value: string }[] {
 }
 
 // RequiredBox is an intake question's required box. A secret question of
-// the QuickAgent's own key follows the key's Required/Optional choice (plan
-// D7): drawn from it, and not a box of its own.
+// the QuickAgent's own key follows the key's Required/Optional choice:
+// drawn from it, and not a box of its own.
 function RequiredBox({ m, q, onChange }: { m: build.Model; q: build.IntakeRow; onChange: (required: boolean) => void }) {
   const r = questionRequired(m, q);
   return (
@@ -314,7 +307,7 @@ function RequiredBox({ m, q, onChange }: { m: build.Model; q: build.IntakeRow; o
 }
 
 // KeyChoices is a Required/Optional choice for each key the QuickAgent and
-// its servers declare (plan optional-secrets.md D2, agentry-desktop#655):
+// its servers declare:
 // a key starts as Optional, and the model holds the Required ones.
 function KeyChoices({ m, onChange }: { m: build.Model; onChange: (required: string[]) => void }) {
   const keys = declaredKeys(m);
@@ -349,7 +342,7 @@ function ReachList({ title, rows }: { title: string; rows: { what: string; value
         {rows.map((r, i) => (
           <div key={i} style={{ display: "contents" }}>
             {/* Through RevealText: a scope, an address or a tool name can
-                hold a character a reader cannot see (agentry-desktop#668). */}
+                hold a character a reader cannot see. */}
             <dt className="mono small"><RevealText text={r.what} /></dt>
             <dd><RevealText text={r.value} /></dd>
           </div>
@@ -366,21 +359,19 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   initialStep?: number;
   /** Harness only: open with a draft in the form. */
   initialDraft?: main.DraftView | null;
-  /** Raised by the draft's dialog or card's "Open the draft"
-   *  (agentry-desktop#410): the draft that landed opens now, whatever view
-   *  the tab is on. */
+  /** Raised by the draft's dialog or card's "Open the draft": the draft
+   *  that landed opens now, whatever view the tab is on. */
   openDraftRev?: number;
-  /** Raised by the QuickAgent page's Edit (agentry-desktop#500): the
+  /** Raised by the QuickAgent page's Edit: the
    *  release it asked for (edit.ts) opens in the form now. */
   openEditRev?: number;
   /** A registry match's page, for Describe it's "install it instead". */
   onOpenAgent?: (ns: string, name: string) => void;
   /** Settings, for Describe it's missing AI Review key. */
   onOpenSettings?: () => void;
-  /** Settings at the AI Review key, for Review Your QuickAgents locally
-   *  (agentry-desktop#469). */
+  /** Settings at the AI Review key, for Review Your QuickAgents locally. */
   onOpenReviewKey?: () => void;
-  /** The Library, where Install puts the QuickAgent (agentry-desktop#425, #657). */
+  /** The Library, where Install puts the QuickAgent. */
   onOpenLibrary?: () => void;
 }) {
   const [dir, setDir] = useState(kept?.dir ?? "");
@@ -388,11 +379,11 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [touched, setTouched] = useState(!!kept || !!initialDraft);
   // The Drafter's notes, while its draft is in the form.
   const [drafted, setDrafted] = useState<main.DraftView | null>(kept?.drafted ?? initialDraft);
-  // The release the form edits (agentry-desktop#500), while the form still
+  // The release the form edits, while the form still
   // names its QuickAgent: Submit then adds a version to it.
   const [editing, setEditing] = useState<Editing | null>(kept?.editing ?? null);
   // A landed revision shows its diff and Publish this version until the
-  // person opens it in the form (agentry-desktop#501).
+  // person opens it in the form.
   const [revisionShown, setRevisionShown] = useState(kept?.revisionShown ?? false);
   // A draft still being made is followed on Describe it.
   const [view, setView] = useState<View>(draftInFlight() ? "describe" : initialView);
@@ -408,7 +399,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<validate.Result | null>(null);
   const [pubResult, setPubResult] = useState<build.PublishResult | null>(null);
-  // What Install laid down on this computer (agentry-desktop#425).
+  // What Install laid down on this computer.
   const [localInstall, setLocalInstall] = useState<main.LocalInstallView | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
@@ -416,7 +407,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const moved = useRef(false);
 
   // A draft taken into the form while the fresh form was still being made:
-  // the draft wins, whichever answers last (agentry-desktop#410).
+  // the draft wins, whichever answers last.
   const tookDraft = useRef(false);
 
   useEffect(() => {
@@ -439,7 +430,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }, [openDraftRev]);
 
   // The QuickAgent page's Edit: its release, read through the registry,
-  // opens in the form (agentry-desktop#500).
+  // opens in the form.
   useEffect(() => {
     const r = takeEditRequest();
     if (!r) return;
@@ -463,7 +454,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // Keep the work for the start page's Continue (see `kept`).
   useEffect(() => {
     if (model && touched) kept = { model, dir, view: view === "start" || view === "describe" ? kept?.view ?? "steps" : view, drafted, editing, revisionShown };
-    // What the QuickAgent page's Edit says it replaces (agentry-desktop#500).
+    // What the QuickAgent page's Edit says it replaces.
     noteHeldForm(kept ? kept.model.name || "a QuickAgent with no name yet" : null);
   }, [model, dir, view, touched, drafted, editing, revisionShown]);
 
@@ -564,11 +555,11 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       if (view === "start" || view === "describe") setView("advanced");
     });
 
-  // The folder is made at the first save, with no file dialog
-  // (agentry-desktop#585, D-060): Go makes a new folder named for the
-  // QuickAgent under the default output folder (Settings → Run defaults, else
-  // ~/Downloads/agentry-out), so the page still names no path (D-030) and
-  // nothing already there is written over. Later saves reuse it.
+  // The folder is made at the first save, with no file dialog: Go makes a
+  // new folder named for the QuickAgent under the default output folder
+  // (Settings → Run defaults, else ~/Downloads/agentry-out), so the page
+  // names no path and nothing already there is written over. Later saves
+  // reuse it.
   async function ensureDir(): Promise<string> {
     if (dir) return dir;
     const d = await BuildAPI.NewSaveFolder(m?.name ?? "");
@@ -594,8 +585,8 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       setResult(await BuildAPI.Validate(d));
     });
 
-  // Publish this version (agentry-desktop#501): a new folder Go makes under
-  // the default output folder (#585), and Go saves and submits the revision
+  // Publish this version: a new folder Go makes under
+  // the default output folder, and Go saves and submits the revision
   // as drafted.
   const publishRevision = () =>
     wrap("submit", async () => {
@@ -609,7 +600,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       if (r) setPubResult(r);
     });
 
-  // Submit is public (agentry-desktop#425): the Go side first asks, in a
+  // Submit is public: the Go side first asks, in a
   // native dialog, whether to spend the submission's credits, and says
   // whether it becomes public or, existing private, stays so; a No returns
   // nothing and sends nothing.
@@ -626,7 +617,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       if (r) setPubResult(r);
     });
 
-  // Review Your QuickAgents locally (agentry-desktop#469) reviews the saved
+  // Review Your QuickAgents locally reviews the saved
   // folder with the built-in Examiner on this computer: the Go side asks in
   // a native dialog first, and a No reviews nothing. The review is followed
   // in its own dialog and card (ReviewFlow); nothing here waits for it.
@@ -640,7 +631,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     });
 
   // Install lays the saved folder down on this computer, local and
-  // unsigned (agentry-desktop#425); its consent is the Go side's native
+  // unsigned; its consent is the Go side's native
   // dialog, and a No returns nothing.
   const installHere = () =>
     wrap("install", async () => {
@@ -710,8 +701,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A draft made by Describe it: into the form, with no folder yet (the
-  // first save makes it, D-060), and open on the summary (plan
-  // builder-simplify.md §4.1), private unless switched (D3).
+  // first save makes it), and open on the summary.
   function takeDraft(v: main.DraftView) {
     if (!v.model) return;
     tookDraft.current = true;
@@ -719,7 +709,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
     setModel(new build.Model(v.model));
     setDrafted(v);
     // Edit with AI's revision is an edit of its QuickAgent: the name fixed,
-    // the next minor set (agentry-desktop#501).
+    // the next minor set.
     const r = v.revision;
     setEditing(r ? { namespace: r.namespace, name: r.name, from: r.from, version: r.version } : null);
     setRevisionShown(!!r);
@@ -732,9 +722,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   }
 
   // A release opened by Edit: into the form under its own name at the next
-  // minor, with no folder yet (the first save makes it, D-060), on the summary,
+  // minor, with no folder yet (the first save makes it), on the summary,
   // as a draft opens. What the Builder cannot hold was dropped in Go,
-  // without a word (D6).
+  // without a word.
   function takeEdit(v: main.EditView) {
     if (!v.model) return;
     tookDraft.current = true;
@@ -1070,7 +1060,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             ))}
             <Button type="button" className="small" onClick={() => setGuide({ connect: [...connect, new build.ConnectRow({ secret: "", help: "" })] })}>+ add help for a key</Button>
           </div>
-          {/* knowledge.accepts (agentry-desktop#497): a pack of the person's
+          {/* knowledge.accepts: a pack of the person's
               own the run setup's Knowledge step asks for. */}
           <label className="small" style={{ display: "block", marginTop: 12 }}>knowledge it asks for (one line the run setup shows, ≤ 300 chars; empty for none)
             <input style={inputStyle} maxLength={300} value={m.knowledgePrompt ?? ""} onChange={(e) => set({ knowledgePrompt: e.target.value })}
@@ -1155,7 +1145,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       <div className="row" style={{ marginTop: 12 }}>
         <Button disabled={!!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</Button>
         <Button disabled={!!busy} onClick={runValidate}>{busy === "validate" ? "Validating…" : "Save + Validate"}</Button>
-        {/* One publish page (plan builder-simplify.md §4.3): the form
+        {/* One publish page: the form
             views end on the summary, where Submit is. */}
         <Button variant="primary" disabled={!!busy} onClick={() => switchTo("summary")}>Continue to submit</Button>
       </div>
@@ -1264,10 +1254,9 @@ export default function Build({ registry, initialView = "start", initialStep = 0
       <div>
         {header}
         {notices}
-        {/* Two cards since #598 (DEV-201), the site's /build's: Describe it
-            to AI first, then Build it by hand, which opens Step by step and
-            offers Advanced. Their sentences are the operator's own words,
-            on both clients. */}
+        {/* Two cards, the site's /build's: Describe it to AI first, then
+            Build it by hand, which opens Step by step and offers Advanced.
+            Their sentences are the same on both clients. */}
         <BuildWays onDescribe={() => switchTo("describe")} onSteps={() => switchTo("steps")} onAdvanced={() => switchTo("advanced")} />
         {touched && (
           <p className="small">
@@ -1329,7 +1318,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
         ) : (
           <>
             {drafted && (
-              // Folded (plan builder-simplify.md §4.3, D7): the summary
+              // Folded: the summary
               // leaves the notes out, and Review keeps them one click away.
               <details className="card mt build-drafted">
                 <summary><strong>How it was drafted</strong></summary>
@@ -1381,8 +1370,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
 // ValidateCard shows a validate run the way the Validate page does: the
 // manifest's V-rule problems, the inventory's and the content scan's
-// findings with their rule and place. It used to read fields the result
-// does not have, so a manifest failure read "FAILED" with no reason.
+// findings with their rule and place.
 function ValidateCard({ result }: { result: validate.Result }) {
   const issues = result.issues ?? [];
   const inventory = result.inventory ?? [];
@@ -1454,14 +1442,13 @@ function PublishOutcome({ pub, m, registry, onError }: { pub: build.PublishResul
       {pub.visibilityNote && <Notice tone="warn">{pub.visibilityNote}</Notice>}
       {pub.settingsUrl && (
         // A private QuickAgent is made public on its settings page on the
-        // site (agentry-desktop#425), or since agentry-desktop#705 by Make
-        // public in the Publisher section, which the note names.
+        // site, or by Make public in the Publisher section, which the note
+        // names.
         <p className="small"><Button onClick={() => OpenExternal(pub.settingsUrl!).catch((e) => onError(String(e)))}>Its settings on the site</Button></p>
       )}
       {pub.status === "refused" && pub.account && (
-        // Whose subscription the refusal is about (plan
-        // organization-subscriptions.md D22): a member publishes to their own
-        // namespace but spends from the organization's pool.
+        // Whose subscription the refusal is about: a member publishes to
+        // their own namespace but spends from the organization's pool.
         <p className="muted small">the account is <span className="selectable">{pub.account}</span></p>
       )}
       {pub.status === "refused" && (pub.refusal === "credits-exhausted" || pub.refusal === "subscription-inactive") && (

@@ -1,8 +1,7 @@
-// The Knowledge panel's pure parts (plan knowledge.md §4.8;
-// agentry-desktop#273): the words for a pack's state, its size, and the
-// name rule the Go side enforces again (agentry-cli's knowledge.ValidName).
-// The copy names what holds a pack's key and what read it, and never calls
-// a pack "safe", "secure" or "private" (plan §3).
+// The Knowledge panel's pure parts: the words for a pack's state, its
+// size, and the name rule the Go side enforces again (the CLI's
+// knowledge.ValidName). The copy names what holds a pack's key and what
+// read it, and never calls a pack "safe", "secure" or "private".
 import { knowledge } from "../wailsjs/go/models";
 import type { JobProgress } from "./jobProgress";
 import { fmtBytes } from "./ui";
@@ -43,7 +42,7 @@ export function attachable(p: knowledge.Pack): boolean {
   return p.local;
 }
 
-/** Whether a run In Agentry can attach the pack (agentry-desktop#275):
+/** Whether a run In Agentry can attach the pack:
  *  Agentry keeps it and has scanned it. A pack kept only here is uploaded
  *  first; one being scanned there waits for the scan. */
 export function attachableInAgentry(p: knowledge.Pack): boolean {
@@ -74,8 +73,8 @@ export function tooManyPacks(count: number, max: number | undefined): string | n
   return `A run In Agentry attaches at most ${max} knowledge ${max === 1 ? "pack" : "packs"}. Untick ${over === 1 ? "one" : over} to go on.`;
 }
 
-/** The sentence a sign-in adds when it moved packs off this computer's key
- *  (plan D20); empty when it moved none. */
+/** The sentence a sign-in adds when it moved packs off this computer's key;
+ *  empty when it moved none. */
 export function rewrapLine(res: { knowledgeRewrapped?: string[]; knowledgeNote?: string }): string {
   const moved = res.knowledgeRewrapped ?? [];
   let line = "";
@@ -85,7 +84,7 @@ export function rewrapLine(res: { knowledgeRewrapped?: string[]; knowledgeNote?:
   return line;
 }
 
-/** Before a build (plan D19): what runs, where, against what, and that
+/** Before a build: what runs, where, against what, and that
  *  nothing it reads or writes is scanned. */
 export function unscannedWarning(model: string): string {
   return (
@@ -115,14 +114,14 @@ export function inAgentryNote(registry: string, documents = 1, brief = false): s
 }
 
 /** How far a build on this computer has got, as Go's knowledge.Progress
- *  emits it on knowledge:build-progress (agentry-desktop#352): the report
+ *  emits it on knowledge:build-progress): the report
  *  every job carries, and the pages written so far. */
 export type BuildProgress = JobProgress & { pages: number };
 
 /** The warning the review step gives before a build on this computer: it
  *  is long work, and how long it may run. A timeout of 0 is Run defaults'
- *  no-limit switch for the built-in agents (agentry-desktop#606), on by
- *  default (agentry-desktop#699), which also shows no turn cap. */
+ *  no-limit switch for the built-in agents, on by
+ *  default, which also shows no turn cap. */
 export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): string {
   const minutes = Math.round(timeoutSeconds / 60);
   const limit =
@@ -139,7 +138,7 @@ export function buildTimeWarning(timeoutSeconds: number, maxTurns: number): stri
 
 /** Agentry keeps packs of at most 10 MB (Go's knowledge.MaxBytes), for the
  *  pack list, which has no answer from Go that carries it; a pack made on
- *  this computer may hold up to 1 GB (agentry-cli#429, agentry-desktop#354). */
+ *  this computer may hold up to 1 GB. */
 export const AGENTRY_MAX_BYTES = 10 * 1024 * 1024;
 
 /** The Documents step's warning past Agentry's cap. */

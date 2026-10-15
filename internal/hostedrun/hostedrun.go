@@ -1,17 +1,15 @@
 // Package hostedrun is the desktop's client for a registry's runs
-// extension — the In Agentry mode (plan hosted-runs.md §4.1, §4.4, §4.5,
-// D10). The app sends a task, the intake answers, the input files and the
-// account's bearer token, and reads back a run's status, its receipt and
-// its outputs — no log, which a pushed run does not keep (hosted runs in
-// production, D12 and D16); the execution plane is the registry's, so
-// nothing here starts a container, reads the operator policy or holds a
-// model key.
+// extension — the In Agentry mode. The app sends a task, the intake
+// answers, the input files and the account's bearer token, and reads back
+// a run's status, its receipt and its outputs — no log, which a pushed run
+// does not keep; the execution plane is the registry's, so nothing here
+// starts a container, reads the operator policy or holds a model key.
 //
 // The routes are the closed build's (agentry-enterprise
-// schemas/x-runs.yaml), so they are called by hand rather than through
-// the core's generated client, the way services_account.go reads the
-// billing account. A registry without the extension answers 404 and the
-// caller treats the mode as absent.
+// schemas/x-runs.yaml), so they are called by hand rather than through the
+// core's generated client, the way services_account.go reads the billing
+// account. A registry without the extension answers 404 and the caller
+// treats the mode as absent.
 package hostedrun
 
 import (
@@ -28,9 +26,8 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/registry"
 )
 
-// The plan's input limits (§4.4), enforced in the app before an upload so
-// a file over them is refused with the limit named rather than by an
-// opaque 413.
+// The input limits, enforced in the app before an upload so a file over
+// them is refused with the limit named rather than by an opaque 413.
 const (
 	// MaxInputFiles is how many files one run takes.
 	MaxInputFiles = 20
@@ -48,7 +45,7 @@ const (
 )
 
 // Active reports whether a status is one the account still has a run in —
-// the states a reopened panel reattaches to (plan §5).
+// the states a reopened panel reattaches to.
 func Active(status string) bool {
 	switch status {
 	case StatusQueued, StatusClaimed, StatusRunning:
@@ -59,8 +56,7 @@ func Active(status string) bool {
 
 // Caps are the tier's ceilings for a run (x-runs.yaml `RunCaps`), as this
 // app reads them: time and turns. A run In Agentry is stated in credits,
-// time and turns only (plan scan-and-run-tweaks.md track B,
-// agentry-desktop#457), so the token ceiling the registry may still send is
+// time and turns only, so the token ceiling the registry may still send is
 // not decoded.
 type Caps struct {
 	TimeoutSeconds int `json:"timeoutSeconds"`
@@ -68,11 +64,10 @@ type Caps struct {
 }
 
 // Caller is what a run of the signed-in caller's would hold and what a
-// knowledge build, a draft, a session and a Voice Writer run of theirs
-// hold or may do. The numbers come from the registry so no client does
-// credit arithmetic of its own (plan §4.1). The rates a settlement is
-// computed at are the registry's and are not decoded (plan
-// scan-and-run-tweaks.md D9).
+// knowledge build, a draft, a session and a Voice Writer run of theirs hold
+// or may do. The numbers come from the registry so no client does credit
+// arithmetic of its own. The rates a settlement is computed at are the
+// registry's and are not decoded.
 type Caller struct {
 	Tier    string `json:"tier"`
 	Account string `json:"account,omitempty"`
@@ -80,22 +75,20 @@ type Caller struct {
 	// HoldCredits is 0 for a member of an unmetered organization.
 	HoldCredits int64      `json:"holdCredits"`
 	Build       *TierPrice `json:"build,omitempty"`
-	// Draft is what a hosted draft of the caller's holds, and its caps
-	// (agentry-enterprise#183); nil from a registry from before the draft
-	// kind.
+	// Draft is what a hosted draft of the caller's holds, and its caps;
+	// nil from a registry without the draft kind.
 	Draft *TierPrice `json:"draft,omitempty"`
-	// Session says whether the caller's payer may start a hosted session
-	// (agentry-enterprise#286); nil from a registry that predates it, which
-	// this app offers no session against.
+	// Session says whether the caller's payer may start a hosted session;
+	// nil from a registry that does not send it, which this app offers no
+	// session against.
 	Session *CallerSession `json:"session,omitempty"`
 	// Voice is what the caller's payer may still start of Voice Writer
-	// runs this billing cycle (agentry-enterprise#306); nil where the
-	// deployment runs none.
+	// runs this billing cycle; nil where the deployment runs none.
 	Voice *CallerVoice `json:"voice,omitempty"`
 	// Revise says whether the caller's payer may revise a QuickAgent In
-	// Agentry (Edit with AI, agentry-enterprise#297): Pro and above. Whom
-	// it may revise is per QuickAgent, answered at create. Nil from a
-	// registry that predates it, which this app offers no revision against.
+	// Agentry (Edit with AI): Pro and above. Whom it may revise is per
+	// QuickAgent, answered at create. Nil from a registry that does not
+	// send it, which this app offers no revision against.
 	Revise *CallerRevise `json:"revise,omitempty"`
 }
 
@@ -109,28 +102,26 @@ type TierPrice struct {
 	Caps        Caps  `json:"caps"`
 	HoldCredits int64 `json:"holdCredits"`
 	// Allowed is on a knowledge build's line alone: whether the caller's
-	// payer may create knowledge in Agentry (DEV-162); nil from a registry
-	// that predates it.
+	// payer may create knowledge in Agentry; nil from a registry that does
+	// not send it.
 	Allowed *bool `json:"allowed,omitempty"`
 }
 
-// BuildPrice is what a knowledge build costs here, to anyone
-// (x-runs.yaml RunsStatus.knowledgeBuild): whether the deployment takes
-// one, its hold on a metered payer, and the pack scan's credit inside it
-// (DEV-150).
+// BuildPrice is what a knowledge build costs here, to anyone (x-runs.yaml
+// RunsStatus.knowledgeBuild): whether the deployment takes one, its hold
+// on a metered payer, and the pack scan's credit inside it.
 type BuildPrice struct {
 	Enabled     bool  `json:"enabled"`
 	HoldCredits int64 `json:"holdCredits"`
 	ScanCredits int64 `json:"scanCredits"`
-	// DocumentsRequired is false since agentry-enterprise#296 (plan
-	// knowledge-and-drafter.md D15): a build takes documents, a brief, or
-	// both. Absent (nil) from a registry that predates it, which needs
+	// DocumentsRequired is false when a build takes documents, a brief, or
+	// both. Absent (nil) from a registry that does not send it, which needs
 	// documents.
 	DocumentsRequired *bool `json:"documentsRequired,omitempty"`
 	// MaxBriefBytes is a brief's bound there, beside DocumentsRequired.
 	MaxBriefBytes int `json:"maxBriefBytes,omitempty"`
-	// Web is Search the web on a build (D16, D18), nil from a registry
-	// that predates it.
+	// Web is Search the web on a build, nil from a registry that does not
+	// send it.
 	Web *BuildWebTerms `json:"web,omitempty"`
 }
 
@@ -154,29 +145,26 @@ type BuildWebTerms struct {
 // the execution plane's shape, and — signed in — the caller's block.
 type Status struct {
 	Enabled bool `json:"enabled"`
-	// HostsOnline counts the sandbox hosts the registry pushes runs to
-	// (agentry-enterprise#83), the one kind of runner since the pull
-	// worker went (agentry-enterprise#86): the route's workersOnline is
-	// always 0 and is not read (agentry-desktop#882).
+	// HostsOnline counts the sandbox hosts the registry pushes runs to, the
+	// one kind of runner: the route's workersOnline is always 0 and is not
+	// read.
 	HostsOnline int     `json:"hostsOnline"`
 	Queued      int     `json:"queued"`
 	Caller      *Caller `json:"caller,omitempty"`
-	// KnowledgeBuild is absent from a registry from before the build kind.
+	// KnowledgeBuild is absent from a registry without the build kind.
 	KnowledgeBuild *BuildPrice `json:"knowledgeBuild,omitempty"`
 	// KnowledgeAttach says whether a run here may attach knowledge packs,
-	// and how many (agentry-enterprise#172); absent from a registry from
-	// before, where a run In Agentry attaches none.
+	// and how many; absent from a registry that does not send it, where a
+	// run In Agentry attaches none.
 	KnowledgeAttach *KnowledgeAttach `json:"knowledgeAttach,omitempty"`
-	// Draft is a hosted draft's terms here (agentry-enterprise#183), one
-	// set for every tier; absent from a registry from before the draft
-	// kind, which offers no Describe it In Agentry.
+	// Draft is a hosted draft's terms here, one set for every tier; absent from a
+	// registry without the draft kind, which offers no Describe it In Agentry.
 	Draft *DraftTerms `json:"draft,omitempty"`
-	// Sessions is a hosted session's terms here (agentry-enterprise#276);
-	// absent from a registry from before sessions.
+	// Sessions is a hosted session's terms here; absent from a registry
+	// without sessions.
 	Sessions *SessionTerms `json:"sessions,omitempty"`
 	// VoiceBuild is the Voice Writer's terms here and whether a run may
-	// attach a voice (agentry-enterprise#306); nil from a registry that
-	// predates it.
+	// attach a voice; nil from a registry that does not send it.
 	VoiceBuild *VoiceTerms `json:"voiceBuild,omitempty"`
 }
 
@@ -207,20 +195,19 @@ type Artefact struct {
 // Usage is the receipt's usage block as this app reads it: the turns and
 // the wall time. The token counts and their dollar cost the registry may
 // still send are not decoded: a run In Agentry is settled and stated in
-// credits (agentry-desktop#457).
+// credits.
 type Usage struct {
 	WallMS int64 `json:"wallMs"`
 	Turns  int   `json:"turns"`
 }
 
-// The kinds of run (x-runs.yaml `Run.kind`). A registry from before the
-// build kind sends none, and every row it sends is a run.
+// The kinds of run (x-runs.yaml `Run.kind`). A registry that sends no
+// kind sends only runs.
 const (
 	KindRun            = "run"
 	KindKnowledgeBuild = "knowledge_build"
 	KindDraft          = "draft"
-	// KindVoiceBuild is a hosted Voice Writer run (agentry-enterprise#306;
-	// voice.go).
+	// KindVoiceBuild is a hosted Voice Writer run (voice.go).
 	KindVoiceBuild = "voice_build"
 )
 
@@ -238,8 +225,8 @@ type KnowledgeBuild struct {
 	Bytes       int64  `json:"bytes,omitempty"`
 	ScanCredits int64  `json:"scanCredits,omitempty"`
 	Note        string `json:"note,omitempty"`
-	// Web is a build that could search the web's record of it
-	// (agentry-enterprise#296); nil for a build without the web.
+	// Web is a build that could search the web's record of it; nil for a
+	// build without the web.
 	Web *BuildWeb `json:"web,omitempty"`
 }
 
@@ -279,10 +266,10 @@ type Run struct {
 	QueuePosition   int        `json:"queuePosition,omitempty"`
 	Knowledge       []Attached `json:"knowledge,omitempty"`
 	// Session is a hosted session's record; nil on every run that is not
-	// one (agentry-enterprise#276).
+	// one.
 	Session *Session `json:"session,omitempty"`
 	// VoiceBuild is a hosted Voice Writer run's record; Voice is the
-	// Writing Voice a run or a session attached (agentry-enterprise#306).
+	// Writing Voice a run or a session attached.
 	VoiceBuild *VoiceBuild    `json:"voiceBuild,omitempty"`
 	Voice      *AttachedVoice `json:"voice,omitempty"`
 	CreatedAt  time.Time      `json:"createdAt"`
@@ -291,9 +278,9 @@ type Run struct {
 }
 
 // Empty reports whether the registry kept no receipt for the run: a run
-// pushed before agentry-enterprise#121, whose host sent no receipt. The
-// result.json in a pushed run's output.tar is a file the agent could
-// have written, so it is never read as the receipt instead.
+// pushed by a host that sent no receipt. The result.json in a pushed
+// run's output.tar is a file the agent could have written, so it is
+// never read as the receipt instead.
 func (r Receipt) Empty() bool {
 	return len(r.CapabilitiesEnforced) == 0 && r.Attestation.State == "" && r.Harness.Adapter == "" && r.ExitClass == ""
 }
@@ -309,7 +296,7 @@ func (r *Run) Terminal() bool { return r != nil && !Active(r.Status) }
 
 // Receipt is the runner's envelope minus its result, kept verbatim by the
 // registry. Only the parts a client shows are named; the rest rides along
-// untouched so nothing is summarised away (plan §9).
+// untouched so nothing is summarised away.
 type Receipt struct {
 	CapabilitiesEnforced map[string]string `json:"capabilities_enforced,omitempty"`
 	Attestation          struct {
@@ -335,8 +322,8 @@ type Input struct {
 // new pack), Pack (the account's pack in Agentry, by its registry id) or
 // Continue (a finished or cancelled build, whose documents the registry
 // copies, so it sends no Inputs), and no Ref, Task or Intake; a draft
-// (Kind KindDraft) carries a Description, its Hints and, since
-// agentry-enterprise#295, the Knowledge it reads.
+// (Kind KindDraft) carries a Description, its Hints and the Knowledge it
+// reads.
 type CreateRequest struct {
 	Kind        string            `json:"kind,omitempty"`
 	Description string            `json:"description,omitempty"`
@@ -349,41 +336,38 @@ type CreateRequest struct {
 	Intake      map[string]string `json:"intake,omitempty"`
 	Inputs      []string          `json:"inputs,omitempty"`
 	// Knowledge are the registry ids of the account's packs in Agentry a
-	// run attaches (agentry-enterprise#172, Knowledge M7); a build takes
-	// none.
+	// run attaches; a build takes none.
 	Knowledge []string `json:"knowledge,omitempty"`
-	// Mode is ModeInteractive for a hosted session of Ref's release
-	// (agentry-enterprise#276); empty is a run.
+	// Mode is ModeInteractive for a hosted session of Ref's release; empty is
+	// a run.
 	Mode string `json:"mode,omitempty"`
 	// Voice asks a run or a session to write in the runner's live Writing
 	// Voice; Op, Brief and Note are a Voice Writer run's (KindVoiceBuild:
-	// create, improve or edit; agentry-enterprise#306).
+	// create, improve or edit).
 	Voice bool `json:"voice,omitempty"`
-	// AskOptionalSecrets asks the registry to refuse a run or a session,
-	// 409 secret-missing, while the account keeps no value for one of the
-	// release's optional secrets too (agentry-enterprise#517): the token
-	// cannot list the account's secrets (DEV-165), so this is how a start
-	// learns which optional keys to ask for (agentry-desktop#795).
+	// AskOptionalSecrets asks the registry to refuse a run or a session, 409
+	// secret-missing, while the account keeps no value for one of the release's
+	// optional secrets too: the token cannot list the account's secrets, so this
+	// is how a start learns which optional keys to ask for.
 	AskOptionalSecrets bool `json:"ask_optional_secrets,omitempty"`
-	// SourceTokens are a run's access tokens for its input sources, by
-	// the id of the repository or url question its Intake answers
-	// (agentry-enterprise#516, agentry-desktop#833): the registry holds
-	// each in the vault for this run alone and hands it to that source's
-	// fetch on the sandbox host. Never in Intake, never logged, and
-	// scrubbed from any refusal the create answers.
+	// SourceTokens are a run's access tokens for its input sources, by the id of
+	// the repository or url question its Intake answers: the registry holds each
+	// in the vault for this run alone and hands it to that source's fetch on the
+	// sandbox host. Never in Intake, never logged, and scrubbed from any refusal
+	// the create answers.
 	SourceTokens map[string]string `json:"sourceTokens,omitempty"`
 	Op           string            `json:"op,omitempty"`
 	Brief        string            `json:"brief,omitempty"`
 	Note         string            `json:"note,omitempty"`
-	// Web is a knowledge build's Search the web choice
-	// (agentry-enterprise#296); nil leaves it to the registry's default, on
-	// for a new pack with no documents and off otherwise. A knowledge
-	// build's Brief is what the pack should cover and for whom.
+	// Web is a knowledge build's Search the web choice; nil leaves it to the
+	// registry's default, on for a new pack with no documents and off
+	// otherwise. A knowledge build's Brief is what the pack should cover and
+	// for whom.
 	Web *bool `json:"web,omitempty"`
 	// Revises, Instructions and Problems make a draft a revision of a
-	// QuickAgent's current release (agentry-enterprise#297, R3; Edit with
-	// AI, agentry-desktop#501): Revises is its ref, ns/name@version, and a
-	// revision carries no Description, Hints or Knowledge.
+	// QuickAgent's current release (Edit with AI): Revises is its ref,
+	// ns/name@version, and a revision carries no Description, Hints or
+	// Knowledge.
 	Revises      string `json:"revises,omitempty"`
 	Instructions string `json:"instructions,omitempty"`
 	Problems     string `json:"problems,omitempty"`
@@ -498,8 +482,8 @@ func (c *Client) Create(ctx context.Context, cr CreateRequest) (*Run, error) {
 	}
 	var run Run
 	if err := c.do("start the run", req, http.StatusCreated, &run); err != nil {
-		// A registry that echoed the body must not put a token in what
-		// the app shows (D-024's rule for a value sent once).
+		// A registry that echoed the body must not put a token in what the app shows
+		// (a value sent once is never shown back).
 		if r := RefusalOf(err); r != nil {
 			for _, tok := range cr.SourceTokens {
 				r = scrubRefusal(r, tok)
@@ -605,15 +589,13 @@ type Refusal struct {
 	ResetsAt string
 	Tier     string
 	Known    bool
-	// Missing are the declared secrets a 409 secret-missing names: the
-	// ones the start asks for (agentry-desktop#300); for a 409
-	// connection-missing, the servers still to connect (agentry-desktop#667);
-	// for a schedule's 409 secret-not-kept, its `names`: the secrets set for
-	// one run only, which a schedule cannot use (agentry-desktop#745).
+	// Missing are the declared secrets a 409 secret-missing names: the ones the
+	// start asks for; for a 409 connection-missing, the servers still to connect;
+	// for a schedule's 409 secret-not-kept, its `names`: the secrets set for one
+	// run only, which a schedule cannot use.
 	Missing []string
 	// Optional are the release's optional secrets a secrets refusal names
-	// (`optional`): those of Missing a run can start without
-	// (agentry-desktop#795).
+	// (`optional`): those of Missing a run can start without.
 	Optional []string
 }
 

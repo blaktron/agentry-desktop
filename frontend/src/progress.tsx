@@ -1,10 +1,8 @@
-// What a long run of the app's own shows while it goes (agentry-desktop#352,
-// #353, #410): the time it has used against its limit as a bar, the facts of
-// how far it has got, its log folded beneath, its Stop, and the corner card
-// a running flow shrinks to so the rest of the app stays usable. Create
-// knowledge and Describe it both draw through these (agentry-desktop#464,
-// plan desktop-review-key-and-run-cards.md §5.1), so the long runs look the
-// same, and a run and a chat will too.
+// What a long run of the app's own shows while it goes: the time it has used
+// against its limit as a bar, the facts of how far it has got, its log folded
+// beneath, its Stop, and the corner card a running flow shrinks to so the rest
+// of the app stays usable. Create knowledge and Describe it both draw through
+// these, so the long runs look the same, and a run and a chat will too.
 //
 // The cards stack: App provides the corner they go in (CornerHost), and a
 // card rendered with no corner, as the design harness renders one, places
@@ -78,7 +76,7 @@ export function CornerCard({ label, title, running, line, tone, children, action
 /** How far a job has got: the time it has run against its limit, as a bar
  *  and a clock, the turns against the turn budget, the job's own facts and,
  *  for a job on this computer, the tokens it has used (a job In Agentry
- *  reports none, agentry-desktop#457). Compact, as the card shows it: the
+ *  reports none). Compact, as the card shows it: the
  *  bar, and the clock beside the one fact the job names. Before the first
  *  report it says the job is starting. `job` is its name in the sentences ("draft",
  *  "build"). */

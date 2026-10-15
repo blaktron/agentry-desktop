@@ -1,8 +1,7 @@
 // The coding agents a person may run QuickAgents through, and the export
-// a one-click Install writes for them (agentry-desktop#148, plan
-// desktop-one-click-install.md §6, D6). HarnessChooser is the list the
-// Welcome's Coding agent step shows (agentry-desktop#89): what the runner
-// policy records, a Look that probes each harness once, Use this one. The
+// a one-click Install writes for them. HarnessChooser is the list the
+// Welcome's Coding agent step shows: what the runner policy records, a
+// Look that probes each harness once, Use this one. The
 // Settings section adds Forget, and beneath the list what the choice
 // implies — the Claude skill for Claude Code, AGENTS.md for Codex, by the
 // model provider when neither is chosen — the folder for it, and the
@@ -14,8 +13,8 @@ import { OpenExternal } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, Spinner } from "../ui";
 
-// harnessLabel is the product's name the adapter carries ("Claude Code",
-// agentry-cli#151), with the adapter's own name as the fallback.
+// harnessLabel is the product's name the adapter carries ("Claude Code"),
+// with the adapter's own name as the fallback.
 export const harnessLabel = (h: { name: string; displayName?: string }) => h.displayName || h.name;
 
 // exportName is the export's name as a heading ("Claude skill",
@@ -42,8 +41,8 @@ export type HarnessState = {
   busy: boolean;
 };
 
-// HarnessChooser: Looking is a click, not the list opening (review of
-// #89): the probe runs each harness's version flag, and a binary named
+// HarnessChooser: Looking is a click, not the list opening: the probe
+// runs each harness's version flag, and a binary named
 // claude on the PATH of a person who never asked for coding agents should
 // not run because a page was reached — the CLI's doctor probes only when
 // asked, too. Until then the list shows what the policy already records,
@@ -188,7 +187,7 @@ export function HarnessChooser({ probeOnEntry = false, allowForget = false, onSt
 // CodingAgentsCard is Settings → Coding agents. The export line is what
 // Go decided (SettingsAPI.CodingAgents reads the same rule the runner
 // home's export/ follows), shown and not asked; the folder for AGENTS.md
-// is the native picker's, opened by Go (D-030); the switch stays off
+// is the native picker's, opened by Go; the switch stays off
 // until the person turns it on, and will not go on while AGENTS.md has
 // nowhere to go.
 export function CodingAgentsCard() {

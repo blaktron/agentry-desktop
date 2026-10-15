@@ -1,9 +1,8 @@
-// The one review by the Examiner this app is following (agentry-desktop#469;
-// plan desktop-review-key-and-run-cards.md §6.3), kept outside every page as
-// runs.ts keeps a run: the Build tab's summary and Validate start it, Go asks
-// in a native dialog, and ReviewFlow (mounted by App above the pages) follows
-// it in its dialog and corner card from Go's first report. Dismiss makes the
-// app forget its folder (RunAPI.ForgetRun); quitting forgets it too.
+// The one review by the Examiner this app is following, kept outside every page
+// as runs.ts keeps a run: the Build tab's summary and Validate start it, Go
+// asks in a native dialog, and ReviewFlow (mounted by App above the pages)
+// follows it in its dialog and corner card from Go's first report. Dismiss
+// makes the app forget its folder (RunAPI.ForgetRun); quitting forgets it too.
 //
 // The store's rules are review.ts's createReviewStore, which node tests
 // hold; this module wires it to Go's events and calls.

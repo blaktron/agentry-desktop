@@ -1,9 +1,9 @@
 package main
 
-// Target hosts live (agentry-desktop#812; plan runtime-hosts.md M6): the
-// bound methods driven as the run setup drives them, against this
-// machine's Docker and a throwaway SSH server, with a QuickAgent installed
-// from a folder that asks for a server. Skipped unless AGENTRY_LIVE_HOSTS=1:
+// Target hosts live: the bound methods driven as the run setup drives them,
+// against this machine's Docker and a throwaway SSH server, with a
+// QuickAgent installed from a folder that asks for a server. Skipped unless
+// AGENTRY_LIVE_HOSTS=1:
 //
 //	AGENTRY_LIVE_HOSTS=1 \
 //	AGENTRY_CONFIG_DIR=<a scratch config dir> \
@@ -52,7 +52,7 @@ name: host-probe
 namespace: local
 modes: [autonomous]
 version: 0.1.0
-summary: "Names the server it is given (agentry-desktop#812 live check)"
+summary: "Names the server it is given (live check)"
 entrypoints:
   instruction: SKILL.md
 intake:

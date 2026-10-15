@@ -1,19 +1,17 @@
-// The Writing Voice's WYSIWYG editor, its Markdown half (plan
-// voice-page-redesign.md §6, D1, invariants 2-5; agentry-desktop#612, the
-// site's lib/voice-markdown.ts of agentry-web#1070 with the same rules, so
-// the two clients read and write a voice alike). Tiptap
+// The Writing Voice's WYSIWYG editor, its Markdown half (the site's editor
+// has the same rules, so the two clients read and write a voice alike). Tiptap
 // v3 holds the voice as a ProseMirror document and this module turns
 // VOICE.md into that document and back, with one MarkdownManager and one
 // extension list, so the page and its tests share every rule:
 //
 // - Only what a VOICE.md uses: paragraphs, headings, bold, italic, inline
 //   code, code blocks, block quotes, lists, rules and links. No image node,
-//   no table, no raw HTML node (invariant 2).
+//   no table, no raw HTML node.
 // - Markdown an agent wrote carries no markup of its own: raw HTML is never
 //   tokenized as HTML, so it stays literal text; an image's Markdown and a
 //   link to anything but an absolute http(s) or mailto address stay literal
 //   text too; a link is drawn with no href, so no click inside the editor
-//   can open it (AgentMarkdown's rules, DEV-138, in an editor).
+//   can open it (AgentMarkdown's rules, in an editor).
 // - Invisible characters (zero-width, bidi, tag, format) are shown beside
 //   themselves as their code points, as the hostile-markdown renderer shows
 //   them (reveal.tsx), and kept in the voice. What the editor would hold out
@@ -28,8 +26,7 @@
 //   `_` emphasis), voiceSave sends nothing until the person edits; once they
 //   do, every top-level block they did not change is written back as the
 //   bytes it was read from, so an edit to one paragraph puts no escape
-//   (`a \* b`, `snake\_case`) into another (agentry-desktop#612's review;
-//   the site writes the whole voice through the serializer). A voice
+//   (`a \* b`, `snake\_case`) into another (the site writes the whole voice through the serializer). A voice
 //   holding what the schema has no place for (a table, a definition, a task
 //   list) is not opened at all, so no edit can send it without that part.
 //

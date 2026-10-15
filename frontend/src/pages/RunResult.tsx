@@ -1,5 +1,4 @@
-// A finished run's result, first (plan guided-runs.md §5, M4;
-// agentry-desktop#227): how it ended in a sentence, the agent's final
+// A finished run's result, first: how it ended in a sentence, the agent's final
 // message rendered, the files it wrote with their previews, and Show in
 // folder. Everything else about the run (the badges, the usage, the
 // receipt, the paths, the log) is under Run details, collapsed.
@@ -8,9 +7,8 @@
 // In Agentry, whose outputs have already been unpacked into its folder.
 // The files come from RunAPI.RunOutputs, which lists the run's folder by
 // its run id and never a path the page gives it; nothing here opens a file
-// a run wrote (plan D8): a preview is text, and Show in folder opens the
-// folder. One exception, PDFs the run exported (plan
-// scratch-and-pdf-reports.md D15, D16; agentry-desktop#730): Go holds each
+// a run wrote: a preview is text, and Show in folder opens the
+// folder. One exception, PDFs the run exported: Go holds each
 // PDF to the envelope's pdfs record, and one it lists with the same SHA-256
 // opens in the app's viewer (PdfViewer) or, as a fresh copy, in the
 // system's; any other PDF is Save only.
@@ -34,19 +32,18 @@ export function RunResultView({
   /** The run/v1 envelope's result, as JSON text. */
   resultJson: string;
   /** The receipt's knowledge line: the packs this run could search, and how
-   *  they were mounted (plan knowledge.md §4.5); unset when none was. */
+   *  they were mounted; unset when none was. */
   knowledge?: string;
-  /** The receipt's decode line (#530): how the input files were read, and
+  /** The receipt's decode line: how the input files were read, and
    *  what ClamAV and the Hybrid Analysis lookup made of each; unset for a
    *  run with no files. */
   decode?: string;
-  /** The receipt's exec line of an Unsafe Mode run (agentry-desktop#418):
+  /** The receipt's exec line of an Unsafe Mode run:
    *  what was installed from where, and what was not; unset otherwise. */
   unsafeExec?: string;
-  /** An ask after the result, before Run details: a hosted run's star ask
-   *  (agentry-desktop#613). */
+  /** An ask after the result, before Run details: a hosted run's star ask. */
   ask?: React.ReactNode;
-  /** Run details: what the view used to show first. */
+  /** Run details, drawn under the result. */
   children?: React.ReactNode;
 }) {
   const [outputs, setOutputs] = useState<main.RunOutputsView | null>(null);
@@ -243,7 +240,7 @@ function ResultBody({ raw }: { raw: string }) {
 
 /** A run on this computer's Run details, under its result: the envelope's
  *  badges and usage, its folder, receipts and plan digest, the operator
- *  policy it enforced (agentry-cli#152, agentry-desktop#269), and its log.
+ *  policy it enforced, and its log.
  *  The run's flow and a chat's result both draw it. */
 export function LocalRunDetails({ result, log }: { result: main.RunResultView; log: string[] }) {
   return (
@@ -261,8 +258,7 @@ export function LocalRunDetails({ result, log }: { result: main.RunResultView; l
         <div className="kv"><span className="k">output folder</span><span className="mono">{result.outDir}</span></div>
         <div className="kv"><span className="k">receipts</span><span className="mono">{result.receiptsDir}</span></div>
         <div className="kv"><span className="k">run plan sha256</span><span className="mono" title={result.runPlanSha}>{result.runPlanSha.slice(0, 12)}…</span></div>
-        {/* The operator policy the run enforced (agentry-cli#152,
-            agentry-desktop#269): which file, and how its path was
+        {/* The operator policy the run enforced: which file, and how its path was
             chosen, since a relocated runner home is inherited
             silently from the environment. */}
         {result.policy && (
@@ -286,8 +282,8 @@ export function LocalRunDetails({ result, log }: { result: main.RunResultView; l
 }
 
 // policySourceLabel says how the run's policy path was chosen, from the
-// envelope's policy.source (agentry-cli#152). The desktop has no
-// --policy, so "flag" is never its own; an unknown source is shown as is.
+// envelope's policy.source. The desktop has no --policy, so "flag" is never its
+// own; an unknown source is shown as is.
 function policySourceLabel(source: string): string {
   switch (source) {
     case "default": return "the runner home's policy.yaml (the default)";

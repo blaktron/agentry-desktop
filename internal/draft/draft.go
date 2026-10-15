@@ -1,16 +1,14 @@
-// Package draft is Describe it, on this computer (plan builder-rework.md
-// §7.1, §7.3, D22, D25; #282): the built-in Drafter run here against the
-// runner policy's model, with every input read by AI Review with the
-// person's own Jev key before the model reads it, for no credits. It drives
-// the CLI's own packages: pkg/drafter's Task, LocalWeb, Prescan and
-// PostStep, and localrun's Drafter and RepairRun. The order is the plan's
-// and this package keeps it: no key, no draft (Prepare); the description
-// scanned before the Drafter starts (Run); the answer finished as `agentry
-// draft` finishes it, by the same code (agentry-cli#478; #395: corrected,
-// validated, checked by AI Review with the person's key, and given one
-// repair turn when the rules refuse it or the check flags something it can
-// fix, plan builder-simplify.md §5.2, D6); and the draft decoded into the
-// Build form's Model as data (build.FromDraft).
+// Package draft is Describe it, on this computer: the built-in Drafter run here
+// against the runner policy's model, with every input read by AI Review with
+// the person's own Jev key before the model reads it, for no credits. It drives
+// the CLI's own packages: pkg/drafter's Task, LocalWeb, Prescan and PostStep,
+// and localrun's Drafter and RepairRun. This package keeps this order: no key,
+// no draft (Prepare); the description scanned before the Drafter starts (Run);
+// the answer finished as `agentry draft` finishes it, by the same code
+// (corrected, validated, checked by AI Review with the person's key, and given
+// one repair turn when the rules refuse it or the check flags something it can
+// fix); and the draft decoded into the Build form's Model as data
+// (build.FromDraft).
 package draft
 
 import (
@@ -54,28 +52,26 @@ type Plan struct {
 	PolicyFile  policy.File
 	Web         *engine.WebRun
 	Search      drafter.SearchState
-	// Knowledge are the packs kept on this computer the Drafter reads first
-	// (agentry-desktop#497; plan knowledge-and-drafter.md K4), opened by
-	// knowledge.Env.ForDraft; nil for none. Its caller removes them.
+	// Knowledge are the packs kept on this computer the Drafter reads
+	// first, opened by knowledge.Env.ForDraft; nil for none. Its caller
+	// removes them.
 	Knowledge *knowledge.DraftPacks
-	// Revision is the release Edit with AI revises on this computer
-	// (agentry-desktop#501; plan drafter-revisions.md §5, D10), staged in
-	// the run's own folder under revise/ (drafter.ReadRelease) with the
-	// person's two texts; nil for a draft from a description.
+	// Revision is the release Edit with AI revises on this computer,
+	// staged in the run's own folder under revise/ (drafter.ReadRelease)
+	// with the person's two texts; nil for a draft from a description.
 	Revision *drafter.Revision
 }
 
-// Budgets are the budgets the draft runs under: the runner policy's, with
-// the Drafter's own timeout floor, 30 minutes (agentry-desktop#458). The
-// policy's run budget, 15 minutes by default, is sized for an agent
-// answering a task, and a draft that researches outruns it; a policy that
-// allows more keeps its own. The floor is the CLI's
-// (localrun.Builtin.LocalBudgets, the CLI's DR-54), so a draft gets the
-// same time here as from `agentry draft`. No budget of a draft counts
-// tokens. That is with Run defaults' no-limit switch for the built-in
-// agents off; on, the default, the draft has no timeout and runs to the
-// hidden failsafe of turns, and Shown says no limit (settings.BuiltinBudgets,
-// D-062 and its addendum). The cost cap is the policy's either way.
+// Budgets are the budgets the draft runs under: the runner policy's, with the
+// Drafter's own timeout floor, 30 minutes. The policy's run budget, 15 minutes
+// by default, is sized for an agent answering a task, and a draft that
+// researches outruns it; a policy that allows more keeps its own. The floor is
+// the CLI's (localrun.Builtin.LocalBudgets), so a draft gets the same time
+// here as from `agentry draft`. No budget of a draft counts tokens. That is
+// with Run defaults' no-limit switch for the built-in agents off; on, the
+// default, the draft has no timeout and runs to the hidden failsafe of turns,
+// and Shown says no limit (settings.BuiltinBudgets). The cost cap is the
+// policy's either way.
 func (p *Plan) Budgets() settings.BuiltinLimits {
 	return settings.BuiltinBudgets(localrun.Drafter(), p.Policy.Budgets)
 }
@@ -107,8 +103,8 @@ func SearchSentence(s drafter.SearchState, pol *policy.Policy) string {
 // description and hints as the Drafter's task (at most 32 KiB, text), with
 // the names of the packs it reads first when it reads any, the runner
 // policy, and the person's keys read as the policy says. Without a Jev key
-// it refuses, saying where to add one, and nothing else happens (D22, D25):
-// a pack not scanned in Agentry is scanned with that key too.
+// it refuses, saying where to add one, and nothing else happens: a pack not
+// scanned in Agentry is scanned with that key too.
 func Prepare(registry, description string, hints []string, packs *knowledge.DraftPacks) (*Plan, error) {
 	var task string
 	var err error
@@ -195,9 +191,9 @@ type Request struct {
 	// web configuration; nil is drafter.CheckerFor, the core's
 	// pkg/draftcheck with the person's own Jev key.
 	Checker func(*engine.WebRun) (drafter.Checker, error)
-	// Progress, when set, is told how far the draft has got
-	// (agentry-desktop#410): at its start, as each stage begins, and at
-	// every usage the harness reports; nil tells nobody.
+	// Progress, when set, is told how far the draft has got: at its
+	// start, as each stage begins, and at every usage the harness
+	// reports; nil tells nobody.
 	Progress func(Progress)
 }
 
@@ -211,8 +207,8 @@ const (
 	// person's key, before anything else.
 	StageDescription Stage = "description"
 	// StageKnowledge: AI Review reads each pack not scanned in Agentry,
-	// with the person's key, before the Drafter starts (D3); a draft with
-	// no such pack passes it at once.
+	// with the person's key, before the Drafter starts; a draft with no
+	// such pack passes it at once.
 	StageKnowledge Stage = "knowledge"
 	// StageDrafting: the Drafter's turn, its searches and reads each read
 	// by AI Review first.
@@ -286,7 +282,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		return nil, err
 	}
 	// A revision's release is read by AI Review too, before the Drafter
-	// starts (DR-44): a file it does not pass stops the draft here.
+	// starts: a file it does not pass stops the draft here.
 	if rev := p.Revision; rev != nil {
 		if _, err := drafter.PrescanRelease(ctx, sc, rev); err != nil {
 			return nil, err
@@ -302,8 +298,8 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 
 	// A pack not scanned in Agentry is scanned now, after the description
 	// and before the Drafter starts, and what AI Review flags in any pack
-	// (now or in Agentry) is withheld from the copy the Drafter reads (D3,
-	// D14), as `agentry draft --knowledge` does.
+	// (now or in Agentry) is withheld from the copy the Drafter reads, as
+	// `agentry draft --knowledge` does.
 	var read *drafter.KnowledgeRead
 	if k := p.Knowledge; k != nil && len(k.Packs) > 0 {
 		if len(k.ScanFirst) > 0 {
@@ -366,8 +362,7 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 		Knowledge: read,
 		Revision:  p.Revision,
 		// The embedded rule bundle, as the desktop's own Validate uses: the
-		// app has no rules checkout or --rules-update cache of its own
-		// (DR-43's addendum names the difference from `agentry draft`).
+		// app has no rules checkout or --rules-update cache of its own.
 		Rules: nil,
 	}
 	d, _, err := post.Run(ctx, env, runErr)

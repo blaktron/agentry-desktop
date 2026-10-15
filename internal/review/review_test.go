@@ -1,9 +1,9 @@
 package review
 
-// A review on this computer (agentry-desktop#469): no key, no review; the
-// Examiner run over a staged copy with the person's key and its own
-// budgets; the report written to a fresh folder from the run's own ledger;
-// the staged copy gone when the review returns, whatever it returns with.
+// A review on this computer: no key, no review; the Examiner run over a
+// staged copy with the person's key and its own budgets; the report
+// written to a fresh folder from the run's own ledger; the staged copy
+// gone when the review returns, whatever it returns with.
 
 import (
 	"context"
@@ -242,11 +242,10 @@ func TestAReviewIsWrittenOnlyToAFreshFolder(t *testing.T) {
 	}
 }
 
-// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
-// D-062; on by default since agentry-desktop#699) takes the Examiner's
-// timeout away and runs it to the hidden failsafe of 200 turns, shown as no
-// limit; off, a review on this computer has the Examiner's floor and the
-// policy's turns, as `agentry review` gives it.
+// Run defaults' no-limit switch for the built-in agents (on by default) takes
+// the Examiner's timeout away and runs it to the hidden failsafe of 200 turns,
+// shown as no limit; off, a review on this computer has the Examiner's floor
+// and the policy's turns, as `agentry review` gives it.
 func TestTheBuiltinAgentsSwitchGivesAReviewNoTimeOrTurnLimitByDefault(t *testing.T) {
 	isolate(t)
 	storeKey(t)

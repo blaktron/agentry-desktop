@@ -6,13 +6,12 @@ import (
 	"unicode/utf8"
 )
 
-// A draft In Agentry (plan builder-rework.md §7.1, §7.4, D9; Builder M7,
-// agentry-desktop#281): the built-in Drafter run on a sandbox host against
+// A draft In Agentry: the built-in Drafter run on a sandbox host against
 // the platform's model, for credits, with every text it reads scanned by
 // AI Review through the registry. It is a run of kind draft in the same
-// runs extension (agentry-enterprise#183), so it shares a run's one active
-// row per account; it takes a description and hints rather than a
-// release, and its one output is the sealed output.tar holding draft.json.
+// runs extension, so it shares a run's one active row per account; it
+// takes a description and hints rather than a release, and its one output
+// is the sealed output.tar holding draft.json.
 
 // The registry's bounds on a draft's words (x-runs.yaml CreateRun), held
 // here so a draft over them is refused with the limit named before
@@ -34,9 +33,8 @@ type DraftTerms struct {
 	CreditsPerSearch int64 `json:"creditsPerSearch"`
 	MaxPages         int   `json:"maxPages"`
 	AIReviewCredits  int64 `json:"aiReviewCredits"`
-	// Knowledge is whether a draft here reads knowledge packs, and how
-	// many and how much in all (agentry-enterprise#295); nil from a
-	// registry that predates it.
+	// Knowledge is whether a draft here reads knowledge packs, and how many
+	// and how much in all; nil from a registry that does not send it.
 	Knowledge *DraftKnowledge `json:"knowledge,omitempty"`
 }
 
@@ -68,9 +66,9 @@ type Draft struct {
 	Withheld         int      `json:"withheld"`
 	SearchCredits    *int64   `json:"searchCredits,omitempty"`
 	AIReviewCredits  *int64   `json:"aiReviewCredits,omitempty"`
-	// Revises is the release a revision drafts the next version of
-	// (agentry-enterprise#297), as the registry resolved it: its ref and
-	// archive digest. Nil for a draft from a description.
+	// Revises is the release a revision drafts the next version of, as the
+	// registry resolved it: its ref and archive digest. Nil for a draft from a
+	// description.
 	Revises *Revises `json:"revises,omitempty"`
 	// Instructions and Problems are the person's two texts of a revision.
 	Instructions string `json:"instructions,omitempty"`
@@ -109,9 +107,9 @@ type DraftFacts struct {
 
 // DecideDraft applies the rule. Signed out, the choice is offered but
 // cannot be chosen, since a draft In Agentry spends credits and needs an
-// account (plan §7.1); a registry without the runs extension offers it
-// not at all. Otherwise it says in a sentence why it cannot be chosen when
-// it cannot, in a run's words wherever the reason is the same.
+// account; a registry without the runs extension offers it not at all.
+// Otherwise it says in a sentence why it cannot be chosen when it cannot,
+// in a run's words wherever the reason is the same.
 func DecideDraft(f DraftFacts) Offer {
 	if !f.SignedIn {
 		return Offer{Offered: true, Reason: "Drafting In Agentry spends credits, so it needs an account.", Remedy: "Sign in from Settings."}
@@ -157,10 +155,9 @@ func ActiveWhat(r *Run) string {
 	return "a run"
 }
 
-// DraftHoldSentence is the site's sentence for a draft's hold
-// (agentry-web lib/runs.ts draftHoldSentence, protected copy there), from
-// the registry's numbers alone: AI Review's credit and the searches are
-// inside the hold, never on top of it (DEV-150, DEV-161).
+// DraftHoldSentence is the site's sentence for a draft's hold, protected copy
+// there, from the registry's numbers alone: AI Review's credit and the
+// searches are inside the hold, never on top of it.
 func DraftHoldSentence(holdCredits int64, t DraftTerms) string {
 	if holdCredits == 0 {
 		return "This draft holds no credits: the organization that pays for your drafts is not metered."
@@ -169,8 +166,7 @@ func DraftHoldSentence(holdCredits int64, t DraftTerms) string {
 		holdCredits, t.MaxSearches, creditCount(t.CreditsPerSearch), creditCount(t.AIReviewCredits))
 }
 
-// DraftInputsSentence is the site's honest line beside Draft it (plan
-// §7.1, §7.6; agentry-web lib/runs.ts DRAFT_INPUTS_SENTENCE): where the
+// DraftInputsSentence is the site's honest line beside Draft it: where the
 // description goes, and what AI Review does and does not do.
 const DraftInputsSentence = "Your description and the Drafter's searches go to a search provider, to AI Review (TypeSafe's Jev) and to the sites the Drafter reads, so the description should hold no secret. AI Review reads every result before the Drafter's model does, and holds back what it flags."
 

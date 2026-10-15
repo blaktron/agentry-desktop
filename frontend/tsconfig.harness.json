@@ -1,5 +1,5 @@
 {
-  "//": "The design harness (harness/*.tsx), type-checked with the app so a page's props cannot drift from the states that render it (agentry-desktop#485). Vite builds the harness without type-checking.",
+  "//": "The design harness (harness/*.tsx), type-checked with the app so a page's props cannot drift from the states that render it. Vite builds the harness without type-checking.",
   "extends": "./tsconfig.json",
   "include": ["src", "harness"]
 }

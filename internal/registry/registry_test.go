@@ -29,10 +29,10 @@ func redirectingRegistry(t *testing.T) (reg string, reached *atomic.Int32) {
 }
 
 // A request carrying the stored token never follows a redirect, whatever it
-// points at (agentry-desktop#856): Go keeps a hand-set Authorization on a
-// same-domain redirect whatever the scheme, which would carry the token past
-// D-030's https rule. The generated client and the archive download both
-// stop at the registry that was asked.
+// points at: Go keeps a hand-set Authorization on a same-domain redirect
+// whatever the scheme, which would carry the token past the https rule.
+// The generated client and the archive download both stop at the registry
+// that was asked.
 func TestATokenNeverFollowsARedirect(t *testing.T) {
 	ctx := context.Background()
 	reg, reached := redirectingRegistry(t)
@@ -55,8 +55,8 @@ func TestATokenNeverFollowsARedirect(t *testing.T) {
 }
 
 // A public read, which carries no token, still follows a redirect as
-// net/http does by default: the rule is the token's, decided on purpose
-// (agentry-desktop#856's acceptance).
+// net/http does by default: the rule is the token's, decided on
+// purpose.
 func TestAPublicReadStillFollowsARedirect(t *testing.T) {
 	reg, reached := redirectingRegistry(t)
 	client, err := New(reg, "")

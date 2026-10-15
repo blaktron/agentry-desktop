@@ -17,8 +17,7 @@ import (
 // The whole account-side lifecycle against the fake extension: the status
 // route's caller block, a create, the run watched from queued through
 // running to its finish, and the pushed run's one output.tar unpacked into
-// the chosen folder (plan §4.1, §4.4; hosted runs in production M3,
-// agentry-desktop#182). The run's events route is never read: a pushed run
+// the chosen folder. The run's events route is never read: a pushed run
 // keeps no log.
 func TestCreateWatchFinishAndDownload(t *testing.T) {
 	f := &fakeRuns{
@@ -135,9 +134,8 @@ func TestUnpackStopsAtTheReportedSize(t *testing.T) {
 	}
 }
 
-// A run of the deleted pull worker lists its outputs file by file (dev keeps
-// such runs until the 30-day sweep, about 2026-10-24); they come down as
-// they are, into the same folder shape a pushed run's bundle makes.
+// A run that lists its outputs file by file comes down as they are, into
+// the same folder shape a pushed run's bundle makes.
 func TestDownloadAPulledRunsOutputs(t *testing.T) {
 	f := &fakeRuns{enabled: true, outputs: map[string][]byte{
 		"result.json":       []byte(`"ok"`),
@@ -231,7 +229,7 @@ func TestUnpackRefusesWhatAHostNeverWrites(t *testing.T) {
 }
 
 // Cancel: queued cancels the run outright; running records the request and
-// the run finishes as interrupted with what it settled (plan §5).
+// the run finishes as interrupted with what it settled.
 func TestCancelQueuedAndRunning(t *testing.T) {
 	f := &fakeRuns{enabled: true, outputs: map[string][]byte{}}
 	base := f.start(t)
@@ -432,7 +430,7 @@ func TestOutputPathStaysInTheRunFolder(t *testing.T) {
 // A download that names an escaping artefact writes nothing outside the
 // folder and says so. The fake serves a body under the escaping name, so
 // what refuses is the client's containment guard, not a 404: with the guard
-// deleted the file would land beside the run folder (agentry-desktop#124).
+// deleted the file would land beside the run folder.
 func TestDownloadRefusesAnEscapingArtefact(t *testing.T) {
 	for _, name := range []string{"../escaped.txt", "reports/../../escaped.txt", "..\\escaped.txt"} {
 		t.Run(name, func(t *testing.T) {
@@ -462,7 +460,7 @@ func TestDownloadRefusesAnEscapingArtefact(t *testing.T) {
 	}
 }
 
-// Every outcome of §5 reads distinguishably, and the two that refund say
+// Every outcome of a run reads distinguishably, and the two that refund say
 // so — a refusal names the platform's own verification.
 func TestVerdictPerOutcome(t *testing.T) {
 	cases := []struct {
@@ -492,8 +490,7 @@ func TestVerdictPerOutcome(t *testing.T) {
 			t.Fatalf("%s does not read distinguishably: %q", c.outcome, v.Line)
 		}
 		seen[v.Line] = true
-		// A run In Agentry is stated in credits, time and turns
-		// (agentry-desktop#457).
+		// A run In Agentry is stated in credits, time and turns.
 		if strings.Contains(strings.ToLower(v.Line), "token") {
 			t.Fatalf("%s names tokens: %q", c.outcome, v.Line)
 		}
@@ -501,8 +498,8 @@ func TestVerdictPerOutcome(t *testing.T) {
 			t.Fatalf("a refusal must say the credits came back: %q", v.Line)
 		}
 	}
-	// A blocked run (DEV-216) says whether it was charged, by what the
-	// registry settled: the QuickAgent's own word, or the runner's tools.
+	// A blocked run says whether it was charged, by what the registry
+	// settled: the QuickAgent's own word, or the runner's tools.
 	one := int64(1)
 	zero := int64(0)
 	for _, b := range []struct {
@@ -555,7 +552,7 @@ func TestVerdictPerOutcome(t *testing.T) {
 }
 
 // The availability rule as a table: the registry's extensions × the
-// release's declared modes × the token's scopes (plan §4.7, D6, D7).
+// release's declared modes × the token's scopes.
 func TestOfferMatrix(t *testing.T) {
 	full := []string{ScopeRunRead, ScopeRunWrite, "agent:read"}
 	base := Facts{SignedIn: true, Extension: true, Modes: []string{"autonomous"}, Scopes: full, ScopesKnown: true, Enabled: true, StatusKnown: true}
@@ -578,18 +575,17 @@ func TestOfferMatrix(t *testing.T) {
 		{"interactive only", with(func(f *Facts) { f.Modes = []string{"interactive"} }), false, false, "", ""},
 		{"no mode declared", with(func(f *Facts) { f.Modes = nil }), false, false, "", ""},
 		{"both modes", with(func(f *Facts) { f.Modes = []string{"autonomous", "interactive"} }), true, true, "", ""},
-		// A registry that keeps no secrets: hosted runs D7's refusal.
+		// A registry that keeps no secrets: the refusal names this machine.
 		{"a declared secret, no vault", with(func(f *Facts) { f.DeclaredSecrets = []string{"PAGERDUTY_TOKEN"} }), true, false, "PAGERDUTY_TOKEN", "this machine"},
-		// A registry with the vault, and a token that may set a secret
-		// (plan D13): offered, and the start asks for what is missing.
+		// A registry with the vault, and a token that may set a secret:
+		// offered, and the start asks for what is missing.
 		{"a declared secret, the vault and the scope", with(func(f *Facts) {
 			f.DeclaredSecrets, f.Vault, f.Scopes = []string{"PAGERDUTY_TOKEN"}, true, append(full, ScopeSecretWrite)
 		}), true, true, "", ""},
 		{"a declared secret, the vault, an old token", with(func(f *Facts) { f.DeclaredSecrets, f.Vault = []string{"PAGERDUTY_TOKEN"}, true }), true, false, ScopeSecretWrite, "Sign in again"},
 		{"no secret declared, no secret:write", with(func(f *Facts) { f.Vault = true }), true, true, "", ""},
-		// Optional secrets (plan optional-secrets.md D5, agentry-desktop#655):
-		// only a required secret asks anything of the registry or the token;
-		// a release whose secrets are all optional runs without them.
+		// Optional secrets: only a required secret asks anything of the registry or
+		// the token; a release whose secrets are all optional runs without them.
 		{"only optional secrets, no vault", with(func(f *Facts) { f.DeclaredSecrets, f.OptionalSecrets = []string{"OPT_KEY"}, []string{"OPT_KEY"} }), true, true, "", ""},
 		{"only optional secrets, the vault, an old token", with(func(f *Facts) {
 			f.DeclaredSecrets, f.OptionalSecrets, f.Vault = []string{"OPT_KEY"}, []string{"OPT_KEY"}, true
@@ -602,8 +598,7 @@ func TestOfferMatrix(t *testing.T) {
 		{"scopes unreadable", with(func(f *Facts) { f.ScopesKnown = false; f.Scopes = nil }), true, false, "did not say what the stored token may do", "Sign in again"},
 		{"runs turned off", with(func(f *Facts) { f.Enabled = false }), true, false, "not taking hosted runs", "this machine"},
 		{"status unreadable", with(func(f *Facts) { f.StatusKnown = false }), true, false, "did not answer", "this machine"},
-		// A target host is reached only from this computer (plan
-		// runtime-hosts.md D11; agentry-desktop#812).
+		// A target host is reached only from this computer.
 		{"a target host", with(func(f *Facts) { f.TargetHosts = true }), false, false, "", ""},
 	}
 	for _, c := range cases {
@@ -631,7 +626,7 @@ func TestOfferMatrix(t *testing.T) {
 // A run this client is following is read and streamed with the account's
 // bearer token, and with nothing else: no worker token, no model key, in no
 // header, query or body, on any route the client calls. Every request is
-// recorded whole (agentry-desktop#124).
+// recorded whole.
 func TestOnlyTheAccountsTokenTravels(t *testing.T) {
 	// Canaries for every credential this machine might hold. The client
 	// has no business reading any of them; if it ever did, they would
@@ -695,8 +690,8 @@ func TestOnlyTheAccountsTokenTravels(t *testing.T) {
 	}
 	onlyTheToken(t, sent, canaries)
 
-	// A session's calls (agentry-desktop#403): its stream from the start
-	// and again after the registry's timeout, a turn, a file, the end.
+	// A session's calls: its stream from the start and again after the
+	// registry's timeout, a turn, a file, the end.
 	sent = nil
 	fs := &fakeSession{streams: []fakeStream{
 		{status: 200, body: sse("frame", 1, `{"kind":"user_turn","text":"hi"}`) + sse("timeout", 0, "{}")},
@@ -759,8 +754,7 @@ func onlyTheToken(t *testing.T, sent []sentRequest, canaries map[string]string) 
 }
 
 // A release that declares a target host is offered no session and no
-// schedule In Agentry either (plan runtime-hosts.md D11; agentry-desktop
-// #812), whatever else holds.
+// schedule In Agentry either, whatever else holds.
 func TestATargetHostIsOfferedNothingInAgentry(t *testing.T) {
 	yes := true
 	f := Facts{
@@ -779,10 +773,9 @@ func TestATargetHostIsOfferedNothingInAgentry(t *testing.T) {
 	}
 }
 
-// TestWorkersOnlineIsNotCounted (agentry-desktop#882): the status route
-// still sends workersOnline, always 0 since the pull worker went
-// (agentry-enterprise#86); a status that carries it decodes as before, and
-// only the sandbox hosts count as runners, whatever it says.
+// TestWorkersOnlineIsNotCounted: the status route still sends
+// workersOnline, always 0; a status that carries it decodes, and only the
+// sandbox hosts count as runners, whatever it says.
 func TestWorkersOnlineIsNotCounted(t *testing.T) {
 	var st Status
 	if err := json.Unmarshal([]byte(`{"enabled":true,"workersOnline":3,"hostsOnline":0,"queued":1}`), &st); err != nil {

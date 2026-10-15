@@ -1,9 +1,9 @@
 package main
 
-// An organization's shared pack in the Knowledge panel live
-// (agentry-desktop#276, Knowledge M8): the bound methods driven as the page
-// drives them, against a real registry, as a member of an organization
-// that shares a pack. Skipped unless these are set:
+// An organization's shared pack in the Knowledge panel live the bound
+// methods driven as the page drives them, against a real registry, as a
+// member of an organization that shares a pack. Skipped unless these are
+// set:
 //
 //	AGENTRY_LIVE_SHARED_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_SHARED_TOKEN=<the member's PAT: knowledge:read, knowledge:write and user:profile, as the app's sign-in carries> \

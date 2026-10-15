@@ -1,6 +1,6 @@
-// The shared primitive layer (agentry-desktop#36). One set of building
+// The shared primitive layer. One set of building
 // blocks in the website's design language, so every page reads as the same
-// product and later milestones stop sprinkling inline styles. Presentational
+// product and pages do not need inline styles. Presentational
 // only; the trust/mode/capability badges live in ui.tsx, which re-exports
 // these so a page imports everything from "../ui".
 import React from "react";
@@ -133,10 +133,8 @@ export function Modal({ title, onClose, wide, children }: {
   );
 }
 
-// The step chrome (plan builder-rework.md §5, agentry-desktop#280): the
-// first-run wizard's dots and the run setup's "Step n of m" heading, foot
-// and recap, extracted so a stepped flow is one set of pieces. Build uses
-// them first; RunPanel and the Knowledge setup may move onto them later.
+// The step chrome: the first-run wizard's dots and the run setup's "Step n of
+// m" heading, foot and recap, extracted so a stepped flow is one set of pieces.
 // The classes share the run setup's rules in style.css.
 
 /** The steps as dots with their labels; the current one is marked. */
@@ -196,7 +194,7 @@ export function Recap({ rows }: { rows: { label: string; value: React.ReactNode;
   );
 }
 
-/** A page's options menu (the Scheduled page's, agentry-desktop#744): one
+/** A page's options menu (the Scheduled page's): one
  *  button that opens a short list of actions under it. It closes on a
  *  choice, on Escape and on a press outside it, and the first item takes
  *  the focus when it opens. */

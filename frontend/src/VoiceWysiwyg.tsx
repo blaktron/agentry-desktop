@@ -1,10 +1,8 @@
-// The Writing Voice's WYSIWYG editor, its view (plan voice-page-redesign.md
-// §6, D1; agentry-desktop#612, the site's components/voice-wysiwyg.tsx of
-// agentry-web#1070): Tiptap v3 with a small toolbar, the Markdown input
-// rules (`## `, `- `, `**`) and keyboard shortcuts, one view with no
-// Preview. The Voice page's editor (pages/Voice.tsx) imports it only with
-// import(), so Tiptap is in this module's chunk and nowhere else. Every rule
-// about what the editor holds and what Save sends is voiceMarkdown.ts's.
+// The Writing Voice's WYSIWYG editor, its view: Tiptap v3 with a small toolbar,
+// the Markdown input rules (`## `, `- `, `**`) and keyboard shortcuts, one view
+// with no Preview. The Voice page's editor (pages/Voice.tsx) imports it only
+// with import(), so Tiptap is in this module's chunk and nowhere else. Every
+// rule about what the editor holds and what Save sends is voiceMarkdown.ts's.
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import { useEffect } from "react";

@@ -1,5 +1,4 @@
-// A run In Agentry, followed above the pages (agentry-desktop#466; plan
-// desktop-review-key-and-run-cards.md §5.2; D10, D15), as a run on this
+// A run In Agentry, followed above the pages, as a run on this
 // computer is (RunFlow): App mounts this, the run setup hands the run over
 // once the registry has created it and closes, and App attaches a run
 // already in flight when it starts, as its card. The dialog says where the
@@ -7,10 +6,10 @@
 // has run against its cap and the credits it holds; Run in the background,
 // or closing, shrinks it to a card in the corner. Cancel asks Agentry to
 // stop it. Once it is over the dialog is its result, downloaded into its
-// folder (the result first, Run details beneath, D-035's rules), and the
+// folder (the result first, Run details beneath), and the
 // card says how it ended; Dismiss makes the app forget it.
 //
-// The desktop follows a run In Agentry and never drives it (D-022): every
+// The desktop follows a run In Agentry and never drives it: every
 // sentence here is the registry's, or says what the registry said.
 import { useEffect, useRef, useState } from "react";
 import type { main } from "../../wailsjs/go/models";
@@ -151,7 +150,7 @@ export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
 // its place in the queue while it waits, then the time it has run against
 // its cap, and the credits it holds. The registry reports turns only once
 // the run is over, so there are none while it runs, and a run In Agentry
-// is never stated in tokens (agentry-desktop#457).
+// is never stated in tokens.
 function HostedProgressView({ r, compact }: { r: main.HostedRunView; compact?: boolean }) {
   const queued = r.status === "queued" && (r.queuePosition ?? 0) > 0;
   const held = r.holdCredits === 1 ? "1 credit held" : `${r.holdCredits} credits held`;

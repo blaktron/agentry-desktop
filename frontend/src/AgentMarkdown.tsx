@@ -1,6 +1,5 @@
-// Markdown a run's agent wrote, rendered in the result view (plan
-// guided-runs.md §5, D7; agentry-desktop#227). The site renders agent
-// output under the same rules (agentry-web components/agent-markdown).
+// Markdown a run's agent wrote, rendered in the result view. The site
+// renders agent output under the same rules.
 //
 // The text comes from a QuickAgent's run, so it is treated as hostile:
 //
@@ -17,8 +16,8 @@
 //     a reader is not shown less than is there without knowing it;
 //   - invisible characters show as chips, in the text and in alt text.
 //
-// With showHosts (a key's help, agentry-desktop#343) a link is also followed
-// by the host it opens and cut at an invisible character (below).
+// With showHosts (a key's help) a link is also followed by the host it
+// opens and cut at an invisible character (below).
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -28,7 +27,7 @@ import { RevealText } from "./reveal";
 
 // webHref is the URL a link may keep, or null. A URL carrying a user name
 // or password is refused: "https://github.com@evil.example/" reads as one
-// host and opens another (agentry-desktop#228).
+// host and opens another.
 export function webHref(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
@@ -207,9 +206,8 @@ function cutAtInvisible(href: string | undefined): string | undefined {
   return href;
 }
 
-// showHosts is for an author's help about where to create a key
-// (agentry-desktop#343). The key help was shown through GuideText, whose
-// links read as the parsed URL (agentry-desktop#228); as markdown it keeps
+// showHosts is for an author's help about where to create a key. The
+// links of a key's help read as the parsed URL; as markdown it keeps
 // that property: each kept link is followed by the host it opens (a
 // look-alike in punycode), unless its text is exactly the parsed URL it
 // opens, and a link is cut at its first invisible character.

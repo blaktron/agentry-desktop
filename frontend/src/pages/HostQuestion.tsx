@@ -1,5 +1,4 @@
-// A host intake question in the run setup's Details step (plan
-// runtime-hosts.md §6, §8, D6, D7, D14; agentry-desktop#812): the server's
+// A host intake question in the run setup's Details step: the server's
 // address as user@host[:port], the hosts this computer's runs reached
 // before, then the sign-in: the one saved on this computer for that account
 // and host, or a private key file chosen in the native picker (with its

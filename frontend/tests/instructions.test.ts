@@ -1,4 +1,4 @@
-// The Agent tab's instruction file card (agentry-desktop#835).
+// The Agent tab's instruction file card.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { instructionsNote } from "../src/instructions.ts";

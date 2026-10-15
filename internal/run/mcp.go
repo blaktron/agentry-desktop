@@ -1,11 +1,11 @@
 // Manifest-capability → tool-surface mapping for the "MCP servers & tools"
-// section (RUNNER-PLAN-2 §P6, req 3/4 parity with the site). The gateway
-// rows mirror the runner's own compiler (agentry-cli pkg/runner/compile
-// toolSpec + runnerimage/toolsrv GrantedTools) and the web page's
-// lib/mcp.ts; the embedded list is computed by the CLI's actual exporter
-// mapping (pkg/export.HostToolGrants) — this section must never describe
-// a tool set that differs from what `agentry run` / `agentry install`
-// would actually do.
+// section (in parity with the site). The gateway rows mirror the runner's
+// own compiler (agentry-cli pkg/runner/compile toolSpec +
+// runnerimage/toolsrv GrantedTools) and the site's MCP page; the embedded
+// list is computed by the CLI's actual exporter mapping
+// (pkg/export.HostToolGrants) — this section must never describe a tool
+// set that differs from what `agentry run` / `agentry install` would
+// actually do.
 package run
 
 import (
@@ -36,8 +36,8 @@ type MCPInfo struct {
 	// Servers are the MCP servers involved in a run: the companion server's
 	// line, then one line per Declared entry, in the same order.
 	Servers []string
-	// Declared is each declared MCP server's pin, tools and plain env
-	// (agentry-desktop#62), for the lines Servers ends with.
+	// Declared is each declared MCP server's pin, tools and plain env, for
+	// the lines Servers ends with.
 	Declared []mcpview.Server
 	// SecretNames are the declared secret env NAMES (never values).
 	SecretNames []string
@@ -49,11 +49,11 @@ type MCPInfo struct {
 	EmbeddedTools []string
 	// CapabilityLines is the declared contract, rendered.
 	CapabilityLines []string
-	// Vulnerabilities is the registry's verdict on each declared MCP server
-	// (agentry#177); VulnerabilityLine is the receipt line a run would
-	// record, Refusal the refusal a run meets with Unsafe Mode off ("" when
-	// it would run), and Refusing the refusing servers alone, which the
-	// consent Unsafe Mode offers names (D-055).
+	// Vulnerabilities is the registry's verdict on each declared MCP server;
+	// VulnerabilityLine is the receipt line a run would record, Refusal the
+	// refusal a run meets with Unsafe Mode off ("" when it would run), and
+	// Refusing the refusing servers alone, which the consent Unsafe Mode offers
+	// names.
 	Vulnerabilities   []mcpvuln.Status
 	VulnerabilityLine string
 	Refusal           string
@@ -71,8 +71,8 @@ func Requirements(ctx context.Context, regURL, ns, name string) (*MCPInfo, error
 }
 
 // RunRequirements is Requirements for the release a run of ref would run:
-// a local install of it first (agentry-desktop#425), else the registry's.
-// The run panel reads this; the published agent's page reads Requirements.
+// a local install of it first, else the registry's. The run panel reads
+// this; the published agent's page reads Requirements.
 func RunRequirements(ctx context.Context, regURL, ref string) (*MCPInfo, error) {
 	sig, err := resolveForRun(ctx, regURL, ref, false)
 	if err != nil {
@@ -98,8 +98,8 @@ func requirementsOf(ctx context.Context, regURL string, sig *Signature) *MCPInfo
 	for _, d := range c.DataAccess {
 		info.DataAccess = append(info.DataAccess, string(d))
 	}
-	// Declared MCP servers (RUNNER-PLAN-3): installed with the agent from
-	// the operator's registries, loaded for this exact release only.
+	// Declared MCP servers: installed with the agent from the operator's
+	// registries, loaded for this exact release only.
 	info.Servers = append(info.Servers, declaredServerLines(info.Declared)...)
 	vr := mcpvuln.Check(ctx, regURL, c.MCPServers)
 	info.Vulnerabilities, info.VulnerabilityLine, info.Refusal, info.Refusing = vr.Statuses, vr.Line, vr.Refusal, vr.Refusing
@@ -107,8 +107,7 @@ func requirementsOf(ctx context.Context, regURL string, sig *Signature) *MCPInfo
 }
 
 // declaredServerLines is one line per declared server, in order: the page
-// renders each server's env beneath its line by that order
-// (agentry-desktop#62).
+// renders each server's env beneath its line by that order.
 func declaredServerLines(declared []mcpview.Server) []string {
 	lines := make([]string, 0, len(declared))
 	for _, srv := range declared {
@@ -122,9 +121,9 @@ func declaredServerLines(declared []mcpview.Server) []string {
 }
 
 // gatewayToolRows maps the contract to the tools the per-run gateway
-// serves: the always-on report/input channels (§P4) plus one row per
-// declared capability. Rows that do not apply are omitted, not shown
-// empty — an undeclared capability is a tool that does not exist.
+// serves: the always-on report/input channels plus one row per declared
+// capability. Rows that do not apply are omitted, not shown empty — an
+// undeclared capability is a tool that does not exist.
 func gatewayToolRows(c manifest.Capabilities) []ToolRow {
 	rows := []ToolRow{
 		{Tool: "write_report", GrantedBy: "always granted — reports land in the run's output folder"},
@@ -156,10 +155,9 @@ func gatewayToolRows(c manifest.Capabilities) []ToolRow {
 			GrantedBy: "exec.commands — restricted to " + strings.Join(x.Commands, ", "),
 		})
 	}
-	// A browser (agentry-cli#915, DR-96; agentry-desktop#878): the browser
-	// server's tools the runner's allowlist passes, through a proxy that
-	// holds the line's scope; without browser_evaluate when it may type
-	// secrets (plan §7.1). One row, as the site's table has it.
+	// A browser: the browser server's tools the runner's allowlist passes,
+	// through a proxy that holds the line's scope; without browser_evaluate
+	// when it may type secrets. One row, as the site's table has it.
 	if b := c.Browser; b != nil {
 		note := "browser — a headless Chromium held to " + mcpview.BrowserReach(b) + "; screenshots and saved pages go to reports/browser/"
 		if len(b.Secrets) > 0 {
@@ -184,8 +182,8 @@ func fsScope(a manifest.FSAccess) (string, bool) {
 }
 
 // capabilityLines renders the declared contract as stable lines — the
-// CLI's §5.4 display (cmd/agentry caps.go), replicated because cmd/agentry
-// is package main (same call as D-006).
+// CLI's display (cmd/agentry caps.go), replicated because cmd/agentry
+// is package main.
 func capabilityLines(c manifest.Capabilities) []string {
 	if isZeroCapabilities(c) {
 		return []string{"none declared (pure text agent)"}
@@ -198,16 +196,16 @@ func capabilityLines(c manifest.Capabilities) []string {
 		"secrets: " + renderList(c.Secrets),
 		"dataAccess: " + renderDataAccess(c.DataAccess),
 	}
-	// The declared secrets a run can start without (DEV-212), as the CLI's
-	// own consent lines say them (cmd/agentry/caps.go).
+	// The declared secrets a run can start without, as the CLI's own
+	// consent lines say them (cmd/agentry/caps.go).
 	if len(c.OptionalSecrets) > 0 {
 		lines = append(lines, "optionalSecrets: "+renderList(c.OptionalSecrets))
 	}
 	for _, srv := range c.MCPServers {
 		line := "mcpServer: " + srv.SourceID() + "@" + srv.Version
 		if srv.IsRemote() {
-			// A remote server has no package version (agentry-cli#663): it
-			// is its address, at its vendor, signed in to as it declares.
+			// A remote server has no package version: it is its address, at its vendor,
+			// signed in to as it declares.
 			line = "mcpServer: " + srv.URL + " (remote, at its vendor; auth: " + string(srv.Auth) + ")"
 		}
 		if len(srv.Egress) > 0 {
@@ -218,28 +216,26 @@ func capabilityLines(c manifest.Capabilities) []string {
 		}
 		lines = append(lines, line)
 	}
-	// Target hosts (plan runtime-hosts.md §8; agentry-desktop#812): a
-	// machine the person names at the run's start, worked as the account
-	// they sign in with (the CLI's line).
+	// Target hosts: a machine the person names at the run's start, worked as
+	// the account they sign in with (the CLI's line).
 	if len(c.TargetHosts) > 0 {
 		lines = append(lines, "targetHosts: "+renderList(c.TargetHosts)+
 			" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
 	}
-	// A browser (agentry-cli#915; agentry-desktop#878): where it may go and
-	// what it may type (the CLI's line).
+	// A browser: where it may go and what it may type (the CLI's line).
 	if c.Browser != nil {
 		lines = append(lines, "browser: "+mcpview.BrowserLine(c.Browser))
 	}
-	// Shipped knowledge (plan knowledge.md §4.6): packs inside the release
-	// the agent reads, part of what is consented to (the CLI's line).
+	// Shipped knowledge: packs inside the release the agent reads, part of
+	// what is consented to (the CLI's line).
 	if len(c.Knowledge) > 0 {
 		lines = append(lines, "knowledge: ships "+strings.Join(c.Knowledge, ", "))
 	}
 	return lines
 }
 
-// allSecretNames is the union of agent-level and per-server secret names
-// (RUNNER-PLAN-3) — what the guided form collects and validates against.
+// allSecretNames is the union of agent-level and per-server secret names, which
+// the guided form collects and validates against.
 func allSecretNames(m *manifest.Manifest) []string {
 	set := map[string]bool{}
 	for _, n := range m.Capabilities.Secrets {
@@ -259,8 +255,8 @@ func allSecretNames(m *manifest.Manifest) []string {
 }
 
 // optionalSecretNames is the declared names a run can start without
-// (capabilities.optionalSecrets, DEV-212; agentry-desktop#655), sorted. A
-// name nothing declares is no secret of the release's, so it is left out.
+// (capabilities.optionalSecrets), sorted. A name nothing declares is no
+// secret of the release's, so it is left out.
 func optionalSecretNames(m *manifest.Manifest) []string {
 	out := []string{}
 	for _, n := range allSecretNames(m) {

@@ -3,10 +3,9 @@ import { CardFrame } from "../../cards";
 import { asSentence, byDay, mergeFires, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
 import { MonthGrid } from "../MonthGrid";
 
-// Home's Scheduled card (plan quickagent-scheduling.md §7, D11, D13;
-// agentry-desktop#744, #745): this month's mini calendar, its dots in the
+// Home's Scheduled card: this month's mini calendar, its dots in the
 // colour of what happened, and the next three occurrences, from the CLI's
-// store read in process (ScheduleAPI.HomeCard; D-073) and, signed in, the
+// store read in process (ScheduleAPI.HomeCard) and, signed in, the
 // account's schedules In Agentry, marked so. Large, pinned from the
 // Scheduled page's options menu. The card opens the Scheduled page, where
 // every change is made; it changes and runs nothing.

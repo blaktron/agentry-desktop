@@ -1,15 +1,14 @@
 Unicode true
 
 ####
-## Agentry Desktop's Windows installer (agentry-desktop#83; plan
-## agentry-notes/plans/desktop-installers.md §4, §5, §8; D1, D8, D11).
+## Agentry Desktop's Windows installer.
 ##
 ## A file-copy program and nothing more. It installs per user, under the
-## person's own programs directory, without elevation (D11: no UAC prompt;
-## the app's self-update reinstalls the same way, silently, M7). It writes a
+## person's own programs directory, without elevation (no UAC prompt;
+## the app's self-update reinstalls the same way, silently). It writes a
 ## Start Menu shortcut and an Apps & features entry, and offers to launch the
 ## app on its last page. It asks nothing about Docker, sign-in, models or
-## agents: those are the app's first-run wizard's questions (D1).
+## agents: those are the app's first-run wizard's questions.
 ##
 ## Installing over an existing installation replaces only the files under
 ## $INSTDIR. Configuration lives outside it (%USERPROFILE%\.config\agentry,
@@ -57,11 +56,11 @@ ManifestDPIAware true
 !define MUI_FINISHPAGE_NOAUTOCLOSE # Wait on the INSTFILES page so the user can take a look into the details of the installation steps
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
 # The last page offers to start the app; the first-run wizard takes it from
-# there (D1). Ticked by default, as MUI does.
+# there. Ticked by default, as MUI does.
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch ${INFO_PRODUCTNAME}"
 
-# A SILENT install is the application updating itself (agentry-desktop#88).
+# A SILENT install is the application updating itself.
 # /S skips every page, including the finish page whose MUI_FINISHPAGE_RUN
 # above is what normally reopens the app — so without this the person who
 # pressed "Install and relaunch" would be left with nothing running. The
@@ -74,18 +73,16 @@ Function .onInstSuccess
 FunctionEnd
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
-# No EULA page: the licence is the repository's; the installer asks only installer-shaped questions (plan §4).
+# No EULA page: the licence is the repository's; the installer asks only installer-shaped questions.
 !insertmacro MUI_PAGE_DIRECTORY # In which folder install page.
 !insertmacro MUI_PAGE_INSTFILES # Installing page.
 !insertmacro MUI_PAGE_FINISH # Finished installation page.
 
-# The uninstaller's one optional page (plan §8): the application is always
-# removed; Agentry's Docker images too unless "Keep my Docker images" is
-# ticked (agentry-desktop#424); the settings and sign-in only when their box
-# is ticked. The
-# description box names the paths before anything is hovered, spelled with
-# %USERPROFILE% so the text does not depend on variable expansion inside a
-# language string.
+# The uninstaller's one optional page: the application is always removed;
+# Agentry's Docker images too unless "Keep my Docker images" is ticked; the
+# settings and sign-in only when their box is ticked. The description box
+# names the paths before anything is hovered, spelled with %USERPROFILE% so
+# the text does not depend on variable expansion inside a language string.
 !define MUI_COMPONENTSPAGE_TEXT_TOP "${INFO_PRODUCTNAME} will be removed, with the Docker images Agentry put on this computer unless you tick Keep my Docker images. Your settings and sign-in stay unless you tick the last box."
 !define MUI_COMPONENTSPAGE_TEXT_COMPLIST "Remove:"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "What stays"
@@ -95,9 +92,9 @@ FunctionEnd
 
 !insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
 
-## Authenticode (agentry-desktop#54). SIGN_CMD is a command that signs the PE
+## Authenticode. SIGN_CMD is a command that signs the PE
 ## file given as its one argument in place; the Makefile passes it only for a
-## release build (scripts/sign-windows.sh), so a PR build or a workstation
+## release build (scripts/sign-windows.sh), so a PR build or a local
 ## build compiles exactly what it compiles without it. !uninstfinalize runs
 ## on the uninstaller before it is embedded — NSIS 3.08+ generates the whole
 ## uninstaller at compile time for this — and !finalize on the installer once
@@ -126,7 +123,7 @@ FunctionEnd
 # Everything this section touches: $INSTDIR, the per-user Start Menu, the
 # per-user uninstall key (HKCU), the WebView2 runtime if it is missing, and,
 # when the build carries the agentry CLI, one entry on the user Path
-# (HKCU\Environment), which the app writes (D-061). Nothing under the
+# (HKCU\Environment), which the app writes. Nothing under the
 # person's profile beyond those.
 Section
     !insertmacro wails.setShellContext
@@ -139,8 +136,7 @@ Section
 
     # The agentry CLI, when the build carries it: the release fetches the
     # CLI release go.mod pins, signed, into build/cli (scripts/fetch-cli.sh);
-    # a PR build has none and installs without it (agentry-desktop#580;
-    # plan cli-on-path.md D3, reversing desktop-installers.md D14).
+    # a PR build has none and installs without it.
     !if /FileExists "..\..\cli\agentry.exe"
     SetOutPath "$INSTDIR\bin"
     # A running agentry.exe (an MCP session, a long run) cannot be
@@ -185,7 +181,7 @@ SectionEnd
 # second, "Keep my Docker images", is a box that does nothing itself either:
 # the hidden section after it removes Agentry's images unless it is ticked.
 # That runs before the settings section, because removing the settings
-# deletes the runner policy that may name the images (agentry-desktop#424).
+# deletes the runner policy that may name the images.
 # The optional settings section runs the app's own removal while the binary
 # is still there; the hidden last one, always run, removes the application.
 Section "un.${INFO_PRODUCTNAME}" SEC_UN_APP
@@ -193,7 +189,7 @@ Section "un.${INFO_PRODUCTNAME}" SEC_UN_APP
 SectionEnd
 
 # Off by default (/o), so the images go by default and under /S: an
-# uninstall that leaves several GB of images behind was the report.
+# uninstall that leaves several GB of images behind is not wanted.
 Section /o "un.Keep my Docker images" SEC_UN_KEEP_IMAGES
 SectionEnd
 
@@ -224,7 +220,7 @@ Section "-un.RemoveDockerImages"
 SectionEnd
 
 # Off by default (/o), and so off under /S: a silent uninstall never touches
-# the person's configuration (plan §3's invariant).
+# the person's configuration.
 Section /o "un.Also remove my Agentry settings and sign-in" SEC_UN_SETTINGS
     Push $0
     DetailPrint "Removing your Agentry settings and sign-in"

@@ -1,5 +1,4 @@
-// The Library's search (plan desktop-home-and-library.md D3;
-// agentry-desktop#657). Pure, so the node tests can import it.
+// The Library's search. Pure, so the node tests can import it.
 //
 // Typing filters the QuickAgents installed on this computer; the button
 // beside the field always leads to Browse, carrying what was typed.

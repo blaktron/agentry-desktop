@@ -1,12 +1,10 @@
 package main
 
 // A run In Agentry reaches the page in credits, time and turns only, and a
-// run on this computer in tokens (agentry-desktop#457; plan
-// scan-and-run-tweaks.md track B): what Go sends the webview for a hosted
-// run, session, build or draft carries no token count, no token cap, no
-// rate and no dollar cost, whether the registry still serves them (today)
-// or no longer does (after agentry-enterprise#291); what it sends for the
-// local run, session, build and draft keeps its tokens.
+// run on this computer in tokens: what Go sends the webview for a hosted
+// run, session, build or draft carries no token count, no token cap, no rate
+// and no dollar cost, whether the registry serves them or not; what it sends
+// for the local run, session, build and draft keeps its tokens.
 
 import (
 	"encoding/json"
@@ -32,8 +30,8 @@ const hostedEnvelopeWithUsage = `{"agentry":"1","status":"ok","exitClass":"ok","
 
 var tokenKey = regexp.MustCompile(`(?i)token|costUsd`)
 
-// creditFields are credits named after what they pay for, which the plan
-// keeps: they leak no count (scan-and-run-tweaks.md §5.1).
+// creditFields are credits named after what they pay for, which are kept:
+// they leak no count.
 var creditFields = []string{"tokenCredits", "tokensUnpaid"}
 
 // tokenKeys lists every JSON key in v, at any depth, that names a token
@@ -120,7 +118,7 @@ func TestARunInAgentryReachesThePageInCreditsOnly(t *testing.T) {
 				t.Fatalf("caps = %+v", final.Caps)
 			}
 			// The result the page renders is the CLI's envelope without its
-			// token counts; the file in the run folder keeps them (D11).
+			// token counts; the file in the run folder keeps them.
 			var env map[string]any
 			if err := json.Unmarshal([]byte(final.ResultJSON), &env); err != nil {
 				t.Fatalf("result = %q: %v", final.ResultJSON, err)

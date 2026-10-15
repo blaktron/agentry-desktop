@@ -1,10 +1,8 @@
-// A run on this computer followed above the pages (agentry-desktop#465;
-// plan desktop-review-key-and-run-cards.md §5.2, §5.4; D5, D7, D9, D10,
-// D16): the page's store follows the run by its id through
-// runner:run-progress and runner:run-line, Stop ends it (StopRun, which
-// stops a run and nothing else), the busy refusal and InFlight say which
-// job holds the run lock, and Dismiss removes the run's card (ForgetRun;
-// the run history keeps the run since D-068).
+// A run on this computer followed above the pages: the page's store follows
+// the run by its id through runner:run-progress and runner:run-line, Stop
+// ends it (StopRun, which stops a run and nothing else), the busy refusal
+// and InFlight say which job holds the run lock, and Dismiss removes the
+// run's card (ForgetRun; the run history keeps the run).
 package main
 
 import (
@@ -34,7 +32,7 @@ const (
 	jobChat  jobKind = "chat"
 	jobDraft jobKind = "draft"
 	jobBuild jobKind = "build"
-	// jobReview is a review by the Examiner (agentry-desktop#469).
+	// jobReview is a review by the Examiner.
 	jobReview jobKind = "review"
 	jobSetup  jobKind = "setup"
 )
@@ -47,7 +45,7 @@ type jobHolder struct {
 }
 
 // busyError refuses a second local job, naming the one that holds the run
-// lock (D16). It is errBusy for errors.Is.
+// lock. It is errBusy for errors.Is.
 type busyError struct{ msg string }
 
 func (e busyError) Error() string        { return e.msg }
@@ -107,7 +105,7 @@ type InFlightView struct {
 }
 
 // InFlight names the local job holding the run lock, or nil when there is
-// none (D16).
+// none.
 func (r *RunAPI) InFlight() *InFlightView {
 	r.holderMu.Lock()
 	defer r.holderMu.Unlock()
@@ -197,7 +195,7 @@ func (r *RunAPI) runLineWriter(runID string) *lineEventWriter {
 
 var errNoRun = errors.New("no run is under way on this computer")
 
-// StopRun ends the run on this computer (D5): its context is cancelled, the
+// StopRun ends the run on this computer: its context is cancelled, the
 // engine tears the run down and writes its receipts as far as it got, and
 // RunAgent returns its result. It stops a run and nothing else: a draft, a
 // knowledge build and a chat each have their own way to end.
@@ -213,11 +211,10 @@ func (r *RunAPI) StopRun() error {
 
 // ForgetRun is Dismiss on a run's card: this process's memory of the run's
 // folder is dropped, and the folder itself, its receipts included, is not
-// touched. Since D-068 (revising plan D7) the run history keeps a run that
-// has ended, so while Remember recent runs is on RunOutputs and
-// ShowRunFolder still read its id through the history, for the run page;
-// with it off they refuse the id afterwards, as before, and quitting
-// forgets every run.
+// touched. The run history keeps a run that has ended, so while Remember
+// recent runs is on RunOutputs and ShowRunFolder still read its id through
+// the history, for the run page; with it off they refuse the id afterwards,
+// and quitting forgets every run.
 func (r *RunAPI) ForgetRun(runID string) {
 	r.foldersMu.Lock()
 	delete(r.folders, runID)

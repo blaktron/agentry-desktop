@@ -128,7 +128,7 @@ func TestSelfUpdateCheckOffersANewerRelease(t *testing.T) {
 
 // A release signed by a retired key reaches the bound surface marked as
 // such, so the chrome line and Settings can both say it will not be
-// installed (agentry-desktop#124); the frontend reads nothing else to know.
+// installed; the frontend reads nothing else to know.
 func TestSelfUpdateCheckMarksARetiredKeysRelease(t *testing.T) {
 	configHome(t)
 	srv, keys := signedChannel(t, "9.9.9", "abc1234", true)
@@ -342,10 +342,10 @@ func TestDownloadPageIsDerivedFromTheChannel(t *testing.T) {
 	}
 }
 
-// A channel that answers but publishes nothing signed is its own state. It is
-// what a site with nothing released yet looks like, and also what a channel
-// withholding a release looks like — so it is shown rather than folded into
-// "up to date" (D-027).
+// A channel that answers but publishes nothing signed is its own state. It
+// is what a site with nothing released yet looks like, and also what a
+// channel withholding a release looks like — so it is shown rather than
+// folded into "up to date".
 func TestSelfUpdateReportsAChannelWithNothingSigned(t *testing.T) {
 	configHome(t)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -486,7 +486,7 @@ func TestInstallRefusesARetiredKey(t *testing.T) {
 }
 
 // Somewhere the person cannot write is a refusal with a way forward, never a
-// prompt for an administrator password (plan §3).
+// prompt for an administrator password.
 func TestInstallRefusesWhenTheCopyCannotBeReplaced(t *testing.T) {
 	configHome(t)
 	srv, keys, _ := installable(t, "9.9.9", false)

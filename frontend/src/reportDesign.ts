@@ -1,11 +1,10 @@
-// The Report design editor's model (plan report-designs.md §4 "The editor",
-// D2, D8, D10, D14, D17, D18; agentry-desktop#759, D-075). The account keeps
-// a report design whole, a theme document version 2; Settings → Report
-// design edits it, and every rule the page shows is the core's
-// pkg/reportdesign answering through Go (SettingsAPI.CheckReportDesign), so
-// nothing here decides what can be saved. This is what the page draws from:
-// its controls, which are exactly the fields of version 2 and nothing else
-// (D8), the words each choice is shown with, and the faces the preview sets.
+// The Report design editor's model. The account keeps a report design whole, a
+// theme document version 2; Settings → Report design edits it, and every rule
+// the page shows is the core's pkg/reportdesign answering through Go
+// (SettingsAPI.CheckReportDesign), so nothing here decides what can be saved.
+// This is what the page draws from: its controls, which are exactly the fields
+// of version 2 and nothing else, the words each choice is shown with, and the
+// faces the preview sets.
 //
 // Pure: the page and node's tests import it.
 
@@ -34,7 +33,7 @@ export interface ReportFamily {
   headingsOnly?: boolean;
 }
 
-/** What each theme looks like, by id (D14); one this list lacks is shown by
+/** What each theme looks like, by id; one this list lacks is shown by
  *  its name alone. */
 export const THEME_LOOKS: Record<string, string> = {
   plain: "Near-monochrome Inter, a ruled title, plain headings.",
@@ -78,13 +77,11 @@ export interface Control {
 const text = (v: string | boolean) => (typeof v === "string" ? v : String(v));
 const flag = (v: string | boolean) => v === true;
 
-/**
- * The editor's controls, one per field of version 2 the person may change
- * (D8): the name, the paper, the three faces, the accent, the title block,
- * the heading treatment, the two table styles, the quotes, and the footer's
- * page numbers and line. The document's version, its theme and its own
- * revision are not controls: choosing a theme sets them.
- */
+/** The editor's controls, one per field of version 2 the person may change: the
+ * name, the paper, the three faces, the accent, the title block, the heading
+ * treatment, the two table styles, the quotes, and the footer's page numbers
+ * and line. The document's version, its theme and its own revision are not
+ * controls: choosing a theme sets them. */
 export const CONTROLS: Control[] = [
   { field: "name", get: (d) => d.name, set: (d, v) => ({ ...d, name: text(v) }) },
   { field: "paper", get: (d) => d.paper, set: (d, v) => ({ ...d, paper: text(v) }) },
@@ -127,7 +124,7 @@ export function startFrom(theme: ReportDesign): ReportDesign {
 /**
  * The design as the page sends it to SaveReportDesign: the fields of
  * version 2 in the core's order, and nothing else the object happens to
- * carry. Never the logo (agentry#1025, agentry-desktop#777): it is uploaded
+ * carry. Never the logo: it is uploaded
  * and removed on its own (SettingsAPI.ChooseReportLogo, RemoveReportLogo),
  * Go's view gives it beside the design rather than in it, and the core
  * keeps a stored logo when a design is saved without one.

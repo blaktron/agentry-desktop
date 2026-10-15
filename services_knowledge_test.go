@@ -23,9 +23,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
-// The Knowledge panel's bindings keep the run surface's gates (D-030): an
-// export and a delete are asked in a native dialog, every path is a native
-// picker's, and a build is a run under the run lock.
+// The Knowledge panel's bindings keep the run surface's gates: an export and
+// a delete are asked in a native dialog, every path is a native picker's,
+// and a build is a run under the run lock.
 
 type knowledgeKeys struct {
 	mu sync.Mutex
@@ -112,10 +112,10 @@ func newKnowledgeFixture(t *testing.T) *knowledgeFixture {
 	return f
 }
 
-// Export asks first, in a native dialog; then the native picker chooses
-// the folder; then the pack is written into a new folder named for it
-// there, and that folder — never a page — is revealed (D-035). A No, or a
-// cancelled picker, writes nothing.
+// Export asks first, in a native dialog; then the native picker chooses the
+// folder; then the pack is written into a new folder named for it there, and
+// that folder — never a page — is revealed. A No, or a cancelled picker,
+// writes nothing.
 func TestKnowledgeExportAsksThenPicksThenRevealsTheFolder(t *testing.T) {
 	f := newKnowledgeFixture(t)
 	parent := t.TempDir()
@@ -183,10 +183,9 @@ func TestKnowledgeDeleteAsksNatively(t *testing.T) {
 	}
 }
 
-// Delete on the Cloud Knowledge page removes Agentry's copy alone (plan
-// knowledge-cards.md §4.3, D3; agentry-desktop#619), after a native dialog
-// that says whether a copy stays here; the copy here is untouched, and Copy
-// to Cloud keeps it in Agentry again.
+// Delete on the Cloud Knowledge page removes Agentry's copy alone, after a
+// native dialog that says whether a copy stays here; the copy here is
+// untouched, and Copy to Cloud keeps it in Agentry again.
 func TestKnowledgeDeleteFromAgentryKeepsThisCopy(t *testing.T) {
 	f := newKnowledgeFixture(t)
 	if _, err := f.env.Upload(f.k.app.ctx, f.reg.URL, "handbook"); err != nil {
@@ -332,8 +331,7 @@ func TestKnowledgeBuildIsARunUnderTheRunLock(t *testing.T) {
 
 // StopBuild stops the build in flight and nothing else: the Creator's
 // context is cancelled and the build returns; with no build running, or a
-// run holding the lock instead, it refuses and cancels nothing
-// (agentry-desktop#353).
+// run holding the lock instead, it refuses and cancels nothing.
 func TestStopBuildStopsOnlyAKnowledgeBuild(t *testing.T) {
 	f := newKnowledgeFixture(t)
 	if err := f.k.StopBuild(); err == nil {
@@ -421,7 +419,7 @@ func TestARunAttachesKeptKnowledgeAndRemovesItsCopyAfter(t *testing.T) {
 
 // Quitting mid-run with a pack attached removes the pack's opened copy
 // before shutdown returns: the release runs before the run is marked done,
-// which is what shutdown waits for (§9 "teardown on every path").
+// which is what shutdown waits for.
 func TestQuittingMidRunRemovesTheAttachedCopyBeforeShutdownReturns(t *testing.T) {
 	f := newKnowledgeFixture(t)
 	eng := &fakeEngine{started: make(chan run.Request, 1)}
@@ -450,7 +448,7 @@ func TestQuittingMidRunRemovesTheAttachedCopyBeforeShutdownReturns(t *testing.T)
 }
 
 // The Documents step sizes only what the native picker returned, walking
-// folders, and names both caps (agentry-desktop#354, D-030).
+// folders, and names both caps.
 func TestDocumentsSizeSizesOnlyPickedDocuments(t *testing.T) {
 	f := newKnowledgeFixture(t)
 	dir := t.TempDir()
@@ -476,10 +474,9 @@ func TestDocumentsSizeSizesOnlyPickedDocuments(t *testing.T) {
 	}
 }
 
-// The Documents step's Search the web status (agentry-desktop#498): the
-// runtime first, then the AI Review key, then a search provider and its
-// key; ready only with all of them, and otherwise a reason that names
-// where to fix it.
+// The Documents step's Search the web status: the runtime first, then the AI
+// Review key, then a search provider and its key; ready only with all of
+// them, and otherwise a reason that names where to fix it.
 func TestCreatorWebViewSaysWhatIsMissingInOrder(t *testing.T) {
 	pol := policy.Default()
 	pol.WebSearch.Provider = "brave"

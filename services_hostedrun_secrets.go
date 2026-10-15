@@ -1,17 +1,15 @@
 package main
 
-// A run In Agentry's secrets, from the desktop (plan
-// hosted-credentials-vault.md M6, D12, D13; agentry-desktop#300). The
-// account's secrets are kept by the registry's vault; this app holds a
-// token carrying secret:write, which may set and delete one and never
-// read one back (agentry-enterprise#251, DEV-165). So the app renders no
-// stored value, stores none on this machine, and learns which declared
-// names are missing from run create's 409 secret-missing.
+// A run In Agentry's secrets, from the desktop. The account's secrets are
+// kept by the registry's vault; this app holds a token carrying
+// secret:write, which may set and delete one and never read one back. So the
+// app renders no stored value, stores none on this machine, and learns which
+// declared names are missing from run create's 409 secret-missing.
 //
-// The value travels in a call of its own, as the model key does (D-024),
-// and a dispatch error on it is logged without its arguments by
-// internal/applog, as for every secret-carrying call; the value is in no
-// log line, no event and no error.
+// The value travels in a call of its own, as the model key does, and a
+// dispatch error on it is logged without its arguments by internal/applog,
+// as for every secret-carrying call; the value is in no log line, no event
+// and no error.
 
 import (
 	"fmt"
@@ -21,7 +19,7 @@ import (
 )
 
 // vaultClient is a hosted-run client for reg, held to Settings' URL rule
-// before any token is looked up (D-039, agentry-desktop#307).
+// before any token is looked up.
 func vaultClient(reg string) (*hostedrun.Client, string, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
@@ -36,8 +34,8 @@ func vaultClient(reg string) (*hostedrun.Client, string, error) {
 
 // SetHostedSecret sets the account's secret name in reg's vault. keep says
 // whether the account keeps it for later runs; false holds it for the one
-// start this panel is making, and the vault removes it when that run ends
-// (D12). The error names the secret, never the value.
+// start this panel is making, and the vault removes it when that run ends.
+// The error names the secret, never the value.
 func (r *RunAPI) SetHostedSecret(reg, name, value string, keep bool) error {
 	c, reg, err := vaultClient(reg)
 	if err != nil {
@@ -91,12 +89,11 @@ func (r *RunAPI) DeleteHostedSecret(reg, name string) error {
 }
 
 // DiscardHostedSecrets deletes the secrets this app set for a start In
-// Agentry at reg and did not keep, when that start will not happen: the
-// run was refused, or the ask was cancelled or closed. A secret the
-// person kept from the site since is out of this token's reach
-// (409 secret-kept, DEV-165). Best effort: one
-// the registry does not delete now its sweep deletes a day after it was
-// set (DEV-164).
+// Agentry at reg and did not keep, when that start will not happen: the run
+// was refused, or the ask was cancelled or closed. A secret the person kept
+// from the site since is out of this token's reach (409 secret-kept). Best
+// effort: one the registry does not delete now its sweep deletes a day after
+// it was set.
 func (r *RunAPI) DiscardHostedSecrets(reg string) {
 	reg = settings.Normalize(reg)
 	r.heldMu.Lock()
@@ -125,7 +122,7 @@ func (r *RunAPI) forgetHeld(reg string) {
 
 // SecretsPageURL is where the account's secrets are listed: the site's
 // Secrets page at the registry's origin, the list being a signed-in
-// session's alone (DEV-165). The panel opens it through App.OpenExternal.
+// session's alone. The panel opens it through App.OpenExternal.
 func (r *RunAPI) SecretsPageURL(reg string) (string, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {

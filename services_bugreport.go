@@ -1,10 +1,9 @@
-// Report bug in the desktop (plan report-bug.md §6, D1, D2, D6, D7;
-// agentry-desktop#841): the sidebar's link above the version opens a card
-// whose Submit files the text with the active registry's bug-reports
-// extension (agentry-enterprise#544, POST /api/v1/x/bug-reports/reports) as
-// the signed-in person. The report carries the app's version and OS and
-// nothing else (D6). Staff read it in Staff › Bug reports on the site and
-// mail the reporter "Reported bug fixed" when it is.
+// Report bug in the desktop: the sidebar's link above the version opens a
+// card whose Submit files the text with the active registry's bug-reports
+// extension (POST /api/v1/x/bug-reports/reports) as the signed-in person.
+// The report carries the app's version and OS and nothing else. Staff read
+// it in Staff › Bug reports on the site and mail the reporter "Reported bug
+// fixed" when it is.
 package main
 
 import (
@@ -22,7 +21,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
-// The registry's bounds on a report's text (D7), counted as it counts them:
+// The registry's bounds on a report's text, counted as it counts them:
 // characters, after trimming, with every line break as \n.
 const (
 	bugReportMin = 10
@@ -45,14 +44,14 @@ type BugReportResult struct {
 // ReportBug files text as a bug report from this app with the registry at
 // url, the active one, with its stored credential. An error is only an
 // address Settings' rule refuses; every answer of the registry is a result.
-// The address is held to storedCredential's rule (D-030) before the token
-// is looked up; a missing token is a result here, not an error, so the
-// card can offer Sign in.
+// The address is held to storedCredential's rule before the token is looked
+// up; a missing token is a result here, not an error, so the card can offer
+// Sign in.
 func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 	url = settings.Normalize(url)
 	if settings.ValidateURL(url) != nil {
 		// Named by origin only: the address may carry a credential someone
-		// typed into it (agentry-desktop#541).
+		// typed into it.
 		return nil, fmt.Errorf("%s is not a registry address this app can use", originOf(url))
 	}
 	body := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"))
@@ -79,8 +78,8 @@ func (s *SettingsAPI) ReportBug(url, text string) (*BugReportResult, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	// The shared client answers a redirect instead of following it, as it
-	// does for every request carrying the token (registry.KeepTokenHome,
-	// agentry-desktop#856); the card reads one as the registry refusing.
+	// does for every request carrying the token (registry.KeepTokenHome);
+	// the card reads one as the registry refusing.
 	res, err := registry.HTTPClient.Do(req)
 	if err != nil {
 		return &BugReportResult{Reason: "unreachable"}, nil

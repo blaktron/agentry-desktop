@@ -1,13 +1,12 @@
 import type { main } from "../wailsjs/go/models";
 
-// The subscription's words, shared by Settings → Profile and its test
-// (agentry-desktop#415): pure functions of the billing account view, so
-// node's own test runner can check them without a browser. The import
-// above is type-only and erased, which is what lets node load this file.
+// The subscription's words, shared by Settings → Profile and its test: pure
+// functions of the billing account view, so node's own test runner can check
+// them without a browser. The import above is type-only and erased, which is
+// what lets node load this file.
 
-// TIER_LABEL is the product's name for each tier: the two a person may
-// hold, the two an organization may (plan organization-subscriptions.md §4),
-// and the promo trial's (plan promo-codes.md §4.1).
+// TIER_LABEL is the product's name for each tier: the two a person may hold,
+// the two an organization may, and the promo trial's.
 const TIER_LABEL: Record<string, string> = {
   standard: "Standard",
   pro: "Pro",
@@ -42,10 +41,9 @@ export function changesPhrase(s: main.SubscriptionView): string | null {
   return s.pendingTier ? `${tierLabel(s.pendingTier)} from ${dayOf(s.periodEnd)}` : null;
 }
 
-// Credit packs (agentry-desktop#511, plan credit-top-ups.md D6, D7): the
-// Top up credits card draws the registry's packs as the site's does, and
-// Buy opens the site's card. topUpOffer is the card's condition: packs the
-// registry offers this person, never on a member's view.
+// Credit packs: the Top up credits card draws the registry's packs as the
+// site's does, and Buy opens the site's card. topUpOffer is the card's
+// condition: packs the registry offers this person, never on a member's view.
 export function topUpOffer(s: main.SubscriptionView): main.TopUpView | null {
   const t = s.topUp;
   if (!t?.available || s.memberOf || !t.packs?.length) return null;
@@ -86,7 +84,7 @@ export function packPrice(p: Pick<main.TopUpPack, "amount" | "currency">): strin
   }
 }
 
-// owedSentence: a suspension for non-payment (D11, D12), in the site's
+// owedSentence: a suspension for non-payment, in the site's
 // words: what is owed, what stops, what still works, how it ends.
 export function owedSentence(owed: number): string {
   return `A credit pack's payment failed after some of its credits were spent, so this account owes ${creditCount(owed)}. Until the balance is back at zero, submissions, hosted runs, knowledge builds, drafts and hosted sessions are refused; sign-in, installs and your published QuickAgents work as before. The next credits to arrive pay what is owed first.`;

@@ -1,11 +1,11 @@
 package main
 
-// A release that ships a knowledge pack, live (agentry-desktop#277, plan
-// knowledge.md §4.6): installed to the runner home through the bound
-// install methods, its consent and record naming the shipped pack, then run
-// on this computer, the receipt naming the pack as the release's. Skipped
-// unless the three variables are set; it needs docker and the operator
-// policy's model key, and it uses this computer's runner home.
+// A release that ships a knowledge pack, live: installed to the runner home
+// through the bound install methods, its consent and record naming the
+// shipped pack, then run on this computer, the receipt naming the pack as
+// the release's. Skipped unless the three variables are set; it needs docker
+// and the operator policy's model key, and it uses this computer's runner
+// home.
 //
 //	AGENTRY_LIVE_SHIPPED_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_SHIPPED_TOKEN=… \

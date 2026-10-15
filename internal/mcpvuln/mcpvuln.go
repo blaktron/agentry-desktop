@@ -1,7 +1,7 @@
 // Package mcpvuln is the desktop's view of the registry's vulnerability
-// verdict on a release's declared MCP servers (agentry#177, DR-16): the
-// same decision the CLI's `agentry run` makes, shared by the run path,
-// the install wizard and the agent page so all three say one thing.
+// verdict on a release's declared MCP servers: the same decision the
+// CLI's `agentry run` makes, shared by the run path, the install wizard
+// and the agent page so all three say one thing.
 package mcpvuln
 
 import (
@@ -17,8 +17,8 @@ import (
 
 // Advisory is one advisory the registry reports for a server version.
 // Severity is the advisory's own word; Rating is what the registry's gate
-// rates it, which is what a run weighs (agentry-cli#501, DR-60): a High
-// below CVSS 8.5 is rated medium and runs.
+// rates it, which is what a run weighs: a High below CVSS 8.5 is rated
+// medium and runs.
 type Advisory struct {
 	ID        string   `json:"id"`
 	Severity  string   `json:"severity"`
@@ -121,16 +121,15 @@ func AllowedByPolicy() bool {
 }
 
 // WayThrough is what a run on this computer brings to a declared server the
-// registry's gate rates high or critical (agentry-desktop#459, D-055):
-// such a server runs only in Unsafe Mode, and there only with the person's
-// consent for the run, asked in a native dialog. The CLI keeps its flag
-// and the policy key; a run In Agentry has no way through and never builds
-// a WayThrough.
+// registry's gate rates high or critical: such a server runs only in Unsafe
+// Mode, and there only with the person's consent for the run, asked in a
+// native dialog. The CLI keeps its flag and the policy key; a run In
+// Agentry has no way through and never builds a WayThrough.
 type WayThrough struct {
 	// Unsafe is Unsafe Mode, as the run read the switch.
 	Unsafe bool
 	// Consented is the person's yes for this run, which the native dialog
-	// asked (D-030).
+	// asked.
 	Consented bool
 	// PolicyAllows is the runner policy's mcpServers.allowVulnerable,
 	// which lets the CLI run the server. This app names it in a refusal
@@ -141,7 +140,7 @@ type WayThrough struct {
 // Verdict is the run's decision on the registry's answer: the receipt
 // line, and an error when a declared server carries an advisory the gate
 // rates high or critical (the advisory's own word from a registry that
-// serves no rating; agentry-cli#501) and the run has no way through. A run
+// serves no rating) and the run has no way through. A run
 // let through names Unsafe Mode and each server it let through, with the
 // advisories that refused it.
 func Verdict(statuses []mcpinstall.VulnStatus, registry string, way WayThrough) (string, error) {

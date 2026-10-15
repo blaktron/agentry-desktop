@@ -1,5 +1,4 @@
-// What Home's cards say (plan desktop-home-and-library.md §4.3;
-// agentry-desktop#658). Pure and self-contained, so the node tests can
+// What Home's cards say. Pure and self-contained, so the node tests can
 // import it.
 
 export function installedLine(onComputer: number, withUpdate: number): string {

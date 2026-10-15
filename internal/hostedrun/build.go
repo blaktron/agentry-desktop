@@ -9,17 +9,16 @@ import (
 	"strings"
 )
 
-// A knowledge build In Agentry (plan knowledge.md §4.5, §4.8; Knowledge M6,
-// agentry-desktop#274): the built-in Knowledge Creator run on a sandbox
-// host against the platform's model, for credits, its pack kept in Agentry
-// and scanned there. It is a run of kind knowledge_build in the same runs
-// extension, so it shares a run's one active row per account, its input
-// upload and its caps; what differs is what a token needs, what it holds,
-// and that its result is a pack rather than outputs.
+// A knowledge build In Agentry: the built-in Knowledge Creator run on a sandbox
+// host against the platform's model, for credits, its pack kept in Agentry and
+// scanned there. It is a run of kind knowledge_build in the same runs
+// extension, so it shares a run's one active row per account, its input upload
+// and its caps; what differs is what a token needs, what it holds, and that its
+// result is a pack rather than outputs.
 
 // The PAT scopes a build needs beside run:read and run:write: it reads and
 // writes a knowledge pack, and its output holds the pack in the clear,
-// sealed to its runner (agentry-enterprise#171).
+// sealed to its runner.
 const (
 	ScopeKnowledgeRead  = "knowledge:read"
 	ScopeKnowledgeWrite = "knowledge:write"
@@ -44,15 +43,14 @@ type BuildFacts struct {
 	StatusKnown bool
 	// Active is the account's run or build in flight, nil for none.
 	Active *Run
-	// Allowed is the registry's caller.build.allowed: whether this
-	// account's payer may create knowledge in Agentry, Pro and above
-	// (DEV-162, agentry-desktop#328). nil from a registry that predates it,
-	// which offered every tier a build.
+	// Allowed is the registry's caller.build.allowed: whether this account's payer
+	// may create knowledge in Agentry, Pro and above; nil from a registry that
+	// does not send it, which offers every tier a build.
 	Allowed *bool
 }
 
 // BuildIsProSentence is the site's sentence for a payer the registry does
-// not let build (agentry-web#587), so every client says the same thing.
+// not let build, so every client says the same thing.
 const BuildIsProSentence = "Creating knowledge in Agentry is part of Pro, Business and Enterprise."
 
 // DecideBuild applies the rule. Signed out, or a registry without the
@@ -95,9 +93,9 @@ func DecideBuild(f BuildFacts) Offer {
 }
 
 // CanContinue reports whether a build stopped short of its work — at its
-// turn, cost or time limit, interrupted, cancelled, or finished over a pack that
-// took other pages while it ran — so a new build may continue it from the
-// pack as it is now, with its documents (the registry copies them).
+// turn, cost or time limit, interrupted, cancelled, or finished over a pack
+// that took other pages while it ran — so a new build may continue it from
+// the pack as it is now, with its documents (the registry copies them).
 func CanContinue(r *Run) bool {
 	if !r.IsBuild() {
 		return false
@@ -138,7 +136,7 @@ func NoteSentence(note string) string {
 // the files a build uploads: a folder is every regular file under it,
 // hidden ones and links aside, as the local build reads a folder. A build
 // sees its documents in one folder by name, so two with one name are
-// refused, and the caps are a run's (§4.4), named in a build's words.
+// refused, and the caps are a run's, named in a build's words.
 func StageDocuments(paths []string) ([]InputFile, error) {
 	var files []string
 	for _, p := range paths {

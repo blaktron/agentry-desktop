@@ -3,8 +3,7 @@ import { CardFrame } from "../../cards";
 import { latestRunFor, pinRecord, type Pin } from "../../pins";
 import { howItEnded, whenRan, whereRan } from "../../recentRuns";
 
-// A Pinned card on Home (plan desktop-home-and-library.md §4.3, D5, D11,
-// D12; agentry-desktop#660): up to four pinned QuickAgents, one row each,
+// A Pinned card on Home: up to four pinned QuickAgents, one row each,
 // in the order Go placed them. A row names the QuickAgent (its page, or the
 // Library for a folder install), its version and update, and how its latest
 // run ended, on this computer or In Agentry, or that it has not run yet.

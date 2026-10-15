@@ -14,13 +14,13 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
-// Session is an interactive run driven from the app (plan §7): the CLI's
-// session API behind the desktop's one-session-at-a-time rule (D-017).
-// Everything the chat can do is a method here; the engine enforces the
-// plan and ends the session on the operator's caps regardless.
+// Session is an interactive run driven from the app: the CLI's session
+// API behind the desktop's one-session-at-a-time rule. Everything the
+// chat can do is a method here; the engine enforces the plan and ends
+// the session on the operator's caps regardless.
 type Session struct {
-	// mu serializes End: the chat's End and the app's quit can race
-	// (agentry-desktop#125), and the engine's End must run once.
+	// mu serializes End: the chat's End and the app's quit can race, and
+	// the engine's End must run once.
 	mu     sync.Mutex
 	inner  session.Session
 	ref    string
@@ -51,13 +51,12 @@ func StartSession(ctx context.Context, req Request, logw io.Writer) (*Session, e
 	if err != nil {
 		return nil, err
 	}
-	// The compile took the session caps from the runner policy, which the
-	// CLI's chats read too, tightened by the release's idle hint. A chat
-	// here has its own (D21, D22): the engine reads them from this plan in
-	// memory, and the receipt's run-plan.json records them. The run timeout
-	// is no limit on a session, so the plan and meta.json say none rather
-	// than the policy's. The policy file and the installed plan.json are not
-	// changed.
+	// The compile took the session caps from the runner policy, which the CLI's
+	// chats read too, tightened by the release's idle hint. A chat here has its
+	// own: the engine reads them from this plan in memory, and the receipt's
+	// run-plan.json records them. The run timeout is no limit on a session, so the
+	// plan and meta.json say none rather than the policy's. The policy file and
+	// the installed plan.json are not changed.
 	if p.plan.Harness.Session == nil {
 		finishProfile(logw, p.prof, p.profDir, p.keep)
 		return nil, fmt.Errorf("the interactive plan for %s has no session block", p.sig.Ref)

@@ -166,11 +166,11 @@ func (f *fakeRuns) start(t *testing.T) string {
 		}
 		writeJSON(w, http.StatusOK, f.run)
 	})
-	// The outputs route reads the artefact name from the raw path rather
-	// than through the mux, which would clean "../x" away and answer 404
-	// before any test of the client's own containment could reach it: this
-	// fake serves whatever name it holds, escaping ones included, the way a
-	// hostile registry would (agentry-desktop#124).
+	// The outputs route reads the artefact name from the raw path rather than
+	// through the mux, which would clean "../x" away and answer 404 before any
+	// test of the client's own containment could reach it: this fake serves
+	// whatever name it holds, escaping ones included, the way a hostile registry
+	// would.
 	outputs := func(w http.ResponseWriter, r *http.Request, name string) {
 		if !auth(w, r) {
 			return
@@ -306,7 +306,7 @@ func runActive(w http.ResponseWriter) {
 
 // sentRequest is everything one request carried: a credential can travel
 // in any of these, so a test of "only the account's token travels" reads
-// them all (agentry-desktop#124).
+// them all.
 type sentRequest struct {
 	Method string
 	URL    string

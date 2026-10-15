@@ -1,4 +1,4 @@
-// The first-run wizard's Local and Cloud figures (agentry-desktop#842), in
+// The first-run wizard's Local and Cloud figures, in
 // the light-line language of the Build, Voice and Knowledge cards
 // (BuildWays.tsx): held lines with a spark running each, CSS keyframes only,
 // still under prefers-reduced-motion. They picture the card's title and

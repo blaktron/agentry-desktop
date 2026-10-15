@@ -10,12 +10,12 @@ import (
 	"github.com/blaktron/agentry/pkg/apiclient"
 )
 
-// The Profile card on Settings (agentry-desktop#423): what the site's
-// /settings/profile shows in its Profile and Subscription cards, read with
-// the desktop's own credential. Every read here takes user:profile or any
-// signed-in caller; buying, the billing portal, cancelling and deleting the
-// account are the site's session's alone, so the card opens the browser for
-// those and this file writes nothing but the display name.
+// The Profile card on Settings: what the site's /settings/profile shows in
+// its Profile and Subscription cards, read with the desktop's own
+// credential. Every read here takes user:profile or any signed-in caller;
+// buying, the billing portal, cancelling and deleting the account are the
+// site's session's alone, so the card opens the browser for those and this
+// file writes nothing but the display name.
 
 // ProfileView is the account with what only the Profile card shows: the
 // social provider the account signed up with, and the caller's hosted-run
@@ -23,7 +23,7 @@ import (
 type ProfileView struct {
 	AccountView
 	// SignedUpWith is the provider's display name, "" when the account has
-	// none or the directory did not answer (agentry#706).
+	// none or the directory did not answer.
 	SignedUpWith string `json:"signedUpWith,omitempty"`
 	// HostedRuns is nil where the registry takes no hosted runs, or the
 	// status could not be read.
@@ -31,9 +31,8 @@ type ProfileView struct {
 }
 
 // HostedRunsTermsView is what a hosted run of the caller's holds and the
-// caps it holds it for, in credits, time and turns. The registry's token
-// cap and the rates a settlement is computed at are not carried (plan
-// scan-and-run-tweaks.md D9, agentry-desktop#457).
+// caps it holds it for, in credits, time and turns. The registry's token cap
+// and the rates a settlement is computed at are not carried.
 type HostedRunsTermsView struct {
 	// HoldCredits is 0 for a member of an unmetered organization.
 	HoldCredits int64          `json:"holdCredits"`

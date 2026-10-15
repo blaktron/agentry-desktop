@@ -3,8 +3,7 @@ import * as PublisherAPI from "../../wailsjs/go/main/PublisherAPI";
 import { Button, ErrorBox, Field, Input, Modal, Select, Spinner } from "../ui";
 import { FORK_TERMS } from "../fork";
 
-// The Fork dialog (plan forks-and-publisher.md §5.1, D6, D8; M7,
-// agentry-desktop#706), as the site's Fork form: the namespace the fork
+// The Fork dialog, as the site's Fork form: the namespace the fork
 // goes into, the three facts about a fork, and a name field only once the
 // registry said the name was taken or held there. Go asks again in a
 // native dialog and the core decides; what this draws only saves a click.

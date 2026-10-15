@@ -1,15 +1,14 @@
-// Edit with AI's revision, landed (agentry-desktop#501; plan
-// drafter-revisions.md §5): the QuickAgent and the versions, the Drafter's
-// notes, a diff of agent.yaml and the instruction file against the release
-// (both written by the form's own writer, so it is what Publish sends), and
-// the two actions the site gives (agentry-web#862):
+// Edit with AI's revision, landed: the QuickAgent and the versions, the
+// Drafter's notes, a diff of agent.yaml and the instruction file against
+// the release (both written by the form's own writer, so it is what
+// Publish sends), and the two actions the site gives:
 //   - Publish this version: Go saves the revision as drafted (its own copy,
 //     never the form's) into a new folder Go makes under the default output
-//     folder (#585) and submits it, naming the run when it was drafted In Agentry;
+//     folder and submits it, naming the run when it was drafted In Agentry;
 //   - Open in the Builder: the form, where it is the person's own change and
 //     Submit names no run.
 // Every text the Drafter or the registry wrote is drawn as text, invisible
-// characters revealed (DEV-138).
+// characters revealed.
 import type { ReactNode } from "react";
 import { main } from "../../wailsjs/go/models";
 import { RevealText } from "../reveal";

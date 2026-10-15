@@ -14,23 +14,22 @@ import (
 	"github.com/blaktron/agentry/pkg/apiclient"
 )
 
-// The account on Settings (plan subscription-tiers.md §8, agentry-
-// desktop#74): who the stored credential is and, where the registry
-// mounts the billing extension, the subscription tier and the credits.
-// No client takes money: Upgrade opens the site's subscription page in
-// the browser, and nothing here holds a billing credential.
+// The account on Settings: who the stored credential is and, where the
+// registry mounts the billing extension, the subscription tier and the
+// credits. No client takes money: Upgrade opens the site's subscription page
+// in the browser, and nothing here holds a billing credential.
 
-// SubscriptionView mirrors the billing extension's GET /x/billing/account
-// (agentry-enterprise/schemas/x-billing.yaml). The route is the closed
-// build's, so it is read by hand rather than through the generated client.
+// SubscriptionView mirrors the billing extension's GET /x/billing/account.
+// The route is the closed build's, so it is read by hand rather than through
+// the generated client.
 type SubscriptionView struct {
 	Tier      string `json:"tier"`
 	Standing  string `json:"standing,omitempty"`
 	Unmetered bool   `json:"unmetered,omitempty"`
 	Seats     *Seats `json:"seats,omitempty"`
-	// MemberOf names the organization whose pool this person spends from
-	// (D22). When it is set, everything above is the organization's
-	// account and not this person's own.
+	// MemberOf names the organization whose pool this person spends from.
+	// When it is set, everything above is the organization's account and not
+	// this person's own.
 	MemberOf       string `json:"memberOf,omitempty"`
 	Balance        int64  `json:"balance"`
 	Allowance      int64  `json:"allowance"`
@@ -38,14 +37,13 @@ type SubscriptionView struct {
 	PeriodEnd      string `json:"periodEnd"`
 	PendingTier    string `json:"pendingTier,omitempty"`
 	// TierSince, Knowledge and Promo are what the Profile card reads beyond
-	// the account line (agentry-desktop#423); a registry from before each
-	// omits it.
+	// the account line; a registry from before each omits it.
 	TierSince     string `json:"tierSince,omitempty"`
 	PrivateAgents struct {
 		Max  int64 `json:"max"`
 		Used int64 `json:"used"`
-		// Enabled false means none may be added and Max says nothing;
-		// nil from a registry that predates it (agentry-enterprise#40).
+		// Enabled false means none may be added and Max says nothing; nil
+		// from a registry that predates it.
 		Enabled *bool `json:"enabled,omitempty"`
 	} `json:"privateAgents"`
 	Knowledge *KnowledgeAllocation `json:"knowledge,omitempty"`
@@ -53,13 +51,12 @@ type SubscriptionView struct {
 	// Upgrade is the registry's own answer about buying and managing:
 	// whether either is possible here and, in URL, the page to open — the
 	// organization's console for a member, the subscription page for a
-	// person (agentry-enterprise#41, D28). The app never derives it.
+	// person. The app never derives it.
 	Upgrade UpgradeRef `json:"upgrade"`
-	// Credit packs (plan credit-top-ups.md, D7; agentry-desktop#511), on a
-	// person's own view: how much of the balance is bought credits, the
-	// packs the registry offers this account, and a suspension for
-	// non-payment. A registry from before them omits all three, and the
-	// card is not drawn.
+	// Credit packs, on a person's own view: how much of the balance is
+	// bought credits, the packs the registry offers this account, and a
+	// suspension for non-payment. A registry from before them omits all
+	// three, and the card is not drawn.
 	Bought    int64          `json:"bought,omitempty"`
 	TopUp     *TopUpView     `json:"topUp,omitempty"`
 	Suspended *SuspendedView `json:"suspended,omitempty"`
@@ -86,25 +83,25 @@ type TopUpPack struct {
 	Currency    string `json:"currency"`
 }
 
-// SuspendedView is an account suspended for non-payment (D11): since when,
-// and what the balance is below zero by.
+// SuspendedView is an account suspended for non-payment: since when, and
+// what the balance is below zero by.
 type SuspendedView struct {
 	Since string `json:"since"`
 	Owed  int64  `json:"owed"`
 }
 
 // KnowledgeAllocation is the bytes of knowledge packs kept in Agentry
-// against the cap (agentry-enterprise#170): Enabled false means no pack
-// may be added or grown and Max says nothing; Max 0 is no cap.
+// against the cap: Enabled false means no pack may be added or grown and Max
+// says nothing; Max 0 is no cap.
 type KnowledgeAllocation struct {
 	Enabled bool  `json:"enabled"`
 	Bytes   int64 `json:"bytes"`
 	Max     int64 `json:"max"`
 }
 
-// PromoView is the promo trial on a person's own account
-// (agentry-enterprise#280): "running" with its code, the credits it
-// granted and when it ends, or "eligible" while a code may be redeemed.
+// PromoView is the promo trial on a person's own account: "running" with its
+// code, the credits it granted and when it ends, or "eligible" while a code
+// may be redeemed.
 type PromoView struct {
 	State       string `json:"state"`
 	Code        string `json:"code,omitempty"`
@@ -140,13 +137,12 @@ type AccountView struct {
 	SubscriptionError string `json:"subscriptionError,omitempty"`
 }
 
-// OpenUpgrade opens the page where this account's subscription is
-// managed. The destination is the registry's to name — the organization's
-// console for a member, the subscription page for a person — because it
-// turns on a membership only the registry knows; an app deriving it from
-// the registry URL would send every member to a page about an account
-// that does not pay for them (agentry-enterprise#41). So this reads the
-// account and opens what it answered.
+// OpenUpgrade opens the page where this account's subscription is managed.
+// The destination is the registry's to name — the organization's console for
+// a member, the subscription page for a person — because it turns on a
+// membership only the registry knows; an app deriving it from the registry
+// URL would send every member to a page about an account that does not pay
+// for them. So this reads the account and opens what it answered.
 //
 // The caller names a registry, never a destination: the app will not open
 // a URL the front end chose, and the one the registry named is opened
@@ -165,11 +161,10 @@ func (s *SettingsAPI) OpenUpgrade(url string) error {
 	return s.openExternal(page)
 }
 
-// OpenTopUp opens the site's Top up credits card for this account
-// (agentry-desktop#511, plan credit-top-ups.md D7): the app takes no
-// money, so Buy is the site's. As with OpenUpgrade, the caller names a
-// registry, never a destination; the registry names the card, and it is
-// opened only on that registry's own origin.
+// OpenTopUp opens the site's Top up credits card for this account: the app
+// takes no money, so Buy is the site's. As with OpenUpgrade, the caller
+// names a registry, never a destination; the registry names the card, and it
+// is opened only on that registry's own origin.
 func (s *SettingsAPI) OpenTopUp(url string) error {
 	url = settings.Normalize(url)
 	if err := settings.ValidateURL(url); err != nil {
@@ -264,9 +259,9 @@ func fetchSubscription(ctx context.Context, url, token string) (*SubscriptionVie
 }
 
 // fetchSubscriptionStrictly is fetchSubscription for a question that must
-// not guess: Submit's warning (agentry-desktop#425), where "charges no
-// credits" is a claim the person consents on. A registry whose extensions
-// cannot be read is an error, not a registry without billing.
+// not guess: Submit's warning, where "charges no credits" is a claim the
+// person consents on. A registry whose extensions cannot be read is an
+// error, not a registry without billing.
 func fetchSubscriptionStrictly(ctx context.Context, url, token string) (*SubscriptionView, error) {
 	return readSubscription(ctx, url, token, true)
 }

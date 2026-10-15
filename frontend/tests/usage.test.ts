@@ -1,4 +1,4 @@
-// How a job's use and terms read (agentry-desktop#457): In Agentry in
+// How a job's use and terms read: In Agentry in
 // credits, time and turns, with no token count and no rate; on this
 // computer in tokens, with no credit wording.
 import { test } from "node:test";

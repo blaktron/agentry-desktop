@@ -1,16 +1,15 @@
 // A chat with a QuickAgent, on this computer or In Agentry, followed above
-// the pages (agentry-desktop#467; plan desktop-review-key-and-run-cards.md
-// §5.3; D4), as a run is (RunFlow, HostedRunFlow): App mounts this, the run
+// the pages, as a run is (RunFlow, HostedRunFlow): App mounts this, the run
 // setup hands the chat over and closes, and App attaches a chat In Agentry
 // already under way when it starts, as its card. The dialog is the chat;
 // closing it, or Run in the background, shrinks it to a card in the corner
 // that says whether the QuickAgent is working or waiting for you, with its
 // turns, Open and Finish. Once the chat is over, the dialog is its result
-// (the result first, Run details beneath, D-035's rules), and Dismiss makes
+// (the result first, Run details beneath), and Dismiss makes
 // the app forget it.
 //
 // Every string the chat carries (the conversation, the log, the error, the
-// result) is drawn as text. One chat per app (D-017).
+// result) is drawn as text. One chat per app.
 import { useEffect, useRef, useState } from "react";
 import { headlineOf } from "../localRun";
 import { hostedHeadline, hostedTone, lostTouch } from "../hostedRun";

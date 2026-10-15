@@ -1,13 +1,11 @@
-// Publisher Earnings in the desktop (plan creator-monetization.md D10,
-// D13; agentry-desktop#613): the one line the In Agentry run setup carries
-// when a release's publisher earns a share of what runs of it spend, and
-// the ask to star someone else's QuickAgent once a hosted run or session
-// of it ended well. Both follow the site's rules (agentry-web#1087,
-// lib/earnings.ts): neither is for the reader's own QuickAgent or one of an
-// organization they are an active member of, whose runs earn nothing (D5);
-// the ask is gone once the QuickAgent is starred; and a read that does not
-// answer draws nothing, so neither is ever shown on a guess. The earnings
-// pages themselves are the site's.
+// Publisher Earnings in the desktop: the one line the In Agentry run setup
+// carries when a release's publisher earns a share of what runs of it spend,
+// and the ask to star someone else's QuickAgent once a hosted run or session
+// of it ended well. Both follow the site's rules: neither is for the
+// reader's own QuickAgent or one of an organization they are an active
+// member of, whose runs earn nothing; the ask is gone once the QuickAgent is
+// starred; and a read that does not answer draws nothing, so neither is ever
+// shown on a guess. The earnings pages themselves are the site's.
 package main
 
 import (
@@ -52,10 +50,10 @@ func publisherEarnsHere(ctx context.Context, reg, token, ref string, exts []stri
 }
 
 // publisherEarns is the program's public answer for a namespace (GET
-// /x/billing/earnings/publishers/{handle}, agentry-enterprise#393): true
-// while the program is on and the publisher has joined. It is asked with
-// no token, as it is public; false wherever it does not answer, including
-// a registry from before the program (404).
+// /x/billing/earnings/publishers/{handle}): true while the program is on and
+// the publisher has joined. It is asked with no token, as it is public;
+// false wherever it does not answer, including a registry from before the
+// program (404).
 func publisherEarns(ctx context.Context, reg, ns string) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		strings.TrimRight(reg, "/")+"/api/v1/x/billing/earnings/publishers/"+neturl.PathEscape(ns), nil)
@@ -110,14 +108,14 @@ type StarAskView struct {
 	Name string `json:"name,omitempty"`
 }
 
-// StarAsk reports whether the result of a hosted run or session of ref
-// asks the person to star the QuickAgent: it is not a built-in (a build, a
-// draft or a Voice Writer run, which the site does not ask about either),
-// not theirs or an organization's they are an active member of, and the
-// registry says they have not starred it. The panel asks only once the run
-// ended well (starAskWanted, frontend/src/earnings.ts). It asks the same
-// whether or not the publisher earns (D10). Nothing signed in, a ref that
-// is not one and any read that does not answer ask nothing.
+// StarAsk reports whether the result of a hosted run or session of ref asks
+// the person to star the QuickAgent: it is not a built-in (a build, a draft
+// or a Voice Writer run, which the site does not ask about either), not
+// theirs or an organization's they are an active member of, and the registry
+// says they have not starred it. The panel asks only once the run ended well
+// (starAskWanted, frontend/src/earnings.ts). It asks the same whether or not
+// the publisher earns. Nothing signed in, a ref that is not one and any read
+// that does not answer ask nothing.
 func (r *RunAPI) StarAsk(reg, ref string) (*StarAskView, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {

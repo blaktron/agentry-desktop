@@ -1,18 +1,16 @@
-// The Publisher section (plan forks-and-publisher.md §4.2, D12; M6,
-// agentry-desktop#705): the QuickAgents in the signed-in person's own
+// The Publisher section: the QuickAgents in the signed-in person's own
 // namespace and their organizations', searched and filtered as the site's
-// Publisher list does (agentry-web#1236), and the owner actions on them:
-// Make private, Make public, Retire, Restore and Delete. Each action is one
-// call to the core (agentry#942), which decides every rule (the
-// administrators' rung, the private-agent cap, DEV-115's unscanned
-// versions, a fork staying private, the typed name of a delete), and the
-// sign-in token reaches them through agent:manage (agentry#993, DEV-225).
-// A token minted before the grant carried it is refused, and the section
-// says to sign in again.
+// Publisher list does, and the owner actions on them: Make private, Make
+// public, Retire, Restore and Delete. Each action is one call to the core,
+// which decides every rule (the administrators' rung, the private-agent cap,
+// unscanned versions, a fork staying private, the typed name of a delete),
+// and the sign-in token reaches them through agent:manage. A token minted
+// before the grant carried it is refused, and the section says to sign in
+// again.
 //
-// Every action is asked again in a native dialog first (D-030: the page is
-// not a principal; D-070), and a refusal is said in the site's words
-// (agentry-web lib/publisher.ts), never as a status code alone.
+// Every action is asked again in a native dialog first (the page is not a
+// principal), and a refusal is said in the site's words, never as a status
+// code alone.
 package main
 
 import (
@@ -42,7 +40,7 @@ func (p *PublisherAPI) ctx() context.Context {
 }
 
 // The owner-action scopes: the sign-in grant's agent:manage, or a pasted
-// token's org:admin, which also admits them (DEV-225).
+// token's org:admin, which also admits them.
 var ownerActionScopes = []string{string(apiclient.AgentManage), string(apiclient.OrgAdmin)}
 
 // PublisherNamespace is a namespace whose QuickAgents the section lists:
@@ -66,7 +64,7 @@ type PublisherView struct {
 	ScopesKnown bool                 `json:"scopesKnown"`
 }
 
-// PublisherForkOrigin is what a fork was taken from (agentry#943).
+// PublisherForkOrigin is what a fork was taken from.
 type PublisherForkOrigin struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
@@ -90,10 +88,10 @@ type PublisherAgent struct {
 	LastSubmittedAt string `json:"lastSubmittedAt,omitempty"`
 }
 
-// PublisherQuery is the list's search, filters and sort, in the core's
-// terms (GET /agents?namespace=, agentry#942, #943). Visibility is not
-// the core's and is applied by the page. Anything unknown reads as no
-// filter, and the sort as newest, as the site reads a URL.
+// PublisherQuery is the list's search, filters and sort, in the core's terms
+// (GET /agents?namespace=). Visibility is not the core's and is applied by
+// the page. Anything unknown reads as no filter, and the sort as newest, as
+// the site reads a URL.
 type PublisherQuery struct {
 	Q     string `json:"q"`
 	State string `json:"state"` // "", "active", "retired"
@@ -133,9 +131,9 @@ func (p *PublisherAPI) Overview(reg string) (*PublisherView, error) {
 	return v, nil
 }
 
-// account is who is signed in to a registry: their handle and their
-// active memberships (a pending one holds nothing yet, agentry#361), with
-// the address and token they were read with.
+// account is who is signed in to a registry: their handle and their active
+// memberships (a pending one holds nothing yet), with the address and token
+// they were read with.
 type account struct {
 	url, token, handle string
 	orgs               []membership
@@ -330,8 +328,8 @@ var publisherActs = map[publisherAct]publisherWords{
 	},
 }
 
-// deleteQuestionNoVersions is Delete's question for a QuickAgent that has
-// no version, which the core deletes outright (plan §4.1).
+// deleteQuestionNoVersions is Delete's question for a QuickAgent that has no
+// version, which the core deletes outright.
 func deleteQuestionNoVersions(ref string) string {
 	return ref + " has no version, so it is deleted outright with its repository, and the name is free to use again. This cannot be undone."
 }

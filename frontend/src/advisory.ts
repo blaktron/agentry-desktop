@@ -1,8 +1,7 @@
-// An advisory on a declared MCP server, in words (agentry-desktop#459,
-// D-055): its own severity and CVSS score, and the registry gate's rating
-// where it differs, which is what a run weighs (agentry-cli#501). A High
-// the gate rates medium reads as both, never as "high" alone on a server
-// that runs.
+// An advisory on a declared MCP server, in words: its own severity and
+// CVSS score, and the registry gate's rating where it differs, which is
+// what a run weighs. A High advisory the gate rates medium reads as both,
+// never as "high" alone on a server that runs.
 
 export type AdvisoryLike = { severity: string; rating?: string; cvssScore?: number };
 

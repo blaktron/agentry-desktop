@@ -11,7 +11,7 @@ import (
 )
 
 // The registry's machine Path always holds System32; reading it is what
-// lets a relaunched app see what a new terminal sees (agentry-desktop#624).
+// lets a relaunched app see what a new terminal sees.
 func TestTheRegistrysPathIsRead(t *testing.T) {
 	sys := strings.ToLower(filepath.Join(os.Getenv("SystemRoot"), "System32"))
 	for _, d := range registryPath() {

@@ -33,7 +33,7 @@ function leaves(v: unknown, at = ""): string[] {
   return Object.entries(v).flatMap(([k, x]) => leaves(x, at ? `${at}.${k}` : k));
 }
 
-// D8: the editor changes the starting theme, the faces, the accent, the
+// The editor changes the starting theme, the faces, the accent, the
 // title block, the headings, the tables, the quotes, the footer and the
 // paper, and nothing else; with the name, that is every field of version 2
 // but the three a theme sets.
@@ -43,7 +43,7 @@ test("the editor's controls are exactly the fields of version 2 a person may cha
     assert.deepEqual(CONTROLS.map((c) => c.field), fields, id);
   }
   assert.deepEqual(THEME_FIELDS.filter((f) => !leaves(theme("plain")).includes(f)), []);
-  // A design with a logo (agentry#1025) has one field more, which no
+  // A design with a logo has one field more, which no
   // control sets and the save never sends: the logo is uploaded on its own.
   const withLogo = { ...theme("modern"), logo: { png: "iVBORw0KGgo=" } } as ReportDesign;
   const fields = leaves(withLogo).filter((f) => !THEME_FIELDS.includes(f) && f.split(".")[0] !== "logo");
@@ -53,7 +53,7 @@ test("the editor's controls are exactly the fields of version 2 a person may cha
   assert.equal(canonical(withLogo), canonical(theme("modern")));
 });
 
-// The logo is drawn only as a PNG data: URL (agentry-desktop#777): never a
+// The logo is drawn only as a PNG data: URL: never a
 // URL, another type, or anything that is not base64.
 test("the page draws a logo only from a PNG data: URL", () => {
   assert.equal(isLogoSrc("data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="), true);

@@ -1,12 +1,12 @@
-// The person's own AI Review key (plan builder-rework.md D25, #282): their
-// TypeSafe Jev key, which Describe it, on this computer scans with. It is
-// kept in the OS keychain beside the model key (RunAPI.StoreJevKey, the one
-// call that carries it), shown as saved and never as its value, and Test
-// key makes one small call and says TypeSafe's answer in plain words. The
-// card leads with the recommendation to get a key and the link to TypeSafe
-// (keyRecommendation.ts, #461), which every surface that offers the key
-// shares. The recommendation speaks of submitting, which needs no key, so
-// the paragraph beneath it says so.
+// The person's own AI Review key: their TypeSafe Jev key, which Describe
+// it, on this computer scans with. It is kept in the OS keychain beside
+// the model key (RunAPI.StoreJevKey, the one call that carries it), shown
+// as saved and never as its value, and Test key makes one small call and
+// says TypeSafe's answer in plain words. The card leads with the
+// recommendation to get a key and the link to TypeSafe
+// (keyRecommendation.ts), which every surface that offers the key shares.
+// The recommendation speaks of submitting, which needs no key, so the
+// paragraph beneath it says so.
 import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";

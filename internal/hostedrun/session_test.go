@@ -140,10 +140,10 @@ func (s *seen) handlers() SessionHandlers {
 
 // A session followed from its first event to its end: the state and each
 // frame in order, the registry's 30-minute `timeout` answered by a new
-// stream from the last frame's sequence number (plan D8), a frame the
-// client has already been given taken once only, the host's `dropped`
-// said, and `done` the end of it. The comments that keep a quiet stream
-// open are nothing.
+// stream from the last frame's sequence number, a frame the client has
+// already been given taken once only, the host's `dropped` said, and
+// `done` the end of it. The comments that keep a quiet stream open are
+// nothing.
 func TestFollowSessionResumesAfterTimeout(t *testing.T) {
 	running := `{"status":"running","startedAt":"2026-09-29T10:00:00Z","session":{"freeMinutes":10,"creditsPerMinute":50,"paidThrough":10,"timeCredits":0,"tokenCredits":0,"idleSeconds":300}}`
 	f := &fakeSession{streams: []fakeStream{

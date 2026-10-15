@@ -3,11 +3,10 @@ import { PROVIDERS, providerChoice, tileOffer } from "../modelSetup";
 import { tileAfterKey } from "../providerForm";
 import { ProviderLogo } from "../providerLogos";
 
-/** Model setup's provider choice (agentry-desktop#830): one tile per
+/** Model setup's provider choice: one tile per
  *  provider, two rows of four, each with its logo, its name and what it can
- *  be paid with, so every option shows before one is picked. It replaced a
- *  drop-down list and does what picking from it did: onPick resets the form
- *  below for the new provider.
+ *  be paid with, so every option shows before one is picked. onPick resets
+ *  the form below for the new provider.
  *
  *  The tiles are one radio group (role="radio", aria-checked): Tab reaches
  *  the chosen tile, or the first when none is, and the arrows, Home and End

@@ -1,8 +1,7 @@
 import type { main } from "../wailsjs/go/models";
 import type { KeyStanding } from "./keyRecommendation";
 
-// The first-run wizard's recap rules that are worth holding in a test
-// (agentry-desktop#462; plan desktop-review-key-and-run-cards.md D13): the
+// The first-run wizard's recap rules that are worth holding in a test: the
 // AI Review key's row on Done, what Browse's "Setup isn't finished" notice
 // lists after "I'll do it later", and what counts as a provider set up.
 // Pure, with type-only imports, so node's own test runner can load it: the
@@ -15,7 +14,7 @@ export type RecapRow = { ok: boolean; text: string; aside?: boolean };
 
 /** The AI Review key's row, or null when its status could not be read (a
  *  read that fails drops its line). It says where the key comes from and
- *  never what it is (D-040). */
+ *  never what it is. */
 export function keyRow(k: { standing: KeyStanding; envName: string } | null): RecapRow | null {
   if (!k) return null;
   switch (k.standing) {
@@ -45,10 +44,10 @@ export function providerRow(s: main.SetupStatusView | null): RecapRow {
   return { ok: false, text: "Provider defaults will be written on your first run" };
 }
 
-/** Nothing set up (plan desktop-installers.md D10): the person did none of
+/** Nothing set up: the person did none of
  *  the three things the wizard is for — a sign-in, a provider set up, a
  *  coding agent chosen. Docker being present is the machine's doing, and a
- *  saved AI Review key is a recommendation taken, so neither counts (D13);
+ *  saved AI Review key is a recommendation taken, so neither counts;
  *  nor does the policy the key's save wrote from defaults, nor a variable
  *  the shell happened to set. */
 export function nothingSetUp(v: { signedIn: boolean; setup: main.SetupStatusView | null; codingAgentChosen: boolean }): boolean {

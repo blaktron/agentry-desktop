@@ -1,17 +1,16 @@
 package hostedrun
 
 // The vault's two write routes, as a token carrying secret:write reaches
-// them (agentry-enterprise#251, DEV-165; plan hosted-credentials-vault.md
-// D12, D13): a run In Agentry of a release that declares a secret sets
-// each one the account does not keep, and deletes the ones it set when the
-// run does not start. The list is a signed-in session's alone, so nothing
-// here reads one; which names are missing is what run create's 409
-// secret-missing says.
+// them: a run In Agentry of a release that declares a secret sets each one
+// the account does not keep, and deletes the ones it set when the run does
+// not start. The list is a signed-in session's alone, so nothing here reads
+// one; which names are missing is what run create's 409 secret-missing
+// says.
 //
 // A value is sent once, in the body, and is in no URL, no header and no log
 // line; every text field of a refusal is scrubbed of an exact copy of it
-// before it is returned, should a registry echo the body (D-024's rule for
-// the model key).
+// before it is returned, should a registry echo the body (the same rule as
+// for a model key).
 
 import (
 	"bytes"
@@ -80,16 +79,15 @@ func (c *Client) DeleteSecret(ctx context.Context, name string) error {
 }
 
 // sourceHost is a host a key may be saved for, as the vault holds it:
-// lower-case LDH labels (agentry-enterprise#532).
+// lower-case LDH labels.
 var sourceHost = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
 // SetSourceKey saves value in the account's vault as the key for an input
-// source's host (agentry-enterprise#532): kept, used by a hosted run of the
-// account's for a source on that host it gives no token for, and by a
-// hosted schedule's fires. The host is the one the CLI's parse of a
-// source's answer reads, never one the page names. A key the account saved
-// from a signed-in session is refused (409 secret-kept): a token may not
-// replace it (DEV-165).
+// source's host: kept, used by a hosted run of the account's for a source
+// on that host it gives no token for, and by a hosted schedule's fires.
+// The host is the one the CLI's parse of a source's answer reads, never
+// one the page names. A key the account saved from a signed-in session is
+// refused (409 secret-kept): a token may not replace it.
 func (c *Client) SetSourceKey(ctx context.Context, host, value string) error {
 	if !sourceHost.MatchString(host) {
 		return fmt.Errorf("no key can be saved in Agentry for the host %q", host)

@@ -18,11 +18,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// Run defaults (plan settings-cards.md D2, D13; agentry-desktop#347): the
-// timeout and max turns in the runner policy the CLI shares, and where runs
-// go and the output folder in desktop.yaml, written only by Go. The saved
-// output folder is admitted at run time because Go reads it from its own
-// settings file, as an output folder only (D-044); no default is a consent.
+// Run defaults: the timeout and max turns in the runner policy the CLI
+// shares, and where runs go and the output folder in desktop.yaml, written
+// only by Go. The saved output folder is admitted at run time because Go
+// reads it from its own settings file, as an output folder only; no default
+// is a consent.
 
 // runDefaultsApp is an App whose directory picker answers dir, under a
 // settings file and a runner home of the test's own.
@@ -170,7 +170,7 @@ func TestNoDefaultIsAConsent(t *testing.T) {
 		t.Fatalf("dialogs raised = %d, want one per consent", asked)
 	}
 	// A vulnerable server's consent is no default either: with Unsafe Mode
-	// off it is refused outright (agentry-desktop#459, D-055).
+	// off it is refused outright.
 	if err := r.runGates("acme/x@1.0.0", nil, saved, false, true, false); err == nil || !strings.Contains(err.Error(), "only in Unsafe Mode") || asked != 2 {
 		t.Errorf("vulnerable MCP with every default saved: err = %v, dialogs %d, want the refusal and no dialog", err, asked)
 	}
@@ -222,8 +222,8 @@ func TestRunDefaultsReadTheBudgetsThePolicyHolds(t *testing.T) {
 func TestEachRunGetsItsOwnFolderInsideTheSavedOne(t *testing.T) {
 	// Every run shares the saved folder, so none is handed the folder
 	// itself: the agent's output mount is read-write, and one run must not
-	// see or change what another left (review of agentry-desktop#347). A
-	// folder picked for one run is that run's, as before.
+	// see or change what another left. A folder picked for one run is that
+	// run's.
 	saved := t.TempDir()
 	app, s := runDefaultsApp(t, saved)
 	if _, err := s.ChooseDefaultOutputDir(); err != nil {
@@ -265,10 +265,9 @@ func TestARunInAgentryLandsInItsOwnFolderInsideTheSavedOne(t *testing.T) {
 	}
 }
 
-// Run defaults' Chat idle timeout (agentry-desktop#468; plan
-// desktop-review-key-and-run-cards.md D21, D32): none by default, kept in
-// desktop.yaml and never in the runner policy the CLI's chats read, refused
-// outside none to a week with the file left as it was.
+// Run defaults' Chat idle timeout: none by default, kept in desktop.yaml and
+// never in the runner policy the CLI's chats read, refused outside none to a
+// week with the file left as it was.
 func TestTheChatIdleTimeoutIsKeptInDesktopYAML(t *testing.T) {
 	_, s := runDefaultsApp(t, "")
 	v, err := s.RunDefaults()
@@ -346,10 +345,9 @@ func TestTheNextChatTakesTheChatIdleTimeout(t *testing.T) {
 	}
 }
 
-// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
-// D-062; agentry-desktop#699, its addendum): on by default, written to
-// desktop.yaml by its own binding, read back in the view, and never in the
-// runner policy the CLI shares.
+// Run defaults' no-limit switch for the built-in agents: on by default,
+// written to desktop.yaml by its own binding, read back in the view, and
+// never in the runner policy the CLI shares.
 func TestTheBuiltinAgentsSwitchIsOnByDefaultAndSavedInDesktopYAMLOnly(t *testing.T) {
 	_, s := runDefaultsApp(t, "")
 	v, err := s.RunDefaults()

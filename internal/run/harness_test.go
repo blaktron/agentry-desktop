@@ -1,9 +1,9 @@
 package run
 
-// The Coding agent step's backend (agentry-desktop#89): the probe reads and
-// never creates the policy; choosing writes exactly harness.<name>.path and
-// leaves every other block alone; a harness that is not here is refused
-// with the vendor's page named; skipping (not calling) writes nothing.
+// The Coding agent step's backend: the probe reads and never creates the
+// policy; choosing writes exactly harness.<name>.path and leaves every
+// other block alone; a harness that is not here is refused with the
+// vendor's page named; skipping (not calling) writes nothing.
 
 import (
 	"context"
@@ -83,7 +83,7 @@ func TestChooseHarnessWritesThePathAndPreservesTheRest(t *testing.T) {
 	if got.Model.Provider != "custom" || got.Model.Name != "qwen" || got.Model.BaseURL != pol.Model.BaseURL || got.Exec.Packages["jq"] != "jq" || got.Model.APIKeyEnv != "OPENAI_API_KEY" {
 		t.Fatalf("other blocks changed: %+v", got)
 	}
-	// Only the env var NAME is in the file, never a key (plan §3).
+	// Only the env var NAME is in the file, never a key.
 	raw, _ := os.ReadFile(path)
 	if strings.Contains(string(raw), "sk-") || !strings.Contains(string(raw), "OPENAI_API_KEY") {
 		t.Fatalf("policy file: %s", raw)
@@ -175,11 +175,11 @@ func TestHarnessStatusSurfacesABrokenPolicy(t *testing.T) {
 	}
 }
 
-// TestForgetHarnessRemovesTheChoiceAndNothingElse (agentry-desktop#148):
-// Settings → Coding agents un-chooses a coding agent by removing its
-// harness.<name> entry, so the export the policy implies can change (a
-// chosen Claude Code outranks Codex); every other block stays, forgetting
-// what is not chosen is a no-op, and a missing policy is not created.
+// TestForgetHarnessRemovesTheChoiceAndNothingElse: Settings → Coding
+// agents un-chooses a coding agent by removing its harness.<name> entry,
+// so the export the policy implies can change (a chosen Claude Code
+// outranks Codex); every other block stays, forgetting what is not chosen
+// is a no-op, and a missing policy is not created.
 func TestForgetHarnessRemovesTheChoiceAndNothingElse(t *testing.T) {
 	isolateRunEnv(t)
 	path, _ := policy.DefaultPath()

@@ -1,5 +1,5 @@
-// The provider form's rules that are not React (agentry-desktop#724).
-// Pure, so node's own test runner can hold them without a browser.
+// The provider form's rules that are not React. Pure, so node's own test runner
+// can hold them without a browser.
 
 /** Whether provider takes a base URL: the custom provider alone; every
  *  other reaches its own endpoint. The form shows the field for it, and
@@ -12,12 +12,12 @@ export function takesBaseURL(provider: string): boolean {
  *  custom provider, "" for any other. The field keeps what was typed
  *  across a switch, so going back to custom finds it, but a known
  *  provider reaches its own endpoint, and ApplySetup refuses a URL for
- *  one (D-030). */
+ *  one. */
 export function baseURLFor(provider: string, baseURL: string): string {
   return takesBaseURL(provider) ? baseURL.trim() : "";
 }
 
-/** The tile a key moves the provider tiles to (agentry-desktop#830), or
+/** The tile a key moves the provider tiles to, or
  *  null for a key they leave alone. The tiles are one radio group, so the
  *  arrows walk them in order and wrap, as a radio group's do, whatever row
  *  a tile sits on; Home and End go to the ends. With no tile chosen (a

@@ -209,12 +209,11 @@ func runPlanOf(t *testing.T, res *Result) (spec.Plan, spec.SessionBudgets) {
 }
 
 // A chat the desktop starts has no idle timeout, no wall clock and no
-// count of the person's turns (agentry-desktop#468; plan
-// desktop-review-key-and-run-cards.md D21, D22): not the runner policy's
-// 900 s, 7,200 s and 200, and not the release's own 60 s idle hint; and
-// its receipt names no run timeout, which a session never applies. The
-// policy file, which the CLI's chats read, is not written; the tool-call
-// budget is still max turns, the one the setup names when it names one.
+// count of the person's turns: not the runner policy's 900 s, 7,200 s
+// and 200, and not the release's own 60 s idle hint; and its receipt
+// names no run timeout, which a session never applies. The policy file,
+// which the CLI's chats read, is not written; the tool-call budget is
+// still max turns, the one the setup names when it names one.
 func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 	regURL, _ := sessionFixtureFor(t, idleHintYAML)
 	polPath := filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml")
@@ -291,9 +290,8 @@ func TestAChatOnThisComputerHasNoLimitsByDefault(t *testing.T) {
 // Run defaults' Chat idle timeout is the one limit a chat here runs under
 // when it is set, in place of the release's own hint even when that is
 // shorter; an idle chat then ends with the engine's idle_timeout and its
-// receipt (agentry-desktop#468, D32). One second keeps the test short:
-// internal/run takes any seconds from 0, and only the setting holds the
-// person to whole minutes.
+// receipt. One second keeps the test short: internal/run takes any
+// seconds from 0, and only the setting holds the person to whole minutes.
 func TestAChatEndsAfterTheChosenIdleTimeout(t *testing.T) {
 	regURL, _ := sessionFixtureFor(t, idleHintYAML)
 	var log strings.Builder

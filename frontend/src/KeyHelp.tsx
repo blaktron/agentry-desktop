@@ -1,5 +1,5 @@
-// A release guide's help for a key (DEV-167; plan builder-simplify.md §4.4,
-// agentry-desktop#343) is markdown an author wrote for a person to read
+// A release guide's help for a key is markdown an author wrote for a
+// person to read
 // before a run, never the agent. It is drawn with AgentMarkdown's rules (no
 // raw HTML, no image, a link only to the system browser, invisible characters
 // shown), with each link's host beside it, and inside a frame captioned as

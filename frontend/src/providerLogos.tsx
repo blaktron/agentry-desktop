@@ -1,11 +1,10 @@
-// The providers' logos for model setup's provider tiles (agentry-desktop#830,
-// D-080). The operator chose each vendor's own logo, in its own colours, over
-// a drop-down of names (2026-10-11), amending model-sign-ins.md D24's "no
-// logo": shown side by side with their competitors' in a picker, the marks
-// say which provider a tile is, never that one endorses Agentry.
+// The providers' logos for model setup's provider tiles. Each tile shows the
+// vendor's own logo, in its own colours, rather than a drop-down of names:
+// shown side by side with their competitors' in a picker, the marks say which
+// provider a tile is, never that one endorses Agentry.
 //
 // The paths are copied, unchanged, from @lobehub/icons-static-svg 1.95.1
-// (npm, published 2026-09-21; MIT, Copyright (c) 2023 LobeHub, the licence
+// (npm; MIT, Copyright (c) 2023 LobeHub, the licence
 // in providerLogos-license/lobe-icons.MIT.txt): claude-color, openai,
 // githubcopilot, openrouter, poe-color, huggingface-color and gemini-color,
 // each on a 24×24 view box. The marks themselves are their owners' trademarks. Where a

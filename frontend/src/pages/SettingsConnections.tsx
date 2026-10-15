@@ -1,5 +1,4 @@
-// Settings → Connections (plan mcp-oauth-connections.md D17, D20, D23;
-// agentry-desktop#666): every connection kept on this computer, each for
+// Settings → Connections: every connection kept on this computer, each for
 // one QuickAgent version and one MCP server, with Disconnect, which removes
 // it and asks the vendor to revoke it where the vendor offers that; and the
 // person's own OAuth clients, one per vendor, with Forget. The CLI keeps the

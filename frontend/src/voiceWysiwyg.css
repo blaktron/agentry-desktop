@@ -1,4 +1,4 @@
-/* The Writing Voice's WYSIWYG editor (VoiceWysiwyg.tsx, agentry-desktop#612),
+/* The Writing Voice's WYSIWYG editor (VoiceWysiwyg.tsx),
    imported by the editor's view, so it ships in the editor's chunk and no
    other page loads it. Tiptap's injectCSS is off, so the window's policy
    (internal/webview) never sees a <style> element of Tiptap's: the rules it

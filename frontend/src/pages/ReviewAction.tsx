@@ -1,5 +1,4 @@
-// Review Your QuickAgents locally, the action (agentry-desktop#469; plan
-// desktop-review-key-and-run-cards.md §6.3, D19, D25, D28): offered on the
+// Review Your QuickAgents locally, the action: offered on the
 // Build tab's summary beside Submit and on Validate for a folder. It never
 // runs by itself, and holds nothing else on the page: Submit, Save, Install
 // and Validate are the same with or without it. A click goes to Go, which

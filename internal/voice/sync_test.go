@@ -6,9 +6,8 @@ import (
 )
 
 // Download Cloud version and Upload to Cloud judge newer and older with no
-// backend change (plan voice-page-redesign.md §8, D2; agentry-desktop#610):
-// equal digests are the same voice, otherwise this computer's updated stamp
-// against the account version's createdAt.
+// backend change: equal digests are the same voice, otherwise this
+// computer's updated stamp against the account version's createdAt.
 func TestSyncJudgesTheSameByDigestAndNewerByTheDates(t *testing.T) {
 	at := func(s string) time.Time {
 		v, err := time.Parse(time.RFC3339, s)

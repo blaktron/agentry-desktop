@@ -1,12 +1,11 @@
-// The Build tab's start page: two ways in (agentry-desktop#598, the
-// operator's request of 2026-10-04; DEV-201), the same two cards as the
-// site's /build (agentry-web#1050) with the same words. Describe it to AI
+// The Build tab's start page: two ways in, the same two cards as the
+// site's /build with the same words. Describe it to AI
 // opens Describe it; Build it by hand opens Step by step, and offers
 // Advanced beside it. Each card is pressable over its whole area: the
 // title's button covers the card (.build-way-main::after in style.css),
 // and the card's own Advanced button sits above that cover.
 //
-// The figures are the site's (agentry-web components/build-ways.tsx) in the
+// The figures are the site's in the
 // desktop's tokens: light lines with a spark running each, the site's
 // convergence language. They picture the card's own sentence and claim
 // nothing beyond it, so they are hidden from the accessibility tree. CSS
@@ -14,7 +13,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { CardFrame } from "../cards";
 
-// The operator's words, on both clients.
+// The tagline, on both clients.
 export const BUILD_TAGLINE = "Use our AI Powered QuickAgent Drafter or Build one to your exact requirements.";
 export const DESCRIBE_COPY =
   "Build a QuickAgent using the AI Drafter - just tell it what you want an agent to do and it will figure out what tools and servers it needs to do that job and build it out in the correct format.";
@@ -35,7 +34,7 @@ export function BuildWays({ onDescribe, onSteps, onAdvanced }: { onDescribe: () 
 }
 
 // WayCard is one way in, shared with the Voice and Knowledge pages' cards
-// (Voice.tsx, agentry-desktop#610; Knowledge.tsx): the card frame Home's
+// (Voice.tsx, Knowledge.tsx): the card frame Home's
 // cards use too (cards.tsx), with a figure and a sentence.
 export function WayCard({ title, blurb, figure, onOpen, children }: { title: string; blurb: string; figure: ReactNode; onOpen: () => void; children?: ReactNode }) {
   return <CardFrame title={title} blurb={blurb} figure={figure} onOpen={onOpen} foot={children} />;

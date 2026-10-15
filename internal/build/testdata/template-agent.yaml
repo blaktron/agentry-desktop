@@ -147,7 +147,7 @@ capabilities:
   # Semantic data categories touched, for review and audit:
   # email | calendar | files | tickets | code | messages | payments | other
   # dataAccess: [tickets]
-  # MCP servers this QuickAgent requires (RUNNER-PLAN-3): exactly one of
+  # MCP servers this QuickAgent requires: exactly one of
   # npm/pypi per entry, and an EXACT version — the pin is part of this
   # release, so a new version is a new supply-chain decision. The runner
   # installs them from the operator's trusted registries and loads them

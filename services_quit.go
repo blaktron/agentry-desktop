@@ -1,15 +1,13 @@
-// Quitting mid-run (agentry-desktop#125). A run's containers are torn down
-// by the engine when its Run or its session's End returns, deferred on the
-// binding's goroutine; if the app simply exits while that goroutine is
-// still inside the engine, the teardown never runs and the agent, gateway
-// (holding the Docker socket) and proxy containers outlive the app. So the
-// app keeps a record of the one run in flight, asks before a close would
-// cut it short, and on shutdown ends it and waits — bounded — for the
-// engine's teardown, then sweeps the run's label itself in case the wait
-// ran out (§9 "teardown on every path").
+// Quitting mid-run. A run's containers are torn down by the engine when its
+// Run or its session's End returns, deferred on the binding's goroutine; if
+// the app simply exits while that goroutine is still inside the engine, the
+// teardown never runs and the agent, gateway (holding the Docker socket) and
+// proxy containers outlive the app. So the app keeps a record of the one run
+// in flight, asks before a close would cut it short, and on shutdown ends it
+// and waits — bounded — for the engine's teardown, then sweeps the run's
+// label itself in case the wait ran out.
 //
-// The same sweep runs for what is not live (agentry-desktop#463, plan
-// desktop-review-key-and-run-cards.md §5.4): at start for every recorded run
+// The same sweep runs for what is not live: at start for every recorded run
 // whose owner is gone, and at quit for those and for the records this app
 // still holds, which are the run the quit's wait gave up on and a run that
 // ended with files its engine could not delete (settle). The rule it serves
@@ -46,15 +44,15 @@ type liveRun struct {
 	// Stop stops only its own kind.
 	kind jobKind
 	ref  string
-	// started is when the run began, for its history entry (D-068); folder
-	// is the folder a built-in's flow kept for it (keepFolder).
+	// started is when the run began, for its history entry; folder is the
+	// folder a built-in's flow kept for it (keepFolder).
 	started time.Time
 	folder  string
 	// registry is a run's or a chat's, for its history entry.
 	registry string
 	// turns are the run ids of the run's later turns: a draft's one repair
-	// turn runs under its own id (drafter.PostStep, #395), so the crash
-	// path records it and quitting sweeps it with the run's own.
+	// turn runs under its own id (drafter.PostStep), so the crash path
+	// records it and quitting sweeps it with the run's own.
 	turns []string
 	// cancel ends the run's engine context: an autonomous run returns and
 	// tears down; a session still starting stops starting. A session that
@@ -68,13 +66,13 @@ type liveRun struct {
 	// second call returns at once.
 	ending bool
 	// unsafe says the run is live in Unsafe Mode, and unsafeDone that it has
-	// ended, both under RunAPI.unsafeMu (setUnsafeLive; agentry-desktop#479).
+	// ended, both under RunAPI.unsafeMu (setUnsafeLive).
 	unsafe, unsafeDone bool
 	// release removes the opened copies of the knowledge packs attached to
 	// the run (nil when none was). endRun calls it before closing done,
-	// which quitting waits for, up to quitWait: a run that ends in that
-	// time leaves no opened copy in the store; one that does not leaves it
-	// for the store's own sweep, an hour on (DR-42), as a killed app does.
+	// which quitting waits for, up to quitWait: a run that ends in that time
+	// leaves no opened copy in the store; one that does not leaves it for
+	// the store's own sweep, an hour on, as a killed app does.
 	release func()
 }
 
@@ -89,10 +87,10 @@ func (r *RunAPI) beginRun(kind jobKind, ref string, cancel context.CancelFunc) (
 	r.liveMu.Lock()
 	r.live = l
 	r.liveMu.Unlock()
-	// The crash path's record (agentry-desktop#198): written before the
-	// engine creates anything, so a kill from here on leaves the next
-	// start a run id to sweep. Best effort: a run is not refused because
-	// the runner home is unwritable; the record is litter insurance.
+	// The crash path's record: written before the engine creates anything,
+	// so a kill from here on leaves the next start a run id to sweep. Best
+	// effort: a run is not refused because the runner home is unwritable;
+	// the record is litter insurance.
 	if dir, err := r.inFlight(); err == nil {
 		if err := run.RecordInFlight(dir, id); err != nil {
 			log.Printf("agentry-desktop: %v", err)
@@ -160,13 +158,12 @@ func (r *RunAPI) endRun(l *liveRun) {
 
 // settle is what becomes of a run's crash-path record once its engine has
 // returned, which it does only after its own teardown. What that teardown
-// could not delete under the runner home (a file Docker Desktop still
-// held, agentry-cli#422; a directory the run's tools left unwritable) is
-// tried once more here, and the record goes only when none of the run's
-// files are left; otherwise it stays, and quitting and the next start
-// sweep the run by it (agentry-desktop#463). Docker is not asked: a
-// container the engine's teardown could not remove is not seen here, as it
-// was not before.
+// could not delete under the runner home (a file Docker Desktop still held;
+// a directory the run's tools left unwritable) is tried once more here, and
+// the record goes only when none of the run's files are left; otherwise it
+// stays, and quitting and the next start sweep the run by it. Docker is not
+// asked: a container the engine's teardown could not remove is not seen
+// here, as it was not before.
 func (r *RunAPI) settle(id string) {
 	home, err := r.runnerHome()
 	if err != nil {
@@ -204,16 +201,14 @@ func (r *RunAPI) forgetInFlight(id string) {
 	}
 }
 
-// sweepOrphans is the start half of the crash path (agentry-desktop#198):
-// a run recorded by an app that died without tearing it down — killed,
-// crashed, the machine lost power — is swept by its run id, and its record
-// removed: its containers, volumes and networks, and its scratch directory
-// with the secrets file (agentry-desktop#463). Only records whose owning
-// process is gone from this machine are touched (run.SweepOrphaned; the
-// head of internal/run/inflight.go says what that judgement cannot see); a
-// second desktop's live run and
-// every CLI run carry other run ids. Called once, in its own goroutine,
-// from OnStartup.
+// sweepOrphans is the start half of the crash path: a run recorded by an app
+// that died without tearing it down — killed, crashed, the machine lost
+// power — is swept by its run id, and its record removed: its containers,
+// volumes and networks, and its scratch directory with the secrets file.
+// Only records whose owning process is gone from this machine are touched
+// (run.SweepOrphaned; the head of internal/run/inflight.go says what that
+// judgement cannot see); a second desktop's live run and every CLI run carry
+// other run ids. Called once, in its own goroutine, from OnStartup.
 func (r *RunAPI) sweepOrphans(ctx context.Context) []string {
 	dir, err := r.inFlight()
 	if err != nil {
@@ -243,9 +238,9 @@ func (r *RunAPI) current() *liveRun {
 // a dialog that cannot be shown — lets the close go ahead; the run is then
 // ended in shutdown, never left running.
 //
-// A session In Agentry is not stopped by quitting (agentry-desktop#403):
-// with no local run in flight, the dialog says it goes on until its idle
-// close, and that reopening its run picks the conversation up.
+// A session In Agentry is not stopped by quitting: with no local run in
+// flight, the dialog says it goes on until its idle close, and that
+// reopening its run picks the conversation up.
 func (r *RunAPI) beforeClose(ctx context.Context) (prevent bool) {
 	l := r.current()
 	if r.app == nil || r.app.confirm == nil {

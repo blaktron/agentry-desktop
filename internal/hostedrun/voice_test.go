@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// The Voice Writer In Agentry is offered by one rule (plan writing-voice.md
-// §6, D9, D17; agentry-desktop#510): absent signed out or where the registry
-// keeps no voices, and otherwise offered, chosen only when nothing stands in
-// the way, with Standard's spent cycle said with its date and the upgrade.
+// The Voice Writer In Agentry is offered by one rule: absent signed out or
+// where the registry keeps no voices, and otherwise offered, chosen only when
+// nothing stands in the way, with Standard's spent cycle said with its date and
+// the upgrade.
 func TestTheVoiceWriterInAgentryIsOfferedByOneRule(t *testing.T) {
 	next := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
 	scopes := []string{ScopeRunRead, ScopeRunWrite, ScopeVoiceRead, ScopeVoiceWrite}

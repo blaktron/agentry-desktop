@@ -9,24 +9,21 @@ import {
 } from "../reportDesign";
 import { ReportDesignPreview } from "./ReportDesignPreview";
 
-// Settings → Report design (plan report-designs.md §4 "The editor", D2, D8,
-// D10, D14, D17, D18; agentry-desktop#759, D-075): the site's editor in the
-// app, editing the same setting, the account's report design. The five
-// themes as thumbnails the runner's template drew; choosing one loads it
-// into the editor, whose controls are exactly the fields of version 2
-// (reportDesign.ts CONTROLS); beside them a live HTML likeness. The core's
-// pkg/reportdesign judges every state through CheckReportDesign: the
-// contrast guard refuses an accent the core would refuse and offers the
-// nearest passing shade (D17), and Save waits until the design passes. Save
-// stores it whole; Reset clears it, and runs from this app then use Plain,
-// as they do signed out. There is no form element, so Enter in a field
-// presses nothing (the site's thumbnails-as-submit trap cannot happen).
+// Settings → Report design: the site's editor in the app, editing the same
+// setting, the account's report design. The five themes as thumbnails the
+// runner's template drew; choosing one loads it into the editor, whose controls
+// are exactly the fields of version 2 (reportDesign.ts CONTROLS); beside them a
+// live HTML likeness. The core's pkg/reportdesign judges every state through
+// CheckReportDesign: the contrast guard refuses an accent the core would refuse
+// and offers the nearest passing shade, and Save waits until the design passes.
+// Save stores it whole; Reset clears it, and runs from this app then use Plain,
+// as they do signed out. There is no form element, so Enter in a field presses
+// nothing (the site's thumbnails-as-submit trap cannot happen).
 //
-// The logo (agentry#1025, agentry-desktop#777) has a part of its own: Choose
-// opens the system's file picker in Go and uploads what is picked, Remove
-// takes it off and keeps the design. Save never sends it, so the core keeps
-// it. The preview and the part draw it only as the PNG data: URL Go's view
-// built from the core's answer.
+// The logo has a part of its own: Choose opens the system's file picker in Go
+// and uploads what is picked, Remove takes it off and keeps the design. Save
+// never sends it, so the core keeps it. The preview and the part draw it only
+// as the PNG data: URL Go's view built from the core's answer.
 export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
   registry: string;
   signedIn: boolean;
@@ -333,7 +330,7 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
   );
 }
 
-// AccentLine is the contrast guard (D17): the accent's ratio on white and
+// AccentLine is the contrast guard: the accent's ratio on white and
 // what it needs, or the core's refusal with the nearest shade that passes.
 function AccentLine({ accent, check, onUse }: { accent: string; check: main.ReportDesignCheck; onUse: (shade: string) => void }) {
   const a = check.accent;

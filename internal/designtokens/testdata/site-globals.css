@@ -1,9 +1,8 @@
 /* A pasted copy of the site's design token table: agentry-web
-   app/globals.css at commit 2ba0cc2 (the last to touch it; agentry-web dev at e2b526e),
-   lines 1-211, byte for byte, the rest of the file (the component rules)
-   cut. internal/designtokens compares frontend/src/style.css against it
-   (agentry-desktop#49). Refresh: paste the same span again when the site's
-   table changes, and update the commit above. */
+   app/globals.css, lines 1-211, byte for byte, the rest of the file (the
+   component rules) cut. internal/designtokens compares
+   frontend/src/style.css against it. Refresh: paste the same span again
+   when the site's table changes. */
 
 @import "tailwindcss";
 

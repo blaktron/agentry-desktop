@@ -1,11 +1,11 @@
 package main
 
-// Review Your QuickAgents locally (agentry-desktop#469) through the bound
-// surface: a picked folder only; no key, no review and no dialog; the
-// native dialog before anything leaves this computer; the review a local
-// job under the run lock, stopped only by its own Stop; its staged copy on
-// the crash path's record while it runs; and a view that holds every
-// verdict word to the report's own and carries no key.
+// Review Your QuickAgents locally through the bound surface: a picked folder
+// only; no key, no review and no dialog; the native dialog before anything
+// leaves this computer; the review a local job under the run lock, stopped
+// only by its own Stop; its staged copy on the crash path's record while it
+// runs; and a view that holds every verdict word to the report's own and
+// carries no key.
 
 import (
 	"context"
@@ -297,10 +297,10 @@ func TestStopReviewStopsOnlyAReview(t *testing.T) {
 	}
 }
 
-// While the Examiner runs, the crash path's record names the review's
-// staged copy; when it returns, both are gone, and its folder is the run's.
-// Dismiss leaves it to the run history, which keeps the review (D8, D-068);
-// with Remember recent runs off, Dismiss forgets it as before.
+// While the Examiner runs, the crash path's record names the review's staged
+// copy; when it returns, both are gone, and its folder is the run's. Dismiss
+// leaves it to the run history, which keeps the review; with Remember recent
+// runs off, Dismiss forgets it.
 func TestAReviewsStagedCopyIsOnItsRecordAndGoesWithIt(t *testing.T) {
 	freshConfig(t)
 	f := newReviewFixture(t)

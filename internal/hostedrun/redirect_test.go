@@ -9,9 +9,9 @@ import (
 )
 
 // The runs client carries the account's token on clients of its own, so
-// they hold agentry-desktop#856's rule too: a registry that answers 307 to
-// another server gets the refusal on the JSON calls and on the output
-// download, and the other server sees nothing.
+// they hold the same rule: a registry that answers 307 to another
+// server gets the refusal on the JSON calls and on the output download,
+// and the other server sees nothing.
 func TestTheRunsClientNeverFollowsARedirect(t *testing.T) {
 	var elsewhere atomic.Int32
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

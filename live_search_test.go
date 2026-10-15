@@ -1,9 +1,8 @@
 package main
 
-// The runner's grep and glob in a local run live (agentry-desktop#877;
-// plan ripgrep-search.md M6): RunAgent driven as the run panel drives it,
-// against a real registry, this machine's docker and a real model, so a
-// desktop run carries the CLI's search tools (agentry-cli#912, first in
+// The runner's grep and glob in a local run live: RunAgent driven as the run
+// panel drives it, against a real registry, this machine's docker and a real
+// model, so a desktop run carries the CLI's search tools (first in
 // v0.6.114). Skipped unless AGENTRY_LIVE_SEARCH=1, because it pulls the
 // runner image and spends model tokens:
 //
@@ -68,7 +67,7 @@ func TestLiveSearchTools(t *testing.T) {
 		t.Logf("dialog: %s\n%s", title, message)
 		return true, nil
 	}}
-	app.markPicked(input, outRoot) // what the native pickers record (D-030)
+	app.markPicked(input, outRoot) // what the native pickers record
 	r := &RunAPI{app: app}
 
 	out := filepath.Join(outRoot, "search")

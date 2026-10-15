@@ -8,18 +8,17 @@ import {
   topUpOffer,
 } from "../subscription";
 
-// Settings → Profile (agentry-desktop#423): what the site's
-// /settings/profile shows in its Profile and Subscription cards, for the
-// active registry's stored credential, in the site's words. The landing
-// offers the card only while that registry holds a token. The app writes
-// the display name and nothing else: buying, the billing portal, cancelling
-// and deleting the account are the site's session's alone, so those open
-// the browser.
+// Settings → Profile: what the site's /settings/profile shows in its Profile
+// and Subscription cards, for the active registry's stored credential, in the
+// site's words. The landing offers the card only while that registry holds a
+// token. The app writes the display name and nothing else: buying, the billing
+// portal, cancelling and deleting the account are the site's session's alone,
+// so those open the browser.
 
 // The field's limit is the registry's (MaxDisplayName in the Go host).
 const MAX_DISPLAY_NAME = 100;
 
-// Never below zero: a suspended account's balance is (agentry-desktop#511),
+// Never below zero: a suspended account's balance is,
 // and "-40 submissions left" says nothing a person can act on.
 const submissionsLeft = (s: main.SubscriptionView) => (s.submissionCost > 0 ? Math.max(0, Math.floor(s.balance / s.submissionCost)) : 0);
 
@@ -124,8 +123,7 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
       const u = await SettingsAPI.SetDisplayName(registry, name);
       // A plain object, as every binding answers one: rebuilding the
       // generated class with createFrom threw "null is not a constructor" in
-      // the production bundle after a save the registry had taken
-      // (agentry-desktop#423's live check).
+      // the production bundle after a save the registry had taken.
       setProfile((cur) => (cur ? ({ ...cur, user: u } as main.ProfileView) : cur));
       setName(u.displayName ?? "");
       setSaved("Display name saved.");
@@ -180,9 +178,9 @@ function SubscriptionPart({ profile, registry, onError }: { profile: main.Profil
     return <Notice tone="warn">The subscription could not be read: {profile.subscriptionError} Open Settings again to retry.</Notice>;
   }
   const open = () => SettingsAPI.OpenUpgrade(registry).catch((e) => onError(String(e)));
-  // Buy, and the owed notice's link, open the site's Top up credits card:
-  // the app takes no money (plan credit-top-ups.md D7). The registry names
-  // the page and the Go side checks it is on the registry's own origin.
+  // Buy, and the owed notice's link, open the site's Top up credits card: the
+  // app takes no money. The registry names the page and the Go side checks it
+  // is on the registry's own origin.
   const openTopUp = () => SettingsAPI.OpenTopUp(registry).catch((e) => onError(String(e)));
   return sub.memberOf
     ? <MemberView sub={sub} runs={profile.hostedRuns} onOpen={open} />
@@ -269,8 +267,7 @@ function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView
   );
 }
 
-// TopUpCard is the site's Top up credits card (plan credit-top-ups.md
-// §4.4, D6, D7; agentry-desktop#511): each pack's base number struck
+// TopUpCard is the site's Top up credits card: each pack's base number struck
 // through and the credits it brings larger and bolder, its bonus, the
 // provider's price from the registry, and a Buy that opens the site's card
 // in the browser, where the purchase is made. A screen reader hears one

@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// launchdPath is what an app opened from Finder inherits; it is what the
-// signed v0.6.43 ran with on the Mac build host (agentry-desktop#573).
+// launchdPath is what an app opened from Finder inherits; it is what a
+// signed build runs with.
 const launchdPath = "/usr/bin:/bin:/usr/sbin:/sbin"
 
 // darwin is the macOS rule for a person whose home is home.

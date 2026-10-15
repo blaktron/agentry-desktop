@@ -179,7 +179,7 @@ func TestPrepareReadsThePersonsKeysAndSaysWhatSearchItHas(t *testing.T) {
 }
 
 // AI Review reads the description before anything else happens, and one it
-// does not pass stops the draft before the Drafter starts (plan D22).
+// does not pass stops the draft before the Drafter starts.
 func TestRunScansTheDescriptionFirstAndStopsOnOneItDidNotPass(t *testing.T) {
 	isolate(t)
 	saveKey(t)
@@ -258,9 +258,9 @@ func TestRunMakesADraftAndDecodesItIntoTheModel(t *testing.T) {
 	if !strings.HasPrefix(d.Notes, "The Drafter's own notes.\n\n## Withheld by AI Review") {
 		t.Fatalf("notes %q", d.Notes)
 	}
-	// The CLI's post-step (agentry-cli#478; #395): the package rendered and
-	// checked by validate's own code, then AI Review's check with the
-	// person's own key, of the person's own description.
+	// The CLI's post-step: the package rendered and checked by validate's
+	// own code, then AI Review's check with the person's own key, of the
+	// person's own description.
 	if !d.Passed() || d.IsRepaired() {
 		t.Fatalf("validation %s, manifestError %q", d.Validation, d.ManifestError)
 	}
@@ -313,14 +313,13 @@ var refused = strings.Replace(strings.Replace(strings.Replace(answer,
 var repaired = `{"manifest": ` + answer[strings.Index(answer, "{\"schemaVersion\""):strings.Index(answer, `,
   "matches"`)] + `, "matches": [], "sources": [], "openQuestions": []}`
 
-// TestARefusedDraftGetsOneRepairTurnGivenTheRulesReportAlone (#395; plan
-// builder-simplify.md §3, §5.2 step 3): a draft on this computer the rules
-// still refuse gets the CLI's one repair turn, as `agentry draft` gives it:
-// the Drafter again, without its web tools and with no web configuration, so
-// no key reaches it, whose task is the rules' report and its own manifest
-// and instructions and nothing else, not the description, a hint, the notes,
-// a match, a source, an open question or a withheld address. The second
-// answer is validated and checked again, and kept.
+// TestARefusedDraftGetsOneRepairTurnGivenTheRulesReportAlone: a draft on this
+// computer the rules still refuse gets the CLI's one repair turn, as `agentry
+// draft` gives it: the Drafter again, without its web tools and with no web
+// configuration, so no key reaches it, whose task is the rules' report and its
+// own manifest and instructions and nothing else, not the description, a hint,
+// the notes, a match, a source, an open question or a withheld address. The
+// second answer is validated and checked again, and kept.
 func TestARefusedDraftGetsOneRepairTurnGivenTheRulesReportAlone(t *testing.T) {
 	isolate(t)
 	saveKey(t)
@@ -489,7 +488,7 @@ func TestStatusReadsNoKey(t *testing.T) {
 }
 
 // The search line names each provider the policy admits as a person knows
-// it, from the CLI's ProviderName (#301), in both states that name one.
+// it, from the CLI's ProviderName, in both states that name one.
 func TestTheSearchSentenceNamesEveryProvider(t *testing.T) {
 	for name, label := range map[string]string{"brave": "Brave", "tavily": "Tavily", "exa": "Exa", "perplexity": "Perplexity", "youcom": "You.com"} {
 		pol := policy.Default()
@@ -503,12 +502,11 @@ func TestTheSearchSentenceNamesEveryProvider(t *testing.T) {
 	}
 }
 
-// A draft reports its progress (agentry-desktop#410), as a knowledge build
-// does: the draft's budgets and start at once, then each stage as it
-// begins — AI Review of the description, the Drafter's turn, AI Review's
-// check of what it answered, the one repair turn and the check after it —
-// and the harness's usage as it arrives, the repair turn's counting on from
-// the first turn's.
+// A draft reports its progress, as a knowledge build does: the draft's
+// budgets and start at once, then each stage as it begins — AI Review of
+// the description, the Drafter's turn, AI Review's check of what it
+// answered, the one repair turn and the check after it — and the harness's
+// usage as it arrives, the repair turn's counting on from the first turn's.
 func TestARunReportsItsProgress(t *testing.T) {
 	isolate(t)
 	saveKey(t)
@@ -547,8 +545,8 @@ func TestARunReportsItsProgress(t *testing.T) {
 	var stages []Stage
 	for i, g := range got {
 		// The policy says 900 seconds and 40 turns; a draft on this
-		// computer is shown no time or turn limit by default
-		// (agentry-desktop#699).
+		// computer is shown no time or turn limit by
+		// default.
 		if g.StartedAt == 0 || g.StartedAt != got[0].StartedAt || g.TimeoutSeconds != 0 || g.MaxTurns != 0 {
 			t.Fatalf("report %d = %+v", i, g)
 		}
@@ -566,13 +564,12 @@ func TestARunReportsItsProgress(t *testing.T) {
 	}
 }
 
-// TestADraftOnThisComputerGetsAtLeastThirtyMinutes (plan scan-and-run-tweaks.md
-// §6.1, D14; agentry-desktop#458, the CLI's DR-54): the Drafter's run is given the
-// longer of the runner policy's timeout and 1,800 seconds, the CLI's own
+// TestADraftOnThisComputerGetsAtLeastThirtyMinutes: the Drafter's run is given
+// the longer of the runner policy's timeout and 1,800 seconds, the CLI's own
 // floor, where it took the policy's 900 before. With Run defaults' no-limit
 // switch off, as here, the turn and cost caps stay the policy's, no budget
-// counts tokens, and the repair turn keeps its own bound inside what the
-// draft has left.
+// counts tokens, and the repair turn keeps its own bound inside what the draft
+// has left.
 func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -631,8 +628,7 @@ func TestADraftOnThisComputerGetsAtLeastThirtyMinutes(t *testing.T) {
 
 // A draft's progress event is one flat object: the shared report's fields
 // and the stage, in this order, which is what the page reads
-// (build:draft-progress; the shared fields live in internal/progress since
-// agentry-desktop#464, and the object did not change).
+// (build:draft-progress; the shared fields live in internal/progress).
 func TestADraftsProgressIsOneFlatObjectWithItsStage(t *testing.T) {
 	p := Progress{Report: progress.Report{StartedAt: 1, TimeoutSeconds: 2, MaxTurns: 3, Turns: 4, InputTokens: 5, OutputTokens: 6}, Stage: StageRepair}
 	b, err := json.Marshal(p)
@@ -645,12 +641,11 @@ func TestADraftsProgressIsOneFlatObjectWithItsStage(t *testing.T) {
 	}
 }
 
-// A draft with a pack kept on this computer (agentry-desktop#497; plan
-// knowledge-and-drafter.md K4, D3, D14): the task names the pack; AI Review
-// reads every file of a pack not scanned in Agentry with the person's key,
-// after the description and before the Drafter starts; a file it flags is
-// withheld from the copy the Drafter is given, which the run mounts; and the
-// draft records the pack, how it was scanned and what was withheld, as
+// A draft with a pack kept on this computer: the task names the pack; AI
+// Review reads every file of a pack not scanned in Agentry with the person's
+// key, after the description and before the Drafter starts; a file it flags
+// is withheld from the copy the Drafter is given, which the run mounts; and
+// the draft records the pack, how it was scanned and what was withheld, as
 // `agentry draft --knowledge` does.
 func TestADraftScansAnUnscannedPackFirstAndHandsTheDrafterTheRest(t *testing.T) {
 	isolate(t)
@@ -715,11 +710,11 @@ func (f scannerFunc) Scan(ctx context.Context, src webscan.Source, text string) 
 	return f(ctx, src, text)
 }
 
-// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
-// D-062; on by default since agentry-desktop#699): the Drafter runs on this
-// computer with no timeout and runs to the hidden failsafe of 200 turns,
-// and its progress dialog is told no limit at all. The cost cap stays the
-// policy's; repair inherits no timeout and only the remaining turns and cost.
+// Run defaults' no-limit switch for the built-in agents (on by default): the
+// Drafter runs on this computer with no timeout and runs to the hidden failsafe
+// of 200 turns, and its progress dialog is told no limit at all. The cost cap
+// stays the policy's; repair inherits no timeout and only the remaining turns
+// and cost.
 func TestByDefaultADraftHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 	isolate(t)
 	saveKey(t)

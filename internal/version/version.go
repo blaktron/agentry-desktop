@@ -31,14 +31,14 @@ var (
 // it was built from. An unstamped build (0.0.0-dev) or a dirty one
 // (describe's -dirty suffix, which the Makefile's VERSION carries) keeps
 // the same version across code changes, so it would reuse the plans an
-// older build compiled (agentry-desktop#218). Its name adds a digest of the
-// running executable instead: another binary is another build, and the
-// same binary is the same build. Computed once per process.
+// older build compiled. Its name adds a digest of the running executable
+// instead: another binary is another build, and the same binary is the same
+// build. Computed once per process.
 //
-// A copy of the CLI's internal/version.Build (agentry-cli#144, #254): the
-// CLI's internal package is not importable, and the two must spell the
-// identity the same way — <version>+exe.<16 hex> — so a plan's CompiledBy
-// reads alike whichever client wrote it.
+// A copy of the CLI's internal/version.Build: the CLI's internal package
+// is not importable, and the two must spell the identity the same way —
+// <version>+exe.<16 hex> — so a plan's CompiledBy reads alike whichever
+// client wrote it.
 func Build() string {
 	buildOnce.Do(func() { build = buildID(Version, os.Executable) })
 	return build

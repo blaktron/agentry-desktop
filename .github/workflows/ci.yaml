@@ -4,22 +4,21 @@
 # needed, they compile the app library, not the platform bundle. Two jobs
 # build a platform package: `windows` cross-builds the Windows target and
 # its per-user installer on the Linux runner (a broken Windows build fails
-# the gate, desktop#53/#83), and `macos` builds the universal bundle on the
+# the gate), and `macos` builds the universal bundle on the
 # Mac. `gitleaks` scans the commits every event brings for secrets. Every
 # job carries the fork guard (below), and every action is pinned to a commit
-# SHA (agentry-desktop#128).
+# SHA.
 name: ci
 on:
   push:
-    # dev is the integration branch; main is production (WORKFLOW.md
-    # "Branches", 2026-09-22).
+    # dev is the integration branch; main is production.
     branches: [main, dev]
   pull_request:
 
 permissions:
   contents: read
 
-# The CI tools' versions, in one place (agentry-desktop#128): no step installs
+# The CI tools' versions, in one place: no step installs
 # anything unpinned, and scripts/pins-check.sh (the daily pins workflow)
 # reads these lines to report newer releases. The wails CLI is pinned by
 # go.mod instead (`go list -m`). GITLEAKS_SHA256 is the checksum of
@@ -39,14 +38,12 @@ concurrency:
 
 # Every job carries the fork guard
 #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-# (agentry-desktop#128; the estate's shape, agentry#419). This repository goes
-# public at the 1.0 flip, and every job here runs on a persistent self-hosted
-# runner (the Linux containers share one module cache with the release
-# builders; the macOS job runs on the estate's Mac). A pull request from a
-# fork would otherwise execute its own `run:` steps there. The guard lives in
-# the file, where a diff shows it; the repository setting "Require approval
-# for all external contributors" stays on as belt-and-braces (PUBLIC-FLIP.md
-# item 5). A fork's pull request shows these jobs as skipped; a maintainer
+# This repository is public, and every job here runs on a persistent
+# self-hosted runner (the Linux containers share one module cache with the
+# release builders; the macOS job runs on a Mac). A pull request from a fork
+# would otherwise execute its own `run:` steps there. The guard lives in the
+# file, where a diff shows it; the repository setting "Require approval for
+# all external contributors" stays on as belt-and-braces. A fork's pull request shows these jobs as skipped; a maintainer
 # who wants it built pushes its commits to a branch here.
 jobs:
   check:
@@ -63,12 +60,12 @@ jobs:
           go-version-file: go.mod
           # The runner shares one persistent host module cache with every other
           # runner; restoring the Actions cache over it is slow and left partial
-          # modules that broke `go mod verify` in the core (agentry#225).
+          # modules that broke `go mod verify`.
           cache: false
       # The blaktron modules are private. The rewrite that carries the token
       # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs (desktop#92; the release
-      # workflow has done this since #93).
+      # persists in the runner's home between jobs (the release workflow does
+      # the same).
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
@@ -82,17 +79,17 @@ jobs:
           node-version: 22
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
-          # on the host instead (agentry-desktop#209).
+          # on the host instead.
           package-manager-cache: false
       # main.go embeds frontend/dist, so every Go tool — including the lint
       # typecheck below — needs the bundle built first on a fresh tree.
       # The design harness is type-checked with the app, so a page's props
-      # cannot drift from the states that render it (agentry-desktop#485).
+      # cannot drift from the states that render it.
       - name: Build the embedded frontend bundle
         run: cd frontend && npm ci --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build
-      # The frontend's pure modules under node's own test runner
-      # (agentry-desktop#415): no browser. The voice editor's test runs a
-      # real Tiptap editor on jsdom, a dev dependency (agentry-desktop#612).
+      # The frontend's pure modules under node's own test runner: no browser.
+      # The voice editor's test runs a real Tiptap editor on jsdom, a dev
+      # dependency.
       - name: Frontend unit tests
         run: cd frontend && npm test
       - name: golangci-lint
@@ -102,37 +99,35 @@ jobs:
           # The action's default saves ~/.cache/golangci-lint to GitHub's
           # Actions cache and restores it on top of what the persistent runner
           # container already keeps there; the runners keep their caches on the
-          # host, not in GitHub's store (agentry#225, desktop#225). golangci-lint
+          # host, not in GitHub's store. golangci-lint
           # falls back to its own ~/.cache/golangci-lint in the container.
           skip-cache: true
       - name: make check
         run: make check
       # A release from main bakes production's registry, one from dev bakes
-      # dev's, and no other commit is a release (agentry-desktop#183, the
-      # CLI's agentry-cli#240): scripts/release-registry.sh against a
-      # throwaway origin with the estate's branch model.
+      # dev's, and no other commit is a release: scripts/release-registry.sh
+      # against a throwaway origin with the repository's branch model.
       - name: release registry by branch
         run: scripts/acceptance/release-registry.sh
       # A tag's form must agree with the line its commit is on (vX.Y.Z on
       # main's, vX.Y.Z-dev.N on dev's), 1.x waits for AGENTRY_ALLOW_V1, and
-      # the next tag follows the scheme (agentry-desktop#279; the CLI's
-      # script and test, agentry-cli#327).
+      # the next tag follows the scheme.
       - name: release tags by branch
         run: scripts/acceptance/release-tag.sh
-      # The honest posture, as a check (plan hosted-runs.md §3): the app
-      # says what ran and what was enforced, never "safe" or "secure".
+      # The honest posture, as a check: the app says what ran and what was
+      # enforced, never "safe" or "secure".
       # `make check` runs it too; it is its own step so a copy failure is
       # obvious in the checks list.
       - name: desktop copy check
         run: ./scripts/copy-check.sh --self-test && ./scripts/copy-check.sh
-      # No client takes money (plan subscription-tiers.md D12): the app shows
-      # a tier and a balance and opens the site to upgrade.
+      # No client takes money: the app shows a tier and a balance and opens the
+      # site to upgrade.
       - name: no payment provider in the app
         run: |
           if grep -rIi -n 'stripe' --include='*.go' --include='*.ts' --include='*.tsx' --exclude-dir=vendor --exclude-dir=node_modules --exclude-dir=dist . ; then echo "::error::a payment provider reached the desktop"; exit 1; fi
       # Generated code is regenerated, never hand-edited, and a stale copy
-      # is a build that fails somewhere else (the Mac's wails build
-      # regenerated models.ts and could not type-check it, desktop#97). The
+      # is a build that fails somewhere else (a macOS wails build that
+      # regenerated models.ts could not type-check it). The
       # wails CLI at the version go.mod pins regenerates here; any modified
       # or new file under the bindings tree is the failure. Last, because it
       # rewrites the tree.
@@ -150,7 +145,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/gitconfig"
 
   # The Windows target and its per-user installer, cross-built on the Linux
-  # runner the way the release workflow does it (desktop#83, absorbing #53):
+  # runner the way the release workflow does it:
   # a change that breaks the Windows build, or the installer, turns this
   # red. makensis and 7z come from Ubuntu's packages; the runner container
   # runs as root and keeps them until it is recreated, so the install is a
@@ -158,9 +153,9 @@ jobs:
   # scripts/check-windows-installer.sh reads the installer back — asInvoker,
   # two installed files, the same binary as the zip — which is as far as
   # Linux can check a Windows package; the install-over-install check is by
-  # hand until #55 gives CI a Windows machine. A failed build's package is
+  # hand (scripts/acceptance/windows-install.ps1). A failed build's package is
   # kept for a week on the runner host that built it, not in GitHub's
-  # artifact storage (scripts/ci-keep-build.sh, agentry-desktop#188); a
+  # artifact storage (scripts/ci-keep-build.sh); a
   # Windows build to try comes from a release dry run.
   windows:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -173,7 +168,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-          # Shared persistent host module cache; see check (agentry#225).
+          # Shared persistent host module cache; see check.
           cache: false
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
@@ -188,7 +183,7 @@ jobs:
           node-version: 22
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
-          # on the host instead (agentry-desktop#209).
+          # on the host instead.
           package-manager-cache: false
       - name: makensis, 7z, osslsigncode and openssl from Ubuntu's packages
         run: |
@@ -209,7 +204,7 @@ jobs:
         run: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet ./...
       - name: Windows amd64 package and per-user installer (unsigned)
         run: PATH="$HOME/go/bin:$PATH" make package-windows WAILS_FLAGS='-m -s -skipbindings'
-      # The release signs (agentry-desktop#54); a PR proves the seam with a
+      # The release signs; a PR proves the seam with a
       # throwaway CA instead of the key: the NSIS hooks sign the installer
       # and the uninstaller, the exe signed before makensis is the one
       # embedded, a failing signer fails the build, and the --signed check
@@ -229,9 +224,8 @@ jobs:
             exit 1
           fi
       # No upload-artifact: GitHub's artifact storage is metered per account,
-      # and PR builds filled it on 2026-09-24 (agentry-desktop#187, #188). A
-      # failed build's installer and zip stay on this runner host for 7 days;
-      # the step names the host and the path.
+      # and PR builds can fill it. A failed build's installer and zip stay on
+      # this runner host for 7 days; the step names the host and the path.
       - name: Keep a failed build on the runner host
         if: always()
         env:
@@ -253,12 +247,12 @@ jobs:
           go-version-file: go.mod
           # The runner shares one persistent host module cache with every other
           # runner; restoring the Actions cache over it is slow and left partial
-          # modules that broke `go mod verify` in the core (agentry#225).
+          # modules that broke `go mod verify`.
           cache: false
       # The blaktron modules are private. The rewrite that carries the token
       # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs (desktop#92; the release
-      # workflow has done this since #93).
+      # persists in the runner's home between jobs (the release workflow does
+      # the same).
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
@@ -272,7 +266,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
 
-  # Secret scanning (agentry-desktop#128): gitleaks over the commits this
+  # Secret scanning: gitleaks over the commits this
   # event brings — a pull request's own range, or a push's before..after —
   # with the repository's .gitleaks.toml, failing on any hit. The binary is
   # the release tarball at the pinned version, checked against the pinned
@@ -316,18 +310,16 @@ jobs:
           "$RUNNER_TEMP/gitleaks/gitleaks" detect --source . --config .gitleaks.toml \
             --redact --no-banner --exit-code 1 --log-opts="$range"
 
-  # The one target that cannot be cross-built (agentry-desktop#57): the
-  # universal bundle is built on the estate's Mac, the Go tests run natively,
-  # the Keychain path is exercised, and the built app is launched when the
-  # runner's user has a console session. A required check since
-  # agentry-desktop#109: it carries the dmg read-back and the
+  # The one target that cannot be cross-built: the universal bundle is built
+  # on a Mac, the Go tests run natively, the Keychain path is exercised, and
+  # the built app is launched when the runner's user has a console session.
+  # It is a required check: it carries the dmg read-back and the
   # install-over-install smoke that gate a release (release.yaml's macos job),
   # so a change that breaks them must not merge on a green gate. The launch
   # smoke needs a console session and reports itself skipped without one;
   # the Keychain round trip runs against a throwaway default keychain the job
-  # makes and removes (agentry-desktop#106), so it runs everywhere. The Mac being
-  # offline leaves this job queued, so the run never concludes and the gate
-  # ends in CI TIMEOUT, never CI GREEN and never CI NOT GREEN.
+  # makes and removes, so it runs everywhere. With the Mac offline this job
+  # stays queued and the run never concludes.
   macos:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, macOS, ARM64]
@@ -335,7 +327,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # A persistent host: the job token must not stay in .git/config
-          # after the job (agentry-desktop#127). Nothing here fetches with it;
+          # after the job. Nothing here fetches with it;
           # the private modules go through the job-scoped rewrite below.
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -347,7 +339,7 @@ jobs:
           node-version: 22
           # setup-node v5+ caches through GitHub's store on its own when
           # package.json names a package manager; the runners keep npm's cache
-          # on the host instead (agentry-desktop#209).
+          # on the host instead.
           package-manager-cache: false
       # A persistent, non-container runner: caches live in stable places under
       # the runner user's home rather than accumulating per job, and nothing
@@ -375,7 +367,7 @@ jobs:
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       # -skipbindings: the checked-in bindings are what the check job
       # type-checks and the drift step keeps current; a build never
-      # regenerates them (desktop#97). -m: skip wails' own go mod tidy.
+      # regenerates them. -m: skip wails' own go mod tidy.
       # Derived once and passed to every step below, the way the release
       # workflow derives it once in preflight and for the same reason: a wails
       # build rewrites tracked files (frontend/package.json.md5 and the
@@ -397,10 +389,10 @@ jobs:
       # already there leaves the settings, the installed agents, the pinned
       # key, the runner policy and a keychain item byte-identical, and the
       # bundle installed from the image launches where a console session
-      # allows it (agentry-desktop#85, plan §8).
+      # allows it.
       - name: Install-over-install smoke of the dmg
         run: make smoke-darwin-dmg VERSION="$VERSION"
-      # The bundle swap and what survives it (agentry-desktop#88).
+      # The bundle swap and what survives it.
       - name: Self-update bundle-swap acceptance
         run: make smoke-darwin-selfupdate VERSION="$VERSION"
       # frontend/dist exists after the wails build, so the Go tools run on the
@@ -410,7 +402,7 @@ jobs:
       # go-keyring (v0.2.8) runs /usr/bin/security with no keychain named, so
       # it writes to the user's DEFAULT keychain and reads through the search
       # list. The runner's user has no console session and so has neither
-      # (security's exit 152, agentry-desktop#106). The job gives it both for
+      # (security's exit 152). The job gives it both for
       # the length of the round trip: a throwaway keychain in RUNNER_TEMP, with
       # a random password that lives only in this step, holding nothing but
       # the test's own item. Both settings live in the user's
@@ -478,7 +470,7 @@ jobs:
           else
             wait "$pid"; ec=$?; echo "agentry-desktop exited with $ec before 5 s"; tail -20 smoke.log; exit 1
           fi
-      # No upload-artifact (agentry-desktop#187, #188): a smoke that goes red
+      # No upload-artifact: a smoke that goes red
       # is exactly when someone wants the image to look at, so a failed job's
       # zip and dmg stay on the Mac for 7 days, in ~/runner-artifacts of the
       # runner's user; the step names the path. A green build keeps nothing.

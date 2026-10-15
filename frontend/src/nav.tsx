@@ -1,17 +1,15 @@
 import { Fragment } from "react";
 
 // The sidebar's pages, one list shared by the app and the design harness so
-// the harness shows the navigation the app has (agentry-desktop#422).
+// the harness shows the navigation the app has.
 //
 // Validate is a sub-item of Build, shown only while the person is in Build
 // or on Validate, and Build stays lit on both: the site's sub-menu
-// convention, where a section's children show only inside it
-// (panel-redesign D7). Browse is a sub-item of Library the same way
-// (plan desktop-home-and-library.md D3; agentry-desktop#657).
+// convention, where a section's children show only inside it. Browse is a
+// sub-item of Library the same way.
 //
-// Publisher (plan forks-and-publisher.md D12; agentry-desktop#705) is shown
-// only while the active registry is signed in: what it lists is the
-// signed-in person's own.
+// Publisher is shown only while the active registry is signed in: what it
+// lists is the signed-in person's own.
 
 // The pages a sidebar item can open or stay lit on: App's Route["page"],
 // spelled out here because App imports this file.
@@ -21,18 +19,17 @@ export type NavPage = "home" | "scheduled" | "run" | "library" | "browse" | "age
 type Item = { label: string; page: NavPage; also?: NavPage[]; sub?: Item[]; needsSignIn?: boolean };
 
 const ITEMS: Item[] = [
-  // The page the app opens on (plan desktop-home-and-library.md D2).
+  // The page the app opens on.
   // A run page is opened from Home's Recent runs, so Home stays lit on it.
   { label: "Home", page: "home", also: ["run"] },
-  // Runs on this computer for later or on repeat (plan
-  // quickagent-scheduling.md §7, D11; agentry-desktop#743).
+  // Runs on this computer for later or on repeat.
   { label: "Scheduled", page: "scheduled" },
   // The QuickAgents installed on this computer, with Browse beneath it for
   // finding more. An agent's page is reached from either, so Library stays
   // lit on it.
   { label: "Library", page: "library", also: ["agent"], sub: [{ label: "Browse", page: "browse" }] },
   { label: "Knowledge", page: "knowledge" },
-  // The Writing Voice (plan writing-voice.md §8; agentry-desktop#510).
+  // The Writing Voice.
   { label: "Voice", page: "voice" },
   { label: "Build", page: "build", sub: [{ label: "Validate", page: "validate" }] },
   // The QuickAgents the person publishes, with the owner actions.

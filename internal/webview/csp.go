@@ -2,8 +2,7 @@
 // HTML sink in the renderer is a README the registry served — sanitized
 // there, taken as served here — and every Go binding is reachable from renderer
 // JS, so a script that ran in this page would run with the local machine
-// as its API. The Content-Security-Policy below is the second layer the
-// review found missing (security review 2026-09-20 §8.3): no inline
+// as its API. The Content-Security-Policy below is the second layer: no inline
 // script, no script from anywhere but the app's own assets, no plugins,
 // no framing.
 package webview

@@ -12,7 +12,7 @@ import (
 )
 
 // What Review says beside a draft, as the site's import says it
-// (agentry-web lib/draft-import.ts, plan builder-rework.md §7.5, §7.6).
+// (agentry-web lib/draft-import.ts).
 
 // MaxProblems is how many of the rules a draft still fails Review lists;
 // the rest are counted.
@@ -23,8 +23,8 @@ const MaxProblems = 50
 // under of at least two labels ("api.github.com" is named by
 // "github.com"); "*" is always marked. Review marks each one, because a
 // host the description never asked for is the shape a page's injection
-// would take (plan §7.6). words are the person's: what they first asked,
-// their Describe again note and their hints, never the earlier draft a
+// would take. words are the person's: what they first asked, their
+// Describe again note and their hints, never the earlier draft a
 // Describe again quoted.
 func UnmentionedHosts(m *build.Model, words string) []string {
 	var reached []string

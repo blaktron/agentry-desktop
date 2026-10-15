@@ -1,6 +1,6 @@
-// Edit with AI's form (agentry-desktop#501): the texts' bound, and each
+// Edit with AI's form: the texts' bound, and each
 // way's gate: In Agentry on the registry's word for this payer, on this
-// computer on the person's own key and docker (D10).
+// computer on the person's own key and docker.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MAX_REVISION_TEXT_BYTES, canStart, firstWhere, revisionBytes, textsProblem, type ReviseWays } from "../src/revise.ts";

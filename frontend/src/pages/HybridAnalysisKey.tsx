@@ -1,7 +1,7 @@
-// The person's own Hybrid Analysis key (#530; plan file-handling.md §7, D8,
-// D17): a run on this computer looks the risky files among its inputs up on
+// The person's own Hybrid Analysis key: a run on this computer looks the
+// risky files among its inputs up on
 // CrowdStrike's Hybrid Analysis with it, by their fingerprints (SHA-256)
-// alone, never the files (agentry-cli#564). It is kept in the OS keychain
+// alone, never the files. It is kept in the OS keychain
 // beside the model key (RunAPI.StoreHybridKey, the one call that carries
 // it), shown as saved and never as its value, and Test key looks one known
 // fingerprint up and says the answer in plain words. With no key, runs are

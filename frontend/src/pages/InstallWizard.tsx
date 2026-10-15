@@ -25,14 +25,14 @@ export default function InstallWizard({
   onClose: () => void;
   // presetTarget and presetDir fill the first step: the agent page's
   // one-off link opens it on the export Settings → Coding agents implies
-  // and its folder (agentry-desktop#148); the Library's Update passes the
+  // and its folder; the Library's Update passes the
   // record's own and, with startAtReview, goes straight to Prepare.
   presetTarget?: string;
   presetDir?: string;
   startAtReview?: boolean;
   onInstalled?: () => void;
 }) {
-  // The wizard is the coding-agent export (D-031: the one-click Install
+  // The wizard is the coding-agent export (the one-click Install
   // on the agent page is the runner home); its default is the Claude skill,
   // said here rather than left to Go, whose default is the runner target.
   const [target, setTarget] = useState(presetTarget || TARGETS[0].id);
@@ -42,7 +42,7 @@ export default function InstallWizard({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<install.Result | null>(null);
   const [acceptUnsigned, setAcceptUnsigned] = useState(false);
-  // Its own consent (M23): an unscanned release is not an unsigned one,
+  // Its own consent: an unscanned release is not an unsigned one,
   // and ticking the unsigned box says nothing about it.
   const [acceptUnscanned, setAcceptUnscanned] = useState(false);
   const [acceptCaps, setAcceptCaps] = useState(false);
@@ -255,8 +255,8 @@ export default function InstallWizard({
 }
 
 // declaredWords names what a first install's consent accepts: the network
-// and exec capabilities, a target host (agentry-desktop#812), a browser
-// (agentry-desktop#878), or several: "Accept the declared browser."
+// and exec capabilities, a target host, a browser, or several: "Accept the
+// declared browser."
 function declaredWords(caps: install.Plan["capabilities"]): string {
   const what: string[] = [];
   if (caps.egressHosts?.length || caps.execCommands?.length) what.push("network/exec capabilities");
@@ -274,22 +274,22 @@ function CapsTable({ caps, shipped, secrets }: { caps: install.Plan["capabilitie
   if (caps.fsWrite && caps.fsWrite !== "none") rows.push(["filesystem write", caps.fsWrite === "paths" ? `paths: ${list(caps.fsWritePaths)}` : caps.fsWrite]);
   if (list(caps.execCommands)) rows.push(["exec", list(caps.execCommands)]);
   // Every declared secret, the release's own and its servers', an optional
-  // one marked (agentry-desktop#655): moving one between optional and
-  // required asks for no new consent (plan optional-secrets.md D6).
+  // one marked: moving one between optional and required asks for no new
+  // consent.
   if (secrets) rows.push(["secrets", secrets]);
   if (list(caps.dataAccess)) rows.push(["data access", list(caps.dataAccess)]);
-  // A target host (plan runtime-hosts.md §8; agentry-desktop#812): a
+  // A target host: a
   // machine the person names when it runs, worked as the account they sign
   // in with, in the CLI's consent words.
   if (list(caps.targetHosts)) {
     rows.push(["target hosts", `${list(caps.targetHosts)}: asks for a server when it runs, and can run any command on it as the account you sign in with`]);
   }
-  // A browser (plan browser-testing.md §5; agentry-desktop#878): where it
+  // A browser: where it
   // may go and the secrets it may type, in the CLI's consent words.
   const browser = browserCap(caps.browser);
   if (browser) rows.push(["browser", browserLine(browser)]);
-  // The knowledge packs the release ships in its archive (plan knowledge.md
-  // §4.6): part of the contract, each with its size from the archive.
+  // The knowledge packs the release ships in its archive: part of the
+  // contract, each with its size from the archive.
   if (list(caps.knowledge)) {
     const sized = (name: string) => {
       const bytes = (shipped ?? []).find((p) => p.name === name)?.bytes;

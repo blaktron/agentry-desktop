@@ -322,10 +322,9 @@ func TestResealAfterAKeyChange(t *testing.T) {
 	}
 }
 
-// Home's Scheduled card (agentry-desktop#744): the month as the page's
-// calendar reads it, the next three occurrences however far the month
-// view reaches, and the reason when the agentry command is not there,
-// found on disk without running anything.
+// Home's Scheduled card: the month as the page's calendar reads it, the next
+// three occurrences however far the month view reaches, and the reason when
+// the agentry command is not there, found on disk without running anything.
 func TestScheduledHomeCard(t *testing.T) {
 	f := &scheduleFake{}
 	s := newScheduleAPI(t, f, true)
@@ -370,8 +369,8 @@ func TestScheduledHomeCardEmpty(t *testing.T) {
 
 // A schedule's target hosts are readied with the person here, after the
 // consent and before the agentry command makes it, with the sign-ins the
-// setup gave (agentry-desktop#812): the command then finds the key accepted
-// and the sign-in kept. A host that cannot be readied makes no schedule.
+// setup gave: the command then finds the key accepted and the sign-in kept.
+// A host that cannot be readied makes no schedule.
 func TestScheduleAddReadiesTargetHostsBeforeTheCommand(t *testing.T) {
 	f := &scheduleFake{check: readyCheck, answer: true}
 	s := newScheduleAPI(t, f, true)
@@ -399,9 +398,9 @@ func TestScheduleAddReadiesTargetHostsBeforeTheCommand(t *testing.T) {
 	}
 }
 
-// Only an agentry that readies target hosts (v0.6.111, agentry-cli#863)
-// makes a schedule of a QuickAgent that asks for a server: an older one is
-// refused before any host is readied or any sign-in kept.
+// Only an agentry that readies target hosts (v0.6.111) makes a schedule of a
+// QuickAgent that asks for a server: an older one is refused before any host
+// is readied or any sign-in kept.
 func TestScheduleAddOfATargetHostNeedsANewEnoughAgentry(t *testing.T) {
 	f := &scheduleFake{check: readyCheck, answer: true, version: "agentry version 0.6.110 default registry: https://secureagentry.net"}
 	s := newScheduleAPI(t, f, true)

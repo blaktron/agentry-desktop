@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Agentry operator wizard.
+# Maintainer setup script, run by hand.
 #
-# Everything above the "STAGES" marker is the library and is identical in every
-# wizard: do not hand-edit it. Author your procedure below the marker, one
-# `stage` per step, and set TOTAL_STAGES to the number you wrote.
+# Everything above the "STAGES" marker is a small library of prompts and
+# helpers. The procedure below it is one `stage` per step, and TOTAL_STAGES is
+# the number of stages.
 #
 #   bash -n <this file>     # syntax check
-#   run shellcheck on this file (if available)
-#   ./<this file>           # run it (a human runs this, not an agent)
+#   ./<this file>           # run it
 
 set -uo pipefail
 
@@ -34,7 +33,7 @@ stage() {
   printf '%s[%d/%d] %s%s\n\n' "$c_bold" "$STAGE_NO" "$TOTAL_STAGES" "$1" "$c_reset"
 }
 
-# open_url "<url>": open it in the human's browser, on Linux, macOS or WSL.
+# open_url "<url>": open it in the user's browser, on Linux, macOS or WSL.
 open_url() {
   local url=$1
   step "opening $url"
@@ -65,10 +64,10 @@ ask_secret() {
 confirm() {
   local ans=""
   read -r -p "  $1 [y/N]: " ans
-  case "$ans" in y|Y|yes|YES) return 0 ;; *) die "stopped at stage $STAGE_NO by the operator" ;; esac
+  case "$ans" in y|Y|yes|YES) return 0 ;; *) die "stopped at stage $STAGE_NO by the user" ;; esac
 }
 
-# pause: wait for the human to finish something in the browser.
+# pause: wait for the user to finish something in the browser.
 pause() { read -r -p "  press enter when done "; }
 
 # write_env KEY "<value>": idempotent upsert into $ENV_FILE (0600).
@@ -139,9 +138,9 @@ TOTAL_STAGES=9
 #
 # This is the OS code-signing identity for the Windows artifacts — Microsoft's
 # HSM holds the key and the CA/Browser Forum's rules say it may live nowhere
-# else (agentry-desktop#151, #54; plan os-code-signing.md D1, D2, D6). It is a
-# different thing from the estate's own update-signing key (#86), which the
-# app checks before it replaces itself and which this wizard does not touch.
+# else. It is a different thing from the project's own update-signing key,
+# which the app checks before it replaces itself and which this wizard does
+# not touch.
 #
 # Before running it you have done, in the Azure portal, the two things only a
 # person can: an Individual Public Trust identity validation that reads
@@ -164,9 +163,8 @@ TOTAL_STAGES=9
 #
 #   scripts/operator/artifact-signing-setup.sh [--repo OWNER/NAME]
 #
-# --repo connects ANOTHER repository of the estate to the same identity
-# (agentry-desktop#173; the CLI's release, agentry-cli#197, plan
-# cli-release-signing.md D3): one more federated credential on the same app
+# --repo connects ANOTHER repository (for example the CLI's) to the same
+# identity: one more federated credential on the same app
 # registration, named for that repository and matching its own `release`
 # environment; that repository's environment, deployment policy, variables
 # and probe. The app registration, the role and the profile are the same and
@@ -193,7 +191,7 @@ case "$REPO" in
 esac
 REPO_NAME=${REPO#*/}
 GH_ENV="release"
-# One registration for every repository of the estate; one federated
+# One registration for every repository that signs; one federated
 # credential per repository, named for it, matching its own environment.
 APP_NAME="agentry-desktop-release-signing"
 FIC_NAME="${REPO_NAME}-release-environment"
@@ -226,14 +224,14 @@ for t in gh jq python3; do command -v "$t" >/dev/null 2>&1 || die "$t is needed;
 gh auth status >/dev/null 2>&1 || die "gh is not signed in: run 'gh auth login'"
 # Only a repository this sign-in administers may be joined to the signing
 # identity: the credential the wizard creates lets a job of that repository's
-# `release` environment sign as the operator, and the environment's policy is
+# `release` environment sign as you, and the environment's policy is
 # what bounds it — both need admin, and the OIDC settings below are readable
 # without it, so this is the gate, before anything is created anywhere.
 ADMIN=$(gh api "repos/$REPO" --jq '.permissions.admin // false' 2>/dev/null) || die "could not read $REPO (does it exist, and is gh signed in as someone who can see it?)"
 [ "$ADMIN" = "true" ] || die "this gh sign-in does not administer $REPO; only a repository you administer may sign with your identity"
 # The federated credential must equal the subject GitHub puts in the job's
-# OIDC token, character for character. Since 2026-07-15 that subject carries
-# the owner and repository ids ("immutable subject"), and a repository can
+# OIDC token, character for character. That subject can carry
+# the owner and repository ids (an "immutable subject"), and a repository can
 # customise it; so the prefix is read from the repository, never assumed.
 OIDC=$(gh api "repos/$REPO/actions/oidc/customization/sub" 2>/dev/null) || die "could not read the OIDC subject settings of $REPO"
 [ "$(printf '%s' "$OIDC" | jq -r .use_default)" = "true" ] || die "$REPO uses a customised OIDC subject template; this wizard supports the default one — reset it or edit SUBJECT here"
@@ -281,8 +279,8 @@ if ! command -v az >/dev/null 2>&1; then
   fi
 fi
 step "az $(az version --query '"azure-cli"' -o tsv 2>/dev/null || echo '?')"
-# The service was renamed from Trusted Signing to Artifact Signing in 2026;
-# the CLI extension and command group follow whichever this az knows.
+# The service is Artifact Signing (formerly Trusted Signing); the CLI
+# extension and command group follow whichever this az knows.
 AZ_GROUP=""
 for ext in artifact-signing trustedsigning; do
   if az extension show --name "$ext" >/dev/null 2>&1 || az extension add --name "$ext" >/dev/null 2>&1; then
@@ -326,9 +324,8 @@ ACCOUNT_ID=$(printf '%s' "$ACCOUNT" | jq -r .id)
 RESOURCE_GROUP=$(printf '%s' "$ACCOUNT" | jq -r .resourceGroup)
 LOCATION=$(printf '%s' "$ACCOUNT" | jq -r '.location | ascii_downcase')
 # The signing endpoint: the account states it (accountUri), or it follows the
-# region code (the table in Microsoft's quickstart), or the operator gave it.
-# Which of the first two this az returns has not been observed yet; both are
-# kept until one run says.
+# region code (the table in Microsoft's quickstart), or the caller gave it.
+# Which of the first two an az returns depends on its version; both are kept.
 if [ -z "${ENDPOINT:-}" ]; then
   ENDPOINT=$(printf '%s' "$ACCOUNT" | jq -r '.accountUri // empty' | sed -e 's#^https://##' -e 's#/$##')
 fi
@@ -422,7 +419,7 @@ if [ "$(count "$FIC")" -eq 0 ]; then
   [ -z "$OTHER" ] || die "a federated credential named '$FIC_NAME' exists with subject '$OTHER', not '$SUBJECT' (the repository's subject prefix changed?); delete it in Entra and re-run"
   WORK=$(mktemp -d "${TMPDIR:-/tmp}/agentry-artifact-signing.XXXXXX")
   jq -n --arg n "$FIC_NAME" --arg i "$ISSUER" --arg s "$SUBJECT" --arg a "$AUDIENCE" \
-    --arg d "$REPO release workflow, environment $GH_ENV (agentry-desktop#151, #173)" \
+    --arg d "$REPO release workflow, environment $GH_ENV" \
     '{name:$n, issuer:$i, subject:$s, audiences:[$a], description:$d}' \
     > "$WORK/fic.json"
   azj ad app federated-credential create --id "$APP_ID" --parameters "@$WORK/fic.json" >/dev/null \

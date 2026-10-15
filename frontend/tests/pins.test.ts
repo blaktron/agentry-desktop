@@ -1,5 +1,4 @@
-// Pins on Home (plan desktop-home-and-library.md D5, D11;
-// agentry-desktop#660): what the page reads back from the layout Go keeps.
+// Pins on Home: what the page reads back from the layout Go keeps.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { homeFullSentence, isPinned, latestRunFor, pinOffer, pinRecord, pinsOf, registryHost } from "../src/pins.ts";
@@ -71,7 +70,7 @@ test("a pin's latest run is the newest run or chat of its ref from its registry,
   assert.equal(latestRunFor(rows, { ref: "acme/never", registry: REG }), undefined);
 });
 
-test("Settings → Home names a pin's registry by its host, never a userinfo part (agentry-desktop#661)", () => {
+test("Settings → Home names a pin's registry by its host, never a userinfo part", () => {
   assert.equal(registryHost("https://secureagentry.net/"), "secureagentry.net");
   assert.equal(registryHost("http://localhost:8080"), "localhost:8080");
   assert.equal(registryHost("https://chris:s3cret@registry.example"), "registry.example");

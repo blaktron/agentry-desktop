@@ -10,8 +10,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/imagelabel"
 )
 
-// The live check of agentry-desktop#846, against a real daemon (Docker
-// Desktop's containerd store is the case it was written for). Off unless
+// The live check of removing images by ID, against a real daemon (Docker
+// Desktop's containerd store is the case it covers). Off unless
 // AGENTRY_LIVE_IMAGES_REF names a pinned pull (repo:tag@sha256:…) under
 // Agentry's prefix that is not on the daemon yet; the check pulls it and
 // removes it, and nothing else. With AGENTRY_LIVE_IMAGES_BASE (an image

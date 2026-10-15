@@ -19,14 +19,13 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 )
 
-// Create knowledge In Agentry (agentry-desktop#274) against a fake
-// registry that is both halves the build touches: the core's knowledge
-// routes (the CLI's knowledgetest fake, which wraps, unwraps, keeps and
-// serves sealed packs as the core does) and the runs extension's account
-// routes with the build kind (agentry-enterprise schemas/x-runs.yaml). The
+// Create knowledge In Agentry against a fake registry that is both halves
+// the build touches: the core's knowledge routes (the CLI's knowledgetest
+// fake, which wraps, unwraps, keeps and serves sealed packs as the core
+// does) and the runs extension's account routes with the build kind. The
 // fake's "sandbox host" is the test: finishing a build uploads the pack a
-// Creator would have written, through a second store as the same account,
-// so the app's download is the real unwrap flow into the real local store.
+// Creator would have written, through a second store as the same account, so
+// the app's download is the real unwrap flow into the real local store.
 
 // buildFake is the registry.
 type buildFake struct {
@@ -37,7 +36,7 @@ type buildFake struct {
 	scopes  []string
 	enabled bool
 	// standard marks the caller's payer on Standard: the registry's
-	// caller.build.allowed is false (DEV-162).
+	// caller.build.allowed is false.
 	standard  bool
 	balance   int64
 	run       *hostedrun.Run
@@ -50,8 +49,8 @@ type buildFake struct {
 	scanning int
 	// hold keeps a create waiting until it is closed, to race a second.
 	hold chan struct{}
-	// briefs makes the registry one since agentry-enterprise#296: a build
-	// takes a brief without documents, and may search the web.
+	// briefs makes the registry one whose build takes a brief without
+	// documents, and may search the web.
 	briefs bool
 }
 
@@ -337,8 +336,8 @@ func TestHostedBuildAvailabilityStatesTheHoldAndRefusesInWords(t *testing.T) {
 	if v, _ = k.HostedAvailability(f.url); v.Available || !strings.Contains(v.Reason, "already has a run In Agentry in flight") {
 		t.Fatalf("with a run in flight: %+v", v)
 	}
-	// On Standard (DEV-162): In Agentry is not choosable, the reason is the
-	// site's sentence, and the way out is the registry's subscription page.
+	// On Standard: In Agentry is not choosable, the reason is the site's
+	// sentence, and the way out is the registry's subscription page.
 	f.mu.Lock()
 	f.run, f.standard = nil, true
 	f.mu.Unlock()
@@ -533,8 +532,8 @@ func TestHostedBuildRefusesWhatCouldNotComeBack(t *testing.T) {
 	}
 }
 
-// Every document is one a native picker returned (D-030), and the run
-// panel's reattach leaves a build in flight to the Knowledge panel.
+// Every document is one a native picker returned, and the run panel's
+// reattach leaves a build in flight to the Knowledge panel.
 func TestHostedBuildDocumentsComeFromThePickerAndARunDoesNotAttachToABuild(t *testing.T) {
 	f := newBuildFake(t)
 	k, _ := hostedBuildAPI(t, f)
@@ -661,11 +660,10 @@ func TestHostedBuildRefusesALinkOutOfAPickedFolder(t *testing.T) {
 	}
 }
 
-// TestARunInAgentryRefusesANameTwoCopiesHold (Knowledge M8): a person's
-// own pack and an organization's shared one of the same name, both kept in
-// Agentry, are two copies; a run In Agentry attaching the name is refused
-// rather than given whichever sorts first. A pack kept in both places is
-// one copy.
+// TestARunInAgentryRefusesANameTwoCopiesHold : a person's own pack and an
+// organization's shared one of the same name, both kept in Agentry, are two
+// copies; a run In Agentry attaching the name is refused rather than given
+// whichever sorts first. A pack kept in both places is one copy.
 func TestARunInAgentryRefusesANameTwoCopiesHold(t *testing.T) {
 	packs := []knowledge.Pack{
 		{Name: "handbook", InAgentry: true, AgentryID: "a", Local: true},
@@ -681,11 +679,10 @@ func TestARunInAgentryRefusesANameTwoCopiesHold(t *testing.T) {
 	}
 }
 
-// A brief alone builds In Agentry (agentry-desktop#498; plan
-// knowledge-and-drafter.md D15, D16): the availability carries the
-// registry's brief bound and its web note, nothing is uploaded, the create
-// carries the brief and the Search the web choice as made, and the build's
-// last word says what its record counted of its searches.
+// A brief alone builds In Agentry: the availability carries the registry's
+// brief bound and its web note, nothing is uploaded, the create carries the
+// brief and the Search the web choice as made, and the build's last word
+// says what its record counted of its searches.
 func TestHostedBuildFromABriefAloneSendsTheBriefAndTheWebChoice(t *testing.T) {
 	f := newBuildFake(t)
 	k, ev := hostedBuildAPI(t, f)

@@ -1,9 +1,9 @@
 package run
 
-// The person's own AI Review key (plan builder-rework.md D25, #282): kept in
-// the OS keychain beside the model key, recorded in the policy as a source,
-// shown as saved and never as its value, never logged, and tested with one
-// small call whose answer is said in plain words.
+// The person's own AI Review key: kept in the OS keychain beside the model
+// key, recorded in the policy as a source, shown as saved and never as its
+// value, never logged, and tested with one small call whose answer is said
+// in plain words.
 
 import (
 	"context"
@@ -72,7 +72,7 @@ func TestStoreJevKeyKeepsItInTheKeychainAndRecordsTheSource(t *testing.T) {
 }
 
 // A keychain that cannot be reached refuses the store by name and leaves
-// the policy exactly as it was (D-024's rule, as for the model key).
+// the policy exactly as it was (as for the model key).
 func TestStoreJevKeyRefusedByTheKeychainLeavesThePolicy(t *testing.T) {
 	jevKeychain(t)
 	t.Setenv(modelkey.EnvNoKeyring, "1")

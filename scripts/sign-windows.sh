@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Authenticode-signs one PE file in place against Azure Artifact Signing, from
-# Linux, with jsign (agentry-desktop#54; plan os-code-signing.md §4, D2, D6).
+# Linux, with jsign.
 #
 #   scripts/sign-windows.sh fetch <dir>     download jsign into <dir> and verify its digest
 #   scripts/sign-windows.sh <file.exe>      sign <file.exe> in place, then verify the result
 #
 # Signing reads its inputs from the environment and nothing from argv, so the
-# access token is in no process listing (D-026's standard for the
-# update-signing key holds here too):
+# access token is in no process listing (as for the
+# update-signing key):
 #
 #   AGENTRY_SIGNING_TOKEN       an Azure access token for https://codesigning.azure.net
 #                               (the release job exchanges its OIDC token for one)

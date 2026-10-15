@@ -49,7 +49,7 @@ func mustRead(t *testing.T, p string) string {
 
 func TestRefreshReplacesAnOlderScriptCopy(t *testing.T) {
 	for _, tc := range []struct{ bundled, target string }{
-		{"0.6.87", "0.6.52-dev.2"}, // the operator's laptop, 2026-10-09
+		{"0.6.87", "0.6.52-dev.2"}, // a terminal's stale copy
 		{"0.6.87", "0.6.52"},
 		{"0.6.87", "0.6.87-dev.1"},        // a dev prerelease sorts below its release
 		{"0.6.87-dev.10", "0.6.87-dev.2"}, // dev.N by number

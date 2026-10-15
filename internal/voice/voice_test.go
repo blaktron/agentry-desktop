@@ -23,11 +23,10 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The desktop's two voices (plan writing-voice.md D6, D11; agentry-desktop
-// #510): this computer's in the CLI's store, sealed and free; the account's
-// in the registry, reviewed before it is live; Submit and Use the only ways
-// between them. The registry is the CLI's own fake, which serves the core's
-// voice routes and decides a review when told to.
+// The desktop's two voices: this computer's in the CLI's store, sealed and
+// free; the account's in the registry, reviewed before it is live; Submit and
+// Use the only ways between them. The registry is the CLI's own fake, which
+// serves the core's voice routes and decides a review when told to.
 
 type memKeys struct {
 	mu sync.Mutex
@@ -228,7 +227,7 @@ func TestTheVoiceWriterOnThisComputerKeepsWhatItWrote(t *testing.T) {
 	e, reg := testEnv(t, false)
 	ctx := context.Background()
 	// The policy is the runner home's: relocate it, so no test reads or
-	// writes the operator's own (agentry-cli#149).
+	// writes the real one.
 	home, _ := e.Home()
 	t.Setenv(policy.HomeEnv, home)
 	var seen build.Options
@@ -257,10 +256,9 @@ func TestTheVoiceWriterOnThisComputerKeepsWhatItWrote(t *testing.T) {
 	}
 }
 
-// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
-// D-062; on by default since agentry-desktop#699): while it is on, the Voice
-// Writer runs on this computer with no timeout and to the hidden failsafe
-// of 200 turns; off, it has its floor and the policy's turns.
+// Run defaults' no-limit switch for the built-in agents (on by default): while
+// it is on, the Voice Writer runs on this computer with no timeout and to the
+// hidden failsafe of 200 turns; off, it has its floor and the policy's turns.
 func TestTheBuiltinAgentsSwitchGivesTheVoiceWriterNoTimeOrTurnLimitByDefault(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	e, reg := testEnv(t, false)

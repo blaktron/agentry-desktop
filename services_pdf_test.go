@@ -12,11 +12,10 @@ import (
 	"time"
 )
 
-// The in-app PDF viewer's bindings (plan scratch-and-pdf-reports.md D15,
-// D16; agentry-desktop#730). A PDF opens in the app or the system viewer
-// only when the run's envelope (result.json) lists it with the SHA-256 of
-// its bytes; any other PDF is Save only. Go holds the bytes to the record,
-// never the page, and hands on only bytes it has just checked.
+// The in-app PDF viewer's bindings. A PDF opens in the app or the system
+// viewer only when the run's envelope (result.json) lists it with the
+// SHA-256 of its bytes; any other PDF is Save only. Go holds the bytes to
+// the record, never the page, and hands on only bytes it has just checked.
 
 const examplePDF = "%PDF-1.7\nexported\n%%EOF\n"
 
@@ -163,8 +162,7 @@ func TestSaveRunPDFWritesWhereThePersonChose(t *testing.T) {
 
 // A page-supplied path that passes through a link the run left (a folder
 // linked to ~/Documents, or outputs/ itself linked to /) reads nothing:
-// listOutputs never walks a linked folder, and neither does a binding
-// (found in review; ARCHITECTURE §9, D-035).
+// listOutputs never walks a linked folder, and neither does a binding.
 func TestAPathThroughALinkedFolderReadsNothing(t *testing.T) {
 	r, dir := pdfRun(t)
 	outside := t.TempDir()

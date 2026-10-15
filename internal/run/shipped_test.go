@@ -16,9 +16,9 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// A release's shipped knowledge packs in a desktop run (agentry-desktop#277,
-// the CLI's rule from agentry-cli#389): loaded from the release's files,
-// named as the release's, mounted before the person's own.
+// A release's shipped knowledge packs in a desktop run (the CLI's rule): loaded
+// from the release's files, named as the release's, mounted before the person's
+// own.
 
 func shippingWorkspace(t *testing.T, name string) (string, *manifest.Manifest) {
 	t.Helper()
@@ -65,8 +65,8 @@ func TestShippedKnowledgeInARun(t *testing.T) {
 		}
 	})
 	t.Run("a shipped pack past Agentry's cap", func(t *testing.T) {
-		// Load takes a pack of up to 1 GB since agentry-cli#429; a shipped
-		// pack is Agentry's to carry and keeps its 10 MB (agentry-desktop#354).
+		// Load takes a pack of up to 1 GB; a shipped pack is Agentry's to carry and
+		// keeps its 10 MB.
 		ws := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(ws, "knowledge"), 0o755); err != nil {
 			t.Fatal(err)

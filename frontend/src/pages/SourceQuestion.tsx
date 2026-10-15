@@ -1,8 +1,7 @@
-// A repository or url intake question in the run setup's Details step
-// (plan input-sources.md §5, D3, D5, D13; agentry-desktop#794): the
+// A repository or url intake question in the run setup's Details step: the
 // address (and, for a repository, the branch, tag or commit), then the
 // access token, drawn from the start so a private source's token has a
-// place before the address is checked (agentry-desktop#869). A key saved
+// place before the address is checked. A key saved
 // for the address's host is offered and used
 // unless another token is typed for this run; a typed token can be saved
 // for the host in the system keychain, where the CLI and a schedule's fire
@@ -28,8 +27,7 @@ export function SourceQuestion({
   onTyped: (token: string) => void;
   disabled: boolean;
   onError: (e: string) => void;
-  /** The run goes In Agentry: its token is sent with the start
-   *  (agentry-desktop#833). */
+  /** The run goes In Agentry: its token is sent with the start. */
   inAgentry?: boolean;
 }) {
   const repository = q.type === "repository";
@@ -39,8 +37,8 @@ export function SourceQuestion({
   const [saving, setSaving] = useState(false);
   const answered = value.trim() !== "";
   const host = sourceKey && !sourceKey.problem ? sourceKey.host : undefined;
-  // Drawn whatever the address holds (agentry-desktop#869); with a key
-  // saved for its host, only on "Use another token".
+  // Drawn whatever the address holds; with a key saved for its host, only on
+  // "Use another token".
   const showField = !sourceKey?.saved || another;
 
   async function save() {

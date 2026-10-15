@@ -50,19 +50,19 @@ export default function AgentPage({
   name: string;
   onBack: () => void;
   backLabel?: string;
-  /** Edit (agentry-desktop#500): the Build tab on the current release,
+  /** Edit: the Build tab on the current release,
    *  under this name at its next minor. Offered where the registry says
-   *  this sign-in may add a version (canPublish; DEV-199). */
+   *  this sign-in may add a version (canPublish). */
   onEdit?: () => void;
   /** Settings at the AI Review key, for Edit with AI on this computer. */
   onOpenReviewKey?: () => void;
   /** Open with the run setup open, once the release is read: a pin's Run
-   *  on Home (agentry-desktop#660). */
+   *  on Home. */
   openRun?: boolean;
   /** With openRun: the setup opens with When on Repeat (Schedule a new
-   *  run, agentry-desktop#743). */
+   *  run). */
   openSchedule?: boolean;
-  /** Fork (agentry-desktop#706), given only while this registry is signed
+  /** Fork, given only while this registry is signed
    *  in: called with the fork the registry made, which App follows in the
    *  Publisher section. */
   onFork?: (namespace: string, name: string, sentence: string) => void;
@@ -77,18 +77,17 @@ export default function AgentPage({
   // first version, readme and report arrive with it).
   const [rev, setRev] = useState(0);
   const [readme, setReadme] = useState<string | null>(null);
-  // The release's instruction file, under the README on the Agent tab
-  // (agentry-desktop#835).
+  // The release's instruction file, under the README on the Agent tab.
   const [instructions, setInstructions] = useState<main.InstructionsView | null>(null);
   const [instructionsErr, setInstructionsErr] = useState<string | null>(null);
   const [report, setReport] = useState<main.ReportView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [prov, setProv] = useState<trust.AttestationResult | null>(null);
   // The coding-agent export (the wizard) is the one-off behind a link;
-  // the primary Install is one click into the runner home (D-031).
+  // the primary Install is one click into the runner home.
   const [wizardOpen, setWizardOpen] = useState(false);
   // The link is named for the coding agent Settings → Coding agents holds
-  // and opens the wizard on the export it implies (agentry-desktop#148);
+  // and opens the wizard on the export it implies;
   // read once, since nothing on this page changes that setting.
   const [codingAgents, setCodingAgents] = useState<main.CodingAgentsView | null>(null);
   useEffect(() => {
@@ -109,13 +108,12 @@ export default function AgentPage({
   useEffect(() => {
     if (openRun && runnable && !ranOnOpen) { setRanOnOpen(true); setRunOpen(true); setAsSchedule(openSchedule); }
   }, [openRun, runnable, ranOnOpen, openSchedule]);
-  // Pin to Home, offered while this QuickAgent is installed here
-  // (agentry-desktop#660, D5).
+  // Pin to Home, offered while this QuickAgent is installed here.
   const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
   // Edit replaces the Build tab's unsaved form, so it asks first when the
   // tab holds one (as the site asks before replacing an unsent draft).
   const [confirmEdit, setConfirmEdit] = useState<string | null>(null);
-  // Edit with AI's form (agentry-desktop#501), offered beside Edit.
+  // Edit with AI's form, offered beside Edit.
   const [reviseOpen, setReviseOpen] = useState(false);
   function edit() {
     const held = heldForm();
@@ -132,8 +130,8 @@ export default function AgentPage({
   const refreshInstalls = useCallback(() =>
     InstallAPI.ListInstalled()
       // Only what this app can uninstall and that is still on disk — the
-      // runner-home install among them since D-031; gone directories
-      // belong to the Library's other section (agentry-desktop#63).
+      // runner-home install among them; gone directories
+      // belong to the Library's other section.
       .then((all) => setInstalls(all.filter((r) => r.namespace === ns && r.name === name && r.manageable && r.present)))
       .catch(() => setInstalls([])),
   [ns, name]);
@@ -141,13 +139,13 @@ export default function AgentPage({
 
   // The runner-home record for this QuickAgent, if any: what the primary
   // button reads to say Install, Installing…, or Update. Whether Update is
-  // enabled is the check's answer (agentry-desktop#147, D8): opening the
+  // enabled is the check's answer: opening the
   // page asks the record's registry once, with the one "newer" rule the
   // app has (semver, through the record's origin) — never a string compare
   // against the version this page happens to show.
   const runnerInstall = installs.find((r) => r.target === "runner");
   // The install a pin from this page names: the one from this page's
-  // registry, else the runner home's, else any (agentry-desktop#660).
+  // registry, else the runner home's, else any.
   const pinnable = installs.find((r) => !r.local && r.origin.replace(/\/+$/, "") === registry.replace(/\/+$/, "")) ?? runnerInstall ?? installs[0];
   const installedVersion = runnerInstall?.version;
   const [runnerUpdate, setRunnerUpdate] = useState<install.UpdateInfo | null>(null);
@@ -161,7 +159,7 @@ export default function AgentPage({
       .catch((e) => setRunnerUpdateErr(String(e)));
   }, [ns, name, installedVersion]);
 
-  // One click (D-031): resolve, verify, lay down in the runner home. The
+  // One click: resolve, verify, lay down in the runner home. The
   // gates — an unsigned or unscanned release, a contract to accept — are
   // native dialogs raised by the backend; a refusal or a failure is shown
   // here, in place, and the button goes back to Install.
@@ -245,8 +243,8 @@ export default function AgentPage({
   if (!detail) return <Spinner label={`Loading ${ns}/${name}…`} />;
 
   const a = detail.agent;
-  // The one primary button (D-031): Install, then Installing…, then Update
-  // — enabled only when the check named a newer version (#147).
+  // The one primary button: Install, then Installing…, then Update
+  // — enabled only when the check named a newer version.
   let installButton: React.ReactNode;
   if (installBusy) {
     installButton = <Button variant="primary" disabled>Installing…</Button>;
@@ -296,8 +294,8 @@ export default function AgentPage({
           <Button variant="link" onClick={() => setWizardOpen(true)} disabled={installBusy}>Install into {codingAgent}…</Button>
         )}
       </div>
-      {/* A fork's origin and its copy, and a public QuickAgent's fork count
-          (agentry-desktop#706): the site's lines. */}
+      {/* A fork's origin and its copy, and a public QuickAgent's fork count:
+          the site's lines. */}
       {a.forkedFrom && (
         <p className="small" data-fork-of>
           {a.forkedFrom.available && onOpenAgent
@@ -410,7 +408,7 @@ export default function AgentPage({
           <Card>
             {readme === null && <Spinner />}
             {readme === "" && <div className="empty">No README.</div>}
-            {/* Server-sanitized HTML (§10.3): the API strips scripts/handlers
+            {/* Server-sanitized HTML: the API strips scripts/handlers
                 and marks invisible characters; the client never parses raw
                 markdown from the archive. The window's CSP (internal/webview)
                 is the second layer. Links never navigate this window: an
@@ -427,9 +425,9 @@ export default function AgentPage({
               <p className="muted small">What the agent is told to do, as the release has it.</p>
               {!instructions && !instructionsErr && <Spinner />}
               {instructionsLine && <p className="muted small" data-instructions-note><RevealText text={instructionsLine} /></p>}
-              {/* The file as text, never rendered (§10.3): React escapes it,
+              {/* The file as text, never rendered: React escapes it,
                   its links are not live, and every invisible character is
-                  drawn as a chip (the GlassWorm lesson). */}
+                  drawn as a chip (the GlassWorm attack). */}
               {instructions && !instructions.binary && instructions.content.trim() && (
                 <pre className="instructions-text mono selectable"><RevealText text={instructions.content} /></pre>
               )}
@@ -540,7 +538,7 @@ export default function AgentPage({
   );
 }
 
-/** The "MCP servers & tools" section (RUNNER-PLAN-2 §P6, req 3/4): the
+/** The "MCP servers & tools" section: the
  * tool surface the latest version's declared contract becomes — through
  * the runner's per-run gateway, and as host built-ins in an embedded
  * install. Same information as the site's section. */
@@ -593,7 +591,7 @@ function MCPSection({
       {info.servers.map((s, i) => {
         // Servers ends with one line per declared server, in order
         // (services_run.go MCPView): a declared server's env goes beneath
-        // its own line (agentry-desktop#62).
+        // its own line.
         const declared = info.declaredServers ?? [];
         const d = declared[i - (info.servers.length - declared.length)];
         return (
@@ -689,7 +687,7 @@ export function ReportCard({
   const total = Object.values(counts).reduce((n, v) => n + v, 0);
   const order = ["critical", "high", "medium", "low", "info"];
 
-  // Unscanned (core M21): the registry admitted the version without a
+  // Unscanned: the registry admitted the version without a
   // scan, and an empty report must never read as "scanned, 0 findings".
   if (report.verdict === "unscanned" || report.scanStatus === "skipped") {
     return (

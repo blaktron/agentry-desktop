@@ -1,11 +1,10 @@
 package main
 
-// The Scheduled page's Install the agentry command, live
-// (agentry-desktop#788; D-076): the bound methods driven as the page drives
-// them, against a real site's /install.sh and downloads manifest, with the
-// native dialog answered Yes by the test. Skipped unless
-// AGENTRY_LIVE_INSTALL_CLI=1, because it downloads the CLI and writes a
-// home's ~/.local/bin and shell startup file:
+// The Scheduled page's Install the agentry command, live: the bound methods
+// driven as the page drives them, against a real site's /install.sh and
+// downloads manifest, with the native dialog answered Yes by the test.
+// Skipped unless AGENTRY_LIVE_INSTALL_CLI=1, because it downloads the CLI
+// and writes a home's ~/.local/bin and shell startup file:
 //
 //	AGENTRY_LIVE_INSTALL_CLI=1 \
 //	AGENTRY_LIVE_INSTALL_CLI_SITE=https://dev.secureagentry.net \

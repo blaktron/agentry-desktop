@@ -8,11 +8,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 )
 
-// Run defaults → Docker images (agentry-desktop#424): the Docker images
-// Agentry put on this machine, and a button that removes them on every
-// platform. The Windows uninstaller removes them unless "Keep my Docker
-// images" is ticked; the deb, rpm and dmg have no uninstaller that can ask,
-// so this is where those installs remove them.
+// Run defaults → Docker images: the Docker images Agentry put on this
+// machine, and a button that removes them on every platform. The Windows
+// uninstaller removes them unless "Keep my Docker images" is ticked; the
+// deb, rpm and dmg have no uninstaller that can ask, so this is where those
+// installs remove them.
 
 // ImageView is one of Agentry's images as the card lists it: the ref it is
 // removed by, and its size.

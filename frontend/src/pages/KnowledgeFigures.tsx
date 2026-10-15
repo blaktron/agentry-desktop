@@ -1,7 +1,6 @@
-// The Knowledge page's two figures (plan knowledge-cards.md §4.1,
-// agentry-desktop#619), drawn as the Build and Voice pages' are (DEV-201,
-// VoiceFigures.tsx) and in the language of the site's Knowledge cards
-// (agentry-web components/knowledge-ways.tsx): light lines with a spark
+// The Knowledge page's two figures, drawn as the Build and Voice pages'
+// are (VoiceFigures.tsx) and in the language of the site's Knowledge
+// cards: light lines with a spark
 // running each. They picture the card's own sentence and claim nothing
 // beyond it, so they are hidden from the accessibility tree; AI Review is a
 // ring a pack passes through, never a check or a shield, which would read

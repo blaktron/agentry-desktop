@@ -1,4 +1,4 @@
-// A run on this computer followed above the pages (agentry-desktop#465), by
+// A run on this computer followed above the pages, by
 // location.hash, over the Library under the shell chrome, with the
 // bindings mocked (the pattern drafts.tsx uses). Not shipped.
 //
@@ -16,7 +16,7 @@
 //   #run-card-stacked the run's card and a draft In Agentry's card stacked
 //                     in App's corner, neither covering the other
 //
-// A run In Agentry, followed the same way (agentry-desktop#466):
+// A run In Agentry, followed the same way:
 //   #hosted-queued      the dialog while it waits: its place in the queue,
 //                       the credits held, Cancel run
 //   #hosted-running     the dialog while it runs: time against its cap
@@ -34,7 +34,7 @@
 //                       landed in its card
 //   #hosted-card-stacked its card and a run on this computer's card
 //
-// The run page (agentry-desktop#659, D-068), opened from Home's Recent runs:
+// The run page, opened from Home's Recent runs:
 //   #runpage-local          a run on this computer the history keeps: how it
 //                           ended (the history's), the result, the files
 //   #runpage-hostile        the same, its result and files carrying raw HTML,
@@ -52,7 +52,7 @@
 //   #runpage-hosted-kept    one whose output was downloaded: the result view
 //   #runpage-hosted-draft   a draft In Agentry: Open in Build, no download
 //
-// A chat, here and In Agentry, followed the same way (agentry-desktop#467):
+// A chat, here and In Agentry, followed the same way:
 //   #chat-local           the dialog is the chat: the conversation, the strip
 //   #chat-local-working   its card while a message is out: working, turns
 //   #chat-local-waiting   its card between turns: waiting for you
@@ -194,7 +194,7 @@ const outputs = {
   truncated: false,
 };
 
-// The run page's entries (agentry-desktop#659).
+// The run page's entries.
 const RP_DIR = "/home/chris/Downloads/agentry-out/demo1-incident-summarizer-7c1e4a90";
 const rpRow = (over: Record<string, unknown> = {}) => ({
   id: RUN_ID, kind: "run", where: "here", registry: REG, ref: REF,
@@ -250,7 +250,7 @@ g.go = { main: {
     }),
     StopRun: async () => stop?.(),
     // The star ask after a run In Agentry that ended well, of someone
-    // else's QuickAgent not yet starred (agentry-desktop#613).
+    // else's QuickAgent not yet starred.
     StarAsk: async () => ({ ask: true, name: "demo1/incident-summarizer" }),
     StarQuickAgent: async () => {},
     StartHostedRun: async () => {
@@ -283,14 +283,14 @@ g.go = { main: {
     ForgetRun: async () => undefined,
     RunOutputs: async () => outputs,
     ShowRunFolder: async () => undefined,
-    // The run page's reads (agentry-desktop#659): the history's entry, and a
+    // The run page's reads: the history's entry, and a
     // run In Agentry read live; Download output answers as Go does once the
     // output is down.
     RecordedRun: async () => recordedRun(),
     HostedRecord: async () => hostedRecord(hash === "runpage-hosted-kept"),
     DownloadHostedOutput: async () => { document.body.dataset.downloaded = "1"; return hostedRecord(true); },
     RemoveRecordedRun: async () => { document.body.dataset.removed = "1"; },
-    // A review's report as Go reads it back from its folder (D13).
+    // A review's report as Go reads it back from its folder.
     RecordedReview: async () => ({
       runId: RUN_ID, outDir: "/home/chris/Downloads/agentry-out/agentry-examiner-5e1f0004", ref: "me/release-notes@0.1.0", files: 4,
       outcome: "published", outcomeWords: "published", reason: "It has no finding the gate weighs, so the gate would be expected to publish it.",
@@ -349,7 +349,7 @@ import RunPage from "../src/pages/RunPage";
 import Build from "../src/pages/Build";
 import { stageRecordedDraft } from "../src/drafts";
 
-// The run page under the shell, Home lit (agentry-desktop#659); where Back
+// The run page under the shell, Home lit; where Back
 // and a built-in's button lead is marked on the body (data-open).
 function selectedDraft() {
   return {

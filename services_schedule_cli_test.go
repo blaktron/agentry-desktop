@@ -15,7 +15,7 @@ import (
 // TestInstallCLIOffersAndRuns: the Options menu's entry says Install where
 // no command is found and Reinstall where one is, the install reports the
 // command's path, version and notes and refreshes the page, and nothing is
-// offered or run where the app does not install it (agentry-desktop#788).
+// offered or run where the app does not install it.
 func TestInstallCLIOffersAndRuns(t *testing.T) {
 	f := &scheduleFake{answer: true}
 	s := newScheduleAPI(t, f, true)

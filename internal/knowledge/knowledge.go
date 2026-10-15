@@ -1,28 +1,26 @@
-// Package knowledge is the desktop's side of the local knowledge store
-// (plan knowledge.md §4.3, §4.8; agentry-desktop#273, D-039): the Knowledge
-// panel's packs, kept by the CLI's own pkg/knowledge/store under the runner
-// home the two clients share, so a pack either client keeps is the other's
-// too (agentry-cli#319, DR-42). Nothing here seals, wraps or lays out a pack
-// itself: the store does, and this package wires it to this app — the
-// runner home, the OS keychain, and the registry token Settings keeps —
-// and says in the panel's words what each pack is and where it lives.
+// Package knowledge is the desktop's side of the local knowledge store: the
+// Knowledge panel's packs, kept by the CLI's own pkg/knowledge/store under
+// the runner home the two clients share, so a pack either client keeps is
+// the other's too. Nothing here seals, wraps or lays out a pack itself: the
+// store does, and this package wires it to this app — the runner home, the
+// OS keychain, and the registry token Settings keeps — and says in the
+// panel's words what each pack is and where it lives.
 //
 // A pack's data key is wrapped by the registry the person is signed in to
 // (the account's certificate on SecureAgentry; on a core registry a key it
 // derives for the account from the deployment's own sealing key), so the
 // pack opens on any computer they sign in on. Signed out, this computer's
-// key in the keychain wraps it instead, and the next sign-in rewraps it
-// (D20). The words say what holds the key, by the wrapper's kind, and never
-// call a pack "safe", "secure" or "private" (plan §3).
+// key in the keychain wraps it instead, and the next sign-in rewraps it.
+// The words say what holds the key, by the wrapper's kind, and make no
+// claim about the pack's safety (scripts/copy-check.sh holds the line).
 //
-// An organization's shared packs (Knowledge M8, agentry-desktop#276; plan
-// §4.7, D13, D26) are listed beside the person's own for each organization
-// they are an active member of, and kept by the same store (agentry-cli#380,
-// DR-46): a shared pack's key is asked for through the organization's
-// route every time it is opened, and never kept in the keychain or in this
-// app's memory, so a member who is removed keeps a sealed copy they can no
-// longer open. Export of a shared pack is the registry's to allow: its
-// admins, and members once an admin marks the pack exportable.
+// An organization's shared packs are listed beside the person's own for each
+// organization they are an active member of, and kept by the same store: a
+// shared pack's key is asked for through the organization's route every time
+// it is opened, and never kept in the keychain or in this app's memory, so a
+// member who is removed keeps a sealed copy they can no longer open. Export
+// of a shared pack is the registry's to allow: its admins, and members once
+// an admin marks the pack exportable.
 package knowledge
 
 import (
@@ -81,9 +79,8 @@ func Default() Env {
 
 // memberships is the signed-in person's active memberships at regURL (GET
 // /user). The URL is held to Settings' rule before a token is looked up
-// for it, as registry does, because the token is found by host alone
-// (agentry-desktop#307's lesson). A pending membership holds nothing, and
-// is left out.
+// for it, as registry does, because the token is found by host alone. A
+// pending membership holds nothing, and is left out.
 func (e Env) memberships(ctx context.Context, regURL string) ([]Membership, error) {
 	if e.Orgs != nil {
 		return e.Orgs(ctx, regURL)
@@ -189,9 +186,9 @@ type Pack struct {
 	Local     bool   `json:"local"`
 	InAgentry bool   `json:"inAgentry"`
 	// AgentryReady says Agentry's copy has been scanned and can be
-	// attached to a run In Agentry (agentry-desktop#275): its state there
-	// is ready. For a pack kept in both places that changed here since its
-	// upload, it is the older tree Agentry keeps.
+	// attached to a run In Agentry: its state there is ready. For a pack
+	// kept in both places that changed here since its upload, it is the
+	// older tree Agentry keeps.
 	AgentryReady bool `json:"agentryReady"`
 	// Changed is a pack kept in both places that changed here since its
 	// upload.
@@ -213,22 +210,21 @@ type Pack struct {
 	// or a key the registry unwrapped once and the keychain caches. It is
 	// read from the cache's presence marker, never the key.
 	OpensOffline bool `json:"opensOffline"`
-	// Shared is an organization's shared pack (Knowledge M8), Org its
-	// organization; Exportable says an admin marked it exportable by
-	// members, as the organization's list read for this answer says (false
-	// when it could not be read).
+	// Shared is an organization's shared pack, Org its organization;
+	// Exportable says an admin marked it exportable by members, as the
+	// organization's list read for this answer says (false when it could
+	// not be read).
 	Shared     bool   `json:"shared"`
 	Org        string `json:"org,omitempty"`
 	Exportable bool   `json:"exportable"`
 	// CanExport says the panel offers Export: the person's own pack, or a
-	// shared one they administer or an admin marked exportable (D26). The
+	// shared one they administer or an admin marked exportable. The
 	// registry decides again when it is asked.
 	CanExport bool `json:"canExport"`
 	// Updated is when the copy kept here last changed (its manifest's
 	// updated, else created), AgentryUpdated when Agentry's copy did, as
 	// its list says; RFC 3339, or "" for a place the pack is not kept. The
-	// Local and Cloud Knowledge pages each show their own
-	// (agentry-desktop#619).
+	// Local and Cloud Knowledge pages each show their own.
 	Updated        string `json:"updated,omitempty"`
 	AgentryUpdated string `json:"agentryUpdated,omitempty"`
 	// AgentryScan, AgentryScanState, AgentryPages and AgentryBytes are
@@ -256,7 +252,7 @@ type List struct {
 	// Agentry says why Agentry's copies are not listed, "" when they are.
 	Agentry string `json:"agentry,omitempty"`
 	// Shared says why an organization's shared packs are not listed, ""
-	// when they are, or when there are none to list (Knowledge M8).
+	// when they are, or when there are none to list.
 	Shared string `json:"shared,omitempty"`
 	// Problems are entries of the store that could not be read.
 	Problems []string `json:"problems,omitempty"`
@@ -428,7 +424,7 @@ func localPack(s *store.Store, en store.Entry) Pack {
 		p.OpensOffline = true
 	case store.WrapperRegistry:
 		p.Registry = hostOf(en.Key.Registry)
-		// A shared pack's key is never cached (DR-46): it does not open
+		// A shared pack's key is never cached: it does not open
 		// offline, whatever the keychain holds.
 		p.OpensOffline = en.Key.Org == "" && s.Cached(m.ID)
 	}
@@ -439,7 +435,7 @@ func localPack(s *store.Store, en store.Entry) Pack {
 const (
 	// kindCertificate is SecureAgentry's knowledge extension: the data
 	// key wrapped to the account's X25519 certificate, the key that opens
-	// it held by Agentry (agentry-enterprise#170).
+	// it held by Agentry.
 	kindCertificate = "certificate"
 	// kindDeployment is the open core's DeploymentWrapper: the data key
 	// sealed under a key the registry derives for the account from its
@@ -448,10 +444,10 @@ const (
 )
 
 // KeyHolder says what a kept pack's data key is wrapped to, by the
-// wrapper's kind: the plan's sentence for SecureAgentry's certificate, what
+// wrapper's kind: the desktop's sentence for SecureAgentry's certificate, what
 // is true of a core registry's deployment wrap, and the CLI's sentence for
 // this computer's key. The CLI's Entry.KeyHolder words every registry wrap
-// the first way (agentry-cli#357); this is the desktop's until it does not.
+// the first way; this is the desktop's until it does not.
 func KeyHolder(en store.Entry) string {
 	if en.Key.Wrapper != store.WrapperRegistry {
 		return en.KeyHolder()
@@ -644,14 +640,13 @@ func (e Env) Delete(ctx context.Context, current, name string, everywhere bool) 
 	return err
 }
 
-// DeleteFromAgentry deletes the account's copy id in Agentry and nothing
-// on this computer (plan knowledge-cards.md §4.3, D3; agentry-desktop#619):
-// the Cloud Knowledge page's Delete. A copy kept here keeps its record of
-// the deleted copy; the list then says Agentry no longer keeps it, and an
-// upload makes a new copy, as the store does for any copy Agentry lost. A
-// copy already gone is not an error. An organization's shared pack is not
-// in the account's own list, so its id is refused there (a member never
-// deletes one, D6).
+// DeleteFromAgentry deletes the account's copy id in Agentry and nothing on
+// this computer: the Cloud Knowledge page's Delete. A copy kept here keeps
+// its record of the deleted copy; the list then says Agentry no longer
+// keeps it, and an upload makes a new copy, as the store does for any copy
+// Agentry lost. A copy already gone is not an error. An organization's
+// shared pack is not in the account's own list, so its id is refused there
+// (a member never deletes one).
 func (e Env) DeleteFromAgentry(ctx context.Context, current, id string) error {
 	if !IsAgentryID(id) {
 		return fmt.Errorf("%q is not the id of a pack in Agentry", id)
@@ -704,8 +699,8 @@ func (e Env) Find(current, name string) (store.Entry, error) {
 }
 
 // Rewrap moves every pack this computer's key wraps to the account's key
-// at current, once this app is signed in to it (D20), and answers their
-// names. Signed out, it does nothing.
+// at current, once this app is signed in to it, and answers their names.
+// Signed out, it does nothing.
 func (e Env) Rewrap(ctx context.Context, current string) ([]string, error) {
 	if !e.SignedIn(current) {
 		return nil, nil
