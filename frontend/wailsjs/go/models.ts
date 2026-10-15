@@ -5516,6 +5516,22 @@ export namespace install {
 
 export namespace installed {
 	
+	export class ServerCapsSnapshot {
+	    egress?: string[];
+	    secrets?: string[];
+	    tools?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerCapsSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.egress = source["egress"];
+	        this.secrets = source["secrets"];
+	        this.tools = source["tools"];
+	    }
+	}
 	export class RemoteSnapshot {
 	    auth: string;
 	    scopes?: string[];
@@ -5548,6 +5564,7 @@ export namespace installed {
 	    mcpServerEnv?: {[key: string]: any};
 	    mcpRemote?: {[key: string]: RemoteSnapshot};
 	    mcpServerOAuth?: {[key: string]: manifest.MCPOAuth};
+	    mcpServerCaps?: {[key: string]: ServerCapsSnapshot};
 	    knowledge?: string[];
 	    targetHosts?: string[];
 	    browser?: manifest.Browser;
@@ -5571,6 +5588,7 @@ export namespace installed {
 	        this.mcpServerEnv = source["mcpServerEnv"];
 	        this.mcpRemote = this.convertValues(source["mcpRemote"], RemoteSnapshot, true);
 	        this.mcpServerOAuth = this.convertValues(source["mcpServerOAuth"], manifest.MCPOAuth, true);
+	        this.mcpServerCaps = this.convertValues(source["mcpServerCaps"], ServerCapsSnapshot, true);
 	        this.knowledge = source["knowledge"];
 	        this.targetHosts = source["targetHosts"];
 	        this.browser = this.convertValues(source["browser"], manifest.Browser);
@@ -5665,6 +5683,7 @@ export namespace installed {
 		    return a;
 		}
 	}
+	
 
 }
 
