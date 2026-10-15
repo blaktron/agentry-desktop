@@ -964,6 +964,25 @@ export default function Build({ registry, initialView = "start", initialStep = 0
             ))}
           </div>
         </div>
+        {/* capabilities.browser and targetHosts: no editor yet, carried
+            as they were drafted or loaded. */}
+        {m.browser && (
+          <p className="small muted" style={{ marginTop: 8 }}>
+            {m.browser.scope === "public"
+              ? "It has a browser that may open any public site"
+              : <>It has a browser that may open the {(m.browser.sites ?? []).length === 1 ? "site" : "sites"} the person gives for{" "}
+                  <span className="mono">{(m.browser.sites ?? []).join(", ") || "(no question)"}</span>
+                  {(m.browser.hosts ?? []).length > 0 && <>, and <span className="mono">{(m.browser.hosts ?? []).join(", ")}</span></>}</>}
+            {(m.browser.secrets ?? []).length > 0 && <>; it may type <span className="mono">{(m.browser.secrets ?? []).join(", ")}</span> into the site&apos;s forms</>}
+            . Kept as it was drafted or loaded.
+          </p>
+        )}
+        {(m.targetHosts ?? []).length > 0 && (
+          <p className="small muted" style={{ marginTop: 8 }}>
+            It administers the {(m.targetHosts ?? []).length === 1 ? "machine" : "machines"} the person gives for{" "}
+            <span className="mono">{(m.targetHosts ?? []).join(", ")}</span>. Kept as it was drafted or loaded.
+          </p>
+        )}
       </>
     ),
     questions: (
@@ -997,6 +1016,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                     <option value="secret">secret</option>
                     <option value="repository">repository</option>
                     <option value="url">url</option>
+                    <option value="host">host</option>
                   </select>
                 </label>
                 <RequiredBox m={m} q={q} onChange={(required) => patch({ required })} />
@@ -1009,10 +1029,21 @@ export default function Build({ registry, initialView = "start", initialStep = 0
                   none for a public one.
                 </p>
               )}
-              {q.type === "url" && (
+              {q.type === "url" && !(m.browser?.sites ?? []).includes(q.id) && (
                 <p className="muted small" style={{ margin: "6px 0 0" }}>
                   The person gives the https address of one file. The run fetches it before the agent starts, and the agent reads the file as it
                   would one the person added.
+                </p>
+              )}
+              {q.type === "url" && (m.browser?.sites ?? []).includes(q.id) && (
+                <p className="muted small" style={{ margin: "6px 0 0" }}>
+                  The person gives a website&apos;s address. The run&apos;s browser may open it and its subdomains; nothing is fetched before the
+                  agent starts.
+                </p>
+              )}
+              {q.type === "host" && (
+                <p className="muted small" style={{ margin: "6px 0 0" }}>
+                  The person picks one of their target hosts when the run starts. The agent runs commands on it through the host tools.
                 </p>
               )}
               {q.type === "choice" && (

@@ -4522,6 +4522,24 @@ export namespace build {
 	        this.email = source["email"];
 	    }
 	}
+	export class BrowserRow {
+	    sites: string[];
+	    hosts: string[];
+	    scope?: string;
+	    secrets: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BrowserRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sites = source["sites"];
+	        this.hosts = source["hosts"];
+	        this.scope = source["scope"];
+	        this.secrets = source["secrets"];
+	    }
+	}
 	export class SectionProblem {
 	    section: string;
 	    problem: string;
@@ -4856,6 +4874,8 @@ export namespace build {
 	    requiredSecrets: string[];
 	    dataAccess: string[];
 	    mcpServers: MCPServerRow[];
+	    targetHosts: string[];
+	    browser?: BrowserRow;
 	    knowledgePrompt: string;
 	    knowledgeRequired: boolean;
 	    knowledgeShips: string[];
@@ -4900,6 +4920,8 @@ export namespace build {
 	        this.requiredSecrets = source["requiredSecrets"];
 	        this.dataAccess = source["dataAccess"];
 	        this.mcpServers = this.convertValues(source["mcpServers"], MCPServerRow);
+	        this.targetHosts = source["targetHosts"];
+	        this.browser = this.convertValues(source["browser"], BrowserRow);
 	        this.knowledgePrompt = source["knowledgePrompt"];
 	        this.knowledgeRequired = source["knowledgeRequired"];
 	        this.knowledgeShips = source["knowledgeShips"];

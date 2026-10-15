@@ -110,7 +110,8 @@ var draftFields = map[string]any{
 		"network":    map[string]any{"egress": nil},
 		"filesystem": map[string]any{"read": map[string]any{"paths": nil}, "write": map[string]any{"paths": nil}},
 		"exec":       map[string]any{"commands": nil},
-		"secrets":    nil, "optionalSecrets": nil, "dataAccess": nil,
+		"secrets":    nil, "optionalSecrets": nil, "dataAccess": nil, "targetHosts": nil,
+		"browser": map[string]any{"sites": nil, "hosts": nil, "scope": nil, "secrets": nil},
 		"mcpServers": []any{map[string]any{
 			"npm": nil, "pypi": nil, "url": nil, "auth": nil, "scopes": nil, "version": nil, "tools": nil, "secrets": nil, "egress": nil, "env": nil,
 			"oauth": map[string]any{"issuer": nil, "scopes": nil, "files": []any{map[string]any{"path": nil, "template": nil}}, "env": nil},
