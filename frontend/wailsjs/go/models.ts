@@ -2950,6 +2950,8 @@ export namespace app {
 	    hasToken: boolean;
 	    tokenSource?: string;
 	    isDefault: boolean;
+	    signIn: string;
+	    signInRefused?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RegistryView(source);
@@ -2961,6 +2963,8 @@ export namespace app {
 	        this.hasToken = source["hasToken"];
 	        this.tokenSource = source["tokenSource"];
 	        this.isDefault = source["isDefault"];
+	        this.signIn = source["signIn"];
+	        this.signInRefused = source["signInRefused"];
 	    }
 	}
 	export class ReportAccentCheck {
@@ -4030,6 +4034,8 @@ export namespace app {
 	export class SettingsView {
 	    defaultRegistry: string;
 	    registries: RegistryView[];
+	    secureAgentryRegistry: string;
+	    selfHostedRegistry: string;
 	    configPath: string;
 	    onboarded: boolean;
 	    unsafeMode: boolean;
@@ -4042,6 +4048,8 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.defaultRegistry = source["defaultRegistry"];
 	        this.registries = this.convertValues(source["registries"], RegistryView);
+	        this.secureAgentryRegistry = source["secureAgentryRegistry"];
+	        this.selfHostedRegistry = source["selfHostedRegistry"];
 	        this.configPath = source["configPath"];
 	        this.onboarded = source["onboarded"];
 	        this.unsafeMode = source["unsafeMode"];

@@ -5,6 +5,8 @@
 // Credentials are NOT desktop-specific: PATs live in the OS keychain under
 // the same service/account convention the CLI uses (service "agentry",
 // account = registry host), so signing in from either client signs in both.
+// The app uses at most two of them, one for SecureAgentry and one for a
+// self-hosted registry, each only for its own registry (signins.go).
 // When no keychain is available the token falls back into this file, 0600 —
 // the same posture as the CLI's config-file fallback.
 //
@@ -404,48 +406,68 @@ func ValidateURL(regURL string) error {
 // TokenFor resolves the PAT for a registry: the OS keychain first, then the
 // settings-file fallback. Empty means anonymous.
 //
-// A URL ValidateURL refuses gets no token. The keychain keys a token by host
-// alone, so without this an http:// spelling of a signed-in https registry,
-// which a page can pass, would be handed that registry's token to send in
-// clear.
+// Only the two sign-ins this app keeps are ever returned, each for a URL of
+// its own registry's origin (SignInFor): a registry only the CLI signed in
+// to, or a listed registry that is neither sign-in, gets nothing. The token is read under
+// the sign-in's own registry host, not the host as the caller spelled it.
+// A URL ValidateURL refuses gets no token either: the keychain keys a token
+// by host alone, so without this an http:// spelling of a signed-in https
+// registry, which a page can pass, would be handed that registry's token to
+// send in clear.
 func TokenFor(regURL string) string {
-	if ValidateURL(regURL) != nil {
-		return ""
-	}
-	host, err := Host(regURL)
-	if err == nil {
-		if token, err := keyring.Get(KeyringService, host); err == nil && token != "" {
-			return token
-		}
-	}
-	if s, err := Load(); err == nil {
-		if e := s.Find(regURL); e != nil && e.Token != "" {
-			return e.Token
-		}
-	}
-	return ""
+	token, _ := lookupToken(regURL)
+	return token
 }
 
-// TokenSource reports where a credential for regURL currently lives:
-// "keyring", "file", or "" (none).
+// TokenSource reports where the credential TokenFor would return for regURL
+// lives: "keyring", "file", or "" (none).
 func TokenSource(regURL string) string {
-	host, err := Host(regURL)
-	if err == nil {
+	_, src := lookupToken(regURL)
+	return src
+}
+
+func lookupToken(regURL string) (token, source string) {
+	if ValidateURL(regURL) != nil {
+		return "", ""
+	}
+	// A settings file that cannot be read names no self-hosted registry;
+	// the SecureAgentry sign-in needs nothing from it.
+	s, err := Load()
+	if err != nil {
+		s = Settings{}
+	}
+	_, reg := s.SignInFor(regURL)
+	if reg == "" {
+		return "", ""
+	}
+	if host, err := Host(reg); err == nil {
 		if token, err := keyring.Get(KeyringService, host); err == nil && token != "" {
-			return "keyring"
+			return token, "keyring"
 		}
 	}
-	if s, err := Load(); err == nil {
-		if e := s.Find(regURL); e != nil && e.Token != "" {
-			return "file"
-		}
+	if e := s.Find(reg); e != nil && e.Token != "" {
+		return e.Token, "file"
 	}
-	return ""
+	return "", ""
 }
 
 // StoreToken saves a PAT for a registry: keychain first, settings-file
-// fallback. It returns where the token landed ("keyring" or "file").
+// fallback. It returns where the token landed ("keyring" or "file"). The
+// registry must be one of the two this app signs in to (SignInFor), and
+// the token is stored under that sign-in's registry host.
 func StoreToken(regURL, token string) (string, error) {
+	cur, err := Load()
+	if err != nil {
+		return "", err
+	}
+	_, reg := cur.SignInFor(regURL)
+	if reg == "" {
+		if err := cur.Admit(regURL); err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("add %s to Settings before signing in to it", DisplayOrigin(regURL))
+	}
+	regURL = reg
 	host, err := Host(regURL)
 	if err != nil {
 		return "", err
@@ -479,19 +501,31 @@ func StoreToken(regURL, token string) (string, error) {
 	return "file", nil
 }
 
-// DeleteToken removes the stored PAT for a registry from both stores.
+// DeleteToken removes the stored PAT for a registry from both stores,
+// under the address as given and under the registry of the sign-in it
+// belongs to, so another spelling of the same origin signs it out too.
 func DeleteToken(regURL string) error {
-	if host, err := Host(regURL); err == nil {
-		// ErrNotFound is fine; any other keychain error still lets the file
-		// fallback be cleared below.
-		_ = keyring.Delete(KeyringService, host)
-	}
 	s, err := Load()
 	if err != nil {
 		return err
 	}
-	if e := s.Find(regURL); e != nil && e.Token != "" {
-		e.Token = ""
+	urls := []string{regURL}
+	if _, reg := s.SignInFor(regURL); reg != "" && reg != Normalize(regURL) {
+		urls = append(urls, reg)
+	}
+	changed := false
+	for _, u := range urls {
+		if host, err := Host(u); err == nil {
+			// ErrNotFound is fine; any other keychain error still lets the
+			// file fallback be cleared below.
+			_ = keyring.Delete(KeyringService, host)
+		}
+		if e := s.Find(u); e != nil && e.Token != "" {
+			e.Token = ""
+			changed = true
+		}
+	}
+	if changed {
 		return Save(s)
 	}
 	return nil

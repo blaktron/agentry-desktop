@@ -50,13 +50,23 @@ type RegistryView struct {
 	// TokenSource is "keyring", "file", or "" when signed out.
 	TokenSource string `json:"tokenSource,omitempty"`
 	IsDefault   bool   `json:"isDefault"`
+	// SignIn is which of the app's two sign-ins this registry has:
+	// "secureagentry", "self-hosted", or "" when it is neither and the app
+	// will not sign in to it (SignInRefused says why).
+	SignIn        string `json:"signIn"`
+	SignInRefused string `json:"signInRefused,omitempty"`
 }
 
 // SettingsView is the settings page's model.
 type SettingsView struct {
 	DefaultRegistry string         `json:"defaultRegistry"`
 	Registries      []RegistryView `json:"registries"`
-	ConfigPath      string         `json:"configPath"`
+	// SecureAgentryRegistry is the SecureAgentry registry this build signs
+	// in to, "" when it is built for none; SelfHostedRegistry is the one
+	// self-hosted registry it signs in to, "" until one is added.
+	SecureAgentryRegistry string `json:"secureAgentryRegistry"`
+	SelfHostedRegistry    string `json:"selfHostedRegistry"`
+	ConfigPath            string `json:"configPath"`
 	// Onboarded is false until the first-run wizard is completed or skipped;
 	// the frontend opens the guided setup while it is false and nothing is
 	// signed in.
@@ -72,13 +82,24 @@ func settingsView() (*SettingsView, error) {
 		return nil, err
 	}
 	path, _ := settings.Path()
-	v := &SettingsView{DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded, UnsafeMode: s.UnsafeMode}
+	v := &SettingsView{
+		DefaultRegistry: s.DefaultRegistry, Registries: []RegistryView{}, ConfigPath: path, Onboarded: s.Onboarded, UnsafeMode: s.UnsafeMode,
+		SecureAgentryRegistry: settings.SecureAgentryRegistry(), SelfHostedRegistry: s.SelfHostedRegistry(),
+	}
 	for _, r := range s.Registries {
 		src := settings.TokenSource(r.URL)
-		v.Registries = append(v.Registries, RegistryView{
+		kind, _ := s.SignInFor(r.URL)
+		rv := RegistryView{
 			URL: settings.Normalize(r.URL), HasToken: src != "", TokenSource: src,
 			IsDefault: settings.Normalize(r.URL) == settings.Normalize(s.DefaultRegistry),
-		})
+			SignIn:    kind,
+		}
+		if kind == "" {
+			if err := s.Admit(r.URL); err != nil {
+				rv.SignInRefused = err.Error()
+			}
+		}
+		v.Registries = append(v.Registries, rv)
 	}
 	return v, nil
 }
@@ -174,6 +195,9 @@ func (s *SettingsAPI) AddRegistry(url string) (*SettingsView, error) {
 	}
 	cfg, err := settings.Load()
 	if err != nil {
+		return nil, err
+	}
+	if url, err = cfg.Resolve(url); err != nil {
 		return nil, err
 	}
 	cfg.Upsert(settings.Registry{URL: url})
@@ -276,24 +300,33 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	if err := settings.ValidateURL(url); err != nil {
 		return nil, err
 	}
+	// Only the two sign-ins the app keeps: the token is not even sent to
+	// a registry outside them to be checked.
+	cfg, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	if url, err = cfg.Resolve(url); err != nil {
+		return nil, err
+	}
 	user, err := whoami(s.app, url, token)
 	if err != nil {
 		return nil, err
 	}
+	// Sign-in implies "keep it": the registry joins the list before its
+	// token is stored, which is what makes it the self-hosted sign-in.
+	if cfg.Find(url) == nil {
+		cfg.Upsert(settings.Registry{URL: url})
+		if cfg.DefaultRegistry == "" {
+			cfg.DefaultRegistry = url
+		}
+		if err := settings.Save(cfg); err != nil {
+			return nil, fmt.Errorf("the PAT is valid but %s could not be added to Settings: %w", settings.DisplayOrigin(url), err)
+		}
+	}
 	store, err := settings.StoreToken(url, token)
 	if err != nil {
 		return nil, fmt.Errorf("the PAT is valid but could not be stored: %w", err)
-	}
-	// Make sure the registry is in the list (sign-in implies "keep it").
-	cfg, err := settings.Load()
-	if err == nil {
-		if cfg.Find(url) == nil {
-			cfg.Upsert(settings.Registry{URL: url})
-			if cfg.DefaultRegistry == "" {
-				cfg.DefaultRegistry = url
-			}
-			_ = settings.Save(cfg)
-		}
 	}
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
 	// A schedule that runs signed out carries the registry token sealed
@@ -856,7 +889,7 @@ func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatu
 	}
 	reg = settings.Normalize(reg)
 	attURL := fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", ns, name, version)
-	att := trust.VerifyAttestation(b.app.ctx, registry.HTTPClient, reg, settings.TokenFor(reg), attURL, declaredDigest)
+	att := registry.VerifyAttestation(b.app.ctx, reg, settings.TokenFor(reg), attURL, declaredDigest)
 	return &att, nil
 }
 

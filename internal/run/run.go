@@ -1048,7 +1048,7 @@ func verifyRunAttestation(ctx context.Context, sig *Signature, archiveDigest str
 		if attURL == "" {
 			attURL = fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", sig.Namespace, sig.Name, sig.Version)
 		}
-		att = trust.VerifyAttestation(ctx, registry.HTTPClient, sig.Registry, settings.TokenFor(sig.Registry), attURL, archiveDigest)
+		att = registry.VerifyAttestation(ctx, sig.Registry, settings.TokenFor(sig.Registry), attURL, archiveDigest)
 	}
 	switch att.State {
 	case trust.StateVerified:

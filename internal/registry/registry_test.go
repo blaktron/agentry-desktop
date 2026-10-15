@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -69,5 +70,63 @@ func TestAPublicReadStillFollowsARedirect(t *testing.T) {
 	}
 	if res.StatusCode() != http.StatusOK || reached.Load() != 1 {
 		t.Fatalf("status %d, %d requests elsewhere; want 200 from the redirect's target", res.StatusCode(), reached.Load())
+	}
+}
+
+// An archive URL the registry names gets the token only on the registry's
+// own origin: the same host over http, on another port, or another host
+// gets the download without it.
+func TestADownloadCarriesTheTokenOnlyToTheRegistrysOrigin(t *testing.T) {
+	var auth atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth.Store(r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte("archive"))
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+
+	for _, c := range []struct {
+		reg  string
+		want string
+	}{
+		{srv.URL, "Bearer agy_test"},
+		{srv.URL + "/", "Bearer agy_test"},
+		{"https://" + host, ""},
+		{"http://localhost" + host[strings.LastIndex(host, ":"):], ""},
+	} {
+		auth.Store("unset")
+		if _, err := Download(context.Background(), c.reg, "agy_test", &apiclient.ResolveResult{ArchiveUrl: srv.URL + "/archive"}); err != nil {
+			t.Fatalf("%s: %v", c.reg, err)
+		}
+		if got := auth.Load(); got != c.want {
+			t.Errorf("registry %s: the archive at %s was sent %q, want %q", c.reg, srv.URL, got, c.want)
+		}
+	}
+}
+
+// The attestation an answer names gets the token only on the registry's
+// own origin, as the archive does.
+func TestAnAttestationCarriesTheTokenOnlyToTheRegistrysOrigin(t *testing.T) {
+	var auth atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth.Store(r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+
+	for _, c := range []struct {
+		reg, att, want string
+	}{
+		{srv.URL, "/api/v1/agents/a/b/versions/1.0.0/attestation", "Bearer agy_test"},
+		{srv.URL, srv.URL + "/att", "Bearer agy_test"},
+		{"https://" + host, "http://" + host + "/att", ""},
+		{"http://localhost" + host[strings.LastIndex(host, ":"):], srv.URL + "/att", ""},
+	} {
+		auth.Store("unset")
+		VerifyAttestation(context.Background(), c.reg, "agy_test", c.att, "sha256:00")
+		if got := auth.Load(); got != c.want {
+			t.Errorf("registry %s, attestation %s: sent %q, want %q", c.reg, c.att, got, c.want)
+		}
 	}
 }

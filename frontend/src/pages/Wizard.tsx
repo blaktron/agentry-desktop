@@ -18,6 +18,7 @@ import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } fr
 import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure } from "./WizardFigures";
+import { signInKindFor, signInLine, signInPhrase, twoSignIns } from "../signIns";
 
 const LABELS: Record<WizardStep, string> = {
   welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime",
@@ -149,6 +150,10 @@ function SignInStep({
 
   const current = settings.registries.find((r) => norm(r.url) === norm(regURL));
   const signedIn = !!current?.hasToken;
+  const line = signInLine(settings, regURL);
+  // An address the app keeps no sign-in for is refused in Go; the buttons
+  // wait for one it does.
+  const admitted = signInKindFor(settings, regURL) !== "";
 
   async function ensureRegistry(): Promise<string> {
     const u = norm(regURL);
@@ -196,9 +201,9 @@ function SignInStep({
       <div className="wizard-body">
         <h1>Sign in to a registry</h1>
         <p className="page-sub">
-          Sign in to install and run QuickAgents. The credential is kept in the OS keychain and
-          shared with the <span className="mono">agentry</span> CLI. You can also browse anonymously
-          and sign in later.
+          Sign in to install and run QuickAgents. {twoSignIns(settings)} The credential is kept in
+          the OS keychain and shared with the <span className="mono">agentry</span> CLI. You can also
+          browse anonymously and sign in later.
         </p>
 
         <ErrorBox error={error} />
@@ -206,7 +211,8 @@ function SignInStep({
 
         {signedIn ? (
           <Notice tone="ok">
-            Signed in to <span className="mono">{norm(regURL)}</span> ({current?.tokenSource}).
+            Signed in to <span className="mono">{norm(regURL)}</span> ({current?.tokenSource}): your{" "}
+            {signInPhrase(signInKindFor(settings, regURL))}.
           </Notice>
         ) : (
           <>
@@ -216,6 +222,7 @@ function SignInStep({
                 type="text" className="mono" placeholder="https://secureagentry.net"
                 value={regURL} onChange={(e) => setRegURL(e.target.value)} disabled={busy}
               />
+              {line && <span className="muted small field-hint">{line}</span>}
             </label>
 
             {waiting ? (
@@ -225,7 +232,7 @@ function SignInStep({
               </Notice>
             ) : (
               <div className="row">
-                <Button variant="primary" disabled={busy || !regURL.trim()} onClick={signInBrowser}>
+                <Button variant="primary" disabled={busy || !regURL.trim() || !admitted} onClick={signInBrowser}>
                   Sign in via browser
                 </Button>
                 <Button variant="link" disabled={busy} onClick={() => setPasteMode((v) => !v)}>
@@ -243,7 +250,7 @@ function SignInStep({
                     value={token} onChange={(e) => setToken(e.target.value)} disabled={busy}
                     onKeyDown={(e) => e.key === "Enter" && token.trim() && signInPaste()}
                   />
-                  <Button variant="primary" disabled={busy || !token.trim()} onClick={signInPaste}>
+                  <Button variant="primary" disabled={busy || !token.trim() || !admitted} onClick={signInPaste}>
                     Sign in
                   </Button>
                 </div>
