@@ -38,47 +38,40 @@ import { Button, Notice, Wordmark } from "./ui";
 import { requestEdit, sameRegistry } from "./edit";
 
 export type Route =
-  // The page the app opens on: a card per thing that is the person's own
-  // (plan desktop-home-and-library.md D2; agentry-desktop#658).
+  // The page the app opens on: a card per thing that is the person's own.
   | { page: "home" }
-  // The Library: what is installed on this computer, with Browse beneath it
-  // (plan desktop-home-and-library.md D3).
+  // The Library: what is installed on this computer, with Browse beneath it.
   | { page: "library" }
   // q: the Library's search, carried to Browse and searched there.
   | { page: "browse"; q?: string }
   // registry: an installed record's own registry may differ from the active
   // one; back: where the ← link returns to.
-  // run: open the page with its run setup open (a pin's Run on Home,
-  // agentry-desktop#660).
-  // schedule: the run setup opens with When on Repeat (Schedule a new
-  // run, agentry-desktop#743).
+  // run: open the page with its run setup open (a pin's Run on Home).
+  // schedule: the run setup opens with When on Repeat (Schedule a new run).
   | { page: "agent"; ns: string; name: string; registry?: string; back?: "browse" | "library" | "home" | "publisher" | "scheduled"; run?: boolean; schedule?: boolean }
-  // The schedules on this computer (plan quickagent-scheduling.md §7;
-  // agentry-desktop#743); focus: one just made.
+  // The schedules on this computer; focus: one just made.
   | { page: "scheduled"; focus?: string }
-  // A run Recent runs lists, as a page (plan desktop-home-and-library.md
-  // §4.7, D7; agentry-desktop#659): read by its id, from the history Go
+  // A run Recent runs lists, as a page: read by its id, from the history Go
   // keeps (local) or the registry (hosted).
   | { page: "run"; source: RunPageSource; id: string; registry?: string; back?: "home" | "scheduled" }
   | { page: "knowledge" }
   | { page: "voice" }
   | { page: "validate" }
   | { page: "build" }
-  // The QuickAgents the signed-in person publishes (plan
-  // forks-and-publisher.md D12; agentry-desktop#705).
+  // The QuickAgents the signed-in person publishes.
   // follow: a fork just made from an agent page, which the section opens on
-  // and follows (agentry-desktop#706).
+  // and follows.
   | { page: "publisher"; follow?: FollowFork }
   // section: one of Settings' five section pages, or the landing's cards
-  // when absent; part: the anchor within it (settings-cards.md D12).
+  // when absent; part: the anchor within it.
   | { page: "settings"; section?: SettingsSection; part?: SettingsPart };
 
 // The agent page's way back, by where it was opened from.
 const BACK_LABEL = { browse: "← back to Browse", library: "← back to Library", home: "← back to Home", publisher: "← back to Publisher", scheduled: "← back to Scheduled" } as const;
 
 // The one Create knowledge or Add documents flow, above the pages so a build
-// goes on in its corner card while the person uses the rest of the app
-// (agentry-desktop#353). One at a time, as the run lock allows one build.
+// goes on in its corner card while the person uses the rest of the app.
+// One at a time, as the run lock allows one build.
 type KnowledgeFlow = { registry: string; addTo?: string; place?: KnowledgePlace };
 
 export default function App() {
@@ -90,47 +83,46 @@ export default function App() {
   // list is read again.
   const [knowledgeRev, setKnowledgeRev] = useState(0);
   // Bumped by the draft's "Open the draft", so the Build tab opens the
-  // draft that landed whatever view it is on (agentry-desktop#410).
+  // draft that landed whatever view it is on.
   const [openDraftRev, setOpenDraftRev] = useState(0);
   // Bumped by the QuickAgent page's Edit, so the Build tab opens the
-  // release it asked for (edit.ts; agentry-desktop#500).
+  // release it asked for (edit.ts).
   const [openEditRev, setOpenEditRev] = useState(0);
   // The corner the running flows' cards stack in (progress.tsx).
   const [corner, setCorner] = useState<HTMLElement | null>(null);
   // A run on this computer's setup, opened again by Back to the setup from
-  // the run's flow (agentry-desktop#465), with the answers as they were.
+  // the run's flow, with the answers as they were.
   const [reopened, setReopened] = useState<RunSetup | null>(null);
   const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
   const [settings, setSettings] = useState<main.SettingsView | null>(null);
-  // The Report bug card over the page (agentry-desktop#841).
+  // The Report bug card over the page.
   const [reportingBug, setReportingBug] = useState(false);
   const [registry, setRegistry] = useState<string>("");
   const [version, setVersion] = useState<string>("");
-  // A newer Agentry Desktop, when the last check found one (#87). Reading the
+  // A newer Agentry Desktop, when the last check found one. Reading the
   // status never starts a check: the app looks on launch and daily in the
   // background, and this only renders what it found.
   const [newer, setNewer] = useState<main.SelfUpdateView | null>(null);
   // How many installed QuickAgents have a newer version, from the launch
-  // check and the agent page's own checks (agentry-desktop#147, D8): the
+  // check and the agent page's own checks: the
   // number on Library. Reading it never starts a check.
   const [installedUpdates, setBriefUpdates] = useState(0);
   const [showWizard, setShowWizard] = useState(false);
-  // The "nothing set up" reminder (plan desktop-installers.md D10): raised
+  // The "nothing set up" reminder: raised
   // when the wizard closed with "I'll do it later", shown on Home until
   // dismissed (opening Settings from it leaves it standing for the return
-  // trip), and never persisted — the next launch starts clean, and D-019's
+  // trip), and never persisted — the next launch starts clean, and the onboarding
   // flag keeps the wizard closed.
   const [setupMissing, setSetupMissing] = useState<string[] | null>(null);
-  // A run or chat compiled in Unsafe Mode that is still live on this computer
-  // (agentry-desktop#479): turning the switch off changes the next run, not
+  // A run or chat compiled in Unsafe Mode that is still live on this computer:
+  // turning the switch off changes the next run, not
   // this one, so the edge and the badge stay until Go says it has ended.
   // The event is the newer word: a poll's answer that set out before the
   // latest event arrived is dropped, not allowed to undo it.
   const [unsafeLive, setUnsafeLive] = useState(false);
   const unsafeEvents = useRef(0);
-  // A run setup that made a schedule opens the Scheduled page on it
-  // (agentry-desktop#743).
+  // A run setup that made a schedule opens the Scheduled page on it.
   useEffect(() => {
     const opened = (e: Event) => setRoute({ page: "scheduled", focus: String((e as CustomEvent).detail ?? "") });
     window.addEventListener(SCHEDULED_EVENT, opened);
@@ -152,12 +144,11 @@ export default function App() {
   }, []);
 
   // A draft In Agentry already running for this account is followed from
-  // the start, in its corner card (agentry-desktop#410).
+  // the start, in its corner card.
   useEffect(() => {
     if (registry) attachHosted(registry);
   }, [registry]);
-  // So is a run or a chat In Agentry, in its own card (agentry-desktop#466,
-  // #467).
+  // So is a run or a chat In Agentry, in its own card.
   useEffect(() => {
     if (registry) void attachHostedRun(registry);
   }, [registry]);
@@ -166,7 +157,7 @@ export default function App() {
     refreshSettings()
       .then((s) => {
         // First-run gate: open the guided setup when the machine is
-        // unconfigured — not yet onboarded and nothing signed in (#41).
+        // unconfigured — not yet onboarded and nothing signed in.
         if (!s.onboarded && !s.registries.some((r) => r.hasToken)) setShowWizard(true);
       })
       .catch(() => setSettings(null));
@@ -205,7 +196,7 @@ export default function App() {
   }, [refreshSettings]);
 
   const nav = (r: Route) => setRoute(r);
-  // Home shows it; Browse showed it while Browse was the landing.
+  // Home shows it.
   const setupBanner = setupMissing && (
     <div className="setup-banner">
       <Notice tone="warn">
@@ -234,13 +225,13 @@ export default function App() {
           </div>
           <SidebarNav page={route.page} onNav={(page) => nav({ page } as Route)} installedUpdates={installedUpdates} signedIn={signedIn} />
           <div className="foot">
-            {/* Unsafe Mode in words, beside the red edge below (D-050). */}
+            {/* Unsafe Mode in words, beside the red edge below. */}
             {unsafeShown && (
               <UnsafeBadge running={!settings?.unsafeMode} onOpen={() => setRoute({ page: "settings", ...SETTINGS_FOR.unsafeMode })} />
             )}
-            {/* Report bug, directly above the version (plan report-bug.md
-                §6; agentry-desktop#841): a card over the page, filed with
-                the active registry as the person signed in there. */}
+            {/* Report bug, directly above the version: a card over the
+                page, filed with the active registry as the person signed
+                in there. */}
             <button type="button" className="report-bug" onClick={() => setReportingBug(true)}>Report bug</button>
             {version && <div>v{version}</div>}
             {newer?.available && !newer.dismissed && (
@@ -256,7 +247,7 @@ export default function App() {
                 >
                   {/* The caveat Settings gives, in the chrome too: a release
                       signed by a retired key is shown, never offered as an
-                      update (agentry-desktop#124). */}
+                      update. */}
                   {newer.available.version} is available{newer.available.retired && " (retired key, not installed)"}
                 </button>
                 <button
@@ -286,7 +277,7 @@ export default function App() {
         )}
         <div className="content">
           {/* A render fault shows its way back here, under a sidebar that
-              still works (agentry-desktop#351). */}
+              still works. */}
           <Recover subject="This page" resetKey={JSON.stringify(route)}>
             {route.page === "home" && (
               <Home
@@ -352,7 +343,7 @@ export default function App() {
                 // registry: offered only for that registry's QuickAgents.
                 onOpenReviewKey={() => nav({ page: "settings", ...SETTINGS_FOR.reviewKey })}
                 // Fork goes into the app's registry, so it is offered there
-                // only, and only while it is signed in (agentry-desktop#706).
+                // only, and only while it is signed in.
                 onFork={signedIn && sameRegistry(route.registry ?? registry, registry)
                   ? (fns, fname, sentence) => nav({ page: "publisher", follow: { namespace: fns, name: fname, sentence } })
                   : undefined}
@@ -399,7 +390,7 @@ export default function App() {
                 // A build in flight is brought back rather than a second
                 // started (one build at a time); a flow that is over, or not
                 // yet started, gives way to the one asked for, preset to the
-                // place whose page asked (plan knowledge-cards.md D5).
+                // place whose page asked.
                 if (!knowledgeFlow || !flowInFlight) setKnowledgeFlow({ registry, addTo, place });
                 setFlowMinimized(false);
               }}

@@ -1,5 +1,4 @@
-// One card frame for every start page's cards and Home's (plan
-// desktop-home-and-library.md D4, D-067; DEV-201): the Build, Voice and
+// One card frame for every start page's cards and Home's: the Build, Voice and
 // Knowledge pages' light-line card, the whole of it one button (the
 // title's, stretched over the card by .build-way-main::after in style.css).
 // A start page's card has a figure and a sentence; a Home card has a

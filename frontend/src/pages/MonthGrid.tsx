@@ -1,6 +1,5 @@
-// The month grid (plan quickagent-scheduling.md D11; D-073): the Scheduled
-// page's calendar and, mini, Home's Scheduled card (D13;
-// agentry-desktop#744). Hand-built, Monday first, each day's occurrences
+// The month grid: the Scheduled page's calendar and, mini, Home's
+// Scheduled card. Hand-built, Monday first, each day's occurrences
 // as dots in the colour of what happened (hollow while due). On the page a
 // day is a button that chooses it; on the card the whole card is the
 // button, so the days are plain cells.

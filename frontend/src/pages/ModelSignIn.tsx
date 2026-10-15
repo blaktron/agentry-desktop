@@ -5,11 +5,10 @@ import { ClipboardSetText, EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, ErrorBox, Notice, Spinner } from "../ui";
 import { keptFor, keptLine, removeLabel, type KeptSignIn, type Way } from "../modelSetup";
 
-/** The sign-in half of model setup (agentry-desktop#734, plan
- * model-sign-ins.md §4.1): one way's sign-in or connect, made through the
- * CLI's own packages on the Go side, with nothing for the person to copy
- * or paste but GitHub's own code, which the app copies for them (operator,
- * 2026-10-11). While it waits it says so, offers the page again should the
+/** The sign-in half of model setup: one way's sign-in or connect, made
+ * through the CLI's own packages on the Go side, with nothing for the
+ * person to copy or paste but GitHub's own code, which the app copies for
+ * them. While it waits it says so, offers the page again should the
  * browser not have opened, and can be cancelled. No token, key or
  * authorization code ever reaches this page. */
 export function SignInWay({ way, kept, disabled, onSignedIn, onRemoved }: {

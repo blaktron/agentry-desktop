@@ -1,11 +1,10 @@
-// Edit on the QuickAgent page (agentry-desktop#500; plan drafter-revisions.md
-// §4, D1, D5, D6, D7; DEV-199): the page's Edit opens the Build tab on the
+// Edit on the QuickAgent page: the page's Edit opens the Build tab on the
 // QuickAgent's current release, under the same name at its next minor.
 //
-// Who is offered Edit is the registry's answer, canPublish (GET /agents,
-// agentry#875): the desktop's sign-in token publishes and never maintains,
-// so it never reads the maintainer's settings the site reads. The upload
-// decides again.
+// Who is offered Edit is the registry's answer, canPublish (GET /agents):
+// the desktop's sign-in token publishes and never maintains, so it never
+// reads the maintainer's settings the site reads. The upload decides
+// again.
 //
 // The request travels from the QuickAgent page to the Build tab through this
 // module, as a landed draft travels through drafts.ts: the page asks, App

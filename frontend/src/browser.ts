@@ -1,10 +1,9 @@
-// The browser (capabilities.browser, V15; plan browser-testing.md §5, D9;
-// agentry-desktop#878): a headless Chromium a run drives, held to the sites
-// the person names and the declared hosts, or any public site. These are
-// the CLI's install consent words (agentry-cli cmd/agentry/caps.go
-// browserLine), as internal/mcpview/browser.go has them for the consent
-// dialog and the run setup's capability lines, and as the site's consent
-// row has them (agentry-web#1644).
+// The browser (capabilities.browser, V15): a headless Chromium a run
+// drives, held to the sites the person names and the declared hosts, or
+// any public site. These are the CLI's install consent words (browserLine
+// in the CLI's cmd/agentry/caps.go), as internal/mcpview/browser.go has
+// them for the consent dialog and the run setup's capability lines, and
+// as the site's consent row has them.
 
 export type BrowserCap = { sites?: string[]; hosts?: string[]; scope?: string; secrets?: string[] };
 
@@ -50,7 +49,7 @@ export function browserBadge(b: BrowserCap): string {
 // A url question the browser names as a site (the intake view's `site`)
 // is the address the browser opens, never an input source fetched with a
 // token: the CLI keeps the answer in intake.json and hands it to the
-// browse proxy (agentry-cli#915, intake.CollectRun). The setup asks it as
+// browse proxy (intake.CollectRun in the CLI). The setup asks it as
 // an address and holds it to what the CLI's browser.ParseSite takes.
 
 type SiteQ = { id: string; prompt: string; type: string; required: boolean; site?: boolean };
@@ -64,7 +63,7 @@ export function isSiteQuestion(q: { type: string; site?: boolean }): boolean {
 // answer, as a clause, or null: an http or https address with a host, no
 // user name or password, no fragment, at most 2,048 characters. A private
 // address is taken, as a run on this computer may test a staging server on
-// the person's network (plan D2).
+// the person's network.
 export function siteProblem(answer: string): string | null {
   const a = answer.trim();
   if (a.length > 2048) return "is longer than 2,048 characters";
@@ -82,13 +81,12 @@ export function siteProblem(answer: string): string | null {
 }
 
 // LOCAL_ONLY_SUFFIXES are names a public resolver never answers for a site
-// on the internet: the registry's list (agentry-enterprise#565
-// internal/runs/browser.go localOnlySuffixes) and the site's
-// (agentry-web lib/run-setup.ts); a change there is a change here.
+// on the internet: the registry's list (localOnlySuffixes) and the
+// site's; a change there is a change here.
 const LOCAL_ONLY_SUFFIXES = [".localhost", ".local", ".internal", ".home.arpa"];
 
 // publicIPv4 says an IPv4 literal is on the public internet: none of the
-// IPv4 ranges the runner's one public list refuses (agentry-cli
+// IPv4 ranges the runner's one public list refuses (the CLI's
 // runnerimage/netaddr, which the registry's browser-site check uses).
 function publicIPv4(host: string): boolean {
   const [a, b, c] = host.split(".").map(Number);
@@ -107,8 +105,8 @@ function publicIPv4(host: string): boolean {
 // hostedSiteProblem is what a run In Agentry cannot open in a site answer,
 // as a clause, or null: a port other than 80 and 443, which is all a
 // sandbox host lets out, an address that is not public, or a name only a
-// local network answers (plan D2: a private address is a run on this
-// computer's alone; agentry-desktop#903). The registry refuses the same at
+// local network answers (a private address is a run on this
+// computer's alone). The registry refuses the same at
 // create (409 browser-site), and the run's CLI resolves a name and refuses
 // a private answer before anything starts.
 export function hostedSiteProblem(answer: string): string | null {

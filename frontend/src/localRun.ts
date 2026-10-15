@@ -1,5 +1,4 @@
-// A run on this computer, as the app follows it above the pages
-// (agentry-desktop#465; plan desktop-review-key-and-run-cards.md §5.2): what
+// A run on this computer, as the app follows it above the pages: what
 // Go has reported of it, keyed by its id, and how it ended. Pure, so the
 // store (runs.ts) and its tests share one set of rules: a report or a line of
 // another run, or of this run after it ended, changes nothing.
@@ -77,10 +76,10 @@ export function headlineOf(result: main.RunResultView, stopped = false): { line:
 }
 
 /** The prefix the CLI puts before a QuickAgent's own end_blocked sentence
- *  in the envelope's error (agentry-cli#629). */
+ *  in the envelope's error. */
 const AGENT_BLOCKED = "blocked: the agent could not do the task: ";
 
-/** blockedLine says why a run ended blocked (exit 18, agentry-desktop#680),
+/** blockedLine says why a run ended blocked (exit 18),
  *  from the envelope's reason: the QuickAgent's own word, with its sentence,
  *  which on this computer is the person's own run; or the runner's tools
  *  failing it. A reason this does not know reads as the tools'. */
@@ -122,7 +121,7 @@ export type RunStoreDeps = {
 
 export type RunStoreState<S> = { run: LocalRun | null; setup: S | null; shown: boolean; raised: number };
 
-/** The one run on this computer the app follows (agentry-desktop#465). A
+/** The one run on this computer the app follows. A
  *  start owns nothing shared until its own run has begun: the run being
  *  followed (in the background, or a card that is over) is left as it is
  *  while a second Run waits for its consent and for Go's answer, and a start

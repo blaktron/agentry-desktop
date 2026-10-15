@@ -1,21 +1,19 @@
-// The Knowledge page (plan knowledge.md §4.8; agentry-desktop#273, D-039;
-// reshaped by plan knowledge-cards.md §4, agentry-desktop#619): two cards,
-// as the Build and Voice pages' (DEV-201). Local Knowledge opens the packs
-// kept on this computer; Cloud Knowledge the packs the account keeps in
-// Agentry, and its organizations' shared packs. Each card and page has
-// Create knowledge, preset to its place (D2, D5); a pack is copied to the
-// other place with Copy to Cloud or Copy to Local, the store's Upload and
-// Download, which never remove the copy they start from (D1); a pack kept in
-// both places is on both pages, marked so, and Delete on a page removes that
-// place's copy alone (D3).
+// The Knowledge page: two cards, as the Build and Voice pages'. Local
+// Knowledge opens the packs kept on this computer; Cloud Knowledge the
+// packs the account keeps in Agentry, and its organizations' shared packs.
+// Each card and page has Create knowledge, preset to its place; a pack is
+// copied to the other place with Copy to Cloud or Copy to Local, the
+// store's Upload and Download, which never remove the copy they start
+// from; a pack kept in both places is on both pages, marked so, and
+// Delete on a page removes that place's copy alone.
 //
 // A pack is kept sealed in the runner home the CLI shares, encrypted to a
 // key of its own that the registry wraps for the account, so the words say
 // what holds that key, as Go words it by the wrapper's kind
 // (internal/knowledge.KeyHolder) — the account's key, which Agentry holds,
 // on SecureAgentry; a key a core registry keeps for the account; or, signed
-// out, this computer's — and none of the words plan knowledge.md §3 rules
-// out (the copy check holds the line).
+// out, this computer's — and never call a pack "safe", "secure" or "private"
+// (the copy check holds the line).
 //
 // Every gate is in Go (services_knowledge.go): Export and both Deletes are
 // asked in native dialogs, Export's folder comes from the native picker, the
@@ -39,7 +37,7 @@ export type KnowledgeView = "start" | "local" | "cloud";
 export type KnowledgePlace = "local" | "agentry";
 
 // A pack made on this computer may hold up to 1 GB; Agentry keeps packs of
-// at most 10 MB, so a larger one offers no Copy to Cloud (agentry-desktop#354).
+// at most 10 MB, so a larger one offers no Copy to Cloud.
 const pastAgentryCap = (p: knowledge.Pack) => p.bytes > AGENTRY_MAX_BYTES;
 // A copy Agentry is scanning, or that holds nothing yet, cannot be copied here.
 const copyableHere = (p: knowledge.Pack) => !p.local && p.agentryScanState !== "scanning" && p.agentryScanState !== "empty";
@@ -51,7 +49,7 @@ export default function Knowledge({
   onOpenSettings: () => void;
   /** Create knowledge, or Add documents to addTo, preset to a place. The
    *  flow lives in App, not here, so a build goes on in its corner card
-   *  while the person moves between pages (agentry-desktop#353). */
+   *  while the person moves between pages. */
   onCreate: (addTo?: string, place?: KnowledgePlace) => void;
   /** Changes when a build has ended, so the list is read again. */
   rev?: number;

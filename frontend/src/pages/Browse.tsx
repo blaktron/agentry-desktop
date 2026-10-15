@@ -16,8 +16,7 @@ export default function Browse({
   onOpenAgent,
 }: {
   registry: string;
-  /** What the Library's search held when it led here: searched at once
-   * (plan desktop-home-and-library.md D3; agentry-desktop#657). */
+  /** What the Library's search held when it led here: searched at once. */
   initialQuery?: string;
   onOpenAgent: (ns: string, name: string) => void;
 }) {
@@ -88,8 +87,8 @@ export default function Browse({
       {!loading && results && (
         <div>
           {/* The count is the registry's or nothing: a core that sent no
-              total (before agentry#290) gets a list without a number, not
-              "0 results" above a full list (agentry-desktop#63). */}
+              total gets a list without a number, not
+              "0 results" above a full list. */}
           {typeof results.total === "number" && (
             <p className="muted small">{results.total} result{results.total === 1 ? "" : "s"}</p>
           )}

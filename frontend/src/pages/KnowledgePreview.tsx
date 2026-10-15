@@ -1,5 +1,5 @@
-// A knowledge pack's pages, previewed (plan knowledge.md §3, §4.8;
-// agentry-desktop#273). The pages are what a model wrote from the person's
+// A knowledge pack's pages, previewed. The pages are what a model wrote
+// from the person's
 // documents, so they render through the run-output reader (AgentMarkdown):
 // no raw HTML, no image, and a link only to a web address, opened in the
 // system browser. Each page is opened from the store when it is asked for
@@ -7,7 +7,7 @@
 //
 // A pack a build left short may hold no page besides its index (the apply
 // step drops the pages it cannot take): the preview says so, and reads a
-// missing list as none (agentry-desktop#351, where a null list blanked the app).
+// missing list as none, since a null list blanks the app.
 import { useEffect, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";

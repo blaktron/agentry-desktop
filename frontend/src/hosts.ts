@@ -1,5 +1,4 @@
-// Target hosts in the run setup (plan runtime-hosts.md §6, §8, D6, D7,
-// D12, D14; agentry-desktop#812): a QuickAgent that declares a target host
+// Target hosts in the run setup: a QuickAgent that declares a target host
 // asks for a server with an intake question of type host, answered as
 // [user@]host[:port]. Beside the address the setup takes the sign-in (a
 // private key file chosen in the native picker, with its passphrase, or the
@@ -151,7 +150,7 @@ export function hostBlockers(
       continue;
     }
     // A schedule's runs read the sign-in from the keychain, where making
-    // the schedule keeps it (plan D12).
+    // the schedule keeps it.
     if (at.scheduling && key.keychainOff) {
       out.push(`A schedule's runs read the sign-in for ${shown(key)} from the system keychain, which is off on this computer (AGENTRY_NO_KEYRING).`);
     }

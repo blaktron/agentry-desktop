@@ -1,14 +1,13 @@
-// Connect tools' sign-ins (plan mcp-oauth-connections.md M5, D5, D20–D23;
-// agentry-desktop#666): each declared MCP server that signs in by OAuth,
+// Connect tools' sign-ins: each declared MCP server that signs in by OAuth,
 // with Connect, which opens the vendor's consent screen in the person's
 // browser the first time a run of this QuickAgent version needs it, and the
 // state it leaves ("Connected …", the next run asking nothing). The consent
 // address is also shown, with a field for the address the browser ended
-// on, for a browser on another computer (D21). A vendor that lets no app
+// on, for a browser on another computer. A vendor that lets no app
 // register itself (Google) asks for the person's own OAuth client, with
-// Agentry's steps for making one shown first (D22); the secret goes to Go
+// Agentry's steps for making one shown first; the secret goes to Go
 // in one call and is never shown back. Disconnect removes the connection
-// and revokes it at the vendor where it offers that (D20).
+// and revokes it at the vendor where it offers that.
 import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";

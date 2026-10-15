@@ -4,11 +4,11 @@ import { creditCount, tierLabel, topUpOffer } from "../../subscription";
 import { nameOf } from "../../homeLines";
 import { hostOf } from "../Settings";
 
-// Home's Profile card (agentry-desktop#658): who is signed in, the tier and
+// Home's Profile card: who is signed in, the tier and
 // the credit balance, read live from the registry as Settings → Profile
 // reads them (nothing is stored). It edits nothing: the card opens Settings
-// → Profile, and Top up credits opens the site, where the tier offers packs
-// (D9). Signed out it is a Sign in card.
+// → Profile, and Top up credits opens the site, where the tier offers packs.
+// Signed out it is a Sign in card.
 export function ProfileCard({ registry, signedIn, profile, error, onOpenProfile, onSignIn, onTopUp }: {
   registry: string;
   // null until the settings are read, so the card never shows Sign in to

@@ -1,22 +1,21 @@
-// The Build tab's summary (plan builder-simplify.md §4.1, D3, D7;
-// agentry-desktop#344), the site's M4 (agentry-web#651) over the desktop's
+// The Build tab's summary, the site's over the desktop's
 // form: the one short page a QuickAgent is submitted from, where a draft
+// lands and where both form views end. How it works, then what it needs:
 // lands and where both form views end. How it works, then what it needs:
 // every key with its help, the websites, each MCP server with its tools, and
 // each file, command or data grant, drawn from BuildAPI.Summary (the
 // capability contract in full, and nothing undeclared: internal/build
-// Summarize and its test). Then Submit, private unless switched, and See it in
+// Summarize and its test). Then the three actions below, and See it in
 // the form. The plumbing (the Drafter's notes, sources, AI Review's counts,
 // the namespace, version, licence, tags, include list, file name and run
 // mode) stays in the form views.
 //
-// It ends on three actions (agentry-desktop#425, reversing D3's private
-// Submit): Save writes the QuickAgent to a folder (a new one under the
-// default output folder, no dialog, since #585); Install puts it on this
+// It ends on three actions: Save writes the QuickAgent to a folder (a new
+// one under the default output folder, no dialog); Install puts it on this
 // computer only, local and unsigned, with no registry and no credit; Submit
 // sends it to the registry publicly, after a native warning that names what
 // it costs. The two dialogs are the Go side's, which the page cannot answer.
-// Beside them, Review Your QuickAgents locally (agentry-desktop#469) saves it
+// Beside them, Review Your QuickAgents locally saves it
 // and reviews the folder with the built-in Examiner, after its own native
 // dialog; it holds none of the three.
 //

@@ -1,13 +1,13 @@
-// The Knowledge page's two places (plan knowledge-cards.md §4,
-// agentry-desktop#619): which packs each page lists, and the cards' and
-// rows' words. Pure, so the page, the harness and the tests share it.
+// The Knowledge page's two places: which packs each page lists, and the
+// cards' and rows' words. Pure, so the page, the harness and the tests
+// share it.
 //
 // Local Knowledge lists every pack with a copy on this computer; Cloud
 // Knowledge every pack the account keeps in Agentry, and each
-// organization's shared packs in a group of their own (D6). A pack kept in
-// both places is on both pages, marked so (D3). The words name what holds
-// a key and what read a pack, and none of the words plan knowledge.md §3
-// rules out (the copy check holds the line). Sizes are written by the
+// organization's shared packs in a group of their own. A pack kept in
+// both places is on both pages, marked so. The words name what holds
+// a key and what read a pack, and never call a pack "safe", "secure" or
+// "private" (the copy check holds the line). Sizes are written by the
 // caller's formatter (ui's fmtStorage), so this module imports nothing at
 // run time and node's test runner reads it as it is.
 import type { knowledge } from "../wailsjs/go/models";
@@ -53,7 +53,7 @@ export function cloudPacks<P extends Pack>(packs: P[]): P[] {
 }
 
 /** Each organization's shared packs in Agentry, by organization, in the
- *  order the list has them (D6). */
+ *  order the list has them. */
 export function sharedGroups<P extends Pack>(packs: P[]): { org: string; packs: P[] }[] {
   const out: { org: string; packs: P[] }[] = [];
   for (const p of packs) {
@@ -106,8 +106,8 @@ export function cloudStatus(list: { signedIn: boolean; agentry?: string } | null
   return parts.join(" · ") + ".";
 }
 
-/** The badges a row carries on one place's page about the other place
- *  (D3): kept there too, and changed since it was copied. */
+/** The badges a row carries on one place's page about the other place:
+ *  kept there too, and changed since it was copied. */
 export function otherPlace(p: Pack, page: "local" | "cloud"): { label: string; tone: string; title: string }[] {
   if (p.shared) return [];
   const out: { label: string; tone: string; title: string }[] = [];

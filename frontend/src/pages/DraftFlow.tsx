@@ -1,5 +1,5 @@
-// A draft's progress (agentry-desktop#410), as Create knowledge shows a
-// build's (#352, #353): App mounts this above the pages, and Draft it or
+// A draft's progress, as Create knowledge shows a build's: App mounts this
+// above the pages, and Draft it or
 // Describe again opens it as a dialog. On this computer the dialog shows the
 // time used against the draft's limit, its turns, its tokens and the stage
 // it is in (AI Review of the description, the Drafter's turn, AI Review's

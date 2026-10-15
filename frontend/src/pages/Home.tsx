@@ -21,11 +21,8 @@ import RunPanel from "./RunPanel";
 import { localAttestation } from "./Library";
 import type { Pin } from "../pins";
 
-// Home (plan desktop-home-and-library.md §4.3, D2, D4, D9, D-067;
-// agentry-desktop#658; Recent runs, D-068, agentry-desktop#659; pins,
-// agentry-desktop#660): the page
-// the app opens on, a card per thing that is the person's own, in the start
-// pages' card language. Go keeps which
+// Home: the page the app opens on, a card per thing that is the person's
+// own, in the start pages' card language. Go keeps which
 // cards and in what order (HomeAPI); each card reads its own bindings and a
 // read that fails says so in its card, never the page's. Home starts
 // nothing: no run, install, update or spend happens on load, and every
@@ -56,16 +53,16 @@ export type HomeOpen = {
   // A pin's Run for a QuickAgent from a registry: its page, with the run
   // setup open (a folder install's opens here, as the Library's does).
   runAgent: (registry: string, ns: string, name: string) => void;
-  // Settings → Home: which cards, the pins, Reset (agentry-desktop#661).
+  // Settings → Home: which cards, the pins, Reset.
   settings: () => void;
-  // The Scheduled card's page (agentry-desktop#744).
+  // The Scheduled card's page.
   scheduled: () => void;
 };
 
-// How many rows Recent runs shows (plan §4.3).
+// How many rows Recent runs shows.
 const RECENT_ROWS = 5;
 // How many recent runs are read: enough to find each pin's latest run
-// (the history keeps 50, D1).
+// (the history keeps 50).
 const RUNS_READ = 50;
 
 export default function Home({ registry, settings, open, banner, now: nowProp }: {
@@ -78,7 +75,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   now?: Date;
 }) {
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
-  // The Scheduled card's month (agentry-desktop#744): this one's grid.
+  // The Scheduled card's month: this one's grid.
   const weeks = useMemo(() => monthGrid(now.getFullYear(), now.getMonth(), now), [now]);
   const [layout, setLayout] = useState<Got<main.HomeLayoutView>>(pending);
   const [records, setRecords] = useState<Got<install.Item[]>>(pending);
@@ -126,7 +123,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
 
   // The Scheduled card's read, only while the layout holds the card: Home
   // reads the CLI's store and, signed in, the account's schedules In
-  // Agentry, and runs nothing (agentry-desktop#744, #745).
+  // Agentry, and runs nothing.
   const wantsScheduled = !!layout.value && !layout.value.newer && !layout.value.unreadable && scheduledOnHome(layout.value.cards);
   // Read again when a schedule changes or a Run now ends while Home is open.
   useEffect(() => {
@@ -146,7 +143,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   const unpin = (pin: Pin) => {
     HomeAPI.Unpin(pin.ref, pin.registry ?? "").then((v) => setLayout({ value: v, error: null })).catch(() => {});
   };
-  // A plain object, not createFrom (agentry-desktop#441).
+  // A plain object, not createFrom.
   const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as main.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
     "recent-runs": () => (

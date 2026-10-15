@@ -1,4 +1,4 @@
-// The Agent tab's second card (agentry-desktop#835): the release's
+// The Agent tab's second card: the release's
 // instruction file under its README, shown as text. A module of its own,
 // with no JSX, so node's test runner can import it.
 

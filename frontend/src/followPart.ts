@@ -1,4 +1,4 @@
-// A deep link's part, followed while its page fills in (agentry-desktop#673).
+// A deep link's part, followed while its page fills in.
 // A Settings section's cards make their own reads (Run defaults and its Docker
 // parts, Profile, the provider form), so the part a link names, or what sits
 // above it, can render after the route changes. followPart scrolls to the

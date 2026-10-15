@@ -1,9 +1,8 @@
-// A run In Agentry, as the app follows it above the pages
-// (agentry-desktop#466; plan desktop-review-key-and-run-cards.md §5.2, D10,
-// D15): the registry's own view of it, which Go re-reads and reports as
+// A run In Agentry, as the app follows it above the pages: the
+// registry's own view of it, which Go re-reads and reports as
 // runner:hosted-run, kept by the run's id for the app's life, so a run that
 // ends while its dialog is closed lands in its card with its result. The
-// desktop follows the run and never drives it (D-022): Cancel asks the
+// desktop follows the run and never drives it: Cancel asks the
 // registry, and what the dialog and card say is what the registry said.
 // Pure, so the store (runs.ts) and its tests share one set of rules.
 import type { main } from "../wailsjs/go/models";
@@ -43,7 +42,7 @@ export function hostedTone(v: View): Exclude<Tone, ""> {
  *  a host started it, against the cap the run was created under. Before a
  *  host starts it, and for a registry that names no start, there is none.
  *  The registry reports turns only once the run is over, and a run In
- *  Agentry carries no tokens at all (agentry-desktop#457). */
+ *  Agentry carries no tokens at all. */
 export function hostedProgress(v: View): JobProgress | null {
   const started = v.startedAt ? Date.parse(v.startedAt) : NaN;
   if (!Number.isFinite(started)) return null;
@@ -92,7 +91,7 @@ export type HostedRunState<S> = {
   note: string | null;
 };
 
-/** The one run In Agentry the app follows (agentry-desktop#466). Its
+/** The one run In Agentry the app follows. Its
  *  listener, once taken, lives as long as the store: a report of the run
  *  followed is taken whether or not the dialog, the card or any setup is
  *  open. */

@@ -1,12 +1,11 @@
-// Model setup's rules that are not React (plan model-sign-ins.md §4.1;
-// agentry-desktop#734, M9): which ways to pay each provider offers, which
-// one the saved policy uses, what this computer keeps for each, and what a
-// choice needs before it can be saved. Pure, so node's own test runner can
-// hold them without a browser.
+// Model setup's rules that are not React: which ways to pay each provider
+// offers, which one the saved policy uses, what this computer keeps for
+// each, and what a choice needs before it can be saved. Pure, so node's own
+// test runner can hold them without a browser.
 //
-// The words are for someone who does not know what a key or OAuth is
-// (operator, 2026-10-11): a sign-in leads, an API key comes second, and no
-// choice asks anyone to paste a code. Sign in with GitHub shows GitHub's own
+// The words are for someone who does not know what a key or OAuth is: a
+// sign-in leads, an API key comes second, and no choice asks anyone to
+// paste a code. Sign in with GitHub shows GitHub's own
 // code, which the app copies for the person to paste on GitHub's page.
 
 /** One way to pay for a provider's models. */
@@ -28,7 +27,7 @@ export interface Way {
 export interface ProviderChoice {
   id: string;
   label: string;
-  /** The tile's name (agentry-desktop#830): the label without its
+  /** The tile's name: the label without its
    *  parenthesis, which the logo already says. */
   short: string;
   /** The table's default model ("" where the person types it). */
@@ -37,8 +36,8 @@ export interface ProviderChoice {
   ways: Way[];
 }
 
-/** The CLI's own wording for the Claude choice (setup.ClaudeSignInLabel,
- *  plan D24): no logo, no "Sign in with Claude". */
+/** The CLI's own wording for the Claude choice (setup.ClaudeSignInLabel):
+ *  no logo, no "Sign in with Claude". */
 export const CLAUDE_SIGN_IN_LABEL = "Use your Claude subscription (runs Claude Code)";
 
 const key = (hint: string, label = "API key"): Way => ({ id: "key", label, hint, kind: "api" });
@@ -91,7 +90,7 @@ export const providerChoice = (id: string): ProviderChoice | undefined => PROVID
 export const providerLabel = (id: string) => providerChoice(id)?.label ?? id;
 
 /** What a provider's tile says it can be paid with, from its ways, so the
- *  tiles show every choice before one is picked (agentry-desktop#830):
+ *  tiles show every choice before one is picked:
  *  "Claude plan or API key", "Your account or access token". */
 export function tileOffer(p: ProviderChoice): string {
   const words = p.ways.map((w) => {
@@ -137,8 +136,7 @@ export function keptFor(way: Way, kept: KeptSignIn[]): KeptSignIn | undefined {
  *  connected account where one is kept for it (a pasted key forgets the
  *  connect), else a key; or the provider's first way, a sign-in, when the
  *  policy names another provider or nobody has set a provider up yet (a
- *  policy written from defaults names a provider nobody chose,
- *  agentry-desktop#462). */
+ *  policy written from defaults names a provider nobody chose). */
 export function savedWay(provider: string, policyProvider: string, apiKeyKind: string, kept: KeptSignIn[], setUp = true): WayId {
   const ways = waysFor(provider);
   if (provider !== policyProvider || !setUp) return ways[0].id;
@@ -162,9 +160,9 @@ export function keptLine(k: KeptSignIn): string {
 export const removeLabel = (k: KeptSignIn) => (k.connected ? "Disconnect" : "Remove");
 
 /** How model setup asks for the model on a way: from the plan's own list
- *  (ChatGPT, and Copilot once its list is asked of Copilot CLI,
- *  agentry-cli#808 and agentry-desktop#811), from Claude Code's aliases, or
- *  typed (the big catalogues, plan D33, and Copilot before its list).
+ *  (ChatGPT, and Copilot once its list is asked of Copilot CLI), from
+ *  Claude Code's aliases, or typed (the big catalogues, and Copilot
+ *  before its list).
  *  planModels is the way's own list: ChatGPT's, or Copilot's ids. */
 export interface ModelAsk {
   mode: "plan" | "pick" | "typed" | "key";

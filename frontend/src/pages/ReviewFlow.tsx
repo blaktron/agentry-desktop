@@ -1,5 +1,4 @@
-// A review by the Examiner, followed above the pages (agentry-desktop#469;
-// plan desktop-review-key-and-run-cards.md §6.3, D24), as a run, a draft and
+// A review by the Examiner, followed above the pages, as a run, a draft and
 // a knowledge build are: App mounts this, and the dialog opens once Go
 // reports that the review has begun (after its native dialog, inside the run
 // lock). While it runs, the dialog shows the stage (the registry's rules

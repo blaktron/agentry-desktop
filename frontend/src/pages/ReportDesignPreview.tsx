@@ -1,11 +1,10 @@
-// The Report design page's live preview (plan report-designs.md §4 "The
-// editor", D10; agentry-desktop#759): the CLI's own sample report
-// (agentry-cli:runnerimage/toolsrv/testdata/pdf/thumbnail.md) laid out in
+// The Report design page's live preview: the CLI's own sample report
+// (runnerimage/toolsrv/testdata/pdf/thumbnail.md in the CLI) laid out in
 // HTML from the design's values, with the faces as web fonts. It is a
 // likeness, not the render: the thumbnails above it are the render. It is
-// the site's preview (agentry-web components/report-design-preview.tsx),
-// and each rule follows the runner's template (agentry-cli:runnerimage/
-// toolsrv/pdf/report.typ): its ink, hairline and code fill, the accent where
+// the site's preview, and each rule follows the runner's template
+// (runnerimage/toolsrv/pdf/report.typ in the CLI): its ink, hairline and
+// code fill, the accent where
 // the core's AccentOnText puts it on text and on rules, bars, tints and
 // callout edges otherwise, the title block, the heading treatment on the
 // top two levels, tables, quotes, and the footer's rule, line and page
@@ -17,9 +16,9 @@
 // proportions as it does in the PDF. Only the core's families and a hex
 // accent reach a style (reportDesign.ts cssFamily, cssColour); the tint is
 // the core's, from CheckReportDesign. The person's logo, when they have one,
-// sits at the title's right as the template draws it (agentry-cli#816): at
-// most 14 mm tall and 3.5 times that wide, on a small white ground on a band
-// (agentry-desktop#777); only a PNG data: URL (reportDesign.ts isLogoSrc).
+// sits at the title's right as the template draws it: at
+// most 14 mm tall and 3.5 times that wide, on a small white ground on a
+// band; only a PNG data: URL (reportDesign.ts isLogoSrc).
 import type { CSSProperties, ReactNode } from "react";
 import "../reportFonts/fonts.css";
 import { cssColour, cssFamily, isLogoSrc, type ReportDesign, type ReportFamily } from "../reportDesign";
