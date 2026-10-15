@@ -11,10 +11,10 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The run In Agentry App follows from the start (agentry-desktop#466): the
-// attach takes a run, never a knowledge build or a draft in flight for the
-// same account, and downloads into a folder Go chose itself, since the page
-// has picked none at start (D-030).
+// The run In Agentry App follows from the start: the attach takes a run,
+// never a knowledge build or a draft in flight for the same account, and
+// downloads into a folder Go chose itself, since the page has picked none at
+// start.
 func TestTheAttachAtStartTakesOnlyARun(t *testing.T) {
 	build := &hostedrun.Run{ID: "11111111-1111-1111-1111-111111111111", Kind: hostedrun.KindKnowledgeBuild, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
 	draft := &hostedrun.Run{ID: "22222222-2222-2222-2222-222222222222", Kind: hostedrun.KindDraft, Status: hostedrun.StatusQueued, CreatedAt: time.Now().UTC()}
@@ -60,7 +60,7 @@ func TestTheAttachAtStartTakesOnlyARun(t *testing.T) {
 }
 
 // Run defaults' saved folder is the one a run attached at start downloads
-// into, a folder of its own inside it (D-044).
+// into, a folder of its own inside it.
 func TestTheAttachAtStartUsesRunDefaultsFolder(t *testing.T) {
 	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusQueued, CreatedAt: time.Now().UTC()}
 	f := &hostedFake{enabled: true, run: run}
@@ -89,8 +89,8 @@ func TestTheAttachAtStartUsesRunDefaultsFolder(t *testing.T) {
 }
 
 // A chat In Agentry in flight at start is attached as a run is, since chats
-// follow in the cards (agentry-desktop#467), and one the app already follows
-// is the answer to a second attach.
+// follow in the cards, and one the app already follows is the answer to a
+// second attach.
 func TestTheAttachAtStartTakesAChat(t *testing.T) {
 	chat := &hostedrun.Run{ID: "44444444-4444-4444-4444-444444444444", Ref: "acme/helper@1.0.0", Mode: hostedrun.ModeInteractive, Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
 	f := &hostedFake{enabled: true, run: chat}
@@ -162,8 +162,8 @@ func TestFollowingALostRunAgainKeepsItsFolder(t *testing.T) {
 }
 
 // App's attach at start and a run setup's attach can be in flight at once;
-// the run is followed once, and both answer with the one folder it
-// downloads into (agentry-desktop#466).
+// the run is followed once, and both answer with the one folder it downloads
+// into.
 func TestTwoAttachesAtOnceFollowTheRunOnce(t *testing.T) {
 	run := &hostedrun.Run{ID: "33333333-3333-3333-3333-333333333333", Ref: "acme/reporter@1.0.0", Status: hostedrun.StatusRunning, CreatedAt: time.Now().UTC()}
 	f := &hostedFake{enabled: true, run: run, listDelay: 50 * time.Millisecond}
@@ -265,9 +265,9 @@ func TestFollowingWhileAnotherRunIsFollowedSaysSo(t *testing.T) {
 }
 
 // A run the registry created is under way whatever this app does next: a
-// start that cannot follow it (another registry's run was attached while
-// it was being created) leaves the secrets set for it to the run and the
-// vault, as a start that started does (D-043).
+// start that cannot follow it (another registry's run was attached while it
+// was being created) leaves the secrets set for it to the run and the vault,
+// as a start that started does.
 func TestAStartThatCannotFollowItsRunLeavesItsSecrets(t *testing.T) {
 	f := &hostedFake{enabled: true}
 	reg := f.start(t)

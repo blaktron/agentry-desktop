@@ -1,9 +1,9 @@
-// RunAPI: the bound run surface (RUNNER-PLAN-2 §P6) — setup status and
-// one-click setup (§P1), MCP-profile status and guided configuration as a
-// form (§P3), the tool-surface section (req 3/4), and run-with-task over
-// agentry-cli/pkg/runner. Long operations stream progress as Wails events
-// (`runner:setup-progress`, `runner:unsafe-progress`, a chat's `runner:run-log`,
-// a run's `runner:run-progress` and `runner:run-line`); secret VALUES cross this
+// RunAPI: the bound run surface — setup status and one-click setup,
+// MCP-profile status and guided configuration as a form, the tool-surface
+// section, and run-with-task over agentry-cli/pkg/runner. Long operations
+// stream progress as Wails events (`runner:setup-progress`,
+// `runner:unsafe-progress`, a chat's `runner:run-log`, a run's
+// `runner:run-progress` and `runner:run-line`); secret VALUES cross this
 // boundary only inward (SaveProfile) and are never returned or logged.
 package main
 
@@ -61,13 +61,13 @@ var errBusy = errors.New("another job is under way on this computer, and one job
 // RunAPI drives QuickAgent runs from the app.
 type RunAPI struct {
 	app *App
-	// mu serializes the docker-touching operations: one run (or image
-	// setup) at a time keeps the log streams and the engine's teardown
-	// sweeps unambiguous. An interactive session holds it from
-	// StartSession to EndSession (D-017: one session per app).
+	// mu serializes the docker-touching operations: one run (or image setup)
+	// at a time keeps the log streams and the engine's teardown sweeps
+	// unambiguous. An interactive session holds it from StartSession to
+	// EndSession (one session per app).
 	mu sync.Mutex
-	// images lists and removes Docker images (Run defaults' Docker images,
-	// agentry-desktop#424); nil is the docker CLI. A test passes its own.
+	// images lists and removes Docker images (Run defaults' Docker images);
+	// nil is the docker CLI. A test passes its own.
 	images dockerimages.Docker
 	// session is the live interactive session, nil otherwise.
 	session localSession
@@ -81,33 +81,31 @@ type RunAPI struct {
 	hosted   *hostedFollow
 	// lostDirs are the folders of runs In Agentry this app lost touch with
 	// while they were still moving, by run id: following one again brings
-	// its outputs down where it was started to (agentry-desktop#466).
+	// its outputs down where it was started to.
 	lostDirs map[lostKey]string
 	// held are the secrets this app set for a start In Agentry and did not
-	// keep, by registry: deleted again if the start does not start, left
-	// for the vault to remove when the run ends if it does
-	// (agentry-desktop#300). Names only.
+	// keep, by registry: deleted again if the start does not start, left for
+	// the vault to remove when the run ends if it does. Names only.
 	heldMu sync.Mutex
 	held   map[string]map[string]bool
-	// awaiting is a start In Agentry refused 409 connection-missing, kept
-	// so it can be made again once the vault holds the connection, with the
-	// inputs it already uploaded (services_hostedrun_connect.go,
-	// agentry-desktop#667).
+	// awaiting is a start In Agentry refused 409 connection-missing, kept so
+	// it can be made again once the vault holds the connection, with the
+	// inputs it already uploaded (services_hostedrun_connect.go).
 	awaitMu  sync.Mutex
 	awaiting *awaitingStart
 
 	// holder is what holds mu, for the busy refusal and InFlight
-	// (services_runflow.go, agentry-desktop#465), under its own lock.
+	// (services_runflow.go), under its own lock.
 	holderMu sync.Mutex
 	holder   *jobHolder
 
-	// live is the run or session in flight, so quitting can end it and
-	// sweep what it built (services_quit.go, agentry-desktop#125).
+	// live is the run or session in flight, so quitting can end it and sweep
+	// what it built (services_quit.go).
 	liveMu sync.Mutex
 	live   *liveRun
 	// unsafeMu serializes a live run's Unsafe Mode flag with the event that
 	// tells the shell, so the shell never hears them out of order
-	// (setUnsafeLive, endRun; agentry-desktop#479). Taken before liveMu.
+	// (setUnsafeLive, endRun). Taken before liveMu.
 	unsafeMu sync.Mutex
 	// Engine seams for tests; nil means internal/run.
 	newRunID      func() (string, error)
@@ -116,8 +114,8 @@ type RunAPI struct {
 	sweep         func(context.Context, string) error
 	// runnerHomeDir is the runner home a test gives the app, "" for this
 	// machine's: where the crash-path records are kept, in its desktop-runs
-	// (services_quit.go, agentry-desktop#198), and where a run's files are
-	// looked for when it is settled and swept (agentry-desktop#463).
+	// (services_quit.go), and where a run's files are looked for when it is
+	// settled and swept.
 	runnerHomeDir string
 
 	// Unsafe Mode's seams (services_unsafe.go); nil means internal/run.
@@ -176,24 +174,23 @@ type SessionEventView struct {
 	Digest     string `json:"digest,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 	// InputTokens, OutputTokens, TotalTokens and CostUSD are a usage
-	// event's, from a session on this computer only; a session In
-	// Agentry's frames carry none (agentry-desktop#457).
+	// event's, from a session on this computer only; a session In Agentry's
+	// frames carry none.
 	InputTokens  int64   `json:"inputTokens,omitempty"`
 	OutputTokens int64   `json:"outputTokens,omitempty"`
 	TotalTokens  int64   `json:"totalTokens,omitempty"`
 	CostUSD      float64 `json:"costUsd,omitempty"`
 }
 
-// StartSession starts an interactive run (plan §7): the same install,
-// consent-recorded contract, images, profile and intake as RunAgent, then
-// the engine's session; events stream as runner:session-event until
-// EndSession. The run lock is held for the session's whole life.
+// StartSession starts an interactive run: the same install, consent-recorded
+// contract, images, profile and intake as RunAgent, then the engine's
+// session; events stream as runner:session-event until EndSession. The run
+// lock is held for the session's whole life.
 //
 // A chat takes no timeout from the page: it has no wall clock and no count
 // of the person's turns, and its one limit is Run defaults' Chat idle
-// timeout, none by default, which Go reads here from desktop.yaml
-// (agentry-desktop#468, D-052). maxTurns is the tool-call budget, as a
-// run's: -1 keeps the policy's, 0 lifts it.
+// timeout, none by default, which Go reads here from desktop.yaml. maxTurns
+// is the tool-call budget, as a run's: -1 keeps the policy's, 0 lifts it.
 func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn) (*SessionView, error) {
 	idle, err := chatIdleTimeout()
 	if err != nil {
@@ -221,7 +218,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	}
 	live.registry = reg
 	// A chat that read the switch on is an Unsafe Mode chat from here until
-	// its compile says otherwise (agentry-desktop#479).
+	// its compile says otherwise.
 	r.setUnsafeLive(live, unsafe)
 	// The attached packs' opened copies live as long as the session: its
 	// endRun, from EndSession or quitting, removes them.
@@ -332,7 +329,7 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 	return r.resultView(res), nil
 }
 
-// SetupStatusView is the machine's run-readiness (§P1).
+// SetupStatusView is the machine's run-readiness.
 type SetupStatusView struct {
 	DockerOK     bool   `json:"dockerOk"`
 	DockerErr    string `json:"dockerErr,omitempty"`
@@ -340,22 +337,22 @@ type SetupStatusView struct {
 	PolicyExists bool   `json:"policyExists"`
 	// ProviderSetUp: the policy's model block is not the default's, so
 	// somebody chose a provider, a model, a key source or an endpoint; a
-	// policy another step wrote from defaults is not that (#462).
+	// policy another step wrote from defaults is not that.
 	ProviderSetUp bool   `json:"providerSetUp"`
 	Provider      string `json:"provider"`
 	Model         string `json:"model"`
 	APIKeyEnv     string `json:"apiKeyEnv"`
-	// APIKeySource is "keyring" when the OS keychain is the fallback for
-	// an unset variable; KeysStored which of the providers the form can
-	// show have a key in it, so the badge follows the provider chosen and
-	// not the policy's (desktop#141); KeyStoreErr why the keychain could
-	// not be asked. No value, ever.
+	// APIKeySource is "keyring" when the OS keychain is the fallback for an
+	// unset variable; KeysStored which of the providers the form can show
+	// have a key in it, so the badge follows the provider chosen and not the
+	// policy's; KeyStoreErr why the keychain could not be asked. No value,
+	// ever.
 	APIKeySource string   `json:"apiKeySource,omitempty"`
 	KeysStored   []string `json:"keysStored"`
 	KeyStoreErr  string   `json:"keyStoreErr,omitempty"`
 	// APIKeyKind is "subscription" for a stored Anthropic subscription
-	// token (agentry-cli#171), and KeyNotice the sentence to show beside
-	// the field for it; both empty for an API key.
+	// token, and KeyNotice the sentence to show beside the field for it;
+	// both empty for an API key.
 	APIKeyKind  string `json:"apiKeyKind,omitempty"`
 	KeyNotice   string `json:"keyNotice,omitempty"`
 	BaseURL     string `json:"baseUrl,omitempty"`
@@ -402,10 +399,10 @@ func (r *RunAPI) SetupStatus() (*SetupStatusView, error) {
 }
 
 // ApplySetup writes the LLM provider preference into the operator policy
-// (the same policy.yaml the CLI reads, req 5) and optionally prepares the
-// gateway plane now. Image pulls/builds can take minutes; progress lines
-// stream as `runner:setup-progress` events. apiKeySource is "" (keep), "env"
-// or "keyring" (refused when no key is stored); forgetKey removes the stored
+// (the same policy.yaml the CLI reads) and optionally prepares the gateway
+// plane now. Image pulls/builds can take minutes; progress lines stream as
+// `runner:setup-progress` events. apiKeySource is "" (keep), "env" or
+// "keyring" (refused when no key is stored); forgetKey removes the stored
 // key and makes the source env. The key itself never rides this call: see
 // StoreModelKey.
 func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImages bool, apiKeySource string, forgetKey bool) (*SetupStatusView, error) {
@@ -431,9 +428,9 @@ func (r *RunAPI) ApplySetup(provider, model, apiKeyEnv, baseURL string, pullImag
 	return r.SetupStatus()
 }
 
-// HarnessView is one coding agent — a host harness behind a CLI adapter —
-// as the wizard's Coding agent step shows it (agentry-desktop#89). Facts
-// from the CLI's harnessprobe; no secret is anywhere near this surface.
+// HarnessView is one coding agent — a host harness behind a CLI adapter — as
+// the wizard's Coding agent step shows it. Facts from the CLI's
+// harnessprobe; no secret is anywhere near this surface.
 type HarnessView struct {
 	Name           string `json:"name"`
 	DisplayName    string `json:"displayName"`
@@ -442,9 +439,8 @@ type HarnessView struct {
 	Found          bool   `json:"found"`
 	Path           string `json:"path,omitempty"`
 	PathFromPolicy bool   `json:"pathFromPolicy"`
-	// Source says where the executable was found: "policy", "PATH" or
-	// "known location" (a usual install directory, a desktop app's
-	// bundled build — agentry-cli#167).
+	// Source says where the executable was found: "policy", "PATH" or "known
+	// location" (a usual install directory, a desktop app's bundled build).
 	Source         string   `json:"source,omitempty"`
 	Version        string   `json:"version,omitempty"`
 	VersionMatches bool     `json:"versionMatches"`
@@ -505,10 +501,10 @@ func (r *RunAPI) ChooseHarness(name string) ([]HarnessView, error) {
 	return r.HarnessStatus()
 }
 
-// ForgetHarness removes harness.<name> from the operator policy — Settings
-// → Coding agents un-choosing one (agentry-desktop#148), so the export the
-// policy implies can change — and reads the policy back. Nothing is
-// executed. The policy write takes the run lock like ChooseHarness's.
+// ForgetHarness removes harness.<name> from the operator policy — Settings →
+// Coding agents un-choosing one, so the export the policy implies can change
+// — and reads the policy back. Nothing is executed. The policy write takes
+// the run lock like ChooseHarness's.
 func (r *RunAPI) ForgetHarness(name string) ([]HarnessView, error) {
 	if err := r.acquire(jobSetup, "a change to the coding agents"); err != nil {
 		return nil, err
@@ -528,8 +524,8 @@ type CatalogView struct {
 	Models   []ModelView `json:"models"`
 	Kind     string      `json:"kind"`
 	Notice   string      `json:"notice,omitempty"`
-	// Warning is the plain-http sentence for the endpoint asked, ""
-	// for https and loopback (agentry-desktop#317).
+	// Warning is the plain-http sentence for the endpoint asked, "" for
+	// https and loopback.
 	Warning string `json:"warning,omitempty"`
 }
 
@@ -539,12 +535,11 @@ type ModelView struct {
 	DisplayName string `json:"displayName,omitempty"`
 }
 
-// ListModels asks the provider's models listing with the typed key (or,
-// when none is typed, the one the keychain holds) and returns the ids —
-// the Get models button, which is also the endpoint test
-// (agentry-desktop#131). Like StoreModelKey, the one call besides it that
-// carries a key: three arguments, so a dispatch error's log line
-// (desktop#102) has as little to carry as possible. The key reaches the
+// ListModels asks the provider's models listing with the typed key (or, when
+// none is typed, the one the keychain holds) and returns the ids — the Get
+// models button, which is also the endpoint test. Like StoreModelKey, the
+// one call besides it that carries a key: three arguments, so a dispatch
+// error's log line has as little to carry as possible. The key reaches the
 // provider's endpoint and nothing else; the answer carries names.
 func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error) {
 	cat, err := run.ListModels(r.app.ctx, provider, baseURL, key)
@@ -560,20 +555,20 @@ func (r *RunAPI) ListModels(provider, baseURL, key string) (*CatalogView, error)
 
 // EndpointWarning is the sentence the setup form shows under a custom
 // endpoint's URL when the key would reach it over plain http off this
-// machine, and "" for https, loopback, or anything not yet a URL
-// (agentry-desktop#317, D-042). It carries no key and asks no network.
+// machine, and "" for https, loopback, or anything not yet a URL. It carries
+// no key and asks no network.
 func (r *RunAPI) EndpointWarning(baseURL string) string {
 	return run.EndpointWarning(baseURL)
 }
 
 // StoreModelKey puts the model key for provider into the OS keychain — the
 // one call that carries a key, kept to two arguments so a dispatch error's
-// log line (desktop#102) has as little to carry as possible. The key is
-// written nowhere else, and the policy is untouched: the ApplySetup the
-// form makes next records the keyring as the source, beside the model and
-// the URL this call does not carry (agentry-desktop#139). The status it
-// returns lists the provider just stored under, so the form knows the key
-// is on this machine even when that next call is refused (desktop#141).
+// log line has as little to carry as possible. The key is written nowhere
+// else, and the policy is untouched: the ApplySetup the form makes next
+// records the keyring as the source, beside the model and the URL this call
+// does not carry. The status it returns lists the provider just stored
+// under, so the form knows the key is on this machine even when that next
+// call is refused.
 func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	if err := r.acquire(jobSetup, "a change to a model key"); err != nil {
 		return nil, err
@@ -588,10 +583,9 @@ func (r *RunAPI) StoreModelKey(provider, key string) (*SetupStatusView, error) {
 	return r.SetupStatus()
 }
 
-// JevKeyView is where the person's own AI Review key stands (plan
-// builder-rework.md D25, #282): saved in this machine's keychain or not,
-// whether the policy reads it from there, and whether the variable a draft
-// reads first is set. Never the key.
+// JevKeyView is where the person's own AI Review key stands: saved in this
+// machine's keychain or not, whether the policy reads it from there, and
+// whether the variable a draft reads first is set. Never the key.
 type JevKeyView struct {
 	Stored      bool   `json:"stored"`
 	Source      string `json:"source,omitempty"`
@@ -618,9 +612,9 @@ func jevKeyView(st *run.JevKeyStatus) *JevKeyView {
 // StoreJevKey puts the person's TypeSafe Jev key into the OS keychain and
 // records the keychain as its source in the runner policy. It is the one
 // call that carries the key, kept to one argument so a dispatch error's log
-// line (desktop#102) has as little to carry as possible; the key is written
-// nowhere else. A keychain that cannot be reached is a named refusal, and
-// the policy is left as it was.
+// line has as little to carry as possible; the key is written nowhere else.
+// A keychain that cannot be reached is a named refusal, and the policy is
+// left as it was.
 func (r *RunAPI) StoreJevKey(key string) (*JevKeyView, error) {
 	if err := r.acquire(jobSetup, "a change to the AI Review key"); err != nil {
 		return nil, err
@@ -671,10 +665,9 @@ func (r *RunAPI) TestJevKey() (*JevKeyTestView, error) {
 	return &JevKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
 }
 
-// HybridKeyView is where the person's own Hybrid Analysis key stands
-// (#530; plan file-handling.md D8, D17): saved in this machine's keychain
-// or not, whether the policy reads it from there, and whether the variable
-// a run reads first is set. Never the key.
+// HybridKeyView is where the person's own Hybrid Analysis key stands: saved
+// in this machine's keychain or not, whether the policy reads it from there,
+// and whether the variable a run reads first is set. Never the key.
 type HybridKeyView struct {
 	Stored      bool   `json:"stored"`
 	Source      string `json:"source,omitempty"`
@@ -760,7 +753,7 @@ type SearchProviderView struct {
 	EnvName string `json:"envName"`
 }
 
-// SearchKeyView is where the person's own web search key stands (#301): the
+// SearchKeyView is where the person's own web search key stands: the
 // provider the policy names, whether its key is saved in this machine's
 // keychain and read from there, whether the variable a draft reads first is
 // set, and the providers the runner policy admits. Never the key.
@@ -846,14 +839,13 @@ func (r *RunAPI) TestSearchKey() (*SearchKeyTestView, error) {
 	return &SearchKeyTestView{OK: res.OK, Message: res.Message, From: res.From}, nil
 }
 
-// ProfileStatusView is a QuickAgent signature's MCP-profile state (§P2).
-// Secret NAMES only — no surface ever returns a value.
+// ProfileStatusView is a QuickAgent signature's MCP-profile state. Secret
+// NAMES only — no surface ever returns a value.
 type ProfileStatusView struct {
 	Ref             string   `json:"ref"`
 	Digest          string   `json:"digest"`
 	DeclaredSecrets []string `json:"declaredSecrets"`
-	// OptionalSecrets are those of DeclaredSecrets a run can start without
-	// (agentry-desktop#655).
+	// OptionalSecrets are those of DeclaredSecrets a run can start without.
 	OptionalSecrets   []string `json:"optionalSecrets"`
 	Exists            bool     `json:"exists"`
 	Keep              bool     `json:"keep"`
@@ -867,13 +859,13 @@ type ProfileStatusView struct {
 	Modes []string `json:"modes"`
 	// Opening is the manifest's interactive opening line, if any.
 	Opening string `json:"opening"`
-	// Guide is the author's words for the run setup (manifest v2's guide,
-	// DEV-141; agentry-desktop#228); nil when the release carries none.
-	// The page shows the overview as restricted markdown and the rest as
-	// text, never as markup the author controls.
+	// Guide is the author's words for the run setup (manifest v2's guide);
+	// nil when the release carries none. The page shows the overview as
+	// restricted markdown and the rest as text, never as markup the author
+	// controls.
 	Guide *GuideView `json:"guide,omitempty"`
-	// ShipsKnowledge names the knowledge packs the release ships (plan
-	// knowledge.md §4.6), mounted in every run of it on this computer.
+	// ShipsKnowledge names the knowledge packs the release ships, mounted in
+	// every run of it on this computer.
 	ShipsKnowledge []string `json:"shipsKnowledge"`
 	// AcceptsKnowledge is the release's ask for a pack of the person's own,
 	// shown in the Knowledge step and never to the agent; nil when none.
@@ -908,8 +900,8 @@ type IntakeQuestionView struct {
 	Required bool     `json:"required"`
 	Choices  []string `json:"choices"`
 	// Site says a url question is the browser's site to test
-	// (capabilities.browser.sites; agentry-desktop#878): asked as an http or
-	// https address, never as an input source to fetch with a token.
+	// (capabilities.browser.sites): asked as an http or https address, never
+	// as an input source to fetch with a token.
 	Site bool `json:"site,omitempty"`
 }
 
@@ -947,7 +939,7 @@ func profileStatusView(p *run.ProfileInfo) *ProfileStatusView {
 // ProfileStatus resolves ref against the registry and reports whether the
 // exact release (ns/name@version + digest) has a stored MCP profile, what
 // secrets its contract declares, and the contract itself — everything the
-// guided form (§P3) shows before asking for keys.
+// guided form shows before asking for keys.
 func (r *RunAPI) ProfileStatus(reg, ref string) (*ProfileStatusView, error) {
 	p, err := run.ProfileStatus(r.app.ctx, reg, ref)
 	if err != nil {
@@ -987,27 +979,24 @@ type RunResultView struct {
 	WallMS           int64   `json:"wallMs"`
 	Turns            int     `json:"turns"`
 	AttestationState string  `json:"attestationState"`
-	// Policy is the operator policy file the run enforced
-	// (agentry-cli#152), the envelope's block as it is: omitted when the
-	// envelope carries none.
+	// Policy is the operator policy file the run enforced, the envelope's
+	// block as it is: omitted when the envelope carries none.
 	Policy *receipt.Policy `json:"policy,omitempty"`
-	// Knowledge is the receipt's knowledge line (plan knowledge.md §4.5):
-	// the packs mounted, how, and the tools that read them; omitted when
-	// none was attached.
+	// Knowledge is the receipt's knowledge line: the packs mounted, how, and
+	// the tools that read them; omitted when none was attached.
 	Knowledge string `json:"knowledge,omitempty"`
 	// UnsafeExec is the receipt's exec line when the run was compiled in
-	// Unsafe Mode (agentry-desktop#418): what was installed from where,
-	// what the image could not provide and what did not install; omitted
-	// for every other run.
+	// Unsafe Mode: what was installed from where, what the image could not
+	// provide and what did not install; omitted for every other run.
 	UnsafeExec string `json:"unsafeExec,omitempty"`
-	// Decode is the receipt's decode line (#530): how the input files were
-	// read, and what ClamAV and the Hybrid Analysis lookup made of them;
-	// omitted for a run with no files.
+	// Decode is the receipt's decode line: how the input files were read,
+	// and what ClamAV and the Hybrid Analysis lookup made of them; omitted
+	// for a run with no files.
 	Decode string `json:"decode,omitempty"`
 	// ExitClass names exitCode in the CLI's words; Stage and Reason say
-	// where and why a failed run stopped, in its closed words (#680, #642):
-	// a blocked run's reason says whether the QuickAgent or the runner's
-	// tools stopped it.
+	// where and why a failed run stopped, in its closed words: a blocked
+	// run's reason says whether the QuickAgent or the runner's tools stopped
+	// it.
 	ExitClass string          `json:"exitClass,omitempty"`
 	Stage     string          `json:"stage,omitempty"`
 	Reason    *receipt.Reason `json:"reason,omitempty"`
@@ -1015,22 +1004,21 @@ type RunResultView struct {
 
 // RunAgent executes one QuickAgent run: resolve → digest + DSSE verify →
 // materialize into the shared ~/.agentry/runner cache → compile/reuse the
-// run plan → ensure images → run in the isolated container topology →
-// apply the profile keep choice. The run is followed by its id: its
-// progress as `runner:run-progress`, its log lines as `runner:run-line`
-// (services_runflow.go). timeoutSec > 0 overrides the policy timeout; maxTurns >= 0
-// overrides the tool-call budget (0 = unlimited, -1 = policy default).
-// acceptUnsigned is the explicit consent for a release without an
-// attestation; without it such a run is refused in Go (desktop#3).
-// acceptUnscanned is the consent for a release the registry admitted
-// without a scan (M23, D-029) — its own, which acceptUnsigned does not
-// give — enforced in Go the same way, on every run from the cache too.
-// knowledge names the knowledge packs kept on this computer to attach
-// (plan knowledge.md §4.5): each is opened from the local store once the
-// gates have passed, and its opened copy is removed when the run returns.
+// run plan → ensure images → run in the isolated container topology → apply
+// the profile keep choice. The run is followed by its id: its progress as
+// `runner:run-progress`, its log lines as `runner:run-line`
+// (services_runflow.go). timeoutSec > 0 overrides the policy timeout;
+// maxTurns >= 0 overrides the tool-call budget (0 = unlimited, -1 = policy
+// default). acceptUnsigned is the explicit consent for a release without an
+// attestation; without it such a run is refused in Go. acceptUnscanned is
+// the consent for a release the registry admitted without a scan — its own,
+// which acceptUnsigned does not give — enforced in Go the same way, on every
+// run from the cache too. knowledge names the knowledge packs kept on this
+// computer to attach: each is opened from the local store once the gates
+// have passed, and its opened copy is removed when the run returns.
 // sourceTokens are access tokens for this run's input sources, by question
-// id (agentry-desktop#794): each reaches that source's fetch step alone, and
-// a source given none uses the key saved for its host (services_sources.go).
+// id: each reaches that source's fetch step alone, and a source given none
+// uses the key saved for its host (services_sources.go).
 func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir string, keepProfile *bool, timeoutSec, maxTurns int, acceptUnsigned bool, intakeAnswers map[string]string, allowVulnerableMCP, acceptUnscanned bool, knowledge []string, writeInVoice bool, sourceTokens map[string]string, hostSignIns map[string]run.HostSignIn) (*RunResultView, error) {
 	// The switch is read once: the dialog that carries its line and the
 	// compile that obeys it see the same answer, whatever is turned on or
@@ -1055,11 +1043,10 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	defer r.endRun(live)
 	live.registry = reg
 	// A run that read the switch on is an Unsafe Mode run from here until
-	// its compile says otherwise (agentry-desktop#479).
+	// its compile says otherwise.
 	r.setUnsafeLive(live, unsafe)
-	// The run's first report says it has begun, before anything is
-	// prepared: the page's store follows it by its id from here
-	// (agentry-desktop#465).
+	// The run's first report says it has begun, before anything is prepared:
+	// the page's store follows it by its id from here.
 	meter := r.runMeter(live.id, ref)
 	meter.Emit()
 	packs, err := r.attach(ctx, live, reg, knowledge)
@@ -1152,28 +1139,27 @@ type MCPToolRow struct {
 	GrantedBy string `json:"grantedBy"`
 }
 
-// MCPView feeds the agent page's "MCP servers & tools" section (req 3/4
-// parity with the site).
+// MCPView feeds the agent page's "MCP servers & tools" section (parity with
+// the site).
 type MCPView struct {
 	Ref      string       `json:"ref"`
 	Version  string       `json:"version"`
 	ToolRows []MCPToolRow `json:"toolRows"`
 	Servers  []string     `json:"servers"`
 	// DeclaredServers is each declared MCP server's pin, tools and plain
-	// env; Servers ends with one line per entry, in order
-	// (agentry-desktop#62).
+	// env; Servers ends with one line per entry, in order.
 	DeclaredServers []mcpview.Server `json:"declaredServers"`
 	SecretNames     []string         `json:"secretNames"`
 	DataAccess      []string         `json:"dataAccess"`
 	EmbeddedTools   []string         `json:"embeddedTools"`
 	CapabilityLines []string         `json:"capabilityLines"`
 	// Vulnerabilities is the registry's verdict on each declared MCP server;
-	// Refusal is the text a run meets by default (agentry#177).
+	// Refusal is the text a run meets by default.
 	Vulnerabilities   []mcpvuln.Status `json:"vulnerabilities"`
 	VulnerabilityLine string           `json:"vulnerabilityLine,omitempty"`
 	Refusal           string           `json:"refusal,omitempty"`
-	// Refusing names the refusing servers alone, for the consent row
-	// Unsafe Mode offers (D-055).
+	// Refusing names the refusing servers alone, for the consent row Unsafe
+	// Mode offers.
 	Refusing string `json:"refusing,omitempty"`
 }
 
@@ -1188,10 +1174,10 @@ func (r *RunAPI) GatewayRequirements(reg, ns, name string) (*MCPView, error) {
 	return mcpViewOf(info), nil
 }
 
-// RunRequirements is the tool surface of the release a run of ref would
-// run: a QuickAgent installed from a folder on this computer when there
-// is one (agentry-desktop#425), else the registry's. The run panel reads
-// this; the published agent's page reads GatewayRequirements.
+// RunRequirements is the tool surface of the release a run of ref would run:
+// a QuickAgent installed from a folder on this computer when there is one,
+// else the registry's. The run panel reads this; the published agent's page
+// reads GatewayRequirements.
 func (r *RunAPI) RunRequirements(reg, ref string) (*MCPView, error) {
 	info, err := run.RunRequirements(r.app.ctx, reg, ref)
 	if err != nil {
@@ -1291,30 +1277,29 @@ func (w *lineEventWriter) emit(line string) {
 var _ io.Writer = (*lineEventWriter)(nil)
 
 // runGates is the gates of a run whose registry the caller does not name.
-// RunAgent and StartSession call localRunGates; this form is what the
-// tests of the gates that predate Unsafe Mode call, and it is kept with its
-// signature because agentry-desktop#418 holds them to passing unchanged.
+// RunAgent and StartSession call localRunGates; this form is what the tests
+// of the gates call, and it is kept with its signature.
 func (r *RunAPI) runGates(ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned bool) error {
 	return r.localRunGates("", ref, inputPaths, outDir, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafeModeOn())
 }
 
-// localRunGates is what RunAgent and StartSession check before the engine
-// is asked for anything (D-030): every path came from a native picker, and
-// a consent the page passed is put to the person in a native dialog. The
-// page's checkboxes remain what they were — the record of what is being
-// accepted — and the dialog is the gate.
+// localRunGates is what RunAgent and StartSession check before the engine is
+// asked for anything: every path came from a native picker, and a consent
+// the page passed is put to the person in a native dialog. The page's
+// checkboxes remain what they were — the record of what is being accepted —
+// and the dialog is the gate.
 //
 // While Unsafe Mode is on (unsafe, which the caller read once), the dialog
 // carries one more paragraph naming it and the declared commands its image
-// cannot provide (plan unsafe-mode.md D6, D8). That paragraph adds no
-// dialog of its own: turning Unsafe Mode on was the native confirmation,
-// and a run with nothing to accept still raises none.
+// cannot provide. That paragraph adds no dialog of its own: turning Unsafe
+// Mode on was the native confirmation, and a run with nothing to accept
+// still raises none.
 //
-// A declared MCP server the registry's gate rates high or critical runs on this
-// computer only in Unsafe Mode (agentry-desktop#459, D-055), so with the
-// switch off the page's consent for one is refused here, before any
-// dialog: there is nothing to ask. The engine refuses the server again
-// on the registry's own answer whatever the page sent.
+// A declared MCP server the registry's gate rates high or critical runs on
+// this computer only in Unsafe Mode, so with the switch off the page's
+// consent for one is refused here, before any dialog: there is nothing to
+// ask. The engine refuses the server again on the registry's own answer
+// whatever the page sent.
 func (r *RunAPI) localRunGates(reg, ref string, inputPaths []string, outDir string, acceptUnsigned, allowVulnerableMCP, acceptUnscanned, unsafe bool) error {
 	for _, p := range inputPaths {
 		if err := r.app.requirePicked("input", p); err != nil {
@@ -1390,11 +1375,10 @@ func (r *RunAPI) asRun(kind jobKind, what, ref, event string, f func(ctx context
 // wrapping the voice shares. The Voice panel and a run read it the same.
 func (r *RunAPI) voiceEnv() voice.Env { return voice.Env{Env: r.knowledge()} }
 
-// voiceFor is this computer's Writing Voice for a run that writes in it
-// (plan writing-voice.md §5, D5, D11): the person ticked Write in my voice
-// in the run setup, which starts ticked from the voice's own switch. nil
-// when the run does not ask; a refusal when it asks and this computer keeps
-// none, or the one it keeps will not open.
+// voiceFor is this computer's Writing Voice for a run that writes in it: the
+// person ticked Write in my voice in the run setup, which starts ticked from
+// the voice's own switch. nil when the run does not ask; a refusal when it
+// asks and this computer keeps none, or the one it keeps will not open.
 func (r *RunAPI) voiceFor(ctx context.Context, reg string, want bool) (*engine.AttachedVoice, error) {
 	if !want {
 		return nil, nil

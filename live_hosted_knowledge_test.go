@@ -1,11 +1,10 @@
 package main
 
-// Create knowledge In Agentry live (agentry-desktop#274): the bound
-// methods driven as the Knowledge panel drives them, against a real
-// registry that builds knowledge (the runs extension's knowledge_build,
-// agentry-enterprise#171), with the folder picker answered by the test.
-// Skipped unless both variables are set, because it spends the account's
-// credits (a build holds 100 and settles a few):
+// Create knowledge In Agentry live: the bound methods driven as the
+// Knowledge panel drives them, against a real registry that builds knowledge
+// (the runs extension's knowledge_build), with the folder picker answered by
+// the test. Skipped unless both variables are set, because it spends the
+// account's credits (a build holds 100 and settles a few):
 //
 //	AGENTRY_LIVE_HOSTED_KNOWLEDGE_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_KNOWLEDGE_TOKEN=<a PAT with run:read, run:write, knowledge:read, knowledge:write, user:profile> \

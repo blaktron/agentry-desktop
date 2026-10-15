@@ -17,10 +17,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
-// Report bug (plan report-bug.md §6, D1, D6; agentry-desktop#841): the
-// binding files the text with the stored credential, as the desktop, with
-// the app's version and OS and nothing else, and says in one word what
-// stopped it otherwise, so the card can offer the right way on.
+// Report bug: the binding files the text with the stored credential, as the
+// desktop, with the app's version and OS and nothing else, and says in one
+// word what stopped it otherwise, so the card can offer the right way on.
 func TestReportBugFilesAsTheDesktopWithTheStoredCredential(t *testing.T) {
 	var got map[string]any
 	var auth string

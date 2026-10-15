@@ -22,8 +22,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The run history (plan desktop-home-and-library.md §4.6, §4.7, invariants 1
-// and 2; D-068; agentry-desktop#659).
+// The run history.
 
 // freshConfig gives the test a config directory and a runner home of its
 // own.
@@ -106,9 +105,8 @@ func TestAStoppedRunIsRecordedStopped(t *testing.T) {
 	}
 }
 
-// Dismiss removes a run's card and no longer forgets a run that has ended
-// (D-068 revising plan D7, D-052): the history keeps it, and the result view
-// reads its folder by its id.
+// Dismiss removes a run's card and does not forget a run that has ended: the
+// history keeps it, and the result view reads its folder by its id.
 func TestDismissKeepsAnEndedRunInTheHistory(t *testing.T) {
 	freshConfig(t)
 	out := t.TempDir()
@@ -132,10 +130,10 @@ func TestDismissKeepsAnEndedRunInTheHistory(t *testing.T) {
 	}
 }
 
-// Invariant 1: the result-view bindings and the run page read an id this
-// process produced or the history holds, and nothing else; a history
-// entry's folder is checked again on every read, and one that is now a link,
-// a file or gone is refused, never searched for.
+// The result-view bindings and the run page read an id this process produced
+// or the history holds, and nothing else; a history entry's folder is
+// checked again on every read, and one that is now a link, a file or gone is
+// refused, never searched for.
 func TestAHistoryIDIsReadOnlyThroughItsCheckedFolder(t *testing.T) {
 	freshConfig(t)
 	r := &RunAPI{app: &App{ctx: context.Background()}}
@@ -213,10 +211,10 @@ func TestAHistoryIDIsReadOnlyThroughItsCheckedFolder(t *testing.T) {
 	}
 }
 
-// Invariant 2: how a recorded run ended is the entry's, from the engine's
-// result as Go read it; the folder's result.json, which the agent's tools can
-// write, gives only its result, under the hostile rules the page renders
-// every result with, and never through a link.
+// How a recorded run ended is the entry's, from the engine's result as Go
+// read it; the folder's result.json, which the agent's tools can write,
+// gives only its result, under the hostile rules the page renders every
+// result with, and never through a link.
 func TestHowARecordedRunEndedIsNeverReadFromResultJSON(t *testing.T) {
 	freshConfig(t)
 	out := t.TempDir()
@@ -299,8 +297,8 @@ func TestRememberOffClearsAndStopsWrites(t *testing.T) {
 	}
 }
 
-// A built-in's job is recorded with its kind (D8): ok, failed or stopped, and
-// the folder its flow kept, or none.
+// A built-in's job is recorded with its kind: ok, failed or stopped, and the
+// folder its flow kept, or none.
 func TestABuiltinsJobIsRecordedWithItsKind(t *testing.T) {
 	freshConfig(t)
 	r := flowAPI(t, nil)
@@ -450,9 +448,9 @@ func TestDownloadOutputBringsAHostedRunHere(t *testing.T) {
 	}
 }
 
-// A review's run page is its report, read back from its folder (D13): a
-// regular file, never through a link, drawn through the review's own view;
-// any other kind of run has none.
+// A review's run page is its report, read back from its folder: a regular
+// file, never through a link, drawn through the review's own view; any other
+// kind of run has none.
 func TestARecordedReviewIsItsReport(t *testing.T) {
 	freshConfig(t)
 	dir := t.TempDir()
@@ -570,9 +568,9 @@ func TestDownloadOutputWritesNothingThroughALink(t *testing.T) {
 	_ = home
 }
 
-// A run on this computer that ended blocked (the CLI's exit 18,
-// agentry-cli#629; #680) is recorded as blocked, never as an error, so the
-// history says so; any other failure is still the error it was.
+// A run on this computer that ended blocked (the CLI's exit 18) is recorded
+// as blocked, never as an error, so the history says so; any other failure
+// is still the error it was.
 func TestALocalBlockedRunIsRecordedAsBlocked(t *testing.T) {
 	ctx := context.Background()
 	if o, code := localOutcome(ctx, &run.Result{Status: "error", ExitCode: 18, ExitClass: "blocked"}); o != runhistory.OutcomeBlocked || code != 18 {

@@ -1,9 +1,9 @@
 package main
 
-// Publisher Earnings' run-setup line and the star ask, live (agentry-desktop
-// #613): the bound methods the run setup and a hosted run's result call,
-// against a real registry. Skipped unless the variables are set, because it
-// stars a QuickAgent for the token's account (and takes the star back):
+// Publisher Earnings' run-setup line and the star ask, live: the bound
+// methods the run setup and a hosted run's result call, against a real
+// registry. Skipped unless the variables are set, because it stars a
+// QuickAgent for the token's account (and takes the star back):
 //
 //	AGENTRY_LIVE_EARNINGS_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_EARNINGS_TOKEN=<a PAT with the desktop's scopes> \

@@ -1,10 +1,9 @@
 package main
 
-// A schedule In Agentry, live (agentry-desktop#745; plan
-// quickagent-scheduling.md M10): the bound methods driven as the Scheduled
-// page and the When step drive them, against a registry that schedules
-// runs. Skipped unless the variables are set, because the schedule's fire
-// spends the account's credits:
+// A schedule In Agentry, live: the bound methods driven as the Scheduled
+// page and the When step drive them, against a registry that schedules runs.
+// Skipped unless the variables are set, because the schedule's fire spends
+// the account's credits:
 //
 //	AGENTRY_LIVE_SCHEDULE_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_SCHEDULE_TOKEN=<a Pro account's PAT: run:read, run:write, …> \
@@ -72,7 +71,7 @@ func TestLiveHostedSchedule(t *testing.T) {
 		lead = n
 	}
 	at := time.Now().UTC().Add(time.Duration(lead) * time.Minute).Truncate(time.Minute)
-	name := "M10 live check " + at.Format("15:04")
+	name := "live check " + at.Format("15:04")
 	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: ref, Name: name,
 		When: schedules.When{Kind: "once", Date: at.Format("2006-01-02"), Time: at.Format("15:04"), Zone: "UTC"}})
 	if err != nil {
@@ -144,9 +143,9 @@ func TestLiveHostedSchedule(t *testing.T) {
 	t.Logf("the run's record: %s %s", rec.Run.Status, rec.Run.Outcome)
 }
 
-// The gap, live (plan D8): a schedule of a release whose required secret
-// the account does not keep comes back as the create's refusal naming it,
-// for the When step to ask for, and nothing is made.
+// The gap, live: a schedule of a release whose required secret the account
+// does not keep comes back as the create's refusal naming it, for the When
+// step to ask for, and nothing is made.
 //
 //	AGENTRY_LIVE_SCHEDULE_REGISTRY=… AGENTRY_LIVE_SCHEDULE_TOKEN=… \
 //	AGENTRY_LIVE_SCHEDULE_GAP_REF=ns/name@version \

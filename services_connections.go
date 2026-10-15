@@ -1,9 +1,8 @@
-// Connections (plan mcp-oauth-connections.md M5; agentry-desktop#666): the
-// run setup's Connect tools signs in to each declared MCP server that signs
-// in by OAuth, in the person's browser, the first time a run of that
-// QuickAgent version needs it; Settings → Connections lists what is kept,
-// with Disconnect. internal/run holds the store; this is the app's half:
-// the browser, the address pasted back, the events the page follows.
+// Connections: the run setup's Connect tools signs in to each declared MCP
+// server that signs in by OAuth, in the person's browser, the first time a
+// run of that QuickAgent version needs it; Settings → Connections lists what
+// is kept, with Disconnect. internal/run holds the store; this is the app's
+// half: the browser, the address pasted back, the events the page follows.
 package main
 
 import (
@@ -132,10 +131,10 @@ func (r *RunAPI) Connect(reg, ref, server string) (*ConnectView, error) {
 	return &ConnectView{Connection: c}, nil
 }
 
-// PasteRedirect hands the consent in progress the address the browser
-// ended on, where it was on another computer and that page did not load
-// (D21). The consent checks its state before it takes the code in it; an
-// address that is not this sign-in's is said and waited past.
+// PasteRedirect hands the consent in progress the address the browser ended
+// on, where it was on another computer and that page did not load. The
+// consent checks its state before it takes the code in it; an address that
+// is not this sign-in's is said and waited past.
 func (r *RunAPI) PasteRedirect(address string) error {
 	address = strings.TrimSpace(address)
 	if address == "" {
@@ -168,10 +167,10 @@ func (r *RunAPI) CancelConnect() bool {
 	return true
 }
 
-// KeepOwnClient keeps the person's own OAuth client for issuer (D23): one
-// per vendor on this computer, used by every later consent there. The
-// secret goes to the OS keychain (a 0600 file where none answers) and is
-// never sent back to the page.
+// KeepOwnClient keeps the person's own OAuth client for issuer: one per
+// vendor on this computer, used by every later consent there. The secret
+// goes to the OS keychain (a 0600 file where none answers) and is never sent
+// back to the page.
 func (r *RunAPI) KeepOwnClient(issuer, clientID, secret string) error {
 	if strings.TrimSpace(clientID) == "" {
 		return errors.New("enter the client ID")
@@ -189,8 +188,8 @@ func (r *RunAPI) Connections() (*KeptConnectionsView, error) {
 	return &KeptConnectionsView{Connections: conns, Clients: clients}, nil
 }
 
-// Disconnect removes one kept connection and revokes it at the vendor
-// where it offers that (D17, D20); it returns the revocation's outcome.
+// Disconnect removes one kept connection and revokes it at the vendor where
+// it offers that; it returns the revocation's outcome.
 func (r *RunAPI) Disconnect(ref, digest, server string) (string, error) {
 	return run.Disconnect(r.ctx(), ref, digest, server)
 }
@@ -214,10 +213,10 @@ func (r *RunAPI) openURL(u string) error {
 	return r.app.OpenExternal(u)
 }
 
-// removeConnectionsIfGone removes the connections of ns/name once no
-// install of it is left in the runner home (D17): after the app uninstalls
-// its last runner install. It returns what it removed, for the uninstall's
-// message, and never fails the uninstall.
+// removeConnectionsIfGone removes the connections of ns/name once no install
+// of it is left in the runner home: after the app uninstalls its last runner
+// install. It returns what it removed, for the uninstall's message, and
+// never fails the uninstall.
 func removeConnectionsIfGone(k installed.Key) string {
 	if k.Target != installdir.Target {
 		return ""

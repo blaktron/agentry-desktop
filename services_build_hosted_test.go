@@ -1,8 +1,7 @@
 package main
 
-// Describe it In Agentry (agentry-desktop#281) through the bound surface,
-// against a fake registry with the draft kind (agentry-enterprise
-// schemas/x-runs.yaml): the offer and the hold in the site's words, the
+// Describe it In Agentry through the bound surface, against a fake registry
+// with the draft kind: the offer and the hold in the site's words, the
 // create's body, the follow, the sealed output unpacked into the run's own
 // folder, draft.json decoded into the Model as data, and the refusals.
 
@@ -50,12 +49,12 @@ type draftFake struct {
 	outputs map[string]string
 	// agentsDown makes the person's QuickAgents unreadable.
 	agentsDown bool
-	// knowledge says the status route's drafts read packs
-	// (agentry-enterprise#295); packs are the account's packs in Agentry.
+	// knowledge says the status route's drafts read packs; packs are the
+	// account's packs in Agentry.
 	knowledge bool
 	packs     []map[string]any
-	// revise is the status route's caller.revise.allowed, absent when nil
-	// (agentry-desktop#501); mux takes a test's extra routes.
+	// revise is the status route's caller.revise.allowed, absent when nil;
+	// mux takes a test's extra routes.
 	revise *bool
 	mux    *http.ServeMux
 }
@@ -417,9 +416,8 @@ func TestDescribeInAgentryDraftsFollowsAndDecodesTheDraftAsData(t *testing.T) {
 	if d.Model.Namespace != "chris" || d.Model.Instructions != "# Meeting actions\n\nRead the notes.\n" {
 		t.Fatalf("model %+v: the draft is draft.json's, under the person's namespace, and never package/'s", d.Model)
 	}
-	// What the Builder sets (plan builder-simplify.md D10): a name none of
-	// the person's QuickAgents has, and MIT, since the description names no
-	// licence; each change named.
+	// What the Builder sets: a name none of the person's QuickAgents has,
+	// and MIT, since the description names no licence; each change named.
 	if d.Model.Name != "meeting-actions-2" || d.Model.License != "MIT" || d.Model.Version != "0.1.0" {
 		t.Fatalf("model %+v", d.Model)
 	}
@@ -640,7 +638,7 @@ func TestARegistryThatRenamesTheDraftGetsNothingUnpacked(t *testing.T) {
 
 // TestADraftSendsNoTokenOverPlainHTTPToARealHost: the token is kept by
 // host, so the page's registry URL is held to Settings' rule first
-// (agentry-desktop#307's rule, for the draft's bindings).
+// (Settings' rule, for the draft's bindings).
 func TestADraftSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	f := newDraftFake(t)
 	b, _, _ := hostedDraftAPI(t, f)
@@ -655,8 +653,8 @@ func TestADraftSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	}
 }
 
-// A draft In Agentry reads the person's packs kept in Agentry
-// (agentry-desktop#497; agentry-enterprise#295): the offer says so, with
+// A draft In Agentry reads the person's packs kept in Agentry:
+// the offer says so, with
 // the registry's bounds, only where the status route does and the token
 // reads knowledge; the create carries each pack's registry id once; a pack
 // not kept in Agentry or not scanned there is refused here, with nothing

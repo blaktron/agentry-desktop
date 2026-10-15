@@ -12,10 +12,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
-// The result view's two bindings (plan guided-runs.md §5, D8;
-// agentry-desktop#227). They are handed a run id and nothing else, so a
-// page that has been made to call them reaches a folder this app produced
-// a result for and no other; and they never open what a run wrote.
+// The result view's two bindings. They are handed a run id and nothing else,
+// so a page that has been made to call them reaches a folder this app
+// produced a result for and no other; and they never open what a run wrote.
 
 func outputsAPI(t *testing.T) (*RunAPI, string) {
 	t.Helper()

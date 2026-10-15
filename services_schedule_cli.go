@@ -1,9 +1,9 @@
 package main
 
-// The agentry command from the Scheduled page's Options menu
-// (agentry-desktop#788; D-076): on macOS and Linux the page offers to
-// install it, or reinstall it, by running the site's own install script,
-// so that scheduling on this computer has the command it needs.
+// The agentry command from the Scheduled page's Options menu: on macOS and
+// Linux the page offers to install it, or reinstall it, by running the
+// site's own install script, so that scheduling on this computer has the
+// command it needs.
 
 import (
 	"context"

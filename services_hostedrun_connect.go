@@ -1,17 +1,16 @@
 package main
 
 // A run In Agentry whose release signs in to its MCP servers (OAuth
-// connections M9, agentry-desktop#667; plan mcp-oauth-connections.md D5,
-// D19). Agentry's vault keeps the connection, one per account, version and
-// server, apart from the one this computer keeps for a local run; no
-// refresh token is ever copied between them. A hosted consent starts only
-// from a browser signed in to the site (DEV-222), so the app makes none:
-// run create's 409 connection-missing names the servers still to connect,
-// the app opens the site's Connect tools for the version it runs, and makes
-// the same create again until the vault holds every connection, when the
-// run starts. The app holds a token that cannot list, read or make a
-// connection, and the vault returns no connection's token to anyone: the
-// worker gives a run its access token at the hand-off, on the sandbox host.
+// connections). Agentry's vault keeps the connection, one per account,
+// version and server, apart from the one this computer keeps for a local
+// run; no refresh token is ever copied between them. A hosted consent starts
+// only from a browser signed in to the site, so the app makes none: run
+// create's 409 connection-missing names the servers still to connect, the
+// app opens the site's Connect tools for the version it runs, and makes the
+// same create again until the vault holds every connection, when the run
+// starts. The app holds a token that cannot list, read or make a connection,
+// and the vault returns no connection's token to anyone: the worker gives a
+// run its access token at the hand-off, on the sandbox host.
 
 import (
 	"errors"
@@ -24,8 +23,8 @@ import (
 
 // connectPoll is how often a start waiting for its connections is made
 // again, and connectWait how long it waits: a consent address lapses after
-// ten minutes (DEV-222), so the wait outlasts one, with time to sign in to
-// the site first. Tests shorten both.
+// ten minutes, so the wait outlasts one, with time to sign in to the site
+// first. Tests shorten both.
 var (
 	connectPoll = 3 * time.Second
 	connectWait = 15 * time.Minute

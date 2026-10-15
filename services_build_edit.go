@@ -1,13 +1,11 @@
 package main
 
-// Edit on the QuickAgent page (plan drafter-revisions.md §4, D1, D5, D6, D7;
-// agentry-desktop#500): the current release read into the Build tab under
-// the same name at its next minor, as the site's Edit opens the Builder
-// (agentry-web#861). Whom it is offered to is the registry's answer: the
-// QuickAgent page shows Edit where GET /agents serves canPublish, the core's
-// publish decision (agentry#875), because the desktop's sign-in token never
-// carries the org:admin that the maintainer's settings need (DEV-199). The
-// upload decides again.
+// Edit on the QuickAgent page: the current release read into the Build tab
+// under the same name at its next minor, as the site's Edit opens the
+// Builder. Whom it is offered to is the registry's answer: the QuickAgent
+// page shows Edit where GET /agents serves canPublish, the core's publish
+// decision, because the desktop's sign-in token never carries the org:admin
+// that the maintainer's settings need. The upload decides again.
 
 import (
 	"context"

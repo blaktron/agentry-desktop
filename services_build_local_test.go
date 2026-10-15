@@ -1,7 +1,7 @@
 package main
 
-// The Build tab's Install and Submit (agentry-desktop#425): each asks in a
-// native dialog the page cannot answer, and a No does nothing.
+// The Build tab's Install and Submit: each asks in a native dialog the page
+// cannot answer, and a No does nothing.
 
 import (
 	"context"

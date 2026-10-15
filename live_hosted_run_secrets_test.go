@@ -1,10 +1,9 @@
 package main
 
-// A run In Agentry of a release that declares a secret, live
-// (agentry-desktop#300; plan hosted-credentials-vault.md D12, D13): the
-// bound methods driven as the run panel drives them, against a real
-// registry that keeps secrets. Skipped unless the variables are set,
-// because the run spends the account's credits:
+// A run In Agentry of a release that declares a secret, live: the bound
+// methods driven as the run panel drives them, against a real registry that
+// keeps secrets. Skipped unless the variables are set, because the run
+// spends the account's credits:
 //
 //	AGENTRY_LIVE_HOSTED_SECRET_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_SECRET_TOKEN=<the sign-in grant's PAT: run:read, run:write, secret:write, …> \

@@ -1,9 +1,8 @@
 // BuildAPI: the Build surface's bindings — author a QuickAgent as a form,
-// save it as a real workspace, validate it with the registry's own
-// scanners, and publish it through the full pipeline. Publish progress
-// streams as `build:publish-log` events. Since #282 it also drafts one from
-// a description on this computer (Describe it), whose progress streams as
-// `build:draft-log`.
+// save it as a real workspace, validate it with the registry's own scanners,
+// and publish it through the full pipeline. Publish progress streams as
+// `build:publish-log` events. It also drafts one from a description on this
+// computer (Describe it), whose progress streams as `build:draft-log`.
 package main
 
 import (
@@ -37,8 +36,7 @@ const (
 	eventBuildLog = "build:publish-log"
 	eventDraftLog = "build:draft-log"
 	// eventDraftProgress carries how far a draft on this computer has got
-	// (draft.Progress): its budgets, the stage and the harness's usage
-	// (agentry-desktop#410).
+	// (draft.Progress): its budgets, the stage and the harness's usage.
 	eventDraftProgress = "build:draft-progress"
 )
 
@@ -55,14 +53,13 @@ type BuildAPI struct {
 	draftScanner func(key string) (webscan.Scanner, error)
 	draftRunner  func(context.Context, localrun.Run) (*receipt.Envelope, error)
 	draftChecker func(*engine.WebRun) (drafter.Checker, error)
-	// hosted is the one draft In Agentry this app follows (#281).
+	// hosted is the one draft In Agentry this app follows.
 	hosted hostedSlot
 	// revised is the revision Edit with AI landed last, which Publish this
-	// version publishes (agentry-desktop#501).
+	// version publishes.
 	revised revisedSlot
 	// reviewHTTP and reviewRunner are the Examiner's seams a test
-	// substitutes (agentry-desktop#469); nil is a client with a timeout and
-	// this machine's docker.
+	// substitutes; nil is a client with a timeout and this machine's docker.
 	reviewHTTP   *http.Client
 	reviewRunner func(context.Context, localrun.Run) (*receipt.Envelope, error)
 }
@@ -103,8 +100,8 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 	if dir == "" {
 		return fmt.Errorf("pick a folder to save into")
 	}
-	// The folder came from the native picker (D-030): the page names no
-	// path of its own.
+	// The folder came from the native picker: the page names no path of its
+	// own.
 	if err := b.app.requirePicked("folder", dir); err != nil {
 		return err
 	}
@@ -113,16 +110,15 @@ func (b *BuildAPI) Save(dir string, m build.Model) error {
 
 // Check renders the form's model without touching disk and runs the rules
 // over it: the form's own and the core's static V-rules. The Build page
-// draws each step's lines and problem from it (plan builder-rework.md §5,
-// agentry-desktop#280). It reads nothing and writes nothing.
+// draws each step's lines and problem from it. It reads nothing and writes
+// nothing.
 func (b *BuildAPI) Check(m build.Model) *build.CheckResult {
 	return m.Check()
 }
 
-// Summary is the Build tab's summary of the form's model (plan
-// builder-simplify.md §4.1, agentry-desktop#344): how it works and every
-// capability it declares, with the hosts a draft's description did not name
-// marked (the draft's Unmentioned; none for a QuickAgent written in the
+// Summary is the Build tab's summary of the form's model: how it works and
+// every capability it declares, with the hosts a draft's description did not
+// name marked (the draft's Unmentioned; none for a QuickAgent written in the
 // form). It reads nothing and writes nothing.
 func (b *BuildAPI) Summary(m build.Model, unmentioned []string) *build.Summary {
 	return m.Summarize(unmentioned)
@@ -145,21 +141,19 @@ func (b *BuildAPI) Validate(dir string) (*validate.Result, error) {
 	return validate.Run(dir)
 }
 
-// Submit sends the workspace to the registry publicly (agentry-desktop#425,
-// reversing builder-simplify D3's private default) and follows the pipeline
-// to a verdict. Nothing is sent until the person has said Yes to a native
-// dialog the page cannot answer: what the submission spends in credits,
-// read from the account, and that the QuickAgent becomes public, or that
-// it stays private when it already exists private. A No sends nothing and
-// returns nil.
+// Submit sends the workspace to the registry publicly and follows the
+// pipeline to a verdict. Nothing is sent until the person has said Yes to a
+// native dialog the page cannot answer: what the submission spends in
+// credits, read from the account, and that the QuickAgent becomes public, or
+// that it stays private when it already exists private. A No sends nothing
+// and returns nil.
 func (b *BuildAPI) Submit(reg, dir string) (*build.PublishResult, error) {
 	if !b.mu.TryLock() {
 		return nil, errBuildBusy
 	}
 	defer b.mu.Unlock()
-	// Submit sends the folder Save wrote, which the native picker gave
-	// (D-030); the binding holds that itself rather than trust the page's
-	// order of calls.
+	// Submit sends the folder Save wrote, which the native picker gave; the
+	// binding holds that itself rather than trust the page's order of calls.
 	if err := b.app.requirePicked("folder", dir); err != nil {
 		return nil, err
 	}
@@ -207,12 +201,11 @@ func (b *BuildAPI) submit(reg, dir, draftRun string) (*build.PublishResult, erro
 // errBuildBusy refuses a second Submit or Install while one is under way.
 var errBuildBusy = errors.New("a submit or an install is already in progress")
 
-// submitConsentText is Submit's warning: what it spends, and whether it
-// is public. A new or public QuickAgent is published public; one that
-// exists private stays private (the operator's decision of 2026-09-30):
-// making it public is a step of its own, Make public in the Publisher
-// section, for its namespace's administrators, and never a fork's
-// (agentry-desktop#705, #706).
+// submitConsentText is Submit's warning: what it spends, and whether it is
+// public. A new or public QuickAgent is published public; one that exists
+// private stays private: making it public is a step of its own, Make public
+// in the Publisher section, for its namespace's administrators, and never a
+// fork's.
 func submitConsentText(ref, origin string, private bool, sub *SubscriptionView, subErr error) string {
 	sends := "This sends " + ref + " to " + origin + ", where the security pipeline scans it"
 	lines := []string{sends + ", and makes it public: anyone can find and install it once the pipeline publishes it."}
@@ -263,7 +256,7 @@ type DescribeStatusView struct {
 	SearchSentence string     `json:"searchSentence"`
 	ModelName      string     `json:"modelName"`
 	// MaxPacks and MaxBytes are what a draft on this computer reads of the
-	// person's knowledge packs (agentry-desktop#497): the CLI's own bounds,
+	// person's knowledge packs: the CLI's own bounds,
 	// drafter.MaxKnowledgePacks and MaxKnowledgeBytes.
 	MaxPacks int   `json:"maxPacks"`
 	MaxBytes int64 `json:"maxBytes"`
@@ -303,25 +296,24 @@ type DraftView struct {
 	// first words there.
 	Description string   `json:"description"`
 	Hints       []string `json:"hints"`
-	// Unmentioned are the hosts the draft reaches that the person's words
-	// do not name, "*" included (plan §7.6); Problems are the rules it
-	// still fails as the post-step recorded them, with MoreProblems past
-	// the first draft.MaxProblems.
+	// Unmentioned are the hosts the draft reaches that the person's words do
+	// not name, "*" included; Problems are the rules it still fails as the
+	// post-step recorded them, with MoreProblems past the first
+	// draft.MaxProblems.
 	Unmentioned  []string `json:"unmentioned"`
 	Problems     []string `json:"problems"`
 	MoreProblems int      `json:"moreProblems"`
-	// Check is AI Review's check of the finished draft (agentry-cli#418),
-	// or nil for a draft that has none.
+	// Check is AI Review's check of the finished draft, or nil for a draft
+	// that has none.
 	Check *DraftCheckView `json:"check"`
-	// Knowledge are the person's packs the Drafter was given
-	// (agentry-desktop#497): each one's name, how it was scanned (in
-	// Agentry, or for this draft with the person's key) and every file AI
-	// Review withheld from it, with the reason. Never empty for a draft
-	// that read none: an empty list.
+	// Knowledge are the person's packs the Drafter was given: each one's
+	// name, how it was scanned (in Agentry, or for this draft with the
+	// person's key) and every file AI Review withheld from it, with the
+	// reason. Never empty for a draft that read none: an empty list.
 	Knowledge []drafter.PackRead `json:"knowledge"`
 	// Revision is set when the draft is Edit with AI's revision of a
-	// release (agentry-desktop#501): the QuickAgent, the versions, and the
-	// diff. Nil for a draft from a description.
+	// release: the QuickAgent, the versions, and the diff. Nil for a draft
+	// from a description.
 	Revision *RevisionView `json:"revision,omitempty"`
 }
 
@@ -382,7 +374,7 @@ func checkView(c *drafter.Check) *DraftCheckView {
 
 // Where a draft was made (DraftView.Where): on this computer with the
 // person's own key, or on a sandbox host with AI Review through the
-// registry (#281). The page reads the same two words.
+// registry. The page reads the same two words.
 const (
 	draftHere      = "here"
 	draftInAgentry = "agentry"
@@ -402,11 +394,10 @@ type DraftAIReviewView struct {
 }
 
 // DescribeOnThisComputer drafts a QuickAgent from a description with the
-// built-in Drafter on this computer (plan builder-rework.md §7.1, D22, D25),
-// in this order:
+// built-in Drafter on this computer, in this order:
 //  1. Without the person's own Jev key it refuses, saying where to add one,
 //     and nothing leaves this computer.
-//  2. A native dialog asks, saying where the description goes (D-030: the
+//  2. A native dialog asks, saying where the description goes (the
 //     page's click is not the consent).
 //  3. Under the run lock, as the run in flight, AI Review reads the
 //     description, the Drafter runs against the runner policy's model with
@@ -416,11 +407,10 @@ type DraftAIReviewView struct {
 // Nothing is written into a QuickAgent folder: the draft reaches one only
 // when the person saves it where the native picker says.
 //
-// packs are knowledge packs kept on this computer the Drafter reads first
-// (agentry-desktop#497; plan knowledge-and-drafter.md K4): opened before
-// the dialog and held to the Drafter's bound, and the dialog says which of
-// them AI Review scans first with the person's key, because no scan in
-// Agentry stands in for them (D3).
+// packs are knowledge packs kept on this computer the Drafter reads first:
+// opened before the dialog and held to the Drafter's bound, and the dialog
+// says which of them AI Review scans first with the person's key, because no
+// scan in Agentry stands in for them.
 func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs []string) (*DraftView, error) {
 	k, err := b.run.knowledge().ForDraft(b.app.ctx, reg, packs)
 	if err != nil {
@@ -473,7 +463,7 @@ func (b *BuildAPI) DescribeOnThisComputer(reg, description string, hints, packs 
 
 // knowledgeConsent is what the dialog says of a draft's packs: that the
 // Drafter reads them first, and which of them AI Review scans first with the
-// person's key (D3), the rest standing on their scan in Agentry. "" for none.
+// person's key, the rest standing on their scan in Agentry. "" for none.
 func knowledgeConsent(k *knowledge.DraftPacks) string {
 	names := k.Names()
 	if len(names) == 0 {
@@ -498,11 +488,11 @@ func knowledgeConsent(k *knowledge.DraftPacks) string {
 const draftRunRef = "the Drafter"
 
 // StopDraft stops the draft on this computer that is running, from the
-// progress dialog or its corner card (agentry-desktop#410): its context is
-// cancelled and the Drafter's run tears down as a quit's does, and no draft
-// is made. It stops only a draft, never a run, a session or a knowledge
-// build, and says so when none is running. A draft In Agentry is cancelled
-// with CancelHostedDraft instead.
+// progress dialog or its corner card: its context is cancelled and the
+// Drafter's run tears down as a quit's does, and no draft is made. It stops
+// only a draft, never a run, a session or a knowledge build, and says so
+// when none is running. A draft In Agentry is cancelled with
+// CancelHostedDraft instead.
 func (b *BuildAPI) StopDraft() error {
 	r := b.run
 	r.liveMu.Lock()
@@ -514,10 +504,10 @@ func (b *BuildAPI) StopDraft() error {
 	return nil
 }
 
-// settle is a decoded draft's last step, from either place: what the
-// Builder sets on it (plan builder-simplify.md §4.2, D10; build.SetByBuilder),
-// its name made unique among the person's own QuickAgents on reg, then the
-// hosts it reaches that the person's own words do not name marked.
+// settle is a decoded draft's last step, from either place: what the Builder
+// sets on it (build.SetByBuilder), its name made unique among the person's
+// own QuickAgents on reg, then the hosts it reaches that the person's own
+// words do not name marked.
 func (v *DraftView) settle(ctx context.Context, reg, token, ns string) {
 	words := draft.PersonsWords(v.Description, v.Hints)
 	var taken []string

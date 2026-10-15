@@ -25,19 +25,18 @@ import (
 	"github.com/blaktron/agentry/pkg/reportdesign"
 )
 
-// reportDesignRegistry answers GET and PUT /user/report-settings as the
-// core does since agentry#1026 (DEV-230): {} for never chosen, {"design": …}
-// kept in its canonical form when the core's pkg/reportdesign parses it, a
-// body with any other field refused with 400. found=false is a registry
-// from before the route. stored is the design kept, "" for none; a test may
-// set it to a document the core of a later day would hold.
+// reportDesignRegistry answers GET and PUT /user/report-settings as the core
+// does: {} for never chosen, {"design": …} kept in its canonical form when
+// the core's pkg/reportdesign parses it, a body with any other field refused
+// with 400. found=false is a registry from before the route. stored is the
+// design kept, "" for none; a test may set it to a document the core of a
+// later day would hold.
 //
-// The logo (agentry#1025) is kept beside the design as NormalizeLogo writes
-// it: answered only with include=logo, replaced by a design that carries
-// one, kept by a design that carries none, set by PUT …/logo (multipart
-// part file; 409 with no design, the core's 415 and 413) and taken off by
-// DELETE …/logo. reportLogoOf reads it; lastPut is the last design PUT's
-// body.
+// The logo is kept beside the design as NormalizeLogo writes it: answered
+// only with include=logo, replaced by a design that carries one, kept by a
+// design that carries none, set by PUT …/logo (multipart part file; 409 with
+// no design, the core's 415 and 413) and taken off by DELETE …/logo.
+// reportLogoOf reads it; lastPut is the last design PUT's body.
 func reportDesignRegistry(t *testing.T, found bool) (*httptest.Server, *string, *int) {
 	t.Helper()
 	stored, puts := "", 0
@@ -207,9 +206,9 @@ func throughThePage(t *testing.T, d reportdesign.Design) reportdesign.Design {
 
 // The editor's choices are the core's: the five themes in its order, each
 // its own document exactly, with the pinned CLI's thumbnail of it; the
-// families, and which role each may set; the closed lists; the limits.
-// Invariant 8: each theme, loaded into the page and handed back unchanged,
-// is byte for byte the document the core ships, valid, and unedited.
+// families, and which role each may set; the closed lists; the limits. Each
+// theme, loaded into the page and handed back unchanged, is byte for byte
+// the document the core ships, valid, and unedited.
 func TestReportDesignOptionsAreTheCores(t *testing.T) {
 	o := reportDesignOptions()
 	var ids []string
@@ -254,7 +253,7 @@ func TestReportDesignOptionsAreTheCores(t *testing.T) {
 // The page's checks are the core's: an edited theme is said as one; an
 // accent the core refuses is refused with its words and the nearest shade
 // that passes, and the shade it offers is saved by the core; whether the
-// accent colours text decides the ratio it needs (D17).
+// accent colours text decides the ratio it needs.
 func TestCheckReportDesignIsTheCoresVerdict(t *testing.T) {
 	d := builtin(t, "classic")
 	d.Name = "Ours"
@@ -305,10 +304,10 @@ func TestCheckReportDesignIsTheCoresVerdict(t *testing.T) {
 	}
 }
 
-// Reading: never chosen is no design, which is not Plain (DEV-227); a
-// saved design reads back whole; one this build cannot parse is said, not
-// shown; a registry without the setting is not offered, and that is not an
-// error; a refused credential is.
+// Reading: never chosen is no design, which is not Plain; a saved design
+// reads back whole; one this build cannot parse is said, not shown; a
+// registry without the setting is not offered, and that is not an error; a
+// refused credential is.
 func TestReportDesignReadsTheAccountsDesign(t *testing.T) {
 	srv, stored, _ := reportDesignRegistry(t, true)
 	ctx := context.Background()
@@ -379,10 +378,10 @@ func TestSaveReportDesignSavesRefusesAndResets(t *testing.T) {
 
 // A local run takes the account's design whole, edited or not, from the
 // account, and the pinned CLI stamps it as the core hashes it, which is the
-// digest its receipt names (invariant 9). Never chosen, signed out, an
-// account it cannot read, and a design this build cannot draw are Plain,
-// the last two said in the run's log: how a PDF looks is no reason to stop
-// a run (D20, as the CLI does).
+// digest its receipt names. Never chosen, signed out, an account it cannot
+// read, and a design this build cannot draw are Plain, the last two said in
+// the run's log: how a PDF looks is no reason to stop a run (as the CLI
+// does).
 func TestALocalRunTakesTheAccountsDesign(t *testing.T) {
 	srv, stored, _ := reportDesignRegistry(t, true)
 	ctx := context.Background()
@@ -423,7 +422,7 @@ func TestALocalRunTakesTheAccountsDesign(t *testing.T) {
 		t.Fatalf("signed out: %+v, log %q, %d requests", got, log.String(), requests.Load()-before)
 	}
 	// An http:// spelling of a registry off this machine is never sent the
-	// token (D-030): Plain, said, and no request.
+	// token: Plain, said, and no request.
 	if got := accountReportTheme(ctx, "http://registry.example", "agy_test", &log); got.Design != nil ||
 		!strings.Contains(log.String(), "not one Settings accepts") || strings.Contains(log.String(), "registry.example") {
 		t.Fatalf("http off this machine: %+v, log %q", got, log.String())
@@ -433,9 +432,9 @@ func TestALocalRunTakesTheAccountsDesign(t *testing.T) {
 	}
 }
 
-// The settings bindings take a page-supplied address through Settings'
-// rule before a token is looked up (D-030): an http:// spelling of a
-// registry off this machine is refused, whatever the keychain holds.
+// The settings bindings take a page-supplied address through Settings' rule
+// before a token is looked up: an http:// spelling of a registry off this
+// machine is refused, whatever the keychain holds.
 func TestReportDesignBindingsHoldTheAddressToSettingsRule(t *testing.T) {
 	s := &SettingsAPI{app: &App{ctx: context.Background()}}
 	const bad = "http://registry.example"
@@ -453,9 +452,9 @@ func TestReportDesignBindingsHoldTheAddressToSettingsRule(t *testing.T) {
 // reportDesignFixture is the frontend tests' copy of the core's report
 // designs (frontend/tests/reportDesign.test.ts): each theme's canonical
 // document as text, the families, and the closed lists. It is held here to
-// the core this app pins, so the frontend's round trip (invariant 8) is
-// tested against the documents the core ships. AGENTRY_UPDATE_FIXTURES=1
-// rewrites it after a core bump.
+// the core this app pins, so the frontend's round trip is tested against the
+// documents the core ships. AGENTRY_UPDATE_FIXTURES=1 rewrites it after a
+// core bump.
 const reportDesignFixture = "frontend/tests/fixtures/reportDesigns.json"
 
 func TestTheFrontendsReportDesignFixtureIsTheCores(t *testing.T) {
@@ -516,12 +515,11 @@ func testPNG(t *testing.T, w, h int) []byte {
 	return b.Bytes()
 }
 
-// The logo (agentry#1025, agentry-desktop#777): the page reads it with the
-// design and shows it as a PNG data: URL beside a design that never carries
-// it; a Save sends no logo, so the core keeps it; an upload sends one
-// multipart part, the file's bytes and not its name, at most 512 KB, and the
-// core's refusals come back in its words; Remove keeps the design; Reset
-// clears both.
+// The logo: the page reads it with the design and shows it as a PNG data:
+// URL beside a design that never carries it; a Save sends no logo, so the
+// core keeps it; an upload sends one multipart part, the file's bytes and
+// not its name, at most 512 KB, and the core's refusals come back in its
+// words; Remove keeps the design; Reset clears both.
 func TestTheReportLogo(t *testing.T) {
 	srv, stored, _ := reportDesignRegistry(t, true)
 	ctx := context.Background()
@@ -604,8 +602,8 @@ func TestTheReportLogo(t *testing.T) {
 }
 
 // A local run takes the account's design with its logo, whole, and the
-// pinned CLI (agentry-cli#816, v0.6.91) stamps it: the digest its receipt
-// names covers the logo's bytes.
+// pinned CLI (v0.6.91) stamps it: the digest its receipt names covers the
+// logo's bytes.
 func TestALocalRunCarriesTheLogo(t *testing.T) {
 	srv, _, _ := reportDesignRegistry(t, true)
 	ctx := context.Background()
@@ -633,8 +631,8 @@ func TestALocalRunCarriesTheLogo(t *testing.T) {
 	}
 }
 
-// The logo bindings hold a page-supplied address to Settings' rule before
-// a token is looked up or a picker opens (D-030).
+// The logo bindings hold a page-supplied address to Settings' rule before a
+// token is looked up or a picker opens.
 func TestReportLogoBindingsHoldTheAddressToSettingsRule(t *testing.T) {
 	picked := false
 	saved := pickReportLogo

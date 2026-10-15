@@ -8,11 +8,10 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// HomeAPI is the Home page's layout (plan desktop-home-and-library.md §4.4,
-// D-067; agentry-desktop#658): which cards Home draws, in what order, in
-// desktop.yaml. Go owns the file: the page reads the layout and asks for
-// one change at a time, and never writes the layout whole. Pins
-// (agentry-desktop#660) are Go's too, with their placement rules (D5, D11).
+// HomeAPI is the Home page's layout: which cards Home draws, in what order,
+// in desktop.yaml. Go owns the file: the page reads the layout and asks for
+// one change at a time, and never writes the layout whole. Pins are Go's
+// too, with their placement rules.
 type HomeAPI struct{}
 
 // HomeLayoutView is the layout as the page draws it. Newer says the stored
@@ -23,8 +22,8 @@ type HomeLayoutView struct {
 	Cards      []settings.HomeCard `json:"cards"`
 	Newer      bool                `json:"newer"`
 	Unreadable bool                `json:"unreadable"`
-	// MaxPins and PinsPerCard are the limits Go enforces (D5), so the page
-	// says them rather than its own copy.
+	// MaxPins and PinsPerCard are the limits Go enforces, so the page says
+	// them rather than its own copy.
 	MaxPins     int `json:"maxPins"`
 	PinsPerCard int `json:"pinsPerCard"`
 }
@@ -56,11 +55,10 @@ func (h *HomeAPI) Reset() (*HomeLayoutView, error) {
 	return homeView()
 }
 
-// Pin pins an installed QuickAgent to Home (plan §4.4, D5, D11;
-// agentry-desktop#660): ref is namespace/name, registry the record's
-// origin, "" for one installed from a folder. Only a QuickAgent on this
-// computer can be pinned. It writes only desktop.yaml and asks no registry:
-// a pin is not a star.
+// Pin pins an installed QuickAgent to Home: ref is namespace/name, registry
+// the record's origin, "" for one installed from a folder. Only a QuickAgent
+// on this computer can be pinned. It writes only desktop.yaml and asks no
+// registry: a pin is not a star.
 func (h *HomeAPI) Pin(ref, registry string) (*HomeLayoutView, error) {
 	here, err := installedHere(ref, registry)
 	if err != nil {
@@ -109,12 +107,12 @@ func installedHere(ref, registry string) (bool, error) {
 // refOf is a record's QuickAgent as a pin names it, namespace/name.
 func refOf(it install.Item) string { return it.Namespace + "/" + it.Name }
 
-// unpinIfGone removes ref's pins once nothing of that kind of it is left
-// on this computer, after an uninstall or a Forget in this app (D5): the
-// folder pin when no folder install of it is left, the registry pins when no
-// install from a registry is. An uninstall by the CLI leaves the pin, which
-// Home then shows as no longer installed, with Unpin. It never fails the
-// removal that called it.
+// unpinIfGone removes ref's pins once nothing of that kind of it is left on
+// this computer, after an uninstall or a Forget in this app: the folder pin
+// when no folder install of it is left, the registry pins when no install
+// from a registry is. An uninstall by the CLI leaves the pin, which Home
+// then shows as no longer installed, with Unpin. It never fails the removal
+// that called it.
 func unpinIfGone(ref string) {
 	items, err := install.List()
 	if err != nil {
@@ -138,10 +136,9 @@ func unpinIfGone(ref string) {
 	}
 }
 
-// PinScheduled is the Scheduled page's Pin to Home (plan
-// quickagent-scheduling.md D13; agentry-desktop#744): the Scheduled card,
-// Large, at the end of Home, or a hidden one shown again. It is a card,
-// not one of the QuickAgent pins.
+// PinScheduled is the Scheduled page's Pin to Home: the Scheduled card,
+// Large, at the end of Home, or a hidden one shown again. It is a card, not
+// one of the QuickAgent pins.
 func (h *HomeAPI) PinScheduled() (*HomeLayoutView, error) {
 	if err := settings.PinScheduledToHome(); err != nil {
 		return nil, err

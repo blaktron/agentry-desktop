@@ -1,21 +1,19 @@
 package main
 
-// Edit with AI on the QuickAgent page (plan drafter-revisions.md §5, D3,
-// D5, D9, D10; agentry-desktop#501): the Drafter given a QuickAgent's
+// Edit with AI on the QuickAgent page: the Drafter given a QuickAgent's
 // current release and the person's two texts, Additional instructions and
 // Problems with this draft, drafts its next version. Two ways:
 //
-//   - In Agentry, a hosted revision (agentry-enterprise#297), for a payer
+//   - In Agentry, a hosted revision, for a payer
 //     above Standard at a hosted draft's terms. Publish this version names
 //     its run as the upload's draftRun, which the registry proves against
-//     the draft's record before S9 gives it the benefit of the doubt
-//     (DEV-194).
+//     the draft's record before S9 gives it the benefit of the doubt.
 //   - On this computer, for anyone the registry says may publish to the
-//     QuickAgent (canPublish, DEV-199), with their own model and AI Review
+//     QuickAgent (canPublish), with their own model and AI Review
 //     key, for no credits. The release is downloaded, its digest checked,
 //     and staged under the run's revise/ for the CLI's own revision
 //     (pkg/drafter). It leaves no record on the registry, so it publishes
-//     under the ordinary S9 (D3).
+//     under the ordinary S9.
 //
 // Both land as a revision: the QuickAgent's own name at its next minor,
 // what the Builder cannot hold dropped without a word (build.FromRevision),
@@ -145,14 +143,13 @@ func (b *BuildAPI) ReviseInAgentry(reg, ns, name, instructions, problems string)
 	return &HostedDraftStartView{Draft: hostedDraftView(created, false)}, nil
 }
 
-// ReviseOnThisComputer drafts the next version of ns/name's current
-// release here, as Describe it on this computer drafts (D10): no key, no
-// revision; a native dialog saying where the texts and the release go;
-// then, under the run lock, the release downloaded, held to its digest and
-// staged under the run's revise/, AI Review reading the texts and the
-// release before the Drafter does, and the CLI's own post-step. It is
-// offered to anyone the registry says may publish to the QuickAgent, and
-// spends no credits.
+// ReviseOnThisComputer drafts the next version of ns/name's current release
+// here, as Describe it on this computer drafts: no key, no revision; a
+// native dialog saying where the texts and the release go; then, under the
+// run lock, the release downloaded, held to its digest and staged under the
+// run's revise/, AI Review reading the texts and the release before the
+// Drafter does, and the CLI's own post-step. It is offered to anyone the
+// registry says may publish to the QuickAgent, and spends no credits.
 func (b *BuildAPI) ReviseOnThisComputer(reg, ns, name, instructions, problems string) (*DraftView, error) {
 	url, token, err := storedCredential(reg)
 	if err != nil {
@@ -322,7 +319,7 @@ func (b *BuildAPI) landRevision(ctx context.Context, url, token string, v *Draft
 		label += ", written as AGENT.md"
 	}
 	v.Model = after
-	// What the Builder drops it drops without a word (D6), as Edit does.
+	// What the Builder drops it drops without a word, as Edit does.
 	v.DecodeNotes = []string{}
 	v.Unmentioned = draft.UnmentionedHosts(after, v.Description+"\n"+before.ManifestYAML())
 	v.Revision = &RevisionView{Namespace: ns, Name: name, From: rel.Version, Version: rel.Next, Hosted: hosted,

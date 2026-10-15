@@ -1,9 +1,9 @@
 package main
 
-// Live end-to-end verification against a real registry — the §10 checklist
-// as an executable. Skipped unless AGENTRY_LIVE_REGISTRY is set, because it
-// needs a running stack (the dev compose stack, usually http://agentry:8080)
-// and it reads/writes the REAL ~/.config/agentry install state on purpose:
+// Live end-to-end verification against a real registry — the checklist as an
+// executable. Skipped unless AGENTRY_LIVE_REGISTRY is set, because it needs
+// a running stack (the dev compose stack, usually http://agentry:8080) and
+// it reads/writes the REAL ~/.config/agentry install state on purpose:
 // shared state with the CLI is one of the claims under test.
 //
 //	AGENTRY_LIVE_REGISTRY=http://agentry:8080 \
@@ -155,12 +155,11 @@ func TestLiveEndToEnd(t *testing.T) {
 	}
 }
 
-// One In-Agentry run against a real registry with the runs extension
-// (agentry-desktop#77, plan hosted-runs.md §4.7): the same path the panel
-// takes — status, create, watch to a terminal state, download the
-// artefacts into a chosen folder, read the receipt — with the app's own
-// client and the account's PAT. Skipped unless the environment names a
-// registry, a token and a release:
+// One In-Agentry run against a real registry with the runs extension: the
+// same path the panel takes — status, create, watch to a terminal state,
+// download the artefacts into a chosen folder, read the receipt — with the
+// app's own client and the account's PAT. Skipped unless the environment
+// names a registry, a token and a release:
 //
 //	AGENTRY_HOSTED_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_HOSTED_TOKEN=agy_… \
@@ -251,7 +250,7 @@ func TestLiveHostedRun(t *testing.T) {
 		t.Fatal("a succeeded run wrote no artefacts")
 	}
 	if len(final.Receipt.CapabilitiesEnforced) == 0 {
-		t.Fatal("the registry kept no receipt that lists what the run enforced (a pushed run's comes from its host since agentry-enterprise#121)")
+		t.Fatal("the registry kept no receipt that lists what the run enforced (a pushed run's comes from its host)")
 	}
 	for k, v := range final.Receipt.CapabilitiesEnforced {
 		t.Logf("enforced %s: %s", k, v)

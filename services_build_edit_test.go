@@ -1,10 +1,9 @@
 package main
 
-// Edit on the QuickAgent page (agentry-desktop#500) through the bound
-// surface, against a fake registry: the page's condition is the registry's
-// canPublish, and the current release reaches the form under the same name,
-// at the next minor above every version, with what the Builder cannot hold
-// dropped.
+// Edit on the QuickAgent page through the bound surface, against a fake
+// registry: the page's condition is the registry's canPublish, and the
+// current release reaches the form under the same name, at the next minor
+// above every version, with what the Builder cannot hold dropped.
 
 import (
 	"context"
@@ -26,12 +25,12 @@ type editFake struct {
 	mu         sync.Mutex
 	url        string
 	canPublish *bool
-	// fork, when set, is merged into the agent read (agentry-desktop#706).
+	// fork, when set, is merged into the agent read.
 	fork     map[string]any
 	versions []map[string]any
 	file     map[string]any
 	// manifest, when set, replaces editManifest; fileStatus, when set, is
-	// the file endpoint's refusal (agentry-desktop#835).
+	// the file endpoint's refusal.
 	manifest   string
 	fileStatus int
 	// asked are the paths the fake served, for what was and was not read.
@@ -203,7 +202,7 @@ func TestTheAgentPageReadsCanPublish(t *testing.T) {
 }
 
 // The agent page reads a fork's origin and copy, and a public agent's fork
-// count (agentry-desktop#706; agentry#943).
+// count.
 func TestTheAgentPageReadsForks(t *testing.T) {
 	f := newEditFake(t)
 	signIn(t, f.url)

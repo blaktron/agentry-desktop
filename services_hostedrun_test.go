@@ -1,10 +1,9 @@
 package main
 
-// In Agentry, through the bound surface (agentry-desktop#77): the
-// availability rule against a real /meta, a real token list and a real
-// release; a run created, streamed, cancelled and downloaded against a
-// fake runs extension; the artefacts under the chosen folder; and no
-// docker anywhere on the path.
+// In Agentry, through the bound surface: the availability rule against a
+// real /meta, a real token list and a real release; a run created, streamed,
+// cancelled and downloaded against a fake runs extension; the artefacts
+// under the chosen folder; and no docker anywhere on the path.
 
 import (
 	"archive/tar"
@@ -71,25 +70,24 @@ type hostedFake struct {
 	// lostOutput makes the output route answer 404, as the registry does
 	// for a bundle it can no longer open.
 	lostOutput bool
-	// noReceipt finishes the run the way one pushed before
-	// agentry-enterprise#121 did: with no receipt kept.
+	// noReceipt finishes the run the way a run pushed by an older host did:
+	// with no receipt kept.
 	noReceipt bool
 	created   *hostedrun.CreateRequest
 	refuse    func(w http.ResponseWriter)
-	// attach says the status route offers knowledgeAttach
-	// (agentry-enterprise#172); packs are the account's packs in Agentry,
-	// as GET /knowledge/packs lists them.
+	// attach says the status route offers knowledgeAttach; packs are the
+	// account's packs in Agentry, as GET /knowledge/packs lists them.
 	attach bool
 	packs  []map[string]any
-	// vaultSets and vaultDeletes record the vault's two write routes
-	// (agentry-desktop#300); vaultAnswer, when set, answers a set instead.
+	// vaultSets and vaultDeletes record the vault's two write routes;
+	// vaultAnswer, when set, answers a set instead.
 	vaultSets    []vaultSet
 	vaultDeletes []string
 	vaultAnswer  func(w http.ResponseWriter, body []byte)
 
 	// sessions is the status route's sessions line and sessionAllowed the
-	// caller's (agentry-enterprise#276, #286); nil leaves them out, as a
-	// registry from before sessions does.
+	// caller's; nil leaves them out, as a registry from before sessions
+	// does.
 	sessions       *hostedrun.SessionTerms
 	sessionAllowed *bool
 	// frames are a session's display events in order (sequence numbers
@@ -99,11 +97,10 @@ type hostedFake struct {
 	frames       []string
 	streamAfters []string
 	sessionPosts map[string][]string
-	// tokensGone answers as the registry will once it stops serving a
-	// hosted run's token counts (plan scan-and-run-tweaks.md B3,
-	// agentry-enterprise#291): no token counts or dollar cost in a run's
-	// usage, no token cap, no rates. False answers as today's routes do,
-	// with all of them, which this app no longer reads (agentry-desktop#457).
+	// tokensGone answers as the registry will once it stops serving a hosted
+	// run's token counts: no token counts or dollar cost in a run's usage,
+	// no token cap, no rates. False answers as today's routes do, with all
+	// of them, which this app no longer reads.
 	tokensGone bool
 	// sessionRefuse, when set, answers a session post instead of 202.
 	sessionRefuse func(w http.ResponseWriter, route string) bool
@@ -123,25 +120,24 @@ type hostedFake struct {
 	// app while the registry creates the run.
 	onCreate func()
 	// earns is the Publisher Earnings program's answer for acme, whose
-	// reporter is public and read by someone else (agentry-desktop#613).
+	// reporter is public and read by someone else.
 	earns bool
 	// uploads counts the input uploads, and creates the create posts, each
-	// body whole (agentry-desktop#667: a start waiting for its connections
-	// makes the same create again and uploads nothing again).
+	// body whole (a start waiting for its connections makes the same create
+	// again and uploads nothing again).
 	uploads int
 	creates []string
-	// intake is the release's intake block as manifest YAML, "" for none
-	// (a repository question, agentry-desktop#794).
+	// intake is the release's intake block as manifest YAML, "" for none (a
+	// repository question).
 	intake string
-	// targetHosts is the release's capabilities.targetHosts, nil for none
-	// (agentry-desktop#812); its host questions go in intake.
+	// targetHosts is the release's capabilities.targetHosts, nil for none;
+	// its host questions go in intake.
 	targetHosts []string
 	// browser is the release's capabilities.browser as YAML lines under
-	// capabilities, "" for none (agentry-desktop#903); its site questions
-	// go in intake.
+	// capabilities, "" for none; its site questions go in intake.
 	browser string
-	// routes, when set, adds routes of another extension to the fake
-	// (the schedules extension's, agentry-desktop#745).
+	// routes, when set, adds routes of another extension to the fake (the
+	// schedules extension's).
 	routes func(mux *http.ServeMux)
 }
 
@@ -209,8 +205,8 @@ func (f *hostedFake) start(t *testing.T) string {
 		hostedJSON(w, http.StatusOK, map[string]any{"handle": "pat", "displayName": "Pat", "email": "pat@example.com"})
 	})
 	mux.HandleFunc("GET /api/v1/x/billing/account", func(w http.ResponseWriter, r *http.Request) {
-		// The registry names where its subscription is managed
-		// (agentry-enterprise#41); the app never builds that path.
+		// The registry names where its subscription is managed; the app
+		// never builds that path.
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"tier": "standard", "balance": 40, "allowance": 50, "submissionCost": 10,
 			"periodEnd": "2026-10-11T00:00:00Z", "privateAgents": map[string]any{"max": 10, "used": 1},
@@ -275,8 +271,8 @@ func (f *hostedFake) start(t *testing.T) string {
 		}
 		hostedJSON(w, http.StatusCreated, map[string]any{"name": r.PathValue("name")})
 	})
-	// A key saved for a source's host (agentry-enterprise#532), recorded
-	// among the vault's sets as "source-key:<host>".
+	// A key saved for a source's host, recorded among the vault's sets as
+	// "source-key:<host>".
 	mux.HandleFunc("PUT /api/v1/x/vault/me/source-keys/{host}", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
@@ -320,7 +316,7 @@ func (f *hostedFake) start(t *testing.T) string {
 			Caps: hostedrun.Caps{TimeoutSeconds: 300, MaxTurns: 20}, CreatedAt: time.Now().UTC(),
 		}
 		if req.Mode == hostedrun.ModeInteractive {
-			// A session holds nothing and carries its record (DEV-178).
+			// A session holds nothing and carries its record.
 			f.run.Mode, f.run.HoldCredits = hostedrun.ModeInteractive, 0
 			f.run.Session = &hostedrun.Session{FreeMinutes: 10, CreditsPerMinute: 50, PaidThrough: 10, IdleSeconds: 300}
 		}
@@ -388,9 +384,9 @@ func (f *hostedFake) start(t *testing.T) string {
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	})
-	// The session's stream, as agentry-enterprise's sessionStream writes
-	// it: the state whenever it changes, each frame after `after` once and
-	// in order, and `done` once the run is over.
+	// The session's stream, as the registry's session stream writes it: the
+	// state whenever it changes, each frame after `after` once and in order,
+	// and `done` once the run is over.
 	mux.HandleFunc("GET /api/v1/x/runs/{id}/session", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+hostedTestToken {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -482,11 +478,11 @@ func (f *hostedFake) finish(outcome, exitClass string, settled int64) {
 	f.run.SettledCredits = &settled
 	f.run.Usage = &hostedrun.Usage{Turns: 3, WallMS: 9000}
 	// A pushed run: the registry keeps the host's cut of the CLI's stdout
-	// envelope as the receipt (agentry-enterprise#121); a run pushed before
-	// that (noReceipt) has none.
+	// envelope as the receipt; a run pushed before that (noReceipt) has
+	// none.
 	f.run.Receipt = hostedrun.Receipt{CapabilitiesEnforced: map[string]string{"runtime": "runsc: the agent container"}}
 	for i, k := range f.run.Knowledge {
-		// The host's CLI names each pack it mounted (agentry-enterprise#172).
+		// The host's CLI names each pack it mounted.
 		f.run.Knowledge[i].Digest = "sha256:" + strings.Repeat("2b", 32)
 		f.run.Receipt.CapabilitiesEnforced["knowledge"] = k.Name + " mounted read-only at /knowledge/" + k.Name + " (sha256:…, 4 pages, 6903 bytes, scan: a scan record this client has not confirmed with the registry); tools knowledge_list, knowledge_search and knowledge_read, on the tools container only"
 	}
@@ -568,8 +564,8 @@ func signIn(t *testing.T, reg string) (home, runnerHome string) {
 	t.Helper()
 	// settings.TokenFor reads the OS keychain before the settings file, by
 	// host and port: a token an earlier run left there for 127.0.0.1 and
-	// this server's port would be read instead of this one. The keychain
-	// is held in memory for the test (agentry-desktop#497).
+	// this server's port would be read instead of this one. The keychain is
+	// held in memory for the test.
 	keyring.MockInit()
 	home, runnerHome = t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
@@ -646,8 +642,7 @@ type emitted struct {
 	mu   sync.Mutex
 	log  []string
 	runs []*HostedRunView
-	// session and sessionStates are a hosted session's events and states
-	// (agentry-desktop#403).
+	// session and sessionStates are a hosted session's events and states.
 	session       []SessionEventView
 	sessionStates []HostedSessionStateView
 }
@@ -711,7 +706,7 @@ func TestHostedAvailability(t *testing.T) {
 				return
 			}
 			// A sandbox host counts as a runner as a worker does: the fake
-			// reports one host and no worker (agentry-enterprise#83).
+			// reports one host and no worker.
 			if v.RunnersOnline != 1 {
 				t.Fatalf("runners online = %d, want the one host", v.RunnersOnline)
 			}
@@ -722,7 +717,7 @@ func TestHostedAvailability(t *testing.T) {
 				t.Fatalf("balance = %d (known %v)", v.Balance, v.BalanceKnown)
 			}
 			if v.MaxInputFiles != hostedrun.MaxInputFiles || v.MaxInputBytes != hostedrun.MaxInputBytes {
-				t.Fatalf("the input limits are the plan's: %+v", v)
+				t.Fatalf("the input limits are hostedrun's: %+v", v)
 			}
 		})
 	}
@@ -747,12 +742,11 @@ func TestHostedAvailabilityWithoutSigningIn(t *testing.T) {
 	}
 }
 
-// One In-Agentry run end to end through the bound surface: inputs
-// uploaded, the run created with the intake answers, its states reported
-// as it moves — queued, running, done with its outcome and credits — and
-// the pushed run's output.tar unpacked into the chosen folder, the receipt
-// read back; no log, no events route, no docker client anywhere near it
-// (hosted runs in production M3, agentry-desktop#182).
+// One In-Agentry run end to end through the bound surface: inputs uploaded,
+// the run created with the intake answers, its states reported as it moves —
+// queued, running, done with its outcome and credits — and the pushed run's
+// output.tar unpacked into the chosen folder, the receipt read back; no log,
+// no events route, no docker client anywhere near it.
 func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	f := &hostedFake{
 		enabled: true,
@@ -773,7 +767,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 		t.Fatal(err)
 	}
 	outDir := t.TempDir()
-	r.app.markPicked(inputDir, outDir) // what the native pickers record (D-030)
+	r.app.markPicked(inputDir, outDir) // what the native pickers record
 
 	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "summarise INC-4821", []string{input}, outDir, map[string]string{"since": "yesterday"}, nil, false, false, nil)
 	if err != nil {
@@ -823,7 +817,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	// The receipt listed is the registry's, the host's cut of the CLI's
 	// stdout, never the result.json in the outputs, which claims another
 	// capability and a verified attestation: the agent could have written
-	// it (agentry-enterprise#121, #185).
+	// it.
 	if !final.ReceiptKept || final.CapabilitiesEnforced["runtime"] != "runsc: the agent container" || final.CapabilitiesEnforced["network.egress"] != "" ||
 		final.AttestationState != "unsigned" || final.Adapter != "docker-agent" {
 		t.Fatalf("the receipt listed: %+v", final)
@@ -854,7 +848,7 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 
 	// And nothing of this machine's run setup was touched: no operator
 	// policy, no runner cache, no MCP profile — a hosted run needs none of
-	// them, which is what makes it work where docker does not (§4.7).
+	// them, which is what makes it work where docker does not.
 	for _, dir := range []string{filepath.Join(home, ".agentry"), runnerHome} {
 		entries, err := os.ReadDir(dir)
 		if err == nil && len(entries) > 0 {
@@ -863,9 +857,9 @@ func TestStartHostedRunReportsStatesAndDownloads(t *testing.T) {
 	}
 }
 
-// A run the registry kept no receipt for (pushed before
-// agentry-enterprise#121) lists none, and a result.json in its outputs —
-// claiming a verified attestation — is not read as one.
+// A run the registry kept no receipt for (one pushed by an older host) lists
+// none, and a result.json in its outputs — claiming a verified attestation —
+// is not read as one.
 func TestAPushedRunWithNoReceiptListsNone(t *testing.T) {
 	f := &hostedFake{enabled: true, noReceipt: true, outputs: map[string]string{"result.json": hostedEnvelope}}
 	reg := f.start(t)
@@ -937,9 +931,8 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 		t.Fatalf("detail = %q", start.Detail)
 	}
 	// No destination travels in the view: the panel asks
-	// SettingsAPI.OpenUpgrade for it when a person clicks, so what opens
-	// has been checked against the registry's own origin first
-	// (agentry-enterprise#41).
+	// SettingsAPI.OpenUpgrade for it when a person clicks, so what opens has
+	// been checked against the registry's own origin first.
 
 	f.mu.Lock()
 	f.refuse = func(w http.ResponseWriter) {
@@ -961,7 +954,7 @@ func TestStartHostedRunRendersRefusals(t *testing.T) {
 }
 
 // Reopening the panel with an active run reattaches to it rather than
-// starting a second (D11), and Cancel reaches the registry.
+// starting a second, and Cancel reaches the registry.
 func TestAttachAndCancel(t *testing.T) {
 	f := &hostedFake{enabled: true}
 	reg := f.start(t)
@@ -972,7 +965,7 @@ func TestAttachAndCancel(t *testing.T) {
 	// Nothing active yet.
 	attachDir := t.TempDir()
 
-	r.app.markPicked(attachDir) // the folder the panel picked (D-030)
+	r.app.markPicked(attachDir) // the folder the panel picked
 
 	att, err := r.AttachHostedRun(reg, attachDir)
 	if err != nil || att.Run != nil {
@@ -1073,12 +1066,11 @@ func remotePack(id, name, state string) map[string]any {
 	return p
 }
 
-// A run In Agentry attaches the account's packs kept in Agentry
-// (agentry-desktop#275; agentry-enterprise#172): the availability says the
-// registry takes them, the create carries each by the registry's id, and
-// the result lists what the run was given and the receipt's knowledge
-// line. A pack that is not in Agentry, or not scanned there yet, is
-// refused by name before anything is uploaded or created.
+// A run In Agentry attaches the account's packs kept in Agentry: the
+// availability says the registry takes them, the create carries each by the
+// registry's id, and the result lists what the run was given and the
+// receipt's knowledge line. A pack that is not in Agentry, or not scanned
+// there yet, is refused by name before anything is uploaded or created.
 func TestAHostedRunAttachesPacksKeptInAgentry(t *testing.T) {
 	const ready, scanning = "e1f8fcda-25b8-44df-9ebd-d27298fa5f0a", "4cb3f36e-213f-4423-bccb-055d505845e0"
 	f := &hostedFake{
@@ -1181,11 +1173,11 @@ func isolateHostedKeychain(t *testing.T) {
 	t.Setenv(modelkey.EnvNoKeyring, "")
 }
 
-// A run In Agentry given an input source sends it (agentry-desktop#833):
-// its answer in intake as every answer, and its token, the one typed for
-// this run or the key saved on this computer for its host, in the
-// create's sourceTokens alone, never in intake; a public source sends no
-// token. A token the registry echoes in a refusal is not shown back.
+// A run In Agentry given an input source sends it: its answer in intake as
+// every answer, and its token, the one typed for this run or the key saved
+// on this computer for its host, in the create's sourceTokens alone, never
+// in intake; a public source sends no token. A token the registry echoes in
+// a refusal is not shown back.
 func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 	isolateHostedKeychain(t)
 	f := &hostedFake{enabled: true, modes: []string{"autonomous"},
@@ -1265,10 +1257,9 @@ func TestARunInAgentryGivenASourceSendsItsToken(t *testing.T) {
 }
 
 // A release that declares a browser is offered a run, a session and a
-// schedule In Agentry since browser testing M7 (agentry-desktop#903,
-// agentry-enterprise#565), and its start sends the site as a plain answer:
-// no source token, though a key is saved on this computer for its host,
-// and an http address is taken (a site is not an https-only source).
+// schedule In Agentry, and its start sends the site as a plain answer: no
+// source token, though a key is saved on this computer for its host, and an
+// http address is taken (a site is not an https-only source).
 func TestABrowserReleaseIsOfferedAndStartedInAgentry(t *testing.T) {
 	isolateHostedKeychain(t)
 	f := &hostedFake{
@@ -1317,9 +1308,8 @@ func TestABrowserReleaseIsOfferedAndStartedInAgentry(t *testing.T) {
 	}
 }
 
-// A release that declares a target host is offered nothing In Agentry, and
-// a start made anyway is refused before anything is uploaded or created
-// (plan runtime-hosts.md D11; agentry-desktop#812).
+// A release that declares a target host is offered nothing In Agentry, and a
+// start made anyway is refused before anything is uploaded or created.
 func TestATargetHostReleaseIsNeitherOfferedNorStartedInAgentry(t *testing.T) {
 	f := &hostedFake{
 		enabled: true, targetHosts: []string{"server"},

@@ -1,9 +1,9 @@
 package main
 
-// A hosted session, live (agentry-desktop#403; plan hosted-sessions.md M6):
-// the bound methods driven as RunPanel and SessionChat drive them, against
-// a real registry that runs sessions. Skipped unless the variables are
-// set, because a session spends the payer's credits past its free minutes:
+// A hosted session, live: the bound methods driven as RunPanel and
+// SessionChat drive them, against a real registry that runs sessions.
+// Skipped unless the variables are set, because a session spends the payer's
+// credits past its free minutes:
 //
 //	AGENTRY_LIVE_SESSION_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_SESSION_TOKEN=<a Pro account's PAT: run:read, run:write, …> \
@@ -71,7 +71,7 @@ func TestLiveHostedSession(t *testing.T) {
 	if err := os.WriteFile(csv, []byte("id,amount,currency\n1,12.50,EUR\n2,,EUR\n3,7.00,usd\n3,7.00,usd\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	r.app.markPicked(out, csv) // what the native pickers record (D-030)
+	r.app.markPicked(out, csv) // what the native pickers record
 
 	start, err := r.StartHostedSession(reg, ref, "Say hello in one sentence, then wait for a file I will add.", nil, out, nil, nil, false, false, nil)
 	if err != nil {
@@ -129,10 +129,9 @@ func TestLiveHostedSession(t *testing.T) {
 		}
 		return false
 	})
-	// The runner tells the agent about the file in a turn of its own (a
-	// Runner turn, agentry-cli#487), and a message sent while it is
-	// answering is refused session-busy, as the chat's Send is held: wait
-	// for that turn's reply first.
+	// The runner tells the agent about the file in a turn of its own, and a
+	// message sent while it is answering is refused session-busy, as the
+	// chat's Send is held: wait for that turn's reply first.
 	added := len(kinds())
 	notice := false
 	deadline0 := time.Now().Add(time.Minute)

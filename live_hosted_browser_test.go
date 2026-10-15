@@ -1,10 +1,9 @@
 package main
 
-// A run In Agentry of a release that declares a browser, live
-// (agentry-desktop#903; browser testing M7, agentry-enterprise#565): the
-// bound methods driven as the run panel drives them, against a real
-// registry whose sandbox host carries a browser. Skipped unless the
-// variables are set, because the run spends the account's credits:
+// A run In Agentry of a release that declares a browser, live: the bound
+// methods driven as the run panel drives them, against a real registry whose
+// sandbox host carries a browser. Skipped unless the variables are set,
+// because the run spends the account's credits:
 //
 //	AGENTRY_LIVE_HOSTED_BROWSER_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_BROWSER_TOKEN=<a PAT: run:read, run:write, secret:write, agent:read> \

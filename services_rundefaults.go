@@ -11,12 +11,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// RunDefaultsView is Settings → Run defaults (plan settings-cards.md D2,
-// D13; agentry-desktop#347). The timeout and max turns are the runner
-// policy's budgets, which the CLI runs with too; where runs go, the output
-// folder and the Chat idle timeout are this app's own, in desktop.yaml. A
-// broken policy file is said, not hidden behind the defaults, as Settings'
-// status says it.
+// RunDefaultsView is Settings → Run defaults. The timeout and max turns are
+// the runner policy's budgets, which the CLI runs with too; where runs go,
+// the output folder and the Chat idle timeout are this app's own, in
+// desktop.yaml. A broken policy file is said, not hidden behind the
+// defaults, as Settings' status says it.
 type RunDefaultsView struct {
 	TimeoutSeconds int    `json:"timeoutSeconds"`
 	MaxTurns       int    `json:"maxTurns"`
@@ -25,24 +24,22 @@ type RunDefaultsView struct {
 	Where string `json:"where"`
 	// OutputDir is the saved output folder, "" for none.
 	OutputDir string `json:"outputDir,omitempty"`
-	// ChatIdleTimeoutSeconds is the Chat idle timeout (desktop.yaml, D32;
-	// agentry-desktop#468), 0 for none: a chat on this computer has no
-	// limit but this one.
+	// ChatIdleTimeoutSeconds is the Chat idle timeout (desktop.yaml), 0 for
+	// none: a chat on this computer has no limit but this one.
 	ChatIdleTimeoutSeconds int `json:"chatIdleTimeoutSeconds"`
-	// UnsafeMode is the switch (desktop.yaml's unsafeMode, D-050), written
-	// only by RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands
-	// are installed on, the runner policy's images.unsafe or the pinned
-	// default.
+	// UnsafeMode is the switch (desktop.yaml's unsafeMode), written only by
+	// RunAPI.SetUnsafeMode; UnsafeImage the image its runs' commands are
+	// installed on, the runner policy's images.unsafe or the pinned default.
 	UnsafeMode  bool   `json:"unsafeMode"`
 	UnsafeImage string `json:"unsafeImage,omitempty"`
 	// BuiltinNoLimit is the no-limit switch for the built-in agents
-	// (desktop.yaml's builtinNoLimit, D-062 and its 2026-10-06 addendum), on
-	// unless turned off: the built-in agents' runs on this computer have no
-	// timeout and no turn cap the app shows while it is on.
+	// (desktop.yaml's builtinNoLimit), on unless turned off: the built-in
+	// agents' runs on this computer have no timeout and no turn cap the app
+	// shows while it is on.
 	BuiltinNoLimit bool `json:"builtinNoLimit"`
-	// RememberRuns is Remember recent runs (desktop.yaml's rememberRuns,
-	// D-068), on unless turned off; RunHistoryCount how many runs the
-	// history keeps, -1 when it cannot be read.
+	// RememberRuns is Remember recent runs (desktop.yaml's rememberRuns), on
+	// unless turned off; RunHistoryCount how many runs the history keeps, -1
+	// when it cannot be read.
 	RememberRuns    bool `json:"rememberRuns"`
 	RunHistoryCount int  `json:"runHistoryCount"`
 }
@@ -96,13 +93,12 @@ func (s *SettingsAPI) SetChatIdleTimeout(seconds int) (*RunDefaultsView, error) 
 }
 
 // SetBuiltinNoLimit turns the no-limit switch for the built-in agents on or
-// off (agentry-desktop#606, D-062; agentry-desktop#699, its addendum):
-// while it is on, the default, the Drafter, the Knowledge Creator, the
-// Examiner and the Voice Writer run on this computer with no timeout and
-// no turn cap the app shows, only the hidden settings.BuiltinFailsafeTurns.
-// It asks no confirmation: it gives no run a reach it lacked, the cost cap
-// still holds, and a run that has started keeps the budgets it started
-// with.
+// off (its addendum): while it is on, the default, the Drafter, the
+// Knowledge Creator, the Examiner and the Voice Writer run on this computer
+// with no timeout and no turn cap the app shows, only the hidden
+// settings.BuiltinFailsafeTurns. It asks no confirmation: it gives no run a
+// reach it lacked, the cost cap still holds, and a run that has started
+// keeps the budgets it started with.
 func (s *SettingsAPI) SetBuiltinNoLimit(on bool) (*RunDefaultsView, error) {
 	st, err := settings.Load()
 	if err != nil {
@@ -132,10 +128,10 @@ func chatIdleTimeout() (int, error) {
 
 // ChooseDefaultOutputDir opens the native picker for the default output
 // folder and saves what it returned. The binding takes no path, so the
-// folder is the picker's and never the page's (D-030), and it is not added
-// to this session's picked set: it is an output folder, admitted at run time
-// from this file (App.requireOutputDir, D-044), never an input root. A
-// cancelled picker changes nothing.
+// folder is the picker's and never the page's, and it is not added to this
+// session's picked set: it is an output folder, admitted at run time from
+// this file (App.requireOutputDir), never an input root. A cancelled picker
+// changes nothing.
 func (s *SettingsAPI) ChooseDefaultOutputDir() (*RunDefaultsView, error) {
 	dir, err := s.app.pickDirectoryUnmarked("Choose the default output folder for runs")
 	if err != nil {

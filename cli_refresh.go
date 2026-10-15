@@ -8,7 +8,7 @@ import (
 
 // refreshScriptCLI brings an older agentry CLI from the site's install
 // script up to the one this app carries, once per start, and logs what it
-// did (agentry-desktop#770, D-074). It never stops the app.
+// did. It never stops the app.
 func refreshScriptCLI() {
 	r, err := clipath.RefreshInstalled()
 	switch {

@@ -1,9 +1,8 @@
 package main
 
-// What a finished run wrote, for the result view (plan guided-runs.md §5,
-// M4; agentry-desktop#227): the files under its folder's outputs/ and
-// reports/, each with a text preview where it is text, and a way to show
-// the folder in the file manager.
+// What a finished run wrote, for the result view: the files under its
+// folder's outputs/ and reports/, each with a text preview where it is text,
+// and a way to show the folder in the file manager.
 //
 // Two rules hold these bindings to the run and to nothing else:
 //
@@ -11,8 +10,8 @@ package main
 //     only because Go produced the run's result itself (RunAgent,
 //     EndSession, a hosted run's download) and remembered its folder under
 //     its run id, in memory and, while Remember recent runs is on, in the
-//     run history Go alone writes (services_history.go, D-068); any other
-//     id is refused. The PDF bindings (services_pdf.go, D-072) also take a
+//     run history Go alone writes (services_history.go); any other
+//     id is refused. The PDF bindings (services_pdf.go) also take a
 //     path inside that folder, the one this listing named: Go holds it to
 //     outputs/ or reports/ and reads it with no link at any part of it, as
 //     listOutputs walks. So a page that has been made to call these
@@ -22,11 +21,11 @@ package main
 //     for its preview, through no link, and only when it is a regular file
 //     inside the folder; ShowRunFolder opens the run's folder itself in the
 //     file manager, never a file in it, because a file a run wrote can be
-//     one the OS would execute (plan D8). The exception is a PDF the run's
+//     one the OS would execute. The exception is a PDF the run's
 //     own export made, by the envelope's record of its SHA-256: it is drawn
 //     in the app's viewer, and Open in system viewer hands the OS a fresh
 //     copy of the checked bytes under a plain name ending in .pdf
-//     (services_pdf.go, D-072).
+//     (services_pdf.go).
 
 import (
 	"errors"
@@ -101,8 +100,8 @@ func (r *RunAPI) rememberFolder(runID, dir string) {
 }
 
 // folderOf is the folder of a run this process produced, else the one the
-// run history keeps for it (D-068), checked again as it is read
-// (historyFolder). Any other id is refused.
+// run history keeps for it, checked again as it is read (historyFolder). Any
+// other id is refused.
 func (r *RunAPI) folderOf(runID string) (string, error) {
 	r.foldersMu.Lock()
 	dir, ok := r.folders[runID]

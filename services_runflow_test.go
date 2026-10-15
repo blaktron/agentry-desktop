@@ -84,12 +84,12 @@ func runAgent(r *RunAPI) (*RunResultView, error) {
 	return r.RunAgent("https://r.example", "acme/agent@1.0.0", "task", nil, "", nil, 0, -1, false, nil, false, false, nil, false, nil, nil)
 }
 
-// A run on this computer reports its progress as it goes
-// (agentry-desktop#465): a first report the moment it has begun, with its id
-// and release and no budgets yet; its effective budgets once it is prepared,
-// when its clock starts again so that it measures the run against its own
-// timeout; the harness's usage as it arrives; and each line of its log with
-// its id, so the page follows this run and no other.
+// A run on this computer reports its progress as it goes: a first report the
+// moment it has begun, with its id and release and no budgets yet; its
+// effective budgets once it is prepared, when its clock starts again so that
+// it measures the run against its own timeout; the harness's usage as it
+// arrives; and each line of its log with its id, so the page follows this
+// run and no other.
 func TestARunReportsItsProgressAndItsLinesByItsID(t *testing.T) {
 	ev := captureEvents(t)
 	r := flowAPI(t, func(_ context.Context, req run.Request, logw io.Writer) (*run.Result, error) {
@@ -191,7 +191,7 @@ func TestStopRunStopsOnlyARun(t *testing.T) {
 }
 
 // The busy refusal names the job holding the run lock, and InFlight does
-// too (D16), for every kind of job; with nothing running InFlight is nil.
+// too, for every kind of job; with nothing running InFlight is nil.
 func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	r := flowAPI(t, func(ctx context.Context, req run.Request, _ io.Writer) (*run.Result, error) {
@@ -253,10 +253,10 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 	}
 }
 
-// With Remember recent runs off, Dismiss makes the app forget a run as plan
-// D7 had it: ForgetRun drops its folder, so RunOutputs and ShowRunFolder
-// refuse its id afterwards, and the folder, its receipts included, is left
-// as it was. (With it on, the history keeps the run: services_history_test.go.)
+// With Remember recent runs off, Dismiss makes the app forget a run:
+// ForgetRun drops its folder, so RunOutputs and ShowRunFolder refuse its id
+// afterwards, and the folder, its receipts included, is left as it was.
+// (With it on, the history keeps the run: services_history_test.go.)
 func TestAForgottenRunsFolderIsRefusedAndLeftAlone(t *testing.T) {
 	freshConfig(t)
 	setRemember(t, false)
@@ -294,7 +294,7 @@ func TestAForgottenRunsFolderIsRefusedAndLeftAlone(t *testing.T) {
 
 // The engine's usage hook never waits for the page: with the page taking no
 // usage report at all, the engine's calls return at once, and the run goes
-// on (agentry-desktop#465).
+// on.
 func TestTheEnginesUsageHookNeverWaitsForThePage(t *testing.T) {
 	release := make(chan struct{})
 	prev := emitEvent

@@ -1,9 +1,9 @@
 package main
 
-// Describe it, on this computer, live (#282): the bound methods driven as
-// Settings and the Build page drive them, against this machine's OS
-// keychain, TypeSafe, docker and model, with the native dialog answered
-// by the test. Skipped unless both variables below are set:
+// Describe it, on this computer, live: the bound methods driven as Settings
+// and the Build page drive them, against this machine's OS keychain,
+// TypeSafe, docker and model, with the native dialog answered by the test.
+// Skipped unless both variables below are set:
 //
 //	AGENTRY_LIVE_DESCRIBE_JEV=<a TypeSafe Jev key> \
 //	AGENTRY_LIVE_DESCRIBE_REGISTRY=https://dev.secureagentry.net \
@@ -91,8 +91,8 @@ func TestLiveDescribe(t *testing.T) {
 	t.Logf("status: model %s; %s", st.ModelName, st.SearchSentence)
 
 	// With AGENTRY_LIVE_DESCRIBE_PACK, the name of a knowledge pack kept on
-	// this computer, the draft reads it first (agentry-desktop#497): the
-	// draft records it, scanned in Agentry or for this draft.
+	// this computer, the draft reads it first: the draft records it, scanned
+	// in Agentry or for this draft.
 	var packs []string
 	if p := os.Getenv("AGENTRY_LIVE_DESCRIBE_PACK"); p != "" {
 		packs = []string{p}

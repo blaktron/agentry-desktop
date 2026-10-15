@@ -1,18 +1,17 @@
 package main
 
-// The run history and the run page (plan desktop-home-and-library.md §4.6,
-// §4.7, D1, D7, D8, D13; D-068; agentry-desktop#659). Go keeps the last 50
-// runs on this computer, the built-ins' jobs included, in runs.yaml
+// The run history and the run page. Go keeps the last 50 runs on this
+// computer, the built-ins' jobs included, in runs.yaml
 // (internal/runhistory), and Home's Recent runs merges them with the
 // account's runs In Agentry, read live.
 //
-// D-035 holds as it did: the page names a run by its id and never a path.
-// An id is read through this process's memory of the runs it produced, as
-// before, or through the history, which only Go writes, from the engine's
-// own result, a built-in's own return, or the registry's record of a run
-// whose output this app downloaded. A folder read through the history is
-// checked again on every read (Lstat: still there, a directory, not a
-// link), and it is never searched for when it has gone.
+// The page names a run by its id and never a path. An id is read through
+// this process's memory of the runs it produced, or through the history,
+// which only Go writes, from the engine's own result, a built-in's own
+// return, or the registry's record of a run whose output this app
+// downloaded. A folder read through the history is checked again on every
+// read (Lstat: still there, a directory, not a link), and it is never
+// searched for when it has gone.
 //
 // Nothing a run wrote is believed: how a run ended comes from the history's
 // entry or the registry's record, never from result.json read back off
@@ -133,9 +132,9 @@ func builtinKind(ref string) string {
 	return ""
 }
 
-// recordBuiltin records a built-in's job on this computer (D8) as asRun
-// ends it: stopped when its context was cancelled, failed when it returned
-// an error, else ok; its folder is the one its flow kept (keepFolder).
+// recordBuiltin records a built-in's job on this computer as asRun ends it:
+// stopped when its context was cancelled, failed when it returned an error,
+// else ok; its folder is the one its flow kept (keepFolder).
 func recordBuiltin(ctx context.Context, l *liveRun, err error) {
 	kind := builtinKind(l.ref)
 	if kind == "" {
@@ -368,9 +367,8 @@ type RecentRunView struct {
 	// "hosted" (the registry).
 	Source string `json:"source"`
 	// Scheduled: a schedule on this computer fired it, through the agentry
-	// command, so the CLI's record holds it rather than the history
-	// (plan quickagent-scheduling.md D5; agentry-desktop#743). Schedule is
-	// that schedule's name.
+	// command, so the CLI's record holds it rather than the history.
+	// Schedule is that schedule's name.
 	Scheduled bool   `json:"scheduled,omitempty"`
 	Schedule  string `json:"schedule,omitempty"`
 }
@@ -483,7 +481,7 @@ func (r *RunAPI) RecentRuns(reg string, limit int) (*RecentRunsView, error) {
 			v.Runs = append(v.Runs, entryView(e))
 		}
 	}
-	// Runs a schedule fired, also while the app was closed (D5).
+	// Runs a schedule fired, also while the app was closed.
 	for _, row := range scheduledRows(limit) {
 		if !seen[row.ID] {
 			seen[row.ID] = true
@@ -539,7 +537,7 @@ func (r *RunAPI) RecordedRun(runID string) (*RecordedRunView, error) {
 		}
 	}
 	if !ok {
-		// A run a schedule fired (D5), from the CLI's record.
+		// A run a schedule fired, from the CLI's record.
 		if e, schedule, ok = scheduledEntry(runID); !ok {
 			return nil, errUnknownRun
 		}
@@ -602,8 +600,8 @@ func readRegular(p string, limit int64) ([]byte, bool) {
 	return b, true
 }
 
-// RecordedReview is an Examiner review the history keeps, for its run page
-// (D13): its report as the review wrote it once the Examiner's run was over
+// RecordedReview is an Examiner review the history keeps, for its run page:
+// its report as the review wrote it once the Examiner's run was over
 // (review.Run writes report.json then, into a folder it refuses if a report
 // is already there), read as readRegular reads and drawn through the view
 // the review's own dialog uses, which holds every verdict word to the
@@ -676,8 +674,8 @@ func hostedClient(reg string) (*hostedrun.Client, error) {
 	return hostedClientFor(reg, "see its runs In Agentry")
 }
 
-// hostedClientFor is reg's client under Settings' URL rule (D-039), with the
-// token kept for reg; signed out, the error says what signing in is for.
+// hostedClientFor is reg's client under Settings' URL rule, with the token
+// kept for reg; signed out, the error says what signing in is for.
 func hostedClientFor(reg, forWhat string) (*hostedrun.Client, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
@@ -760,11 +758,11 @@ func (r *RunAPI) hostedRecordView(h *hostedrun.Run) *HostedRecordView {
 var errNoHostedOutput = errors.New("the registry holds no output for this run: it wrote none, or the 30 days it is kept have passed")
 
 // DownloadHostedOutput brings a finished run In Agentry's output down to
-// this computer (D7): the existing download, which spends no credits, into
-// the folder Go chooses as it does for a run attached at start (Run
-// defaults' saved folder, a folder of the run's own inside it, else the
-// default under Downloads; D-030, D-044: never one the page names). The
-// history keeps the folder against the registry's run id.
+// this computer: the existing download, which spends no credits, into the
+// folder Go chooses as it does for a run attached at start (Run defaults'
+// saved folder, a folder of the run's own inside it, else the default under
+// Downloads; never one the page names). The history keeps the folder against
+// the registry's run id.
 func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, error) {
 	if !validRunID(runID) {
 		return nil, errUnknownRun
@@ -819,9 +817,8 @@ func (r *RunAPI) DownloadHostedOutput(reg, runID string) (*HostedRecordView, err
 	return r.hostedRecordView(h), nil
 }
 
-// SetRememberRuns turns Remember recent runs on or off (D1). Off clears
-// the history and stops its writes, which is the behaviour before D-068;
-// no run folder is touched either way.
+// SetRememberRuns turns Remember recent runs on or off. Off clears the
+// history and stops its writes; no run folder is touched either way.
 func (s *SettingsAPI) SetRememberRuns(on bool) (*RunDefaultsView, error) {
 	st, err := settings.Load()
 	if err != nil {
