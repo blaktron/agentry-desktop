@@ -106,14 +106,15 @@ func (a *App) markPicked(paths ...string) {
 // the path itself, or a file under a directory that was picked. The empty
 // path is the binding's own default and passes.
 //
-// The path must lie under a picked root both as written and once links are
-// resolved, on both sides: a link inside a picked folder that leads out of
-// it would otherwise let the page name any file the link reaches, while a
-// picked folder that is itself reached through a link (a linked home
-// directory) still admits what lies under it. A path that does not exist
-// yet is judged by its nearest existing parent. A ".." element is refused
-// outright: the system applies it after following a link, while a lexical
-// clean removes it before, so the two would judge different files.
+// The path must lie under a picked root both as written and once links,
+// and on Windows directory junctions, are resolved on both sides: a link
+// inside a picked folder that leads out of it would otherwise let the page
+// name any file the link reaches, while a picked folder that is itself
+// reached through a link (a linked home directory) still admits what lies
+// under it. A path that does not exist yet is judged by its nearest
+// existing parent. A ".." element is refused outright: the system applies
+// it after following a link, while a lexical clean removes it before, so
+// the two would judge different files.
 func (a *App) requirePicked(what, p string) error {
 	if p == "" {
 		return nil
@@ -165,13 +166,14 @@ func hasDotDot(p string) bool {
 	return false
 }
 
-// resolveExisting resolves every link in the clean path p. A path that does
-// not exist resolves its nearest existing parent and keeps the rest as
-// written: nothing below that parent exists, so nothing there is a link. A
-// link whose target is missing is an error, not an absent name, because a
-// write through it would land wherever it points.
+// resolveExisting resolves every link in the clean path p, junctions
+// included on Windows. A path that does not exist resolves its nearest
+// existing parent and keeps the rest as written: nothing below that parent
+// exists, so nothing there is a link. A link whose target is missing is an
+// error, not an absent name, because a write through it would land
+// wherever it points.
 func resolveExisting(p string) (string, error) {
-	real, err := filepath.EvalSymlinks(p)
+	real, err := resolveLinks(p)
 	if err == nil {
 		return real, nil
 	}
