@@ -1,7 +1,6 @@
-// The person's own Hybrid Analysis key (plan file-handling.md §7, D7, D8,
-// D17; #530): the key with which a run on this computer looks up the risky
-// files among its inputs on CrowdStrike's Hybrid Analysis, by their SHA-256
-// alone (agentry-cli#564). It is kept as the AI Review key is: the OS
+// The person's own Hybrid Analysis key: the key with which a run on this
+// computer looks up the risky files among its inputs on CrowdStrike's Hybrid
+// Analysis, by their SHA-256 alone. It is kept as the AI Review key is: the OS
 // keychain entry provider:hybrid-analysis under the CLI's service, and the
 // runner policy's hybridAnalysis block records only that the keychain is its
 // source, so `agentry run` and this app read the same key the same way

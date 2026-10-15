@@ -1,10 +1,9 @@
-// Connections on the desktop (plan mcp-oauth-connections.md §6, M5, D4–D6,
-// D10, D16, D17, D20–D23; agentry-desktop#666): a person's OAuth grant to a
-// declared MCP server that signs in by OAuth, for one QuickAgent release
-// (ref plus archive digest), kept in the runner home's connection store
-// with its refresh token in the OS keychain, the store the CLI keeps
-// (agentry-cli#664, #665). A connection made by `agentry connect` is this
-// app's too, and one made here is the CLI's.
+// Connections on the desktop: a person's OAuth grant to a declared MCP
+// server that signs in by OAuth, for one QuickAgent release (ref plus
+// archive digest), kept in the runner home's connection store with its
+// refresh token in the OS keychain, the store the CLI keeps. A connection
+// made by `agentry connect` is this app's too, and one made here is the
+// CLI's.
 //
 // The run setup's Connect tools step makes them (Connect); a run never
 // asks: prepare opens each one and refreshes it before the sandbox starts,
@@ -76,7 +75,7 @@ type ServerConnection struct {
 	CreatedAt  string   `json:"createdAt,omitempty"`
 	LastUsedAt string   `json:"lastUsedAt,omitempty"`
 	// Unsupported is the alternative for a package that cannot run on an
-	// access token alone (plan D25): Connect refuses it, as its run would.
+	// access token alone: Connect refuses it, as its run would.
 	Unsupported string `json:"unsupported,omitempty"`
 	// SharesGrantWith names the other kept connections made with the same
 	// client at the same issuer (sharedGrant): Disconnect warns that a
@@ -133,8 +132,8 @@ func connectionWhat(srv manifest.MCPServer) string {
 	return srv.SourceID() + " (signing in at " + srv.OAuth.Issuer + ")"
 }
 
-// unsupportedRefusal is the refusal of a package on the unsupported list
-// (D25), before any consent and at a run's start alike.
+// unsupportedRefusal is the refusal of a package on the unsupported list,
+// before any consent and at a run's start alike.
 func unsupportedRefusal(srv manifest.MCPServer, alt string) error {
 	return engine.Classify(engine.ExitPolicy, fmt.Errorf("declared MCP server %s cannot run on an access token alone, so it cannot take a connection: run a version of the QuickAgent that declares %s instead", srv.SourceID(), alt))
 }
@@ -155,11 +154,10 @@ func openStores(home string) stores {
 
 // sharedGrant names the kept connections other than c made with the same
 // client at the same issuer, "ref → server" each. Google revokes the whole
-// grant of an account to a client, not one refresh token (found in
-// agentry-desktop#666's live check: disconnecting one connection made with
-// the person's own client ended another made with it), so removing c may
-// end these too; the operator decided on 2026-10-06 that removal still
-// revokes, after a warning that names them.
+// grant of an account to a client, not one refresh token: disconnecting one
+// connection made with the person's own client ends another made with it.
+// Removing c may end these too; removal still revokes, after a warning that
+// names them.
 func sharedGrant(all []*connection.Connection, c *connection.Connection) []string {
 	out := []string{}
 	for _, o := range all {
@@ -244,15 +242,15 @@ type ConsentUI struct {
 	Present func(authURL string)
 	// Pasted carries the addresses the person pasted back, where the
 	// browser was on another computer and the page it ended on did not
-	// load (D21).
+	// load.
 	Pasted <-chan string
 	// Say tells the person what the consent is doing.
 	Say func(string)
 }
 
 // NeedsOwnClient is a consent that cannot start until the person keeps an
-// OAuth client of their own for the issuer (D16, D23): the vendor lets no
-// app register itself (Google). Guide is Agentry's steps for making one.
+// OAuth client of their own for the issuer: the vendor lets no app
+// register itself (Google). Guide is Agentry's steps for making one.
 type NeedsOwnClient struct {
 	Issuer string
 	Guide  OwnClientGuide
@@ -357,7 +355,7 @@ func connect(ctx context.Context, home, ref, digest string, m *manifest.Manifest
 
 // runConnections is what a run is given of its connections: each server's
 // access token, the receipt's line naming each one used (never a token),
-// and the renewal the engine asks for before a token expires (D24).
+// and the renewal the engine asks for before a token expires.
 type runConnections struct {
 	tokens map[string]engine.ConnectionToken
 	line   string
@@ -480,8 +478,8 @@ func KeptConnections() ([]KeptConnection, []KeptClient, error) {
 }
 
 // Disconnect removes one kept connection, first revoking its refresh token
-// at the vendor where it offers that (D17, D20), and returns the
-// revocation's outcome, which the store's audit log also records.
+// at the vendor where it offers that, and returns the revocation's
+// outcome, which the store's audit log also records.
 func Disconnect(ctx context.Context, ref, digest, server string) (string, error) {
 	home, err := Home()
 	if err != nil {
@@ -495,7 +493,7 @@ func Disconnect(ctx context.Context, ref, digest, server string) (string, error)
 
 // RemoveConnectionsOf removes the connections of every version of ns/name,
 // revoking each where the vendor offers that: an uninstalled QuickAgent's
-// connections go with it (D17). It returns one line per removal.
+// connections go with it. It returns one line per removal.
 func RemoveConnectionsOf(ctx context.Context, ns, name string) ([]string, error) {
 	home, err := Home()
 	if err != nil {
@@ -530,8 +528,8 @@ func RemoveConnectionsOf(ctx context.Context, ns, name string) ([]string, error)
 }
 
 // SetOwnClient keeps the person's own OAuth client for issuer, used by
-// every later consent there (D23); its secret goes to the OS keychain, a
-// 0600 file where none answers, and is never read back to the page.
+// every later consent there; its secret goes to the OS keychain, a 0600
+// file where none answers, and is never read back to the page.
 func SetOwnClient(issuer, clientID, secret string) error {
 	home, err := Home()
 	if err != nil {
@@ -551,13 +549,13 @@ func ForgetOwnClient(issuer string) (bool, error) {
 }
 
 // GoogleIssuer is Google's authorization server, the first vendor Agentry
-// writes its own steps for (D22).
+// writes its own steps for.
 const GoogleIssuer = "https://accounts.google.com"
 
 // OwnClientDocs is the docs page that carries Agentry's Google steps.
 const OwnClientDocs = "https://docs.secureagentry.net/agentry/google-client/"
 
-// OwnClientGuide is how to make one's own OAuth client at a vendor (D22):
+// OwnClientGuide is how to make one's own OAuth client at a vendor:
 // Agentry's steps where it has written them (Known), else the general
 // shape of one, which a publisher's help may follow.
 type OwnClientGuide struct {
@@ -582,9 +580,8 @@ var googleProducts = map[string]string{
 
 // OwnClientSteps are Agentry's steps for making one's own client for a
 // run on this computer: a Desktop-type client, whose loopback redirect
-// needs no address entered. Google's are Agentry's (D22), the Test users
-// step included (agentry-cli#665's live check); any other vendor gets the
-// general shape.
+// needs no address entered. Google's are Agentry's, the Test users step
+// included; any other vendor gets the general shape.
 func OwnClientSteps(issuer string, srv manifest.MCPServer) OwnClientGuide {
 	if strings.TrimRight(issuer, "/") == GoogleIssuer {
 		steps := []string{
@@ -592,9 +589,8 @@ func OwnClientSteps(issuer string, srv manifest.MCPServer) OwnClientGuide {
 			"APIs & Services → Library: enable " + googleAPIs(srv) + ".",
 		}
 		if googleRemote(srv) {
-			// Google's remote MCP servers answer a tool call only for a
-			// project enrolled in its Workspace Developer Preview (the
-			// operator's decision of 2026-10-06: ship the steps and say it).
+			// Google's remote MCP servers answer a tool call only for a project enrolled
+			// in its Workspace Developer Preview; the steps say so.
 			steps = append(steps, "Google's remote MCP servers are in Google's Workspace Developer Preview: enrol this project at developers.google.com/workspace/preview. Google asks for a Google Workspace account and can take a couple of days. Until the project is enrolled, every tool call answers \"The caller does not have permission\". A QuickAgent that uses the workspace-mcp server instead reaches Gmail through the Gmail API and needs no enrolment.")
 		}
 		return OwnClientGuide{

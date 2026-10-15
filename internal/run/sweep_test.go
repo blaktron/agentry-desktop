@@ -16,8 +16,8 @@ import (
 
 // Sweep removes exactly the run's labelled containers, then its volumes,
 // then every network a run can make and every other network carrying the
-// run's label, such as an input source's (agentry-desktop#828) — and
-// nothing it was not asked about: another run's network stays.
+// run's label, such as an input source's — and nothing it was not asked
+// about: another run's network stays.
 func TestSweepRemovesTheRunsLabelledObjectsInOrder(t *testing.T) {
 	isolateRunEnv(t)
 	fake := &dockerx.Fake{
@@ -122,10 +122,10 @@ func TestSweepRefusesARunIDThatIsNotTheEngines(t *testing.T) {
 
 // The engine's names for a run's networks are its own, and the sweep has
 // fallen behind them before: it named one network while the engine had come
-// to make five (agentry-desktop#463). So the engine's source is read, as
-// internal/applog reads Wails': every name the engine builds from a run id,
-// and every place it makes a network, is one this test knows, and a pin that
-// adds either fails here until runNetworks follows.
+// to make five. So the engine's source is read, as internal/applog reads
+// Wails': every name the engine builds from a run id, and every place it
+// makes a network, is one this test knows, and a pin that adds either fails
+// here until runNetworks follows.
 func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/blaktron/agentry-cli").Output()
 	if err != nil {
@@ -157,27 +157,23 @@ func TestSweepNamesEveryNetworkTheEngineMakes(t *testing.T) {
 		got = append(got, s)
 	}
 	sort.Strings(got)
-	// The five networks, and the session store's volume, which the sweep
-	// finds by its label. "-src-" is an input source's network
-	// (agentry-cli#833), named by the source's id as well as the run's, so
-	// no name from a run id alone finds it: runNetworks finds it, and any
-	// other the engine labels with the run, by the run's label
-	// (agentry-cli#852, agentry-desktop#828).
-	// "-browser" is the browser's own network (agentry-cli#915), named
-	// above; "-docker" is the volume of the docker filter's container on
-	// Docker Desktop (agentry-cli f02eac9), labelled with the run and so
-	// removed with the session's by label (agentry-desktop#878).
+	// The five networks, and the session store's volume, which the sweep finds by
+	// its label. "-src-" is an input source's network, named by the source's id as
+	// well as the run's, so no name from a run id alone finds it: runNetworks
+	// finds it, and any other the engine labels with the run, by the run's label.
+	// "-browser" is the browser's own network, named above; "-docker" is the
+	// volume of the docker filter's container on Docker Desktop, labelled with the
+	// run and so removed with the session's by label.
 	want := []string{"-browser", "-docker", "-egress", "-net", "-relays", "-relays-out", "-session", "-src-", "-web"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the engine names %v from a run id, and the sweep knows %v: revisit runNetworks (internal/run/sweep.go) before taking this agentry-cli", got, want)
 	}
-	// One for the run network, one for the proxy's egress, one in the
-	// relays' loop, one for the web tools, an input source's own
-	// (agentry-cli#852, above), and a Copilot model list's
-	// (agentry-cli#808): named as a run's "-net" (and "-egress"), under a
-	// run id no run record holds, so a list killed midway is removed by
-	// engine.SweepAbandoned, which the engine runs before each run, from its
-	// containers' owner labels; and the browser's own (agentry-cli#915).
+	// One for the run network, one for the proxy's egress, one in the relays'
+	// loop, one for the web tools, an input source's own (above), and a Copilot
+	// model list's: named as a run's "-net" (and "-egress"), under a run id no run
+	// record holds, so a list killed midway is removed by engine.SweepAbandoned,
+	// which the engine runs before each run, from its containers' owner labels;
+	// and the browser's own.
 	if creates != 7 {
 		t.Fatalf("the engine makes a network in %d places, and the sweep knows 7: revisit runNetworks before taking this agentry-cli", creates)
 	}

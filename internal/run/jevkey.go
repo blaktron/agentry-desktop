@@ -1,11 +1,11 @@
-// The person's own AI Review key (plan builder-rework.md D25; #282): their
-// TypeSafe Jev key, which every local action that requires a scan uses —
-// today, Describe it on this computer. It is kept where the model key is
-// kept, the OS keychain entry provider:typesafe under the CLI's service, and
-// the runner policy records only where it comes from (judge.apiKeySource:
-// keyring), so `agentry draft` and this app read the same key the same way
-// (pkg/drafter's LocalWeb). The key crosses the app's IPC once, inward, in a
-// call of its own, and no surface returns it.
+// The person's own AI Review key: their TypeSafe Jev key, which every local
+// action that requires a scan uses — today, Describe it on this computer. It
+// is kept where the model key is kept, the OS keychain entry
+// provider:typesafe under the CLI's service, and the runner policy records
+// only where it comes from (judge.apiKeySource: keyring), so `agentry draft`
+// and this app read the same key the same way (pkg/drafter's LocalWeb). The
+// key crosses the app's IPC once, inward, in a call of its own, and no
+// surface returns it.
 package run
 
 import (
@@ -71,8 +71,8 @@ func GetJevKeyStatus() (*JevKeyStatus, error) {
 // StoreJevKey puts the key into the OS keychain as provider:typesafe, then
 // records the keychain as its source in the runner policy. The keychain goes
 // first: a store that fails leaves the policy exactly as it was and says why
-// (D-024's rule for the model key), rather than record a source the machine
-// cannot honour.
+// (as for the model key), rather than record a source the machine cannot
+// honour.
 func StoreJevKey(key string, logw io.Writer) error {
 	key = strings.TrimSpace(key)
 	if key == "" {

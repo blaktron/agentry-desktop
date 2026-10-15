@@ -1,8 +1,8 @@
 package run
 
-// Setup-surface tests (§P1 desktop shape): GetStatus must be a pure read,
-// ApplySetup must write exactly the provider-table model block into the
-// operator policy and only touch docker when asked to.
+// Setup-surface tests: GetStatus must be a pure read, ApplySetup must
+// write exactly the provider-table model block into the operator policy
+// and only touch docker when asked to.
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func TestGetStatusReadOnlyDefaults(t *testing.T) {
 		t.Errorf("budget defaults not reported: %+v", st)
 	}
 	if !st.KeepProfilesByDefault {
-		t.Error("shipped keep-profiles default is true (§P2)")
+		t.Error("shipped keep-profiles default is true")
 	}
 	if st.DockerOK || st.DockerErr == "" {
 		t.Errorf("docker failure must be surfaced: %+v", st)
@@ -102,7 +102,7 @@ func TestGetStatusBrokenPolicyIsAnError(t *testing.T) {
 	}
 }
 
-// TestApplySetupWritesProviderTable pins §P1: choosing a provider fills
+// TestApplySetupWritesProviderTable pins that choosing a provider fills
 // the model block from the table, PullImages=false touches no docker, and
 // everything outside the model block survives.
 func TestApplySetupWritesProviderTable(t *testing.T) {
@@ -220,12 +220,12 @@ func TestApplySetupPullImagesDockerDown(t *testing.T) {
 	}
 }
 
-// TestApplySetupStoresTheKeyBeforeThePolicy (agentry-desktop#90): with no
-// keychain to reach (AGENTRY_NO_KEYRING models a headless machine), a
-// store is refused by name and the policy is left as it was — the person
-// asked to store the key, so nothing falls back to the variable quietly.
-// The variable-only path is unchanged, and the source is recorded when
-// the caller names it for a key stored elsewhere.
+// TestApplySetupStoresTheKeyBeforeThePolicy: with no keychain to reach
+// (AGENTRY_NO_KEYRING models a headless machine), a store is refused by
+// name and the policy is left as it was — the person asked to store the
+// key, so nothing falls back to the variable quietly. The variable-only
+// path is unchanged, and the source is recorded when the caller names it
+// for a key stored elsewhere.
 func TestApplySetupStoresTheKeyBeforeThePolicy(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
@@ -278,7 +278,7 @@ func TestApplySetupStoresTheKeyBeforeThePolicy(t *testing.T) {
 }
 
 // TestHomeFollowsTheRunnerHome: the desktop's runner home is the CLI's
-// (policy.Home), so the two cannot resolve differently (agentry-cli#149).
+// (policy.Home), so the two cannot resolve differently.
 func TestHomeFollowsTheRunnerHome(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("AGENTRY_RUNNER_HOME", dir)
@@ -312,11 +312,11 @@ func fakeKeychain(t *testing.T, entries map[string]string) map[string]string {
 	return entries
 }
 
-// The credential's kind (agentry-cli#171) is read from the value at the
-// one moment this process holds it: a stored subscription token records
-// apiKeyKind subscription and the status carries the sentence; a stored
-// API key records nothing; forgetting the key takes its kind with it;
-// the variable path keeps what the policy has. The value is in no log.
+// The credential's kind is read from the value at the one moment this
+// process holds it: a stored subscription token records apiKeyKind
+// subscription and the status carries the sentence; a stored API key
+// records nothing; forgetting the key takes its kind with it; the
+// variable path keeps what the policy has. The value is in no log.
 func TestApplySetupRecordsTheCredentialKindFromTheStoredKey(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
@@ -365,7 +365,7 @@ func TestApplySetupRecordsTheCredentialKindFromTheStoredKey(t *testing.T) {
 
 // ListModels asks with the typed key, else what a run would read — the
 // saved policy's variable, else the keychain's entry — and returns names
-// and the kind; the key is in no error (agentry-desktop#131).
+// and the kind; the key is in no error.
 func TestListModelsUsesTheTypedKeyElseTheKeychains(t *testing.T) {
 	isolateRunEnv(t)
 	fakeKeychain(t, map[string]string{"anthropic": "sk-ant-oat01-stored"})
@@ -420,9 +420,8 @@ func TestListModelsUsesTheTypedKeyElseTheKeychains(t *testing.T) {
 
 // A base URL repoints the model call — the operator's key goes wherever it
 // says, and the agent's only egress becomes that host. The page shows the
-// field for the custom provider only; Go used to enforce nothing, so script
-// in the webview could call ApplySetup("anthropic", …, "http://attacker")
-// (security review 2026-09-20 §8.4, C14; D-030).
+// field for the custom provider only, and Go enforces it, so script in the
+// webview cannot call ApplySetup("anthropic", …, "http://attacker").
 func TestApplySetupRefusesABaseURLForAKnownProvider(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, readyImagesFake())
@@ -434,9 +433,8 @@ func TestApplySetupRefusesABaseURLForAKnownProvider(t *testing.T) {
 	}
 }
 
-// A custom endpoint may be plain http on any host since
-// agentry-desktop#317 (D-042): it is stored, and the form warns. Any other
-// scheme, and a URL without a host, is still refused.
+// A custom endpoint may be plain http on any host: it is stored, and the form
+// warns. Any other scheme, and a URL without a host, is still refused.
 func TestApplySetupAcceptsPlainHTTPAndRefusesOtherSchemes(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, readyImagesFake())
@@ -453,7 +451,7 @@ func TestApplySetupAcceptsPlainHTTPAndRefusesOtherSchemes(t *testing.T) {
 }
 
 // EndpointWarning is the CLI's sentence: said for plain http off this
-// machine, silent for https and loopback (agentry-desktop#317).
+// machine, silent for https and loopback.
 func TestEndpointWarningIsSaidForPlainHTTPOffLoopbackOnly(t *testing.T) {
 	for u, warn := range map[string]bool{
 		"http://gpu-box.lan:8000/v1": true,
@@ -474,15 +472,14 @@ func TestEndpointWarningIsSaidForPlainHTTPOffLoopbackOnly(t *testing.T) {
 	}
 }
 
-// TestStoreModelKeyThenApplySetupForTheCustomProvider (agentry-desktop#139):
-// the form saves in two calls — the typed key alone (StoreModelKey), then
-// the rest of the form (ApplySetup). The key-only call must not need the
-// model or the URL the second call carries: for the custom provider there
-// is no table default to fill them, and the save used to die there with
-// "no model chosen" before the policy was ever written. The kind of the
-// key (agentry-cli#171) still lands, read from what the keychain holds at
-// the moment the policy is written — even across a provider switch, where
-// the policy has no kind to keep.
+// TestStoreModelKeyThenApplySetupForTheCustomProvider: the form saves in
+// two calls — the typed key alone (StoreModelKey), then the rest of the
+// form (ApplySetup). The key-only call must not need the model or the URL
+// the second call carries: for the custom provider there is no table
+// default to fill them, and the save must not die there with "no model
+// chosen" before the policy is written. The kind of the key still lands,
+// read from what the keychain holds at the moment the policy is written —
+// even across a provider switch, where the policy has no kind to keep.
 func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
@@ -490,8 +487,8 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	var log strings.Builder
 	path, _ := policy.DefaultPath()
 
-	// The source the second call records needs a key behind it (D-024):
-	// with nothing stored for the provider, it is refused by name.
+	// The source the second call records needs a key behind it: with
+	// nothing stored for the provider, it is refused by name.
 	err := ApplySetup(context.Background(), SetupOpts{
 		Provider: "custom", Model: "qwen3.8-flash", BaseURL: "https://llm.example.net/v1", APIKeySource: "keyring",
 	}, &log)
@@ -554,9 +551,9 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	if !strings.Contains(string(raw), "apiKeyKind: subscription") {
 		t.Fatalf("policy:\n%s", raw)
 	}
-	// The switch away from custom, sent with no URL as the form sends it
-	// (agentry-desktop#724), leaves the custom endpoint behind: no base
-	// URL, and the egress allowlist is the provider's own.
+	// The switch away from custom, sent with no URL as the form sends it,
+	// leaves the custom endpoint behind: no base URL, and the egress
+	// allowlist is the provider's own.
 	if st.BaseURL != "" || strings.Contains(string(raw), "llm.example.net") || !strings.Contains(string(raw), "api.anthropic.com:443") {
 		t.Fatalf("the custom endpoint survived the switch: status %+v\npolicy:\n%s", st, raw)
 	}
@@ -571,12 +568,12 @@ func TestStoreModelKeyThenApplySetupForTheCustomProvider(t *testing.T) {
 	}
 }
 
-// TestGetStatusListsTheProvidersWithAStoredKey (agentry-desktop#141): the
-// form can show any provider in the table, so the status says which have
-// a key in the keychain — a stored key is a fact about the machine, not
-// about the policy's provider; the key-only call's answer lists the
-// provider it stored under while the policy still names another. A
-// keychain that cannot be asked ends the asking and is said once.
+// TestGetStatusListsTheProvidersWithAStoredKey: the form can show any
+// provider in the table, so the status says which have a key in the
+// keychain — a stored key is a fact about the machine, not about the
+// policy's provider; the key-only call's answer lists the provider it
+// stored under while the policy still names another. A keychain that
+// cannot be asked ends the asking and is said once.
 func TestGetStatusListsTheProvidersWithAStoredKey(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
@@ -629,16 +626,15 @@ func TestGetStatusListsTheProvidersWithAStoredKey(t *testing.T) {
 	}
 }
 
-// TestGetStatusReadsTheMarkerNotTheKey (agentry-desktop#268) proves
-// agentry-cli#156 at the desktop's seam: the status read goes through the
-// real modelkey.Present (the keychain seam's production value) over an
-// in-memory keychain, and once setup has stored a key, the answer comes
-// from the presence marker beside it, never from the key's own entry.
-// The key's entry is removed behind the marker's back; a read of it would
-// find nothing, say "not stored", and take the marker away (Confirm), so
-// "stored", twice, is the proof no read of the key happened. A key an
-// older client stored with no marker is read once, and the marker it
-// leaves answers from then on.
+// TestGetStatusReadsTheMarkerNotTheKey proves at the desktop's seam that
+// the status read goes through the real modelkey.Present (the keychain
+// seam's production value) over an in-memory keychain, and once setup has
+// stored a key, the answer comes from the presence marker beside it,
+// never from the key's own entry. The key's entry is removed behind the
+// marker's back; a read of it would find nothing, say "not stored", and
+// take the marker away (Confirm), so "stored", twice, is the proof no
+// read of the key happened. A key an older client stored with no marker
+// is read once, and the marker it leaves answers from then on.
 func TestGetStatusReadsTheMarkerNotTheKey(t *testing.T) {
 	isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{AvailableErr: os.ErrPermission})
@@ -696,8 +692,7 @@ func TestGetStatusReadsTheMarkerNotTheKey(t *testing.T) {
 // A policy can exist without anyone having set a provider up: saving the AI
 // Review key, choosing a coding agent and the first run each write it from
 // defaults. ProviderSetUp says which it is, so the first-run wizard does not
-// read a saved AI Review key as a provider written (agentry-desktop#462;
-// plan desktop-review-key-and-run-cards.md D13). Nothing but the policy's
+// read a saved AI Review key as a provider written. Nothing but the policy's
 // model block decides it: not a key in the keychain the policy does not
 // read, and not the variable the default names.
 func TestAPolicyWrittenFromDefaultsIsNotAProviderSetUp(t *testing.T) {

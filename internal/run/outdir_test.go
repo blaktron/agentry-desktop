@@ -1,8 +1,8 @@
 package run
 
-// A run's output folder (D-044): Run defaults' saved folder is one every run
-// shares, so each run is given a folder of its own inside it; a folder picked
-// for one run is that run's.
+// A run's output folder: Run defaults' saved folder is one every run shares,
+// so each run is given a folder of its own inside it; a folder picked for one
+// run is that run's.
 
 import (
 	"path/filepath"

@@ -2,16 +2,14 @@ package hostedrun
 
 import "strings"
 
-// When In Agentry is offered, and when it is offered but unavailable with
-// a reason (plan §4.7, D6, D7; agentry-desktop#77). The decision is a
-// function of facts the app already has, so it is one table to read and
-// one table to test — the app never finds out by making a request that
-// 403s.
+// When In Agentry is offered, and when it is offered but unavailable with a
+// reason. The decision is a function of facts the app already has, so it is one
+// table to read and one table to test — the app never finds out by making a
+// request that 403s.
 
-// The PAT scopes a hosted run needs (agentry#348), and the one a run of a
-// release that declares a secret needs besides: the start sets each
-// declared secret the account does not keep (agentry#676; plan
-// hosted-credentials-vault.md D13).
+// The PAT scopes a hosted run needs, and the one a run of a release that
+// declares a secret needs besides: the start sets each declared secret the
+// account does not keep.
 const (
 	ScopeRunRead     = "run:read"
 	ScopeRunWrite    = "run:write"
@@ -28,15 +26,15 @@ type Facts struct {
 	// Modes are the run modes the release declares.
 	Modes []string
 	// DeclaredSecrets are the secrets the release declares — its own and
-	// its declared MCP servers' (D7).
+	// its declared MCP servers'.
 	DeclaredSecrets []string
 	// OptionalSecrets are those of DeclaredSecrets a run can start without
-	// (capabilities.optionalSecrets, agentry-desktop#655). A run carries
-	// one only where the account keeps it, so only the others ask anything
-	// of the registry or the token (plan optional-secrets.md D5).
+	// (capabilities.optionalSecrets). A run carries one only where the
+	// account keeps it, so only the others ask anything of the registry or
+	// the token.
 	OptionalSecrets []string
 	// Vault is true when the registry's /meta lists `vault`: it keeps an
-	// account's secrets for hosted runs (agentry-desktop#300).
+	// account's secrets for hosted runs.
 	Vault bool
 	// Scopes are the token's scopes as the registry reports them;
 	// ScopesKnown is false when they could not be read.
@@ -46,34 +44,30 @@ type Facts struct {
 	// the route could not be read.
 	Enabled     bool
 	StatusKnown bool
-	// SessionsEnabled is the status route's `sessions.enabled`: this
-	// deployment runs hosted sessions (agentry-enterprise#276); false from
-	// a registry that predates them. SessionAllowed is the signed-in
-	// caller's `caller.session.allowed`, whether their payer's tier may
-	// start one (agentry-enterprise#286); nil where the registry did not
-	// say.
+	// SessionsEnabled is the status route's `sessions.enabled`: this deployment
+	// runs hosted sessions; false from a registry that does not say so.
+	// SessionAllowed is the signed-in caller's `caller.session.allowed`, whether
+	// their payer's tier may start one; nil where the registry did not say.
 	SessionsEnabled bool
 	SessionAllowed  *bool
-	// HostsOnline is the status route's sandbox hosts answering: a session
-	// is refused with none (409 sessions-unavailable), never queued, since
-	// a person waits on it as it starts (agentry-desktop#437).
+	// HostsOnline is the status route's sandbox hosts answering: a session is
+	// refused with none (409 sessions-unavailable), never queued, since a person
+	// waits on it as it starts.
 	HostsOnline int
-	// Schedules is true when the registry's /meta lists `schedules`: it
-	// runs a QuickAgent In Agentry later or on a repeat (agentry-desktop
-	// #745). ScheduleAllowed is whether the signed-in caller's payer may
-	// schedule one, read from the status route's `caller.session.allowed`:
-	// both are billing.AboveStandard of the payer's tier, Promo Pro counted
-	// (agentry-enterprise internal/runs sessionAllowed and internal/schedules
-	// ledgerEntitlement, which also asks that the account admits a charge;
-	// D7). The status route has no line of the schedules' own. Nil where the
-	// registry did not say; the create answers schedule-tier either way.
+	// Schedules is true when the registry's /meta lists `schedules`: it runs a
+	// QuickAgent In Agentry later or on a repeat. ScheduleAllowed is whether the
+	// signed-in caller's payer may schedule one, read from the status route's
+	// `caller.session.allowed`: both are billing.AboveStandard of the payer's
+	// tier, Promo Pro counted (agentry-enterprise internal/runs sessionAllowed and
+	// internal/schedules ledgerEntitlement, which also asks that the account
+	// admits a charge). The status route has no line of the schedules' own. Nil
+	// where the registry did not say; the create answers schedule-tier either way.
 	Schedules       bool
 	ScheduleAllowed *bool
 	// TargetHosts is true when the release declares a target host
-	// (capabilities.targetHosts; plan runtime-hosts.md D11): it works a
-	// machine the person names over SSH, which only a run on their own
-	// computer does, so no choice In Agentry appears for it
-	// (agentry-desktop#812).
+	// (capabilities.targetHosts): it works a machine the person names over
+	// SSH, which only a run on their own computer does, so no choice In
+	// Agentry appears for it.
 	TargetHosts bool
 }
 
@@ -88,9 +82,9 @@ type Offer struct {
 	// empty when there is none yet.
 	Reason string
 	Remedy string
-	// Upgrade says the way out is a higher tier: the client offers a link
-	// to the registry's subscription page, opened in the system browser
-	// (DEV-162: creating knowledge in Agentry is Pro and above).
+	// Upgrade says the way out is a higher tier: the client offers a link to the
+	// registry's subscription page, opened in the system browser (creating
+	// knowledge in Agentry is Pro and above).
 	Upgrade bool
 }
 
@@ -120,8 +114,8 @@ func Decide(f Facts) Offer {
 }
 
 // SessionTierReason and SessionTierRemedy say why a payer on Standard is not
-// offered a session In Agentry, and the way out (agentry-enterprise#286; the
-// site's SESSION_TIER_SENTENCE, in this app's words).
+// offered a session In Agentry, and the way out (the site's session tier
+// sentence, in this app's words).
 const (
 	SessionTierReason = "Talking to an agent In Agentry is part of Pro, Business and Enterprise."
 	SessionTierRemedy = "On Standard, talk to it on this computer, for no credits; or upgrade to Pro."
@@ -132,11 +126,10 @@ const (
 	SessionNoHostRemedy = "Try again in a few minutes, or talk to it on this computer."
 )
 
-// DecideSession applies the rule for Talk to it In Agentry, a hosted
-// session of the release's interactive mode (plan hosted-sessions.md §6;
-// agentry-desktop#403). The choice appears only where the release declares
-// the interactive mode, the registry's status says it runs sessions and
-// says whether the caller's payer may start one; anything short of that
+// DecideSession applies the rule for Talk to it In Agentry, a hosted session of
+// the release's interactive mode. The choice appears only where the release
+// declares the interactive mode, the registry's status says it runs sessions
+// and says whether the caller's payer may start one; anything short of that
 // leaves the local modes exactly as they were. A payer whose tier may not
 // (Standard) is told so, with the way up, before anything about the token.
 func DecideSession(f Facts) Offer {
@@ -160,22 +153,21 @@ func DecideSession(f Facts) Offer {
 	return o
 }
 
-// ScheduleTierReason and ScheduleTierRemedy say why a payer on Standard
-// is not offered a schedule In Agentry, and the way out, in the registry's
-// own words for its 403 schedule-tier (plan quickagent-scheduling.md D7).
+// ScheduleTierReason and ScheduleTierRemedy say why a payer on Standard is
+// not offered a schedule In Agentry, and the way out, in the registry's
+// own words for its 403 schedule-tier.
 const (
 	ScheduleTierReason = "Scheduling runs In Agentry is part of Pro, Business and Enterprise."
 	ScheduleTierRemedy = "On Standard, schedule it on this computer, for no credits; or upgrade to Pro."
 )
 
-// DecideSchedule applies the rule for Later and Repeat In Agentry (plan
-// quickagent-scheduling.md §7, D7, D12; agentry-desktop#745). The choice
-// appears where the account is signed in and the registry schedules runs;
-// a payer on Standard is told so, with the way up, before anything about
-// the token, which needs the run scopes a run In Agentry already asks for
-// (the schedules routes take run:read and run:write). Whether this release
-// can run In Agentry at all is Decide's, and what a fire would lack is the
-// create's own check (D8).
+// DecideSchedule applies the rule for Later and Repeat In Agentry. The choice
+// appears where the account is signed in and the registry schedules runs; a
+// payer on Standard is told so, with the way up, before anything about the
+// token, which needs the run scopes a run In Agentry already asks for (the
+// schedules routes take run:read and run:write). Whether this release can run
+// In Agentry at all is Decide's, and what a fire would lack is the create's
+// own check.
 func DecideSchedule(f Facts) Offer {
 	if !f.SignedIn || !f.Schedules || f.TargetHosts {
 		return Offer{}
@@ -203,8 +195,8 @@ func tokenAndSecrets(f Facts, what string) (reason, remedy string) {
 	secrets := len(required) > 0
 	switch {
 	case secrets && !f.Vault:
-		// D7: a registry without the vault holds no secret of anyone's. A
-		// release whose secrets are all optional runs without them (D5).
+		// A registry without the vault holds no secret of anyone's. A release whose
+		// secrets are all optional runs without them.
 		return "This release requires " + secretList(required) +
 				", and this registry keeps no secrets for runs In Agentry.",
 			"Run it on this machine, where the key stays in the release's own profile."

@@ -1,13 +1,12 @@
-// The person's own web search key (plan builder-rework.md §7.3; #301): the
-// key of the search provider they choose, which Describe it, on this
-// computer searches the web with. It is kept as the AI Review key is: the OS
-// keychain entry provider:<provider> under the CLI's service, and the runner
-// policy's webSearch block records the provider and that the keychain is its
-// source, so `agentry draft` and this app read the same key the same way
-// (pkg/drafter's SearchKey). The providers are the CLI's
-// (policy.WebSearchProviders), so the app offers exactly what the tools
-// server can search with. The key crosses the app's IPC once, inward, in a
-// call of its own, and no surface returns it.
+// The person's own web search key: the key of the search provider they
+// choose, which Describe it, on this computer searches the web with. It is
+// kept as the AI Review key is: the OS keychain entry provider:<provider>
+// under the CLI's service, and the runner policy's webSearch block records
+// the provider and that the keychain is its source, so `agentry draft` and
+// this app read the same key the same way (pkg/drafter's SearchKey). The
+// providers are the CLI's (policy.WebSearchProviders), so the app offers
+// exactly what the tools server can search with. The key crosses the app's
+// IPC once, inward, in a call of its own, and no surface returns it.
 package run
 
 import (
@@ -37,7 +36,7 @@ type SearchProvider struct {
 }
 
 // SearchProviders is every provider the runner policy admits, Brave first
-// (the registry's own, DEV-157), the rest in the policy's order.
+// (the registry's own), the rest in the policy's order.
 func SearchProviders() []SearchProvider {
 	names := policy.WebSearchProviders()
 	if i := slices.Index(names, corewebsearch.BraveName); i > 0 {
@@ -105,10 +104,10 @@ func GetSearchKeyStatus() (*SearchKeyStatus, error) {
 // StoreSearchKey puts the key into the OS keychain as provider:<provider>,
 // then records the provider and the keychain as its source in the runner
 // policy. The keychain goes first: a store that fails leaves the policy as
-// it was (D-024's rule for the model key). A variable the policy named for
-// another provider is dropped, since it held that provider's key; and the
-// keychain entry of the provider this one replaces is removed, so no key is
-// kept for a provider nothing reads.
+// it was (as for the model key). A variable the policy named for another
+// provider is dropped, since it held that provider's key; and the keychain
+// entry of the provider this one replaces is removed, so no key is kept for
+// a provider nothing reads.
 func StoreSearchKey(provider, key string, logw io.Writer) error {
 	provider = strings.TrimSpace(provider)
 	if !slices.Contains(policy.WebSearchProviders(), provider) {

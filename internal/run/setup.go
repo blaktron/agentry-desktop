@@ -1,6 +1,6 @@
-// Machine setup for QuickAgent runs (RUNNER-PLAN-2 §P1, desktop shape):
-// the same pkg/runner/setup logic `agentry setup` drives, behind a form
-// Prompter instead of a TTY — no parallel implementation (§P8).
+// Machine setup for QuickAgent runs: the same pkg/runner/setup logic
+// `agentry setup` drives, behind a form Prompter instead of a TTY — no
+// parallel implementation.
 package run
 
 import (
@@ -35,41 +35,39 @@ var (
 )
 
 // Status is the setup state of this machine: can it run QuickAgents, and
-// with which LLM provider (§P1, req 5).
+// with which LLM provider.
 type Status struct {
 	DockerOK     bool
 	DockerErr    string
 	PolicyPath   string
 	PolicyExists bool
-	// ProviderSetUp: somebody set the provider up, as opposed to the policy
-	// merely existing. Saving the AI Review key, choosing a coding agent and
-	// the first run each write the policy from defaults, and a page that
-	// read PolicyExists as "a provider was chosen" would say so of a person
-	// who chose none (agentry-desktop#462). It is true when the policy's
-	// model block is not the default's: a provider, a model, a key source
-	// or an endpoint was chosen. It reads no keychain and no variable, so
-	// nothing but a change to that block can change it; the default
-	// provider kept on purpose with its key in the variable is the one
-	// choice it cannot tell from no choice.
+	// ProviderSetUp: somebody set the provider up, as opposed to the policy merely
+	// existing. Saving the AI Review key, choosing a coding agent and the first
+	// run each write the policy from defaults, and a page that read PolicyExists
+	// as "a provider was chosen" would say so of a person who chose none. It is
+	// true when the policy's model block is not the default's: a provider, a
+	// model, a key source or an endpoint was chosen. It reads no keychain and no
+	// variable, so nothing but a change to that block can change it; the default
+	// provider kept on purpose with its key in the variable is the one choice it
+	// cannot tell from no choice.
 	ProviderSetUp bool
 	Provider      string
 	Model         string
 	APIKeyEnv     string
-	// APIKeySource is "keyring" when the OS keychain is the fallback for
-	// an unset variable; "" when the environment is the only source
-	// (plan desktop-installers.md §9, D12; agentry-cli#148).
+	// APIKeySource is "keyring" when the OS keychain is the fallback for an
+	// unset variable; "" when the environment is the only source.
 	APIKeySource string
-	// KeysStored lists every provider the setup form can show that has a
-	// key in the keychain, so the form's badge is right for the provider
-	// chosen and not only for the policy's (agentry-desktop#141);
-	// KeyStoreErr is why the keychain could not be asked (none, disabled),
-	// in which case the list is not complete. Neither carries a value.
+	// KeysStored lists every provider the setup form can show that has a key in
+	// the keychain, so the form's badge is right for the provider chosen and not
+	// only for the policy's; KeyStoreErr is why the keychain could not be asked
+	// (none, disabled), in which case the list is not complete. Neither carries a
+	// value.
 	KeysStored  []string
 	KeyStoreErr string
-	// APIKeyKind is the policy's apiKeyKind (agentry-cli#171): "" or
-	// "api", or "subscription" for an Anthropic subscription token, which
-	// drives Claude Code alone; KeyNotice is the sentence to show beside
-	// the field for that kind, "" otherwise.
+	// APIKeyKind is the policy's apiKeyKind: "" or "api", or "subscription"
+	// for an Anthropic subscription token, which drives Claude Code alone;
+	// KeyNotice is the sentence to show beside the field for that kind, ""
+	// otherwise.
 	APIKeyKind  string
 	KeyNotice   string
 	BaseURL     string
@@ -77,7 +75,7 @@ type Status struct {
 	// Budget defaults, for the run form's placeholders.
 	TimeoutSeconds int
 	MaxTurns       int
-	// KeepProfilesByDefault seeds keep toggles (§P2).
+	// KeepProfilesByDefault seeds keep toggles.
 	KeepProfilesByDefault bool
 }
 
@@ -111,18 +109,17 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	if st.APIKeyKind == policy.KeyKindSubscription {
 		st.KeyNotice = policy.SubscriptionTokenSentence
 	}
-	// One ask per provider. Each reads the presence marker setup stores
-	// beside the key, never the key itself (modelkey.Present,
-	// agentry-cli#156): only a key stored before markers existed is read,
-	// once, to write its marker. A marker outlives a key removed outside
-	// agentry, so this can say "stored" until setup stores a key again or
-	// `agentry doctor` confirms the entry; the apply step reads the key
+	// One ask per provider. Each reads the presence marker setup stores beside
+	// the key, never the key itself (modelkey.Present): only a key stored without
+	// a marker is read, once, to write its marker. A marker outlives a key
+	// removed outside agentry, so this can say "stored" until setup stores a key
+	// again or `agentry doctor` confirms the entry; the apply step reads the key
 	// itself (keychainLookup) and is not misled.
 	//
-	// An absent entry is an answer; an error is the keychain itself —
-	// none, disabled, locked — and would be the same error, and on a
-	// locked Secret Service the same prompt, for every provider after it,
-	// so the first one ends the asking and is said.
+	// An absent entry is an answer; an error is the keychain itself — none,
+	// disabled, locked — and would be the same error, and on a locked Secret
+	// Service the same prompt, for every provider after it, so the first one ends
+	// the asking and is said.
 	for _, provider := range providersToAsk(pol.Model.Provider) {
 		stored, kerr := keychainPresent(provider)
 		if kerr != nil {
@@ -165,7 +162,7 @@ func providersToAsk(policyProvider string) []string {
 // imagesReady reports whether the three images a run needs are present:
 // the pinned gateway image, the harness image model setup's choice runs on
 // (docker-agent's for a key, a model sign-in's own), and the locally built
-// runner image (§R7).
+// runner image.
 func imagesReady(ctx context.Context, docker dockerx.Client, pol *policy.Policy) bool {
 	harness := pol.Images.HarnessDockerAgent
 	if name := adapter.DefaultFor(pol); name != adapter.DefaultName {
@@ -184,7 +181,7 @@ func imagesReady(ctx context.Context, docker dockerx.Client, pol *policy.Policy)
 	return true
 }
 
-// SetupOpts is the settings form's model block (§P1 provider table; empty
+// SetupOpts is the settings form's model block (the provider table; empty
 // fields fall back to the table defaults, custom needs BaseURL).
 type SetupOpts struct {
 	Provider  string
@@ -202,9 +199,9 @@ type SetupOpts struct {
 	BaseURL      string
 	PullImages   bool
 	// APIKeyKind names a model sign-in as the way to pay (chatgpt-plan,
-	// claude-signin, copilot-signin; agentry-desktop#734): the sign-in is
-	// made beforehand (SignInChatGPT, SignInClaude, SignInCopilot), and
-	// this records it as the active choice. "" or api is a key.
+	// claude-signin, copilot-signin): the sign-in is made beforehand
+	// (SignInChatGPT, SignInClaude, SignInCopilot), and this records it as
+	// the active choice. "" or api is a key.
 	APIKeyKind string
 	// Connect records a connected account (OpenRouter, Poe, Hugging Face)
 	// as the way to pay, connected beforehand (ConnectAccount).
@@ -216,8 +213,8 @@ type SetupOpts struct {
 
 // ApplySetup writes the LLM provider preference into the operator policy
 // (preserving everything outside the model block) and, when PullImages,
-// stands up the gateway plane immediately — §P1's two halves. Image
-// pull/build progress streams to logw.
+// stands up the gateway plane immediately. Image pull/build progress
+// streams to logw.
 func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 	home, err := Home()
 	if err != nil {
@@ -241,24 +238,22 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 			provider = policy.Default().Model.Provider
 		}
 	}
-	// A base URL repoints the model call — the key goes wherever it says,
-	// and the agent's only egress becomes that host — so it is judged
-	// before anything is stored: the custom provider only (the page shows
-	// the field for that one; Go enforced nothing, so script in the
-	// webview could aim a known provider at any host), and http or https
-	// (security review 2026-09-20 §8.4, D-030; plain http off loopback
-	// since D-042, with the form's warning).
+	// A base URL repoints the model call — the key goes wherever it says, and
+	// the agent's only egress becomes that host — so it is judged before
+	// anything is stored: the custom provider only (the page shows the field for
+	// that one; Go enforces it too, so script in the webview cannot aim a known
+	// provider at any host), and http or https (plain http off loopback is
+	// accepted, with the form's warning).
 	if err := checkBaseURL(provider, opts.BaseURL); err != nil {
 		return err
 	}
 	if policy.IsModelSignIn(opts.APIKeyKind) || opts.Connect {
 		return applySignInSetup(ctx, home, policyPath, provider, opts, logw)
 	}
-	// The kind (agentry-cli#171) is read from the value while this
-	// process holds it — a key stored now, or below the one the keychain
-	// holds; a forgotten key takes its kind with it; the variable path
-	// knows nothing and keeps what the policy has (setup.ConfigureModel's
-	// rule for the same provider).
+	// The kind is read from the value while this process holds it — a key
+	// stored now, or below the one the keychain holds; a forgotten key takes
+	// its kind with it; the variable path knows nothing and keeps what the
+	// policy has (setup.ConfigureModel's rule for the same provider).
 	kind := ""
 	switch {
 	case opts.StoreKey != "":
@@ -278,11 +273,11 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 		kind = policy.KeyKindAPI
 		_, _ = fmt.Fprintf(logw, "model key removed from the OS keychain (%s)\n", modelkey.Account(provider))
 	}
-	// A keyring source with nothing behind it would record a fallback a
-	// run cannot honour: refuse unless a key is stored (or was just now).
-	// When one is, its kind is read from the stored value — the key came
-	// through StoreModelKey in a call of its own (agentry-desktop#139),
-	// and on a provider switch the policy has no kind to keep.
+	// A keyring source with nothing behind it would record a fallback a run
+	// cannot honour: refuse unless a key is stored (or was just now). When one
+	// is, its kind is read from the stored value — the key came through
+	// StoreModelKey in a call of its own, and on a provider switch the policy has
+	// no kind to keep.
 	if source == modelkey.SourceKeyring && opts.StoreKey == "" {
 		present, perr := keychainPresent(provider)
 		switch {
@@ -324,10 +319,10 @@ func ApplySetup(ctx context.Context, opts SetupOpts, logw io.Writer) error {
 }
 
 // prepareImages stands up the gateway plane and the harness image model
-// setup's choice runs on, and no other harness's (model sign-ins D7): the
-// pinned docker-agent image for a key, or the Codex, Claude Code or
-// Copilot CLI image for a model sign-in, pulled or built on this machine
-// from its pinned artifact.
+// setup's choice runs on, and no other harness's: the pinned
+// docker-agent image for a key, or the Codex, Claude Code or Copilot CLI
+// image for a model sign-in, pulled or built on this machine from its
+// pinned artifact.
 func prepareImages(ctx context.Context, home string, pol *policy.Policy, logw io.Writer) error {
 	docker := newDockerClient()
 	name := adapter.DefaultFor(pol)
@@ -433,26 +428,26 @@ func (f *formPrompter) Confirm(_ string, def bool) (bool, error) { return def, n
 func (f *formPrompter) Say(text string)                          { _, _ = fmt.Fprintln(f.log, text) }
 
 // Catalog is what ListModels returns: the provider's models, and what the
-// key turned out to be (agentry-cli#171) with the sentence for a
-// subscription token, so the form can say it before anything is stored.
+// key turned out to be with the sentence for a subscription token, so the
+// form can say it before anything is stored.
 type Catalog struct {
 	Provider string
 	Models   []setup.Model
 	Kind     string
 	Notice   string
-	// Warning is the plain-http sentence for the endpoint the key was
-	// sent to, "" for https and loopback (agentry-desktop#317).
+	// Warning is the plain-http sentence for the endpoint the key was sent
+	// to, "" for https and loopback.
 	Warning string
 }
 
 // ListModels asks provider's models listing with key — the typed key, or
 // when none is typed the one a run would read (the saved policy's
-// variable, else the OS keychain's entry for the provider) — and
-// returns what it listed (agentry-cli#170, agentry-desktop#131). The key
-// crosses this call inward and reaches nothing but the provider's endpoint
-// (setup.ListModels: http or https, a plain-http endpoint off this machine
-// carried out with its warning, no redirect followed, the key in no
-// error); the catalog carries names, never the key.
+// variable, else the OS keychain's entry for the provider) — and returns
+// what it listed. The key crosses this call inward and reaches nothing but
+// the provider's endpoint (setup.ListModels: http or https, a plain-http
+// endpoint off this machine carried out with its warning, no redirect
+// followed, the key in no error); the catalog carries names, never the
+// key.
 func ListModels(ctx context.Context, provider, baseURL, key string) (*Catalog, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	key = strings.TrimSpace(key)
@@ -496,19 +491,18 @@ func keyFromPolicyVariable(provider string) string {
 
 // StoreModelKey puts key into the OS keychain for provider — its own call,
 // so the key crosses the app's IPC in the smallest message that can carry
-// it, never beside the rest of the form (desktop#102). The key is written
-// nowhere else, and the policy is not touched: the custom provider has no
-// table defaults to fill a key-only call's gaps, so the model, the URL and
-// the keyring source travel in the ApplySetup the form makes next, which
-// records them (agentry-desktop#139). A keychain that cannot be reached is
-// a named refusal.
+// it, never beside the rest of the form. The key is written nowhere else,
+// and the policy is not touched: the custom provider has no table defaults
+// to fill a key-only call's gaps, so the model, the URL and the keyring
+// source travel in the ApplySetup the form makes next, which records them.
+// A keychain that cannot be reached is a named refusal.
 func StoreModelKey(provider, key string, logw io.Writer) error {
 	if _, err := storeModelKey(provider, key, logw); err != nil {
 		return err
 	}
-	// A pasted key takes the place of a connected account's key in the
-	// same keychain entry, so the connect is forgotten, as the CLI's setup
-	// does (agentry-cli#742): what it says names the vendor's own page.
+	// A pasted key takes the place of a connected account's key in the same
+	// keychain entry, so the connect is forgotten, as the CLI's setup does:
+	// what it says names the vendor's own page.
 	if setup.IsConnectProvider(provider) {
 		if s, _, err := signInStore(); err == nil {
 			if outcome, err := s.ForgetConnected(context.Background(), modelsignin.ConnectedVendor(provider)); err == nil && outcome != "" {
@@ -520,8 +514,8 @@ func StoreModelKey(provider, key string, logw io.Writer) error {
 }
 
 // storeModelKey is the one store path: the keychain write, the line that
-// says so, and the kind of what was stored (agentry-cli#171) with its
-// sentence for a subscription token.
+// says so, and the kind of what was stored with its sentence for a
+// subscription token.
 func storeModelKey(provider, key string, logw io.Writer) (string, error) {
 	if err := keychainStore(provider, key); err != nil {
 		return "", err
@@ -545,9 +539,8 @@ func SetListModelsForTest(t interface{ Cleanup(func()) }, f func(context.Context
 // checkBaseURL is ApplySetup's rule for a model base URL: none for a known
 // provider (its endpoint is the provider's), and for the custom provider an
 // absolute http or https URL with a host. Plain http off this machine is
-// the operator's choice since agentry-desktop#317 (D-042, amending D-030):
-// it is stored, and the form says what it costs (EndpointWarning); any
-// other scheme is refused.
+// accepted: it is stored, and the form says what it costs (EndpointWarning);
+// any other scheme is refused.
 func checkBaseURL(provider, baseURL string) error {
 	if baseURL == "" {
 		return nil
@@ -569,6 +562,6 @@ func checkBaseURL(provider, baseURL string) error {
 
 // EndpointWarning is the sentence the form shows for a model base URL the
 // key would reach over plain http off this machine, "" otherwise: the
-// CLI's wording (setup.PlainHTTPWarning, DR-45), so both clients say the
-// same thing.
+// CLI's wording (setup.PlainHTTPWarning), so both clients say the same
+// thing.
 func EndpointWarning(baseURL string) string { return setup.PlainHTTPWarning(baseURL) }

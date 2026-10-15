@@ -60,10 +60,10 @@ var highScan = map[string]any{
 	"advisories": []map[string]any{{"id": "GHSA-hi", "severity": "high", "gateSeverity": "high", "cvssScore": 8.7, "fixedIn": []string{"1.25.2"}}},
 }
 
-// The engine holds the rule whatever the page sent (agentry-desktop#459,
-// D-055): outside Unsafe Mode a server the gate rates high is refused, the
-// page's consent and the CLI's policy key notwithstanding; in Unsafe Mode
-// it needs the consent; with both, the verdict lets the run go on.
+// The engine holds the rule whatever the page sent: outside Unsafe Mode a
+// server the gate rates high is refused, the page's consent and the CLI's
+// policy key notwithstanding; in Unsafe Mode it needs the consent; with both,
+// the verdict lets the run go on.
 func TestTheEngineRunsAHighRatedServerOnlyInUnsafeModeWithTheConsent(t *testing.T) {
 	cases := []struct {
 		name                       string

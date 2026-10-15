@@ -36,7 +36,7 @@ func TestDecideReviseIsADraftsOfferGatedOnThePayer(t *testing.T) {
 	if o := DecideRevise(refused); !o.Offered || o.Available || !o.Upgrade || !strings.Contains(o.Reason, "Pro and above") || !strings.Contains(o.Remedy, "on this computer") {
 		t.Fatalf("Standard: %+v", o)
 	}
-	// A registry that predates caller.revise offers none.
+	// A registry that sends no caller.revise offers none.
 	if o := DecideRevise(ready); o.Offered {
 		t.Fatalf("no caller.revise: %+v", o)
 	}

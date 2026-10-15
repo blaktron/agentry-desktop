@@ -13,9 +13,9 @@ import (
 	"strings"
 )
 
-// Inputs and outputs (plan §4.4). Files go up before the run is created,
-// within the plan's limits, and the run's artefacts come down into the
-// folder the person picked — the same folder a local run writes into.
+// Inputs and outputs. Files go up before the run is created, within the
+// registry's limits, and the run's artefacts come down into the folder the
+// person picked — the same folder a local run writes into.
 
 // InputFile is one local file staged for a run.
 type InputFile struct {
@@ -28,8 +28,8 @@ type InputFile struct {
 
 // StageInputs turns the panel's chosen paths into the uploads a create
 // will name, refusing in the app — with the limit named — anything the
-// registry would refuse with a 413 (plan §4.4: at most MaxInputFiles
-// files, MaxInputBytes together).
+// registry would refuse with a 413 (at most MaxInputFiles files,
+// MaxInputBytes together).
 func StageInputs(paths []string) ([]InputFile, error) {
 	if len(paths) > MaxInputFiles {
 		return nil, fmt.Errorf("a run In Agentry takes at most %d input files; %d were chosen", MaxInputFiles, len(paths))
@@ -104,14 +104,11 @@ func OutputPath(dir, name string) (string, error) {
 	return filepath.Join(dir, local), nil
 }
 
-// PushedOutput is the one output a pushed run keeps (agentry-enterprise#83):
-// the run's out folder as a tar, sealed to the runner's key by the host
-// and opened by the registry as it serves the download. A run of the
-// deleted pull worker (agentry-enterprise#86) listed its folder file by file
-// and never named a file at the top level this way, so the name alone says
-// which kind of run this is. Dev keeps such runs, from before 2026-09-24,
-// until the 30-day sweep (about 2026-10-24; production never ran one), so
-// the per-file path stays until then.
+// PushedOutput is the one output a pushed run keeps: the run's out
+// folder as a tar, sealed to the runner's key by the host and opened by
+// the registry as it serves the download. A run that lists its folder
+// file by file never names a file at the top level this way, so the name
+// alone says which kind of run this is; DownloadOutputs reads both.
 const PushedOutput = "output.tar"
 
 // DownloadOutputs writes every output of a finished run into dir, creating

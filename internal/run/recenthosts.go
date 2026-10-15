@@ -12,11 +12,11 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/targethost"
 )
 
-// Recent hosts (plan runtime-hosts.md D14; agentry-desktop#812): the
-// target hosts this computer's runs reached, newest first, so the run
-// setup can offer them again. Each is the answer as ssh takes it,
-// user@host[:port]: an address and an account name, never a credential.
-// They are kept beside desktop.yaml, on this computer alone.
+// Recent hosts: the target hosts this computer's runs reached, newest
+// first, so the run setup can offer them again. Each is the answer as
+// ssh takes it, user@host[:port]: an address and an account name, never
+// a credential. They are kept beside desktop.yaml, on this computer
+// alone.
 
 // maxRecentHosts bounds the list.
 const maxRecentHosts = 10

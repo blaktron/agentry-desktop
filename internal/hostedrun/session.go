@@ -13,14 +13,13 @@ import (
 	"time"
 )
 
-// A hosted session (plan hosted-sessions.md §5, §6; agentry-enterprise#276;
-// agentry-desktop#403): a run of a release's interactive mode on a sandbox
+// A hosted session: a run of a release's interactive mode on a sandbox
 // host, which its runner talks to while it runs. The registry relays the
 // session's display events as server-sent events on GET {id}/session,
 // opening each frame with the runner's key inside the runner's own request;
 // the runner's turns, files and end are posts beside it. Nothing here keeps
 // a frame: each is handed to the caller as it arrives, and a reconnect is
-// replayed by the host from its memory, not from this app's (D8).
+// replayed by the host from its memory, not from this app's.
 
 // ModeInteractive is the run mode of a hosted session.
 const ModeInteractive = "interactive"
@@ -38,7 +37,7 @@ type SessionTerms struct {
 }
 
 // CallerSession is the signed-in caller's session line: whether their
-// payer's tier may start one (agentry-enterprise#286).
+// payer's tier may start one.
 type CallerSession struct {
 	Allowed bool `json:"allowed"`
 }
@@ -66,7 +65,7 @@ type Session struct {
 // the CLI's session event filtered to what a chat shows. An input_added
 // names the file by its basename, and an error by a fixed class, never by
 // text the harness wrote. A frame's token counts are not decoded: a
-// session In Agentry is stated in credits (agentry-desktop#457).
+// session In Agentry is stated in credits.
 type FrameEvent struct {
 	Kind       string    `json:"kind"`
 	Time       time.Time `json:"time"`
@@ -333,7 +332,7 @@ func (c *Client) sessionPost(ctx context.Context, id, route, op string, body map
 }
 
 // ErrorWords says an error frame's class, a fixed vocabulary, in words: the
-// frame never carries text the harness wrote (plan §5).
+// frame never carries text the harness wrote.
 func ErrorWords(class string) string {
 	switch class {
 	case "harness":

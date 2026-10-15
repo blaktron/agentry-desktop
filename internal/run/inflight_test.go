@@ -213,9 +213,9 @@ func TestSweepAtQuitSweepsThisProcessesRecordsToo(t *testing.T) {
 	}
 }
 
-// A record an earlier build wrote with a key this one does not know (the
-// review builds of agentry-desktop#463 wrote "host" and "machine") is still
-// a record: a dead owner's run is swept by it.
+// A record an earlier build wrote with a key this one does not know (such
+// as "host" or "machine") is still a record: a dead owner's run is swept
+// by it.
 func TestARecordWithAKeyThisBuildDoesNotKnowIsStillSwept(t *testing.T) {
 	home := isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{})
