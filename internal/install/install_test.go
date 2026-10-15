@@ -397,6 +397,73 @@ func TestWidenedCapabilitiesRequireAcceptance(t *testing.T) {
 	}
 }
 
+// TestASamePinServerWideningAsksOnUpdate: an update that keeps a declared
+// MCP server's pin and gives it a new egress host is a widening the update
+// dialog names in the core's words and gates. A record that names the
+// server without its grants does not know them, and asks once.
+func TestASamePinServerWideningAsksOnUpdate(t *testing.T) {
+	versioned := func(caps map[string]any, version string) map[string]any {
+		doc := demoManifest(caps)
+		doc["version"] = version
+		return doc
+	}
+	const id = "npm:@acme/osv-mcp@1.2.3"
+	for _, tc := range []struct {
+		name     string
+		dropCaps bool // the record lacks the server's grants
+		want     string
+	}{
+		{name: "recorded", want: "adds network egress to b.example for MCP server " + id},
+		{name: "older record", dropCaps: true, want: "asks again for MCP server " + id + ", whose own grants your last consent did not record"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			isolate(t)
+			dest := t.TempDir()
+			e := NewEngine()
+			reg1 := startRegistry(t, &fakeRegistry{manifestDoc: versioned(osvServer(map[string]any{"egress": []string{"a.example"}}), "1.0.0")})
+			plan1, err := e.Prepare(context.Background(), reg1, "acme/demo", "claude-skill", dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.Confirm(plan1.ID, false, true, false); err != nil {
+				t.Fatal(err)
+			}
+
+			reg2 := startRegistry(t, &fakeRegistry{version: "2.0.0", manifestDoc: versioned(osvServer(map[string]any{"egress": []string{"a.example", "b.example"}}), "2.0.0")})
+			st, err := installed.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range st.Records {
+				st.Records[i].Registry = strings.TrimRight(reg2, "/")
+				if got := st.Records[i].Capabilities.MCPServerCaps[id].Egress; !slices.Equal(got, []string{"a.example"}) {
+					t.Fatalf("the record keeps the server's egress as %v", got)
+				}
+				if tc.dropCaps {
+					st.Records[i].Capabilities.MCPServerCaps = nil
+				}
+			}
+			if err := installed.Save(st); err != nil {
+				t.Fatal(err)
+			}
+
+			plan2, err := e.Prepare(context.Background(), reg2, "acme/demo@2.0.0", "claude-skill", dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !plan2.RequiresWidenedConfirm || plan2.Diff == nil || !slices.ContainsFunc(plan2.Diff.Widened, func(w string) bool { return strings.Contains(w, tc.want) }) {
+				t.Fatalf("the update does not ask as %q: %+v", tc.want, plan2.Diff)
+			}
+			if _, err := e.Confirm(plan2.ID, false, false, false); err == nil {
+				t.Fatal("a same-pin server widening installed without acceptance")
+			}
+			if _, err := e.Confirm(plan2.ID, false, true, false); err != nil {
+				t.Fatalf("refused despite acceptance: %v", err)
+			}
+		})
+	}
+}
+
 // demoManifest is acme/demo@1.0.0's manifest with the given capabilities
 // block (nil: none), shipping agent.yaml beside SKILL.md.
 func demoManifest(caps map[string]any) map[string]any {
@@ -435,8 +502,8 @@ func osvServer(fields map[string]any) map[string]any {
 // resolve manifest's contract, and the exports compile their grants from
 // the archive's own agent.yaml. An archive that declares more is refused at
 // Confirm with the widening named and nothing written — no destination, no
-// release directory, no record — including what the core's diff does not
-// compare, a declared server's own egress, secrets and tool restriction.
+// release directory, no record — a declared server's own egress, secrets
+// and tool restriction included, in the core's words.
 // One that matches or narrows installs, and the record carries the
 // archive's contract.
 func TestArchiveIsHeldToTheConsentedContract(t *testing.T) {
