@@ -358,10 +358,14 @@ jobs:
       # The private blaktron modules need a credential to fetch. On this
       # persistent host it must not land in ~/.gitconfig, so the rewrite goes
       # into a job-scoped file (GIT_CONFIG_GLOBAL above) removed at the end.
+      # The empty helper clears the system gitconfig's osxkeychain helper:
+      # after a fetch git asks each helper to store the credential, and with
+      # no GUI login the keychain's prompt never comes, so the fetch hangs.
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
         run: |
+          git config --file "$GIT_CONFIG_GLOBAL" credential.helper ""
           git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
