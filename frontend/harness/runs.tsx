@@ -237,7 +237,7 @@ const listeners: Record<string, ((v: any) => void)[]> = {};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fire = (name: string, v: any) => (listeners[name] ?? []).forEach((cb) => cb(v));
 let stop: (() => void) | null = null;
-g.go = { main: {
+g.go = { app: {
   RunAPI: {
     RunAgent: () => new Promise((resolve, reject) => {
       reports.forEach((p, i) => setTimeout(() => fire("runner:run-progress", p), 20 + 30 * i));
@@ -361,7 +361,7 @@ function selectedDraft() {
     notes: "Notes retained from the selected run.", decodeNotes: [], matches: [], sources: [], openQuestions: [], problems: [], unmentioned: [],
     check: { rubric: "flagged", draft: "pass", findings: [{ id: "C3_undeclared_capability", question: "Undeclared capability", score: 2, path: "AGENT.md" }], flagged: [], checks: 1 },
     aiReview: { scan: "registry", read: 5, passed: 5, withheld: 0, notScanned: 0, withheldSources: [] },
-  } as unknown as import("../wailsjs/go/models").main.DraftView;
+  } as unknown as import("../wailsjs/go/models").app.DraftView;
 }
 function RunPagePreview() {
   const [opened, setOpened] = useState(false);
@@ -423,14 +423,14 @@ const setup = { panel: { registry: REG, ns: "demo1", name: "incident-summarizer"
 const chatSetup = { ...setup, form: { ...form, mode: hash.startsWith("chat-hosted") ? "hosted-session" : "interactive" } };
 if (hash.startsWith("chat-local")) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  startLocalChat(chatSetup, REF, "", "", () => g.go.main.RunAPI.StartSession() as Promise<any>);
+  startLocalChat(chatSetup, REF, "", "", () => g.go.app.RunAPI.StartSession() as Promise<any>);
   if (hash === "chat-local-working") setTimeout(() => void sendChat("Does the pager export change the timeline?").catch(() => {}), 200);
 }
 if (hash.startsWith("chat-hosted")) followHostedChat(chatSetup, hosted.session, terms as never, "", "");
 if (hash === "hosted-card" || hash === "hosted-card-finished") void attachHostedRun(REG);
 else if (hash.startsWith("hosted-") && !hash.startsWith("chat-")) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  void startHostedRun(setup, () => g.go.main.RunAPI.StartHostedRun() as Promise<any>).then(() => {
+  void startHostedRun(setup, () => g.go.app.RunAPI.StartHostedRun() as Promise<any>).then(() => {
     if (hash === "hosted-cancel") void cancelHostedRun();
   });
 }
@@ -438,7 +438,7 @@ if (!hostedOnly) void startLocalRun(
   { panel: { registry: REG, ns: "demo1", name: "incident-summarizer", version: "1.2.0", attestation: null }, form },
   REF,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  () => g.go.main.RunAPI.RunAgent() as Promise<any>,
+  () => g.go.app.RunAPI.RunAgent() as Promise<any>,
 ).then(() => {
   if (hash === "run-stopped") setTimeout(() => void stopLocalRun(), 120);
 });

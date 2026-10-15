@@ -2,7 +2,7 @@
 // instruction file under its README, shown as text. A module of its own,
 // with no JSX, so node's test runner can import it.
 
-/** What BrowseAPI.Instructions answers (main.InstructionsView). */
+/** What BrowseAPI.Instructions answers (app.InstructionsView). */
 export type Instructions = { path: string; content: string; truncated: boolean; binary: boolean };
 
 /** The line the card shows instead of, or under, the text: null when the

@@ -9,7 +9,7 @@
 // step drops the pages it cannot take): the preview says so, and reads a
 // missing list as none, since a null list blanks the app.
 import { useEffect, useState } from "react";
-import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
+import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
 import { knowledge } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText } from "../reveal";

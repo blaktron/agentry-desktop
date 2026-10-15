@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
+import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
 import { install, installed, trust } from "../../wailsjs/go/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar, fmtDate,

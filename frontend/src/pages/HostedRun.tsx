@@ -7,10 +7,10 @@
 // numbers rather than the app's arithmetic. A run In Agentry has no log
 // to show.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
-import { OpenUpgrade } from "../../wailsjs/go/main/SettingsAPI";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
+import { OpenUpgrade } from "../../wailsjs/go/app/SettingsAPI";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Textarea } from "../ui";
 import { hostedUseLine, runCapsLine, runHoldSentence, sessionCreditsSentence, sessionTermsSentence } from "../usage";
 import { hostedConnectAsk } from "../connections";
@@ -20,7 +20,7 @@ import { PUBLISHER_EARNS_AFTER, PUBLISHER_EARNS_SENTENCE, starAskSentence, starA
 /** What a run In Agentry holds and what the account has, before anything
  *  is created: the hold in credits, the time and the turns, never tokens or
  *  a rate. Every number comes from the registry. */
-export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
+export function HostedCredits({ hosted }: { hosted: app.HostedAvailabilityView }) {
   return (
     <p className="muted small" style={{ margin: "4px 0" }}>
       {runHoldSentence(hosted.holdCredits)}{" "}
@@ -35,7 +35,7 @@ export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView 
  *  its first minutes are free, each minute after is pulled as it starts,
  *  and its model use settles when it ends, in credits. Every number is the
  *  registry's. */
-export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
+export function SessionCredits({ hosted }: { hosted: app.HostedAvailabilityView }) {
   const s = hosted.session;
   if (!s) return null;
   // A run of this caller's that holds nothing is an unmetered
@@ -53,7 +53,7 @@ export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView
 /** The one line under what a run or session In Agentry costs where the
  *  release's publisher is in Publisher Earnings: Go draws it for someone
  *  else's public QuickAgent only, as the site does. */
-export function PublisherEarnsLine({ hosted }: { hosted: main.HostedAvailabilityView }) {
+export function PublisherEarnsLine({ hosted }: { hosted: app.HostedAvailabilityView }) {
   if (!hosted.publisherEarns) return null;
   return (
     <p className="muted small" style={{ margin: "4px 0" }} data-testid="publisher-earns">
@@ -68,9 +68,9 @@ export function PublisherEarnsLine({ hosted }: { hosted: main.HostedAvailability
  *  Nothing for one's own or one's organization's QuickAgent, nothing once
  *  it is starred, and nothing where the registry does not say (Go's
  *  RunAPI.StarAsk). Starring says so in place of the ask. */
-export function StarAsk({ registry, run }: { registry: string; run: main.HostedRunView }) {
+export function StarAsk({ registry, run }: { registry: string; run: app.HostedRunView }) {
   const wanted = !!registry && starAskWanted(run);
-  const [ask, setAsk] = useState<main.StarAskView | null>(null);
+  const [ask, setAsk] = useState<app.StarAskView | null>(null);
   const [busy, setBusy] = useState(false);
   const [starred, setStarred] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export function StarAsk({ registry, run }: { registry: string; run: main.HostedR
 /** Talk to it In Agentry, offered but not available: why, the way out,
  *  and — for a payer whose tier does not include it — the registry's
  *  subscription page, opened after Go checks its origin. */
-export function SessionUnavailable({ registry, hosted }: { registry: string; hosted: main.HostedAvailabilityView }) {
+export function SessionUnavailable({ registry, hosted }: { registry: string; hosted: app.HostedAvailabilityView }) {
   const s = hosted.session;
   const [err, setErr] = useState<string | null>(null);
   if (!s || !s.offered || s.available) return null;
@@ -139,7 +139,7 @@ export function SessionUnavailable({ registry, hosted }: { registry: string; hos
 
 /** The mode's unavailable-with-reason state: why it cannot be chosen here
  *  and what to do about it. */
-export function HostedUnavailable({ hosted }: { hosted: main.HostedAvailabilityView }) {
+export function HostedUnavailable({ hosted }: { hosted: app.HostedAvailabilityView }) {
   if (!hosted.offered || hosted.available) return null;
   return (
     <Notice tone="warn">
@@ -153,7 +153,7 @@ export function HostedUnavailable({ hosted }: { hosted: main.HostedAvailabilityV
  *  before the start. Which of them the account keeps is not something
  *  this app can read (the list is a signed-in session's): the start finds
  *  out, and asks for the rest. */
-export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityView }) {
+export function HostedSecretsNote({ hosted }: { hosted: app.HostedAvailabilityView }) {
   const names = hosted.declaredSecrets ?? [];
   if (names.length === 0) return null;
   return (
@@ -496,7 +496,7 @@ function toneClass(tone?: string): string {
 
 /** The finished run: done with pass or fail, the outcome, the receipt's
  *  numbers, what it cost, and the files that landed in the run folder. */
-export function HostedResult({ run }: { run: main.HostedRunView }) {
+export function HostedResult({ run }: { run: app.HostedRunView }) {
   const enforced = Object.entries(run.capabilitiesEnforced ?? {});
   return (
     <Card className="selectable">

@@ -9,9 +9,9 @@
 // AIReviewKey.tsx's shape, as WebSearchKey.tsx does. The kinds of file it
 // names are the CLI's (pkg/runner/hybrid's risky types), said in words.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
 import { keyStanding } from "../keyRecommendation";
 
@@ -20,7 +20,7 @@ import { keyStanding } from "../keyRecommendation";
 export const HYBRID_ANALYSIS_URL = "https://hybrid-analysis.com/signup";
 
 /** Where the key stands, in one sentence. */
-export function hybridKeySentence(k: main.HybridKeyView): string {
+export function hybridKeySentence(k: app.HybridKeyView): string {
   switch (keyStanding(k)) {
     case "env":
       return `$${k.envName} is set where this app was started, and a run uses it before the keychain.`;
@@ -34,11 +34,11 @@ export function hybridKeySentence(k: main.HybridKeyView): string {
 }
 
 export function HybridAnalysisKeyCard() {
-  const [status, setStatus] = useState<main.HybridKeyView | null>(null);
+  const [status, setStatus] = useState<app.HybridKeyView | null>(null);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tested, setTested] = useState<main.HybridKeyTestView | null>(null);
+  const [tested, setTested] = useState<app.HybridKeyTestView | null>(null);
 
   useEffect(() => {
     RunAPI.HybridKeyStatus().then(setStatus).catch((e) => setError(String(e)));

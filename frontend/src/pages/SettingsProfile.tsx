@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { main } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, fmtStorage } from "../ui";
 import { capsSentence } from "../usage";
 import {
@@ -20,7 +20,7 @@ const MAX_DISPLAY_NAME = 100;
 
 // Never below zero: a suspended account's balance is,
 // and "-40 submissions left" says nothing a person can act on.
-const submissionsLeft = (s: main.SubscriptionView) => (s.submissionCost > 0 ? Math.max(0, Math.floor(s.balance / s.submissionCost)) : 0);
+const submissionsLeft = (s: app.SubscriptionView) => (s.submissionCost > 0 ? Math.max(0, Math.floor(s.balance / s.submissionCost)) : 0);
 
 // privateAgentsPhrase: "none" where the registry disables them, with the
 // count still held; "4 of no cap" where max is 0; "4 of 10" otherwise.
@@ -29,14 +29,14 @@ function privateAgentsPhrase(p: { max: number; used: number; enabled?: boolean }
   return `${p.used} of ${p.max === 0 ? "no cap" : p.max}`;
 }
 
-function knowledgePhrase(k: main.KnowledgeAllocation): string {
+function knowledgePhrase(k: app.KnowledgeAllocation): string {
   if (!k.enabled) return k.bytes > 0 ? `none may be added; ${fmtStorage(k.bytes)} held` : "none";
   return `${fmtStorage(k.bytes)} of ${k.max === 0 ? "no cap" : fmtStorage(k.max)}`;
 }
 
 // knowledgeLimitSentence: what a full, overdrawn or disabled allocation
 // means; nothing while there is room, or with no cap.
-function knowledgeLimitSentence(k: main.KnowledgeAllocation, memberOf?: string): string | null {
+function knowledgeLimitSentence(k: app.KnowledgeAllocation, memberOf?: string): string | null {
   const kept = "Nothing is deleted: every pack kept here stays readable and can be exported.";
   if (!k.enabled) {
     const payer = memberOf ? `${memberOf}'s subscription` : "the subscription that pays for it";
@@ -56,7 +56,7 @@ function knowledgeLimitSentence(k: main.KnowledgeAllocation, memberOf?: string):
 // person belongs to and in what role; a membership an admin has yet to
 // approve says so and names the door, because until then they hold no
 // seat and spend from their own account.
-function OrgLine({ user }: { user: main.UserView }) {
+function OrgLine({ user }: { user: app.UserView }) {
   if (!user.orgs?.length) return null;
   return (
     <>
@@ -88,7 +88,7 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
   signedIn: boolean;
   onOpenRegistry: () => void;
 }) {
-  const [profile, setProfile] = useState<main.ProfileView | null>(null);
+  const [profile, setProfile] = useState<app.ProfileView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
@@ -124,7 +124,7 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
       // A plain object, as every binding answers one: rebuilding the
       // generated class with createFrom threw "null is not a constructor" in
       // the production bundle after a save the registry had taken.
-      setProfile((cur) => (cur ? ({ ...cur, user: u } as main.ProfileView) : cur));
+      setProfile((cur) => (cur ? ({ ...cur, user: u } as app.ProfileView) : cur));
       setName(u.displayName ?? "");
       setSaved("Display name saved.");
     } catch (e) {
@@ -172,7 +172,7 @@ export function ProfileSettings({ registry, signedIn, onOpenRegistry }: {
   );
 }
 
-function SubscriptionPart({ profile, registry, onError }: { profile: main.ProfileView; registry: string; onError: (e: string) => void }) {
+function SubscriptionPart({ profile, registry, onError }: { profile: app.ProfileView; registry: string; onError: (e: string) => void }) {
   const sub = profile.subscription;
   if (!sub) {
     return <Notice tone="warn">The subscription could not be read: {profile.subscriptionError} Open Settings again to retry.</Notice>;
@@ -196,7 +196,7 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
 
 // UpgradeButton opens the page the registry named for this subscription,
 // in the browser; the app takes no payment.
-function UpgradeButton({ sub, onOpen }: { sub: main.SubscriptionView; onOpen: () => void }) {
+function UpgradeButton({ sub, onOpen }: { sub: app.SubscriptionView; onOpen: () => void }) {
   if (!sub.upgrade?.url) return null;
   return (
     <p className="row">
@@ -213,7 +213,7 @@ function UpgradeButton({ sub, onOpen }: { sub: main.SubscriptionView; onOpen: ()
 }
 
 // PersonView is the site's personal Subscription card.
-function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView; runs?: main.HostedRunsTermsView; onOpen: () => void; onTopUp: () => void }) {
+function PersonView({ sub, runs, onOpen, onTopUp }: { sub: app.SubscriptionView; runs?: app.HostedRunsTermsView; onOpen: () => void; onTopUp: () => void }) {
   const promo = runningPromo(sub);
   const topUp = topUpOffer(sub);
   const left = submissionsLeft(sub);
@@ -272,7 +272,7 @@ function PersonView({ sub, runs, onOpen, onTopUp }: { sub: main.SubscriptionView
 // provider's price from the registry, and a Buy that opens the site's card
 // in the browser, where the purchase is made. A screen reader hears one
 // sentence per pack (packLabel); the drawn numbers are hidden from it.
-function TopUpCard({ sub, topUp, onBuy }: { sub: main.SubscriptionView; topUp: main.TopUpView; onBuy: () => void }) {
+function TopUpCard({ sub, topUp, onBuy }: { sub: app.SubscriptionView; topUp: app.TopUpView; onBuy: () => void }) {
   return (
     <Card className="top-up">
       <p><strong>Top up credits</strong></p>
@@ -319,7 +319,7 @@ function TopUpCard({ sub, topUp, onBuy }: { sub: main.SubscriptionView; topUp: m
 // MemberView is the site's member view: the organization pays for this
 // person's work from its pool, and their own account is not in force while
 // they belong to it.
-function MemberView({ sub, runs, onOpen }: { sub: main.SubscriptionView; runs?: main.HostedRunsTermsView; onOpen: () => void }) {
+function MemberView({ sub, runs, onOpen }: { sub: app.SubscriptionView; runs?: app.HostedRunsTermsView; onOpen: () => void }) {
   const org = sub.memberOf!;
   const lapsed = sub.standing && sub.standing !== "active";
   const limit = sub.knowledge ? knowledgeLimitSentence(sub.knowledge, org) : null;

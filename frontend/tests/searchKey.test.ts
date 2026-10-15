@@ -3,7 +3,7 @@
 // provider's key, decided once.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { initialProvider, replaceNote, searchKeySentence } from "../src/searchKey.ts";
 
 const providers = [
@@ -11,7 +11,7 @@ const providers = [
   { name: "exa", label: "Exa", envName: "EXA_API_KEY" },
   { name: "tavily", label: "Tavily", envName: "TAVILY_API_KEY" },
 ];
-const view = (v: Record<string, unknown>) => ({ providers, stored: false, envSet: false, ready: false, ...v }) as unknown as main.SearchKeyView;
+const view = (v: Record<string, unknown>) => ({ providers, stored: false, envSet: false, ready: false, ...v }) as unknown as app.SearchKeyView;
 
 test("the picker starts on the policy's provider, else the first offered", () => {
   assert.equal(initialProvider(view({})), "brave");

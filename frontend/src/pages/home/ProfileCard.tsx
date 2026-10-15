@@ -1,4 +1,4 @@
-import { main } from "../../../wailsjs/go/models";
+import { app } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { creditCount, tierLabel, topUpOffer } from "../../subscription";
 import { nameOf } from "../../homeLines";
@@ -14,7 +14,7 @@ export function ProfileCard({ registry, signedIn, profile, error, onOpenProfile,
   // null until the settings are read, so the card never shows Sign in to
   // someone who is signed in.
   signedIn: boolean | null;
-  profile: main.ProfileView | null;
+  profile: app.ProfileView | null;
   error: string | null;
   onOpenProfile: () => void;
   onSignIn: () => void;

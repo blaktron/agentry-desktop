@@ -138,7 +138,7 @@ const savedKey = { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY",
 // Engine wakes between the parent check and prerequisite detection.
 let dockerChecks = 0;
 const g = window as any;
-g.go = { main: {
+g.go = { app: {
   App: { OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); } },
   RunAPI: {
     JevKeyStatus: async () => (keySaved ? savedKey : noKey),

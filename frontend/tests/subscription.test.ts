@@ -2,10 +2,10 @@
 // run by node's own test runner: `npm test`, which CI runs beside the build.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { changesPhrase, creditsPhrase, owedSentence, packBonus, packLabel, packPrice, tierLabel, topUpOffer } from "../src/subscription.ts";
 
-const view = (v: Record<string, unknown>) => v as unknown as main.SubscriptionView;
+const view = (v: Record<string, unknown>) => v as unknown as app.SubscriptionView;
 
 test("every tier a person or an organization may hold has its product name", () => {
   assert.equal(tierLabel("standard"), "Standard");
@@ -54,13 +54,13 @@ test("the Top up credits card is drawn only where the registry offers this perso
 });
 
 test("each pack reads its struck base, its bonus and one sentence, at the provider's price", () => {
-  const [small, large] = PACKS as unknown as main.TopUpPack[];
+  const [small, large] = PACKS as unknown as app.TopUpPack[];
   assert.equal(packBonus(small), "+250 bonus");
   assert.equal(packBonus(large), "+1,500 bonus");
   assert.equal(packLabel(small), "1,250 credits: 1,000 credits plus a 250 credit bonus");
   assert.equal(packLabel(large), "5,000 credits: 3,500 credits plus a 1,500 credit bonus");
-  assert.equal(packLabel({ ...small, baseCredits: 1250 } as main.TopUpPack), "1,250 credits");
-  assert.equal(packBonus({ ...small, baseCredits: 1250 } as main.TopUpPack), null);
+  assert.equal(packLabel({ ...small, baseCredits: 1250 } as app.TopUpPack), "1,250 credits");
+  assert.equal(packBonus({ ...small, baseCredits: 1250 } as app.TopUpPack), null);
   assert.equal(packPrice(small), "US$9.99");
   assert.equal(packPrice(large), "US$34.99");
   assert.equal(packPrice({ amount: 1450, currency: "eur" }), "€14.50");

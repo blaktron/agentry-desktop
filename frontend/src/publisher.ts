@@ -3,7 +3,7 @@
 // tests can import it. Go makes the calls and says what they did or why the
 // registry refused them (services_publisher.go).
 
-/** A row as the page reads it: main.PublisherAgent's fields that decide
+/** A row as the page reads it: app.PublisherAgent's fields that decide
  * what the row says. */
 export interface PublisherRow {
   namespace: string;

@@ -17,7 +17,7 @@
 // once it ends, is the chat's flow's result view (ChatFlow) over the sealed
 // output, which holds transcript.md.
 import { useEffect, useRef, useState } from "react";
-import { ChooseFiles } from "../../wailsjs/go/main/App";
+import { ChooseFiles } from "../../wailsjs/go/app/App";
 import { Button, ErrorBox, Input, Spinner } from "../ui";
 import { addChatFiles, endChat, sendChat } from "../runs";
 import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord } from "../sessionChat";

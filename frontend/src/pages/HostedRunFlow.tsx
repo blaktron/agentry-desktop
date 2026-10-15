@@ -12,7 +12,7 @@
 // The desktop follows a run In Agentry and never drives it: every
 // sentence here is the registry's, or says what the registry said.
 import { useEffect, useRef, useState } from "react";
-import type { main } from "../../wailsjs/go/models";
+import type { app } from "../../wailsjs/go/models";
 import { hostedActive, hostedHeadline, hostedProgress, hostedTone, lostTouch } from "../hostedRun";
 import { CornerCard, ProgressView, RunningView } from "../progress";
 import {
@@ -151,7 +151,7 @@ export default function HostedRunFlow({ onBackToSetup, initialMinimized }: {
 // its cap, and the credits it holds. The registry reports turns only once
 // the run is over, so there are none while it runs, and a run In Agentry
 // is never stated in tokens.
-function HostedProgressView({ r, compact }: { r: main.HostedRunView; compact?: boolean }) {
+function HostedProgressView({ r, compact }: { r: app.HostedRunView; compact?: boolean }) {
   const queued = r.status === "queued" && (r.queuePosition ?? 0) > 0;
   const held = r.holdCredits === 1 ? "1 credit held" : `${r.holdCredits} credits held`;
   const p = hostedProgress(r);

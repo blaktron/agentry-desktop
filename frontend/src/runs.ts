@@ -13,9 +13,9 @@
 // createHostedRunStore, which node tests hold; this module wires them to
 // Go's events and calls.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../wailsjs/go/main/RunAPI";
+import * as RunAPI from "../wailsjs/go/app/RunAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
-import { main, trust } from "../wailsjs/go/models";
+import { app, trust } from "../wailsjs/go/models";
 import { type RunStoreState, createRunStore } from "./localRun";
 import { type HostedRunState, createHostedRunStore } from "./hostedRun";
 import { type ChatStoreState, createChatStore } from "./sessionChat";
@@ -54,7 +54,7 @@ export function useLocalRun(): RunState {
  *  Go reports that the run has begun, which is when the setup closes, and
  *  rejects with Go's words if it never began (the consent declined, another
  *  job holding the lock, a gate refused). */
-export function startLocalRun(s: RunSetup, ref: string, call: () => Promise<main.RunResultView>): Promise<void> {
+export function startLocalRun(s: RunSetup, ref: string, call: () => Promise<app.RunResultView>): Promise<void> {
   return store.start(s, ref, call);
 }
 
@@ -98,12 +98,12 @@ export function useHostedRun(): HostedState {
 /** Starts a run In Agentry by call (RunAPI.StartHostedRun) and follows it
  *  once the registry has created it; a refusal is handed back for the setup
  *  to show, and nothing is followed. */
-export const startHostedRun = (s: RunSetup, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> =>
+export const startHostedRun = (s: RunSetup, call: () => Promise<app.HostedStartView>): Promise<app.HostedStartView> =>
   hostedStore.start(s, s.panel.registry, call);
 
 /** Follows what an attach found In Agentry: a chat by the chat's store, a
  *  run by the run's. */
-async function followFound(registry: string, found: main.HostedStartView, card: boolean): Promise<boolean> {
+async function followFound(registry: string, found: app.HostedStartView, card: boolean): Promise<boolean> {
   if (found.run?.mode === "interactive") {
     return chatStore.followHosted({ registry, run: found.run, terms: null, opening: "", task: found.run.task ?? "" }, null, card);
   }
@@ -120,7 +120,7 @@ export async function attachHostedRun(registry: string): Promise<boolean> {
 /** Follows, as its card, a run or chat In Agentry a run setup found in
  *  flight as it opened (RunAPI.AttachHostedRun): one started elsewhere since
  *  the app started. One already followed stays as it is. */
-export const followHostedRunFound = (registry: string, found: main.HostedStartView): Promise<boolean> =>
+export const followHostedRunFound = (registry: string, found: app.HostedStartView): Promise<boolean> =>
   followFound(registry, found, true);
 
 /** Follows again, in its dialog, a run or chat the app lost touch with, on
@@ -178,7 +178,7 @@ export function startLocalChat(s: RunSetup, ref: string, task: string, opening: 
 }
 
 /** Follows, in its dialog, a chat In Agentry the registry has just created. */
-export function followHostedChat(s: RunSetup, run: main.HostedRunView, terms: main.HostedSessionOfferView | null, opening: string, task: string): void {
+export function followHostedChat(s: RunSetup, run: app.HostedRunView, terms: app.HostedSessionOfferView | null, opening: string, task: string): void {
   chatStore.followHosted({ registry: s.panel.registry, run, terms, opening, task }, s, false);
 }
 

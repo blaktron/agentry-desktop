@@ -1,4 +1,4 @@
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 
 // The AI Review key's recommendation: the words, the link's label and
 // where the link goes, in one place, so every surface that recommends a key
@@ -25,7 +25,7 @@ export const GET_A_KEY_LABEL = "Get a key from TypeSafe";
  *  which keyStanding reads the same way) is "env" or "saved". */
 export type KeyStanding = "env" | "saved" | "unread" | "none";
 
-export function keyStanding(k: Pick<main.JevKeyView, "envSet" | "stored" | "source">): KeyStanding {
+export function keyStanding(k: Pick<app.JevKeyView, "envSet" | "stored" | "source">): KeyStanding {
   if (k.envSet) return "env";
   if (k.stored) return k.source === "keyring" ? "saved" : "unread";
   return "none";

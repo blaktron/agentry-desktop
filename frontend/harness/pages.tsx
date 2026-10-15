@@ -634,7 +634,7 @@ const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock:
   };
 };
 
-g.go = { main: {
+g.go = { app: {
   ScheduleAPI: {
     Availability: async () => (schedNoCLIHash && !schedCLIInstalled
       ? { available: false, reason: "scheduling a run on this computer needs the agentry command, which was not found", zone: "Europe/London", lingerOn: false,
@@ -1065,13 +1065,13 @@ g.go = { main: {
 // status line from refuses, so the shot shows the cards without them.
 if (window.location.hash === "#status-refused") {
   const refuse = async () => { throw new Error("refused (harness)"); };
-  g.go.main.SelfUpdateAPI.SelfUpdateStatus = refuse;
-  g.go.main.SettingsAPI.CodingAgents = refuse;
-  g.go.main.RunAPI.SetupStatus = refuse;
-  g.go.main.RunAPI.JevKeyStatus = refuse;
-  g.go.main.SettingsAPI.RunDefaults = refuse;
-  g.go.main.HomeAPI.Layout = refuse;
-  g.go.main.RunAPI.Connections = refuse;
+  g.go.app.SelfUpdateAPI.SelfUpdateStatus = refuse;
+  g.go.app.SettingsAPI.CodingAgents = refuse;
+  g.go.app.RunAPI.SetupStatus = refuse;
+  g.go.app.RunAPI.JevKeyStatus = refuse;
+  g.go.app.SettingsAPI.RunDefaults = refuse;
+  g.go.app.HomeAPI.Layout = refuse;
+  g.go.app.RunAPI.Connections = refuse;
 }
 // The generated runtime's EventsOn goes through EventsOnMultiple.
 const subscribePage = (name: string, cb: (v: any) => void) => {
@@ -1281,7 +1281,7 @@ if (landedDraft) {
   // never marked.
   // The Scheduled card reads the CLI's store and runs nothing.
   const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", ...(homeScheduled ? ["HomeCard"] : [])]);
-  for (const api of Object.values(g.go.main) as Record<string, unknown>[]) {
+  for (const api of Object.values(g.go.app) as Record<string, unknown>[]) {
     for (const k of Object.keys(api)) {
       if (reads.has(k)) continue;
       api[k] = async () => {

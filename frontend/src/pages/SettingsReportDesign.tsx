@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { main, reportdesign } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { app, reportdesign } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, Select } from "../ui";
 import {
   canonical, edit, fieldLabel, fontsFor, HEADING_LABELS, labelOf, PAGE_NUMBER_LABELS, PAPER_LABELS, QUOTE_LABELS,
@@ -29,10 +29,10 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
   signedIn: boolean;
   onOpenRegistry: () => void;
 }) {
-  const [opts, setOpts] = useState<main.ReportDesignOptions | null>(null);
-  const [view, setView] = useState<main.ReportDesignView | null>(null);
+  const [opts, setOpts] = useState<app.ReportDesignOptions | null>(null);
+  const [view, setView] = useState<app.ReportDesignView | null>(null);
   const [d, setD] = useState<ReportDesign | null>(null);
-  const [check, setCheck] = useState<{ key: string; c: main.ReportDesignCheck } | null>(null);
+  const [check, setCheck] = useState<{ key: string; c: app.ReportDesignCheck } | null>(null);
   const [busy, setBusy] = useState<"" | "save" | "reset" | "logo" | "unlogo">("");
   const [err, setErr] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
@@ -332,7 +332,7 @@ export function ReportDesignSettings({ registry, signedIn, onOpenRegistry }: {
 
 // AccentLine is the contrast guard: the accent's ratio on white and
 // what it needs, or the core's refusal with the nearest shade that passes.
-function AccentLine({ accent, check, onUse }: { accent: string; check: main.ReportDesignCheck; onUse: (shade: string) => void }) {
+function AccentLine({ accent, check, onUse }: { accent: string; check: app.ReportDesignCheck; onUse: (shade: string) => void }) {
   const a = check.accent;
   const use = a.onText ? "colours text" : "colours only graphics";
   if (!a.valid) {

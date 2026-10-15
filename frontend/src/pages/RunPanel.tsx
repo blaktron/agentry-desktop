@@ -14,13 +14,13 @@
 // ChatFlow) and closes: it shows only the setup, a refusal, and the
 // missing-secret ask.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
-import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
-import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
-import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/main/App";
-import { knowledge, main, run, schedules, trust } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
+import * as VoiceAPI from "../../wailsjs/go/app/VoiceAPI";
+import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
+import { ChooseDirectory, ChooseFiles } from "../../wailsjs/go/app/App";
+import { knowledge, app, run, schedules, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
@@ -75,9 +75,9 @@ export default function RunPanel({
   const agentRef = `${ns}/${name}@${version}`;
   const f0 = initialForm;
 
-  const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
+  const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [setupErr, setSetupErr] = useState<string | null>(null);
-  const [profile, setProfile] = useState<main.ProfileStatusView | null>(null);
+  const [profile, setProfile] = useState<app.ProfileStatusView | null>(null);
   const [profileErr, setProfileErr] = useState<string | null>(null);
 
   // Guided profile form.
@@ -135,12 +135,12 @@ export default function RunPanel({
   // Settings → Run defaults: the saved output folder
   // fills the field and where to run pre-selects the Where step, until the
   // person chooses otherwise for this run.
-  const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
+  const [defaults, setDefaults] = useState<app.RunDefaultsView | null>(null);
   // Unsafe Mode: while Run defaults' switch is on, the
   // line a run of this release on this computer carries, as Go composes it
   // for the native consent dialog too. Shown on Review and start; it gates
   // nothing here, and a run In Agentry never carries it.
-  const [unsafeNotice, setUnsafeNotice] = useState<main.UnsafeNoticeView | null>(null);
+  const [unsafeNotice, setUnsafeNotice] = useState<app.UnsafeNoticeView | null>(null);
   useEffect(() => {
     let live = true;
     setUnsafeNotice(null);
@@ -171,7 +171,7 @@ export default function RunPanel({
   // advisory the gate rates high or critical refuses the run; on this
   // computer only Unsafe Mode, with this consent (recorded in the
   // receipt), lets it through.
-  const [mcp, setMcp] = useState<main.MCPView | null>(null);
+  const [mcp, setMcp] = useState<app.MCPView | null>(null);
   const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(f0?.allowVulnerableMCP ?? false);
   // The release's servers that sign in by OAuth and the connection this
   // version keeps for each: Connect tools makes them,
@@ -208,7 +208,7 @@ export default function RunPanel({
   const [check, setCheck] = useState<CheckState>({ state: "idle" });
   // A schedule In Agentry the registry would not make yet: its create is the
   // check, and what it names is asked for here, then Schedule is made again.
-  const [scheduleGap, setScheduleGap] = useState<main.HostedScheduleMadeView | null>(null);
+  const [scheduleGap, setScheduleGap] = useState<app.HostedScheduleMadeView | null>(null);
   useEffect(() => {
     let live = true;
     Promise.resolve()
@@ -224,11 +224,11 @@ export default function RunPanel({
 
   // In Agentry: whether the mode is offered here, the run
   // the registry is executing, and a refused create rendered as a sentence.
-  const [hosted, setHosted] = useState<main.HostedAvailabilityView | null>(null);
+  const [hosted, setHosted] = useState<app.HostedAvailabilityView | null>(null);
   // Whether the offer has been read (or failed to be): until then Run
   // defaults' fallback sentence has nothing to say.
   const [hostedKnown, setHostedKnown] = useState(false);
-  const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
+  const [hostedRefusal, setHostedRefusal] = useState<app.HostedStartView | null>(null);
   const [starting, setStarting] = useState(false);
   // A start refused connection-missing is made again until Agentry holds
   // the connections: whether that wait is under way.
@@ -411,7 +411,7 @@ export default function RunPanel({
   // voice's own switch until the person changes it; a change of where it runs
   // goes back to that voice's switch. A read that did not answer draws no box,
   // and the run goes without the voice.
-  const [voices, setVoices] = useState<main.VoiceView | null>(null);
+  const [voices, setVoices] = useState<app.VoiceView | null>(null);
   useEffect(() => {
     // Through a promise, so a binding that is not there (an older build's
     // harness) is a read that did not answer, not a throw.
@@ -776,7 +776,7 @@ export default function RunPanel({
     setRunErr(null);
     setScheduleGap(null);
     try {
-      const made = await ScheduleAPI.HostedAdd(main.HostedScheduleRequest.createFrom({
+      const made = await ScheduleAPI.HostedAdd(app.HostedScheduleRequest.createFrom({
         registry, ref: agentRef, task: task.trim(), files: inputs, knowledge: attached, intake: intakeAnswers(), voice: writeInVoice, when: spec,
         askOptionalSecrets: askOptional,
         sourceTokens: tokensForRun(sourceQs, intakeValues, typed), saveSourceKeys: saveInAgentry,
@@ -851,7 +851,7 @@ export default function RunPanel({
   // A start's answer In Agentry, followed: a chat above the pages once the
   // registry has created it, a run likewise, and this setup closes; a refusal
   // stays here, with its ask before any run exists.
-  async function startedInAgentry(call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> {
+  async function startedInAgentry(call: () => Promise<app.HostedStartView>): Promise<app.HostedStartView> {
     const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
     if (sessionInAgentry) {
       const started = await call();
@@ -1891,7 +1891,7 @@ export default function RunPanel({
 
 /** Whether a schedule's gap is its secrets: missing, or held for one run
  *  only, which the setup asks for, kept. */
-function gapAsksSecrets(gap: main.HostedScheduleMadeView): boolean {
+function gapAsksSecrets(gap: app.HostedScheduleMadeView): boolean {
   return (gap.refusal === "secret-missing" || gap.refusal === "secret-not-kept") && (gap.missing?.length ?? 0) > 0;
 }
 
@@ -1901,7 +1901,7 @@ function gapAsksSecrets(gap: main.HostedScheduleMadeView): boolean {
  *  on Connect tools; the plan, through the upgrade page; anything else in
  *  the registry's own words. */
 function ScheduleGap({ gap, registry, agentRef, busy, onAgain, onCancel, onError }: {
-  gap: main.HostedScheduleMadeView;
+  gap: app.HostedScheduleMadeView;
   registry: string;
   agentRef: string;
   busy: boolean;

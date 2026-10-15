@@ -23,9 +23,9 @@
 // the run lock.
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
-import * as VoiceAPI from "../../wailsjs/go/main/VoiceAPI";
-import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
-import { main, voice } from "../../wailsjs/go/models";
+import * as VoiceAPI from "../../wailsjs/go/app/VoiceAPI";
+import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/app/App";
+import { app, voice } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, EmptyState, ErrorBox, Modal, Notice, PageHeader, Spinner, Textarea } from "../ui";
 import { FoldedLog, StopButton } from "../progress";
@@ -48,14 +48,14 @@ export default function Voice({ registry, onOpenSettings }: {
   onOpenSettings: () => void;
 }) {
   const [page, setPage] = useState<VoiceView>("start");
-  const [view, setView] = useState<main.VoiceView | null>(null);
+  const [view, setView] = useState<app.VoiceView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // The Voice Writer run In Agentry this page started, followed here so it
   // outlives its dialog: its voice lands in the account, which is read
   // again when it ends.
-  const [hosted, setHosted] = useState<main.VoiceHostedView | null>(null);
+  const [hosted, setHosted] = useState<app.VoiceHostedView | null>(null);
 
   const refresh = useCallback(() => {
     VoiceAPI.View(registry)
@@ -66,7 +66,7 @@ export default function Voice({ registry, onOpenSettings }: {
       .catch((e) => setError(String(e)));
   }, [registry]);
   useEffect(refresh, [refresh]);
-  useEffect(() => EventsOn("voice:hosted", (v: main.VoiceHostedView) => {
+  useEffect(() => EventsOn("voice:hosted", (v: app.VoiceHostedView) => {
     setHosted(v);
     if (!v.final) return;
     if (v.applied) {
@@ -173,7 +173,7 @@ export default function Voice({ registry, onOpenSettings }: {
 // Download Cloud version, Upload to Cloud and Edit with AI above its
 // editor, the switch, and Delete at the foot.
 function LocalVoice({ view, registry, busy, act, messages, onBack, onDone }: {
-  view: main.VoiceView;
+  view: app.VoiceView;
   registry: string;
   busy: string | null;
   act: (what: string, call: () => Promise<string | void>) => void;
@@ -387,19 +387,19 @@ function EditWithAI({ registry, hasVoice, model, onClose, onDone }: {
 // Settings' Profile also shows; Restore previous and Delete at the
 // foot. No Download or Upload: those are this computer's.
 function CloudVoice({ view, registry, busy, act, hosted, onHosted }: {
-  view: main.VoiceView;
+  view: app.VoiceView;
   registry: string;
   busy: string | null;
   act: (what: string, call: () => Promise<string | void>) => void;
-  hosted: main.VoiceHostedView | null;
-  onHosted: (v: main.VoiceHostedView | null) => void;
+  hosted: app.VoiceHostedView | null;
+  onHosted: (v: app.VoiceHostedView | null) => void;
 }) {
   const account = view.account;
   const live = account?.live;
   const pending = account?.pending;
   const has = !!(live || pending);
   const job = accountJob(account);
-  const [avail, setAvail] = useState<main.VoiceHostedAvailabilityView | null>(null);
+  const [avail, setAvail] = useState<app.VoiceHostedAvailabilityView | null>(null);
   const [availError, setAvailError] = useState(false);
   const [dialog, setDialog] = useState(false);
   // A Voice Writer run In Agentry already in flight (started before the
@@ -634,9 +634,9 @@ function SamplesPicker({ label, samples, onChange, hint }: {
 function CloudEditWithAI({ registry, hasVoice, avail, hosted, onHosted, onClose }: {
   registry: string;
   hasVoice: boolean;
-  avail: main.VoiceHostedAvailabilityView;
-  hosted: main.VoiceHostedView | null;
-  onHosted: (v: main.VoiceHostedView | null) => void;
+  avail: app.VoiceHostedAvailabilityView;
+  hosted: app.VoiceHostedView | null;
+  onHosted: (v: app.VoiceHostedView | null) => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState("");
@@ -833,7 +833,7 @@ type Wysiwyg = { View: typeof import("../VoiceWysiwyg").default; doc: JSONConten
 // VoiceSwitch is a voice's always-attach switch, for Settings: this
 // computer's under Run defaults, the account's under Profile.
 export function VoiceSwitch({ registry, place }: { registry: string; place: "here" | "account" }) {
-  const [view, setView] = useState<main.VoiceView | null>(null);
+  const [view, setView] = useState<app.VoiceView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const read = useCallback(() => {

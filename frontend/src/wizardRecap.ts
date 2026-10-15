@@ -1,4 +1,4 @@
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import type { KeyStanding } from "./keyRecommendation";
 
 // The first-run wizard's recap rules that are worth holding in a test: the
@@ -35,7 +35,7 @@ export function keyRow(k: { standing: KeyStanding; envName: string } | null): Re
  *  run.Status: the policy's model block is not the default's). A policy
  *  that holds only the default says that and where its key is read from,
  *  and claims nothing about whether one is there. */
-export function providerRow(s: main.SetupStatusView | null): RecapRow {
+export function providerRow(s: app.SetupStatusView | null): RecapRow {
   const named = s ? `${s.provider}${s.model ? ` (${s.model})` : ""}` : "";
   if (s?.providerSetUp) return { ok: true, text: `Provider ${named} written to the runner policy` };
   if (s?.policyExists) {
@@ -50,7 +50,7 @@ export function providerRow(s: main.SetupStatusView | null): RecapRow {
  *  saved AI Review key is a recommendation taken, so neither counts;
  *  nor does the policy the key's save wrote from defaults, nor a variable
  *  the shell happened to set. */
-export function nothingSetUp(v: { signedIn: boolean; setup: main.SetupStatusView | null; codingAgentChosen: boolean }): boolean {
+export function nothingSetUp(v: { signedIn: boolean; setup: app.SetupStatusView | null; codingAgentChosen: boolean }): boolean {
   return !v.signedIn && !v.setup?.providerSetUp && !v.codingAgentChosen;
 }
 

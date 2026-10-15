@@ -4,7 +4,7 @@
 // nothing open, and follows a chat In Agentry by its run's id.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { createChatStore, working } from "../src/sessionChat.ts";
 
 type Cb = (v: never) => void;
@@ -13,7 +13,7 @@ function harness() {
   const listeners: Record<string, Cb[]> = {};
   const calls: string[] = [];
   const forgotten: string[] = [];
-  let endAnswer: () => Promise<main.RunResultView> = async () => ({ runId: "c1", status: "ok", exitCode: 0 }) as unknown as main.RunResultView;
+  let endAnswer: () => Promise<app.RunResultView> = async () => ({ runId: "c1", status: "ok", exitCode: 0 }) as unknown as app.RunResultView;
   let sendAnswer: () => Promise<void> = async () => undefined;
   const store = createChatStore<string>({
     on: (event, cb) => {
@@ -32,13 +32,13 @@ function harness() {
   const fire = (event: string, v: unknown) => (listeners[event] ?? []).forEach((cb) => cb(v as never));
   return {
     store, fire, calls, forgotten,
-    answerEnd: (f: () => Promise<main.RunResultView>) => { endAnswer = f; },
+    answerEnd: (f: () => Promise<app.RunResultView>) => { endAnswer = f; },
     answerSend: (f: () => Promise<void>) => { sendAnswer = f; },
   };
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));
-const hostedRun = (id: string, extra: Partial<main.HostedRunView> = {}) =>
-  ({ id, ref: "acme/helper@1.0.0", status: "running", state: "running", mode: "interactive", final: false, outputs: [], ...extra }) as unknown as main.HostedRunView;
+const hostedRun = (id: string, extra: Partial<app.HostedRunView> = {}) =>
+  ({ id, ref: "acme/helper@1.0.0", status: "running", state: "running", mode: "interactive", final: false, outputs: [], ...extra }) as unknown as app.HostedRunView;
 
 test("the store starts a chat once, however often the flow moves between dialog and card", async () => {
   const h = harness();

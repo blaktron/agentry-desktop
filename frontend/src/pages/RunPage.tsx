@@ -12,9 +12,9 @@
 // own place. A folder that has gone is said, with a way to remove
 // the entry; it is never looked for.
 import { useEffect, useRef, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, PageHeader, Spinner } from "../ui";
 import { RunResultView } from "./RunResult";
 import { HostedResult } from "./HostedRun";
@@ -35,7 +35,7 @@ export default function RunPage({ source, id, registry, backLabel, onBack, onOpe
   backLabel: string;
   onBack: () => void;
   onOpenPlace: (page: BuiltinPage) => void;
-  onOpenDraft: (draft: main.DraftView) => void;
+  onOpenDraft: (draft: app.DraftView) => void;
 }) {
   return source === "hosted"
     ? <HostedRunPage id={id} registry={registry} backLabel={backLabel} onBack={onBack} onOpenPlace={onOpenPlace} onOpenDraft={onOpenDraft} />
@@ -49,7 +49,7 @@ function Back({ label, onBack }: { label: string; onBack: () => void }) {
 function PlaceButton({ kind, source, id, registry, onOpenPlace, onOpenDraft }: {
   kind: string; source: RunPageSource; id: string; registry: string;
   onOpenPlace: (page: BuiltinPage) => void;
-  onOpenDraft: (draft: main.DraftView) => void;
+  onOpenDraft: (draft: app.DraftView) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,12 +104,12 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
   backLabel: string;
   onBack: () => void;
   onOpenPlace: (page: BuiltinPage) => void;
-  onOpenDraft: (draft: main.DraftView) => void;
+  onOpenDraft: (draft: app.DraftView) => void;
 }) {
-  const [view, setView] = useState<main.RecordedRunView | null>(null);
+  const [view, setView] = useState<app.RecordedRunView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // An Examiner review's report, which is the review's page.
-  const [report, setReport] = useState<main.ReviewView | null>(null);
+  const [report, setReport] = useState<app.ReviewView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -172,7 +172,7 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
 }
 
 /** The run's facts under Run details: its id, release and folder. */
-function RunFacts({ row, version, folder }: { row: main.RecentRunView; version: string; folder?: string }) {
+function RunFacts({ row, version, folder }: { row: app.RecentRunView; version: string; folder?: string }) {
   return (
     <Card className="selectable">
       <div className="kv"><span className="k">run</span><span className="mono">{row.id}</span></div>
@@ -191,9 +191,9 @@ function HostedRunPage({ id, registry, backLabel, onBack, onOpenPlace, onOpenDra
   backLabel: string;
   onBack: () => void;
   onOpenPlace: (page: BuiltinPage) => void;
-  onOpenDraft: (draft: main.DraftView) => void;
+  onOpenDraft: (draft: app.DraftView) => void;
 }) {
-  const [view, setView] = useState<main.HostedRecordView | null>(null);
+  const [view, setView] = useState<app.HostedRecordView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [downloadErr, setDownloadErr] = useState<string | null>(null);

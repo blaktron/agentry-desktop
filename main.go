@@ -5,7 +5,6 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"os"
 
@@ -17,11 +16,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/webview"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
+	"github.com/blaktron/agentry-desktop/internal/app"
 	"github.com/blaktron/agentry-desktop/internal/applog"
 	"github.com/blaktron/agentry-desktop/internal/clipath"
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 	"github.com/blaktron/agentry-desktop/internal/hostpath"
-	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/uninstall"
 )
 
@@ -53,19 +52,7 @@ func main() {
 	if len(os.Args) > 1 && (os.Args[1] == clipath.AddFlag || os.Args[1] == clipath.RemoveFlag) {
 		os.Exit(clipath.Main(os.Stderr, os.Args[1]))
 	}
-	app := NewApp()
-	settingsAPI := &SettingsAPI{app: app}
-	browseAPI := &BrowseAPI{app: app}
-	installAPI := &InstallAPI{app: app, engine: install.NewEngine()}
-	validateAPI := &ValidateAPI{app: app}
-	runAPI := &RunAPI{app: app}
-	buildAPI := &BuildAPI{app: app, run: runAPI}
-	knowledgeAPI := &KnowledgeAPI{app: app, run: runAPI}
-	voiceAPI := &VoiceAPI{app: app, run: runAPI}
-	homeAPI := &HomeAPI{}
-	publisherAPI := &PublisherAPI{app: app}
-	selfUpdateAPI := newSelfUpdateAPI(app)
-	scheduleAPI := &ScheduleAPI{app: app, run: runAPI}
+	services := app.New()
 
 	err := wails.Run(&options.App{
 		Title:     "Agentry Desktop",
@@ -91,55 +78,10 @@ func main() {
 			// bindings are the local machine (internal/webview).
 			Middleware: webview.Middleware,
 		},
-		OnStartup: func(ctx context.Context) {
-			app.startup(ctx)
-			// A run an earlier session was killed in the middle of is swept
-			// by its record; in its own goroutine, since Docker may be slow
-			// or not yet running.
-			go runAPI.sweepOrphans(ctx)
-			// Last, and in its own goroutine: the check for a newer Agentry
-			// Desktop must not delay the first paint or the first-run
-			// wizard.
-			selfUpdateAPI.start(ctx)
-			// And the installed QuickAgents' check, once.
-			installAPI.start(ctx)
-			// The schedules' alarms rewritten from the store.
-			scheduleAPI.start(ctx)
-			// An older agentry CLI from the site's install script, first on
-			// the PATH, brought up to the one this app carries; in its own
-			// goroutine, since it runs both CLIs' --version.
-			go refreshScriptCLI()
-		},
-		// "Install automatically when I quit". Off by default; does nothing
-		// unless a verified release is waiting and the person turned it on.
-		// OnShutdown rather than OnBeforeClose: by here the window is going
-		// anyway, so replacing the application cannot interrupt anything the
-		// person is still doing.
-		//
-		// A run in flight is ended first: closing the window with one live
-		// asks in a native dialog, and shutdown cancels the run, waits
-		// (bounded) for the engine's teardown and sweeps the run's label, so
-		// no agent or gateway container outlives the app.
-		OnBeforeClose: runAPI.beforeClose,
-		OnShutdown: func(context.Context) {
-			runAPI.shutdown()
-			selfUpdateAPI.applyOnQuit()
-		},
-		Bind: []interface{}{
-			app,
-			settingsAPI,
-			browseAPI,
-			installAPI,
-			validateAPI,
-			runAPI,
-			buildAPI,
-			knowledgeAPI,
-			voiceAPI,
-			homeAPI,
-			publisherAPI,
-			selfUpdateAPI,
-			scheduleAPI,
-		},
+		OnStartup:     services.Startup,
+		OnBeforeClose: services.BeforeClose,
+		OnShutdown:    services.Shutdown,
+		Bind:          services.Bind(),
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{
 				Title:   "Agentry Desktop",

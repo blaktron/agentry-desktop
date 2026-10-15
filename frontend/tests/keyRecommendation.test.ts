@@ -3,7 +3,7 @@
 // (scripts/copy-check.sh reads this module with the rest).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../src/keyRecommendation.ts";
 
 test("the recommendation is the agreed sentence, word for word", () => {
@@ -19,7 +19,7 @@ test("the link goes to TypeSafe over https, with nothing of the person's in it",
 });
 
 test("where the key stands is decided once, for every surface that says it", () => {
-  const view = (v: Record<string, unknown>) => v as unknown as main.JevKeyView;
+  const view = (v: Record<string, unknown>) => v as unknown as app.JevKeyView;
   // The variable goes first, whatever the keychain holds.
   assert.equal(keyStanding(view({ envSet: true, stored: true, source: "keyring" })), "env");
   assert.equal(keyStanding(view({ envSet: false, stored: true, source: "keyring" })), "saved");

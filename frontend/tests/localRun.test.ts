@@ -2,13 +2,13 @@
 // store takes from Go's reports, and what it never takes.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { failed, finished, outcome, starting, stopAsked, withLine, withProgress, type RunProgress } from "../src/localRun.ts";
 
 const report = (runId: string, ref: string, turns = 0): RunProgress => ({
   runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0, prepared: true,
 });
-const result = (runId: string, status = "ok", exitCode = 0) => ({ runId, status, exitCode }) as unknown as main.RunResultView;
+const result = (runId: string, status = "ok", exitCode = 0) => ({ runId, status, exitCode }) as unknown as app.RunResultView;
 
 test("the first report names the run, and later ones must carry its id", () => {
   let r = starting("acme/a@1.0.0");
@@ -62,7 +62,7 @@ test("how it ended, for the card", () => {
 // is a warning that says who stopped it, never an error and never a pass.
 test("a blocked run says who stopped it, as a warning", () => {
   const blocked = (reason: unknown, error = "") =>
-    ({ runId: "r1", status: "error", exitCode: 18, exitClass: "blocked", reason, error }) as unknown as main.RunResultView;
+    ({ runId: "r1", status: "error", exitCode: 18, exitClass: "blocked", reason, error }) as unknown as app.RunResultView;
   const begun = withProgress(starting("acme/a@1.0.0"), report("r1", "acme/a@1.0.0"));
   const agent = outcome(finished(begun, blocked({ code: "agent-blocked" }, "blocked: the agent could not do the task: the archive is encrypted.")));
   assert.deepEqual(agent, { line: "Blocked: the QuickAgent could not do the task with what this run had. It said: the archive is encrypted.", tone: "warn" });

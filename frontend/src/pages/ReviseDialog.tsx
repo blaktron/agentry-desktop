@@ -6,10 +6,10 @@
 // the draft's progress dialog (DraftFlow), and the revision lands in the
 // Build tab with its diff (BuildRevision).
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { main } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { app } from "../../wailsjs/go/models";
 import { startRevision, useDraft } from "../drafts";
 import { MAX_REVISION_TEXT_BYTES, canStart, firstWhere, revisionBytes, textsProblem, type ReviseWhere, type ReviseWays } from "../revise";
 import { Button, Card, ErrorBox, Modal, Notice, Textarea } from "../ui";
@@ -30,9 +30,9 @@ export default function ReviseDialog({
   const [instructions, setInstructions] = useState("");
   const [problems, setProblems] = useState("");
   const [where, setWhere] = useState<ReviseWhere | null>(null);
-  const [agentry, setAgentry] = useState<main.DescribeHostedView | null>(null);
-  const [status, setStatus] = useState<main.DescribeStatusView | null>(null);
-  const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
+  const [agentry, setAgentry] = useState<app.DescribeHostedView | null>(null);
+  const [status, setStatus] = useState<app.DescribeStatusView | null>(null);
+  const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
   // One draft at a time, as Describe it allows (drafts.ts).
   const d = useDraft();

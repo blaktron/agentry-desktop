@@ -17,8 +17,8 @@
 // string here that an agent or the registry wrote (the log, the refusal,
 // the error) is drawn as text.
 import { useEffect, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { main } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { app } from "../../wailsjs/go/models";
 import { DraftProgress, DraftState, cancelHostedDraft, dismissDraft, showDraft, stopDraft, useDraft } from "../drafts";
 import type { Tone } from "../jobProgress";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
@@ -208,7 +208,7 @@ function DraftProgressView({ progress, compact }: { progress: DraftProgress | nu
   return <ProgressView progress={progress} job="draft" compact={compact} fact={(p) => (p.turns === 1 ? "1 turn" : `${p.turns} turns`)} />;
 }
 
-function DraftRefusal({ v, registry, onError }: { v: main.HostedDraftStartView; registry: string; onError: (e: string) => void }) {
+function DraftRefusal({ v, registry, onError }: { v: app.HostedDraftStartView; registry: string; onError: (e: string) => void }) {
   return (
     <Notice tone="warn">
       The draft was not started: <RevealText text={v.detail ?? v.refusal ?? ""} />

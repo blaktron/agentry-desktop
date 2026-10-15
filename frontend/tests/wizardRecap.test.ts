@@ -6,10 +6,10 @@
 // whether a provider was set up, not by whether the policy exists.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { keyRow, missingForNotice, nothingSetUp, providerRow } from "../src/wizardRecap.ts";
 
-const setup = (v: Record<string, unknown>) => v as unknown as main.SetupStatusView;
+const setup = (v: Record<string, unknown>) => v as unknown as app.SetupStatusView;
 
 test("a key in the keychain that the policy reads is a done row", () => {
   assert.deepEqual(

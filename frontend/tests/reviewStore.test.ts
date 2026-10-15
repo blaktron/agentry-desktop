@@ -5,7 +5,7 @@
 // Dismiss reach the review they mean.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { createReviewStore, outcome, outcomeTone, type ReviewProgress } from "../src/review.ts";
 
 type Cb = (v: never) => void;
@@ -30,12 +30,12 @@ function harness() {
 }
 
 function pending() {
-  let resolve!: (r: main.ReviewView | null) => void;
+  let resolve!: (r: app.ReviewView | null) => void;
   let reject!: (e: unknown) => void;
-  const p = new Promise<main.ReviewView | null>((res, rej) => { resolve = res; reject = rej; });
+  const p = new Promise<app.ReviewView | null>((res, rej) => { resolve = res; reject = rej; });
   return { call: () => p, resolve, reject };
 }
-const view = (runId: string, o = "needs_review", words = "held for review") => ({ runId, outcome: o, outcomeWords: words, ref: "example/x@0.1.0" }) as unknown as main.ReviewView;
+const view = (runId: string, o = "needs_review", words = "held for review") => ({ runId, outcome: o, outcomeWords: words, ref: "example/x@0.1.0" }) as unknown as app.ReviewView;
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 test("a review is followed from its first report to its report", async () => {

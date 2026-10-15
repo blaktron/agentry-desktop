@@ -4,11 +4,11 @@
 // result, and a refused start follows nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { createHostedRunStore, hostedHeadline, hostedProgress, lostTouch } from "../src/hostedRun.ts";
 
 type Cb = (v: never) => void;
-type View = main.HostedRunView;
+type View = app.HostedRunView;
 
 function harness() {
   const listeners: Record<string, Cb[]> = {};
@@ -34,7 +34,7 @@ const view = (id: string, status: string, extra: Partial<View> = {}) =>
   ({ id, ref: "acme/reporter@1.0.0", status, state: status, statusLine: status, final: false, outputs: [], turns: 0,
     holdCredits: 20, ...extra }) as unknown as View;
 const REG = "https://dev.example.test";
-const started = (v: View) => async () => ({ run: v }) as main.HostedStartView;
+const started = (v: View) => async () => ({ run: v }) as app.HostedStartView;
 
 test("a started run is followed by its id, and another run's reports change nothing", async () => {
   const h = harness();
@@ -68,7 +68,7 @@ test("a run that ends while its dialog is closed lands in its card with its resu
 
 test("a refused start follows nothing, and the setup gets the refusal", async () => {
   const h = harness();
-  const v = await h.store.start("setup A", REG, async () => ({ refusal: "credits-exhausted", detail: "No credits left." }) as main.HostedStartView);
+  const v = await h.store.start("setup A", REG, async () => ({ refusal: "credits-exhausted", detail: "No credits left." }) as app.HostedStartView);
   assert.equal(v.refusal, "credits-exhausted");
   const s = h.store.state();
   assert.equal(s.run, null);
@@ -77,21 +77,21 @@ test("a refused start follows nothing, and the setup gets the refusal", async ()
 
 test("a report that arrives before the registry's answer is not lost to it", async () => {
   const h = harness();
-  let answer!: (v: main.HostedStartView) => void;
+  let answer!: (v: app.HostedStartView) => void;
   const begun = h.store.start("setup A", REG, () => new Promise((res) => { answer = res; }));
   await Promise.resolve();
   h.report(view("r1", "running"));
-  answer({ run: view("r1", "queued") } as main.HostedStartView);
+  answer({ run: view("r1", "queued") } as app.HostedStartView);
   await begun;
   assert.equal(h.store.state().run?.status, "running");
 });
 
 test("a start while one waits for the registry is refused", async () => {
   const h = harness();
-  let answer!: (v: main.HostedStartView) => void;
+  let answer!: (v: app.HostedStartView) => void;
   const first = h.store.start("setup A", REG, () => new Promise((res) => { answer = res; }));
   await assert.rejects(h.store.start("setup B", REG, started(view("r2", "queued"))), /being started/);
-  answer({ run: view("r1", "queued") } as main.HostedStartView);
+  answer({ run: view("r1", "queued") } as app.HostedStartView);
   await first;
   assert.equal(h.store.state().run?.id, "r1");
 });
@@ -110,7 +110,7 @@ test("a run attached at start opens as its card, with no setup to go back to", a
   assert.equal(s.run?.id, "r1");
   assert.equal(s.asCard, true);
   assert.equal(s.setup, null);
-  assert.equal(await h.store.attach(REG, async () => ({}) as main.HostedStartView), false, "a second attach over a moving run");
+  assert.equal(await h.store.attach(REG, async () => ({}) as app.HostedStartView), false, "a second attach over a moving run");
 });
 
 test("Cancel asks the registry and shows what it answered; a refused cancel says why", async () => {
@@ -167,17 +167,17 @@ test("following again a run Agentry no longer lists says so", async () => {
   const h = harness();
   await h.store.start("setup A", REG, started(view("r1", "running")));
   h.report(view("r1", "running", { final: true, downloadError: "lost touch" }));
-  assert.equal(await h.store.attach(REG, async () => ({}) as main.HostedStartView, false), false);
+  assert.equal(await h.store.attach(REG, async () => ({}) as app.HostedStartView, false), false);
   assert.match(h.store.state().note ?? "", /no run of this account in progress/);
 });
 
 test("the store keeps the registry a run is followed on, and says while a start waits", async () => {
   const h = harness();
-  let answer!: (v: main.HostedStartView) => void;
+  let answer!: (v: app.HostedStartView) => void;
   const begun = h.store.start("setup A", "https://one.example.test", () => new Promise((res) => { answer = res; }));
   await Promise.resolve();
   assert.equal(h.store.state().starting, true);
-  answer({ run: view("r1", "running") } as main.HostedStartView);
+  answer({ run: view("r1", "running") } as app.HostedStartView);
   await begun;
   const s = h.store.state();
   assert.equal(s.starting, false);

@@ -6,20 +6,20 @@
 // Test key makes one search and says the provider's answer in plain words.
 // The same one-card shape as AIReviewKey.tsx.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice, Select } from "../ui";
 import { initialProvider, replaceNote, searchKeySentence } from "../searchKey";
 
 export function WebSearchKeyCard() {
-  const [status, setStatus] = useState<main.SearchKeyView | null>(null);
+  const [status, setStatus] = useState<app.SearchKeyView | null>(null);
   const [provider, setProvider] = useState("");
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tested, setTested] = useState<main.SearchKeyTestView | null>(null);
+  const [tested, setTested] = useState<app.SearchKeyTestView | null>(null);
 
-  function show(s: main.SearchKeyView) {
+  function show(s: app.SearchKeyView) {
     setStatus(s);
     setProvider(initialProvider(s));
   }

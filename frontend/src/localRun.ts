@@ -2,7 +2,7 @@
 // Go has reported of it, keyed by its id, and how it ended. Pure, so the
 // store (runs.ts) and its tests share one set of rules: a report or a line of
 // another run, or of this run after it ended, changes nothing.
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import type { JobProgress, Tone } from "./jobProgress";
 
 /** How far a run on this computer has got, as Go reports it
@@ -22,7 +22,7 @@ export type LocalRun = {
   runId: string | null;
   progress: RunProgress | null;
   log: string[];
-  result: main.RunResultView | null;
+  result: app.RunResultView | null;
   /** Why it ended with no result, in Go's words. */
   error: string | null;
   over: boolean;
@@ -49,7 +49,7 @@ export function withLine(r: LocalRun, l: RunLine): LocalRun {
 }
 
 /** The run's result: it is over. */
-export function finished(r: LocalRun, result: main.RunResultView): LocalRun {
+export function finished(r: LocalRun, result: app.RunResultView): LocalRun {
   if (r.over) return r;
   return { ...r, runId: r.runId ?? result.runId, result, over: true, stopped: r.stopping };
 }
@@ -68,7 +68,7 @@ export function stopAsked(r: LocalRun): LocalRun {
 /** How a run that produced a result ended, as its result view's headline
  *  says it: stopped, finished, or in an error. A chat's result says it the
  *  same way. */
-export function headlineOf(result: main.RunResultView, stopped = false): { line: string; tone: Exclude<Tone, ""> } {
+export function headlineOf(result: app.RunResultView, stopped = false): { line: string; tone: Exclude<Tone, ""> } {
   if (stopped) return { line: "You stopped the run. Its receipts are written as far as it got.", tone: "warn" };
   if (result.status === "ok") return { line: "Finished.", tone: "ok" };
   if (result.exitClass === "blocked") return { line: blockedLine(result), tone: "warn" };
@@ -83,7 +83,7 @@ const AGENT_BLOCKED = "blocked: the agent could not do the task: ";
  *  from the envelope's reason: the QuickAgent's own word, with its sentence,
  *  which on this computer is the person's own run; or the runner's tools
  *  failing it. A reason this does not know reads as the tools'. */
-export function blockedLine(result: Pick<main.RunResultView, "reason" | "error">): string {
+export function blockedLine(result: Pick<app.RunResultView, "reason" | "error">): string {
   if (result.reason?.code === "agent-blocked") {
     const said = result.error?.startsWith(AGENT_BLOCKED) ? result.error.slice(AGENT_BLOCKED.length).trim() : "";
     return said
@@ -154,7 +154,7 @@ export function createRunStore<S>(deps: RunStoreDeps) {
     /** Starts a run of ref by call: resolves once Go reports that the run
      *  has begun, which is when the setup closes, and rejects with Go's
      *  words if it never began. */
-    start(s: S, ref: string, call: () => Promise<main.RunResultView>): Promise<void> {
+    start(s: S, ref: string, call: () => Promise<app.RunResultView>): Promise<void> {
       if (starting_) return Promise.reject("A run is being started on this computer; wait for it to begin, then start another.");
       starting_ = true;
       const token = {};
