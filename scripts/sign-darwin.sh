@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Developer ID-signs, notarizes and staples the macOS bundle and its disk
-# image on the Mac runner, and asks Gatekeeper for its verdict on each
-# (agentry-desktop#6; plan agentry-notes/plans/os-code-signing.md §5, M-M2,
-# D4, D5, D6, D8).
+# image on the Mac runner, and asks Gatekeeper for its verdict on each.
 #
 #   scripts/sign-darwin.sh app    <agentry-desktop.app>   sign, notarize, staple, assess
 #   scripts/sign-darwin.sh dmg    <image.dmg>             sign, notarize, staple, assess
@@ -12,7 +10,7 @@
 # `app` on the built bundle, then `make wrap-darwin` (the zip and the dmg are
 # made from the STAPLED bundle, so both carry its ticket), then `dmg` on the
 # image, then `check-darwin-dmg.sh --signed` and `assess` on the zip. Nothing
-# in the app's build or tests calls this, and a PR build never does (D6): an
+# in the app's build or tests calls this, and a PR build never does: an
 # unsigned build stays the ad-hoc one wails applies.
 #
 # `app` signs inside-out under the hardened runtime with Apple's timestamp:
@@ -22,7 +20,7 @@
 # process, the Go binary needs no JIT, and exec of the Docker and
 # coding-agent CLIs is allowed under the hardened runtime. The read-back
 # refuses a signature that carries any, so one can only arrive as a reviewed
-# change here, with its line in the register. A nested bundle (.framework,
+# change here. A nested bundle (.framework,
 # .app, .xpc, …) is refused rather than signed in a way nobody checked.
 #
 # Notarization submits a zip of the bundle (or the dmg itself), waits for
@@ -54,19 +52,18 @@
 #   SIGN_DARWIN_REPORT               optional: a file to append team=, notarized= and the submission to
 #   NOTARY_TIMEOUT_MINUTES           optional: how long to wait for Apple, default 120
 #
-# Custody (D5): the certificate lives in a keychain this script creates in its
+# Custody: the certificate lives in a keychain this script creates in its
 # own 0700 directory and deletes on exit, with the .p12 (removed as soon as
 # it is imported) and the .p8 (kept for the notary wait); a keychain left on
 # the search list fails the run. A process killed before its EXIT trap runs
 # (a cancelled job) leaves both behind: the release job's last step removes
-# them and fails (release.yaml, "No signing keychain or key is left"). The keychain is on the build user's search list only while codesign
-# runs (codesign finds no identity otherwise). Headless codesign also needs
-# Apple's Developer ID G2 intermediate in the host's System keychain
-# (installed on maxbookpro on 2026-10-01, agentry-desktop#152): without it
-# codesign fails with errSecInternalComponent. The keychain handling is the
-# CLI's scripts/sign-darwin.sh (agentry-cli#198), copied, as D-032 copies the
-# Windows signing scripts rather than sharing them. macOS's bash is 3.2:
-# nothing here needs bash 4.
+# them and fails (release.yaml, "No signing keychain or key is left"). The keychain is on
+# the build user's search list only while codesign runs (codesign finds no
+# identity otherwise). Headless codesign also needs Apple's Developer ID G2
+# intermediate in the host's System keychain: without it codesign fails with
+# errSecInternalComponent. The keychain handling is the same as the CLI's
+# scripts/sign-darwin.sh, which is copied rather than shared. macOS's bash
+# is 3.2: nothing here needs bash 4.
 set -euo pipefail
 
 OPENSSL=/usr/bin/openssl
@@ -126,7 +123,7 @@ cleanup() {
   if grep -F "$(basename "$W")" <<<"$left" >/dev/null; then echo "sign-darwin: the signing keychain is still on the search list" >&2; return 1; fi
   return 0
 }
-# A keychain left on the list fails the run (plan os-code-signing.md M-M2 step 7).
+# A keychain left on the list fails the run.
 trap 'cleanup || exit 1' EXIT
 
 # --- the read-back ----------------------------------------------------------
@@ -185,7 +182,7 @@ assess_app() {
     fail "$app carries entitlements; this release signs with none (add one here, deliberately, with its register line)"
   fi
   # The designated requirement is what macOS keys privacy grants and the
-  # keychain's trust on: it must name our team, not a cdhash.
+  # keychain's trust on: it must name the team, not a cdhash.
   # codesign quotes the value ("= \"3MU9H2V9Y9\"", seen on macOS 26.6).
   dr=$(codesign -d -r- "$app" 2>&1) || { echo "$dr" >&2; fail "codesign could not read the designated requirement of $app"; }
   grep -E "certificate leaf\[subject\.OU\] = \"?$APPLE_TEAM_ID\"?( |$)" <<<"$dr" >/dev/null \
@@ -261,9 +258,9 @@ sign() {
   kc_add
   # Without a console session, codesign takes Apple's Developer ID G2
   # intermediate only from the System keychain; find-identity still calls
-  # the identity valid without it (agentry-desktop#152).
+  # the identity valid without it.
   codesign --force --timestamp --keychain "$KC" --sign "$sha1" "$@" \
-    || fail "codesign failed on ${@: -1} (errSecInternalComponent above means Apple's Developer ID G2 intermediate is missing from this host's System keychain, agentry-desktop#152)"
+    || fail "codesign failed on ${@: -1} (errSecInternalComponent above means Apple's Developer ID G2 intermediate is missing from this host's System keychain)"
 }
 
 # --- sign -------------------------------------------------------------------

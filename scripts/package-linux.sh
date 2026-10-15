@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wrap the Linux binary in a .deb and an .rpm from one description
-# (build/nfpm/nfpm.yaml; agentry-desktop#84, plan desktop-installers.md §5).
+# (build/nfpm/nfpm.yaml).
 #
 #   make package-linux            (builds the binary first, then calls this)
 #   scripts/package-linux.sh      (DESKTOP_VERSION names the binary to wrap)
@@ -11,7 +11,7 @@
 #                     without the tag's v).
 #
 # nfpm is a Go program with no other dependency, run at the version pinned
-# below through `go run`, so the runner and a workstation build the same
+# below through `go run`, so CI and a local build produce the same
 # packages without installing anything; the module proxy's checksum database
 # verifies what is fetched (nfpm is outside GOPRIVATE), and the first run
 # compiles it into the build cache. The pin changes here, in one place.
@@ -79,7 +79,7 @@ chmod 0755 build/linux/stage/agentry-desktop
 trap 'rm -rf build/linux/stage' EXIT
 
 # The agentry CLI, when the build carries it (build/cli/agentry, which
-# scripts/fetch-cli.sh brings in; agentry-desktop#580): /usr/bin/agentry,
+# scripts/fetch-cli.sh brings in): /usr/bin/agentry,
 # from a copy of the description with that one entry added after the app's,
 # so a PR build packages exactly what it did. Still no maintainer script.
 desc=build/nfpm/nfpm.yaml

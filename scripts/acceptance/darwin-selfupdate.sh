@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Proves what applying a newer Agentry Desktop must do on macOS, and what it
-# must refuse (agentry-desktop#88, M7; plan desktop-installers.md §7, §8, D6).
+# must refuse.
 #
 #   scripts/acceptance/darwin-selfupdate.sh <old.app> <new-version.zip>
 #
@@ -12,7 +12,7 @@
 # Nothing is installed on the machine and nothing is launched: the "Applications
 # folder", the configuration directory and the runner home are all temporary,
 # and the relaunch is the one step this cannot take without a console session
-# (the Mac runner has none — #106). What that leaves unproven is stated at the
+# (a CI runner has none). What that leaves unproven is stated at the
 # end rather than skipped silently.
 #
 # macOS ships bash 3.2: no arrays, no mapfile, no associative arrays.
@@ -106,4 +106,4 @@ outside=$(cd "$apps" && find . -name '*.app' -prune -o -print | grep -v '^\.$' |
 
 echo
 echo "darwin-selfupdate: ok — internal/selfupdate's darwin tests passed against the REAL applier (swap, replace not merge, nothing left behind, unwritable parent refused, two-bundle archive refused, no relaunch when not asked), and a swap in a real Applications folder left the settings, the installed agents, the pinned key and the runner policy byte-identical."
-echo "NOT proven here: the relaunch. Applying ends with 'open -n' on the new bundle, which needs a console session; this runner has none (agentry-desktop#106). The Go test observes the exec that WOULD have run, not the window that would have opened."
+echo "NOT proven here: the relaunch. Applying ends with 'open -n' on the new bundle, which needs a console session; a CI runner has none. The Go test observes the exec that WOULD have run, not the window that would have opened."

@@ -15,5 +15,5 @@ The fingerprint is enforced in `scripts/check-windows-installer.sh`
 and that pin agree; the README above is the human copy. `scripts/sign-windows.sh`
 pins the `jsign` release that produces the signature (version and SHA-256 of
 the jar, in the script; the digest was computed from the jar GitHub serves
-for that release tag on 2026-09-21). Changing any pin is a pull request,
+for that release tag). Changing any pin is a pull request,
 like every other pin in this repository.

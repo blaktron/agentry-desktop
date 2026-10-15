@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Keeps a failed CI build's packages on the runner host that built them,
-# instead of in GitHub's metered artifact storage (agentry-desktop#188, #187).
+# instead of in GitHub's metered artifact storage.
 #
 #   scripts/ci-keep-build.sh <job-status> <file-or-glob>...
 #
@@ -13,10 +13,10 @@
 #
 # where <root> is, unless CI_KEEP_ROOT says otherwise:
 #   Linux runners  /opt/runner/cache/artifacts — the host directory every
-#                  runner container mounts (agentry-runner, agentry-runner2),
-#                  so the build outlives the container;
-#   the Mac        ~/runner-artifacts of the runner's user on maxbookpro,
-#                  beside ~/runner-cache.
+#                  runner container mounts, so the build outlives the
+#                  container;
+#   the Mac        ~/runner-artifacts of the runner's user, beside
+#                  ~/runner-cache.
 # The host and the path go to the log and to the job summary. A green build
 # keeps nothing: a build to try comes from a release dry run
 # (workflow_dispatch of release.yaml).
@@ -32,12 +32,7 @@ case "$(uname -s)" in
 esac
 root="${CI_KEEP_ROOT:-$default_root}/agentry-desktop"
 
-case "${RUNNER_NAME:-}" in
-  r2-*) host=agentry-runner2 ;;
-  mac-*) host=maxbookpro ;;
-  "") host=$(hostname) ;;
-  *) host=agentry-runner ;;
-esac
+host=$(hostname)
 
 mkdir -p "$root"
 # Prune first, whatever the outcome, so the store stays bounded even when
