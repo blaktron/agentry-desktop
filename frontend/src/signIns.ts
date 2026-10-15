@@ -62,6 +62,14 @@ export function signInKindFor(s: SignInSettings, url: string): SignInKind {
   return "";
 }
 
+// asSentence shows a refusal Go wrote as an error (lower-case, no full stop)
+// as a sentence on its own line.
+export function asSentence(s: string): string {
+  const t = s.trim();
+  if (!t) return "";
+  return t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? "" : ".");
+}
+
 // signInPhrase names the sign-in inside a sentence.
 export function signInPhrase(kind: SignInKind): string {
   switch (kind) {

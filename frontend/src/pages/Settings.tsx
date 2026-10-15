@@ -25,7 +25,7 @@ import { followPart } from "../followPart";
 import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
-import { signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
+import { asSentence, signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 
 // Settings as five cards: the landing is a card per section, each card the
 // whole of a link to its section page, with one sentence, a status line
@@ -790,7 +790,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
               {/* A registry the app keeps no sign-in for says why, and
                   offers only Remove. */}
               {r.signInRefused && (
-                <div className="muted small" style={{ marginTop: 4 }}>{r.signInRefused}</div>
+                <div className="muted small" style={{ marginTop: 4 }}>{asSentence(r.signInRefused)}</div>
               )}
               {/* Who the credential is; the account and the subscription
                   are the Profile card's. */}

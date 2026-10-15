@@ -2,7 +2,7 @@
 // registry the build is for, one for a self-hosted registry.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSecureAgentry, origin, signInKindFor, signInLabel, signInLine, twoSignIns } from "../src/signIns.ts";
+import { asSentence, isSecureAgentry, origin, signInKindFor, signInLabel, signInLine, twoSignIns } from "../src/signIns.ts";
 
 const built = { secureAgentryRegistry: "https://secureagentry.net", selfHostedRegistry: "", registries: [{ url: "https://secureagentry.net", signIn: "secureagentry" }] };
 const withSelf = {
@@ -53,6 +53,7 @@ test("the sign-in screen says which sign-in a typed address is, or why none", ()
   assert.equal(signInLine(withSelf, "https://another.example"), "Agentry Desktop keeps one self-hosted registry, agentry.example.com. Remove it in Settings to use another.");
   assert.equal(signInLine(built, "https://dev.secureagentry.net"), "Agentry Desktop signs in to SecureAgentry at secureagentry.net only.");
   assert.equal(signInLine(built, ""), "");
+  assert.equal(asSentence("this app keeps one, and it is https://a.example"), "This app keeps one, and it is https://a.example.");
   assert.equal(signInKindFor(built, "http://agentry.example.com"), "");
   assert.equal(signInKindFor(built, "http://localhost:8080"), "self-hosted");
   assert.match(signInLine(built, "http://agentry.example.com"), /use https/);

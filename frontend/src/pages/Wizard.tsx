@@ -151,6 +151,9 @@ function SignInStep({
   const current = settings.registries.find((r) => norm(r.url) === norm(regURL));
   const signedIn = !!current?.hasToken;
   const line = signInLine(settings, regURL);
+  // An address the app keeps no sign-in for is refused in Go; the buttons
+  // wait for one it does.
+  const admitted = signInKindFor(settings, regURL) !== "";
 
   async function ensureRegistry(): Promise<string> {
     const u = norm(regURL);
@@ -229,7 +232,7 @@ function SignInStep({
               </Notice>
             ) : (
               <div className="row">
-                <Button variant="primary" disabled={busy || !regURL.trim()} onClick={signInBrowser}>
+                <Button variant="primary" disabled={busy || !regURL.trim() || !admitted} onClick={signInBrowser}>
                   Sign in via browser
                 </Button>
                 <Button variant="link" disabled={busy} onClick={() => setPasteMode((v) => !v)}>
@@ -247,7 +250,7 @@ function SignInStep({
                     value={token} onChange={(e) => setToken(e.target.value)} disabled={busy}
                     onKeyDown={(e) => e.key === "Enter" && token.trim() && signInPaste()}
                   />
-                  <Button variant="primary" disabled={busy || !token.trim()} onClick={signInPaste}>
+                  <Button variant="primary" disabled={busy || !token.trim() || !admitted} onClick={signInPaste}>
                     Sign in
                   </Button>
                 </div>
