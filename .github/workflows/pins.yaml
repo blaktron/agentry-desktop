@@ -1,8 +1,9 @@
 # The desktop shares on-disk formats with the CLI — the operator policy, the
 # install record, the pinned signing keys, the runner home — so a pinned
 # dependency that falls behind is not a housekeeping matter: it is a shipped
-# build that cannot read a file the current CLI writes (desktop#60, where the
-# first-run wizard died on a policy field the pinned CLI did not define).
+# build that cannot read a file the current CLI writes (for example a
+# first-run wizard that fails on a policy field the pinned CLI does not
+# define).
 #
 # Deliberately NOT a pull-request job. A pin goes stale when another
 # repository merges, which is nobody's fault on the pull request that happens
@@ -30,12 +31,12 @@ jobs:
           go-version-file: go.mod
           # The runner shares one persistent host module cache with every other
           # runner; restoring the Actions cache over it is slow and left partial
-          # modules that broke `go mod verify` in the core (agentry#225).
+          # modules that broke `go mod verify`.
           cache: false
       # The blaktron modules are private. The rewrite that carries the token
       # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs (desktop#92; the release
-      # workflow has done this since #93).
+      # persists in the runner's home between jobs (the release workflow does
+      # the same).
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
@@ -51,7 +52,7 @@ jobs:
             github.com/blaktron/agentry github.com/blaktron/agentry-cli)
           if [ -n "$behind" ]; then
             echo "$behind"
-            echo "::error::A pinned dependency is behind its default branch. The desktop reads files the CLI writes, so a stale pin ships as a broken build (desktop#60). Bump with: go get github.com/blaktron/agentry@dev github.com/blaktron/agentry-cli@dev on dev (@main on main; the estate's branch model, agentry-notes#156), then fix any call sites the API moved under."
+            echo "::error::A pinned dependency is behind its default branch. The desktop reads files the CLI writes, so a stale pin ships as a broken build. Bump with: go get github.com/blaktron/agentry@dev github.com/blaktron/agentry-cli@dev on dev (@main on main), then fix any call sites the API moved under."
             exit 1
           fi
           echo "pins are current"
@@ -59,7 +60,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/gitconfig"
 
-  # The CI supply chain (agentry-desktop#128): every action SHA-pinned to the
+  # The CI supply chain: every action SHA-pinned to the
   # tag its comment names, that tag not moved, and every action and CI tool
   # current within its major. A new major is a warning; see the script.
   actions-and-tools:

@@ -6,7 +6,7 @@
 #
 # The GTK 3 and WebKit2GTK 4.1 headers the Linux front end links against live
 # in the container, not on the host, so the host needs Docker and nothing
-# else: the CI runners carry no GTK, and neither need a workstation. The
+# else: the CI runners carry no GTK, and neither does a developer's machine. The
 # private modules are vendored here every time (the credential lives on the
 # host, never in the container, and a stale vendor tree would link
 # yesterday's modules without a word); the frontend bundle is reused when it
@@ -41,9 +41,8 @@ else
 fi
 
 # The build container's Go is go.mod's exact version: a floating
-# golang:1.27-bookworm was whatever the runner had cached (1.27.1), and with
-# GOTOOLCHAIN=local a go.mod that names 1.27.2 refused to build
-# (v0.6.79-dev.1's release, agentry-desktop#730).
+# golang:1.27-bookworm could be an older patch release than go.mod names,
+# and with GOTOOLCHAIN=local that refuses to build.
 GO_VERSION=$(awk '$1 == "go" {print $2; exit}' go.mod)
 [ -n "$GO_VERSION" ] || { echo "build-linux: no go version in go.mod" >&2; exit 1; }
 

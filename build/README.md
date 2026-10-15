@@ -1,12 +1,19 @@
 # Build Directory
 
-The build directory is used to house all the build files and assets for your application. 
+The build directory holds the build files and assets of the application.
 
 The structure is:
 
 * bin - Output directory
 * darwin - macOS specific files
 * windows - Windows specific files
+* nfpm - the Linux package definition (`nfpm.yaml`), the desktop entry and the
+  rendered hicolor icons
+* release.env - the committed, non-secret build inputs a release bakes in: the
+  production and dev registry URLs, the Windows signing certificate name and
+  the macOS signing identity
+* cli - where `scripts/fetch-cli.sh` puts the signed `agentry` CLI that the
+  packages carry (ignored by git)
 
 ## The app icon
 

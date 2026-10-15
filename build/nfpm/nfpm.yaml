@@ -1,24 +1,23 @@
-# The Linux packages of Agentry Desktop: one description, a .deb and an .rpm
-# (agentry-desktop#84; plan agentry-notes/plans/desktop-installers.md §5, §8;
-# D2, D7, D8). Built by nfpm from the binary scripts/build-linux.sh produced
+# The Linux packages of Agentry Desktop: one description, a .deb and an .rpm.
+# Built by nfpm from the binary scripts/build-linux.sh produced
 # (make package-linux; the release workflow's linux job), then installed in a
 # clean container of each family by scripts/acceptance/linux-packages.sh.
 #
 # What a package owns: the binary at /usr/bin, a desktop entry and the icon
 # at the hicolor sizes. Nothing under anyone's home, and no maintainer
 # scripts: an upgrade or a removal by the package manager cannot reach
-# ~/.config/agentry, ~/.agentry/runner or the session keyring (plan §3's
-# invariant; the acceptance script proves it by reinstalling and removing
-# around a populated home). Elevation stays with the package manager; the
-# app itself asks through pkexec (D-014) and never through a package script.
+# ~/.config/agentry, ~/.agentry/runner or the session keyring (the
+# acceptance script proves it by reinstalling and removing around a
+# populated home). Elevation stays with the package manager; the app
+# itself asks through pkexec and never through a package script.
 #
 # Runtime dependencies are exactly the packages that own the libraries the
 # binary's ELF NEEDED entries name, on each family — nothing the binary does
 # not link, nothing it links left out; the acceptance script checks both
 # directions against the installed system (Fedora 44 splits
-# javascriptcoregtk4.1 out of webkit2gtk4.1; the smoke found it). The
-# Debian names are the old ones on purpose: Ubuntu 24.04's *t64 renames
-# Provide them, and the smoke installs there too. The glibc floor is the
+# javascriptcoregtk4.1 out of webkit2gtk4.1). The Debian names are the
+# pre-t64 ones on purpose: Ubuntu 24.04's *t64 renames Provide them, and the
+# acceptance script installs there too. The glibc floor is the
 # newest symbol version the binary imports (objdump -T | grep GLIBC_: 2.34),
 # not the build container's glibc, so the package refuses a distribution
 # that would fail at first launch and admits every one that would not.

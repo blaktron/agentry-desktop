@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# Reads the built Windows installer back and checks it is the one the plan
-# describes (agentry-desktop#83; agentry-notes/plans/desktop-installers.md
-# §3, §5, §8). This is as far as a Linux runner can check a Windows package
-# without Windows: the install-over-install and uninstall checks run by hand
-# on a Windows machine until #55 gives CI one.
+# Reads the built Windows installer back and checks it installs per user
+# and carries only what it should. This is as far as a Linux runner can
+# check a Windows package without Windows: the install-over-install and
+# uninstall checks (scripts/acceptance/windows-install.ps1) run by hand on a
+# Windows machine.
 #
 #   scripts/check-windows-installer.sh [--signed] [--report FILE] [--cli FILE] <setup.exe> <agentry-desktop.exe> [project.nsi]
 #   scripts/check-windows-installer.sh --self-test
 #
 # What it proves:
-#   1. the file name is one the site's manifest admits
-#      (agentry-web/scripts/release/manifest.py NAME: -setup.exe is "setup");
+#   1. the file name is one the download manifest admits (-setup.exe is
+#      "setup");
 #   2. the installer file carries an asInvoker execution-level request —
 #      NSIS's spelling of RequestExecutionLevel user — and no elevated one
 #      (a grep over the file: it cannot tell the stub's manifest from a
 #      payload's, which is why the elevated forms are refused too);
 #   3. it installs exactly two files, the application and its uninstaller
 #      (everything else is NSIS plumbing under $PLUGINSDIR, the WebView2
-#      bootstrapper included) — three with --cli FILE (agentry-desktop#580):
+#      bootstrapper included) — three with --cli FILE:
 #      bin/agentry.exe too, byte-identical to FILE, the CLI release
 #      scripts/fetch-cli.sh brought in; without --cli an installer carrying
 #      a CLI is refused, since nothing then says which CLI it is;
@@ -26,7 +26,7 @@
 #   5. the script's install section reaches nothing under the person's
 #      profile, the settings section is off by default, and the application
 #      section cannot be unticked;
-#   6. with --signed (agentry-desktop#54): the installer, the application it
+#   6. with --signed: the installer, the application it
 #      carries, the uninstaller it embeds and, with --cli, the agentry CLI
 #      each carry an Authenticode
 #      signature that osslsigncode verifies to the pinned Microsoft Identity
@@ -44,15 +44,14 @@
 set -euo pipefail
 
 # signer_cn <osslsigncode report>: the signer's CN, in either subject form
-# the tool prints — 2.8's OpenSSL slash form (/C=CA/…/CN=Name, the Ubuntu
-# runner's) and 2.12's RFC 2253 comma form (CN=Name,O=…,C=CA, Fedora 44's;
-# a comma inside a value is escaped with a backslash and a component
-# boundary is an unescaped comma). The two forms list components in
+# the tool prints — 2.8's OpenSSL slash form (/C=CA/…/CN=Name, as Ubuntu's
+# package prints it) and 2.12's RFC 2253 comma form (CN=Name,O=…,C=CA, as
+# Fedora 44's package prints it; a comma inside a value is escaped with a
+# backslash and a component boundary is an unescaped comma). The two forms list components in
 # opposite orders (RFC 2253 reverses), so both branches pick the same
 # component: the certificate's first CN — the last in the slash form, the
 # first in the comma form. Empty when the subject carries no CN in the form
-# it uses — never a guess from the other form (agentry-desktop#171; the
-# site's manifest.py and the CLI's check-windows-binary.sh read the same).
+# it uses — never a guess from the other form.
 signer_cn() {
   local subject cn
   subject=$(printf '%s\n' "$1" | awk '/Signer.s certificate/{on=1} on && /Subject:/{sub(/^[[:space:]]*Subject:[[:space:]]*/, ""); print; exit}')
@@ -68,7 +67,7 @@ signer_cn() {
 }
 
 # --self-test: the CN parser over the two report forms, no osslsigncode
-# needed — what the seam acceptance cannot exercise on a runner that has
+# needed — what the seam acceptance cannot exercise on a machine that has
 # only one of the two versions.
 if [ "${1:-}" = "--self-test" ]; then
   fails=0
@@ -131,7 +130,7 @@ fi
 # early and pipefail would read 7z's SIGPIPE as a failure. 7-Zip builds
 # differ on the separator they print, so both are read as /.
 #
-# No `… | grep -q` anywhere in this script (agentry-desktop#236): grep -q
+# No `… | grep -q` anywhere in this script: grep -q
 # exits at its first match, and a writer still writing gets EPIPE, which
 # pipefail reports as the pipeline's failure. printf of a variable is such a
 # writer too: bash's stdout is line-buffered, so a multi-line value leaves in
@@ -174,7 +173,7 @@ install_section=$(awk '/^Section[[:space:]]*$/{on=1} on{print} /^SectionEnd/{if(
 [ -n "$install_section" ] || fail "no install section found in $nsi"
 grep -q 'wails.files' <<<"$install_section" || fail "the install section in $nsi does not copy the files (the awk found the wrong block)"
 # The one Delete the section may hold is the CLI's own old copy, moved aside
-# so a running agentry.exe does not stop an upgrade (agentry-desktop#580).
+# so a running agentry.exe does not stop an upgrade.
 if grep -v -E '^[[:space:]]*[#;]' <<<"$install_section" | grep -v -F 'Delete "$INSTDIR\bin\agentry.exe.old"' | grep -E '\$PROFILE|\$APPDATA|\$LOCALAPPDATA|\.config|\.agentry|Credential|RMDir|Delete ' >/dev/null; then
   printf '%s\n' "$install_section" >&2
   fail "the install section reaches beyond \$INSTDIR, the Start Menu and the uninstall key"
@@ -182,9 +181,9 @@ fi
 grep -q -E '^Section /o "un\.Also remove my Agentry settings and sign-in"' "$nsi" || fail "the settings section is not off by default (/o)"
 awk '/^Section "un\./{on=1} on{print} /^SectionEnd/{if(on){exit}}' "$nsi" | grep 'SectionIn RO' >/dev/null || fail "the application section can be unticked"
 grep -q -- '--remove-my-settings' "$nsi" || fail "the settings section does not hand the removal to the app"
-# Agentry's Docker images go unless "Keep my Docker images" is ticked
-# (agentry-desktop#424): the box is off by default, the app does the
-# removal, and it runs before the settings section deletes the policy.
+# Agentry's Docker images go unless "Keep my Docker images" is ticked: the
+# box is off by default, the app does the removal, and it runs before the
+# settings section deletes the policy.
 grep -q -E '^Section /o "un\.Keep my Docker images" SEC_UN_KEEP_IMAGES' "$nsi" || fail "the keep-images box is not off by default (/o)"
 grep -q -- '--remove-docker-images' "$nsi" || fail "the images section does not hand the removal to the app"
 images_at=$(grep -n -E '^[[:space:]]*ExecWait .*--remove-docker-images' "$nsi" | head -1 | cut -d: -f1)
@@ -245,7 +244,7 @@ cn=${setup_sig%%|*}
 [ "${exe_sig%%|*}" = "$cn" ] || fail "the application binary is signed by '${exe_sig%%|*}', the installer by '$cn'"
 [ "${uninst_sig%%|*}" = "$cn" ] || fail "the uninstaller is signed by '${uninst_sig%%|*}', the installer by '$cn'"
 if [ -n "$cli" ]; then
-  # The CLI was signed by its own release, over the same identity (plan D5).
+  # The CLI was signed by its own release, over the same identity.
   cli_sig=$(verify_pe "$cli" "agentry CLI")
   [ "${cli_sig%%|*}" = "$cn" ] || fail "the agentry CLI is signed by '${cli_sig%%|*}', the installer by '$cn'"
 fi

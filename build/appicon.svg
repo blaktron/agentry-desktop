@@ -1,7 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- The desktop's app icon (agentry-desktop#367): the Agentry mark — the
-       faceted shield with the delta A, the same geometry as the site's
-       lib/brand-mark.ts — on a paper tile laid out on macOS's icon grid
+  <!-- The desktop's app icon: the Agentry mark, the faceted shield with
+       the delta A, on a paper tile laid out on macOS's icon grid
        (an 824-unit tile inset 100, with its shadow). `make app-icons`
        renders build/appicon.png, build/windows/icon.ico and the Linux
        hicolor sizes from this file and build/appicon-small.svg. -->

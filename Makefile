@@ -1,5 +1,5 @@
-# Agentry Desktop. Depends on the private modules
-# github.com/blaktron/agentry and github.com/blaktron/agentry-cli:
+# Agentry Desktop. Depends on the modules github.com/blaktron/agentry and
+# github.com/blaktron/agentry-cli. Where they are not fetchable anonymously:
 #   export GOPRIVATE=github.com/blaktron/*
 # plus git credentials for github.com/blaktron (a PAT via credential helper
 # or an url.<...>.insteadOf rewrite).
@@ -22,12 +22,12 @@ LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VER
 # credential builds in vendor mode on its own, but tidy walks the whole module
 # graph past vendor/ and asks GitHub for the private modules. -skipbindings is
 # not a caller's choice: every wails target below carries it (see `dev`), so
-# a by-hand `make package-darwin` cannot regenerate the bindings either
-# (agentry-desktop#97, #107). Callers that still pass it are harmless.
+# a by-hand `make package-darwin` cannot regenerate the bindings either.
+# Callers that still pass it are harmless.
 WAILS_FLAGS ?=
 # SIGN_CMD: a command that Authenticode-signs the one PE file it is given, in
 # place (the release workflow passes scripts/sign-windows.sh). Empty means an
-# unsigned Windows package, which PR and workstation builds are.
+# unsigned Windows package, which PR and local builds are.
 SIGN_CMD ?=
 
 .PHONY: fetch-cli dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
@@ -47,7 +47,7 @@ build:
 # The generator spells a Go map as TypeScript's generic Record<K, V>; inside
 # the `installed` namespace of models.ts that name is the CLI's install
 # record class, so the type-check reads the generic as the class and fails
-# ("Type 'Record' is not generic", desktop#97). An index signature is the
+# ("Type 'Record' is not generic"). An index signature is the
 # same type without the shadowed name, so every map in models.ts is
 # respelled that way (the per-package .d.ts files keep Record<>: nothing
 # shadows it there). A shape the sed cannot respell — a nested generic —
@@ -62,11 +62,11 @@ bindings:
 	sed -i.bak -E 's/Record<string, ([^<>]+)>/{[key: string]: \1}/g' frontend/wailsjs/go/models.ts && rm -f frontend/wailsjs/go/models.ts.bak
 	@if grep -n 'Record<' frontend/wailsjs/go/models.ts; then echo "models.ts still carries a Record<> the bindings sed cannot respell (a nested generic?): widen the sed in this target"; exit 1; fi
 
-# No `| grep -q` in the scripts (agentry-desktop#236): under pipefail the
-# writer grep -q cuts off reports EPIPE as the pipeline's failure, a flake
-# that turned the dev windows job red. Comment lines are skipped.
+# No `| grep -q` in the scripts: under pipefail the writer that grep -q cuts
+# off reports EPIPE as the pipeline's failure, an intermittent CI failure.
+# Comment lines are skipped.
 lint:
-	@hits=$$(grep -rnE '\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]*q|--quiet)' scripts/ | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true); if [ -n "$$hits" ]; then echo "$$hits"; echo "a piped grep -q under pipefail can fail on the writer's EPIPE: use grep -q ... <<<\"\$$x\" or grep ... >/dev/null (agentry-desktop#236)"; exit 1; fi
+	@hits=$$(grep -rnE '\|[[:space:]]*grep[[:space:]]+(-[A-Za-z]*q|--quiet)' scripts/ | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true); if [ -n "$$hits" ]; then echo "$$hits"; echo "a piped grep -q under pipefail can fail on the writer's EPIPE: use grep -q ... <<<\"\$$x\" or grep ... >/dev/null"; exit 1; fi
 	@fmt_out=$$(gofmt -l . | grep -v -e '^frontend/' -e '^vendor/' || true); if [ -n "$$fmt_out" ]; then echo "gofmt needed on:"; echo "$$fmt_out"; exit 1; fi
 	$(GO) vet ./...
 	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; else echo "golangci-lint not installed; skipped"; fi
@@ -74,8 +74,8 @@ lint:
 test:
 	$(GO) test ./...
 
-# The honest-posture rule as a check over the copy this app ships (plan
-# hosted-runs.md §3): no "safe", "secure", "guaranteed" or "trusted".
+# A check over the copy this app ships: no "safe", "secure", "guaranteed" or
+# "trusted" (a claim the product cannot back).
 copy:
 	./scripts/copy-check.sh
 
@@ -92,23 +92,22 @@ check: frontend lint test copy
 # --- packaging -------------------------------------------------------------
 # Package names follow the shape the download manifest matches — product,
 # version, os, arch, lowercase — so a built artifact can reach the download
-# page instead of being dropped for its name (agentry-web#59 teaches the
-# manifest about the archive extension a .app has to ship in).
+# page instead of being dropped for its name.
 #
 # macOS: a universal .app in the two wrappers the download page offers — a
 # zip for people who want the bundle, and a disk image with an Applications
 # shortcut for people who want to install it the way macOS applications are
-# installed (agentry-desktop#85; plan desktop-installers.md §5, D2).
+# installed.
 # Both carry the same bundle: one build, two wrappers.
 # hdiutil builds the image (scripts/package-darwin-dmg.sh — create-dmg is not
 # on the Mac and would only add a window picture that needs a Finder session)
 # and scripts/check-darwin-dmg.sh reads it back, as the Windows target does
-# with its installer. This target is ad-hoc signed only (D-001): the
+# with its installer. This target is ad-hoc signed only: the
 # production release splits it in two and signs between the halves —
 # build-darwin, then scripts/sign-darwin.sh app (Developer ID, notarized,
 # stapled), then wrap-darwin, so the zip and the dmg both carry the stapled
-# bundle, then scripts/sign-darwin.sh dmg (agentry-desktop#6; release.yaml's
-# macos job). The secrets reach only those two signing steps, never wails or
+# bundle, then scripts/sign-darwin.sh dmg (release.yaml's macos
+# job). The secrets reach only those two signing steps, never wails or
 # npm.
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
 package-darwin: build-darwin wrap-darwin
@@ -124,35 +123,32 @@ wrap-darwin:
 
 # Drags the dmg's bundle onto a temporary Applications folder over a copy
 # that is already there and proves the person's configuration and sign-in
-# survive it (agentry-desktop#85; plan §8). macOS only; installs nothing on
+# survive it. macOS only; installs nothing on
 # the machine. The release workflow runs it after package-darwin.
 smoke-darwin-dmg:
 	scripts/acceptance/darwin-dmg-install.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
 
 # Applying a newer Agentry Desktop on macOS: the bundle swap, what survives
 # it, and the refusal when the copy is somewhere the person cannot replace
-# (agentry-desktop#88; plan §7, §8). macOS only; installs nothing on the
-# machine and launches nothing. The release workflow runs it after
+# macOS only; installs nothing on the machine and launches nothing. The release workflow runs it after
 # package-darwin.
 smoke-darwin-selfupdate:
 	scripts/acceptance/darwin-selfupdate.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 
-# Windows: cross-compiled from any host (DEV-097: Wails v2 loads WebView2
+# Windows: cross-compiled from any host (Wails v2 loads WebView2
 # through a pure-Go loader, so windows/amd64 builds with cgo off on Linux
 # and macOS alike; the wails CLI supplies the icon, the manifest and the GUI
 # subsystem a bare go build would not), then the per-user installer from
-# build/windows/installer/project.nsi (agentry-desktop#83; plan
-# desktop-installers.md §5, D11). -nsis needs makensis on the host
+# build/windows/installer/project.nsi. -nsis needs makensis on the host
 # (`apt-get install nsis` on Debian/Ubuntu, `dnf install mingw32-nsis` on
 # Fedora); without it wails only warns, so the mv below is what fails, and
 # an installer-less package is not a package. The installer's file name is
-# the download manifest's grammar (agentry-web scripts/release/manifest.py:
-# -setup.exe is the "setup" format); wails names it for the architecture and
-# the version comes from here, not from wails.json, for the same reason the
-# exe's does. scripts/check-windows-installer.sh reads the result back
+# the download manifest's grammar (-setup.exe is the "setup" format); wails
+# names it for the architecture and the version comes from here, not from
+# wails.json, for the same reason the exe's does. scripts/check-windows-installer.sh reads the result back
 # (needs 7z: p7zip-full / p7zip-plugins).
 #
-# Authenticode (agentry-desktop#54) is three targets so the release can hand
+# Authenticode is three targets so the release can hand
 # the signing token to the one that signs and to nothing else: build-windows
 # (wails: the exe, and an unsigned installer as a side effect of -nsis, which
 # also writes the WebView2 bootstrapper and wails_tools.nsh), sign-windows
@@ -170,13 +166,12 @@ smoke-darwin-selfupdate:
 # Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe, its zip,
 # and build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe.
 #
-# The agentry CLI (agentry-desktop#580; plan cli-on-path.md D3, D8): when
-# build/cli holds it (`make fetch-cli`, which the release runs with the
-# registry it bakes and a token that reads agentry-cli), the installer
-# carries build/cli/agentry.exe into $INSTDIR\bin and puts it on the user
-# Path, the check reads it back with --cli, and the Linux packages carry
-# build/cli/agentry as /usr/bin/agentry. Without it (a PR build) neither
-# carries a CLI.
+# The agentry CLI: when build/cli holds it (`make fetch-cli`, which the
+# release runs with the registry it bakes and a token that reads
+# agentry-cli), the installer carries build/cli/agentry.exe into
+# $INSTDIR\bin and puts it on the user Path, the check reads it back with
+# --cli, and the Linux packages carry build/cli/agentry as
+# /usr/bin/agentry. Without it (a PR build) neither carries a CLI.
 package-windows: build-windows sign-windows finish-windows
 
 # The CLI release go.mod pins, on the channel AGENTRY_DEFAULT_REGISTRY names,
@@ -203,24 +198,23 @@ finish-windows:
 # else (scripts/build-linux.sh), then wrapped in a .deb and an .rpm from one
 # description (build/nfpm/nfpm.yaml via scripts/package-linux.sh; nfpm runs
 # through `go run` at a pinned version). The bare binary stays as its own
-# artifact (agentry-desktop#84; plan desktop-installers.md §5).
+# artifact.
 # Output: build/linux/agentry-desktop-$(VERSION)-linux-amd64{,.deb,.rpm}
 package-linux:
 	DESKTOP_VERSION='$(VERSION)' EXTRA_LDFLAGS='$(EXTRA_LDFLAGS)' scripts/build-linux.sh
 	DESKTOP_VERSION='$(VERSION)' scripts/package-linux.sh
 
 # Installs the two packages in a clean Debian and a clean Fedora container
-# and proves what #84 asks: clean install, same binary as the bare artifact,
+# and proves: clean install, same binary as the bare artifact,
 # declared dependencies exactly the owners of the linked libraries, a launch
 # under Xvfb, and a populated home untouched by reinstall and removal. Needs
 # Docker; a few minutes. The release workflow runs it after package-linux.
 smoke-linux-packages:
 	scripts/acceptance/linux-packages.sh build/linux/agentry-desktop-$(VERSION)-linux-amd64.deb build/linux/agentry-desktop-$(VERSION)-linux-amd64.rpm build/linux/agentry-desktop-$(VERSION)-linux-amd64 build/linux/smoke/agentry-desktop-previous.deb build/linux/smoke/agentry-desktop-previous.rpm
 
-# Every platform's app icon, rendered from two committed sources
-# (agentry-desktop#367): build/appicon.svg, the mark on its tile, and
-# build/appicon-small.svg, the bare mark for 16 to 32 pixels. The outputs
-# are committed, since nothing renders them at build time: build/appicon.png
+# Every platform's app icon, rendered from two committed sources:
+# build/appicon.svg, the mark on its tile, and build/appicon-small.svg, the
+# bare mark for 16 to 32 pixels. The outputs are committed, since nothing renders them at build time: build/appicon.png
 # (1024, which Wails turns into the macOS bundle's iconfile.icns),
 # build/windows/icon.ico (16 to 256; Wails uses it as it is) and the Linux
 # packages' hicolor sizes under build/nfpm/icons. ImageMagick with its
@@ -243,7 +237,7 @@ package: package-darwin package-windows package-linux
 # Makefile stamps the same string into the binary. RELEASE_TAG is the tag
 # being cut (the release workflow passes github.ref_name).
 # A tag names productVersion: vX.Y.Z, or a dev prerelease of it,
-# vX.Y.Z-dev.N (agentry-desktop#279). productVersion itself stays X.Y.Z: the
+# vX.Y.Z-dev.N. productVersion itself stays X.Y.Z: the
 # Windows version resource and the macOS bundle version take numbers only.
 version-check:
 	@tag='$(RELEASE_TAG)'; pv=$$(jq -r .info.productVersion wails.json); \

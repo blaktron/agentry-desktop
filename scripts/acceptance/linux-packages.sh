@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs the Linux packages in clean containers and proves what the issue
-# asks of them (agentry-desktop#84; plan desktop-installers.md §5, §8):
+# Installs the Linux packages in clean containers and proves that they
+# install, upgrade and remove cleanly:
 #
 #   scripts/acceptance/linux-packages.sh <deb> <rpm> <binary> <previous-deb> <previous-rpm>
 #
@@ -10,7 +10,7 @@
 #
 # The .deb in debian:bookworm-slim (the build container's family, so the
 # glibc floor is the one the binary was linked against) and the .rpm in
-# fedora:44 (the dev workstation's release) go through every step; the .deb
+# fedora:44 go through every step; the .deb
 # also installs in ubuntu:24.04, whose *t64 library renames must satisfy the
 # Debian names the package declares (every step but 4b: the owners of the
 # libraries have different names there, by design).
@@ -26,8 +26,8 @@
 #      on the strict families the declared dependencies are exactly the
 #      packages that own those libraries — nothing missing, nothing
 #      superfluous (4b);
-#   5. the app starts and stays alive under a virtual display (the existing
-#      launch smoke: timeout's 124 is the pass);
+#   5. the app starts and stays alive under a virtual display (timeout's 124 is the
+#      pass);
 #   6. a home populated before the upgrade — desktop.yaml, installed.yaml, a
 #      pinned key, a runner policy — is byte-identical after it and after
 #      the package is removed. A container has no session keyring, so the
@@ -57,7 +57,7 @@ trap 'rm -rf "$stage"' EXIT
 cp "$deb" "$stage/pkg.deb"; cp "$rpm" "$stage/pkg.rpm"; cp "$bin" "$stage/agentry-desktop.bin"
 cp "$prev_deb" "$stage/previous.deb"; cp "$prev_rpm" "$stage/previous.rpm"
 # The agentry CLI the packages carry when the build has one (build/cli,
-# scripts/fetch-cli.sh; agentry-desktop#580): /usr/bin/agentry must be it.
+# scripts/fetch-cli.sh): /usr/bin/agentry must be it.
 [ ! -f build/cli/agentry ] || cp build/cli/agentry "$stage/agentry.cli"
 
 # The part every container runs after installing the previous package.
@@ -132,8 +132,7 @@ echo "ok ($fam): installed binary is byte-identical to the bare artifact"
 
 # 4a. Every linked library resolves. (ldd once, into a variable, read from a
 #     here-string: a grep -q on a live pipe, printf's included, can close it
-#     early and pipefail would read the EPIPE as the answer;
-#     agentry-desktop#236.)
+#     early and pipefail would read the EPIPE as the answer.)
 ldd_out=$(ldd "$bin")
 if grep -q 'not found' <<<"$ldd_out"; then grep 'not found' <<<"$ldd_out" >&2; fail "a linked library is missing after installing only the package"; fi
 needed=$(readelf -d "$bin" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
