@@ -1,5 +1,4 @@
-// Edit with AI's form (agentry-desktop#501; plan drafter-revisions.md §5,
-// D9, D10): two texts, Additional instructions and Problems with this
+// Edit with AI's form: two texts, Additional instructions and Problems with this
 // draft, and where it drafts. In Agentry is for a payer above Standard,
 // as the registry says (caller.revise); on this computer is for anyone the
 // registry says may publish to the QuickAgent, with their own AI Review key

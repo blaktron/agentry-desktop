@@ -1,5 +1,4 @@
-// Edit with AI on the QuickAgent page (agentry-desktop#501; plan
-// drafter-revisions.md §5, D9, D10): Additional instructions and Problems
+// Edit with AI on the QuickAgent page: Additional instructions and Problems
 // with this draft, then where the Drafter revises the current release.
 // In Agentry is for a payer above Standard, at a hosted draft's terms; a
 // Standard account is told so and offered this computer, which is for
@@ -45,7 +44,7 @@ export default function ReviseDialog({
   }, [registry]);
 
   const ways: ReviseWays = {
-    // A Standard payer is not offered In Agentry (D10): only a line says why.
+    // A Standard payer is not offered In Agentry only a line says why.
     agentryOffered: !!agentry?.reviseOffered && !agentry.reviseUpgrade,
     agentryAvailable: !!agentry?.reviseAvailable,
     keyReady: !!status?.key?.ready,

@@ -1,5 +1,4 @@
-// The browser's site in the run setup's Details step (plan
-// browser-testing.md §5, D2; agentry-desktop#878): a url question the
+// The browser's site in the run setup's Details step: a url question the
 // release's browser names, asked as the address of the site to test. No
 // token: nothing is fetched, the browser opens it, and the CLI hands it to
 // the run's browse proxy, which admits it and its subdomains.

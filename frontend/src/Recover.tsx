@@ -1,4 +1,4 @@
-// A render fault's way back (agentry-desktop#351). React unmounts the whole
+// A render fault's way back. React unmounts the whole
 // tree when a component throws while rendering and nothing catches it, and
 // in the app that left the window's bare background: no sidebar, no dialog,
 // nothing to click, only a quit and a reopen. Recover catches it and shows

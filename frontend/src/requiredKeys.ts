@@ -1,5 +1,4 @@
-// Which declared keys a run needs (plan optional-secrets.md D2,
-// agentry-desktop#655): the Builder's model holds the keys the author
+// Which declared keys a run needs: the Builder's model holds the keys the author
 // marked Required, and every other declared key, the QuickAgent's own or a
 // server's, is written to capabilities.optionalSecrets, so a key the author
 // attaches starts as Optional. Pure, so node tests it without the app.
@@ -14,11 +13,9 @@ export interface KeyModel {
 }
 
 
-/**
- * Every key the model declares, its own then each server's, each once. A
- * remote server declares its key only when it signs in with one
- * (agentry-desktop#668), as the writer does.
- */
+/** Every key the model declares, its own then each server's, each once. A
+ * remote server declares its key only when it signs in with one, as the writer
+ * does. */
 export function declaredKeys(m: KeyModel): string[] {
   return [...new Set([...names(m.secrets), ...(m.mcpServers ?? []).flatMap(serverKeys)])];
 }
@@ -42,7 +39,7 @@ export function requiredKeys(m: KeyModel, change?: { name: string; required: boo
 
 /**
  * A secret question's `required`: one carried by a key of the QuickAgent's
- * own follows that key's marking (plan D7, the core's V10); any other
+ * own follows that key's marking (the core's V10); any other
  * follows its box. The writer applies the same rule (internal/build
  * questionRequired).
  */
@@ -55,7 +52,7 @@ export function questionRequired(m: KeyModel, q: { id: string; type: string; req
 /**
  * The consent's secrets row: every declared secret, the release's own then
  * its servers', each optional one marked; "" for none. Moving a secret
- * between optional and required asks for no new consent (plan D6), which
+ * between optional and required asks for no new consent, which
  * holds only while this names each one.
  */
 export function secretsRow(declared?: string[], optional?: string[]): string {

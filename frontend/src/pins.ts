@@ -1,5 +1,4 @@
-// Pins on Home (plan desktop-home-and-library.md §4.3, D5, D11;
-// agentry-desktop#660). Pure, so the node tests can import it.
+// Pins on Home. Pure, so the node tests can import it.
 //
 // Go owns the pins (HomeAPI.Pin and Unpin; desktop.yaml's home key): it
 // places each one, four to a Pinned card, and refuses the 17th. This
@@ -16,9 +15,9 @@ type CardWithPins = { kind: string; pins?: Pin[] };
 const norm = (u = "") => u.trim().replace(/\/+$/, "");
 const sameOrigin = (a = "", b = ""): boolean => norm(a) === norm(b);
 
-/** A pin's registry as Settings → Home names it: the host and port only,
- * never a userinfo part an origin may carry (the review of
- * agentry-desktop#661), and nothing for a value that is not a URL. */
+/** A pin's registry as Settings → Home names it: the host and port only, never
+ * a userinfo part an origin may carry, and nothing for a value that is not a
+ * URL. */
 export function registryHost(url: string): string {
   try {
     return new URL(norm(url)).host;
@@ -38,7 +37,7 @@ export function isPinned(cards: CardWithPins[], ref: string, registry = ""): boo
 
 type Limits = { maxPins: number; pinsPerCard: number };
 
-/** The sentence for a Home that holds every pin it can (D5), with Go's
+/** The sentence for a Home that holds every pin it can, with Go's
  * limits; null while it has room. */
 export function homeFullSentence(cards: CardWithPins[], { maxPins, pinsPerCard }: Limits): string | null {
   return maxPins > 0 && pinsOf(cards).length >= maxPins
@@ -47,7 +46,7 @@ export function homeFullSentence(cards: CardWithPins[], { maxPins, pinsPerCard }
 }
 
 /** What the Pin button offers for ref: Unpin when it is pinned, Pin while
- * Home has room, and Pin held with the sentence when it has none (D5),
+ * Home has room, and Pin held with the sentence when it has none,
  * rather than a refusal after the click. */
 export function pinOffer(cards: CardWithPins[], limits: Limits, ref: string, registry = ""):
   { pinned: boolean; full: boolean; why?: string } {

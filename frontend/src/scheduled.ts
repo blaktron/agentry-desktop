@@ -1,13 +1,12 @@
-// What the Scheduled page and the run setup's When step say and decide
-// (plan quickagent-scheduling.md §4, §7, D2, D11, D12, D19; D-073;
-// agentry-desktop#743). Pure and self-contained, so the node tests can
-// import it: Go reads the CLI's store and runs the agentry command
-// (ScheduleAPI), this says what it read and builds what the page sends.
+// What the Scheduled page and the run setup's When step say and decide. Pure
+// and self-contained, so the node tests can import it: Go reads the CLI's store
+// and runs the agentry command (ScheduleAPI), this says what it read and builds
+// what the page sends.
 
 /** The When step's choice. */
 export type WhenChoice = "now" | "later" | "repeat";
 
-/** A repeat's shape (D2). */
+/** A repeat's shape. */
 export type RepeatKind = "daily" | "weekdays" | "weekly" | "monthly";
 
 /** The When step's answers, as the form holds them. */
@@ -26,7 +25,7 @@ export type WhenForm = {
   times: number;
   /** An IANA zone. */
   zone: string;
-  /** Also run when I'm signed out (D19). */
+  /** Also run when I'm signed out. */
   signedOut: boolean;
 };
 
@@ -54,7 +53,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export const ymd = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /** The next whole hour after now, local: Schedule a new run's default
- *  time (D12). */
+ *  time. */
 export function nextWholeHour(now: Date): Date {
   const d = new Date(now.getTime());
   d.setMinutes(0, 0, 0);
@@ -135,9 +134,8 @@ export function whenForm(spec: WhenSpec, signedOut: boolean, now: Date, zone: st
 
 /** Why When is disabled for this run, or null when it is offered: a
  *  schedule runs autonomous, either on this computer, from a registry
- *  release with the agentry command installed (D12, §5), or In Agentry,
- *  where the registry schedules runs and the account's plan does (D7;
- *  agentry-desktop#745). */
+ *  release with the agentry command installed, or In Agentry,
+ *  where the registry schedules runs and the account's plan does. */
 export function whenUnavailable(s: {
   modes: string[];
   mode: string;
@@ -164,8 +162,7 @@ export function whenUnavailable(s: {
   return null;
 }
 
-/** Why the signed-out box is disabled, or null when it can be ticked
- *  (D17, D19). */
+/** Why the signed-out box is disabled, or null when it can be ticked. */
 export function signedOutUnavailable(a: { signedOut: { available: boolean; reason?: string } } | null): string | null {
   if (!a) return "Checking whether this computer can.";
   if (a.signedOut.available) return null;
@@ -187,7 +184,7 @@ export type FireRow = {
   exitCode?: number;
   exitClass?: string;
   message?: string;
-  /** In Agentry (agentry-desktop#745): the account's schedule there, and
+  /** In Agentry: the account's schedule there, and
    *  the registry's reason for a fire that started no run. */
   hosted?: boolean;
   reason?: string;
@@ -220,7 +217,7 @@ export function hostedReasonWords(reason: string | undefined): string {
 export function outcomeLabel(f: Pick<FireRow, "outcome" | "exitCode" | "exitClass" | "manual" | "hosted" | "reason">): string {
   if (f.hosted) {
     // In Agentry a fire that ran started a run, whose own page says how it
-    // ended: never "done" (the site's words, agentry-web#1346).
+    // ended: never "done" (the site's words).
     switch (f.outcome) {
       case "due": return "Due";
       case "ran": return "Run started";
@@ -256,7 +253,7 @@ export function outcomeTone(outcome: string): "ok" | "bad" | "warn" | "due" {
 /** One day of the month grid. */
 export type GridDay = { date: string; day: number; inMonth: boolean; today: boolean };
 
-/** The month's grid (D11), Monday first: the weeks that hold its days,
+/** The month's grid, Monday first: the weeks that hold its days,
  *  with the days of the months before and after that fill them. */
 export function monthGrid(year: number, month: number, today: Date): GridDay[][] {
   const first = new Date(year, month, 1);
@@ -332,7 +329,7 @@ export function scheduleState(s: { paused?: boolean; ended?: boolean; signedOut?
 }
 
 /** The rows of two calendars as one, by time: what is here and what is In
- *  Agentry (agentry-desktop#745). */
+ *  Agentry. */
 export function mergeFires<T extends { at: string }>(a: T[], b: T[], newestFirst = false): T[] {
   const out = [...a, ...b];
   out.sort((x, y) => (newestFirst ? (x.at < y.at ? 1 : x.at > y.at ? -1 : 0) : (x.at < y.at ? -1 : x.at > y.at ? 1 : 0)));
@@ -366,7 +363,7 @@ export function zoneChoices(here: string, supported: string[]): string[] {
   return here ? [here, ...rest] : rest;
 }
 
-/** Home's Scheduled card's status line (D13; agentry-desktop#744, #745):
+/** Home's Scheduled card's status line:
  *  how many schedules this computer keeps and the account keeps In
  *  Agentry, or what kept them from being read. */
 export function scheduledCardStatus(v: { schedules: number; hostedSchedules?: number } | null, error: string | null): string {
