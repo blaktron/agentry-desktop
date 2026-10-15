@@ -250,6 +250,11 @@ func TestHostedSessionRefusals(t *testing.T) {
 	if err := r.AddHostedSessionFile(unpicked); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("an unpicked file: %v", err)
 	}
+	picked, through := linkedOut(t)
+	r.app.markPicked(picked)
+	if err := r.AddHostedSessionFile(through); err == nil || !strings.Contains(err.Error(), "through a link") {
+		t.Fatalf("a file through a link: %v", err)
+	}
 	f.mu.Lock()
 	if len(f.sessionPosts["files"]) != 0 {
 		t.Fatalf("an unpicked file reached the registry")

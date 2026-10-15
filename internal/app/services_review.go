@@ -73,7 +73,7 @@ func (b *BuildAPI) ReviewLocally(reg, dir string) (*ReviewView, error) {
 	if dir == "" {
 		return nil, errors.New("pick the QuickAgent's folder to review")
 	}
-	if err := b.app.requirePickedResolved("folder", dir); err != nil {
+	if err := b.app.requirePicked("folder", dir); err != nil {
 		return nil, err
 	}
 	reg = settings.Normalize(reg)
