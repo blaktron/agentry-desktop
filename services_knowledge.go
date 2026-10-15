@@ -1,14 +1,12 @@
-// KnowledgeAPI: the Knowledge panel (plan knowledge.md §4.3, §4.8;
-// agentry-desktop#273, D-039). The packs are the local store's, which the
-// CLI shares (internal/knowledge over agentry-cli's pkg/knowledge/store):
-// list, Create knowledge and Add documents with the built-in Knowledge
-// Creator on this computer, Copy to Cloud and Copy to Local (Upload and
-// Download), Export unencrypted…, Delete here or in Agentry, and a page
-// preview. The gates are the run
-// surface's (D-030): documents come only from the native picker, an export
-// and a delete are asked in a native dialog, an export's folder is the
-// picker's by construction, and a build takes the run lock, so it waits
-// on no run and no run waits on it.
+// KnowledgeAPI: the Knowledge panel. The packs are the local store's, which
+// the CLI shares (internal/knowledge over agentry-cli's
+// pkg/knowledge/store): list, Create knowledge and Add documents with the
+// built-in Knowledge Creator on this computer, Copy to Cloud and Copy to
+// Local (Upload and Download), Export unencrypted…, Delete here or in
+// Agentry, and a page preview. The gates are the run surface's: documents
+// come only from the native picker, an export and a delete are asked in a
+// native dialog, an export's folder is the picker's by construction, and a
+// build takes the run lock, so it waits on no run and no run waits on it.
 package main
 
 import (
@@ -33,7 +31,7 @@ const eventKnowledgeLog = "knowledge:build-log"
 
 // eventKnowledgeProgress carries how far a build on this computer has got
 // (knowledge.Progress): elapsed against the timeout, turns, the pages
-// written so far (agentry-desktop#352).
+// written so far.
 const eventKnowledgeProgress = "knowledge:build-progress"
 
 // KnowledgeAPI is the Knowledge panel's bound surface.
@@ -64,11 +62,10 @@ func (k *KnowledgeAPI) List(reg string) (*knowledge.List, error) {
 // Creator, for the sentence the review step says before a build.
 func (k *KnowledgeAPI) CreatorModel() string { return knowledge.PolicyModel() }
 
-// DocumentsView is how much the chosen documents come to, for the
-// Documents step (agentry-desktop#354): a build on this computer takes up
-// to LocalMaxBytes of them, a build In Agentry up to AgentryMaxBytes, and
-// past AgentryMaxBytes the step warns that the build can take a very long
-// time.
+// DocumentsView is how much the chosen documents come to, for the Documents
+// step: a build on this computer takes up to LocalMaxBytes of them, a build
+// In Agentry up to AgentryMaxBytes, and past AgentryMaxBytes the step warns
+// that the build can take a very long time.
 type DocumentsView struct {
 	Bytes           int64 `json:"bytes"`
 	LocalMaxBytes   int64 `json:"localMaxBytes"`
@@ -76,7 +73,7 @@ type DocumentsView struct {
 }
 
 // DocumentsSize sizes the documents the native picker returned; any other
-// path is refused, as a build refuses it (D-030).
+// path is refused, as a build refuses it.
 func (k *KnowledgeAPI) DocumentsSize(documents []string) (*DocumentsView, error) {
 	for _, p := range documents {
 		if err := k.app.requirePicked("document", p); err != nil {
@@ -87,7 +84,7 @@ func (k *KnowledgeAPI) DocumentsSize(documents []string) (*DocumentsView, error)
 }
 
 // CreatorBudgetView is how long a build on this computer may run, for the
-// review step's warning that a build takes a while (agentry-desktop#352).
+// review step's warning that a build takes a while.
 type CreatorBudgetView struct {
 	TimeoutSeconds int `json:"timeoutSeconds"`
 	MaxTurns       int `json:"maxTurns"`
@@ -95,20 +92,18 @@ type CreatorBudgetView struct {
 
 // CreatorBudget answers the budgets a build on this computer is shown: the
 // runner policy's, with at least 60 minutes, or no timeout and no turn cap
-// while Run defaults' switch for the built-in agents is on, the default
-// (D-062 and its addendum, agentry-desktop#699; the hidden failsafe is
-// never shown).
+// while Run defaults' switch for the built-in agents is on, the default (the
+// hidden failsafe is never shown).
 func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
 	b := knowledge.PolicyBudgets()
 	return CreatorBudgetView{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns}
 }
 
 // Create makes a new pack named name with the Knowledge Creator on this
-// computer and keeps it sealed, from the documents, the brief, or both
-// (agentry-desktop#498), searching the web when web is set and this
-// computer has the keys for it. Every document must be one the native
-// picker returned. The build takes the run lock; its progress streams as
-// knowledge:build-log.
+// computer and keeps it sealed, from the documents, the brief, or both,
+// searching the web when web is set and this computer has the keys for it.
+// Every document must be one the native picker returned. The build takes the
+// run lock; its progress streams as knowledge:build-log.
 func (k *KnowledgeAPI) Create(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
 	return k.runBuild(reg, name, documents, brief, web, false)
 }
@@ -119,13 +114,12 @@ func (k *KnowledgeAPI) Add(reg, name string, documents []string, brief string, w
 	return k.runBuild(reg, name, documents, brief, web, true)
 }
 
-// CreatorWebView is whether a build on this computer can search the web,
-// for the Documents step's Search the web choice (agentry-desktop#498,
-// plan knowledge-and-drafter.md D16): it takes the person's own AI Review
-// key, which reads every result first, and a search provider with its key.
-// Ready says both are there; otherwise Why says what is missing, and the
-// step says the build runs without the web. Answered from presence alone:
-// no key is read.
+// CreatorWebView is whether a build on this computer can search the web, for
+// the Documents step's Search the web choice: it takes the person's own AI
+// Review key, which reads every result first, and a search provider with its
+// key. Ready says both are there; otherwise Why says what is missing, and
+// the step says the build runs without the web. Answered from presence
+// alone: no key is read.
 type CreatorWebView struct {
 	Ready    bool   `json:"ready"`
 	Why      string `json:"why,omitempty"`
@@ -160,11 +154,11 @@ func creatorWebView(jev bool, search drafter.SearchState, pol *policy.Policy) *C
 const knowledgeRunRef = "the Knowledge Creator"
 
 // StopBuild stops the build on this computer that is running, from the
-// corner card or the building view (agentry-desktop#353): its context is
-// cancelled, the Creator run tears down as a quit's does, and the pages it
-// wrote that pass the apply step are kept, as a build stopped at its
-// timeout keeps them. It stops only a Knowledge Creator build, never a run
-// or a session, and says so when none is running.
+// corner card or the building view: its context is cancelled, the Creator
+// run tears down as a quit's does, and the pages it wrote that pass the
+// apply step are kept, as a build stopped at its timeout keeps them. It
+// stops only a Knowledge Creator build, never a run or a session, and says
+// so when none is running.
 func (k *KnowledgeAPI) StopBuild() error {
 	r := k.run
 	r.liveMu.Lock()
@@ -211,9 +205,9 @@ func (k *KnowledgeAPI) Download(reg, name string) (string, error) {
 	return k.env().Download(k.app.ctx, reg, name)
 }
 
-// DownloadShared keeps a copy of org's shared pack on this computer
-// (Knowledge M8): its key stays the organization's, asked for at every
-// open, so it opens only while the person is a member and signed in.
+// DownloadShared keeps a copy of org's shared pack on this computer: its key
+// stays the organization's, asked for at every open, so it opens only while
+// the person is a member and signed in.
 func (k *KnowledgeAPI) DownloadShared(reg, org, name string) (string, error) {
 	return k.env().DownloadShared(k.app.ctx, reg, org, name)
 }
@@ -223,11 +217,11 @@ type ExportView struct {
 	Dir string `json:"dir"`
 }
 
-// Export writes the pack out unencrypted, in this order (plan §4.8): a
-// native dialog asks, then the native folder picker chooses where, then the
-// pack is written into a new folder named for it there, and the file
-// manager shows that folder. The desktop never opens a page (D-035). A No
-// or a cancelled picker writes nothing.
+// Export writes the pack out unencrypted, in this order: a native dialog
+// asks, then the native folder picker chooses where, then the pack is
+// written into a new folder named for it there, and the file manager shows
+// that folder. The desktop never opens a page. A No or a cancelled picker
+// writes nothing.
 func (k *KnowledgeAPI) Export(reg, name string) (*ExportView, error) {
 	en, err := k.env().Find(reg, name)
 	if err != nil {
@@ -263,12 +257,11 @@ func (k *KnowledgeAPI) Export(reg, name string) (*ExportView, error) {
 	return &ExportView{Dir: dir}, nil
 }
 
-// Delete removes the pack from this computer — the sealed tree, its
-// wrapped key and the key the keychain caches — after a native dialog.
-// Agentry's copy is left as it is: each page deletes its own place's copy
-// (plan knowledge-cards.md D3, agentry-desktop#619), and Agentry's goes
-// through DeleteFromAgentry. The dialog says when this computer's copy is
-// the only one.
+// Delete removes the pack from this computer — the sealed tree, its wrapped
+// key and the key the keychain caches — after a native dialog. Agentry's
+// copy is left as it is: each page deletes its own place's copy, and
+// Agentry's goes through DeleteFromAgentry. The dialog says when this
+// computer's copy is the only one.
 func (k *KnowledgeAPI) Delete(reg, name string) error {
 	en, err := k.env().Find(reg, name)
 	if err != nil {
@@ -287,12 +280,12 @@ func (k *KnowledgeAPI) Delete(reg, name string) error {
 }
 
 // DeleteFromAgentry deletes the account's pack id in Agentry after a native
-// dialog, and leaves this computer's copy as it is (plan knowledge-cards.md
-// §4.3, D3; agentry-desktop#619). The pack is found by its id in the
-// account's own list first, and the dialog names it from there, never from
-// the page; an id that list does not hold (an organization's shared pack,
-// another account's, one already gone) is refused before anything is
-// asked. Whether a copy stays here is this computer's own record's to say.
+// dialog, and leaves this computer's copy as it is. The pack is found by its
+// id in the account's own list first, and the dialog names it from there,
+// never from the page; an id that list does not hold (an organization's
+// shared pack, another account's, one already gone) is refused before
+// anything is asked. Whether a copy stays here is this computer's own
+// record's to say.
 func (k *KnowledgeAPI) DeleteFromAgentry(reg, id string) error {
 	r, err := k.env().AgentryPack(k.app.ctx, reg, id)
 	if err != nil {
@@ -323,8 +316,8 @@ func (k *KnowledgeAPI) ReadPage(reg, name, page string) (*knowledge.Page, error)
 }
 
 // rewrapKnowledge moves the packs this computer's key wraps to the account
-// signed in at reg (D20), best effort: a sign-in is never refused for it,
-// and a pack not moved now moves at the next build or upload.
+// signed in at reg, best effort: a sign-in is never refused for it, and a
+// pack not moved now moves at the next build or upload.
 func rewrapKnowledge(ctx context.Context, env knowledge.Env, reg string) ([]string, string) {
 	moved, err := env.Rewrap(ctx, settings.Normalize(reg))
 	if err != nil && !errors.Is(err, store.ErrSignedOut) {

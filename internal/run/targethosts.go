@@ -1,5 +1,4 @@
-// Target hosts in the desktop's run setup (plan runtime-hosts.md §6, §8,
-// D6, D7, D12, D14; agentry-desktop#812). A QuickAgent that declares a
+// Target hosts in the desktop's run setup. A QuickAgent that declares a
 // target host asks, with an intake question of type host, for a machine
 // the person names when it runs, [user@]host[:port], and the run reaches
 // it over SSH from the host link, never from the agent's containers. The
@@ -184,25 +183,24 @@ type hostReadiness struct {
 	home string
 	// given are the setup's sign-ins, by question id.
 	given map[string]HostSignIn
-	// picked judges a key file's path: one a native picker returned, or
-	// it is refused (D-030). nil judges nothing (a test).
+	// picked judges a key file's path: one a native picker returned, or it is
+	// refused. nil judges nothing (a test).
 	picked func(what, path string) error
 	// trust asks the person whether to accept a host key no file holds;
 	// nil is no one to ask, and such a key refuses the run.
 	trust func(prompt string) (bool, error)
 	say   func(string)
-	// keep saves every sign-in in the keychain, whatever the setup's
-	// Save says: a schedule's fires read it there (plan D12).
+	// keep saves every sign-in in the keychain, whatever the setup's Save
+	// says: a schedule's fires read it there.
 	keep bool
 }
 
 // readyTargetHosts readies each target host ids names, in that order, as
-// `agentry run` does: its address resolved and checked against the policy
-// (D8), its host key checked (D7), and its sign-in taken (D6) from the
-// setup, else the keychain. A refusal is a policy refusal with the CLI's
-// reason, host-refused (exit 11). A sign-in for an id that is no target
-// host of the run refuses it, so a credential is never dropped without a
-// word.
+// `agentry run` does: its address resolved and checked against the policy,
+// its host key checked, and its sign-in taken from the setup, else the
+// keychain. A refusal is a policy refusal with the CLI's reason,
+// host-refused (exit 11). A sign-in for an id that is no target host of
+// the run refuses it, so a credential is never dropped without a word.
 func readyTargetHosts(ctx context.Context, a *intake.Answers, ids []string, r hostReadiness) error {
 	for id, s := range r.given {
 		if (s.signsIn() || s.Sudo != "") && !slices.Contains(ids, id) {
@@ -296,13 +294,13 @@ type ScheduleHosts struct {
 }
 
 // ReadyScheduleHosts readies, as a schedule on this computer is made, each
-// target host the release asks for (plan D12): the host key is accepted
-// now, in the native dialog where no file holds it, and the sign-in, from
-// the setup or the keychain, is kept in the keychain, where the schedule's
-// fires read it. The agentry command that then makes the schedule finds
-// both and pins the key (agentry-cli#863). It reports how many hosts it
-// readied, each sign-in now in the keychain: a release with none readies
-// nothing, and a sign-in given for one refuses.
+// target host the release asks for: the host key is accepted now, in the
+// native dialog where no file holds it, and the sign-in, from the setup or
+// the keychain, is kept in the keychain, where the schedule's fires read
+// it. The agentry command that then makes the schedule finds both and pins
+// the key. It reports how many hosts it readied, each sign-in now in the
+// keychain: a release with none readies nothing, and a sign-in given for
+// one refuses.
 func ReadyScheduleHosts(ctx context.Context, s ScheduleHosts) (int, error) {
 	sig, err := ResolveSignature(ctx, s.Registry, s.Ref, false)
 	if err != nil {
@@ -348,9 +346,9 @@ func ReadyScheduleHosts(ctx context.Context, s ScheduleHosts) (int, error) {
 }
 
 // RefuseHostedTargetHosts refuses a run or a schedule In Agentry of a
-// release that declares a target host (plan D11): a machine the person
-// names is reached over SSH only from their own computer. The run host's
-// CLI refuses it again (engine.HostedTargetHostRefusal).
+// release that declares a target host: a machine the person names is
+// reached over SSH only from their own computer. The run host's CLI
+// refuses it again (engine.HostedTargetHostRefusal).
 func RefuseHostedTargetHosts(m *manifest.Manifest) error {
 	if ids := TargetHostIDs(m); len(ids) > 0 {
 		return fmt.Errorf("this QuickAgent works a server you name (%s) over SSH, which only a run on this computer does: a run In Agentry is not offered for it", strings.Join(ids, ", "))

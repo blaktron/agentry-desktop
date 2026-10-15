@@ -71,7 +71,7 @@ func TestValidateBenignWorkspacePasses(t *testing.T) {
 	}
 }
 
-// TestValidateFlagsZeroWidthSpace is the §10.5 acceptance check: a hidden
+// TestValidateFlagsZeroWidthSpace is the acceptance check: a hidden
 // zero-width character in shipped prose must produce an S3 finding.
 func TestValidateFlagsZeroWidthSpace(t *testing.T) {
 	dir := benignWorkspace(t)
@@ -146,10 +146,9 @@ func TestValidateFlagsExecutable(t *testing.T) {
 }
 
 // TestValidateAGuidedManifestPasses: the pinned core carries manifest v2's
-// optional guide block (DEV-141, agentry-desktop#228), so a workspace whose
-// agent.yaml has one validates here instead of meeting the strict
-// decoder's unknown-field refusal; a connect key that names no declared
-// secret is still refused (V10).
+// optional guide block, so a workspace whose agent.yaml has one validates
+// here instead of meeting the strict decoder's unknown-field refusal; a
+// connect key that names no declared secret is still refused (V10).
 func TestValidateAGuidedManifestPasses(t *testing.T) {
 	dir := benignWorkspace(t)
 	path := filepath.Join(dir, "agent.yaml")
@@ -190,11 +189,10 @@ guide:
 	}
 }
 
-// TestValidateACleanFolderSendsEmptyListsNotNull: a clean folder is the
-// common case, and its Result must cross the IPC with every list as [] and
-// never null, which the Validate page reads with .length
-// (agentry-desktop#534). Every slice field of Result that is not omitempty is
-// held, so a field added later is held too.
+// TestValidateACleanFolderSendsEmptyListsNotNull: a clean folder is the common
+// case, and its Result must cross the IPC with every list as [] and never
+// null, which the Validate page reads with .length. Every slice field of
+// Result that is not omitempty is held, so a field added later is held too.
 func TestValidateACleanFolderSendsEmptyListsNotNull(t *testing.T) {
 	noManifest := t.TempDir()
 	if err := os.WriteFile(filepath.Join(noManifest, "SKILL.md"), []byte("# Notes\n\nSummarise the notes.\n"), 0o644); err != nil {

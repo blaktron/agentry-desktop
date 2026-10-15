@@ -51,10 +51,10 @@ func CheckUpdateForKey(ctx context.Context, key installed.Key) (*UpdateInfo, err
 }
 
 // CheckUpdateFor resolves the latest version for one QuickAgent's
-// runner-home record — what the agent page asks on opening
-// (agentry-desktop#147, D8) — through the record's origin, with the one
-// rule every "newer" in this app follows (newerThan). Nil when nothing is
-// installed in the runner home for it: there is nothing to update.
+// runner-home record — what the agent page asks on opening — through the
+// record's origin, with the one rule every "newer" in this app follows
+// (newerThan). Nil when nothing is installed in the runner home for it:
+// there is nothing to update.
 func CheckUpdateFor(ctx context.Context, namespace, name string) (*UpdateInfo, error) {
 	items, err := List()
 	if err != nil {

@@ -11,11 +11,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The Build tab writes a QuickAgent without asking where (agentry-desktop#585,
-// D-060): Save, Install and Submit put it in a folder of its own under the
-// default output folder, the one a run writes into. Go names and makes that
-// folder, so the page still names no path (D-030): it passes the QuickAgent's
-// name, and gets back a folder that did not exist before the call.
+// The Build tab writes a QuickAgent without asking where: Save, Install and
+// Submit put it in a folder of its own under the default output folder, the
+// one a run writes into. Go names and makes that folder, so the page still
+// names no path: it passes the QuickAgent's name, and gets back a folder
+// that did not exist before the call.
 
 // saveRoot is the default output folder: Settings → Run defaults → Output
 // folder when one is saved, else ~/Downloads/agentry-out, as for a run.
@@ -84,8 +84,8 @@ func newFolderIn(root, name string) (string, error) {
 
 // NewSaveFolder makes the folder the Build tab writes a QuickAgent into at
 // its first Save, Install or Submit: new and empty, under the default output
-// folder, named for name (agentry-desktop#585). The folder is admitted for
-// this session's bindings as a picked one is, since Go chose it.
+// folder, named for name. The folder is admitted for this session's bindings
+// as a picked one is, since Go chose it.
 func (b *BuildAPI) NewSaveFolder(name string) (string, error) {
 	root, err := saveRoot()
 	if err != nil {

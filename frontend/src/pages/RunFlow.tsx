@@ -1,18 +1,17 @@
-// A run on this computer, followed above the pages (agentry-desktop#465;
-// plan desktop-review-key-and-run-cards.md §5.2, §5.4; D5, D9, D10), as a
-// draft and a knowledge build are: App mounts this, the run setup hands the
+// A run on this computer, followed above the pages, as a draft and a
+// knowledge build are: App mounts this, the run setup hands the
 // run over at Run and closes once it has begun, and the dialog shows the time
 // used against the run's limit, its turns and tokens over its log folded
 // beneath. Run in the background, or closing the dialog while the run goes,
 // shrinks it to a card in the bottom-right corner that keeps the progress,
 // stops the run (RunAPI.StopRun, which stops only a run) and opens the dialog
 // again. Once the run is over the dialog is its result (the result first,
-// Run details beneath, D-035's rules) and the card says how it ended; Dismiss
+// Run details beneath) and the card says how it ended; Dismiss
 // makes the app forget it, and Back to the setup reopens the setup on that
 // QuickAgent with the answers as they were.
 //
 // The run lock is unchanged: this run is the one local job, and anything
-// started meanwhile is refused with what is running (D16). Every string the
+// started meanwhile is refused with what is running. Every string the
 // run wrote (the log, the error, the result) is drawn as text.
 import { useEffect, useRef, useState } from "react";
 import { type LocalRun, headlineOf, outcome } from "../localRun";

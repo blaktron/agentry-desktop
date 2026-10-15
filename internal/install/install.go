@@ -1,7 +1,7 @@
-// Package install is the desktop install engine (§11 semantics, GUI shape):
-// resolve → download → verify digest AND the DSSE attestation signature
-// (§8.8) → surface the declared capability contract diffed against what this
-// machine last accepted → extract → export to one §5.6 target.
+// Package install is the desktop install engine (GUI shape of the CLI's
+// install): resolve → download → verify digest AND the DSSE attestation
+// signature → surface the declared capability contract diffed against what this
+// machine last accepted → extract → export to one target.
 //
 // It is split into Prepare (everything up to and including the questions a
 // human must answer) and Confirm (the writes), because a GUI shows the
@@ -42,15 +42,13 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// validTargets is the §5.6 closed set plus the runner home (the CLI's
-// DR-28, agentry-desktop#146): the directory a run reads, and the two
-// coding-agent exports. The mcp target left with the withdrawn v1
-// tool-server package kind (DEV-088).
+// validTargets is the closed set of targets: the runner home, the
+// directory a run reads, and the two coding-agent exports.
 var validTargets = []string{installdir.Target, manifest.InterfaceClaudeSkill, manifest.InterfaceAgentsMD}
 
-// DefaultTarget is the runner target (D-031, the CLI's DR-28): the release
-// laid down where a run reads it, whatever runtime.interfaces lists — those
-// name the coding-agent exports, which the install wizard asks for by name.
+// DefaultTarget is the runner target: the release laid down where a run
+// reads it, whatever runtime.interfaces lists — those name the coding-agent
+// exports, which the install wizard asks for by name.
 func DefaultTarget(*manifest.Manifest) string { return installdir.Target }
 
 // modeStrings renders a mode set for a view.
@@ -85,14 +83,14 @@ type Paths struct {
 // ResolvePaths computes the destination for a target.
 //
 // The runner target has one home (the CLI's, AGENTRY_RUNNER_HOME): the
-// agent's directory under it, managed, no directory to pick — a picked
-// one is refused, since the runner reads nowhere else (D-031). For the two
+// agent's directory under it, managed, no directory to pick — a picked one
+// is refused, since the runner reads nowhere else. For the two
 // coding-agent exports the desktop differs from the CLI in one deliberate
 // way: the CLI's agents-md default is relative to the process working
 // directory, which a GUI does not meaningfully have. Here that target
 // takes a PROJECT directory the user picked, and lays out
 // <project>/agents/<name> + <project>/AGENTS.md — the exact layout the CLI
-// produces when run at a project root (D-002). claude-skill defaults to
+// produces when run at a project root. claude-skill defaults to
 // ~/.claude/skills/<name> like the CLI; a picked parent dir yields
 // <dir>/<name>, unmanaged.
 func ResolvePaths(target, dir, namespace, name string) (Paths, error) {
@@ -160,7 +158,7 @@ type Plan struct {
 	Unsigned bool `json:"unsigned"`
 	// Unscanned is true when the registry admitted the version without a
 	// scan (a private organization agent its administrator took off the
-	// pipeline; plan organization-subscriptions §4): no findings, no report
+	// pipeline): no findings, no report
 	// and no attestation stand behind it. Confirm then requires
 	// acceptUnscanned — its own consent, which acceptUnsigned does not give
 	// — mirroring the CLI's --allow-unscanned.
@@ -169,10 +167,10 @@ type Plan struct {
 	Capabilities installed.CapSnapshot `json:"capabilities"`
 	// DeclaredSecrets is every secret the release declares, its own then each
 	// declared server's, each once, and OptionalSecrets those a run can start
-	// without (capabilities.optionalSecrets, agentry-desktop#655). The
+	// without (capabilities.optionalSecrets). The
 	// consent names each whatever its marking: moving one between optional
-	// and required asks for no new consent (plan optional-secrets.md D6),
-	// which holds only while every name is shown.
+	// and required asks for no new consent, which holds only while every
+	// name is shown.
 	DeclaredSecrets []string `json:"declaredSecrets"`
 	OptionalSecrets []string `json:"optionalSecrets"`
 	// ShippedKnowledge is each knowledge pack the release ships in its
@@ -181,21 +179,20 @@ type Plan struct {
 	// gave it.
 	ShippedKnowledge []ShippedPack `json:"shippedKnowledge"`
 	// MCPServers is each declared MCP server's pin, tool allowlist and
-	// plain env, for the review (agentry-desktop#62); never a secret.
+	// plain env, for the review; never a secret.
 	MCPServers []mcpview.Server `json:"mcpServers"`
-	// NeedsCapabilityConfirm: first install declaring egress, exec, a
-	// target host or a browser (§11; plan runtime-hosts.md §8,
-	// agentry-desktop#812; plan browser-testing.md §5, agentry-desktop#878).
+	// NeedsCapabilityConfirm: first install declaring egress, exec, a target
+	// host or a browser.
 	NeedsCapabilityConfirm bool `json:"needsCapabilityConfirm"`
 	// PrevVersion is the version currently at this key ("" on first install).
 	PrevVersion string `json:"prevVersion,omitempty"`
 	// Diff vs the installed contract (nil on first install).
 	Diff *installed.Diff `json:"diff,omitempty"`
-	// RequiresWidenedConfirm: the diff widens the contract (§11).
+	// RequiresWidenedConfirm: the diff widens the contract.
 	RequiresWidenedConfirm bool `json:"requiresWidenedConfirm"`
 
-	// Vulnerabilities is the registry's verdict on each declared MCP server
-	// (agentry#177): VulnerabilityLine the receipt line a run would record,
+	// Vulnerabilities is the registry's verdict on each declared MCP
+	// server: VulnerabilityLine the receipt line a run would record,
 	// VulnerabilityRefusal the refusal a run meets by default ("" when it
 	// would run). Installing never refuses; the run panel has the override.
 	Vulnerabilities      []mcpvuln.Status `json:"vulnerabilities"`
@@ -217,11 +214,10 @@ type Result struct {
 	Dest    string `json:"dest"`
 	// SecretsNote reminds about empty env placeholders (mcp target).
 	SecretsNote string `json:"secretsNote,omitempty"`
-	// Warning is what the install did not do although it succeeded —
-	// the coding-agent export it could not write (agentry-desktop#148), or
-	// the runner home's policy it could not read, so the export took the
-	// generic AGENTS.md shape (agentry-desktop#220) — for a page with no
-	// result screen to show beside the button.
+	// Warning is what the install did not do although it succeeded — the
+	// coding-agent export it could not write, or the runner home's policy
+	// it could not read, so the export took the generic AGENTS.md shape —
+	// for a page with no result screen to show beside the button.
 	Warning string `json:"warning,omitempty"`
 }
 
@@ -252,10 +248,10 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	if target != "" && !manageable(target) {
 		return nil, fmt.Errorf("unknown target %q (want %s)", target, strings.Join(validTargets, ", "))
 	}
-	// The registry is the page's word (D-030): judged the way the settings
-	// writers judge one — https off loopback — before a token is looked up
-	// for its host, so a page cannot aim the keyring's PAT at a plain-http
-	// host by naming it here.
+	// The registry is the page's word: judged the way the settings writers
+	// judge one — https off loopback — before a token is looked up for its
+	// host, so a page cannot aim the keyring's PAT at a plain-http host by
+	// naming it here.
 	if err := settings.ValidateURL(regURL); err != nil {
 		return nil, err
 	}
@@ -284,7 +280,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		return nil, fmt.Errorf("digest mismatch: registry says %s, archive is %s — refusing to install", res.Digest, computed)
 	}
 
-	// Provenance (§8.8): the digest above only says the bytes match what the
+	// Provenance: the digest above only says the bytes match what the
 	// registry SAID; the attestation says who vouched for them, verified
 	// against the digest just computed from the actual bytes.
 	att := verifyAttestation(ctx, regURL, token, res, computed)
@@ -306,8 +302,7 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	// attestation (both are over the archive), and the paths below are
 	// derived from it: hold it to the publish rules before any path is,
 	// so a name of "../../.." or an entrypoint of "../../.bashrc" is a
-	// refusal here, not a directory cleared or a file written (security
-	// review 2026-09-20 §8.1, §8.2).
+	// refusal here, not a directory cleared or a file written.
 	if blocking := manifest.Blocking(manifest.Validate(m)); len(blocking) > 0 {
 		msgs := make([]string, 0, len(blocking))
 		for _, e := range blocking {
@@ -360,8 +355,8 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 		Secrets:         append([]string(nil), m.Capabilities.Secrets...),
 	}
 	// The packs the release ships, with their sizes from the verified
-	// archive's headers, for the consent (plan knowledge.md §4.6): a size
-	// that cannot be read leaves the name alone.
+	// archive's headers, for the consent: a size that cannot be read
+	// leaves the name alone.
 	sizes, _ := shippedPackSizes(archive, m.ShippedPacks())
 	for _, name := range m.ShippedPacks() {
 		sp := ShippedPack{Name: name}
@@ -402,24 +397,24 @@ func readRecord(plan *Plan, m *manifest.Manifest) {
 }
 
 // needsCapabilityConfirm reports whether a first install of c asks for
-// the capability consent: declared network egress or exec (§11), a
-// target host, a machine the person names and the agent works as the
-// account they sign in with (the CLI's install gate, agentry-cli#861), or
-// a browser, which opens the sites the person names (agentry-cli#915).
+// the capability consent: declared network egress or exec, a target host,
+// a machine the person names and the agent works as the account they sign
+// in with (the CLI's install gate), or a browser, which
+// opens the sites the person names.
 func needsCapabilityConfirm(c manifest.Capabilities) bool {
 	return len(c.Network.Egress.Hosts) > 0 || len(c.Exec.Commands) > 0 || len(c.TargetHosts) > 0 || c.Browser != nil
 }
 
-// PrepareExport derives a coding-agent export from a pending runner plan
-// (agentry-desktop#148): the same resolved, downloaded and verified bytes
-// — one download, one attestation verdict — laid down where the coding
-// agent reads (the Claude skill, or AGENTS.md in a project directory), as
-// its own plan with its own record, so a one-click install with Settings'
-// "also install into <coding agent>" on writes both. The export plan owes
-// the gates its own record owes: a first export of a release that
-// declares egress or exec needs the capability consent even when the
-// runner record already carries it, since the coding agent enforces
-// nothing. The runner plan stays pending; each is confirmed on its own.
+// PrepareExport derives a coding-agent export from a pending runner plan:
+// the same resolved, downloaded and verified bytes — one download, one
+// attestation verdict — laid down where the coding agent reads (the
+// Claude skill, or AGENTS.md in a project directory), as its own plan
+// with its own record, so a one-click install with Settings' "also
+// install into <coding agent>" on writes both. The export plan owes the
+// gates its own record owes: a first export of a release that declares
+// egress or exec needs the capability consent even when the runner record
+// already carries it, since the coding agent enforces nothing. The runner
+// plan stays pending; each is confirmed on its own.
 func (e *Engine) PrepareExport(runnerPlanID, target, dir string) (*Plan, error) {
 	p, ok := e.pending[runnerPlanID]
 	if !ok || p.manifest == nil {
@@ -509,8 +504,8 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 	if err != nil {
 		return nil, err
 	}
-	// Held before anything is written; the record then carries the
-	// archive's contract, never wider, possibly narrower (agentry-desktop#163).
+	// Held before anything is written; the record then carries the archive's
+	// contract, never wider, possibly narrower.
 	if err := holdToConsented(p.manifest, m, plan); err != nil {
 		return nil, err
 	}
@@ -519,7 +514,7 @@ func (e *Engine) Confirm(id string, acceptUnsigned, acceptCapabilities, acceptUn
 
 	res := &Result{Dest: plan.Paths.Dest}
 	// after runs once the record is saved: the runner target's replace of
-	// the older version (D9) waits for the record, so a failed save never
+	// the older version waits for the record, so a failed save never
 	// leaves a directory gone and a record naming it.
 	var after func() error
 	switch plan.Target {
@@ -606,14 +601,14 @@ func recordKey(plan Plan) installed.Key {
 	}
 }
 
-// installRunner lays the verified release down in the runner home with
-// the CLI's installdir.Install (agentry-cli#192), so a run finds it by
-// digest and fetches nothing, and writes the coding-agent shape beside it
-// in the style the runner home's policy implies (installdir.StyleForHome,
-// whose warning for a policy it cannot read is returned for the page). The
-// cache holds the verdict and never the consent, and says whether the
-// verdict was a verified signature the way a run's does. Returns the style
-// written and the warning.
+// installRunner lays the verified release down in the runner home with the
+// CLI's installdir.Install, so a run finds it by digest and fetches
+// nothing, and writes the coding-agent shape beside it in the style the
+// runner home's policy implies (installdir.StyleForHome, whose warning for
+// a policy it cannot read is returned for the page). The cache holds the
+// verdict and never the consent, and says whether the verdict was a
+// verified signature the way a run's does. Returns the style written and
+// the warning.
 func installRunner(staging string, p Paths, m *manifest.Manifest, plan Plan) (style, warning string, err error) {
 	// The runner home Prepare laid the paths out under (ManagedRoot is its
 	// agents/), so the style is read from the home the release goes to.
@@ -694,13 +689,13 @@ func manifestFromArchive(staging string, fromResolve *manifest.Manifest, plan Pl
 
 // holdToConsented refuses an archive manifest whose capability contract is
 // wider than the resolve manifest's, the one the consent dialog and the
-// diff were raised on (agentry-desktop#163). The digest and the
-// attestation cover the archive, so a widening means the registry's
-// resolve answer diverged from the bytes it served: the case an install
-// client refuses rather than reconciles. The rule is the CLI's
-// installed.ArchiveWidenings, the one both clients refuse by
-// (agentry-cli#252). A legacy archive without agent.yaml hands back the
-// resolve manifest itself, which has nothing to be held to.
+// diff were raised on. The digest and the attestation cover the
+// archive, so a widening means the registry's resolve answer diverged
+// from the bytes it served: the case an install client refuses rather
+// than reconciles. The rule is the CLI's installed.ArchiveWidenings,
+// the one both clients refuse by. A legacy archive without agent.yaml
+// hands back the resolve manifest itself, which has nothing to be held
+// to.
 func holdToConsented(consented, archive *manifest.Manifest, plan Plan) error {
 	if consented == nil || archive == nil || consented == archive {
 		return nil
@@ -715,8 +710,7 @@ func holdToConsented(consented, archive *manifest.Manifest, plan Plan) error {
 
 // exportClaudeSkill lays the release down as the Claude skill with the
 // CLI's writer, so the two clients' installs of one release are the same
-// bytes (§5.6; agentry-desktop#162). prepareDest — the managed clear and
-// its guards — runs first.
+// bytes. prepareDest — the managed clear and its guards — runs first.
 func exportClaudeSkill(staging string, p Paths, m *manifest.Manifest) error {
 	if err := prepareDest(p); err != nil {
 		return err
@@ -725,7 +719,7 @@ func exportClaudeSkill(staging string, p Paths, m *manifest.Manifest) error {
 }
 
 // exportAgentsMD extracts to Dest and upserts the agent's section in
-// AgentsMD (§5.6 agents-md row).
+// AgentsMD (the agents-md target).
 func exportAgentsMD(staging string, p Paths, m *manifest.Manifest, ns, version string) error {
 	if err := prepareDest(p); err != nil {
 		return err
@@ -751,7 +745,7 @@ func exportAgentsMD(staging string, p Paths, m *manifest.Manifest, ns, version s
 }
 
 // undeclaredTargetWarning warns when runtime.interfaces exists but omits the
-// chosen target (§5.2: interfaces lists what §5.6 may emit).
+// chosen target (interfaces lists what an export may emit).
 func undeclaredTargetWarning(m *manifest.Manifest, target string) string {
 	if len(m.Runtime.Interfaces) == 0 || target == installdir.Target {
 		// The runner target is not an interface a release declares.
@@ -945,32 +939,32 @@ func sortRecords(recs []installed.Record) {
 	})
 }
 
-// Item is one install record with the facts the Installed page sorts on
-// (agentry-desktop#63): whether its directory is still there, whether this
-// app can uninstall it, and which registry to look it up at. The state
-// file is shared with the CLI; since D-031 a runner record — written by
-// an install here or by `agentry run`'s consent — is one this app manages.
+// Item is one install record with the facts the Installed page sorts on:
+// whether its directory is still there, whether this app can uninstall it,
+// and which registry to look it up at. The state file is shared with the
+// CLI; a runner record — written by an install here or by `agentry run`'s
+// consent — is one this app manages.
 type Item struct {
 	installed.Record
 	// Origin is the registry this record's QuickAgent is looked up at: the
 	// record's own registry for an export, the app's default registry for
 	// a runner record, whose key names none (a run resolves through the
-	// configured registry; D-031).
+	// configured registry).
 	Origin string `json:"origin"`
 	// Present is true when Dir exists and is a directory.
 	Present bool `json:"present"`
 	// Local is true for a QuickAgent installed from a folder on this
-	// computer (the CLI's DR-52; agentry-desktop#425): unsigned, held by no
-	// registry, so it has no Origin and no update to look for.
+	// computer: unsigned, held by no registry, so it has no Origin and no
+	// update to look for.
 	Local bool `json:"local"`
 	// Manageable is true for a target this app installs and uninstalls:
 	// the runner home and the two exports. (A run's consent record shares
-	// the runner target's key since D-031, so it is the install's record.)
+	// the runner target's key, so it is the install's record.)
 	Manageable bool `json:"manageable"`
 }
 
 // manageable reports whether target is one this app installs and
-// uninstalls: the runner home (D-031) and the §5.6 exports.
+// uninstalls: the runner home and the two exports.
 func manageable(target string) bool {
 	for _, t := range validTargets {
 		if t == target {

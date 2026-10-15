@@ -1,15 +1,14 @@
-// Package voice is the desktop's Writing Voice (plan writing-voice.md §4,
-// §6, §8, D6, D11, D12; agentry-desktop#510, D-054): the two places a person
+// Package voice is the desktop's Writing Voice: the two places a person
 // keeps one, never synced on their own. This computer's is the CLI's local
 // store (agentry-cli's pkg/knowledge/store, V1): sealed in the runner home,
 // written by the Voice Writer or by hand, never reviewed, free. The
 // account's is the registry's (the core's /api/v1/voice, V2, through
 // agentry-cli's pkg/voice/remote, V3): reviewed by AI Review before it is
 // live. Submit sends this computer's up for review; Use keeps the account's
-// live one here. Discard, Restore and Delete in the account go to the
-// core's routes through its generated client, since the CLI's client does
-// not speak them (agentry-desktop#611, D-063); every account they answer is
-// read again through the CLI's client, which holds it to its digests.
+// live one here. Discard, Restore and Delete in the account go to the core's
+// routes through its generated client, since the CLI's client does not speak
+// them; every account they answer is read again through the CLI's client,
+// which holds it to its digests.
 //
 // The wiring is the Knowledge panel's (internal/knowledge.Env): the runner
 // home the CLI shares, the OS keychain, and the sign-in Settings keeps. A
@@ -47,7 +46,7 @@ import (
 )
 
 // Env is what the voice is wired to: the knowledge store's wiring, whose
-// key wrapping the voice shares (plan §4).
+// key wrapping the voice shares.
 type Env struct {
 	knowledge.Env
 	// Now dates a kept version; nil is time.Now.
@@ -114,7 +113,7 @@ func (e Env) Local(ctx context.Context, reg string) (*Local, error) {
 
 // SaveLocal keeps text as this computer's voice, written by hand: free and
 // immediate, never reviewed. created says it was the first voice here,
-// which comes on for every run (D11).
+// which comes on for every run.
 func (e Env) SaveLocal(ctx context.Context, reg, text string) (*Local, bool, error) {
 	return e.keep(ctx, reg, []byte(text), voice.SourceEdit, nil)
 }
@@ -225,8 +224,8 @@ func (e Env) signedIn(reg string) (string, string, error) {
 }
 
 // api is the core's generated client at reg, signed in, for the voice
-// routes the CLI's client does not speak: Discard, Restore and Delete
-// (plan voice-page-redesign.md §4.3; agentry-desktop#611, D-063).
+// routes the CLI's client does not speak: Discard, Restore and
+// Delete.
 func (e Env) api(reg string) (*apiclient.ClientWithResponses, error) {
 	reg, token, err := e.signedIn(reg)
 	if err != nil {
@@ -255,8 +254,8 @@ func voiceProblem(op string, res *http.Response, p *apiclient.Problem, body []by
 	if status == http.StatusUnauthorized {
 		return fmt.Errorf("%s: %w (sign in to it again in Settings)", op, remote.ErrSignedOut)
 	}
-	// A status the spec declares (409, 404) is not parsed as a problem by
-	// the generated client; its body still is one.
+	// A status the spec declares is not parsed as a problem by the
+	// generated client; its body still is one.
 	if p == nil && len(body) > 0 {
 		var parsed apiclient.Problem
 		if json.Unmarshal(body, &parsed) == nil && parsed.Title != "" {
@@ -370,7 +369,7 @@ func (e Env) Account(ctx context.Context, reg string) (*Account, error) {
 
 // Submit sends this computer's voice to the account at reg as its pending
 // version: AI Review reads it before it is live, and the registry may
-// charge for that (D8). Nothing here changes.
+// charge for that. Nothing here changes.
 func (e Env) Submit(ctx context.Context, reg string) (*Account, error) {
 	s, err := e.Store(reg)
 	if err != nil {
@@ -401,10 +400,9 @@ func (e Env) SaveAccount(ctx context.Context, reg, text string) (*Account, error
 var ErrNoLiveVoice = errors.New("your account has no Writing Voice that AI Review has passed, so there is none to use here")
 
 // UseAccount keeps the account's live voice as this computer's, in place of
-// the one here, if any. The client held the text to its digest and to
-// plain text when it read it (agentry-cli#545); this computer records it as
-// downloaded, and a run's receipt says it was reviewed there and not
-// checked again here.
+// the one here, if any. The client held the text to its digest and to plain
+// text when it read it; this computer records it as downloaded, and a run's
+// receipt says it was reviewed there and not checked again here.
 func (e Env) UseAccount(ctx context.Context, reg string) (*Local, bool, error) {
 	c, err := e.client(reg)
 	if err != nil {
@@ -437,8 +435,8 @@ func (e Env) SetAccountAttach(ctx context.Context, reg string, on bool) (*Accoun
 	return accountOf(a), nil
 }
 
-// Attach is this computer's voice as a local run attaches it (plan §5,
-// D5): its text, digested, and how the receipt names where it came from.
+// Attach is this computer's voice as a local run attaches it: its text,
+// digested, and how the receipt names where it came from.
 // nil when this computer keeps none. A kept voice that will not open is a
 // refusal, as a kept pack's is.
 func (e Env) Attach(ctx context.Context, reg string) (*engine.AttachedVoice, error) {

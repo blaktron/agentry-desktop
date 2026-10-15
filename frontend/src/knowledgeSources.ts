@@ -1,7 +1,6 @@
-// What a knowledge build is made from (agentry-desktop#498; plan
-// knowledge-and-drafter.md §7, D15, D16): documents, a brief, or both, and
+// What a knowledge build is made from: documents, a brief, or both, and
 // the Search the web choice — the Documents step's check before Next, the
-// plan's warning, the choice's default and the sentences beside it. Pure,
+// warning, the choice's default and the sentences beside it. Pure,
 // so the rules are tested apart from the page; Go checks the brief and the
 // documents again (build.CheckBrief), and the registry once more.
 
@@ -23,14 +22,14 @@ export function sourcesProblem(documents: number, brief: string, maxBriefBytes =
   return null;
 }
 
-/** Search the web's default (D16): on for a new pack with no documents,
+/** Search the web's default: on for a new pack with no documents,
  *  off with documents and when adding to a pack, since the searches would
  *  carry what the Creator read in them to the search provider. */
 export function webDefault(adding: boolean, documents: number): boolean {
   return !adding && documents === 0;
 }
 
-/** The plan's warning at the Documents step, louder (warn) when no
+/** The warning at the Documents step, louder (warn) when no
  *  document is chosen. Its words follow the web: without it the Creator
  *  writes from the brief and its own knowledge. */
 export function sourcesWarning(documents: number, web: boolean): { tone: "warn" | "info"; text: string } {
@@ -95,20 +94,20 @@ export function readsLine(documents: number, brief: boolean): string {
 }
 
 /** How many documents a finished build read: its result lists the brief
- *  among them, as brief.md (agentry-desktop#600). */
+ *  among them, as brief.md. */
 export function documentsRead(names: string[], brief: boolean): number {
   return Math.max(0, names.length - (brief ? 1 : 0));
 }
 
 /** What continues a build that stopped short, in a sentence's words: what
- *  it was given, never documents it did not have (agentry-desktop#600). */
+ *  it was given, never documents it did not have. */
 export function continuesWith(documents: number, brief: boolean): string {
   if (!brief) return "the same documents";
   return documents > 0 ? "the same documents and brief" : "the same brief";
 }
 
 /** What a pack's size counts beside its pages, in a sentence's words: "its
- *  documents", "its brief", "its documents and brief" (agentry-desktop#600). */
+ *  documents", "its brief", "its documents and brief". */
 export function keptWith(documents: number, brief: boolean): string {
   if (!brief) return "its documents";
   return documents > 0 ? "its documents and brief" : "its brief";
@@ -116,7 +115,7 @@ export function keptWith(documents: number, brief: boolean): string {
 
 /** What a build In Agentry's Continue starts from again, in a sentence's
  *  words: "this brief and these documents", "this brief", "these
- *  documents" (agentry-desktop#600). */
+ *  documents". */
 export function continuedFrom(documents: number, brief: boolean): string {
   if (!brief) return "these documents";
   return documents > 0 ? "this brief and these documents" : "this brief";

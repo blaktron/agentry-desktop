@@ -1,16 +1,14 @@
-// Fork in the desktop (plan forks-and-publisher.md §5, D6–D10, D12; M7,
-// agentry-desktop#706): a signed-in person forks a public QuickAgent into
+// Fork in the desktop: a signed-in person forks a public QuickAgent into
 // their own namespace or an organization they publish for, under the same
-// name unless that name is taken there. The core decides every rule
-// (agentry#943): the origin public, not quarantined or blocked and with a
-// published version; the caller able to create in the target; the name
-// free; the quota and the private-agent cap. The fork's first version is
-// a submission through the pipeline, charged like any. Fork needs only
-// agent:publish, which every sign-in grant carries.
+// name unless that name is taken there. The core decides every rule: the
+// origin public, not quarantined or blocked and with a published version;
+// the caller able to create in the target; the name free; the quota and the
+// private-agent cap. The fork's first version is a submission through the
+// pipeline, charged like any. Fork needs only agent:publish, which every
+// sign-in grant carries.
 //
-// The fork is asked again in a native dialog first (D-030), saying the
-// site's three facts about a fork (agentry-web lib/fork.ts FORK_TERMS),
-// and a refusal is said in the site's words.
+// The fork is asked again in a native dialog first, saying the site's three
+// facts about a fork, and a refusal is said in the site's words.
 package main
 
 import (
@@ -25,8 +23,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/registry"
 )
 
-// forkTerms are what a fork is, said before it is made: the site's
-// FORK_TERMS, the third from DEV-224.
+// forkTerms are what a fork is, said before it is made, in the site's words.
 var forkTerms = []string{
 	"A fork stays private for good. It can be changed and given new versions, but it can never be made public.",
 	"Its first version is a submission through the pipeline, and it costs credits as any submission does.",
@@ -127,8 +124,8 @@ func forkUnreachable() string {
 	return forkNotForked + " the registry did not answer. Try again in a moment."
 }
 
-// forkRefusal says why a fork was not made, in the site's words
-// (forkRefusal in agentry-web lib/fork.ts). Never a status code alone.
+// forkRefusal says why a fork was not made, in the site's words Never a
+// status code alone.
 func forkRefusal(origin, target, name string, status int, slug, detail string) string {
 	nf := forkNotForked
 	switch {

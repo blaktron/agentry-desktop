@@ -13,7 +13,7 @@ import (
 // rather than merely compiling against it. It is opt-in (AGENTRY_KEYCHAIN_TEST=1)
 // because a developer's machine may have no unlocked keychain, and it uses a
 // host name no registry can have, so it never reads or disturbs a real
-// credential. The macOS CI job runs it (agentry-desktop#57).
+// credential. The macOS CI job runs it.
 func TestKeychainRoundTrip(t *testing.T) {
 	if os.Getenv("AGENTRY_KEYCHAIN_TEST") != "1" {
 		t.Skip("set AGENTRY_KEYCHAIN_TEST=1 to exercise the OS keychain")

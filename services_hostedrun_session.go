@@ -1,18 +1,18 @@
 // Talk to it In Agentry: a hosted session of a release's interactive mode,
 // started with the app's token and followed over the registry's session
-// route (plan hosted-sessions.md §5, §6, D2, D8; agentry-desktop#403).
+// route.
 //
 // SessionChat is one component with two transports. On this machine the
 // engine's session feeds it runner:session-event (services_run.go); In
-// Agentry the registry's stream feeds it runner:hosted-session-event, in
-// the same shape, and runner:hosted-session-state with the run's
-// content-free state and its session record for the status strip. The
-// app keeps no frame: each is emitted as it arrives, and a chat that opens
-// on a session already under way asks the stream to start again from the
-// first frame the host still holds (ReplayHostedSession), so reopening the
-// run replays the conversation from the host's memory, never from ours.
-// Only the account's token travels (internal/hostedrun), and a file added
-// to a session is one a native picker returned (D-030).
+// Agentry the registry's stream feeds it runner:hosted-session-event, in the
+// same shape, and runner:hosted-session-state with the run's content-free
+// state and its session record for the status strip. The app keeps no frame:
+// each is emitted as it arrives, and a chat that opens on a session already
+// under way asks the stream to start again from the first frame the host
+// still holds (ReplayHostedSession), so reopening the run replays the
+// conversation from the host's memory, never from ours. Only the account's
+// token travels (internal/hostedrun), and a file added to a session is one a
+// native picker returned.
 package main
 
 import (
@@ -34,10 +34,10 @@ const (
 	eventHostedSessionState = "runner:hosted-session-state"
 )
 
-// SessionTransportSentence is plan D2's copy, shown once beside a hosted
-// session's input and nowhere else. It is true of the transport between
-// the sandbox host and the registry's opening of each frame, and claims
-// nothing more: Agentry holds each person's key.
+// SessionTransportSentence is the copy shown once beside a hosted session's
+// input and nowhere else. It is true of the transport between the sandbox
+// host and the registry's opening of each frame, and claims nothing more:
+// Agentry holds each person's key.
 const SessionTransportSentence = "Transport encrypted by the user key, messages not stored; the transcript comes back only in your sealed output."
 
 // HostedSessionOfferView is Talk to it In Agentry for one release: whether
@@ -56,7 +56,7 @@ type HostedSessionOfferView struct {
 	CreditsPerMinute int64 `json:"creditsPerMinute"`
 	MinCredits       int64 `json:"minCredits"`
 	IdleSeconds      int   `json:"idleSeconds"`
-	// Transport is D2's sentence, for the chat to show.
+	// Transport is that sentence, for the chat to show.
 	Transport string `json:"transport"`
 }
 
@@ -120,14 +120,13 @@ func (r *RunAPI) StartHostedSession(reg, ref, task string, inputPaths []string, 
 	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, hostedrun.ModeInteractive, writeInVoice, askOptional, sourceTokens)
 }
 
-// follow follows a run the registry has created or this account already
-// had: a session's conversation and state, or a run's state alone. It
-// returns the folder the run downloads into: when another call (App's
-// attach at start, a run setup's, a start) got there first, the run is
-// already followed and its folder is that follow's, so no second loop
-// downloads it again (agentry-desktop#466). When what got there first is
-// another run, this app follows one at a time and does not follow this
-// one: it says so, naming both.
+// follow follows a run the registry has created or this account already had:
+// a session's conversation and state, or a run's state alone. It returns the
+// folder the run downloads into: when another call (App's attach at start, a
+// run setup's, a start) got there first, the run is already followed and its
+// folder is that follow's, so no second loop downloads it again. When what
+// got there first is another run, this app follows one at a time and does
+// not follow this one: it says so, naming both.
 func (r *RunAPI) follow(reg, token, outDir string, run *hostedrun.Run) (string, error) {
 	var cur *hostedFollow
 	if run.IsSession() {
@@ -273,11 +272,11 @@ func streamLost(err error) string {
 	return "This app lost the session's stream (" + err.Error() + "). The session goes on until you finish or stop it, or it is idle; its transcript comes back in your sealed output."
 }
 
-// frameView is a frame in the shape the engine's session events take, so
-// the chat reads both transports alike: a file added is named where the
-// agent finds it, and an error by the fixed words of its class, never by
-// text the harness wrote. A frame's token counts are not carried: a
-// session In Agentry is stated in credits (agentry-desktop#457).
+// frameView is a frame in the shape the engine's session events take, so the
+// chat reads both transports alike: a file added is named where the agent
+// finds it, and an error by the fixed words of its class, never by text the
+// harness wrote. A frame's token counts are not carried: a session In
+// Agentry is stated in credits.
 func frameView(seq uint64, ev hostedrun.FrameEvent) SessionEventView {
 	v := SessionEventView{
 		Seq: seq, Kind: ev.Kind, Text: ev.Text, Synthetic: ev.Synthetic, StopReason: ev.StopReason,
@@ -392,8 +391,8 @@ func sentence(err error) error {
 	return err
 }
 
-// hostedSessionQuitNote is what quitting says about a session In Agentry
-// the app is following: it goes on, and closes when idle (plan D8).
+// hostedSessionQuitNote is what quitting says about a session In Agentry the
+// app is following: it goes on, and closes when idle.
 func hostedSessionQuitNote(ref string, idle int) string {
 	if idle <= 0 {
 		idle = 300

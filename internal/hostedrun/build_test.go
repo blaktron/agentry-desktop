@@ -30,14 +30,14 @@ func TestDecideBuild(t *testing.T) {
 		{"no run scopes", func(f *BuildFacts) { f.Scopes = []string{ScopeKnowledgeRead, ScopeKnowledgeWrite} }, true, false, "run:read, run:write"},
 		{"status unknown", func(f *BuildFacts) { f.StatusKnown = false }, true, false, "did not answer"},
 		{"builds not taken", func(f *BuildFacts) { f.Price = &BuildPrice{} }, true, false, "not taking knowledge builds"},
-		{"an older registry", func(f *BuildFacts) { f.Price = nil }, true, false, "not taking knowledge builds"},
+		{"a registry that sends no price", func(f *BuildFacts) { f.Price = nil }, true, false, "not taking knowledge builds"},
 		{"a run in flight", func(f *BuildFacts) { f.Active = &Run{Status: StatusRunning} }, true, false, "already has a run In Agentry"},
 		{"a build in flight", func(f *BuildFacts) { f.Active = &Run{Status: StatusQueued, Kind: KindKnowledgeBuild} }, true, false, "already has a build In Agentry"},
-		// Creating knowledge in Agentry is Pro and above (DEV-162,
-		// agentry-desktop#328): the registry's caller.build.allowed decides.
+		// Creating knowledge in Agentry is Pro and above: the registry's
+		// caller.build.allowed decides.
 		{"a Standard payer", func(f *BuildFacts) { f.Allowed = ptr(false) }, true, false, "part of Pro, Business and Enterprise"},
 		{"a payer the registry allows", func(f *BuildFacts) { f.Allowed = ptr(true) }, true, true, ""},
-		{"a registry that predates allowed", func(f *BuildFacts) { f.Allowed = nil }, true, true, ""},
+		{"a registry that sends no allowed", func(f *BuildFacts) { f.Allowed = nil }, true, true, ""},
 	}
 	for _, c := range cases {
 		f := ok

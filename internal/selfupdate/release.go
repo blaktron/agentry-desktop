@@ -15,18 +15,18 @@ import (
 // Why it matters more than a label: the downloads manifest is written by the
 // site and is NOT signed, so nothing in it can be believed on its own. The
 // signature is over SHA256SUMS, and SHA256SUMS lists digests, not a version —
-// so the only version statement covered by the estate's key is this comment.
+// so the only version statement covered by the signing key is this comment.
 // An update check that took the version from the manifest would let whoever
 // serves the manifest name any version it liked; taking it from here means
 // the claim is one the signing key made.
 //
-// The comment names its product first. The estate signs more than this
-// application's releases with the same key — the CLI's release workflow runs
-// this module's signrelease (agentry-desktop#171) — and a signed statement
-// must say what it covers: `agentry-cli 0.1.0 (commit …)` for a CLI bundle,
-// `agentry-desktop 0.2.0 (commit …)` for ours. The update check reads ONLY
-// this product's (ParseTrustedComment); a CLI release's signature therefore
-// never reads as a desktop update, whatever manifest offers it.
+// The comment names its product first. The same key signs more than this
+// application's releases — the CLI's release workflow runs this module's
+// signrelease — and a signed statement must say what it covers:
+// `agentry-cli 0.1.0 (commit …)` for a CLI bundle, `agentry-desktop 0.2.0
+// (commit …)` for ours. The update check reads ONLY this product's
+// (ParseTrustedComment); a CLI release's signature therefore never reads as
+// a desktop update, whatever manifest offers it.
 const ThisProduct = "agentry-desktop"
 
 // A product is lower-case letters, digits and hyphens, as the repositories
@@ -40,8 +40,8 @@ func TrustedComment(version, commit string) string {
 	return TrustedCommentFor(ThisProduct, version, commit)
 }
 
-// TrustedCommentFor is the signed comment for a release of any of the
-// estate's products. The product is lower-case letters, digits and hyphens,
+// TrustedCommentFor is the signed comment for a release of any of
+// Agentry's products. The product is lower-case letters, digits and hyphens,
 // as the repositories are named; the signer checks that before it signs.
 func TrustedCommentFor(product, version, commit string) string {
 	return fmt.Sprintf("%s %s (commit %s)", product, version, commit)
@@ -76,7 +76,7 @@ func ParseAnyTrustedComment(s string) (product, version, commit string, err erro
 }
 
 // release is the X.Y.Z of a version string, and its N when it is a dev
-// prerelease (vX.Y.Z-dev.N, DEV-148): dev is 0 for a production release. What
+// prerelease (vX.Y.Z-dev.N): dev is 0 for a production release. What
 // follows them — the describe suffix, -dirty — is deliberately not kept: see
 // parseVersion.
 type release struct {
@@ -101,7 +101,7 @@ var (
 //
 // The Makefile's version is `git describe --tags --always --dirty` without the
 // leading v, so it is a tag — a production release (`0.6.0`) or a dev
-// prerelease (`0.6.1-dev.2`, agentry-desktop#279) — or a development build
+// prerelease (`0.6.1-dev.2`) — or a development build
 // past one (`0.6.0-11-g5ac8c0d`, `0.6.1-dev.2-4-gabc1234`, optionally
 // `-dirty`), or — on a checkout with no tag at all — a bare short sha, which
 // carries no ordering and is refused here. A `-dev.` that is not `-dev.N` with
@@ -151,12 +151,12 @@ func parseVersion(s string) (release, error) {
 // IsNewer says whether `offered` is a release this build should be told
 // about, given it is running `current`.
 //
-// Each channel keeps to itself (agentry-desktop#279): a dev build (its version
-// a -dev.N prerelease, or a build past one) is only ever offered a newer dev
-// prerelease, and a production build only a newer production release. A dev
-// build bakes dev's registry and a production build production's, so the
-// manifests they read already keep them apart; this is the same rule checked
-// against the version the signature covers, which the manifest cannot name.
+// Each channel keeps to itself: a dev build (its version a -dev.N prerelease,
+// or a build past one) is only ever offered a newer dev prerelease, and a
+// production build only a newer production release. A dev build bakes dev's
+// registry and a production build production's, so the manifests they read
+// already keep them apart; this is the same rule checked against the version
+// the signature covers, which the manifest cannot name.
 //
 // Then the X.Y.Z triple decides, and within one triple a dev prerelease's N.
 // A build past a tag is treated as being at that tag and a little beyond:

@@ -1,10 +1,10 @@
 package run
 
-// An input source's access token on this computer (agentry-desktop#794):
-// a key saved for a host is the CLI's own keychain entry source:<host>,
-// shown as saved and never as its value; a run's source takes the token
-// typed for this run first, then the saved key, then none; and the token
-// reaches the engine's source alone, never the receipt words or the log.
+// An input source's access token on this computer: a key saved for a
+// host is the CLI's own keychain entry source:<host>, shown as saved and
+// never as its value; a run's source takes the token typed for this run
+// first, then the saved key, then none; and the token reaches the
+// engine's source alone, never the receipt words or the log.
 
 import (
 	"context"
@@ -286,11 +286,10 @@ func sourceManifest() *manifest.Manifest {
 }
 
 // A run In Agentry sends each answered source its token for the create's
-// sourceTokens (agentry-desktop#833): typed for this run, else the key
-// saved on this computer for its host, else none; an unanswered source and
-// a text answer send nothing; a token typed for a question that is no
-// answered source refuses the run, and so does an address the CLI would
-// refuse.
+// sourceTokens: typed for this run, else the key saved on this computer
+// for its host, else none; an unanswered source and a text answer send
+// nothing; a token typed for a question that is no answered source refuses
+// the run, and so does an address the CLI would refuse.
 func TestARunInAgentrySendsEachSourceItsToken(t *testing.T) {
 	sourceKeychain(t)
 	if err := SaveSourceKey("repository", repoAnswer, testSourceToken); err != nil {
@@ -329,10 +328,10 @@ func TestARunInAgentrySendsEachSourceItsToken(t *testing.T) {
 	}
 }
 
-// A browser's site is no source In Agentry (agentry-desktop#903): a key
-// saved for its host is not sent, an http:// site is not put through the
-// https-only source parse, and a token typed for it refuses the run, as for
-// any question that is no source.
+// A browser's site is no source In Agentry: a key saved for its host is not
+// sent, an http:// site is not put through the https-only source parse, and
+// a token typed for it refuses the run, as for any question that is no
+// source.
 func TestABrowserSiteTakesNoTokenInAgentry(t *testing.T) {
 	sourceKeychain(t)
 	if err := SaveSourceKey("url", "https://shop.example.com/", testSourceToken); err != nil {
@@ -360,9 +359,8 @@ func TestABrowserSiteTakesNoTokenInAgentry(t *testing.T) {
 }
 
 // A schedule In Agentry saves each source's token in Agentry as its
-// host's key (agentry-enterprise#532): one key a host, so two sources on
-// one host given different tokens are refused; a source with no token
-// saves nothing.
+// host's key: one key a host, so two sources on one host given
+// different tokens are refused; a source with no token saves nothing.
 func TestAScheduleInAgentrySavesOneKeyAHost(t *testing.T) {
 	sourceKeychain(t)
 	if err := SaveSourceKey("repository", repoAnswer, testSourceToken); err != nil {

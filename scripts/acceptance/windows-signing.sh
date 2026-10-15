@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Acceptance for the Windows signing seam (agentry-desktop#54): proves that
+# Acceptance for the Windows signing seam: proves that
 # the NSIS hooks sign the installer and the uninstaller, that an exe signed
 # before makensis is the one the installer embeds, and that
 # check-windows-installer.sh --signed accepts exactly that and refuses the
@@ -11,7 +11,7 @@
 #
 # Needs makensis, osslsigncode, 7z, openssl, zip and network for a public
 # timestamp authority (the checker insists on a timestamp, as the release
-# must). On a workstation without those, run it in a container:
+# must). On a machine without those, run it in a container:
 #
 #   docker run --rm --security-opt label=disable -v "$PWD:/w" -w /w ubuntu:24.04 bash -c \
 #     'apt-get update -qq && apt-get install -y -qq --no-install-recommends nsis p7zip-full osslsigncode openssl zip ca-certificates >/dev/null && scripts/acceptance/windows-signing.sh build/bin/agentry-desktop.exe'
@@ -75,7 +75,7 @@ refused() {
   if out=$("$root_dir/scripts/check-windows-installer.sh" "$@" 2>&1); then
     printf '%s\n' "$out"; fail "accepted what it must refuse: $want"
   fi
-  grep -q -F "$want" <<<"$out" ||  # a here-string: a live pipe into grep -q can fail on EPIPE (agentry-desktop#236)
+  grep -q -F "$want" <<<"$out" ||  # a here-string: a live pipe into grep -q can fail on EPIPE
     { printf '%s\n' "$out"; fail "refused for another reason than '$want'"; }
 }
 

@@ -1,6 +1,6 @@
 // Real RuntimeSetup/PrereqCard components against the harness's Wails
 // boundary. Start `npx vite harness --port 5199` first; PLAYWRIGHT_MODULE
-// points to the estate's installed Playwright, as for shots.mjs.
+// points to an installed Playwright, as for shots.mjs.
 import assert from "node:assert/strict";
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE);
 const browser = await chromium.launch();

@@ -1,11 +1,10 @@
 package main
 
-// Describe it In Agentry live (agentry-desktop#281): the bound methods
-// driven as the Build tab drives them, against a real registry that drafts
-// (the runs extension's draft kind, agentry-enterprise#183), with the
-// folder picker answered by the test. Skipped unless both variables are
-// set, because it spends the account's credits (a draft holds 41 and
-// settles what it uses):
+// Describe it In Agentry live: the bound methods driven as the Build tab
+// drives them, against a real registry that drafts (the runs extension's
+// draft kind), with the folder picker answered by the test. Skipped unless
+// both variables are set, because it spends the account's credits (a draft
+// holds 41 and settles what it uses):
 //
 //	AGENTRY_LIVE_HOSTED_DRAFT_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_DRAFT_TOKEN=<a PAT with run:read, run:write, user:profile, agent:read, agent:publish> \
@@ -16,17 +15,15 @@ package main
 // the Model, saves the Model into a folder the picker gave, and validates
 // it. With AGENTRY_LIVE_HOSTED_DRAFT_AGAIN=1 it then describes again from
 // the saved draft and a note, and with AGENTRY_LIVE_HOSTED_DRAFT_PUBLISH=1
-// it submits the (last) draft, publicly since agentry-desktop#425, which
-// sends it into the pipeline; the account's email must be verified for that.
+// it submits the (last) draft, publicly, which sends it into the pipeline;
+// the account's email must be verified for that.
 //
-// With AGENTRY_LIVE_HOSTED_DRAFT_SUBMIT=1 (agentry-desktop#344, plan
-// builder-simplify.md M5) it takes the summary's path instead of the form's:
-// the draft lands, BuildAPI.Summary draws it, the Builder's own settings
-// (D10) hold, and Submit, the second click, saves it into the picked folder
-// and submits it publicly with no edit in between, its native warning (the
-// cost and public) answered Yes (agentry-desktop#425, reversing D3's private
-// default). The form's checks must pass as the draft came, or Submit would
-// be greyed.
+// With AGENTRY_LIVE_HOSTED_DRAFT_SUBMIT=1 it takes the summary's path
+// instead of the form's: the draft lands, BuildAPI.Summary draws it, the
+// Builder's own settings hold, and Submit, the second click, saves it into
+// the picked folder and submits it publicly with no edit in between, its
+// native warning (the cost and public) answered Yes. The form's checks must
+// pass as the draft came, or Submit would be greyed.
 
 import (
 	"context"
@@ -86,8 +83,8 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() { emitEvent = emit })
-	// Submit's warning (agentry-desktop#425) is answered Yes, and what it
-	// said is kept for the test to read: public, and the account's cost.
+	// Submit's warning is answered Yes, and what it said is kept for the
+	// test to read: public, and the account's cost.
 	var submitWarning string
 	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, msg string) (bool, error) {
 		if strings.HasPrefix(title, "Submit ") {
@@ -150,8 +147,8 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 	hints := []string{"The services or sites it works with: GitHub", "It runs on its own, from a task, with no conversation.",
 		"An example of the output wanted: a Markdown list, one line per issue, with a link"}
 	// With AGENTRY_LIVE_HOSTED_DRAFT_PACK, the name of a knowledge pack the
-	// account keeps in Agentry, the draft reads it first
-	// (agentry-desktop#497): the draft records it as scanned in Agentry.
+	// account keeps in Agentry, the draft reads it first: the draft records
+	// it as scanned in Agentry.
 	var packs []string
 	if p := os.Getenv("AGENTRY_LIVE_HOSTED_DRAFT_PACK"); p != "" {
 		packs = []string{p}
@@ -266,9 +263,9 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 	}
 
 	if os.Getenv("AGENTRY_LIVE_HOSTED_DRAFT_PUBLISH") == "1" {
-		// The person fixes in Step by step what the form's checks name before
-		// they publish (plan §7.5): here, the two rules a draft has been seen
-		// to fail: a guide that says too much, a choice named twice.
+		// The person fixes in Step by step what the form's checks name
+		// before they publish: here, the two rules a draft has been seen to
+		// fail: a guide that says too much, a choice named twice.
 		m := *d.Model
 		for i := range m.Guide.Connect {
 			if len(m.Guide.Connect[i].Help) > 300 {

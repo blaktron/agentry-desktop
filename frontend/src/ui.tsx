@@ -44,12 +44,11 @@ export function SignedBadge({ att }: { att: trust.AttestationResult | null }) {
     case "unsigned":
       return <span className="badge warn" title={att.detail}>unsigned</span>;
     case "unscanned":
-      // Its own verdict (plan organization-subscriptions §4): the registry
-      // admitted the version without a scan — not a missing signature, and
-      // not a scan with a known gap.
+      // Its own verdict the registry admitted the version without a scan — not
+      // a missing signature, and not a scan with a known gap.
       return <span className="badge unscanned" title={att.detail}>unscanned</span>;
     case "local":
-      // Installed from a folder on this computer (agentry-desktop#425):
+      // Installed from a folder on this computer:
       // no pipeline scanned it and no one signed it.
       return <span className="badge warn" title="Installed from a folder on this computer">local, unsigned</span>;
     default:
@@ -57,7 +56,7 @@ export function SignedBadge({ att }: { att: trust.AttestationResult | null }) {
   }
 }
 
-/** Renders the declared §5.4 capability block (canonical manifest JSON) as
+/** Renders the declared capability block (canonical manifest JSON) as
  * badges. A fully-undeclared block is the "pure text" case. */
 export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
   const badges: React.ReactNode[] = [];
@@ -77,8 +76,8 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
     if (v == null || v === "none") return;
     // The manifest shape is "workspace" | "none" | a bare path array | an
     // object { paths: [...] } (write uses the object form). Render each as
-    // the paths it grants — never the raw object, which used to read as
-    // "[object Object]" in this security-consent badge (agentry-desktop#36).
+    // the paths it grants — never the raw object, which would read as
+    // "[object Object]" in this security-consent badge.
     let text: string;
     if (Array.isArray(v)) text = `paths: ${v.join(", ")}`;
     else if (v && typeof v === "object" && Array.isArray((v as { paths?: unknown }).paths))
@@ -98,7 +97,7 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
   if (Array.isArray(c.dataAccess) && c.dataAccess.length > 0) {
     badges.push(<span key="da" className="badge">data: {c.dataAccess.join(", ")}</span>);
   }
-  // A target host (agentry-desktop#812): a server the person names when it
+  // A target host: a server the person names when it
   // runs, worked over SSH as the account they sign in with.
   if (Array.isArray(c.targetHosts) && c.targetHosts.length > 0) {
     badges.push(
@@ -107,7 +106,7 @@ export function CapabilityBadges({ caps }: { caps?: Record<string, any> }) {
       </span>,
     );
   }
-  // A browser (agentry-desktop#878): any public site reads as "*" egress
+  // A browser: any public site reads as "*" egress
   // does; a browser held to the person's site as listed egress does.
   const browser = browserCap(c.browser);
   if (browser) {
@@ -189,7 +188,7 @@ export function shortDigest(d?: string): string {
 }
 
 /** A declared MCP server's plain env as NAME=value rows, sorted by name in
- * Go (internal/mcpview, agentry-desktop#62). env is configuration the
+ * Go (internal/mcpview). env is configuration the
  * manifest declares, never a secret: secrets are names only, and a name
  * declared as a secret is left out before it gets here. Nothing when the
  * server declares no env. */
@@ -206,7 +205,7 @@ export function ServerEnv({ env }: { env?: mcpview.EnvVar[] }) {
 }
 
 /** The declared MCP servers of a release: pin, tools and plain env, one row
- * per server (the install review, agentry-desktop#62). */
+ * per server (the install review). */
 export function DeclaredServersTable({ servers }: { servers?: mcpview.Server[] }) {
   if (!servers || servers.length === 0) return null;
   return (
@@ -219,8 +218,8 @@ export function DeclaredServersTable({ servers }: { servers?: mcpview.Server[] }
           <tr key={s.id}>
             <td>
               <span className="mono">{s.id}</span>
-              {/* A remote server, and one that signs in by OAuth, say so
-                  (agentry-desktop#666): the run setup connects it. */}
+              {/* A remote server, and one that signs in by OAuth, say so: the
+                 run setup connects it. */}
               {(s.remote || s.signsIn) && (
                 <span className="muted small" style={{ display: "block" }}>
                   {[s.remote ? "a remote server" : "", s.signsIn ? "signs you in by OAuth" : ""].filter(Boolean).join(", ")}

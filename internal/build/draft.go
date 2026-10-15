@@ -12,11 +12,11 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// FromDraft decodes a draft into the form's Model (plan builder-rework.md
-// §7.5, D15, D16): the Drafter's manifest, which it writes as JSON, and its
-// instructions. It is data to the form and nothing else. Nothing is opened,
-// launched, read or written; the draft reaches a QuickAgent folder only
-// when the person saves it into one they pick natively. So:
+// FromDraft decodes a draft into the form's Model: the Drafter's manifest,
+// which it writes as JSON, and its instructions. It is data to the form and
+// nothing else. Nothing is opened, launched, read or written; the draft
+// reaches a QuickAgent folder only when the person saves it into one they
+// pick natively. So:
 //   - Known fields only. What the form cannot hold is dropped, and each
 //     dropped field is named in the notes.
 //   - A value of the wrong shape (an object where a name belongs), a key
@@ -57,9 +57,9 @@ func FromDraft(manifestJSON []byte, instructions, namespace string) (*Model, []s
 	}
 	var notes []string
 	dropped := unknownFields(obj, draftFields, "")
-	// A draft never ships the person's pack (plan knowledge-and-drafter.md
-	// D4): its knowledge.ships is dropped and named, as the site's importer
-	// does, and its knowledge.accepts is kept.
+	// A draft never ships the person's pack: its knowledge.ships is dropped
+	// and named, as the site's importer does, and its knowledge.accepts is
+	// kept.
 	if len(m.KnowledgeShips) > 0 {
 		dropped = append(dropped, "knowledge.ships")
 		m.KnowledgeShips = nil

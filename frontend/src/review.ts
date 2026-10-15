@@ -1,10 +1,9 @@
 // A review by the Examiner on this computer, as the app follows it above the
-// pages (agentry-desktop#469; plan desktop-review-key-and-run-cards.md §6.3):
-// what Go has reported of it and how it ended. Pure, so the store
-// (reviews.ts) and its tests share one set of rules: a report or a line
-// that comes when no review of this start is under way changes nothing, and
-// a start Go refuses, or the person declines in the native dialog, leaves
-// the review being followed as it is.
+// pages: what Go has reported of it and how it ended. Pure, so the store
+// (reviews.ts) and its tests share one set of rules: a report or a line that
+// comes when no review of this start is under way changes nothing, and a start
+// Go refuses, or the person declines in the native dialog, leaves the review
+// being followed as it is.
 import type { main } from "../wailsjs/go/models";
 import type { JobProgress, Tone } from "./jobProgress";
 

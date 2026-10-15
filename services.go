@@ -38,8 +38,8 @@ type SettingsAPI struct {
 	app *App
 	// open replaces App.OpenExternal in tests; nil means the real browser.
 	open func(url string) error
-	// knowledgeEnv is the local knowledge store's wiring, for the rewrap
-	// a sign-in makes (D20); nil is this app's.
+	// knowledgeEnv is the local knowledge store's wiring, for the rewrap a
+	// sign-in makes; nil is this app's.
 	knowledgeEnv *knowledge.Env
 }
 
@@ -59,10 +59,10 @@ type SettingsView struct {
 	ConfigPath      string         `json:"configPath"`
 	// Onboarded is false until the first-run wizard is completed or skipped;
 	// the frontend opens the guided setup while it is false and nothing is
-	// signed in (agentry-desktop#41).
+	// signed in.
 	Onboarded bool `json:"onboarded"`
-	// UnsafeMode is Run defaults' switch (D-050): the shell draws the red
-	// edge and the sidebar's badge from it.
+	// UnsafeMode is Run defaults' switch: the shell draws the red edge and
+	// the sidebar's badge from it.
 	UnsafeMode bool `json:"unsafeMode"`
 }
 
@@ -87,8 +87,8 @@ func settingsView() (*SettingsView, error) {
 func (s *SettingsAPI) Get() (*SettingsView, error) { return settingsView() }
 
 // MarkOnboarded records that the first-run wizard finished or was skipped,
-// so it does not reopen on the next start (agentry-desktop#41). The wizard
-// only orchestrates existing services; this flag is the sole state it adds.
+// so it does not reopen on the next start. The wizard only orchestrates
+// existing services; this flag is the sole state it adds.
 func (s *SettingsAPI) MarkOnboarded() (*SettingsView, error) {
 	if err := settings.SetOnboarded(); err != nil {
 		return nil, err
@@ -96,10 +96,9 @@ func (s *SettingsAPI) MarkOnboarded() (*SettingsView, error) {
 	return settingsView()
 }
 
-// CodingAgentsView is Settings → Coding agents (agentry-desktop#148, plan
-// desktop-one-click-install.md §6, D6): the coding agents the operator
-// policy records as chosen (read, never probed — the page has Look for
-// that), and the export they imply with its folder and the switch.
+// CodingAgentsView is Settings → Coding agents: the coding agents the
+// operator policy records as chosen (read, never probed — the page has Look
+// for that), and the export they imply with its folder and the switch.
 type CodingAgentsView struct {
 	Chosen []HarnessView             `json:"chosen"`
 	Export install.CodingAgentExport `json:"export"`
@@ -148,7 +147,7 @@ func (s *SettingsAPI) SetInstallIntoCodingAgent(on bool) (*CodingAgentsView, err
 // ChooseCodingAgentProjectDir opens the native picker for the project
 // directory AGENTS.md is written to and stores what it returned — the
 // binding takes no path, so the directory is the picker's and never the
-// page's (D-030). A cancelled picker changes nothing.
+// page's. A cancelled picker changes nothing.
 func (s *SettingsAPI) ChooseCodingAgentProjectDir() (*CodingAgentsView, error) {
 	dir, err := s.app.chooseDirectory("Choose the project directory for AGENTS.md")
 	if err != nil {
@@ -220,17 +219,16 @@ func (s *SettingsAPI) SetDefault(url string) (*SettingsView, error) {
 	return settingsView()
 }
 
-// UserView is the signed-in identity, with the organizations it belongs
-// to. Those are the core's own facts — every registry answers them,
-// whether or not it sells anything — so a membership shows on Settings
-// even where there are no tiers to speak of (plan
-// organization-subscriptions.md §8, M12).
+// UserView is the signed-in identity, with the organizations it belongs to.
+// Those are the core's own facts — every registry answers them, whether or
+// not it sells anything — so a membership shows on Settings even where there
+// are no tiers to speak of.
 type UserView struct {
 	Handle      string `json:"handle"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
 	// EmailVerified is the directory's word on the address, which the
-	// Profile card shows beside it as the site does (agentry-desktop#423).
+	// Profile card shows beside it as the site does.
 	EmailVerified bool            `json:"emailVerified"`
 	Orgs          []OrgMembership `json:"orgs,omitempty"`
 	// PendingOrg is the organization waiting to approve this person: its
@@ -261,11 +259,11 @@ type SignInResult struct {
 	User UserView `json:"user"`
 	// TokenStore says where the PAT landed: "keyring" or "file".
 	TokenStore string `json:"tokenStore"`
-	// PinNote is the signing-key TOFU outcome, §11 login row.
+	// PinNote is the signing-key TOFU outcome.
 	PinNote string `json:"pinNote"`
 	// KnowledgeRewrapped names the knowledge packs this computer's key
-	// wrapped that the sign-in moved to the account's key (plan
-	// knowledge.md D20); KnowledgeNote says why some were not moved.
+	// wrapped that the sign-in moved to the account's key; KnowledgeNote
+	// says why some were not moved.
 	KnowledgeRewrapped []string `json:"knowledgeRewrapped,omitempty"`
 	KnowledgeNote      string   `json:"knowledgeNote,omitempty"`
 }
@@ -299,12 +297,12 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	}
 	pin := trust.PinAtLogin(s.app.ctx, registry.HTTPClient, url)
 	// A schedule that runs signed out carries the registry token sealed
-	// beside it (DR-84): the new one is sealed in its place.
+	// beside it: the new one is sealed in its place.
 	resealSchedules(s.app)
 	res := &SignInResult{User: *user, TokenStore: store, PinNote: pin}
-	// Packs kept while signed out are encrypted to this computer's key;
-	// from this sign-in on, the account's key at this registry wraps them,
-	// so they open on the account's other computers too (D20).
+	// Packs kept while signed out are encrypted to this computer's key; from
+	// this sign-in on, the account's key at this registry wraps them, so
+	// they open on the account's other computers too.
 	res.KnowledgeRewrapped, res.KnowledgeNote = rewrapKnowledge(s.app.ctx, knowledgeEnv(s.knowledgeEnv), url)
 	return res, nil
 }
@@ -330,7 +328,7 @@ func (s *SettingsAPI) Whoami(url string) (*UserView, error) {
 // storedCredential is a page-supplied registry URL held to Settings' rule
 // before its token is looked up: the keychain keys a token by host, so an
 // http:// spelling of an added https registry would otherwise send it in
-// clear (D-030; agentry-desktop#307, #423).
+// clear.
 func storedCredential(url string) (string, string, error) {
 	url = settings.Normalize(url)
 	if err := settings.ValidateURL(url); err != nil {
@@ -414,7 +412,7 @@ type BrowseAPI struct {
 	app *App
 }
 
-// SearchQuery mirrors the GET /search facets (§9.2).
+// SearchQuery mirrors the GET /search facets.
 type SearchQuery struct {
 	Q          string `json:"q"`
 	Mode       string `json:"mode,omitempty"`
@@ -436,9 +434,8 @@ type SearchHitView struct {
 }
 
 // SearchView is a search response. Total is a pointer because the registry
-// may not send one (cores before agentry#290 never did), and a count the
-// registry did not give is not a count: the page prints nothing then,
-// rather than the zero this used to carry (agentry-desktop#63).
+// may not send one (older cores never did), and a count the registry did not
+// give is not a count: the page prints nothing then, rather than a zero.
 type SearchView struct {
 	Total   *int                      `json:"total,omitempty"`
 	Results []SearchHitView           `json:"results"`
@@ -514,10 +511,9 @@ type VersionView struct {
 	Yanked        bool   `json:"yanked"`
 	YankReason    string `json:"yankReason,omitempty"`
 	// ScanStatus is how the registry admitted the version: `pipeline`, or
-	// `skipped` for one admitted without a scan (plan
-	// organization-subscriptions §4), which the page labels unscanned and
-	// the install and run surfaces ask consent for. Empty from a registry
-	// that predates the field, which never published unscanned.
+	// `skipped` for one admitted without a scan, which the page labels
+	// unscanned and the install and run surfaces ask consent for. Empty from
+	// a registry that predates the field, which never published unscanned.
 	ScanStatus string `json:"scanStatus,omitempty"`
 }
 
@@ -531,10 +527,9 @@ type AgentView struct {
 	Quarantine string   `json:"quarantine,omitempty"`
 	CreatedAt  string   `json:"createdAt"`
 	GitHTTPURL string   `json:"gitHttpUrl,omitempty"`
-	// ForkedFrom is what a fork was taken from (agentry#943); ForkState its
-	// copy (copying, ready, failed) and ForkDetail why a copy failed.
-	// ForkCount is how many forks a public QuickAgent has, a number only
-	// (plan forks-and-publisher.md invariant 5). agentry-desktop#706.
+	// ForkedFrom is what a fork was taken from; ForkState its copy (copying,
+	// ready, failed) and ForkDetail why a copy failed. ForkCount is how many
+	// forks a public QuickAgent has, a number only.
 	ForkedFrom *AgentForkOrigin `json:"forkedFrom,omitempty"`
 	ForkState  string           `json:"forkState,omitempty"`
 	ForkDetail string           `json:"forkDetail,omitempty"`
@@ -556,21 +551,21 @@ type AgentDetailView struct {
 	Versions []VersionView `json:"versions"`
 	// Latest is the newest PUBLISHED version ("" when none is published).
 	Latest string `json:"latest"`
-	// LatestCapabilities is the declared §5.4 block of Latest, as stored.
+	// LatestCapabilities is the declared capabilities block of Latest, as stored.
 	LatestCapabilities map[string]interface{} `json:"latestCapabilities,omitempty"`
 	// LatestDigest is Latest's archive digest (provenance panel).
 	LatestDigest string `json:"latestDigest,omitempty"`
 	// LatestScanStatus is Latest's ScanStatus (provenance panel).
 	LatestScanStatus string `json:"latestScanStatus,omitempty"`
-	// DependencyAlerts are the signed-in viewer's open alerts on this agent
-	// (agentry#177): versions they published that declare an MCP server
-	// version with a newly known high or critical vulnerability. Empty for
-	// a viewer who is not the publisher or not signed in.
+	// DependencyAlerts are the signed-in viewer's open alerts on this agent:
+	// versions they published that declare an MCP server version with a
+	// newly known high or critical vulnerability. Empty for a viewer who is
+	// not the publisher or not signed in.
 	DependencyAlerts []DependencyAlertView `json:"dependencyAlerts"`
 	// CanPublish is the registry's answer to whether this sign-in may add a
-	// version to the QuickAgent (GET /agents canPublish, agentry#875): what
-	// the page offers Edit on (agentry-desktop#500, DEV-199). False for a
-	// viewer who is not signed in, and from a registry that predates it.
+	// version to the QuickAgent (GET /agents canPublish): what the page
+	// offers Edit on. False for a viewer who is not signed in, and from a
+	// registry that predates it.
 	CanPublish bool `json:"canPublish"`
 }
 
@@ -705,10 +700,10 @@ func (b *BrowseAPI) Readme(reg, ns, name, version string) (string, error) {
 	return registry.Readme(b.app.ctx, client, ns, name, version)
 }
 
-// InstructionsView is a release's instruction file as the Agent tab shows
-// it under the README (agentry-desktop#835): the path the manifest names
-// (`AGENT.md` when it names none) and its text. The text is shown as text,
-// never rendered: the client parses no markdown from the archive (§10.3).
+// InstructionsView is a release's instruction file as the Agent tab shows it
+// under the README: the path the manifest names (`AGENT.md` when it names
+// none) and its text. The text is shown as text, never rendered: the client
+// parses no markdown from the archive.
 type InstructionsView struct {
 	Path string `json:"path"`
 	// Content is "" with Binary set when the registry would not read the
@@ -772,15 +767,15 @@ type FindingView struct {
 	VerdictReason string `json:"verdictReason,omitempty"`
 }
 
-// ReportView is the security report card (§10.3): findings by severity,
-// ruleset version, scan date — never a "safe" claim.
+// ReportView is the security report card: findings by severity, ruleset
+// version, scan date — never a "safe" claim.
 type ReportView struct {
 	VersionStatus string `json:"versionStatus"`
 	ScanStatus    string `json:"scanStatus,omitempty"`
-	// Verdict is what the report is (core M21): `scanned` where a run
-	// stands behind it, `unscanned` where the registry admitted the
-	// version without one — never conflated with a scan that found
-	// nothing — and empty while a scan is pending.
+	// Verdict is what the report is: `scanned` where a run stands behind it,
+	// `unscanned` where the registry admitted the version without one —
+	// never conflated with a scan that found nothing — and empty while a
+	// scan is pending.
 	Verdict        string         `json:"verdict,omitempty"`
 	RulesetVersion string         `json:"rulesetVersion,omitempty"`
 	JudgeModel     string         `json:"judgeModel,omitempty"`
@@ -851,9 +846,9 @@ func (b *BrowseAPI) Report(reg, ns, name, version string) (*ReportView, error) {
 // archive digest — no download involved, so this is the browse-time badge:
 // "the registry's signing key vouches for this digest". Install re-verifies
 // against the actual downloaded bytes. scanStatus is the version's as the
-// registry lists it: `skipped` is a version admitted without a scan (plan
-// organization-subscriptions §4), unscanned before any attestation is
-// looked for, because the absence is the fact and not a missing signature.
+// registry lists it: `skipped` is a version admitted without a scan,
+// unscanned before any attestation is looked for, because the absence is the
+// fact and not a missing signature.
 func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatus string) (*trust.AttestationResult, error) {
 	if scanStatus == string(apiclient.AgentVersionScanStatusSkipped) {
 		att := trust.Unscanned()
@@ -871,10 +866,9 @@ func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatu
 type InstallAPI struct {
 	app    *App
 	engine *install.Engine
-	// The last check's result (agentry-desktop#147, D8): read by the chrome
-	// for the Installed badge, never started by a read. checking keeps a
-	// slow launch round from landing after a later one and overwriting it
-	// with the older answer.
+	// The last check's result: read by the chrome for the Installed badge,
+	// never started by a read. checking keeps a slow launch round from
+	// landing after a later one and overwriting it with the older answer.
 	checking sync.Mutex
 	mu       sync.Mutex
 	updates  InstallUpdatesView
@@ -899,9 +893,9 @@ type InstallUpdatesView struct {
 	Err string `json:"err,omitempty"`
 }
 
-// start runs the launch check in its own goroutine, once (D8: on launch and
-// on opening a QuickAgent's page; a person's "Check for updates" asks
-// again; nothing on a timer). It must not delay the first paint.
+// start runs the launch check in its own goroutine, once (on launch and on
+// opening a QuickAgent's page; a person's "Check for updates" asks again;
+// nothing on a timer). It must not delay the first paint.
 func (i *InstallAPI) start(ctx context.Context) {
 	go i.check(ctx)
 }
@@ -969,8 +963,8 @@ func (i *InstallAPI) UpdatesStatus() InstallUpdatesView {
 }
 
 // CheckUpdate asks about one QuickAgent's runner-home record, the way the
-// agent page does on opening (D8): nil when nothing is installed for it.
-// The stored view takes the answer, so the badge agrees with the page.
+// agent page does on opening: nil when nothing is installed for it. The
+// stored view takes the answer, so the badge agrees with the page.
 func (i *InstallAPI) CheckUpdate(namespace, name string) (*install.UpdateInfo, error) {
 	info, err := install.CheckUpdateFor(i.app.ctx, namespace, name)
 	if err != nil || info == nil {
@@ -999,16 +993,16 @@ func (i *InstallAPI) Prepare(reg, ref, target, dir string) (*install.Plan, error
 	return i.engine.Prepare(i.app.ctx, reg, ref, target, dir)
 }
 
-// Confirm applies the user's answers and writes the install. Each boolean
-// is one consent the page collected; acceptUnscanned is the consent for a
+// Confirm applies the user's answers and writes the install. Each boolean is
+// one consent the page collected; acceptUnscanned is the consent for a
 // release the registry admitted without a scan, which acceptUnsigned does
-// not give (M23).
+// not give.
 func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, acceptUnscanned bool) (*install.Result, error) {
-	// A runner plan's record is the run's consent record: what the page
-	// says it accepted is not what a run will believe, so the plan's own
-	// gates are raised here as native dialogs and the page's booleans are
-	// not read (D-030, D-031) — a page could otherwise prepare a runner
-	// plan and confirm the contract on every future run's behalf.
+	// A runner plan's record is the run's consent record: what the page says
+	// it accepted is not what a run will believe, so the plan's own gates
+	// are raised here as native dialogs and the page's booleans are not read
+	// — a page could otherwise prepare a runner plan and confirm the
+	// contract on every future run's behalf.
 	plan, ok := i.engine.Plan(planID)
 	if ok && plan.Target == installdir.Target {
 		if err := i.consentForRunner(plan); err != nil {
@@ -1021,9 +1015,9 @@ func (i *InstallAPI) Confirm(planID string, acceptUnsigned, acceptCapabilities, 
 		}
 		return res, err
 	}
-	// A consent the page passed is put to the person in a native dialog
-	// the page cannot answer (D-030); the capabilities acceptance is the
-	// wizard's own reading of the contract and stays the page's.
+	// A consent the page passed is put to the person in a native dialog the
+	// page cannot answer; the capabilities acceptance is the wizard's own
+	// reading of the contract and stays the page's.
 	if err := i.askProvenanceConsent(acceptUnsigned, acceptUnscanned); err != nil {
 		return nil, err
 	}
@@ -1056,21 +1050,20 @@ func (i *InstallAPI) Cancel(planID string) {
 	i.engine.Cancel(planID)
 }
 
-// InstallRunner is the one-click install (D-031): the release resolved,
-// verified and laid down in the runner home — the directory a run reads —
-// with no target or directory to choose. With Settings → Coding agents'
-// "also install into <coding agent>" on (agentry-desktop#148, plan D6),
-// the same verified bytes are also written where the coding agent reads
-// — the Claude skill or AGENTS.md, whichever the policy implies — as an
-// export with its own record. The gates are the only interruption, each
-// put to the person in the native dialog the page cannot answer (D-030):
-// an unsigned release, one the registry admitted without a scan, and the
-// capability contract on a first install that declares egress or exec or
-// on an update that widens it — the contract itself in the dialog, since
-// no page is showing it, and where the export goes too, since the coding
-// agent enforces none of it. A declined dialog installs nothing and says
-// so; an export that cannot be written is the result's warning, not a
-// failed install.
+// InstallRunner is the one-click install: the release resolved, verified and
+// laid down in the runner home — the directory a run reads — with no target
+// or directory to choose. With Settings → Coding agents' "also install into
+// <coding agent>" on, the same verified bytes are also written where the
+// coding agent reads — the Claude skill or AGENTS.md, whichever the policy
+// implies — as an export with its own record. The gates are the only
+// interruption, each put to the person in the native dialog the page cannot
+// answer: an unsigned release, one the registry admitted without a scan, and
+// the capability contract on a first install that declares egress or exec or
+// on an update that widens it — the contract itself in the dialog, since no
+// page is showing it, and where the export goes too, since the coding agent
+// enforces none of it. A declined dialog installs nothing and says so; an
+// export that cannot be written is the result's warning, not a failed
+// install.
 func (i *InstallAPI) InstallRunner(reg, ref string) (*install.Result, error) {
 	plan, err := i.engine.Prepare(i.app.ctx, reg, ref, installdir.Target, "")
 	if err != nil {
@@ -1213,9 +1206,8 @@ func contractConsentText(plan, export *install.Plan) string {
 		if len(c.Secrets) > 0 {
 			lines = append(lines, "  • secrets: "+strings.Join(c.Secrets, ", "))
 		}
-		// A target host and a browser, in the CLI's consent words
-		// (agentry-desktop#812, #878): either one alone asks for this
-		// consent, so the dialog names it.
+		// A target host and a browser, in the CLI's consent words: either
+		// one alone asks for this consent, so the dialog names it.
 		if len(c.TargetHosts) > 0 {
 			lines = append(lines, "  • target hosts: "+strings.Join(c.TargetHosts, ", ")+" (asks for a server when it runs, and can run any command on it as the account you sign in with)")
 		}
@@ -1235,9 +1227,9 @@ func contractConsentText(plan, export *install.Plan) string {
 }
 
 // shippedKnowledgeText names the knowledge packs a release ships with their
-// sizes where the archive gave them, "aws-docs (4.2 MiB), notes" (plan
-// knowledge.md §4.6; the CLI's consent line, agentry-cli#389, in the same
-// binary units as the install review's fmtBinaryBytes).
+// sizes where the archive gave them, "aws-docs (4.2 MiB), notes" (the CLI's
+// consent line, in the same binary units as the install review's
+// fmtBinaryBytes).
 func shippedKnowledgeText(plan *install.Plan) string {
 	size := map[string]int64{}
 	for _, p := range plan.ShippedKnowledge {
@@ -1290,9 +1282,8 @@ func (i *InstallAPI) ListInstalled() ([]install.Item, error) {
 	return install.List()
 }
 
-// Forget drops a record whose directory is gone; nothing on disk is touched
-// (agentry-desktop#63). Its pin goes when no other install of it is left
-// (agentry-desktop#660).
+// Forget drops a record whose directory is gone; nothing on disk is touched.
+// Its pin goes when no other install of it is left.
 func (i *InstallAPI) Forget(k installed.Key) error {
 	if err := install.Forget(k); err != nil {
 		return err
@@ -1314,15 +1305,15 @@ func (i *InstallAPI) CheckUpdates() ([]install.UpdateInfo, error) {
 }
 
 // Uninstall removes one installation (managed dirs only; see engine docs),
-// and its pin when no other install of it is left (agentry-desktop#660),
-// and its connections when no runner install of it is (#666).
+// and its pin when no other install of it is left, and its connections when
+// no runner install of it is.
 func (i *InstallAPI) Uninstall(k installed.Key) (string, error) {
 	msg, err := install.Uninstall(k)
 	if err == nil {
 		i.refreshRow(k)
 		unpinIfGone(k.Namespace + "/" + k.Name)
 		// Its connections go with its last runner install, revoked at the
-		// vendor where it offers that (plan mcp-oauth-connections.md D17).
+		// vendor where it offers that.
 		msg += removeConnectionsIfGone(k)
 	}
 	return msg, err
@@ -1342,7 +1333,7 @@ type ValidateAPI struct {
 }
 
 // Run validates a local agent folder with the same packages the publication
-// pipeline runs (D-12 parity by construction).
+// pipeline runs (parity by construction).
 func (v *ValidateAPI) Run(dir string) (*validate.Result, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("pick a folder to validate")

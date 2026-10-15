@@ -1,4 +1,4 @@
-// A draft's progress dialog and its corner card (agentry-desktop#410), by
+// A draft's progress dialog and its corner card, by
 // location.hash, over Describe it under the shell chrome, with the bindings
 // mocked (the pattern knowledge.tsx uses). Not shipped.
 //
@@ -84,7 +84,7 @@ g.go = { main: {
   },
   KnowledgeAPI: {
     // Describe it lists the packs a draft may read as it mounts
-    // (agentry-desktop#497, knowledge-and-drafter.md K4); none here, so the form is the one the shots show.
+    // none here, so the form is the one the shots show.
     List: async () => ({ packs: [], registry: REG, signedIn: true }),
     CreatorModel: async () => "openai qwen3.8-flash-next",
     CreatorBudget: async () => ({ timeoutSeconds: 3600, maxTurns: 60 }),

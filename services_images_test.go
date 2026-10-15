@@ -20,9 +20,9 @@ func (f *imagesFake) Remove(_ context.Context, ref string) error {
 	return nil
 }
 
-// Run defaults' Remove button (agentry-desktop#424): the native dialog
-// names the images and the CLI, a No removes nothing, and a Yes removes
-// Agentry's images only. A run holding the docker lock refuses it.
+// Run defaults' Remove button: the native dialog names the images and the
+// CLI, a No removes nothing, and a Yes removes Agentry's images only. A run
+// holding the docker lock refuses it.
 func TestRemoveAgentryImagesAsksAndRemovesOnlyAgentrys(t *testing.T) {
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	f := &imagesFake{images: []dockerimages.Image{

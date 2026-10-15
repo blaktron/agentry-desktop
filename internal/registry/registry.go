@@ -1,7 +1,7 @@
 // Package registry wraps the generated API client (agentry pkg/apiclient)
 // with the same client-side rules the CLI applies: one timed HTTP client for
 // every request, bearer tokens attached only to the registry's own host
-// (never a CDN, §9.4), buffered downloads capped, and RFC 9457 problem
+// (never a CDN), buffered downloads capped, and RFC 9457 problem
 // documents rendered into readable errors.
 package registry
 
@@ -23,7 +23,7 @@ import (
 )
 
 // Client-side safety caps for release archives, mirroring the CLI. The
-// registry enforces the real quotas (§19); these only bound what this app is
+// registry enforces the real quotas; these only bound what this app is
 // willing to buffer and unpack.
 const (
 	MaxArchiveBytes      int64 = 512 << 20
@@ -56,15 +56,14 @@ var HTTPClient = &http.Client{Timeout: httpTimeout, CheckRedirect: KeepTokenHome
 const maxRedirects = 10
 
 // KeepTokenHome is the redirect policy of every client the stored token
-// travels on (agentry-desktop#856). A request that carries an Authorization
-// header is answered with the redirect, never sent on: Go keeps a hand-set
-// Authorization on a redirect within the same domain or its subdomains,
-// whatever the scheme, so following one could carry the token to http:// or
-// to another host, past the https rule D-030 holds the registry address to
-// before its token is looked up (the CLI refuses redirects on its token path
-// the same way, DR-71). A request without one, a public read, follows
-// redirects as net/http does by default; that is decided on purpose, as the
-// rule exists for the token.
+// travels on. A request that carries an Authorization header is answered
+// with the redirect, never sent on: Go keeps a hand-set Authorization on a
+// redirect within the same domain or its subdomains, whatever the scheme, so
+// following one could carry the token to http:// or to another host, past
+// the https rule the registry address is held to before its token is looked
+// up (the CLI refuses redirects on its token path the same way). A request
+// without one, a public read, follows redirects as net/http does by default;
+// that is decided on purpose, as the rule exists for the token.
 func KeepTokenHome(_ *http.Request, via []*http.Request) error {
 	if via[0].Header.Get("Authorization") != "" {
 		return http.ErrUseLastResponse
@@ -139,14 +138,14 @@ func ProblemSlug(p *apiclient.Problem, body []byte) (slug, detail string) {
 	return slug, detail
 }
 
-// Digest computes the "sha256:<hex>" digest of b (D-15 identity form).
+// Digest computes the "sha256:<hex>" digest of b (the identity form).
 func Digest(b []byte) string {
 	sum := sha256.Sum256(b)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // SameHost reports whether two URLs share a host, so the bearer token is
-// only ever attached to the registry itself, never to a CDN (§9.4).
+// only ever attached to the registry itself, never to a CDN.
 func SameHost(a, b string) bool {
 	ua, err1 := url.Parse(a)
 	ub, err2 := url.Parse(b)
@@ -155,7 +154,7 @@ func SameHost(a, b string) bool {
 
 // Resolve calls GET /resolve for a ns/name[@range] reference. installIntent
 // adds the X-Agentry-Install hint so the registry counts an install without
-// a download round-trip through the API (§9.4 step 4).
+// a download round-trip through the API.
 func Resolve(ctx context.Context, client *apiclient.ClientWithResponses, ref string, installIntent bool) (*apiclient.ResolveResult, error) {
 	var editors []apiclient.RequestEditorFn
 	if installIntent {
@@ -174,8 +173,8 @@ func Resolve(ctx context.Context, client *apiclient.ClientWithResponses, ref str
 	return resp.JSON200, nil
 }
 
-// Download fetches the release archive named by a resolve result (§9.4
-// step 2). Relative archive URLs (self-host) resolve against the registry
+// Download fetches the release archive named by a resolve result.
+// Relative archive URLs (self-host) resolve against the registry
 // base URL.
 func Download(ctx context.Context, regURL, token string, res *apiclient.ResolveResult) ([]byte, error) {
 	archiveURL := res.ArchiveUrl
@@ -224,7 +223,7 @@ func ManifestFromResolve(res *apiclient.ResolveResult) (*manifest.Manifest, erro
 
 // Readme fetches the API's server-sanitized README HTML for a version
 // ("" = latest published). The client never parses markdown itself: hostile
-// READMEs are an XSS vector, and the sanitizer lives server-side (§10.3).
+// READMEs are an XSS vector, and the sanitizer lives server-side.
 func Readme(ctx context.Context, client *apiclient.ClientWithResponses, ns, name, version string) (string, error) {
 	params := &apiclient.GetAgentReadmeParams{}
 	if version != "" {
@@ -241,10 +240,10 @@ func Readme(ctx context.Context, client *apiclient.ClientWithResponses, ns, name
 }
 
 // Unscanned says whether the registry admitted the resolved version
-// without a scan (core M21): `scanStatus: skipped`, read before any
-// attestation is looked for, because the absence is the fact and not a
-// missing signature. A registry that predates the field never published
-// one, so an absent answer is "no".
+// without a scan: `scanStatus: skipped`, read before any attestation is
+// looked for, because the absence is the fact and not a missing
+// signature. A registry that predates the field never published one, so
+// an absent answer is "no".
 func Unscanned(res *apiclient.ResolveResult) bool {
 	return res != nil && res.ScanStatus != nil && *res.ScanStatus == apiclient.ResolveResultScanStatusSkipped
 }

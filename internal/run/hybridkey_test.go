@@ -1,10 +1,10 @@
 package run
 
-// The person's own Hybrid Analysis key (#530; agentry-cli#564): kept in the
-// OS keychain as provider:hybrid-analysis, recorded in the policy's
-// hybridAnalysis block as a source, shown as saved and never as its value,
-// read by the CLI exactly as this app stores it, and tested with one lookup
-// of a hash whose answer is said in plain words.
+// The person's own Hybrid Analysis key: kept in the OS keychain as
+// provider:hybrid-analysis, recorded in the policy's hybridAnalysis block
+// as a source, shown as saved and never as its value, read by the CLI
+// exactly as this app stores it, and tested with one lookup of a hash whose
+// answer is said in plain words.
 
 import (
 	"context"
@@ -132,7 +132,7 @@ func TestTestHybridKeySaysTheAnswer(t *testing.T) {
 
 // A local run's result carries its receipt's decode line, which names what
 // ClamAV and the Hybrid Analysis lookup made of the files, for the run view
-// to show (#530).
+// to show.
 func TestAResultCarriesTheDecodeLine(t *testing.T) {
 	const line = "... 1 decoded; ...: 1 clean; Hybrid Analysis (CrowdStrike), asked by SHA-256 alone and never sent a file, on the files of a type it is asked about: 1 not checked: no key"
 	env := &receipt.Envelope{CapabilitiesEnforced: map[string]string{"decode": line, "knowledge": "k"}}

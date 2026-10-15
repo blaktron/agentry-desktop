@@ -1,18 +1,16 @@
-// Create knowledge In Agentry (plan knowledge.md §4.5, §4.8; Knowledge M6,
-// agentry-desktop#274): the Knowledge panel's second place to build a pack.
-// The built-in Knowledge Creator runs on a sandbox host against the
+// Create knowledge In Agentry: the Knowledge panel's second place to build a
+// pack. The built-in Knowledge Creator runs on a sandbox host against the
 // platform's model, for credits, and the pack it writes is kept in Agentry
 // and scanned there; when the scan ends, the sealed pack is downloaded into
 // the local store through the unwrap flow, exactly as Download does, so the
 // panel lists it with its scan's findings.
 //
 // The build is a run of kind knowledge_build in the registry's runs
-// extension (agentry-enterprise#171): the documents go up through the
-// run's input upload under its caps, the build is created with a pack's
-// name, a pack in Agentry's id, or a finished build to continue, and it is
-// followed as a hosted run is, by polling. No platform key reaches this
-// app; the token is the account's own, and every document path is one a
-// native picker returned (D-030).
+// extension: the documents go up through the run's input upload under its
+// caps, the build is created with a pack's name, a pack in Agentry's id, or
+// a finished build to continue, and it is followed as a hosted run is, by
+// polling. No platform key reaches this app; the token is the account's own,
+// and every document path is one a native picker returned.
 package main
 
 import (
@@ -107,8 +105,8 @@ type KnowledgeHostedAvailabilityView struct {
 	Reason    string `json:"reason,omitempty"`
 	Remedy    string `json:"remedy,omitempty"`
 	// UpgradeURL is the registry's subscription page, set where the way out
-	// is Pro (DEV-162); the page opens it through App.OpenExternal, in the
-	// system browser.
+	// is Pro; the page opens it through App.OpenExternal, in the system
+	// browser.
 	UpgradeURL string `json:"upgradeUrl,omitempty"`
 
 	// HoldCredits is what a build of this account's holds (0 for a member
@@ -129,11 +127,10 @@ type KnowledgeHostedAvailabilityView struct {
 	MaxInputFiles int   `json:"maxInputFiles"`
 	MaxInputBytes int64 `json:"maxInputBytes"`
 
-	// TakesBrief says the registry builds from a brief without documents
-	// (agentry-enterprise#296), with MaxBriefBytes its bound; a registry
-	// from before needs documents. Web says it searches the web for a
-	// build, and WebNote is its words beside the choice: searching can
-	// raise the credits a build uses (plan knowledge-and-drafter.md D16).
+	// TakesBrief says the registry builds from a brief without documents,
+	// with MaxBriefBytes its bound; a registry from before needs documents.
+	// Web says it searches the web for a build, and WebNote is its words
+	// beside the choice: searching can raise the credits a build uses.
 	TakesBrief    bool   `json:"takesBrief"`
 	MaxBriefBytes int    `json:"maxBriefBytes"`
 	Web           bool   `json:"web"`
@@ -172,13 +169,13 @@ type KnowledgeHostedBuildView struct {
 	Note    string `json:"note,omitempty"`
 
 	// Turns is the build's use as the person is told it; its tokens stay
-	// with the registry (agentry-desktop#457).
+	// with the registry.
 	Turns int `json:"turns"`
 
 	Documents []HostedArtefactView `json:"documents"`
-	// Brief is what the pack should cover, when the build was given one
-	// (a build's task, agentry-enterprise#296); WebLine is what its record
-	// says of its searches, "" for a build without the web.
+	// Brief is what the pack should cover, when the build was given one (a
+	// build's task); WebLine is what its record says of its searches, "" for
+	// a build without the web.
 	Brief   string `json:"brief,omitempty"`
 	WebLine string `json:"webLine,omitempty"`
 	// CanContinue says Continue is offered: the build stopped short.
@@ -232,9 +229,9 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 		f.StatusKnown, f.Price = true, st.KnowledgeBuild
 		if kb := st.KnowledgeBuild; kb != nil {
 			v.HoldCredits, v.ScanCredits = kb.HoldCredits, kb.ScanCredits
-			// The brief and the web came to the registry together
-			// (agentry-enterprise#296); a registry that states web terms
-			// without taking a brief is not one this app knows.
+			// The brief and the web came to the registry together; a
+			// registry that states web terms without taking a brief is not
+			// one this app knows.
 			if kb.TakesBrief() {
 				v.TakesBrief, v.MaxBriefBytes = true, kb.MaxBriefBytes
 				if v.MaxBriefBytes <= 0 {
@@ -271,10 +268,10 @@ func (k *KnowledgeAPI) HostedAvailability(reg string) (*KnowledgeHostedAvailabil
 }
 
 // StartHostedBuild builds In Agentry: into a new pack named name, or, with
-// addTo, into that pack's copy in Agentry, from the documents, the brief,
-// or both (agentry-desktop#498), searching the web when web is set. The
-// documents are files and folders a native picker returned; nothing is
-// created until they are staged and uploaded.
+// addTo, into that pack's copy in Agentry, from the documents, the brief, or
+// both, searching the web when web is set. The documents are files and
+// folders a native picker returned; nothing is created until they are staged
+// and uploaded.
 func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []string, brief string, web bool) (*KnowledgeHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := k.app.ctx
@@ -302,9 +299,9 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 			k.releaseHosted()
 		}
 	}()
-	// The registry's own terms decide what the build may take, not the
-	// page: a brief only where it builds from one, the web only where it
-	// searches for a build (D-030's rule, that a page does not decide).
+	// The registry's own terms decide what the build may take, not the page:
+	// a brief only where it builds from one, the web only where it searches
+	// for a build.
 	client := hostedrun.New(reg, token)
 	terms, err := client.Status(ctx)
 	if err != nil {

@@ -1,10 +1,8 @@
-// How a job's use and terms read (agentry-desktop#457; plan
-// scan-and-run-tweaks.md track B). Two halves that never meet:
+// How a job's use and terms read. Two halves that never meet:
 //
 // - In Agentry — a run, a session, a knowledge build, a draft — is stated in
 //   credits, time and turns only: no token count and no tokens-per-credit
-//   rate, before, during or after. The words are the site's (agentry-web
-//   lib/runs.ts), and every number is the registry's.
+//   rate, before, during or after. The words are the site's, and every number is the registry's.
 // - On this computer, with the person's own provider, a job is stated in
 //   tokens (and the provider's dollar cost when it reports one), never in
 //   credits.
@@ -33,15 +31,14 @@ export const UNMETERED_RUNS_CLAUSE = "the organization that pays for your runs i
 /** A tier's ceilings for a run In Agentry, as the person is told them. */
 export type HostedCaps = { timeoutSeconds: number; maxTurns: number };
 
-/** "up to 15 minutes and 60 turns" (agentry-web lib/runs.ts capsPhrase). */
+/** "up to 15 minutes and 60 turns". */
 export function capsPhrase(caps: HostedCaps): string {
   return `up to ${fmtDuration(caps.timeoutSeconds)} and ${fmtNumber(caps.maxTurns)} ${caps.maxTurns === 1 ? "turn" : "turns"}`;
 }
 
-/** Settings → Profile's reading of a hosted run's terms: the hold for its
- *  cap in credits, the time and the turns (agentry-web lib/runs.ts
- *  capsSentence). The rates a settlement is computed at are the registry's
- *  and are not stated (plan scan-and-run-tweaks.md D9). */
+/** Settings → Profile's reading of a hosted run's terms: the hold for its cap
+ *  in credits, the time and the turns. The rates a settlement is computed at
+ *  are the registry's and are not stated. */
 export function capsSentence(c: { holdCredits: number; caps: HostedCaps }): string {
   const caps = capsPhrase(c.caps);
   if (c.holdCredits === 0) return `A hosted run may take ${caps}, and holds no credits: ${UNMETERED_RUNS_CLAUSE}.`;
@@ -59,7 +56,7 @@ export function runCapsLine(tier: string, caps: HostedCaps): string {
   return `A run on the ${tier} tier may take ${capsPhrase(caps)}.`;
 }
 
-/** A session In Agentry's terms (agentry-web lib/runs.ts sessionSentence):
+/** A session In Agentry's terms (the site's sessionSentence):
  *  it holds nothing, its first minutes are free, each minute after is
  *  pulled as it starts, and its model use settles when it ends. */
 export function sessionTermsSentence(t: { freeMinutes: number; creditsPerMinute: number; minCredits: number }, metered = true): string {
@@ -67,12 +64,11 @@ export function sessionTermsSentence(t: { freeMinutes: number; creditsPerMinute:
   return `A session holds nothing. Its first ${t.freeMinutes} minutes are free, then each minute costs ${creditCount(t.creditsPerMinute)} as it starts, and its model use settles when it ends. It starts on a balance of at least ${creditCount(t.minCredits)}.`;
 }
 
-/** What a finished session In Agentry cost (plan hosted-sessions.md §7;
- *  DEV-178), in the site's sentence: it held nothing; its time is the
- *  minutes after the free ones, each pulled as it started; its model use
- *  settled at the end within the balance, and any rest was the platform's.
- *  `tokenCredits` and `tokensUnpaid` are credits, named after what they
- *  pay for. */
+/** What a finished session In Agentry cost, in the site's sentence: it held
+ *  nothing; its time is the minutes after the free ones, each pulled as it
+ *  started; its model use settled at the end within the balance, and any rest
+ *  was the platform's. `tokenCredits` and `tokensUnpaid` are credits, named
+ *  after what they pay for. */
 export function sessionCreditsSentence(run: {
   settled: boolean;
   settledCredits: number;
@@ -87,9 +83,8 @@ export function sessionCreditsSentence(run: {
   return `This session held nothing: ${time}, and its model use ${creditCount(s.tokenCredits)}, ${creditCount(total)} in all.${unpaid}${stopped}`;
 }
 
-/** What a knowledge build In Agentry holds (agentry-desktop#274), in the
- *  site's words: the scan's credit is inside the hold, never on top of it
- *  (DEV-150). */
+/** What a knowledge build In Agentry holds, in the
+ *  site's words: the scan's credit is inside the hold, never on top of it. */
 export function buildHoldLine(hold: number, scan: number): string {
   if (hold === 0) return "This build holds no credits: the organization that pays for your builds is not metered.";
   return `This build holds ${creditCount(hold)} and settles from what it uses, plus ${creditCount(scan)} to scan the pack when the build changes it, never more than it holds.`;

@@ -1,17 +1,16 @@
-// Publisher Earnings in the desktop (plan creator-monetization.md D10, D13;
-// agentry-desktop#613): the sentences are the site's (agentry-web#1087,
-// lib/earnings-view.ts), and whether a finished run asks to be starred is
-// decided here. Go says whether the publisher earns and whether the
-// QuickAgent is someone else's and not yet starred (services_earnings.go).
+// Publisher Earnings in the desktop: the sentences are the site's, and
+// whether a finished run asks to be starred is decided here. Go says
+// whether the publisher earns and whether the QuickAgent is someone
+// else's and not yet starred (services_earnings.go).
 
 /** The one line the In Agentry run setup carries where the release's
- *  publisher is in Publisher Earnings (D10). */
+ *  publisher is in Publisher Earnings. */
 export const PUBLISHER_EARNS_SENTENCE = "Its publisher earns a share of the credits runs of it spend.";
 
 /** What the run setup adds after it, as the site's does. */
 export const PUBLISHER_EARNS_AFTER = "What you pay does not change.";
 
-/** The ask on a finished hosted run of someone else's QuickAgent (D10). */
+/** The ask on a finished hosted run of someone else's QuickAgent. */
 export function starAskSentence(name: string): string {
   return `If this run helped, star ${name}. Stars help other people find it.`;
 }

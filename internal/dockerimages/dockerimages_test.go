@@ -138,8 +138,8 @@ func refs(imgs []Image) []string {
 
 // A ref the policy pins takes that image only: an operator whose node
 // runtime is the public node:22-alpine loses that image and keeps every
-// other node tag, and no "node-exec" repository is invented for it
-// (agentry-desktop#424's review).
+// other node tag, and no "node-exec" repository is invented for
+// it.
 func TestSelectTakesAPolicyRefExactly(t *testing.T) {
 	imgs := []Image{
 		{Repository: "node", Tag: "22-alpine", ID: "sha256:d1"},
@@ -198,11 +198,11 @@ func TestReadPolicyReadsTheRunnerPolicy(t *testing.T) {
 	}
 }
 
-// Unsafe Mode's images are Agentry's (plan unsafe-mode.md D12;
-// agentry-desktop#418): the base, pulled by digest and so listed with no
-// tag; every exec image built on it, which the runner names in the same
-// "-exec" repository as the catalogue's (spec.UnsafeExecImageTag); and a
-// base the operator repointed with images.unsafe, taken by its exact ref.
+// Unsafe Mode's images are Agentry's: the base, pulled by digest and so
+// listed with no tag; every exec image built on it, which the runner
+// names in the same "-exec" repository as the catalogue's
+// (spec.UnsafeExecImageTag); and a base the operator repointed with
+// images.unsafe, taken by its exact ref.
 // Kali's own image, which a person may hold for themselves, is not.
 func TestSelectTakesTheUnsafeModeImages(t *testing.T) {
 	const digest = "sha256:87fa4ae406a9621cef3a4cffcdccf2a512da03141ca21727ce663ca715a191da"
@@ -241,8 +241,8 @@ func TestSelectTakesTheUnsafeModeImages(t *testing.T) {
 
 // Docker Desktop's containerd store names an image pulled as
 // repo:tag@digest by that whole reference, so the repository:tag the list
-// shows answers "No such image" (agentry-desktop#846). Images are removed
-// by ID, and reported by the name the list showed.
+// shows answers "No such image". Images are removed by ID, and reported
+// by the name the list showed.
 func TestRemoveByIDOnTheContainerdStore(t *testing.T) {
 	typst := Image{Repository: "ghcr.io/blaktron/agentry-typst", Tag: "2026.10.09.2", Digest: "sha256:da55", ID: "sha256:da55"}
 	d := &fakeDocker{refuse: map[string]string{typst.Ref(): "Error response from daemon: No such image: " + typst.Ref()}}
@@ -284,7 +284,7 @@ func TestRemoveUntagsOnlyTheListedNamesOfASharedImage(t *testing.T) {
 
 // Every image carrying the runner's build label is Agentry's, an untagged
 // one included (a build a newer one replaced, a stage the classic builder
-// left: agentry-cli#892); an untagged image without it is not. Builds the
+// left); an untagged image without it is not. Builds the
 // runner made before the label are found by their repositories.
 func TestSelectTakesLabelledAndLegacyBuilds(t *testing.T) {
 	imgs := []Image{
@@ -305,8 +305,8 @@ func TestSelectTakesLabelledAndLegacyBuilds(t *testing.T) {
 }
 
 // The real listing: the plain list marked by the label filter, and the
-// untagged labelled images only the dangling filter shows (measured on the
-// classic and the containerd store, agentry-desktop#846).
+// untagged labelled images only the dangling filter shows (on both the
+// classic and the containerd store).
 func TestCLIListMarksAndAddsLabelledImages(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a shell-script docker")
@@ -334,8 +334,7 @@ esac
 }
 
 // The files, host link and harness images a policy repoints are its refs
-// too (agentry-desktop#846): before, only the gateway, harness, builder,
-// runtimes and Unsafe Mode base were.
+// too, as are the gateway, harness, builder, runtimes and Unsafe Mode base.
 func TestReadPolicyReadsTheFilesHostLinkAndHarnessPins(t *testing.T) {
 	home := t.TempDir()
 	pol := policy.Default()

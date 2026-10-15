@@ -20,9 +20,8 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/schedules"
 )
 
-// scheduleRoutes is the schedules extension's side of the fake registry
-// (agentry-enterprise schemas/x-schedules.yaml): the account's schedules,
-// its occurrences, and what each call sent.
+// scheduleRoutes is the schedules extension's side of the fake registry the
+// account's schedules, its occurrences, and what each call sent.
 type scheduleRoutes struct {
 	mu          sync.Mutex
 	items       []hostedrun.Schedule
@@ -152,7 +151,7 @@ func hostedScheduleAPI(t *testing.T, sr *scheduleRoutes, set func(*hostedFake)) 
 		locateCLI: func() (string, error) { return "/usr/bin/agentry", nil }}, reg, f
 }
 
-// The run setup's offer (D7): Pro is offered Later and Repeat In Agentry,
+// The run setup's offer: Pro is offered Later and Repeat In Agentry,
 // Standard is told the plan with the way up, and a registry without the
 // schedules extension offers nothing.
 func TestTheRunSetupOffersSchedulesInAgentryByPlan(t *testing.T) {
@@ -201,7 +200,7 @@ func TestHostedAddMakesTheScheduleWithTheRunsSetup(t *testing.T) {
 	req := HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Task: "sum up", Files: []string{in}, Intake: map[string]string{"topic": "x"}, Voice: true,
 		When: schedules.When{Kind: "weekly", Days: []string{"tue"}, Time: "22:00", End: "after", Times: 4, Zone: "Europe/London"}}
 
-	// A file no picker returned is refused before anything is sent (D-030).
+	// A file no picker returned is refused before anything is sent.
 	if _, err := s.HostedAdd(req); err == nil || len(sr.calls()) != 0 {
 		t.Fatalf("an unpicked file: %v, sent %v", err, sr.calls())
 	}
@@ -229,8 +228,8 @@ func TestHostedAddMakesTheScheduleWithTheRunsSetup(t *testing.T) {
 }
 
 // What a fire would lack is the create's refusal, given back to the When
-// step to fix in place, never an error (D8): a secret held for one run is
-// named so the step asks for it kept.
+// step to fix in place, never an error: a secret held for one run is named
+// so the step asks for it kept.
 func TestHostedAddGivesTheGapBack(t *testing.T) {
 	sr := &scheduleRoutes{refuse: func(w http.ResponseWriter) {
 		hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/secret-not-kept", "title": "A secret is set for one run only",
@@ -247,9 +246,9 @@ func TestHostedAddGivesTheGapBack(t *testing.T) {
 	}
 }
 
-// agentry-desktop#795: a schedule asked to ask for the optional keys sends
-// ask_optional_secrets to the registry's check, one not asked sends nothing
-// of it, and the check's secret-missing comes back with its optional names.
+// A schedule asked to ask for the optional keys sends ask_optional_secrets
+// to the registry's check, one not asked sends nothing of it, and the
+// check's secret-missing comes back with its optional names.
 func TestHostedAddAsksForTheOptionalKeysOnlyWhenTold(t *testing.T) {
 	sr := &scheduleRoutes{refuse: func(w http.ResponseWriter) {
 		hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/secret-missing", "title": "A secret is missing",
@@ -377,7 +376,7 @@ func TestHostedActionsCallTheirRoutes(t *testing.T) {
 	if err != nil || now.Refusal != "run-active" || now.Detail == "" {
 		t.Fatalf("HostedRunNow = %+v, %v", now, err)
 	}
-	// A No in the native dialog deletes nothing (D-070).
+	// A No in the native dialog deletes nothing.
 	s.app.confirm = func(context.Context, string, string) (bool, error) { return false, nil }
 	if ok, err := s.HostedRemove(reg, hostedScheduleID, "Renamed"); ok || err != nil {
 		t.Fatalf("a declined Delete: %v, %v", ok, err)
@@ -445,12 +444,11 @@ func TestHostedSchedulesSignedOut(t *testing.T) {
 	}
 }
 
-// A schedule In Agentry given a source with a token (typed, or the key
-// saved on this computer for its host) saves it in Agentry as the host's
-// key before the schedule is made, with the person's leave, since its
-// fires use the key Agentry keeps (agentry-enterprise#532); without the
-// leave it is held, nothing sent. A public source with no token is
-// scheduled as given, and no key is saved (agentry-desktop#833).
+// A schedule In Agentry given a source with a token (typed, or the key saved
+// on this computer for its host) saves it in Agentry as the host's key
+// before the schedule is made, with the person's leave, since its fires use
+// the key Agentry keeps; without the leave it is held, nothing sent. A
+// public source with no token is scheduled as given, and no key is saved.
 func TestHostedAddSavesASourcesKeyInAgentryWithLeave(t *testing.T) {
 	isolateHostedKeychain(t)
 	sr := &scheduleRoutes{}

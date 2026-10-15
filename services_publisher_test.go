@@ -1,8 +1,7 @@
-// The Publisher section (plan forks-and-publisher.md M6;
-// agentry-desktop#705) against a registry that answers as the core does
-// (agentry#942, #943, #993): who is signed in and in which organizations,
-// what the token may do, the namespace's list with its filters, and the
-// owner actions with their refusals.
+// The Publisher section against a registry that answers as the core does:
+// who is signed in and in which organizations, what the token may do, the
+// namespace's list with its filters, and the owner actions with their
+// refusals.
 package main
 
 import (
@@ -215,7 +214,7 @@ func TestPublisherOverview(t *testing.T) {
 		}
 	}
 
-	// A token from before agentry#993 carries no agent:manage.
+	// A token minted before the grant carried agent:manage lacks it.
 	f.scopes = []string{"agent:read", "agent:publish", "user:profile"}
 	if v, _ = p.Overview(reg); v.CanManage || !v.ScopesKnown {
 		t.Fatalf("an old sign-in reads as able to manage: %+v", v)
@@ -390,9 +389,9 @@ func TestPublisherRefusalsInTheSitesWords(t *testing.T) {
 	}
 }
 
-// The token goes only where Settings would send it (agentry-desktop#307):
-// a plain-http registry at a real host is refused before any dialog or
-// request, and the section reads as signed out there.
+// The token goes only where Settings would send it: a plain-http registry at
+// a real host is refused before any dialog or request, and the section reads
+// as signed out there.
 func TestPublisherSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	signIn(t, "http://dev.secureagentry.net")
 	p, asked := newPublisherAPI(true)
@@ -418,10 +417,10 @@ func TestPublisherSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	}
 }
 
-// Fork (agentry-desktop#706) against the same registry: the targets are
-// pat and the organizations pat publishes for, a fork is asked first and
-// sent as the core takes it, and a refusal is said in the site's words,
-// asking for another name only when the name was the trouble.
+// Fork against the same registry: the targets are pat and the organizations
+// pat publishes for, a fork is asked first and sent as the core takes it,
+// and a refusal is said in the site's words, asking for another name only
+// when the name was the trouble.
 func TestPublisherForkTargetsAndFork(t *testing.T) {
 	f := &publisherFake{scopes: []string{"agent:manage"}}
 	reg := f.start(t)

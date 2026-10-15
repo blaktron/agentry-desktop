@@ -1,11 +1,11 @@
-// In Agentry: the parts of the run panel that belong to a hosted run
-// (plan hosted-runs.md §4.7, agentry-desktop#77). The panel itself keeps
+// In Agentry: the parts of the run panel that belong to a hosted run. The
+// panel itself keeps
 // the consent, the intake form and the task; these render what a hosted
 // run costs before it starts, where it stands while it runs — queued,
 // running, then done with pass or fail — and what it produced when it is
 // over: the same facts a local run's result shows, from the registry's
 // numbers rather than the app's arithmetic. A run In Agentry has no log
-// to show (hosted runs in production, D12 and D16; agentry-desktop#182).
+// to show.
 import { useEffect, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import { OpenExternal } from "../../wailsjs/go/main/App";
@@ -19,7 +19,7 @@ import { PUBLISHER_EARNS_AFTER, PUBLISHER_EARNS_SENTENCE, starAskSentence, starA
 
 /** What a run In Agentry holds and what the account has, before anything
  *  is created: the hold in credits, the time and the turns, never tokens or
- *  a rate (agentry-desktop#457). Every number comes from the registry. */
+ *  a rate. Every number comes from the registry. */
 export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
   return (
     <p className="muted small" style={{ margin: "4px 0" }}>
@@ -31,16 +31,15 @@ export function HostedCredits({ hosted }: { hosted: main.HostedAvailabilityView 
   );
 }
 
-/** What a session In Agentry costs, before it starts (plan
- *  hosted-sessions.md §7; agentry-desktop#403): it holds nothing, its first
- *  minutes are free, each minute after is pulled as it starts, and its
- *  model use settles when it ends, in credits. Every number is the
+/** What a session In Agentry costs, before it starts: it holds nothing,
+ *  its first minutes are free, each minute after is pulled as it starts,
+ *  and its model use settles when it ends, in credits. Every number is the
  *  registry's. */
 export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView }) {
   const s = hosted.session;
   if (!s) return null;
   // A run of this caller's that holds nothing is an unmetered
-  // organization's (hosted runs D5): its sessions cost no credits either.
+  // organization's: its sessions cost no credits either.
   const metered = !(hosted.caps && hosted.holdCredits === 0);
   return (
     <p className="muted small" style={{ margin: "4px 0" }}>
@@ -52,9 +51,8 @@ export function SessionCredits({ hosted }: { hosted: main.HostedAvailabilityView
 }
 
 /** The one line under what a run or session In Agentry costs where the
- *  release's publisher is in Publisher Earnings (plan creator-monetization.md
- *  D10; agentry-desktop#613): Go draws it for someone else's public
- *  QuickAgent only, as the site does. */
+ *  release's publisher is in Publisher Earnings: Go draws it for someone
+ *  else's public QuickAgent only, as the site does. */
 export function PublisherEarnsLine({ hosted }: { hosted: main.HostedAvailabilityView }) {
   if (!hosted.publisherEarns) return null;
   return (
@@ -66,7 +64,7 @@ export function PublisherEarnsLine({ hosted }: { hosted: main.HostedAvailability
 
 /** The ask on the result of a hosted run or a closed session of someone
  *  else's QuickAgent that ended well: star it if it helped, with the star
- *  button here (plan creator-monetization.md D10; agentry-desktop#613).
+ *  button here.
  *  Nothing for one's own or one's organization's QuickAgent, nothing once
  *  it is starred, and nothing where the registry does not say (Go's
  *  RunAPI.StarAsk). Starring says so in place of the ask. */
@@ -152,10 +150,9 @@ export function HostedUnavailable({ hosted }: { hosted: main.HostedAvailabilityV
 }
 
 /** What a release that declares secrets asks of a run In Agentry, said
- *  before the start (plan hosted-credentials-vault.md D12; agentry-desktop
- *  #300). Which of them the account keeps is not something this app can
- *  read (the list is a signed-in session's, DEV-165): the start finds out,
- *  and asks for the rest. */
+ *  before the start. Which of them the account keeps is not something
+ *  this app can read (the list is a signed-in session's): the start finds
+ *  out, and asks for the rest. */
 export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityView }) {
   const names = hosted.declaredSecrets ?? [];
   if (names.length === 0) return null;
@@ -186,10 +183,10 @@ export function HostedSecretsNote({ hosted }: { hosted: main.HostedAvailabilityV
 
 /** The start's ask for the declared secrets the account does not keep
  *  (a secret-missing refusal names them). Each value is sent once, in a
- *  call of its own (RunAPI.SetHostedSecret, D-024's rule), and cleared
+ *  call of its own (RunAPI.SetHostedSecret), and cleared
  *  from this form before it is sent; "Keep it for later runs" is unticked,
  *  so a value is held for this run alone unless the person ticks it. An
- *  optional key (agentry-desktop#795) is asked for the same way, marked,
+ *  optional key is asked for the same way, marked,
  *  and may stay empty: nothing is set for it, and the run goes without it. */
 export function HostedSecretsAsk({ registry, names, optional, onSaved, onCancel, forSchedule }: {
   registry: string;
@@ -198,8 +195,8 @@ export function HostedSecretsAsk({ registry, names, optional, onSaved, onCancel,
   optional?: string[];
   onSaved: () => void;
   onCancel: () => void;
-  /** A schedule's ask (agentry-desktop#745; plan quickagent-scheduling.md
-   *  D8): its runs resolve kept secrets alone, so each value is kept, and
+  /** A schedule's ask: its runs resolve kept secrets alone, so each
+   *  value is kept, and
    *  there is no box to hold one for a single run. */
   forSchedule?: boolean;
 }) {
@@ -317,8 +314,8 @@ export function HostedSecretsAsk({ registry, names, optional, onSaved, onCancel,
   );
 }
 
-/** Connect tools In Agentry (OAuth connections M9, agentry-desktop#667;
- *  plan D19): the servers this release signs in to, and the page where
+/** Connect tools In Agentry: the servers this release signs in to, and
+ *  the page where
  *  Agentry's connections to them are made. Agentry keeps its own, for this
  *  version, apart from this computer's; which of them the account keeps is
  *  not this app's to read (the list is a signed-in session's, as the
@@ -352,7 +349,7 @@ export function HostedSignIns({ registry, agentRef, servers }: { registry: strin
  *  of its servers for this version (409 connection-missing): Connect tools
  *  is open in the browser, and the start is made again until Agentry holds
  *  every connection, when the run starts by itself. The panel opens the
- *  page and waits as Run is refused (plan D5: at Start); this shows where
+ *  page and waits as Run is refused; this shows where
  *  that stands and offers the page again, Stop, Wait again and Cancel. */
 export function HostedConnectAsk({ registry, agentRef, missing, detail, waiting, onWait, onStop, onCancel }: {
   registry: string;
@@ -389,7 +386,7 @@ export function HostedConnectAsk({ registry, agentRef, missing, detail, waiting,
 
 /** Settings' card for the account's secrets in Agentry: add or replace one
  *  by name, delete one by name. The list is on the site's Secrets page — a
- *  signed-in session's alone, never a token's (DEV-165) — so this card
+ *  signed-in session's alone, never a token's — so this card
  *  opens it rather than drawing one. A secret saved here is kept. */
 export function SecretsCard({ registry }: { registry: string }) {
   const [keeps, setKeeps] = useState(false);

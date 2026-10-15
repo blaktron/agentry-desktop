@@ -23,33 +23,29 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// The report design (plan report-designs.md §4, D2, D8, D10, D14, D17, D18,
-// D22; agentry-desktop#759, D-075): how the PDFs a run exports with
-// export_pdf look, the person's setting, never the model's. The account
-// keeps it whole, a theme document version 2, at GET/PUT
-// /user/report-settings (agentry#1024, DEV-230) on user:profile, which the
-// app's sign-in carries. Settings → Report design edits it, and a local run
-// or chat takes it. An account that never chose reads back with no design,
-// which is not Plain at the API (DEV-227); this app, which has no config of
+// The report design: how the PDFs a run exports with export_pdf look, the
+// person's setting, never the model's. The account keeps it whole, a theme
+// document version 2, at GET/PUT /user/report-settings on user:profile,
+// which the app's sign-in carries. Settings → Report design edits it, and a
+// local run or chat takes it. An account that never chose reads back with no
+// design, which is not Plain at the API; this app, which has no config of
 // its own for it, draws Plain then, and when signed out.
 //
-// The core's pkg/reportdesign is the one definition (D22): the page's
-// controls are its fields, its closed lists and families are the page's
-// choices, and every check the page shows (the contrast guard, the field a
-// save would be refused for) is that package's answer through
-// CheckReportDesign, so the page cannot disagree with the core's save. The
-// thumbnails are the pinned CLI's (pkg/reportthumbs), rendered by the
-// runner's own template.
+// The core's pkg/reportdesign is the one definition: the page's controls are
+// its fields, its closed lists and families are the page's choices, and
+// every check the page shows (the contrast guard, the field a save would be
+// refused for) is that package's answer through CheckReportDesign, so the
+// page cannot disagree with the core's save. The thumbnails are the pinned
+// CLI's (pkg/reportthumbs), rendered by the runner's own template.
 //
-// The logo (plan §4 "The logo", D9; agentry#1025, agentry-desktop#777) is
-// the person's own image, drawn by the pinned CLI in the title block. The
-// core keeps it beside the design and answers it only when asked
-// (include=logo), which this app always does: the page shows it, and a
-// local run carries it whole to the CLI. It is uploaded and removed on its
-// own; a Save sends the design without it, and the core keeps the stored
-// one. The page never holds its bytes in the design it edits: the view
-// gives it as a PNG data: URL beside the design, so the editor's checks do
-// not carry half a megabyte back and forth on every change.
+// The logo is the person's own image, drawn by the pinned CLI in the title
+// block. The core keeps it beside the design and answers it only when asked
+// (include=logo), which this app always does: the page shows it, and a local
+// run carries it whole to the CLI. It is uploaded and removed on its own; a
+// Save sends the design without it, and the core keeps the stored one. The
+// page never holds its bytes in the design it edits: the view gives it as a
+// PNG data: URL beside the design, so the editor's checks do not carry half
+// a megabyte back and forth on every change.
 
 // ReportDesignView is the account's report design as the page shows it.
 // Available is false on a registry from before the setting, where the page
@@ -121,11 +117,11 @@ type ReportDesignProblem struct {
 	Message string `json:"message"`
 }
 
-// ReportAccentCheck is the contrast rule for the design's accent (D17):
-// its ratio on white, the ratio it needs (4.5 where it colours text, 3
-// where it colours only graphics), and the nearest shade that passes,
-// which is the accent itself when it does. Valid is false for an accent
-// that is not #rrggbb.
+// ReportAccentCheck is the contrast rule for the design's accent: its ratio
+// on white, the ratio it needs (4.5 where it colours text, 3 where it
+// colours only graphics), and the nearest shade that passes, which is the
+// accent itself when it does. Valid is false for an accent that is not
+// #rrggbb.
 type ReportAccentCheck struct {
 	Valid   bool    `json:"valid"`
 	OK      bool    `json:"ok"`
@@ -255,7 +251,7 @@ func (s *SettingsAPI) ResetReportDesign(url string) (*ReportDesignView, error) {
 	return saveReportDesign(s.app.ctx, url, token, nil)
 }
 
-// withLogo asks the core for the design with its logo (agentry#1025).
+// withLogo asks the core for the design with its logo.
 func withLogo() *apiclient.ReportSettingsInclude {
 	include := apiclient.ReportSettingsIncludeLogo
 	return &include
@@ -469,13 +465,13 @@ func (r *RunAPI) reportThemeFor(ctx context.Context, reg string, logw io.Writer)
 	return accountReportTheme(ctx, url, settings.TokenFor(url), logw)
 }
 
-// accountReportTheme is the account's report design for a run, whole, as
-// the CLI's chooseReportTheme takes it: the zero value (Plain, chosen by
-// the default) when there is no credential, the account never chose, or
-// the registry has no such setting. A registry address Settings would not
-// accept is never sent the token (D-030). An account it cannot read, or a
-// design this build cannot draw, says so in the run's log and is Plain too;
-// the run goes on, since how a PDF looks is no reason to stop one (D20).
+// accountReportTheme is the account's report design for a run, whole, as the
+// CLI's chooseReportTheme takes it: the zero value (Plain, chosen by the
+// default) when there is no credential, the account never chose, or the
+// registry has no such setting. A registry address Settings would not accept
+// is never sent the token. An account it cannot read, or a design this build
+// cannot draw, says so in the run's log and is Plain too; the run goes on,
+// since how a PDF looks is no reason to stop one.
 func accountReportTheme(ctx context.Context, url, token string, logw io.Writer) engine.ReportTheme {
 	if token == "" {
 		return engine.ReportTheme{}

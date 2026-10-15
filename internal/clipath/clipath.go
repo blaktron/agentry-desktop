@@ -1,6 +1,5 @@
 // Package clipath puts the agentry CLI the Windows installer carries on the
-// person's user Path, and takes it off again (agentry-desktop#580; plan
-// agentry-notes/plans/cli-on-path.md §6, D3; D-061).
+// person's user Path, and takes it off again.
 //
 // The installer runs `agentry-desktop.exe --add-cli-to-path` after it has
 // laid the files down, and the uninstaller `--remove-cli-from-path` before it
@@ -16,10 +15,10 @@
 // site's install.ps1 prepends its own directory) wins over the copy the app
 // carries. So that the copy that wins is never older than the app's, the
 // add also refreshes an older one at the script's default place
-// (refresh.go; agentry-desktop#770, D-074), as app start does on Windows and
+// (refresh.go), as app start does on Windows and
 // Linux. On every other OS both flags leave the Path alone and exit 0: the
 // Linux packages install /usr/bin/agentry, and macOS offers the command from
-// the app (agentry-desktop#581).
+// the app.
 package clipath
 
 import (

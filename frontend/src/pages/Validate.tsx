@@ -1,9 +1,9 @@
-// The author drop-zone: point at a local agent folder and run the same
-// checks the registry runs at publish time (D-12 parity by construction —
-// the same Go packages, embedded in this app). For a folder chosen with the
-// picker it also offers Review Your QuickAgents locally (agentry-desktop#469):
-// the built-in Examiner over the same folder, after a native dialog, followed
-// in its own dialog and card. Validate itself is the same with or without it.
+// The author drop-zone: point at a local agent folder and run the same checks
+// the registry runs at publish time (the same Go packages, embedded in this
+// app, so the result is the registry's). For a folder chosen with the picker it
+// also offers Review Your QuickAgents locally: the built-in Examiner over the
+// same folder, after a native dialog, followed in its own dialog and card.
+// Validate itself is the same with or without it.
 import { useState } from "react";
 import * as ValidateAPI from "../../wailsjs/go/main/ValidateAPI";
 import { ChooseDirectory } from "../../wailsjs/go/main/App";
@@ -19,7 +19,7 @@ export default function Validate({ registry, onOpenSettings }: {
   onOpenSettings?: () => void;
 }) {
   const [dir, setDir] = useState("");
-  // picked is the folder the picker gave: a review takes only that (D-030),
+  // picked is the folder the picker gave: a review takes only that,
   // so a path typed into the field is validated but not reviewed.
   const [picked, setPicked] = useState("");
   const [reviewing, setReviewing] = useState(false);
@@ -106,7 +106,7 @@ export default function Validate({ registry, onOpenSettings }: {
 
 function ResultView({ r }: { r: validate.Result }) {
   // Go sends a nil slice as null; read every list as Build's review card does
-  // (agentry-desktop#534: a clean folder's null inventory stopped the page).
+  // (a clean folder's null inventory must not stop the page).
   const issues = r.issues ?? [];
   const inventory = r.inventory ?? [];
   const findings = r.findings ?? [];

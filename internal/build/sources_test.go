@@ -9,11 +9,10 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// Build and Edit take the intake types that ask for an input source
-// (agentry-desktop#806, DEV-240): a repository or url question is checked,
-// saved and loaded back with no refusal, takes no choices, and the core's
-// V13 warns on a repository question whose release takes files but not
-// code.
+// Build and Edit take the intake types that ask for an input source: a
+// repository or url question is checked, saved and loaded back with no
+// refusal, takes no choices, and the core's V13 warns on a repository
+// question whose release takes files but not code.
 func TestSourceQuestionsAreAuthored(t *testing.T) {
 	m := model()
 	m.Intake = []IntakeRow{
@@ -75,9 +74,9 @@ func TestSourceQuestionsAreAuthored(t *testing.T) {
 	}
 }
 
-// Edit carries a release's inputs block unchanged (agentry-desktop#822):
-// the form has no editor for it, and a save that dropped it would change
-// what files the release takes and how its agent reads them.
+// Edit carries a release's inputs block unchanged: the form has no
+// editor for it, and a save that dropped it would change what files the
+// release takes and how its agent reads them.
 func TestTheInputsBlockSurvivesLoadAndSave(t *testing.T) {
 	dir := t.TempDir()
 	m := model()

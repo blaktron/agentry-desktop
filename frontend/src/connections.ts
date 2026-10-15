@@ -1,9 +1,9 @@
-// Connections in the run setup and Settings (plan mcp-oauth-connections.md
-// M5; agentry-desktop#666): the pure parts. A connection is a person's OAuth
-// grant to one declared MCP server, for one QuickAgent version, made on the
-// vendor's own consent screen and kept on this computer for that version's
-// later runs. Go keeps it (internal/run/connections.go); these are the words
-// the page says about it.
+// Connections in the run setup and Settings: the pure parts. A connection
+// is a person's OAuth grant to one declared MCP server, for one QuickAgent
+// version, made on the vendor's own consent screen and kept on this
+// computer for that version's later runs. Go keeps it
+// (internal/run/connections.go); these are the words the page says about
+// it.
 
 import type { main, run } from "../wailsjs/go/models";
 
@@ -72,11 +72,11 @@ export function connectionLine(c: ServerConn): string {
 
 /** What still holds Run for the servers that sign in, as sentences the line
  *  above the button shows. On this computer, each server without a working
- *  connection. In Agentry, this computer's connections do not count (plan
- *  D19: Agentry keeps its own), and which of Agentry's the account keeps is
+ *  connection. In Agentry, this computer's connections do not count
+ *  (Agentry keeps its own), and which of Agentry's the account keeps is
  *  not this app's to read, so nothing holds Run there but a server no
  *  connection can serve, or a registry that keeps none (`vault` false): the
- *  start finds out what is missing, and asks (agentry-desktop#667). */
+ *  start finds out what is missing, and asks. */
 export function connectionBlockers(conns: ServerConn[] | null, inAgentry: boolean, vault = true): string[] {
   if (!conns || conns.length === 0) return [];
   const out: string[] = [];
@@ -140,10 +140,9 @@ export function connectionsStatus(v: Pick<main.KeptConnectionsView, "connections
 }
 
 /** The warning a Disconnect shows when other connections were made with the
- *  same client at the same vendor (agentry-desktop#666): a vendor such as
- *  Google revokes the whole grant to the client, so they stop working too.
- *  The operator decided on 2026-10-06 that Disconnect still revokes; null
- *  when nothing else shares the grant. */
+ *  same client at the same vendor: a vendor such as Google revokes the
+ *  whole grant to the client, so they stop working too. Disconnect still
+ *  revokes it; null when nothing else shares the grant. */
 export function sharedGrantWarning(vendorHost: string, shared: string[] | undefined): string | null {
   if (!shared || shared.length === 0) return null;
   const then = shared.length === 1

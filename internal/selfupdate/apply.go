@@ -1,5 +1,4 @@
-// Applying a newer Agentry Desktop (agentry-desktop#88, M7; plan
-// desktop-installers.md §7, §8, D6, D11).
+// Applying a newer Agentry Desktop.
 //
 // What is the same on every platform lives here; what differs lives in
 // apply_darwin.go and apply_windows.go, and apply_other.go refuses.
@@ -12,9 +11,9 @@
 //     anything here runs, the bytes are proven.
 //  2. The app never runs elevated and never asks for an administrator
 //     password. A per-user install is updated per-user; anything else is
-//     reported as something the person must do themselves (plan §3, D11).
+//     reported as something the person must do themselves.
 //  3. Nothing under the person's home is touched. Configuration lives outside
-//     the installed application by construction (plan §8), so applying an
+//     the installed application by construction, so applying an
 //     update preserves it by not going near it — which is a property of what
 //     this code does NOT do, and is therefore asserted by the acceptance
 //     scripts rather than by a line of code here.
@@ -33,7 +32,7 @@ import (
 //
 // It is a refusal with a way forward, never a prompt: asking for an
 // administrator password to apply an update the person did not install as an
-// administrator is exactly the escalation plan §3 forbids.
+// administrator is exactly the escalation the updater must never make.
 var ErrNotWritable = errors.New("this copy of Agentry Desktop is somewhere you cannot replace without administrator rights")
 
 // Applier applies a verified artifact. One per platform; the rest of the

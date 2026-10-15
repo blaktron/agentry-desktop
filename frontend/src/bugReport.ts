@@ -1,5 +1,4 @@
-// Report bug's words (plan report-bug.md §6, D1, D2, D7;
-// agentry-desktop#841): what the card says before Submit about the text,
+// Report bug's words: what the card says before Submit about the text,
 // and after it about the registry's answer, from the one word the binding
 // returns (services_bugreport.go). Pure, so the sentences are tested in node.
 

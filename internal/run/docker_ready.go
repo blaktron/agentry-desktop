@@ -10,14 +10,14 @@ import (
 )
 
 // A Desktop VM can take ten seconds to wake. Give each probe time to
-// answer, then retry twice before showing its last error (desktop#594).
-// The interval is a seam for tests of callers whose engine stays down.
+// answer, then retry twice before showing its last error. The interval
+// is a seam for tests of callers whose engine stays down.
 var dockerRetryInterval = 5 * time.Second
 
 // refreshPath gives the process the PATH a terminal opened now would have
 // before each probe, so a Docker installed or moved while the app is open
 // (or since its first launch, which every self-update inherits) is found
-// by Check again without a restart (agentry-desktop#624). A seam for tests.
+// by Check again without a restart. A seam for tests.
 var refreshPath = hostpath.ForGUI
 
 func dockerAvailable(ctx context.Context, docker dockerx.Client) error {

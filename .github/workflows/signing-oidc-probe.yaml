@@ -1,6 +1,6 @@
 # Proves that a job of this repository running in the `release` environment
 # can obtain an Azure Artifact Signing access token with nothing but the OIDC
-# token GitHub mints for it (agentry-desktop#151; plan os-code-signing.md D6).
+# token GitHub mints for it.
 #
 # No Azure secret exists: the Entra app registration carries one federated
 # credential whose subject names this repository and the `release`
@@ -8,10 +8,10 @@
 # and `v*` tags, so a job on another branch, a pull request or a fork never
 # presents that subject. The exchange is the OAuth client-credentials grant
 # with the OIDC token as the client assertion — plain curl, no Azure CLI on
-# the runner. The release workflow's Windows signing (#54) does the same
-# exchange in its own `linux-windows` job (which joins the environment then)
-# and hands the token to jsign; this workflow proves the credential before
-# that lands, and stays as the diagnostic when it fails later.
+# the runner. The release workflow's Windows signing does the same
+# exchange in its own `linux-windows` job and hands the token to jsign;
+# this workflow proves the credential on its own and serves as the
+# diagnostic when the release's exchange fails.
 #
 # Nothing here is printed but the outcome and the OIDC token's own subject
 # claim (public by construction). Both tokens reach curl through a config on
@@ -50,7 +50,7 @@ jobs:
         with:
           persist-credentials: false
       # scripts/signing-token.sh is the exchange the release's Windows
-      # signing runs (agentry-desktop#54); here it proves the credential and
+      # signing runs; here it proves the credential and
       # nothing is signed. The token it prints is masked and dropped.
       - name: Exchange the job's OIDC token for an Artifact Signing access token
         env:

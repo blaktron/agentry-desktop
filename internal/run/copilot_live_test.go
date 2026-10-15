@@ -13,12 +13,11 @@ import (
 )
 
 // TestLiveCopilotModels asks the real Copilot CLI image for a plan's
-// models through this app's own CopilotModels (agentry-desktop#811), on
-// this machine's docker, with a sign-in kept from a fake GitHub: Copilot
-// CLI is handed the fake's token over the session, reaches the real
-// api.github.com through the run's proxy, and GitHub refuses it, which
-// the app says as "sign in again". Without an account that is as far as
-// a list goes; the list itself is M11's (agentry-cli#744). It may build
+// models through this app's own CopilotModels, on this machine's docker,
+// with a sign-in kept from a fake GitHub: Copilot CLI is handed the
+// fake's token over the session, reaches the real api.github.com through
+// the run's proxy, and GitHub refuses it, which the app says as "sign in
+// again". Without an account that is as far as a list goes. It may build
 // the runner and Copilot CLI images, so it runs only when asked:
 // AGENTRY_LIVE_COPILOT=1 on a host with docker and the network.
 func TestLiveCopilotModels(t *testing.T) {

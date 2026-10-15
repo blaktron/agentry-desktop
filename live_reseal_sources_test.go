@@ -1,12 +1,11 @@
 package main
 
-// A source key's change re-seals a signed-out schedule, live
-// (agentry-desktop#818, after agentry-cli#854): RunAPI.SaveSourceKey and
-// ForgetSourceKey driven as the run setup drives them, against this
-// person's keychain and an existing schedule that runs while they are
-// signed out, made beforehand with `agentry schedule add --signed-out`
-// (Linux with Docker Engine and systemd 256 or later). Skipped unless
-// AGENTRY_LIVE_RESEAL=1:
+// A source key's change re-seals a signed-out schedule, live:
+// RunAPI.SaveSourceKey and ForgetSourceKey driven as the run setup drives
+// them, against this person's keychain and an existing schedule that runs
+// while they are signed out, made beforehand with `agentry schedule add
+// --signed-out` (Linux with Docker Engine and systemd 256 or later). Skipped
+// unless AGENTRY_LIVE_RESEAL=1:
 //
 //	AGENTRY_LIVE_RESEAL=1 \
 //	AGENTRY_LIVE_RESEAL_SCHEDULE=<the schedule's id> \

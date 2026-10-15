@@ -152,12 +152,11 @@ func TestAddResealsUnderTheSameKey(t *testing.T) {
 	noPlaintextLeft(t, e)
 }
 
-// A build on this computer is given at least 60 minutes, whatever the
-// runner policy's run budget (15 minutes by default); a policy that allows
-// more keeps its own, and the turns and cost stay the policy's. The floor
-// is the CLI's, the one `agentry knowledge create` builds under
-// (agentry-desktop#458, the CLI's DR-54); it was this app's own 30 minutes
-// before (agentry-desktop#352). No budget of a build counts tokens.
+// A build on this computer is given at least 60 minutes, whatever the runner
+// policy's run budget (15 minutes by default); a policy that allows more keeps
+// its own, and the turns and cost stay the policy's. The floor is the CLI's,
+// the one `agentry knowledge create` builds under. No budget of a build counts
+// tokens.
 func TestCreatorBudgetsGiveABuildAtLeastSixtyMinutes(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	builtinNoLimit(t, false)
@@ -180,8 +179,8 @@ func TestCreatorBudgetsGiveABuildAtLeastSixtyMinutes(t *testing.T) {
 
 // A build reports its progress: the budgets at its start, the harness's
 // usage as it arrives, and the pages the Creator has written, counted in the
-// run's reports as they appear; and it runs with the 60-minute floor
-// (agentry-desktop#352, agentry-desktop#458).
+// run's reports as they appear; and it runs with the 60-minute
+// floor.
 func TestABuildReportsItsProgress(t *testing.T) {
 	defer func(d time.Duration) { progressEvery = d }(progressEvery)
 	progressEvery = 10 * time.Millisecond
@@ -233,11 +232,11 @@ func TestABuildReportsItsProgress(t *testing.T) {
 		t.Fatal(err)
 	}
 	// By default a build on this computer has no timeout and runs to the
-	// hidden failsafe (agentry-desktop#699).
+	// hidden failsafe.
 	if seen.Budgets == nil || seen.Budgets.TimeoutSeconds != 0 || seen.Budgets.MaxTurns != settings.BuiltinFailsafeTurns {
 		t.Fatalf("the Creator ran with budgets %+v", seen.Budgets)
 	}
-	// A build on this computer takes up to 1 GB (agentry-desktop#354).
+	// A build on this computer takes up to 1 GB.
 	if seen.MaxBytes != kn.MaxLocalBytes {
 		t.Fatalf("the Creator ran with a cap of %d bytes", seen.MaxBytes)
 	}
@@ -261,9 +260,8 @@ func TestABuildReportsItsProgress(t *testing.T) {
 
 // A build stopped from the card (its context cancelled) keeps the pages the
 // run wrote: the pack is sealed under a context that outlives the
-// cancellation, so the registry's wrap still answers. Before
-// agentry-desktop#353's fix the seal ran on the cancelled context and the
-// pages were lost; a pack being extended is resealed the same way.
+// cancellation, so the registry's wrap still answers and the pages are not
+// lost; a pack being extended is resealed the same way.
 func TestAStoppedBuildIsStillKeptSealed(t *testing.T) {
 	reg := knowledgetest.NewRegistry(t)
 	e := testEnv(t, reg, reg.Token("ana"), newKeys())
@@ -294,8 +292,8 @@ func TestAStoppedBuildIsStillKeptSealed(t *testing.T) {
 }
 
 // Past Agentry's 10 MB of documents, a build on this computer says first
-// that it can take a very long time and that the pack stays here
-// (agentry-desktop#354); under it, nothing is said.
+// that it can take a very long time and that the pack stays
+// here; under it, nothing is said.
 func TestABuildPastAgentrysCapSaysSoFirst(t *testing.T) {
 	reg := knowledgetest.NewRegistry(t)
 	e := testEnv(t, reg, reg.Token("ana"), newKeys())
@@ -323,8 +321,7 @@ func TestABuildPastAgentrysCapSaysSoFirst(t *testing.T) {
 
 // A build's progress event is one flat object: the shared report's fields
 // and the pages, in this order, which is what the page reads
-// (knowledge:build-progress; the shared fields live in internal/progress
-// since agentry-desktop#464, and the object did not change).
+// (knowledge:build-progress; the shared fields live in internal/progress).
 func TestABuildsProgressIsOneFlatObjectWithItsPages(t *testing.T) {
 	p := Progress{Report: progress.Report{StartedAt: 1, TimeoutSeconds: 2, MaxTurns: 3, Turns: 4, InputTokens: 5, OutputTokens: 6}, Pages: 7}
 	b, err := json.Marshal(p)
@@ -337,12 +334,11 @@ func TestABuildsProgressIsOneFlatObjectWithItsPages(t *testing.T) {
 	}
 }
 
-// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
-// D-062; on by default since agentry-desktop#699): a build on this computer
-// runs with no timeout and to the hidden failsafe of 200 turns, for a local
-// model that cannot draft a pack in the Creator's 60 minutes; the cost cap
-// stays the policy's, and the build's log and its building view say no
-// limit rather than "up to 0 minutes" or the failsafe.
+// Run defaults' no-limit switch for the built-in agents (on by default): a
+// build on this computer runs with no timeout and to the hidden failsafe of 200
+// turns, for a local model that cannot draft a pack in the Creator's 60
+// minutes; the cost cap stays the policy's, and the build's log and its
+// building view say no limit rather than "up to 0 minutes" or the failsafe.
 func TestByDefaultABuildHasNoTimeOrTurnLimitButTheHiddenFailsafe(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	pol := &policy.Policy{Budgets: policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}}

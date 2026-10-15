@@ -11,15 +11,14 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// The install takes its destination directory and its skill entrypoint
-// from the resolve response's manifest — which the archive digest and the
-// attestation do not cover — and then os.RemoveAll's the former and
-// os.WriteFile's the latter. A registry (or an on-path attacker against an
-// http:// one) naming "../../.." and "../../.bashrc" used to get $HOME
-// deleted and a shell file overwritten (security review 2026-09-20 §8.1,
-// §8.2). Three guards now: the manifest is validated before any path is
-// derived from it, the managed destination passes the same refusal
-// uninstall applies, and the skill file must resolve under the destination.
+// The install takes its destination directory and its skill entrypoint from the
+// resolve response's manifest — which the archive digest and the attestation do
+// not cover — and then os.RemoveAll's the former and os.WriteFile's the latter.
+// A registry (or an on-path attacker against an http:// one) naming "../../.."
+// and "../../.bashrc" would get $HOME deleted and a shell file overwritten.
+// Three guards stop it: the manifest is validated before any path is derived
+// from it, the managed destination passes the same refusal uninstall applies,
+// and the skill file must resolve under the destination.
 
 func fakeHome(t *testing.T) string {
 	t.Helper()

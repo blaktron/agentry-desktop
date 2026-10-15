@@ -12,8 +12,8 @@ import (
 
 // ImagesFlag is the form the Windows uninstaller runs the app with to
 // remove Agentry's Docker images, unless the person ticked "Keep my Docker
-// images" (agentry-desktop#424). It runs before the settings box, whose
-// removal deletes the runner policy that may name them.
+// images". It runs before the settings box, whose removal deletes the
+// runner policy that may name them.
 const ImagesFlag = "--remove-docker-images"
 
 // Exit codes of ImagesMain, which the uninstaller turns into a message.

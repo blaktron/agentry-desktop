@@ -1,13 +1,12 @@
 package clipath
 
-// The refresh (agentry-desktop#770, D-074, amending D-061). The site's
-// install script puts the CLI first on the person's PATH, at its own default
-// place, and D-061 appends the desktop's copy so that a CLI installed on
-// purpose wins. Nothing ever updated the script's copy, so it won forever at
-// the version it was installed at: on the operator's laptop a terminal's
-// `agentry --version` said 0.6.52-dev.2 under a desktop carrying 0.6.87, and
-// an MCP host registered with the script's AGENTRY_BIN ran the same stale
-// copy. The desktop now replaces that copy with its own when the copy is
+// The refresh. The site's install script puts the CLI first on the person's
+// PATH, at its own default place, and the desktop appends its copy so that a
+// CLI installed on purpose wins. Nothing else updates the script's copy, so
+// it would win forever at the version it was installed at: a terminal's
+// `agentry --version` would report an old version under a newer desktop, and
+// an MCP host registered with the script's AGENTRY_BIN would run the same
+// stale copy. The desktop replaces that copy with its own when the copy is
 // older. It never downgrades, and it leaves alone anything it cannot read the
 // version of, so a newer CLI installed on purpose still wins.
 
@@ -244,7 +243,7 @@ func fileSHA256(p string) ([]byte, error) {
 // bundledCLI is the CLI this build carries, beside the running executable:
 // <dir>\bin\agentry.exe on Windows (the installer's $INSTDIR\bin), <dir>/agentry
 // on Linux (/usr/bin/agentry beside /usr/bin/agentry-desktop). "" on macOS,
-// which carries none yet (agentry-desktop#581).
+// which carries none yet.
 func bundledCLI() string {
 	exe, err := os.Executable()
 	if err != nil {

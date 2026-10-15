@@ -15,11 +15,10 @@ func drafted() *Model {
 	return m
 }
 
-// What does not depend on the task is the Builder's (plan
-// builder-simplify.md §4.2, D10): a first release's version, the licence
-// whose text Save writes unless the person named another, AGENT.md, the
-// include list Save writes, and a name none of the person's own QuickAgents
-// has. Each change is named.
+// What does not depend on the task is the Builder's: a first release's
+// version, the licence whose text Save writes unless the person named
+// another, AGENT.md, the include list Save writes, and a name none of the
+// person's own QuickAgents has. Each change is named.
 func TestTheBuilderSetsWhatDoesNotDependOnTheTask(t *testing.T) {
 	m := drafted()
 	notes := SetByBuilder(m, "Check a CSV file for empty rows.", []string{"csv-quality-check", "csv-quality-check-2"})

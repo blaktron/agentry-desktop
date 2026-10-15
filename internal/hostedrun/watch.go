@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-// Where a run stands, read (hosted runs in production, D12 and D16). A
-// pushed run keeps no log: the registry writes status rows only, and what
-// a run produced comes back as its outputs and its receipt when it is
-// over. So the app does not stream anything; it re-reads the run until it
-// stops moving, which also keeps a queue position current.
+// Where a run stands, read. A pushed run keeps no log: the registry
+// writes status rows only, and what a run produced comes back as its
+// outputs and its receipt when it is over. So the app does not stream
+// anything; it re-reads the run until it stops moving, which also keeps a
+// queue position current.
 
 // WatchOptions parameterise Watch.
 type WatchOptions struct {

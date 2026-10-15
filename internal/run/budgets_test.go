@@ -1,8 +1,8 @@
 package run
 
-// Run defaults' timeout and max turns (plan settings-cards.md D2,
-// agentry-desktop#347): the runner policy's budgets, written through the
-// policy package the CLI reads, so `agentry run` runs with them too.
+// Run defaults' timeout and max turns: the runner policy's budgets, written
+// through the policy package the CLI reads, so `agentry run` runs with them
+// too.
 
 import (
 	"strings"

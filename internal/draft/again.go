@@ -7,18 +7,17 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 )
 
-// Describe again (plan builder-rework.md §7.1, D11; #281), as the site
-// writes it (agentry-web lib/draft-import.ts describeAgain): a new draft
-// starts from what the person first asked, what they want changed now, and
-// the draft as it stands in the form (its agent.yaml, then its AGENT.md),
-// within the registry's 24 KiB for a description.
+// Describe again, as the site writes it (agentry-web lib/draft-import.ts
+// describeAgain): a new draft starts from what the person first asked,
+// what they want changed now, and the draft as it stands in the form (its
+// agent.yaml, then its AGENT.md), within the registry's 24 KiB for a
+// description.
 //
-// It is written about the person, in the third person, and the draft is
-// quoted as data in fences. AI Review scans the description before the
-// Drafter starts, and an imperative addressed to the reading model scored
-// as an injection and was withheld on the site (agentry-web#622); this
-// framing scored 0 on the same draft. The labels are the site's, byte for
-// byte, so either client reads back a description the other composed.
+// It is written about the person, in the third person, and the draft is quoted
+// as data in fences. AI Review scans the description before the Drafter starts,
+// and an imperative addressed to the reading model scores as an injection and
+// is withheld; this third-person framing does not. The labels are the site's,
+// byte for byte, so either client reads back a description the other composed.
 
 // MaxDescription is a description's bound on the registry, and so what
 // Describe again composes to.

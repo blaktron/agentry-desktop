@@ -1,9 +1,9 @@
 package run
 
-// A review's staged copy (agentry-desktop#469): the Examiner's pre-step
-// copies the QuickAgent into the system's temp directory, outside the
-// runner home, so the run's record names the copy and forgetting the record
-// removes it; a copy no record names goes once it is a day old.
+// A review's staged copy: the Examiner's pre-step copies the QuickAgent
+// into the system's temp directory, outside the runner home, so the run's
+// record names the copy and forgetting the record removes it; a copy no
+// record names goes once it is a day old.
 
 import (
 	"context"
@@ -115,8 +115,7 @@ func TestARecordedStageOutsideTheTempDirectoryIsLeftAlone(t *testing.T) {
 }
 
 // A review the app died inside is swept at the next start by its run id,
-// its staged copy with it (agentry-desktop#463's sweep, extended); a live
-// review's copy is left.
+// its staged copy with it; a live review's copy is left.
 func TestTheStartSweepRemovesADeadReviewsStagedCopy(t *testing.T) {
 	home := isolateRunEnv(t)
 	isolateTemp(t)

@@ -8,9 +8,8 @@ import (
 )
 
 // A saved or forgotten source key reaches the keys sealed beside the
-// schedules that run while the person is signed out (agentry-cli#854,
-// agentry-desktop#818): both ask for a re-seal, as the AI Review key's
-// changes do; a refused save asks for none.
+// schedules that run while the person is signed out: both ask for a re-seal,
+// as the AI Review key's changes do; a refused save asks for none.
 func TestASourceKeyChangeResealsTheSchedules(t *testing.T) {
 	keyring.MockInit()
 	t.Setenv("AGENTRY_NO_KEYRING", "")

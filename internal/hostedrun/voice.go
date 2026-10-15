@@ -6,17 +6,15 @@ import (
 	"time"
 )
 
-// The Writing Voice In Agentry (plan writing-voice.md §6, D9, D10, D17;
-// agentry-enterprise#306; the desktop's half is V6, agentry-desktop#510). A
-// Voice Writer run is a run of kind voice_build in the runs extension:
-// Create (samples and a brief), Improve (more samples and a brief, over the
-// current voice) or AI Edit (a note), each at one flat price, AI Review
-// included. Its voice becomes the account's pending version, which the
-// core's AI Review alone makes live. A run or a session asks for the
-// runner's live voice with voice: true.
+// The Writing Voice In Agentry. A Voice Writer run is a run of kind
+// voice_build in the runs extension: Create (samples and a brief), Improve
+// (more samples and a brief, over the current voice) or AI Edit (a note),
+// each at one flat price, AI Review included. Its voice becomes the
+// account's pending version, which the core's AI Review alone makes live. A
+// run or a session asks for the runner's live voice with voice: true.
 
 // The PAT scopes a Voice Writer run needs beside run:read and run:write,
-// and the one a run that writes in the voice needs (agentry#809).
+// and the one a run that writes in the voice needs.
 const (
 	ScopeVoiceRead  = "voice:read"
 	ScopeVoiceWrite = "voice:write"
@@ -110,8 +108,8 @@ type VoiceFacts struct {
 	HasVoice bool
 }
 
-// VoiceLimitSentence is Standard's refusal before a run (D9, D17), with
-// when the next is theirs.
+// VoiceLimitSentence is Standard's refusal before a run, with when the
+// next is theirs.
 func VoiceLimitSentence(c CallerVoice) string {
 	times := "once a billing cycle"
 	switch {

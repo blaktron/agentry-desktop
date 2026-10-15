@@ -1,14 +1,13 @@
 package main
 
-// Model setup's sign-ins and connects (plan model-sign-ins.md §4.1;
-// agentry-desktop#734, M9): the page's side of internal/run/signins.go. A
-// sign-in blocks until the vendor answers, the person cancels, or it times
-// out, telling the page as it goes; one sign-in runs at a time in this app,
-// an MCP connection's consent included (consentNow), so two browser tabs
-// never compete. Nothing here carries a token, a key or an authorization
-// code to the page: GitHub's device code, the one code Sign in with GitHub
-// asks the person to enter on GitHub's own page, is the exception, shown
-// and put on the clipboard for them (operator, 2026-10-11).
+// Model setup's sign-ins and connects: the page's side of
+// internal/run/signins.go. A sign-in blocks until the vendor answers, the
+// person cancels, or it times out, telling the page as it goes; one sign-in
+// runs at a time in this app, an MCP connection's consent included
+// (consentNow), so two browser tabs never compete. Nothing here carries a
+// token, a key or an authorization code to the page: GitHub's device code,
+// the one code Sign in with GitHub asks the person to enter on GitHub's own
+// page, is the exception, shown and put on the clipboard for them.
 
 import (
 	"context"
@@ -148,9 +147,9 @@ func (r *RunAPI) ChatGPTModels() ([]string, error) {
 }
 
 // CopilotModels lists the models the kept Copilot sign-in's plan offers,
-// asked of Copilot CLI (agentry-cli#808). It may build the runner and
-// Copilot CLI images first, so it takes the docker job and reports their
-// progress on the setup log.
+// asked of Copilot CLI. It may build the runner and Copilot CLI images
+// first, so it takes the docker job and reports their progress on the setup
+// log.
 func (r *RunAPI) CopilotModels(plan string) ([]run.CopilotModel, error) {
 	if err := r.acquire(jobSetup, "the listing of your Copilot plan's models"); err != nil {
 		return nil, err

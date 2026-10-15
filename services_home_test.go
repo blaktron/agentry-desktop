@@ -14,9 +14,8 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// Home's layout through its binding (plan desktop-home-and-library.md §4.4,
-// D-067; agentry-desktop#658): the defaults until something is changed,
-// one change per call, and a view that names every card in order.
+// Home's layout through its binding: the defaults until something is
+// changed, one change per call, and a view that names every card in order.
 func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	h := &HomeAPI{}
@@ -55,11 +54,10 @@ func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 	}
 }
 
-// A pin is local and is not a star (plan desktop-home-and-library.md §3,
-// invariant 3; agentry-desktop#660): pin and unpin write desktop.yaml and
-// ask no registry. The registry here fails the test on any request.
-// Only a QuickAgent installed on this computer can be pinned, and one from
-// a folder pins with no registry.
+// A pin is local and is not a star: pin and unpin write desktop.yaml and ask
+// no registry. The registry here fails the test on any request. Only a
+// QuickAgent installed on this computer can be pinned, and one from a folder
+// pins with no registry.
 func TestPinIsLocalOnlyInstalledAndNotAStar(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	t.Setenv("HOME", t.TempDir())
@@ -104,7 +102,7 @@ func TestPinIsLocalOnlyInstalledAndNotAStar(t *testing.T) {
 }
 
 // Uninstalling a QuickAgent, or forgetting its gone record, removes its pin
-// once no other install of it is left (D5).
+// once no other install of it is left.
 func TestUninstallAndForgetRemoveThePin(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	t.Setenv("HOME", t.TempDir())
@@ -148,9 +146,8 @@ func TestUninstallAndForgetRemoveThePin(t *testing.T) {
 	}
 }
 
-// A folder install's pin and a registry install's pin of the same
-// QuickAgent are kept apart: removing the folder install takes only its pin
-// (the review of agentry-desktop#660).
+// A folder install's pin and a registry install's pin of the same QuickAgent
+// are kept apart: removing the folder install takes only its pin.
 func TestRemovingAFolderInstallKeepsTheRegistryPin(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	t.Setenv("HOME", t.TempDir())
@@ -179,9 +176,8 @@ func TestRemovingAFolderInstallKeepsTheRegistryPin(t *testing.T) {
 	}
 }
 
-// The Scheduled page's Pin to Home and Unpin through the binding (plan
-// quickagent-scheduling.md D13; agentry-desktop#744): one Large card at the
-// end, which no other card is, and gone again on Unpin.
+// The Scheduled page's Pin to Home and Unpin through the binding: one Large
+// card at the end, which no other card is, and gone again on Unpin.
 func TestHomeBindingPinsTheScheduledCard(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	h := &HomeAPI{}

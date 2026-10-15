@@ -1,6 +1,4 @@
-// The Scheduled page and the run setup's When step (plan
-// quickagent-scheduling.md §7, D2, D11, D12, D19; D-073;
-// agentry-desktop#743).
+// The Scheduled page and the run setup's When step.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -54,7 +52,7 @@ test("When is offered only for an autonomous run on this computer of a registry 
   assert.equal(whenUnavailable({ ...s, availability: { ...ready, available: false, reason: "the agentry command was not found" } }), "the agentry command was not found");
 });
 
-test("In Agentry, When follows the registry's offer and the plan, and never a session (agentry-desktop#745)", () => {
+test("In Agentry, When follows the registry's offer and the plan, and never a session", () => {
   const s = { modes: ["autonomous"], mode: "hosted", inAgentry: true, local: false, availability: null };
   const pro = { available: true };
   assert.equal(whenUnavailable({ ...s, hostedOffer: pro }), null);
@@ -172,7 +170,7 @@ test("Edit sends When only when it changed, since a changed repeat starts afresh
   assert.equal(sameWhen(null, daily), false);
 });
 
-// Home's Scheduled card (agentry-desktop#744).
+// Home's Scheduled card.
 import { asSentence, scheduledCardStatus } from "../src/scheduled.ts";
 
 test("the Scheduled card's line counts the schedules, or says why there is none to count", () => {

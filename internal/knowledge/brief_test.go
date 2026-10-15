@@ -27,10 +27,9 @@ func stubWeb(t *testing.T, w *engine.WebRun, state drafter.SearchState, err erro
 	return &calls
 }
 
-// A brief alone builds a pack on this computer (agentry-desktop#498, plan
-// knowledge-and-drafter.md D15): the Creator gets the brief and no
-// documents, the log carries the plan's warning, and Add documents takes a
-// brief alone too. Without the web asked for, no key is read.
+// A brief alone builds a pack on this computer: the Creator gets the brief
+// and no documents, the log carries the brief-only warning, and Add documents
+// takes a brief alone too. Without the web asked for, no key is read.
 func TestABriefAloneBuildsAPack(t *testing.T) {
 	ctx := context.Background()
 	reg := knowledgetest.NewRegistry(t)
@@ -47,7 +46,7 @@ func TestABriefAloneBuildsAPack(t *testing.T) {
 		t.Fatalf("the Creator ran with brief %q, documents %v, web %v", seen.Brief, seen.Documents, seen.Web)
 	}
 	// The result says a brief was given, so the panel can name it rather
-	// than call brief.md a document (agentry-desktop#600).
+	// than call brief.md a document.
 	if !res.Brief {
 		t.Fatalf("a brief-only build's result does not say it had a brief: %+v", res)
 	}
@@ -96,9 +95,9 @@ func TestABuildNeedsDocumentsOrABriefWithinItsBound(t *testing.T) {
 	}
 }
 
-// Search the web (D16) gives the Creator the person's web configuration
-// when this computer has the keys for it; without them the build runs
-// without the web and says why, in the log and in the result, rather than
+// Search the web gives the Creator the person's web configuration when
+// this computer has the keys for it; without them the build runs without
+// the web and says why, in the log and in the result, rather than
 // failing.
 func TestSearchTheWebUsesThePersonsKeysOrSaysWhyNot(t *testing.T) {
 	ctx := context.Background()

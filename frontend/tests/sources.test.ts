@@ -1,5 +1,4 @@
-// Input sources in the run setup (plan input-sources.md §5, D3, D5, D13;
-// agentry-desktop#794): a repository or url question is asked in the run's
+// Input sources in the run setup: a repository or url question is asked in the run's
 // own flow with an optional token beside it; a saved key for the host is
 // used unless another is typed; a schedule reads only the saved key; a run
 // In Agentry does not take a source yet; and a token typed for a run goes
@@ -41,7 +40,7 @@ test("what to have ready names the address and the token, required or optional",
 
 test("the token line says which token the run uses", () => {
   // Before the address is checked, or when it is refused, the line still
-  // says what a token is for (agentry-desktop#869): the field is there.
+  // says what a token is for: the field is there.
   assert.match(tokenLine(null, "", true), /A public repository needs no token; a private one needs an access token/);
   assert.match(tokenLine({ problem: "the repository address must be https", saved: false, keychainOff: false }, "", true), /a private one needs an access token/);
   assert.match(tokenLine(null, "", false), /A public file needs no token/);
@@ -76,7 +75,7 @@ test("an unanswered source holds nothing here; an unchecked or refused address h
   assert.deepEqual(sourceBlockers([repo], { codebase: "https://github.com/acme/app" }, { codebase: ok("github.com") }, { codebase: "tok" }, here), []);
 });
 
-test("a run In Agentry takes a source, its token sent with the start (agentry-desktop#833)", () => {
+test("a run In Agentry takes a source, its token sent with the start", () => {
   const v = { codebase: "https://github.com/acme/app" };
   const there = { ...here, inAgentry: true };
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, {}, there), []);
@@ -93,7 +92,7 @@ test("a run In Agentry takes a source, its token sent with the start (agentry-de
     "https://github.com/acme/app, its default branch, with the key saved on this computer for github.com, sent to Agentry for this run alone");
 });
 
-test("a schedule In Agentry saves a source's token there, with leave (agentry-enterprise#532)", () => {
+test("a schedule In Agentry saves a source's token there, with leave", () => {
   const sched = { ...here, inAgentry: true, scheduling: true };
   const v = { codebase: "https://github.com/acme/app" };
   const hold = ["A schedule In Agentry fetches with the key Agentry keeps for github.com: tick \u201cSave in Agentry\u201d to keep the token there, or schedule it on this computer."];
@@ -108,7 +107,7 @@ test("a schedule reads the saved key: a typed token must be saved, signed out or
   const sched = { ...here, scheduling: true };
   const v = { codebase: "https://github.com/acme/app" };
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, { codebase: "tok" }, sched), ["A schedule uses the key saved for github.com: save the token for github.com, or clear it."]);
-  // Signed out too: the saved key is sealed beside the schedule (agentry-cli#854).
+  // Signed out too: the saved key is sealed beside the schedule.
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com", true) }, {}, sched), []);
   assert.deepEqual(sourceBlockers([repo], v, { codebase: ok("github.com") }, {}, sched), [], "a public repository schedules with no key");
 });
@@ -129,14 +128,14 @@ test("a token typed for one host is neither shown nor sent once the address name
   assert.deepEqual(typedTokens(typed, { codebase: ok("github.com", true) }), { codebase: "tok" });
 });
 
-test("the token field is labelled before the host is known, and names it after (agentry-desktop#869)", () => {
+test("the token field is labelled before the host is known, and names it after", () => {
   assert.equal(tokenFieldLabel(null, true), "Access token, for a private repository");
   assert.equal(tokenFieldLabel({ problem: "the repository address must be https", saved: false, keychainOff: false }, true), "Access token, for a private repository");
   assert.equal(tokenFieldLabel(null, false), "Access token, for a file behind a sign-in");
   assert.equal(tokenFieldLabel(ok("github.com"), true), "Access token for github.com");
 });
 
-test("a token typed before the host is known binds to the first host, and is shown until then (agentry-desktop#869)", () => {
+test("a token typed before the host is known binds to the first host, and is shown until then", () => {
   const early = { repo: { host: "", token: "tok" } };
   // Unchecked: shown in the field, sent nowhere.
   assert.equal(shownToken(early.repo, null), "tok");
@@ -149,7 +148,7 @@ test("a token typed before the host is known binds to the first host, and is sho
   assert.deepEqual(bound, { repo: { host: "github.com", token: "tok" } });
   assert.deepEqual(typedTokens(bound, { repo: ok("github.com") }), { repo: "tok" });
   assert.equal(shownToken(bound.repo, ok("github.com")), "tok");
-  // Then edited to another host: left behind, neither shown nor sent (D-079).
+  // Then edited to another host: left behind, neither shown nor sent.
   assert.equal(bindTypedTokens(bound, { repo: ok("gitlab.com") }), bound, "a bound token never moves");
   assert.deepEqual(typedTokens(bound, { repo: ok("gitlab.com") }), {});
   assert.equal(shownToken(bound.repo, ok("gitlab.com")), "");

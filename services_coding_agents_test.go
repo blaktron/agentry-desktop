@@ -86,14 +86,14 @@ func chooseInPolicy(t *testing.T, runnerHome string, names ...string) {
 	}
 }
 
-// TestInstallRunnerAlsoInstallsIntoTheCodingAgent (agentry-desktop#148,
-// plan D6): with Settings' "also install into <coding agent>" off, the
-// one-click Install writes the runner home and nothing else; with it on,
-// it also writes the export the policy implies — the same verified bytes,
-// its own record — behind the same dialogs: the provenance consent is
-// asked once for the one release, and the contract dialog says the
-// coding agent enforces nothing. An export that cannot be written (no
-// project directory for AGENTS.md) is said, not a failed install.
+// TestInstallRunnerAlsoInstallsIntoTheCodingAgent: with Settings' "also
+// install into <coding agent>" off, the one-click Install writes the runner
+// home and nothing else; with it on, it also writes the export the policy
+// implies — the same verified bytes, its own record — behind the same
+// dialogs: the provenance consent is asked once for the one release, and the
+// contract dialog says the coding agent enforces nothing. An export that
+// cannot be written (no project directory for AGENTS.md) is said, not a
+// failed install.
 func TestInstallRunnerAlsoInstallsIntoTheCodingAgent(t *testing.T) {
 	userHome, runnerHome := isolateHomes(t)
 	reg := installStub(t)
@@ -222,12 +222,12 @@ func TestContractDialogNamesTheCodingAgent(t *testing.T) {
 	}
 }
 
-// TestCodingAgentsSettingsSurface (agentry-desktop#148): Settings →
-// Coding agents shows the chosen coding agents, the export they imply and
-// its folder, and the switch, off by default; the switch will not go on
-// while AGENTS.md has no project directory; the directory comes from the
-// native picker in this process and from nowhere the page could name
-// (D-030); un-choosing a coding agent changes the implied export.
+// TestCodingAgentsSettingsSurface: Settings → Coding agents shows the chosen
+// coding agents, the export they imply and its folder, and the switch, off
+// by default; the switch will not go on while AGENTS.md has no project
+// directory; the directory comes from the native picker in this process and
+// from nowhere the page could name; un-choosing a coding agent changes the
+// implied export.
 func TestCodingAgentsSettingsSurface(t *testing.T) {
 	userHome, runnerHome := isolateHomes(t)
 	picked := ""
@@ -281,9 +281,9 @@ func TestCodingAgentsSettingsSurface(t *testing.T) {
 	}
 }
 
-// TestContractDialogNamesShippedKnowledge (agentry-desktop#277): the
-// consent names each knowledge pack the release ships, with its size, and
-// an update that ships one more is a widening the dialog carries.
+// TestContractDialogNamesShippedKnowledge: the consent names each knowledge
+// pack the release ships, with its size, and an update that ships one more
+// is a widening the dialog carries.
 func TestContractDialogNamesShippedKnowledge(t *testing.T) {
 	size := int64(216)
 	first := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.0.0", NeedsCapabilityConfirm: true,
@@ -301,8 +301,8 @@ func TestContractDialogNamesShippedKnowledge(t *testing.T) {
 	}
 }
 
-// The consent dialog names a target host and a browser, either of which
-// asks for it alone, in the CLI's words (agentry-desktop#812, #878).
+// The consent dialog names a target host and a browser, either of which asks
+// for it alone, in the CLI's words.
 func TestContractDialogNamesATargetHostAndABrowser(t *testing.T) {
 	plan := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.0.0", NeedsCapabilityConfirm: true,
 		Capabilities: installed.Snapshot(manifest.Capabilities{TargetHosts: []string{"server"}, Browser: &manifest.Browser{Sites: []string{"site"}}})}

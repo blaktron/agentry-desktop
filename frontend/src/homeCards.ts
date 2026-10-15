@@ -1,5 +1,4 @@
-// Home's card registry (plan desktop-home-and-library.md §4.4, D-067;
-// agentry-desktop#658). Pure, so the node tests can import it.
+// Home's card registry. Pure, so the node tests can import it.
 //
 // Go owns the layout (HomeAPI; desktop.yaml's home key): which cards, in
 // what order, which hidden. This module says what each kind is, and which
@@ -13,7 +12,7 @@ export type HomeCardDescriptor = {
   // What Settings → Home calls it, and the line under its switch there.
   title: string;
   line: string;
-  // One card of the kind, or several (a Pinned card holds four pins, D5).
+  // One card of the kind, or several (a Pinned card holds four pins).
   multiple: boolean;
 };
 
@@ -26,8 +25,7 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
   "run-defaults": { kind: "run-defaults", title: "Run defaults", multiple: false,
     line: "Where runs go, their limits, the output folder, and Unsafe Mode while it is on." },
   pinned: { kind: "pinned", title: "Pinned", multiple: true, line: "Up to four pinned QuickAgents, each with its latest run and Run." },
-  // Pinned from the Scheduled page's options menu (plan
-  // quickagent-scheduling.md D13; agentry-desktop#744). Not a default:
+  // Pinned from the Scheduled page's options menu. Not a default:
   // Reset Home removes it.
   scheduled: { kind: "scheduled", title: "Scheduled", multiple: false,
     line: "This month's calendar of runs scheduled on this computer, and the next three. Pin to Home on the Scheduled page adds it." },
@@ -35,11 +33,11 @@ export const HOME_CARDS: Record<HomeCardKind, HomeCardDescriptor> = {
 
 import type { settings } from "../wailsjs/go/models";
 
-// The one size today, the Build, Voice and Knowledge cards' (D12).
+// The one size today, the Build, Voice and Knowledge cards'.
 export type HomeCardSize = "large";
 
 export type LayoutCard = Pick<settings.HomeCard, "kind" | "hidden" | "size"> & { pins?: Pick<settings.HomePin, "ref" | "registry">[] };
-// pins: a Pinned card's, in their rows' order (D11); empty for every other kind.
+// pins: a Pinned card's, in their rows' order; empty for every other kind.
 export type DrawnCard = { kind: HomeCardKind; key: string; size: HomeCardSize; pins: Pick<settings.HomePin, "ref" | "registry">[] };
 
 const isKind = (k: string): k is HomeCardKind => Object.prototype.hasOwnProperty.call(HOME_CARDS, k);
@@ -63,9 +61,8 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
   return out;
 }
 
-// Settings → Home (plan desktop-home-and-library.md §4.5, D6;
-// agentry-desktop#661): a switch per default card, the pins, Reset Home.
-// Reordering and sizes come later; the stored list already carries both.
+// Settings → Home: a switch per default card, the pins, Reset Home.
+// The stored list carries an order and sizes; Settings offers neither yet.
 
 /** The default cards, in their default order: Settings → Home's switches.
  * Go shows or hides these by kind (HomeAPI.SetShown); a Pinned card goes
@@ -73,8 +70,8 @@ export function cardsToDraw(cards: LayoutCard[], drawable: ReadonlySet<string>):
  * together. */
 export const HOME_DEFAULTS: HomeCardKind[] = ["recent-runs", "installed", "profile", "run-defaults"];
 
-/** Settings → Home's switches: the default cards, then the Scheduled card
- * (agentry-desktop#744), which Go shows or hides by kind like them. */
+/** Settings → Home's switches: the default cards, then the Scheduled card,
+ * which Go shows or hides by kind like them. */
 export const HOME_SWITCHES: HomeCardKind[] = [...HOME_DEFAULTS, "scheduled"];
 
 export type CardSwitch = { kind: HomeCardKind; title: string; line: string; shown: boolean };

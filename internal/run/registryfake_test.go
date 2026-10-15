@@ -3,10 +3,10 @@ package run
 // A fake registry for this package's lifecycle tests: it serves one
 // release (resolve + a real tar.zst archive built with pkg/archive) and
 // 404s the attestation and signing-keys endpoints — the UNSIGNED
-// provenance path (§8.8: no attestation recorded). Every route counts its
-// hits so cache-reuse tests can prove "no re-download" instead of assuming
-// it. Kept package-local rather than shared with internal/install on
-// purpose: the install tests need DSSE signing fixtures this package's
+// provenance path (no attestation recorded). Every route counts its hits
+// so cache-reuse tests can prove "no re-download" instead of assuming it.
+// Kept package-local rather than shared with internal/install on purpose:
+// the install tests need DSSE signing fixtures this package's
 // unsigned-path tests never touch, and a shared helper would couple the
 // two suites to the union of both.
 
@@ -259,9 +259,9 @@ func withFakeDocker(t *testing.T, d dockerx.Client) {
 
 // cataloguedPolicy is the default policy plus the one line the fixture
 // needs: it declares exec: {commands: [echo]}, and the compiler refuses a
-// command the policy does not catalogue (agentry-cli#100), so echo maps to
-// busybox, the applet the runner image already has — the same line the
-// CLI's own fixtures set.
+// command the policy does not catalogue, so echo maps to busybox, the
+// applet the runner image already has — the same line the CLI's own
+// fixtures set.
 func cataloguedPolicy() *policy.Policy {
 	pol := policy.Default()
 	pol.Exec.Packages = map[string]string{"echo": "busybox"}
@@ -292,8 +292,8 @@ func fixtureExecTag() string {
 // default policy's pins plus this build's runner tag, so EnsureInstalled
 // pulls and builds nothing; it also serves the package record the install
 // step reads back from the fixture's exec image once the run has built it
-// (agentry-cli#100) — that image is deliberately absent, so the build
-// happens and the record is what the fake answers with afterwards.
+// — that image is deliberately absent, so the build happens and the
+// record is what the fake answers with afterwards.
 func readyImagesFake() *dockerx.Fake {
 	pol := cataloguedPolicy()
 	dec := decodeImage(pol)
@@ -315,10 +315,10 @@ func readyImagesFake() *dockerx.Fake {
 
 // answerFilterReady makes a fake's docker filter container say it is ready.
 // On macOS and Windows the engine runs the gateway's docker filter as a
-// container of the run's own and waits for its ready line (agentry-cli
-// #322, since v0.6.117), so a fake a run reaches the gateway on must answer
-// it, as the CLI's own engine test scripts it. The map is written once, as
-// the container starts, before anything else of the run reads logs.
+// container of the run's own and waits for its ready line (CLI v0.6.117 and
+// later), so a fake a run reaches the gateway on must answer it, as the
+// CLI's own engine test scripts it. The map is written once, as the
+// container starts, before anything else of the run reads logs.
 func answerFilterReady(fake *dockerx.Fake) {
 	if fake.LogsByName == nil {
 		fake.LogsByName = map[string]string{}
@@ -330,17 +330,17 @@ func answerFilterReady(fake *dockerx.Fake) {
 	}
 }
 
-// decodeImage is the decode image a run with inputs builds from the
-// policy's files image and this build's runner image (agentry-cli#560,
-// CLI v0.6.47): present in readyImagesFake, so nothing is pulled or built.
+// decodeImage is the decode image a run with inputs builds from the policy's
+// files image and this build's runner image: present in readyImagesFake, so
+// nothing is pulled or built.
 func decodeImage(pol *policy.Policy) decode.Spec {
 	return decode.ImageSpec(runnerImageTag(pol), pol.Images.FilesImage())
 }
 
 // fakeProbe plays the gateway probe: healthy, and when a session asks it
-// to list the gateway's tools (--list-tools, agentry-cli#578) it prints an
-// empty catalog beyond the run's own grant, as the runner's probe prints
-// it; a session whose probe lists nothing does not start.
+// to list the gateway's tools (--list-tools) it prints an empty catalog
+// beyond the run's own grant, as the runner's probe prints it; a session
+// whose probe lists nothing does not start.
 func fakeProbe() *dockerx.FakeForeground {
 	return &dockerx.FakeForeground{Handler: func(_ context.Context, r dockerx.RunSpec, _ io.Reader, stdout, _ io.Writer) (int, error) {
 		if slices.Contains(r.Argv, "--list-tools") {
@@ -371,13 +371,12 @@ func scriptDecode(f *dockerx.Fake) {
 
 // scriptHappyAgent scripts a clean run: probe passes, the agent makes two
 // tool calls, answers, and reports usage (NDJSON shapes from the CLI
-// engine tests).
-// toolsServerStarts makes the fake agent's run do what the real tools
-// server does when the gateway starts it: write the calls ledger's start
-// line under the run's output folder (agentry-cli#629). Without it a
-// release's one-shot run ends blocked, its tools having written nothing
-// (#680), as a real run whose tools cannot write the folder does. line,
-// when given, is appended after it, as the tools server records a call.
+// engine tests). toolsServerStarts makes the fake agent's run do what the
+// real tools server does when the gateway starts it: write the calls
+// ledger's start line under the run's output folder. Without it a
+// release's one-shot run ends blocked, its tools having written nothing,
+// as a real run whose tools cannot write the folder does. line, when
+// given, is appended after it, as the tools server records a call.
 func toolsServerStarts(f *dockerx.Fake, outDir string, lines ...string) {
 	f.Foreground["-agent"].Before = func(dockerx.RunSpec) {
 		ledger := `{"start":true}` + "\n"

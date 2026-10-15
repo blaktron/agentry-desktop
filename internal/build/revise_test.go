@@ -10,9 +10,9 @@ import (
 )
 
 // A revision the Drafter wrote reads into the form as Edit reads the
-// release (agentry-desktop#501): the QuickAgent's own name at the version
-// given, the unheld fields dropped, the release's licence unless the
-// person's words name the draft's.
+// release: the QuickAgent's own name at the version given, the unheld
+// fields dropped, the release's licence unless the person's words name
+// the draft's.
 func TestFromRevisionKeepsTheQuickAgentAndTheReleasesLicence(t *testing.T) {
 	drafted := `{"schemaVersion":"2","name":"meeting-actions-v2","namespace":"draft","version":"0.1.0","summary":"Turns notes into actions with dates.",
 	  "license":"MIT","homepage":"https://example.test","modes":["autonomous"],"entrypoints":{"instruction":"AGENT.md"},
@@ -66,11 +66,11 @@ func TestLineDiffTrimsFoldsAndMarksChanges(t *testing.T) {
 	}
 }
 
-// A revision published as drafted proves as the draft (DEV-194): the
-// form's own writer, saving what FromRevision read, gives the same
-// draftproof as the package the sandbox host recorded. testdata/revision is
-// a real hosted revision's draft.json and package/ (dev, 2026-10-03), whose
-// guide.prepare items hold commas (agentry-desktop#567 split them).
+// A revision published as drafted proves as the draft: the form's own
+// writer, saving what FromRevision read, gives the same draftproof as the
+// package the sandbox host recorded. testdata/revision is a real hosted
+// revision's draft.json and package/, whose guide.prepare items hold
+// commas.
 func TestASavedRevisionProvesAsTheDraftsPackage(t *testing.T) {
 	raw, err := os.ReadFile("testdata/revision/draft.json")
 	if err != nil {

@@ -16,16 +16,15 @@ type UpdateMap = Record<string, install.UpdateInfo>;
 // What a local install's run panel is told of its provenance: the Go side
 // holds the release to its integrity record and asks the consent again.
 // A plain object, not createFrom: the class carries a convertValues method
-// the production bundle's createFrom did not survive (agentry-desktop#441).
+// the production bundle's createFrom did not survive.
 export const localAttestation = { state: "local", detail: "installed from a folder on this computer" } as trust.AttestationResult;
 
 function keyOf(r: { registry: string; namespace: string; name: string; target: string; dir: string }): string {
   return [r.registry, r.namespace, r.name, r.target, r.dir].join(" ");
 }
 
-// The Library (plan desktop-home-and-library.md D3; agentry-desktop#657):
-// the QuickAgents installed on this computer, which was the Installed page,
-// with a search that filters them and always leads on to Browse for more.
+// The Library: the QuickAgents installed on this computer, with a search
+// that filters them and always leads on to Browse for more.
 export default function Library({
   registry, onBrowse, onOpenAgent,
 }: {
@@ -46,25 +45,25 @@ export default function Library({
   // What a completed runner-home update did not do (the export it could not
   // write, the policy it could not read, the older version left behind):
   // the engine's own sentence, named for the QuickAgent, until the next
-  // action (agentry-desktop#235).
+  // action.
   const [warning, setWarning] = useState<string | null>(null);
   const [updating, setUpdating] = useState<{ rec: install.Item; dir: string; ref: string } | null>(null);
   const [updatingRunner, setUpdatingRunner] = useState<string | null>(null);
-  // A QuickAgent installed from a folder (agentry-desktop#425) has no
+  // A QuickAgent installed from a folder has no
   // registry page to open, so it runs from here.
   const [running, setRunning] = useState<install.Item | null>(null);
   // What the search field holds: it filters the list as it is typed, and
   // the button beside it carries it to Browse.
   const [search, setSearch] = useState("");
-  // Home's pins (agentry-desktop#660): Pin to Home on each row this app
+  // Home's pins: Pin to Home on each row this app
   // manages; an uninstall removes the pin in Go, so the layout is read again.
   const [homeLayout, setHomeLayout, rereadHomeLayout] = useHomeLayout();
   const homeFull = homeFullLine(homeLayout);
 
   const refresh = useCallback(() => {
     InstallAPI.ListInstalled().then(setRecords).catch((e) => setError(String(e)));
-    // What the launch check (and the agent pages since) found, so the
-    // badges are there without a click (agentry-desktop#147); "Check for
+    // What the launch check (and the agent pages) found, so the
+    // badges are there without a click; "Check for
     // updates" asks again.
     InstallAPI.UpdatesStatus().then((v) => {
       const map: UpdateMap = {};
@@ -108,7 +107,7 @@ export default function Library({
 
   // Forget drops the record of a directory that is gone; the engine refuses
   // it for a directory that still exists, so this can never leave files
-  // behind unrecorded (agentry-desktop#63).
+  // behind unrecorded.
   async function forget(rec: install.Item) {
     setError(null);
     setWarning(null);
@@ -131,7 +130,7 @@ export default function Library({
     const ref = latest ? `${rec.namespace}/${rec.name}@${latest}` : `${rec.namespace}/${rec.name}`;
     if (rec.target === "runner") {
       // A runner install updates the way it was installed: one click into
-      // the runner home, the gates as native dialogs (D-031).
+      // the runner home, the gates as native dialogs.
       setUpdatingRunner(keyOf(rec));
       try {
         const res = await InstallAPI.InstallRunner(rec.origin, ref);
@@ -163,7 +162,7 @@ export default function Library({
     if (c.fsRead && c.fsRead !== "none") bits.push(`fs read: ${c.fsRead}`);
     if (c.secrets?.length) bits.push(`secrets: ${c.secrets.join(", ")}`);
     if (c.targetHosts?.length) bits.push(`target hosts: ${c.targetHosts.join(", ")}`);
-    // A browser (agentry-desktop#878), where it may go.
+    // A browser, where it may go.
     const browser = browserCap(c.browser);
     if (browser) bits.push(`browser: ${browserReach(browser)}`);
     return bits.length ? bits.join(" · ") : "no capabilities accepted";
@@ -225,8 +224,8 @@ export default function Library({
         </EmptyState>
       )}
 
-      {/* Three sections (agentry-desktop#63): what this app can manage —
-          the runner home's installs among them since D-031 — records of a
+      {/* Three sections: what this app can manage,
+          the runner home's installs among them, records of a
           target this app does not know (shown, not managed), and records
           whose directory is gone (Forget removes the line). */}
       {records && shown.length > 0 && (

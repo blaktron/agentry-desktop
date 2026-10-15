@@ -1,9 +1,9 @@
 package main
 
-// Talk to it In Agentry through the bound surface (agentry-desktop#403):
-// the offer from the registry's facts alone, a session started, streamed,
-// talked to, given a picked file, finished and delivered with its
-// transcript, and quitting that leaves it to its idle close.
+// Talk to it In Agentry through the bound surface: the offer from the
+// registry's facts alone, a session started, streamed, talked to, given a
+// picked file, finished and delivered with its transcript, and quitting that
+// leaves it to its idle close.
 
 import (
 	"context"
@@ -23,8 +23,8 @@ var sessionTerms = &hostedrun.SessionTerms{Enabled: true, FreeMinutes: 10, Credi
 
 // The offer is the registry's facts, read as the run offer reads them: the
 // release declares the interactive mode, the status runs sessions and says
-// the caller's payer may start one (plan hosted-sessions.md §6, D12 as
-// amended). A payer on Standard is told why, with the way up.
+// the caller's payer may start one. A payer on Standard is told why, with
+// the way up.
 func TestHostedAvailabilityOffersASession(t *testing.T) {
 	yes, no := true, false
 	cases := []struct {
@@ -44,8 +44,8 @@ func TestHostedAvailabilityOffersASession(t *testing.T) {
 		{"autonomous only", func(f *hostedFake) { f.modes = []string{"autonomous"} }, false, false, false, true},
 		{"a token from before", func(f *hostedFake) { f.scopes = []string{"agent:read", "user:profile"} }, true, false, false, false},
 		// No sandbox host answering: the registry would refuse the start
-		// (409 sessions-unavailable), so it is not available (#437); a run
-		// of a both-modes release still queues, as it always has.
+		// (409 sessions-unavailable), so it is not available; a run of a
+		// both-modes release still queues, as it always has.
 		{"no sandbox host answering", func(f *hostedFake) { f.noHosts = true }, true, false, false, false},
 		{"no sandbox host, both modes", func(f *hostedFake) { f.noHosts = true; f.modes = []string{"autonomous", "interactive"} }, true, false, false, true},
 	}
@@ -80,7 +80,7 @@ func TestHostedAvailabilityOffersASession(t *testing.T) {
 				t.Fatalf("the terms are the registry's: %+v", s)
 			}
 			if s.Transport != "Transport encrypted by the user key, messages not stored; the transcript comes back only in your sealed output." {
-				t.Fatalf("D2's sentence = %q", s.Transport)
+				t.Fatalf("the transport sentence = %q", s.Transport)
 			}
 		})
 	}
@@ -224,8 +224,8 @@ func TestHostedSessionEndToEnd(t *testing.T) {
 }
 
 // A file the page names without a native picker is refused before a byte
-// leaves the machine (D-030), and a refusal comes back in the registry's
-// words; Stop before the host has started it cancels the run.
+// leaves the machine, and a refusal comes back in the registry's words; Stop
+// before the host has started it cancels the run.
 func TestHostedSessionRefusals(t *testing.T) {
 	yes := true
 	f := &hostedFake{enabled: true, modes: []string{"interactive"}, sessions: sessionTerms, sessionAllowed: &yes}

@@ -1,12 +1,12 @@
-// Describe it (plan builder-rework.md §7.1, D5, D11, D22, D25): what the
-// Build tab's first card, Describe it to AI, opens (#598). A description and
+// Describe it: what the Build tab's first card, Describe it to AI, opens.
+// A description and
 // three optional hints, the site's, then a draft made in one of two places:
-//   - In Agentry (#281): the built-in Drafter on a sandbox host against the
+//   - In Agentry: the built-in Drafter on a sandbox host against the
 //     platform's model, for credits, with AI Review reading every text
 //     through the registry. It needs an account; the page states the hold,
 //     the balance and the honest line first, and follows the draft the way
 //     a run In Agentry is followed. BuildAPI.DescribeInAgentry starts it.
-//   - On this computer (#282): the Drafter against the runner policy's
+//   - On this computer: the Drafter against the runner policy's
 //     model with the person's own AI Review key, for no credits.
 //     BuildAPI.DescribeOnThisComputer refuses without a key and asks in a
 //     native dialog before anything leaves this computer.
@@ -14,7 +14,7 @@
 // opens on Review; nothing is written into a QuickAgent folder until the
 // person saves. The draft itself is kept outside the page (../drafts), and
 // its progress is followed in the dialog and corner card App mounts above
-// the pages (DraftFlow, agentry-desktop#410), as Create knowledge's is.
+// the pages (DraftFlow), as Create knowledge's is.
 //
 // DraftNotes is what the Drafter said, shown beside Review once a draft is
 // in the form, with Describe again under it. All of it is agent-written:
@@ -34,8 +34,8 @@ import { RevealText } from "../reveal";
 import { Button, Card, ErrorBox, Notice, Select, Textarea } from "../ui";
 import { GetAKeyLink } from "./AIReviewKey";
 
-// The hints as the site asks them (agentry-web app/build/describe), and the
-// lines the Drafter reads for them (app/build/draft hintsOf): each labelled
+// The hints as the site asks them, and the lines the Drafter reads for
+// them: each labelled
 // so it knows which hint it is. A blank one is left out.
 type Hints = { services: string; mode: "" | "autonomous" | "interactive"; example: string };
 const NO_HINTS: Hints = { services: "", mode: "", example: "" };
@@ -72,7 +72,7 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   const [text, setText] = useState(kept.text);
   const [hints, setHints] = useState<Hints>(kept.hints);
   const [where, setWhere] = useState<Where | null>(kept.where);
-  // The knowledge packs the Drafter reads first (agentry-desktop#497), by
+  // The knowledge packs the Drafter reads first, by
   // name, and the person's packs as the Knowledge list gives them.
   const [picked, setPicked] = useState<string[]>(kept.picked);
   const [packs, setPacks] = useState<knowledge.Pack[]>([]);
@@ -287,7 +287,7 @@ function refParts(ref: string): { ns: string; name: string } | null {
 }
 
 // CheckNotes is AI Review's check of the finished draft in full, in the
-// site's words (agentry-web#651 CheckNotes): the release rubric's verdict and
+// site's words: the release rubric's verdict and
 // each question at 2 or more with its file, the draft question set's verdict
 // and flags, or why there was no answer. Every string is the draft's, drawn
 // as text. The summary gives it one line; this is where the line points.
@@ -331,8 +331,8 @@ function CheckNotes({ c }: { c: main.DraftCheckView }) {
   );
 }
 
-// DraftNotes is Review's folded "How it was drafted" (plan
-// builder-simplify.md §4.3): the plumbing the summary leaves out.
+// DraftNotes is Review's folded "How it was drafted": the plumbing the
+// summary leaves out.
 export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?: (ns: string, name: string) => void }) {
   const ai = v.aiReview;
   const heldBack = ai.withheld + ai.notScanned;
@@ -443,7 +443,7 @@ export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?
   );
 }
 
-// DescribeAgain (plan D11) sits on Review under the notes: a note on what
+// DescribeAgain sits on Review under the notes: a note on what
 // should change, and a new draft in the same place as this one, from what
 // the person first asked and the form's draft as it stands, written by the
 // form's own renderer (BuildAPI.DescribeAgainText). The new draft replaces

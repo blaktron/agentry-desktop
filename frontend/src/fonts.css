@@ -1,5 +1,5 @@
-/* Self-hosted IBM Plex, the same type the website uses (agentry-web
-   app/fonts.ts), so the desktop reads as the same product offline: Wails
+/* Self-hosted IBM Plex, the same type the website uses, so the desktop
+   reads as the same product offline: Wails
    embeds frontend/dist and the app makes no network calls for fonts. Only
    the latin woff2 subset is vendored (src/fonts/, ~136 KB); the licence is
    src/fonts/OFL.txt. Sans for prose, Mono for values. */

@@ -1,11 +1,9 @@
-// The coding agents a person may run QuickAgents through (plan
-// desktop-installers.md §9, agentry-desktop#89): the host harnesses behind
-// the CLI's adapters — Claude Code, Codex — probed on this machine with the
-// same package `agentry doctor --adapter` uses, and the one the person
+// The coding agents a person may run QuickAgents through: the host harnesses
+// behind the CLI's adapters — Claude Code, Codex — probed on this machine with
+// the same package `agentry doctor --adapter` uses, and the one the person
 // chooses recorded in the operator policy so `agentry run --adapter <name>`
-// finds it wherever it lives. The desktop's own runs use the container
-// harness (ARCHITECTURE §7); choosing here configures the machine, it does
-// not switch what this app runs.
+// finds it wherever it lives. The desktop's own runs use the container harness;
+// choosing here configures the machine, it does not switch what this app runs.
 package run
 
 import (
@@ -29,7 +27,7 @@ const harnessProbeTimeout = 5 * time.Second
 // Harness is one host harness as the wizard's Coding agent step shows it.
 type Harness struct {
 	// Name is the adapter name (claude, codex); DisplayName the product's
-	// ("Claude Code"), from the adapter (agentry-cli#151).
+	// ("Claude Code"), from the adapter.
 	Name        string
 	DisplayName string
 	// Executable is the program the adapter looks for on PATH.
@@ -42,8 +40,8 @@ type Harness struct {
 	Path           string
 	PathFromPolicy bool
 	// Source says where Path was found — the policy, PATH, or a usual
-	// install location such as a desktop app's bundled build
-	// (agentry-cli#167); the wizard shows the last.
+	// install location such as a desktop app's bundled build; the wizard
+	// shows the last.
 	Source         string
 	Version        string
 	VersionMatches bool
@@ -52,10 +50,9 @@ type Harness struct {
 	// Chosen is true when the operator policy carries a harness.<name>
 	// entry — the person picked this one, here or in the CLI.
 	Chosen bool
-	// MCPCommand is the one line that registers the agentry-mcp server
-	// with this host, from the adapter (verbatim from agentry-mcp's
-	// README); the app only shows it (D14: the CLI is not shipped, the
-	// command is the person's).
+	// MCPCommand is the one line that registers the agentry-mcp server with
+	// this host, from the adapter (verbatim from agentry-mcp's README); the
+	// app only shows it (the CLI is not shipped; the command is the person's).
 	MCPCommand string
 }
 
@@ -132,11 +129,11 @@ func ChooseHarness(ctx context.Context, name string) error {
 }
 
 // ForgetHarness removes harness.<name> from the operator policy — the
-// person un-choosing a coding agent in Settings (agentry-desktop#148), so
-// the export the policy implies can change: a chosen Claude Code outranks
-// Codex there, and only its absence lets AGENTS.md through. Every other
-// block is preserved; a name that is not chosen, or no policy at all, is
-// nothing to do and creates nothing.
+// person un-choosing a coding agent in Settings, so the export the policy
+// implies can change: a chosen Claude Code outranks Codex there, and only
+// its absence lets AGENTS.md through. Every other block is preserved; a
+// name that is not chosen, or no policy at all, is nothing to do and
+// creates nothing.
 func ForgetHarness(name string) error {
 	pol, err := loadPolicyIfPresent()
 	if err != nil || pol == nil {

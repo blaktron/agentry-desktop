@@ -232,10 +232,10 @@ func loadedPolicy(t *testing.T) *policy.Policy {
 }
 
 // Use your Claude subscription from the desktop finishes in the browser
-// alone (agentry-cli#848): the page gives Claude Code no input, Claude
-// Code's address is opened, and the browser's answer reaches its callback
-// through the relay; the account is kept, never a credential, and model
-// setup can then choose it, which runs on the Claude Code image.
+// alone: the page gives Claude Code no input, Claude Code's address is
+// opened, and the browser's answer reaches its callback through the
+// relay; the account is kept, never a credential, and model setup can
+// then choose it, which runs on the Claude Code image.
 func TestUseYourClaudeSubscriptionSignsInThroughTheBrowser(t *testing.T) {
 	signInFixture(t)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -307,10 +307,10 @@ func TestUseYourClaudeSubscriptionSignsInThroughTheBrowser(t *testing.T) {
 }
 
 // A Copilot plan's models are asked of Copilot CLI through the CLI's own
-// list (agentry-cli#808): in a run's container behind a proxy allowing
-// GitHub's API and the chosen plan's host alone, the kept sign-in's token
-// handed over the session and never to docker; a disabled model is not
-// listed. With nothing kept there is nothing to list.
+// list: in a run's container behind a proxy allowing GitHub's API and the
+// chosen plan's host alone, the kept sign-in's token handed over the
+// session and never to docker; a disabled model is not listed. With
+// nothing kept there is nothing to list.
 func TestCopilotModelsAreListedThroughCopilotCLI(t *testing.T) {
 	signInFixture(t)
 	if _, err := CopilotModels(context.Background(), "individual", io.Discard); err == nil {

@@ -1,12 +1,12 @@
 package main
 
-// Edit with AI (agentry-desktop#501) through the bound surface, against
-// the draft fake: the In Agentry offer gated on the payer, the hosted
-// revision's create, its landing as a revision of the release (the
-// QuickAgent's name, the next minor, the release's licence, the diff), and
-// Publish this version naming the run as draftRun only for a revision
-// drafted In Agentry. The on-this-computer half: the release staged from
-// the registry's archive, held to its digest.
+// Edit with AI through the bound surface, against the draft fake: the In
+// Agentry offer gated on the payer, the hosted revision's create, its
+// landing as a revision of the release (the QuickAgent's name, the next
+// minor, the release's licence, the diff), and Publish this version naming
+// the run as draftRun only for a revision drafted In Agentry. The
+// on-this-computer half: the release staged from the registry's archive,
+// held to its digest.
 
 import (
 	"bytes"
@@ -324,12 +324,12 @@ func TestTheReleaseIsStagedFromItsArchiveHeldToItsDigest(t *testing.T) {
 	}
 }
 
-// Edit with AI on this computer, through the binding (agentry-desktop#501):
-// asked in a native dialog, then under the run lock the release is
-// downloaded, held to its digest and staged under the run's revise/, AI
-// Review reads the texts and both of its files before the Drafter runs,
-// the Drafter is given them under /inputs/revise with a task naming them
-// and the person's texts, and the draft lands as a revision drafted here.
+// Edit with AI on this computer, through the binding: asked in a native
+// dialog, then under the run lock the release is downloaded, held to its
+// digest and staged under the run's revise/, AI Review reads the texts and
+// both of its files before the Drafter runs, the Drafter is given them under
+// /inputs/revise with a task naming them and the person's texts, and the
+// draft lands as a revision drafted here.
 func TestARevisionOnThisComputerStagesTheReleaseForTheDrafter(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)

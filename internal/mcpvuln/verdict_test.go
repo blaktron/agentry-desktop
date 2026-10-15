@@ -9,9 +9,9 @@ import (
 
 func score(f float64) *float64 { return &f }
 
-// A server whose advisory the gate rates high (agentry-desktop#459, D-055):
-// High at CVSS 8.7. Beside it a High the gate rates medium (CVSS 7.1),
-// which runs, and must not be named in a refusal.
+// A server whose advisory the gate rates high: High at CVSS 8.7. Beside it
+// a High the gate rates medium (CVSS 7.1), which runs, and must not be
+// named in a refusal.
 var (
 	high = mcpinstall.VulnStatus{Ref: "npm:@modelcontextprotocol/sdk@1.25.1", Status: "vulnerable", MaxSeverity: "high",
 		Advisories: []mcpinstall.VulnAdvisory{
@@ -97,7 +97,7 @@ func TestAServerTheGateRatesMediumRunsWithNoWayThrough(t *testing.T) {
 }
 
 // A registry that serves no gate rating is weighed by the advisory's own
-// word: a High refuses, as before agentry-cli#501.
+// word: a High refuses.
 func TestAnUnratedHighStillRefuses(t *testing.T) {
 	old := mcpinstall.VulnStatus{Ref: "npm:minimist@1.2.5", Status: "vulnerable", MaxSeverity: "high",
 		Advisories: []mcpinstall.VulnAdvisory{{ID: "GHSA-xvch-5gv4-984h", Severity: "high", FixedIn: []string{"1.2.6"}}}}

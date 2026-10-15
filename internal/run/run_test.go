@@ -63,7 +63,7 @@ func TestDigestSuffix(t *testing.T) {
 	}
 }
 
-// TestSaveProfileDropsEmptyValues pins §P3: an empty form field means
+// TestSaveProfileDropsEmptyValues pins that an empty form field means
 // "resolve from the environment at run time" and is recorded as ABSENT —
 // never as an empty string a run would then trust.
 func TestSaveProfileDropsEmptyValues(t *testing.T) {
@@ -92,7 +92,7 @@ func TestSaveProfileDropsEmptyValues(t *testing.T) {
 	if prof.Secrets["EXAMPLE_TOKEN"] != "s3cret" {
 		t.Fatal("stored value lost")
 	}
-	// dir 0700, file 0600 (§P2).
+	// dir 0700, file 0600.
 	if fi, err := os.Stat(dir); err != nil || fi.Mode().Perm() != 0o700 {
 		t.Fatalf("profile dir perms = %v %v, want 0700", fi.Mode().Perm(), err)
 	}
@@ -141,7 +141,7 @@ func TestSaveProfilePreservesCreatedAt(t *testing.T) {
 	}
 }
 
-// TestFinishProfile pins §P2 completion: keep stamps lastUsedAt, remove
+// TestFinishProfile pins completion: keep stamps lastUsedAt, remove
 // deletes the directory.
 func TestFinishProfile(t *testing.T) {
 	home := withRunnerHome(t)
@@ -258,9 +258,9 @@ func TestManifestFromWorkspace(t *testing.T) {
 	}
 }
 
-// TestProfileInfoReportsPolicyDefaultKeep: with no profile on disk the
-// keep toggle starts where the operator policy says (§P2
-// profiles.keepByDefault), read WITHOUT creating the policy file.
+// TestProfileInfoReportsPolicyDefaultKeep: with no profile on disk the keep
+// toggle starts where the operator policy says (profiles.keepByDefault), read
+// WITHOUT creating the policy file.
 func TestProfileInfoReportsPolicyDefaultKeep(t *testing.T) {
 	isolateRunEnv(t)
 	sig := testSig(t, []string{"EXAMPLE_TOKEN"})
@@ -313,8 +313,8 @@ func TestProfileInfoReportsPolicyDefaultKeep(t *testing.T) {
 	}
 }
 
-// TestProfileStatusAndSaveProfile drives the exported §P3 wrappers against
-// the fake registry: status without a profile, the guided form's save, and
+// TestProfileStatusAndSaveProfile drives the exported wrappers against the
+// fake registry: status without a profile, the guided form's save, and
 // status reflecting the stored names afterwards.
 func TestProfileStatusAndSaveProfile(t *testing.T) {
 	isolateRunEnv(t)
@@ -375,10 +375,10 @@ func TestFormPrompterNeverSuppliesSecrets(t *testing.T) {
 	}
 }
 
-// D-012 closed (desktop#7): an explicit keep=true on a release declaring
-// no secrets creates the empty profile that records the choice; a nil
-// (untouched toggle) or false choice, or a release with secrets (whose
-// profile the guided form owns), creates nothing.
+// An explicit keep=true on a release declaring no secrets creates the
+// empty profile that records the choice; a nil (untouched toggle) or
+// false choice, or a release with secrets (whose profile the guided
+// form owns), creates nothing.
 func TestEnsureKeepProfileRecordsExplicitChoice(t *testing.T) {
 	home := withRunnerHome(t)
 	noSecrets := testSig(t, nil)
@@ -415,8 +415,8 @@ func TestEnsureKeepProfileRecordsExplicitChoice(t *testing.T) {
 	}
 }
 
-// guidedManifestYAML is runManifestYAML with manifest v2's guide block
-// (DEV-141): what the desktop's run setup shows a person before a run.
+// guidedManifestYAML is runManifestYAML with manifest v2's guide block:
+// what the desktop's run setup shows a person before a run.
 const guidedManifestYAML = runManifestYAML + `guide:
   overview: |
     Writes a **report** from your notes.
@@ -429,10 +429,10 @@ const guidedManifestYAML = runManifestYAML + `guide:
     RUN_TEST_TOKEN: "Create one at https://api.example.com/tokens with read access."
 `
 
-// TestProfileStatusCarriesTheGuide (agentry-desktop#228): a release whose
-// manifest carries a guide resolves through the strict decoder of the
-// pinned core, and ProfileStatus hands the guide to the run setup as the
-// author wrote it. A release without one reports none.
+// TestProfileStatusCarriesTheGuide: a release whose manifest carries a
+// guide resolves through the strict decoder of the pinned core, and
+// ProfileStatus hands the guide to the run setup as the author wrote it.
+// A release without one reports none.
 func TestProfileStatusCarriesTheGuide(t *testing.T) {
 	isolateRunEnv(t)
 	regURL := startRunRegistry(t, &fakeRunRegistry{

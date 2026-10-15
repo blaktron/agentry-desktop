@@ -1,11 +1,10 @@
 package main
 
-// Input sources live (agentry-desktop#794; plan input-sources.md M6): the
-// bound methods driven as the run setup drives them, against this
-// machine's Docker and a real git host, with a QuickAgent installed from a
-// folder that asks for a repository. Skipped unless AGENTRY_LIVE_SOURCES=1,
-// because it clones a private repository three times and needs a token
-// that can read it:
+// Input sources live: the bound methods driven as the run setup drives them,
+// against this machine's Docker and a real git host, with a QuickAgent
+// installed from a folder that asks for a repository. Skipped unless
+// AGENTRY_LIVE_SOURCES=1, because it clones a private repository three times
+// and needs a token that can read it:
 //
 //	AGENTRY_LIVE_SOURCES=1 \
 //	AGENTRY_CONFIG_DIR=<a scratch config dir> \
@@ -51,7 +50,7 @@ name: source-probe
 namespace: local
 modes: [autonomous]
 version: 0.1.0
-summary: "Reads the repository it is given and names its commit (agentry-desktop#794 live check)"
+summary: "Reads the repository it is given and names its commit (live check)"
 entrypoints:
   instruction: SKILL.md
 inputs:
@@ -103,7 +102,7 @@ func TestLiveSources(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	app.markPicked(dir) // what Build → Open folder… records (D-030)
+	app.markPicked(dir) // what Build → Open folder… records
 	for name, body := range map[string]string{
 		"agent.yaml": liveSourcesManifest,
 		"SKILL.md":   "# Source probe\n\nList /inputs/codebase/, read its README, and report the commit named in /inputs/intake.json. Finish in at most 6 tool calls.\n",

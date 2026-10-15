@@ -1,5 +1,4 @@
-// The Scheduled page (plan quickagent-scheduling.md §7, D11, D12, D15;
-// D-073; agentry-desktop#743, #745): the schedules on this computer and,
+// The Scheduled page: the schedules on this computer and,
 // signed in, the account's schedules In Agentry, labelled so. A month
 // calendar, hand-built, with each day's occurrences as dots (the past ones
 // in the colour of what happened), the chosen day's list, what is
@@ -12,8 +11,7 @@
 // (ScheduleAPI). The registry keeps those In Agentry, and every change to
 // one is its API's; a registry that does not answer leaves them out, said
 // in a sentence, and the ones on this computer work as they did. A past
-// occurrence says what happened, and never reads as done when nothing ran
-// (plan invariant 8).
+// occurrence says what happened, and never reads as done when nothing ran.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
 import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
@@ -79,24 +77,23 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   const [editing, setEditing] = useState<Row | null>(null);
   const [picking, setPicking] = useState(false);
   const [reseal, setReseal] = useState<string | null>(null);
-  // In Agentry (agentry-desktop#745): the account's schedules, their
-  // month and their history; each read that did not answer says so.
+  // In Agentry: the account's schedules, their month and their history; each
+  // read that did not answer says so.
   const [hosted, setHosted] = useState<main.HostedSchedulesView | null>(null);
   // Whether a new one can be made there, read once for the registry: its
   // facts are several reads of the registry, which every refresh making
-  // again outlasted an edge that spaces out a burst (the live check).
+  // again outlasted an edge that spaces out a burst.
   const [offer, setOffer] = useState<main.HostedScheduleOfferView | null>(null);
   const [hostedCal, setHostedCal] = useState<FireRow[]>([]);
   const [hostedCalSaid, setHostedCalSaid] = useState<string | null>(null);
   const [hostedHistory, setHostedHistory] = useState<FireRow[]>([]);
-  // Home's layout, for the options menu's Pin to Home or Unpin (D13;
-  // agentry-desktop#744): null until read, or when it cannot be, and then
-  // the menu offers nothing. pinSaid is what the last Pin or Unpin did.
+  // Home's layout, for the options menu's Pin to Home or Unpin: null until
+  // read, or when it cannot be, and then the menu offers nothing. pinSaid is
+  // what the last Pin or Unpin did.
   const [home, setHome] = useState<main.HomeLayoutView | null>(null);
   const [pinSaid, setPinSaid] = useState<{ text: string; error?: boolean } | null>(null);
-  // The Options menu's Install or Reinstall the agentry command
-  // (agentry-desktop#788, D-076): the site's install script runs in Go,
-  // after a native dialog; installed is what it did.
+  // The Options menu's Install or Reinstall the agentry command: the site's
+  // install script runs in Go, after a native dialog; installed is what it did.
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState<main.CLIInstallView | null>(null);
   const [installErr, setInstallErr] = useState<string | null>(null);
@@ -211,11 +208,11 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   });
 
   // What this computer cannot do holds the schedules on it; In Agentry is
-  // the registry's and the plan's to allow (D7).
+  // the registry's and the plan's to allow.
   const unavailable = availability && !availability.available ? availability.reason : null;
   const hostedOpen = !!offer?.available;
   const hostedSaid = hosted?.unavailable || hostedCalSaid;
-  // A layout this app keeps rather than uses takes no change (D-067).
+  // A layout this app keeps rather than uses takes no change.
   const homeUsable = !!home && !home.newer && !home.unreadable;
   const onHome = homeUsable && scheduledOnHome(home!.cards);
   async function pin() {
@@ -465,7 +462,7 @@ function EditSchedule({ item, registry, availability, now, onClose, onSaved }: {
       const whenChanged = !sameWhen(spec, item.when);
       if (item.hosted) {
         // The registry starts a changed repeat over too, its runs counted
-        // from naught (agentry-desktop#745).
+        // from naught.
         await ScheduleAPI.HostedEdit(registry, item.id, schedules.Edit.createFrom({
           name: name.trim() !== item.name ? name.trim() : "",
           when: whenChanged ? spec : undefined,

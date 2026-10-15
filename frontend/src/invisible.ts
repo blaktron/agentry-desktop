@@ -1,14 +1,14 @@
-// Invisible characters in text someone else wrote (the GlassWorm lesson):
+// Invisible characters in text someone else wrote (the GlassWorm attack):
 // zero-width, bidi, tag-block, private-use and other format characters are
 // shown as visible chips, so a reader never sees less than is there.
 //
-// The list is the site's `isInvisible` (agentry-web lib/reveal.tsx), which
-// mirrors the core's internal/render; the three must stay identical, or a
-// character revealed by one and not another is a hiding place. It serves
-// the run result view through reveal.tsx (agentry-desktop#227: an agent's
-// final message, its files' previews and their names) and the voice editor
-// through voiceMarkdown.ts (agentry-desktop#612). It is a module of its own,
-// with no JSX, so node's test runner and the editor's chunk can import it.
+// The list is the site's `isInvisible`, which mirrors the core's
+// internal/render; the three must stay identical, or a character revealed
+// by one and not another is a hiding place. It serves the run result view
+// through reveal.tsx (an agent's final message, its files' previews and
+// their names) and the voice editor through voiceMarkdown.ts. It is a
+// module of its own, with no JSX, so node's test runner and the editor's
+// chunk can import it.
 
 const CF_RE = /\p{Cf}/u;
 

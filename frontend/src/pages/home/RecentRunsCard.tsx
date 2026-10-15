@@ -2,8 +2,7 @@ import { main } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from "../../recentRuns";
 
-// Home's Recent runs card (plan desktop-home-and-library.md §4.3, D1, D8;
-// D-068; agentry-desktop#659): the last five runs, chats and built-in jobs,
+// Home's Recent runs card: the last five runs, chats and built-in jobs,
 // newest first, on this computer (the history Go keeps) and In Agentry (the
 // registry's list, read live while signed in). A row opens the run page;
 // the card opens Run defaults' Recent runs, where the history is turned off

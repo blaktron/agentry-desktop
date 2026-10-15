@@ -40,12 +40,12 @@ import (
 // the manifest's YAML. The YAML is the contract (a closed schema, V-rules
 // at validate/publish); this struct is only a convenient editor for it.
 //
-// It covers every field of manifest schema v2 (plan builder-rework.md D19,
-// agentry-desktop#280), so Load then Save keeps what a template-made or
-// hand-edited workspace declares. The form edits most of them; the rest
-// (authors, the runtime block, dependencies, the publish channel and extra
-// include globs) are carried through unchanged. What a save does not keep
-// is comments, and HadComments says when a loaded file had some.
+// It covers every field of manifest schema v2, so Load then Save keeps
+// what a template-made or hand-edited workspace declares. The form edits
+// most of them; the rest (authors, the runtime block, dependencies, the
+// publish channel and extra include globs) are carried through unchanged.
+// What a save does not keep is comments, and HadComments says when a
+// loaded file had some.
 type Model struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
@@ -64,13 +64,13 @@ type Model struct {
 	InstructionFile string `json:"instructionFile"`
 	// Instructions is the instruction file's content.
 	Instructions string `json:"instructions"`
-	// Intake are the up-front questions (manifest v2 intake, plan §3.5).
+	// Intake are the up-front questions (manifest v2 intake).
 	Intake []IntakeRow `json:"intake"`
-	// InputKinds and InputView are the manifest's inputs block (V12,
-	// DEV-218), carried unchanged from Load to the next save: the form has
+	// InputKinds and InputView are the manifest's inputs block (V12),
+	// carried unchanged from Load to the next save: the form has
 	// no editor for them, and a save that dropped them would change what
-	// files the release takes and how its agent reads them
-	// (agentry-desktop#822). V13 reads InputKinds for a repository question.
+	// files the release takes and how its agent reads them. V13 reads
+	// InputKinds for a repository question.
 	InputKinds []string `json:"inputKinds"`
 	InputView  string   `json:"inputView"`
 	// Opening is interactive.opening: the agent's first line in a session
@@ -78,8 +78,8 @@ type Model struct {
 	Opening string `json:"opening"`
 	// IdleTimeoutSeconds is interactive.idleTimeoutSeconds; 0 leaves it out.
 	IdleTimeoutSeconds int `json:"idleTimeoutSeconds"`
-	// Guide is the manifest's guide block (DEV-141): what a person reads
-	// before a run, never the agent.
+	// Guide is the manifest's guide block: what a person reads before a
+	// run, never the agent.
 	Guide GuideModel `json:"guide"`
 	// RuntimeModels and RuntimeInterfaces are the runtime block. A new
 	// QuickAgent declares both instruction interfaces; a loaded one keeps
@@ -87,7 +87,7 @@ type Model struct {
 	RuntimeModels     []string `json:"runtimeModels"`
 	RuntimeInterfaces []string `json:"runtimeInterfaces"`
 
-	// The §5.4 capability contract, flattened for form controls.
+	// The capability contract, flattened for form controls.
 	EgressMode   string   `json:"egressMode"` // none | hosts | all
 	EgressHosts  []string `json:"egressHosts"`
 	FSRead       string   `json:"fsRead"` // none | workspace | paths
@@ -97,23 +97,22 @@ type Model struct {
 	ExecCommands []string `json:"execCommands"`
 	Secrets      []string `json:"secrets"`
 	// RequiredSecrets are the declared keys, its own and its servers', the
-	// author marked Required (plan optional-secrets.md D2,
-	// agentry-desktop#655): a run cannot start without them. Every other
+	// author marked Required: a run cannot start without them. Every other
 	// declared key is written to capabilities.optionalSecrets, so a key the
 	// author attaches starts as Optional.
 	RequiredSecrets []string `json:"requiredSecrets"`
 	DataAccess      []string `json:"dataAccess"`
-	// MCPServers are the declared, version-pinned MCP servers (DEV-060);
-	// one structured row per server so the form never guesses at a
-	// line syntax.
+	// MCPServers are the declared, version-pinned MCP servers; one
+	// structured row per server so the form never guesses at a line
+	// syntax.
 	MCPServers []MCPServerRow `json:"mcpServers"`
 
-	// The knowledge block (Knowledge M9; agentry-desktop#497). The prompt
-	// is knowledge.accepts: one plain line the run setup's Knowledge step
-	// shows when the QuickAgent needs a pack of the person's own, empty for
-	// none; KnowledgeRequired makes the step unskippable. KnowledgeShips are
-	// the packs knowledge.ships names, which the form carries through a load
-	// and a save and never adds: a draft never brings one (FromDraft).
+	// The knowledge block. The prompt is knowledge.accepts: one plain line
+	// the run setup's Knowledge step shows when the QuickAgent needs a pack
+	// of the person's own, empty for none; KnowledgeRequired makes the step
+	// unskippable. KnowledgeShips are the packs knowledge.ships names, which
+	// the form carries through a load and a save and never adds: a draft
+	// never brings one (FromDraft).
 	KnowledgePrompt   string   `json:"knowledgePrompt"`
 	KnowledgeRequired bool     `json:"knowledgeRequired"`
 	KnowledgeShips    []string `json:"knowledgeShips"`
@@ -165,12 +164,11 @@ type IntakeRow struct {
 
 // MCPServerRow is one capabilities.mcpServers entry as the form edits it.
 //
-// A row is a package server (Source "npm" or "pypi") or, since OAuth
-// connections M11 (agentry-desktop#668), a remote server (Source "url"),
-// declared by its HTTPS address and run at its vendor. A row keeps the
-// fields of both shapes so switching its source loses nothing typed, but
-// only the fields of its own shape are written, checked or summarised:
-// Declared says which.
+// A row is a package server (Source "npm" or "pypi") or a remote server
+// (Source "url"), declared by its HTTPS address and run at its vendor. A
+// row keeps the fields of both shapes so switching its source loses
+// nothing typed, but only the fields of its own shape are written,
+// checked or summarised: Declared says which.
 type MCPServerRow struct {
 	// Source is "npm", "pypi" or "url".
 	Source string `json:"source"`
@@ -194,7 +192,7 @@ type MCPServerRow struct {
 	Secrets []string `json:"secrets"`
 	// Egress lists the hosts this server may reach; empty = none.
 	Egress []string `json:"egress"`
-	// Env is the server's plain configuration (v2, DEV-098): in the
+	// Env is the server's plain configuration (v2): in the
 	// contract, never a secret.
 	Env []EnvRow `json:"env"`
 }
@@ -205,8 +203,7 @@ type EnvRow struct {
 	Value string `json:"value"`
 }
 
-// OAuthRow is a package server's OAuth sign-in (the core's MCPOAuth,
-// DEV-215): the authorization server a connection is made with, what
+// OAuthRow is a package server's OAuth sign-in (the core's MCPOAuth): the authorization server a connection is made with, what
 // consent asks for, and how the access token reaches the server: files the
 // runner writes into the server's token folder, and environment variables,
 // each with placeholders the runner fills.
@@ -311,7 +308,7 @@ func Default(namespace string) *Model {
 	}
 }
 
-// Section is one step of the Step by step view (plan builder-rework.md D4).
+// Section is one step of the Step by step view.
 // The Advanced view shows the same sections at once.
 type Section string
 
@@ -328,15 +325,14 @@ const (
 // Sections are the form's sections in the order Step by step walks them.
 var Sections = []Section{SectionBasics, SectionInstructions, SectionTools, SectionAccess, SectionQuestions, SectionGuide, SectionPublish}
 
-// maxInstructionBytes is the §19 instruction-file quota.
+// maxInstructionBytes is the registry's instruction-file quota.
 const maxInstructionBytes = 1 << 20
 
 // formProblems are the rules the form holds before anything touches disk,
 // each with the section whose fields break it. Two are stricter than the
-// core: a declared server's "*" egress, which the runner always refuses
-// (DR-20), and a secret question with no declared secret, which the runner
-// refuses at intake. The rest of the V-rules come from manifest.Validate in
-// Check.
+// core: a declared server's "*" egress, which the runner always refuses,
+// and a secret question with no declared secret, which the runner refuses
+// at intake. The rest of the V-rules come from manifest.Validate in Check.
 func (m *Model) formProblems() []SectionProblem {
 	var out []SectionProblem
 	add := func(sec Section, format string, args ...any) {
@@ -376,7 +372,7 @@ func (m *Model) formProblems() []SectionProblem {
 		add(SectionInstructions, "write the instructions")
 	}
 	if len(m.Instructions) > maxInstructionBytes {
-		add(SectionInstructions, "the instructions are at most 1 MiB (the §19 instruction-file quota)")
+		add(SectionInstructions, "the instructions are at most 1 MiB (the registry's instruction-file quota)")
 	}
 
 	if m.EgressMode == "hosts" && len(compact(m.EgressHosts)) == 0 {
@@ -491,9 +487,8 @@ func (m *Model) formProblems() []SectionProblem {
 		}
 		switch q.Type {
 		// A repository or url question asks for an input source the run
-		// fetches (DEV-240, agentry-desktop#806): no choices, no secret of
-		// its own; the core's V13 warns on a repository with inputs.kinds
-		// that lack code.
+		// fetches: no choices, no secret of its own; the core's V13 warns
+		// on a repository with inputs.kinds that lack code.
 		case "", "text", "file", "repository", "url":
 		case "choice":
 			if len(compact(q.Choices)) == 0 {
@@ -584,8 +579,8 @@ type CheckResult struct {
 	First    *SectionProblem `json:"first"`
 	Warnings []string        `json:"warnings"`
 	// Public is the first rule a public submission still fails (V7), or
-	// "": it holds Submit, which is public (agentry-desktop#425), and not
-	// Save or a local Install, which V7 does not bind.
+	// "": it holds Submit, which is public, and not Save or a local
+	// Install, which V7 does not bind.
 	Public string `json:"public,omitempty"`
 }
 
@@ -640,15 +635,15 @@ func (m *Model) Check() *CheckResult {
 	return res
 }
 
-// publicPublishProblems holds the QuickAgent to V7, since Submit is public
-// (agentry-desktop#425): an SPDX licence, and an archive that carries a
-// LICENSE (or LICENSE.md, LICENSE.txt) and a README.md. The candidate
-// files are the ones Save writes (the manifest, its instruction file,
-// README.md and LICENSE when absent) and the licence file's other accepted
-// names, held to the include list, so a folder whose include leaves them
-// out is named before Submit rather than refused by the registry after
-// the agent was created. Only V7 is read: the rest of the context needs
-// the folder's real files.
+// publicPublishProblems holds the QuickAgent to V7, since Submit is
+// public: an SPDX licence, and an archive that carries a LICENSE (or
+// LICENSE.md, LICENSE.txt) and a README.md. The candidate files are the
+// ones Save writes (the manifest, its instruction file, README.md and
+// LICENSE when absent) and the licence file's other accepted names, held
+// to the include list, so a folder whose include leaves them out is named
+// before Submit rather than refused by the registry after the agent was
+// created. Only V7 is read: the rest of the context needs the folder's
+// real files.
 func publicPublishProblems(m *manifest.Manifest, instructionFile string) []string {
 	var files []manifest.FileInfo
 	for _, p := range []string{"agent.yaml", instructionFile, "README.md", "LICENSE", "LICENSE.md", "LICENSE.txt"} {
@@ -730,7 +725,7 @@ func q(s string) string {
 	// is a YAML double-quoted scalar). yaml.Marshal would write a block
 	// scalar indented for column 0, which parses under a key at two spaces
 	// (the overview) and breaks under one at four (a key's help, which may
-	// span lines since DEV-167; agentry-desktop#343).
+	// span lines).
 	if strings.ContainsAny(s, "\n\r") {
 		out, _ := json.Marshal(s)
 		return string(out)
@@ -744,8 +739,7 @@ func q(s string) string {
 func seq(items []string) string { return "[" + strings.Join(quoteAll(items), ", ") + "]" }
 
 // The manifest's blocks, each as the lines manifestYAML writes for it, so a
-// section can show its own lines (plan builder-rework.md §5) and the whole
-// file is their composition.
+// section can show its own lines and the whole file is their composition.
 func (m *Model) nameLine() string    { return "name: " + m.Name }
 func (m *Model) modesLine() string   { return "modes: [" + strings.Join(compact(m.Modes), ", ") + "]" }
 func (m *Model) summaryLine() string { return "summary: " + q(m.Summary) }
@@ -827,7 +821,7 @@ func (m *Model) intakeLines() []string {
 	return out
 }
 
-// inputsLines is the inputs block as it was loaded (agentry-desktop#822).
+// inputsLines is the inputs block as it was loaded.
 func (m *Model) inputsLines() []string {
 	kinds, view := compact(m.InputKinds), strings.TrimSpace(m.InputView)
 	if len(kinds) == 0 && view == "" {
@@ -986,8 +980,8 @@ func (m *Model) declaredSecrets() []string {
 	return out
 }
 
-// OptionalSecrets is the manifest's capabilities.optionalSecrets (DEV-212):
-// every declared key the author did not mark Required.
+// OptionalSecrets is the manifest's capabilities.optionalSecrets: every
+// declared key the author did not mark Required.
 func (m *Model) OptionalSecrets() []string {
 	required := map[string]bool{}
 	for _, s := range compact(m.RequiredSecrets) {
@@ -1003,8 +997,7 @@ func (m *Model) OptionalSecrets() []string {
 }
 
 // questionRequired is an intake question's `required`: a secret question
-// carried by a key of the QuickAgent's own follows that key's marking (plan
-// D7, the core's V10), so the two cannot disagree; any other follows its
+// carried by a key of the QuickAgent's own follows that key's marking (the core's V10), so the two cannot disagree; any other follows its
 // box.
 func (m *Model) questionRequired(qn IntakeRow) bool {
 	if qn.Type != "secret" {
@@ -1171,7 +1164,7 @@ func quoteAll(in []string) []string {
 // whenever the plain form holds a flow indicator. A plain scalar may hold a
 // comma or a bracket in block context, which is where q's yaml.Marshal
 // judges it, but inside [...] the comma ends the item: "CSV, TSV or JSON
-// lines." read back as two (agentry-desktop#567).
+// lines." read back as two.
 func qFlow(s string) string {
 	out := q(s)
 	if out != "" && (out[0] == '"' || out[0] == '\'') {
@@ -1246,8 +1239,8 @@ func Save(dir string, m *Model) error {
 // Load reads dir/agent.yaml (+ the entrypoint) back into the form model.
 // It parses the YAML shape directly — the manifest package's unions are a
 // decode contract — and reads every field of schema v2, so a save writes
-// back what the file declared (D19). Only comments are lost, and
-// HadComments says so.
+// back what the file declared. Only comments are lost, and HadComments
+// says so.
 // maxManifestBytes caps the agent.yaml Load reads; a manifest is a page of
 // YAML, and the registry's own text quota is far below this.
 const maxManifestBytes = 1 << 20
@@ -1425,8 +1418,8 @@ func decodeManifest(raw []byte) (*Model, error) {
 			m.InstructionFile = doc.Entrypoints.Instruction
 		}
 	case doc.Kind != "":
-		// A v1 workspace: kinds became modes (DEV-088); the skill file
-		// stays the instruction file so nothing moves on save.
+		// A v1 workspace: kinds became modes; the skill file stays the
+		// instruction file so nothing moves on save.
 		m.Modes = []string{"autonomous"}
 		switch doc.Kind {
 		case "skill":
@@ -1477,8 +1470,8 @@ func decodeManifest(raw []byte) (*Model, error) {
 		case srv.PyPI != "":
 			row.Source, row.Package = "pypi", srv.PyPI
 		case srv.URL != "" && srv.NPM == "":
-			// A remote server (agentry-desktop#668): before it, the row
-			// came in as an empty npm package and a save dropped it.
+			// A remote server: its row is kept whole, not read as an
+			// empty npm package.
 			row.Source, row.URL, row.Auth, row.Scopes = "url", srv.URL, strings.TrimSpace(srv.Auth), orEmpty(srv.Scopes)
 		}
 		for _, name := range sortedKeys(srv.Env) {
@@ -1604,7 +1597,7 @@ type PublishResult struct {
 	// Status is the pipeline's verdict — published | needs_review |
 	// rejected — or "refused" when the registry declined the submission
 	// before storing anything (a spent credit allowance: 402
-	// credits-exhausted, plan subscription-tiers.md §8); Detail then
+	// credits-exhausted); Detail then
 	// carries the refusal's sentence and Refusal its slug.
 	Status  string `json:"status"`
 	Digest  string `json:"digest"`
@@ -1612,14 +1605,14 @@ type PublishResult struct {
 	Refusal string `json:"refusal,omitempty"`
 	// Account names whose subscription the refusal is about. A member
 	// publishes to their own namespace but spends from their
-	// organization's pool (plan organization-subscriptions.md D22), so
-	// the account that is short is often not the one that signed in.
+	// organization's pool, so the account that is short is often not
+	// the one that signed in.
 	Account       string         `json:"account,omitempty"`
 	FindingCounts map[string]int `json:"findingCounts,omitempty"`
 	// Visibility is the agent's once the submission is through: public, or
 	// private for an agent that already was, which VisibilityNote then says
 	// in words; SettingsURL is the site's page that changes it, set by the
-	// desktop's binding where the registry is the site (agentry-desktop#425).
+	// desktop's binding where the registry is the site.
 	Visibility     string `json:"visibility,omitempty"`
 	VisibilityNote string `json:"visibilityNote,omitempty"`
 	SettingsURL    string `json:"settingsUrl,omitempty"`
@@ -1643,7 +1636,7 @@ func ReadManifest(dir string) (*manifest.Manifest, error) {
 }
 
 // ExistsPrivate says whether ns/name exists on the registry as a private
-// agent, which a Submit leaves private (agentry-desktop#425).
+// agent, which a Submit leaves private.
 func ExistsPrivate(ctx context.Context, regURL, token, ns, name string) (bool, error) {
 	client, err := registry.New(regURL, token)
 	if err != nil {
@@ -1662,14 +1655,12 @@ func ExistsPrivate(ctx context.Context, regURL, token, ns, name string) (bool, e
 	return false, registry.Problem("check agent", resp.StatusCode(), resp.ApplicationproblemJSONDefault, resp.Body)
 }
 
-// Publish submits the QuickAgent publicly (agentry-desktop#425, reversing
-// builder-simplify D3's private default): it creates the agent public if
+// Publish submits the QuickAgent publicly: it creates the agent public if
 // it does not exist, uploads the packed archive (cli-upload source), and
 // follows the pipeline to a verdict — the port of `agentry publish`
 // without --tag. An agent that exists private stays private: making it
-// public is a step of its own, its namespace administrators' (DEV-078,
-// D19; the operator's decision of 2026-09-30), taken in the Publisher
-// section since agentry-desktop#705, so the result says so. A registry
+// public is a step of its own, its namespace administrators', taken in
+// the Publisher section, so the result says so. A registry
 // that stores nothing and says why (credits, the namespace, the
 // private-agent cap, an unverified email) is a refused result in words,
 // not an error. Progress lines go to logw. privateTold is what the
@@ -1682,10 +1673,9 @@ func Publish(ctx context.Context, regURL, token, dir string, privateTold bool, l
 
 // PublishRevision is Publish carrying draftRun, the hosted draft a
 // revision was published from as drafted (Edit with AI's Publish this
-// version, agentry-desktop#501): the upload's multipart field draftRun, as
-// the site's Submit sends it (agentry-web#962). It is a claim the registry
-// proves against the draft's record (DEV-194), never a grant. Empty sends
-// none.
+// version): the upload's multipart field draftRun, as
+// the site's Submit sends it. It is a claim the registry proves against
+// the draft's record, never a grant. Empty sends none.
 func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold bool, draftRun string, logw io.Writer) (*PublishResult, error) {
 	m, err := ReadManifest(dir)
 	if err != nil {
@@ -1744,7 +1734,7 @@ func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold
 		return nil, registry.Problem("check agent", aresp.StatusCode(), aresp.ApplicationproblemJSONDefault, aresp.Body)
 	}
 
-	// Pack the deterministic archive from publish.include (§6.5).
+	// Pack the deterministic archive from publish.include.
 	files, err := pkgarchive.WalkWorkspace(dir)
 	if err != nil {
 		return nil, fmt.Errorf("walk workspace: %w", err)
@@ -1847,11 +1837,10 @@ func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold
 
 // licenseFile is the LICENSE a first save writes for the manifest's
 // license field, with the site's words (agentry-web lib/quickagent.ts
-// licenseFile, agentry-web#46): the MIT text with the namespace as the
+// licenseFile): the MIT text with the namespace as the
 // holder when the field says MIT or nothing, and for any other id a file
 // that names it and points at its SPDX page, since the form carries no
-// other licence text. Until agentry-desktop#559 the file said MIT whatever
-// the field said: a package that declared one licence and shipped another.
+// other licence text.
 func licenseFile(license, holder string) string {
 	id := strings.TrimSpace(license)
 	if id == "" || strings.EqualFold(id, "MIT") {
@@ -1901,7 +1890,7 @@ const PrivateStaysNote = "it stays private: making it public is a step of its ow
 
 // refusedWithReason turns the registry's refusal to create the agent or
 // take its version into a refused result in words, for the refusals the
-// person can act on: a namespace they may not publish to (403), and the
+// person can act on: a namespace they may not publish to, and the
 // private-agent cap (422 private-agent-cap). Anything else is the
 // caller's.
 func refusedWithReason(status int, body []byte, logw io.Writer) *PublishResult {

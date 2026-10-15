@@ -1,7 +1,6 @@
-// The in-app PDF viewer for a run's exported PDFs (plan
-// scratch-and-pdf-reports.md D16; agentry-desktop#730, D-072). WebKitGTK has
-// no PDF viewer of its own, so the app bundles pdf.js and draws each page
-// on a canvas, the same on Linux, Windows and macOS.
+// The in-app PDF viewer for a run's exported PDFs. WebKitGTK has no PDF
+// viewer of its own, so the app bundles pdf.js and draws each page on a
+// canvas, the same on Linux, Windows and macOS.
 //
 // What it is held to:
 //   - The bytes come from RunAPI.RunPDF, given the run's id and the path
@@ -11,10 +10,8 @@
 //   - pdf.js's display layer runs nothing a PDF carries: the scripting
 //     sandbox (pdf.sandbox) is never loaded, XFA forms are off, and only
 //     canvases are drawn, so no link or form field in the PDF is live here.
-//     pdf.js 6 has no eval path left to turn off (isEvalSupported went with
-//     it), and the window's CSP has no 'unsafe-eval'. The Linux live check
-//     drew a PDF whose OpenAction runs app.alert and print: neither ran.
-//     The worker is the bundle's own file, which the window's CSP admits
+//     pdf.js 6 has no eval path to turn off, and the window's CSP has no
+//     'unsafe-eval'. The worker is the bundle's own file, which the window's CSP admits
 //     under script-src 'self'; no cMap, font or wasm URL is given, so
 //     nothing is fetched.
 //   - Memory: the document is loaded once and kept across zoom changes. A

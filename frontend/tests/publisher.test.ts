@@ -1,5 +1,4 @@
-// The Publisher section's rows (plan forks-and-publisher.md §4.2, D5, D9;
-// agentry-desktop#705), held to the site's lib/publisher.ts.
+// The Publisher section's rows, held to the site's lib/publisher.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

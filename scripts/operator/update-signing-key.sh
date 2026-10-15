@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Agentry operator wizard.
+# Maintainer setup script, run by hand.
 #
-# Everything above the "STAGES" marker is the library and is identical in every
-# wizard: do not hand-edit it. Author your procedure below the marker, one
-# `stage` per step, and set TOTAL_STAGES to the number you wrote.
+# Everything above the "STAGES" marker is a small library of prompts and
+# helpers. The procedure below it is one `stage` per step, and TOTAL_STAGES is
+# the number of stages.
 #
 #   bash -n <this file>     # syntax check
-#   run shellcheck on this file (if available)
-#   ./<this file>           # run it (a human runs this, not an agent)
+#   ./<this file>           # run it
 
 set -uo pipefail
 
@@ -34,7 +33,7 @@ stage() {
   printf '%s[%d/%d] %s%s\n\n' "$c_bold" "$STAGE_NO" "$TOTAL_STAGES" "$1" "$c_reset"
 }
 
-# open_url "<url>": open it in the human's browser, on Linux, macOS or WSL.
+# open_url "<url>": open it in the user's browser, on Linux, macOS or WSL.
 open_url() {
   local url=$1
   step "opening $url"
@@ -65,10 +64,10 @@ ask_secret() {
 confirm() {
   local ans=""
   read -r -p "  $1 [y/N]: " ans
-  case "$ans" in y|Y|yes|YES) return 0 ;; *) die "stopped at stage $STAGE_NO by the operator" ;; esac
+  case "$ans" in y|Y|yes|YES) return 0 ;; *) die "stopped at stage $STAGE_NO by the user" ;; esac
 }
 
-# pause: wait for the human to finish something in the browser.
+# pause: wait for the user to finish something in the browser.
 pause() { read -r -p "  press enter when done "; }
 
 # write_env KEY "<value>": idempotent upsert into $ENV_FILE (0600).
@@ -138,17 +137,16 @@ TOTAL_STAGES=8
 # Agentry Desktop: load an update-signing key.
 #
 # This is the key the application checks a release against before it replaces
-# itself — the estate's own key, not the operating system's (agentry-desktop#86,
-# register D-026, plan desktop-installers.md §7, D5, D15). Run it twice in the
-# life of the product:
+# itself — the project's own key, not the operating system's. Run it twice in
+# the life of the product:
 #
 #   dev   once, now, so pre-launch releases are signed at all;
 #   prod  at launch, on hardware you hold, retiring dev in the same run.
 #
-# What it does: generates the pair HERE, on this machine, so no agent and no
+# What it does: generates the pair HERE, on this machine, so no automation and no
 # server ever holds the private half; loads the private half into the
 # agentry-desktop Actions secret and, if you say so, into the CLI's and the
-# MCP server's (the same key signs all three products, agentry-desktop#181);
+# MCP server's (the same key signs all three products);
 # writes the public half into internal/selfupdate/keys.json; and leaves you
 # to commit that file. The two halves only ever meet in this script.
 #
@@ -160,9 +158,9 @@ REPO="blaktron/agentry-desktop"
 SECRET_NAME="AGENTRY_UPDATE_SIGNING_KEY"
 # The same key signs the CLI's and the MCP server's release bundles, through
 # this repository's signrelease at the commit each pins as
-# DESKTOP_SIGNRELEASE_REF (agentry-desktop#181; register D-026, DEV-125).
-CLI_REPO="blaktron/agentry-cli"          # a repository secret (agentry-cli#197)
-MCP_REPO="blaktron/agentry-mcp"          # a secret of its `release` environment (agentry-mcp#33)
+# DESKTOP_SIGNRELEASE_REF.
+CLI_REPO="blaktron/agentry-cli"          # a repository secret
+MCP_REPO="blaktron/agentry-mcp"          # a secret of its `release` environment
 WORK=""
 OWED=()
 
@@ -260,7 +258,7 @@ else
     warn "every installed copy needs a manual download to get moving again."
     confirm "really keep no backup?"
   else
-    note "no backup kept; for 'dev' that loss is accepted (D15)"
+    note "no backup kept; for 'dev' that loss is accepted"
   fi
 fi
 
@@ -288,22 +286,20 @@ say "release there is refused unless its key is CURRENT in that pinned key set, 
 say "secret and the pin move together; either alone makes that product's next release"
 say "fail closed: it stops the release."
 say ""
-note "Load them here while this run still holds the key, or answer no when another"
-note "wizard loads them from your backup (the workspace's release-keys-and-pipelines.sh"
-note "does, in its own stages; agentry-mcp's own scripts/operator/release-setup.sh loads"
-note "its release environment too). The pins are moved by the agent, by pull request, once"
-note "$KEYS_JSON is committed."
+note "Load them here while this run still holds the key, or answer no and load them"
+note "from your backup yourself. The pins are moved by a pull request in each of those"
+note "repositories once $KEYS_JSON is committed."
 if yesno "also set $SECRET_NAME on $CLI_REPO?"; then
   if gh secret set "$SECRET_NAME" -R "$CLI_REPO" < "$WORK/$KEY_NAME.key"; then
     step "set $SECRET_NAME on $CLI_REPO"; SUMMARY+=("$SECRET_NAME -> GitHub secret on $CLI_REPO (key '$KEY_NAME')")
   else warn "could not set it on $CLI_REPO"; OWED+=("$SECRET_NAME on $CLI_REPO (repository secret), from your backup"); fi
-else OWED+=("$SECRET_NAME on $CLI_REPO (repository secret), from your backup, unless another wizard does it"); fi
+else OWED+=("$SECRET_NAME on $CLI_REPO (repository secret), from your backup, unless you load it another way"); fi
 if yesno "also set $SECRET_NAME in the 'release' environment of $MCP_REPO?"; then
   if gh secret set "$SECRET_NAME" -R "$MCP_REPO" --env release < "$WORK/$KEY_NAME.key"; then
     step "set $SECRET_NAME in $MCP_REPO's release environment"; SUMMARY+=("$SECRET_NAME -> $MCP_REPO release environment (key '$KEY_NAME')")
-  else warn "could not set it in $MCP_REPO's release environment (does the environment exist? agentry-mcp#33)"; OWED+=("$SECRET_NAME in $MCP_REPO's release environment, from your backup"); fi
-else OWED+=("$SECRET_NAME in $MCP_REPO's release environment, from your backup, unless another wizard does it"); fi
-OWED+=("DESKTOP_SIGNRELEASE_REF in $CLI_REPO and $MCP_REPO moved to the agentry-desktop commit that carries this $KEYS_JSON (the agent, by pull request)")
+  else warn "could not set it in $MCP_REPO's release environment (does the environment exist?)"; OWED+=("$SECRET_NAME in $MCP_REPO's release environment, from your backup"); fi
+else OWED+=("$SECRET_NAME in $MCP_REPO's release environment, from your backup, unless you load it another way"); fi
+OWED+=("DESKTOP_SIGNRELEASE_REF in $CLI_REPO and $MCP_REPO moved to the agentry-desktop commit that carries this $KEYS_JSON (by pull request)")
 
 stage "Write the public half into the key set"
 say "Every key the product has ever used stays in $KEYS_JSON. Old ones are"
@@ -312,7 +308,7 @@ say "refuses to install anything they signed. That is what makes a rotation a"
 say "release rather than a reinstall."
 say ""
 RETIRE_ARGS=""
-if go run ./internal/cmd/keyset list 2>/dev/null | grep 'current' >/dev/null; then  # not -q: pipefail (agentry-desktop#236)
+if go run ./internal/cmd/keyset list 2>/dev/null | grep 'current' >/dev/null; then  # not -q: pipefail
   say "There is already a current key. Retiring it is almost always right:"
   say "two current keys means two keys that can authorise an install."
   read -r -p "  retire the current key(s)? [Y/n]: " ans
@@ -321,7 +317,7 @@ fi
 go run ./internal/cmd/keyset add \
   -name "$KEY_NAME" \
   -public "$PUBLIC_LINE" \
-  -note "private half: the $SECRET_NAME secret of $REPO, of $CLI_REPO and of the release environment of $MCP_REPO; a rotation moves all three with the DESKTOP_SIGNRELEASE_REF pins (agentry-desktop#181)" \
+  -note "private half: the $SECRET_NAME secret of $REPO, of $CLI_REPO and of the release environment of $MCP_REPO; a rotation moves all three with the DESKTOP_SIGNRELEASE_REF pins" \
   $RETIRE_ARGS || die "could not write $KEYS_JSON"
 say ""
 go run ./internal/cmd/keyset list
@@ -336,6 +332,6 @@ note "no shipped app could check."
 finish
 if [ ${#OWED[@]} -gt 0 ]; then
   say ""
-  say "Still owed for this key to sign all three products (agentry-desktop#181):"
+  say "Still owed for this key to sign all three products:"
   printf '  - %s\n' "${OWED[@]}"
 fi

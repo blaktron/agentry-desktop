@@ -9,14 +9,14 @@
 # The rule, written down where the copy lives.
 the honest-posture rule, stated in the shared UI module :: an agent is "scanned, N findings, signed" — never "safe"
 the honest-posture rule, stated on the report view :: never a "safe" claim
-the honest-posture rule, stated where the Knowledge panel's copy lives (agentry-desktop#273) :: a pack "safe", "secure" or "private" (plan §3).
+the honest-posture rule, stated where the Knowledge panel's copy lives :: a pack "safe", "secure" or "private"
 
 # A value in someone else's vocabulary, not a claim of ours: the registry's
 # MCP vulnerability verdict is the string "safe" on the wire
 # (mcpinstall.VulnStatus), and this comment names it.
 the API's own status value, named not claimed :: Status is safe, vulnerable, error, unknown or unreachable
-the Build tab matching that status to reword it, so the word is never shown (agentry-desktop#280) :: "safe" is never shown as a word: it means no known advisories at a date.
-the Build tab matching that status to reword it, so the word is never shown (agentry-desktop#280) :: case "safe":
+the Build tab matching that status to reword it, so the word is never shown :: "safe" is never shown as a word: it means no known advisories at a date.
+the Build tab matching that status to reword it, so the word is never shown :: case "safe":
 
 # A comment about shell quoting on the prereqs path — "safe to place in a
 # root shell" is about a username's characters, not about a QuickAgent.
@@ -36,8 +36,7 @@ minisign's own signed-comment field, named not claimed :: trusted comment
 minisign's signed-comment field, in the update check :: TrustedComment
 minisign's signed-comment field, in the update check :: trustedComment
 
-# The first-run wizard's Cloud page (agentry-desktop#842, D-081): the
-# operator's own sentence, asked for word for word on 2026-10-12. It states
-# an effort, not a property: the sentences around it name exactly what is
-# sealed, what is not, and that Agentry holds the keys.
-operator's words on the Cloud page, an effort not a claim :: We do our best to keep your data safe and secure.
+# The first-run wizard's Cloud page: a fixed sentence. It states an effort,
+# not a property: the sentences around it name exactly what is sealed, what
+# is not, and that Agentry holds the keys.
+the Cloud page's sentence, an effort not a claim :: We do our best to keep your data safe and secure.

@@ -1,20 +1,18 @@
-// The run surface (RUNNER-PLAN-2 §P6): run a QuickAgent from the app with
-// the same lifecycle `agentry run` executes.
+// The run surface: run a QuickAgent from the app with the same lifecycle
+// `agentry run` executes.
 //
-// Since the guided run setup (plan guided-runs.md §4, M3;
-// agentry-desktop#226) the panel asks one step at a time, on the first-run
-// wizard's shell: Before you start (what it does, what to have ready, where
-// to run, this machine's readiness), Files, Connect tools (the declared MCP
-// servers and the keys of the MCP profile, §P3: masked inputs, names only,
-// an empty field means "resolve from the environment at run time"),
-// Details (the intake questions, then the task) and Review and start (the
-// recap, the output folder, Advanced, the consents and Run). A step the
-// release does not need is left out. Every gate is where it was: the
-// blockers the Run button reads, the native consent dialog on Run
-// (runGates), and paths from native pickers only (D-030). Once a run or a
-// chat starts, this setup hands it to its flow above the pages (RunFlow,
-// HostedRunFlow, ChatFlow; agentry-desktop#465–#467) and closes: it shows
-// only the setup, a refusal, and the missing-secret ask.
+// The panel asks one step at a time, on the first-run wizard's shell: Before
+// you start (what it does, what to have ready, where to run, this machine's
+// readiness), Files, Connect tools (the declared MCP servers and the keys of
+// the MCP profile: masked inputs, names only, an empty field means "resolve
+// from the environment at run time"), Details (the intake questions, then the
+// task) and Review and start (the recap, the output folder, Advanced, the
+// consents and Run). A step the release does not need is left out. The gates
+// are the blockers the Run button reads, the native consent dialog on Run
+// (runGates), and paths from native pickers only. Once a run or a chat starts,
+// this setup hands it to its flow above the pages (RunFlow, HostedRunFlow,
+// ChatFlow) and closes: it shows only the setup, a refusal, and the
+// missing-secret ask.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
@@ -44,7 +42,7 @@ import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostF
 import { HostQuestion } from "./HostQuestion";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
- *  page on it (agentry-desktop#743). */
+ *  page on it. */
 export const SCHEDULED_EVENT = "agentry:scheduled";
 
 export default function RunPanel({
@@ -64,14 +62,14 @@ export default function RunPanel({
   initialMode?: string;
   /** Harness-only: open on this step, for screenshots. */
   initialStep?: StepKey;
-  /** A QuickAgent installed from a folder on this computer
-   * (agentry-desktop#425): no registry holds it, so it is not offered In
-   * Agentry, and its run needs the unsigned consent. */
+  /** A QuickAgent installed from a folder on this computer: no registry holds
+   * it, so it is not offered In Agentry, and its run needs the unsigned
+   * consent. */
   local?: boolean;
   /** The answers as the person left them, when Back to the setup reopens
-   *  the setup of a run that is over (agentry-desktop#465). */
+   *  the setup of a run that is over. */
   initialForm?: RunForm;
-  /** Schedule a new run opens the setup with When on Repeat (D12). */
+  /** Schedule a new run opens the setup with When on Repeat. */
   initialWhen?: WhenChoice;
 }) {
   const agentRef = `${ns}/${name}@${version}`;
@@ -82,7 +80,7 @@ export default function RunPanel({
   const [profile, setProfile] = useState<main.ProfileStatusView | null>(null);
   const [profileErr, setProfileErr] = useState<string | null>(null);
 
-  // Guided profile form (§P3 as a form).
+  // Guided profile form.
   const [formOpen, setFormOpen] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [formKeep, setFormKeep] = useState(true);
@@ -92,22 +90,21 @@ export default function RunPanel({
   const [task, setTask] = useState(f0?.task ?? "");
   const [intakeValues, setIntakeValues] = useState<Record<string, string>>(f0?.intakeValues ?? {});
   // An input source's access token typed for this run, by question id,
-  // with the host it was typed for (agentry-desktop#794): sent with the run
+  // with the host it was typed for: sent with the run
   // for its fetch step alone, and not kept with the setup's answers
   // (RunForm), so Back to the setup does not carry it. An address edited to
   // another host leaves it behind (typedTokens), so a token typed for one
   // host never goes to another; one typed before the address named a host
-  // binds to the first host it names (bindTypedTokens, agentry-desktop#869).
+  // binds to the first host it names (bindTypedTokens).
   const [sourceTokens, setSourceTokens] = useState<Record<string, TypedToken>>({});
-  // Leave to save a source's token in Agentry for a schedule's fires there
-  // (agentry-enterprise#532, agentry-desktop#833).
+  // Leave to save a source's token in Agentry for a schedule's fires there.
   const [saveInAgentry, setSaveInAgentry] = useState(false);
   // Go's word on each source answer (RunAPI.SourceKeyStatus): the CLI's
   // parse of the address, and whether a key is saved for its host. Kept
   // with the answer it judged, so a changed answer reads as unchecked.
   const [sourceChecks, setSourceChecks] = useState<Record<string, { answer: string; key: SourceKey }>>({});
   // A target host's sign-in typed for this run, by question id, with the
-  // keychain account it was typed for (agentry-desktop#812): sent with the
+  // keychain account it was typed for: sent with the
   // run for its host link alone, and not kept with the setup's answers
   // (RunForm). An address edited to another account leaves it behind
   // (formFor), so a sign-in typed for one host never goes to another.
@@ -120,14 +117,13 @@ export default function RunPanel({
   const [mode, setMode] = useState(f0?.mode ?? "");
   const [inputs, setInputs] = useState<string[]>(f0?.inputs ?? []);
   // The files among the inputs, as the native file picker returned them: a
-  // file intake question may pick one of these (plan §4, Details), and a
+  // file intake question may pick one of these (Details), and a
   // folder is never offered for it.
   const [pickedFiles, setPickedFiles] = useState<string[]>(f0?.pickedFiles ?? []);
-  // The knowledge packs listed for the Knowledge step (plan knowledge.md
-  // §4.5) — those kept here can be attached, those kept only in Agentry are
-  // shown with where to download them — and the ones to attach, by name; Go
-  // opens each from the store after the gates, and the receipt names what
-  // was mounted.
+  // The knowledge packs listed for the Knowledge step — those kept here can be
+  // attached, those kept only in Agentry are shown with where to download them
+  // — and the ones to attach, by name; Go opens each from the store after the
+  // gates, and the receipt names what was mounted.
   const [packs, setPacks] = useState<knowledge.Pack[] | null>(null);
   const [attach, setAttach] = useState<string[]>(f0?.attach ?? []);
   // A pack kept only here being uploaded from the Knowledge step, so a run
@@ -136,11 +132,11 @@ export default function RunPanel({
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [outDir, setOutDir] = useState(f0?.outDir ?? "");
-  // Settings → Run defaults (agentry-desktop#347): the saved output folder
+  // Settings → Run defaults: the saved output folder
   // fills the field and where to run pre-selects the Where step, until the
   // person chooses otherwise for this run.
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
-  // Unsafe Mode (agentry-desktop#418): while Run defaults' switch is on, the
+  // Unsafe Mode: while Run defaults' switch is on, the
   // line a run of this release on this computer carries, as Go composes it
   // for the native consent dialog too. Shown on Review and start; it gates
   // nothing here, and a run In Agentry never carries it.
@@ -162,23 +158,23 @@ export default function RunPanel({
   const byDefault = useRef(false);
   const chooseMode = (m: string) => { modeChosen.current = true; setMode(m); };
   const [keep, setKeep] = useState(f0?.keep ?? true);
-  // D-012: the keep toggle is sent only once the user touches it; an
+  // The keep toggle is sent only once the user touches it; an
   // untouched toggle sends null, so a no-secret release does not grow an
   // empty profile per run, while an explicit keep is recorded.
   const [keepTouched, setKeepTouched] = useState(f0?.keepTouched ?? false);
   const [timeoutSec, setTimeoutSec] = useState(f0?.timeoutSec ?? "");
   const [maxTurns, setMaxTurns] = useState(f0?.maxTurns ?? "");
   const [acceptUnsigned, setAcceptUnsigned] = useState(f0?.acceptUnsigned ?? false);
-  // Its own consent (M23): an unscanned release is not an unsigned one.
+  // Its own consent: an unscanned release is not an unsigned one.
   const [acceptUnscanned, setAcceptUnscanned] = useState(f0?.acceptUnscanned ?? false);
-  // The registry's verdict on the declared MCP servers (agentry#177): an
+  // The registry's verdict on the declared MCP servers: an
   // advisory the gate rates high or critical refuses the run; on this
   // computer only Unsafe Mode, with this consent (recorded in the
-  // receipt), lets it through (agentry-desktop#459, D-055).
+  // receipt), lets it through.
   const [mcp, setMcp] = useState<main.MCPView | null>(null);
   const [allowVulnerableMCP, setAllowVulnerableMCP] = useState(f0?.allowVulnerableMCP ?? false);
   // The release's servers that sign in by OAuth and the connection this
-  // version keeps for each (agentry-desktop#666): Connect tools makes them,
+  // version keeps for each: Connect tools makes them,
   // and Run waits until each is connected. Null until read; a read that
   // fails leaves the engine's own refusal, which names the server.
   const [conns, setConns] = useState<run.ReleaseConnections | null>(null);
@@ -200,20 +196,18 @@ export default function RunPanel({
 
   // Run state. running: a run on this computer is being handed to the
   // run's flow, from Run until Go reports that it has begun (the native
-  // consent comes first), when this setup closes (agentry-desktop#465).
+  // consent comes first), when this setup closes.
   const [running, setRunning] = useState(false);
   const [runErr, setRunErr] = useState<string | null>(null);
 
-  // When (plan quickagent-scheduling.md §7, D12; agentry-desktop#743): Now,
-  // or Later or Repeat, which make this run a schedule on this computer.
-  // Whether this computer can schedule at all is read once; the zone it
-  // reads is a new schedule's default.
+  // When the run happens: Now, or Later or Repeat, which make this run a
+  // schedule on this computer. Whether this computer can schedule at all is
+  // read once; the zone it reads is a new schedule's default.
   const [availability, setAvailability] = useState<Availability | null>(null);
   const [when, setWhen] = useState<WhenForm>(() => defaultWhen(new Date(), "", initialWhen ?? "now"));
   const [check, setCheck] = useState<CheckState>({ state: "idle" });
-  // A schedule In Agentry the registry would not make yet (D8;
-  // agentry-desktop#745): its create is the check, and what it names is
-  // asked for here, then Schedule is made again.
+  // A schedule In Agentry the registry would not make yet: its create is the
+  // check, and what it names is asked for here, then Schedule is made again.
   const [scheduleGap, setScheduleGap] = useState<main.HostedScheduleMadeView | null>(null);
   useEffect(() => {
     let live = true;
@@ -228,7 +222,7 @@ export default function RunPanel({
     return () => { live = false; };
   }, []);
 
-  // In Agentry (hosted runs M6): whether the mode is offered here, the run
+  // In Agentry: whether the mode is offered here, the run
   // the registry is executing, and a refused create rendered as a sentence.
   const [hosted, setHosted] = useState<main.HostedAvailabilityView | null>(null);
   // Whether the offer has been read (or failed to be): until then Run
@@ -237,7 +231,7 @@ export default function RunPanel({
   const [hostedRefusal, setHostedRefusal] = useState<main.HostedStartView | null>(null);
   const [starting, setStarting] = useState(false);
   // A start refused connection-missing is made again until Agentry holds
-  // the connections (agentry-desktop#667): whether that wait is under way.
+  // the connections: whether that wait is under way.
   const [awaiting, setAwaiting] = useState(false);
 
   // The guided setup: which step shows, a step's own sentence when Next is
@@ -246,7 +240,7 @@ export default function RunPanel({
   const [stepProblem, setStepProblem] = useState<string | null>(null);
   const stepHeading = useRef<HTMLHeadingElement | null>(null);
   const moved = useRef(false);
-  // The author's guide for this exact release (manifest v2, DEV-141), if any.
+  // The author's guide for this exact release (manifest v2), if any.
   const guide = profile?.guide ?? null;
 
   useEffect(() => {
@@ -257,7 +251,7 @@ export default function RunPanel({
         if (d.outputDir && !f0) setOutDir((cur) => cur || d.outputDir || "");
       })
       .catch(() => setDefaults(null));
-    // A local install's tool surface is its own (agentry-desktop#425); a
+    // A local install's tool surface is its own; a
     // registry release's is the one its page shows.
     (local ? RunAPI.RunRequirements(registry, agentRef) : RunAPI.GatewayRequirements(registry, ns, name)).then(setMcp).catch(() => setMcp(null));
     KnowledgeAPI.List(registry).then((l) => setPacks(l.packs)).catch(() => setPacks([]));
@@ -276,7 +270,7 @@ export default function RunPanel({
   }, [registry, agentRef]);
 
   // In Agentry: is the mode offered for this release, and does this
-  // account already have a run the panel should reattach to (D11)?
+  // account already have a run the panel should reattach to?
   useEffect(() => {
     let live = true;
     // No registry holds a local install, so nothing In Agentry can run it.
@@ -303,7 +297,7 @@ export default function RunPanel({
           .then((a) => {
           if (!live || !a.run) return;
           // A run or a chat In Agentry is followed above the pages, in its
-          // card (agentry-desktop#466, #467).
+          // card.
           void followHostedRunFound(registry, a);
         });
       })
@@ -320,25 +314,23 @@ export default function RunPanel({
   // install wizard's gate); mismatch/unverifiable never runs — the Go
   // side re-verifies the downloaded bytes and refuses those regardless.
   const provPending = attestation == null;
-  // A local install (agentry-desktop#425) is unsigned by definition: the
+  // A local install is unsigned by definition: the
   // same consent, enforced in Go the same way, with its own words.
   const unsigned = attestation?.state === "unsigned" || local;
-  // Unscanned: the registry admitted the version without a scan (plan
-  // organization-subscriptions §4) — its own verdict, its own checkbox,
-  // enforced in Go like the unsigned one. A run In Agentry is not
-  // offered for one: the platform records no such consent yet
-  // (agentry-enterprise#55).
+  // Unscanned: the registry admitted the version without a scan — its own
+  // verdict, its own checkbox, enforced in Go like the unsigned one. A run In
+  // Agentry is not offered for one: the platform records no such consent yet.
   const unscanned = attestation?.state === "unscanned";
   const unverifiable = attestation != null && attestation.state !== "verified" && !unsigned && !unscanned;
   const refused = !!mcp?.refusal;
   // Only a key a run cannot start without holds the run until the keys are
-  // saved: an optional one (agentry-desktop#655) can be left out.
+  // saved: an optional one can be left out.
   const requiredNames = profile ? requiredOf(profile) : [];
   const optionalNames = profile?.optionalSecrets ?? [];
   const needsProfile = !!profile && requiredNames.length > 0 && !profile.exists;
   const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
-  // A url question the browser names is its site, not a source
-  // (agentry-desktop#878): asked as an address, never fetched.
+  // A url question the browser names is its site, not a source: asked as an
+  // address, never fetched.
   const sourceQs = (profile?.intake ?? []).filter((q) => isSourceType(q.type) && !isSiteQuestion(q));
   const siteQs = (profile?.intake ?? []).filter(isSiteQuestion);
   // Each source answer is checked in Go after a pause in typing; an older
@@ -366,15 +358,15 @@ export default function RunPanel({
   }
   const typed = typedTokens(sourceTokens, sourceKeys);
   // A token typed before its address was checked binds to the first host
-  // the address names (agentry-desktop#869); bindTypedTokens returns the
+  // the address names; bindTypedTokens returns the
   // same object when nothing binds, so this settles at once.
   const sourceHosts = JSON.stringify(sourceQs.map((q) => [q.id, sourceKeys[q.id]?.host ?? ""]));
   useEffect(() => {
     setSourceTokens((s) => bindTypedTokens(s, sourceKeys));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceHosts]);
-  // Target hosts (agentry-desktop#812): each answer read in Go after a
-  // pause in typing, with the CLI's parser; nothing reaches the host here.
+  // Target hosts: each answer read in Go after a pause in typing, with the
+  // CLI's parser; nothing reaches the host here.
   const hostQs = (profile?.intake ?? []).filter((q) => isHostType(q.type));
   const hostAnswers = JSON.stringify(hostQs.map((q) => [q.id, (intakeValues[q.id] ?? "").trim()]));
   useEffect(() => {
@@ -405,21 +397,20 @@ export default function RunPanel({
   const hostSignIns = () => signInsForRun(hostQs, intakeValues, hostKeys, hostForms);
   // In Agentry needs no docker, no images and no operator policy on this
   // machine: the setup status gates the local modes only.
-  // Talk to it In Agentry (agentry-desktop#403) is mode "hosted-session": a
+  // Talk to it In Agentry is mode "hosted-session": a
   // hosted session of the release's interactive mode, and In Agentry too.
   const sessionInAgentry = mode === "hosted-session";
   const inAgentry = mode === "hosted" || sessionInAgentry;
   // A declared server the gate rates high: Unsafe Mode's consent here,
-  // nothing In Agentry (D-055). Go reads the switch itself and asks again.
+  // nothing In Agentry. Go reads the switch itself and asks again.
   const vuln = vulnerableServerStep({ refused, inAgentry, unsafeOn: !!unsafeNotice?.on, consented: allowVulnerableMCP });
   // The offer that governs the mode chosen: the run's, or the session's.
   const offer = sessionInAgentry ? hosted?.session : hosted;
-  // Write in my voice (plan writing-voice.md §5, D11; agentry-desktop#510):
-  // drawn on Review when the voice this run would use exists (this
-  // computer's here, the account's live one In Agentry), ticked from that
-  // voice's own switch until the person changes it; a change of where it
-  // runs goes back to that voice's switch. A read that did not answer draws
-  // no box, and the run goes without the voice.
+  // Write in my voice: drawn on Review when the voice this run would use exists
+  // (this computer's here, the account's live one In Agentry), ticked from that
+  // voice's own switch until the person changes it; a change of where it runs
+  // goes back to that voice's switch. A read that did not answer draws no box,
+  // and the run goes without the voice.
   const [voices, setVoices] = useState<main.VoiceView | null>(null);
   useEffect(() => {
     // Through a promise, so a binding that is not there (an older build's
@@ -450,19 +441,18 @@ export default function RunPanel({
   // The run and the chat the app follows above the pages: the registry runs
   // one per account and this app follows one at a time, so while one In
   // Agentry moves, or a start waits for the registry's answer, no setup
-  // starts another there; and the app keeps one chat (D-017;
-  // agentry-desktop#466, #467).
+  // starts another there; and the app keeps one chat.
   const followed = useHostedRun();
   const followedChat = useChat().chat;
   const chatLive = !!followedChat && !followedChat.over;
   const followedMoving = followed.starting || (!!followed.run && !followed.run.final) || (chatLive && followedChat.kind === "hosted");
   // What still stands between this form and a run, each in a sentence the
-  // line above the button shows (agentry-desktop#167): the same conditions
+  // line above the button shows: the same conditions
   // the button reads, so the two cannot disagree. Busy is not a blocker.
   const busy = running || (inAgentry && starting);
   // A schedule (Later or Repeat): offered only where it can run (on this
   // computer, or In Agentry where the registry and the plan allow), and
-  // held until nothing a fire needs is missing (D8).
+  // held until nothing a fire needs is missing.
   const whenBlocked = whenUnavailable({
     modes: profile?.modes ?? [], mode, inAgentry, local, availability, session: sessionInAgentry, hostedOffer: hosted?.schedule ?? null,
   });
@@ -485,7 +475,7 @@ export default function RunPanel({
     blockers.push("Docker is not ready — set it up in Settings → Run defaults" + (hosted?.offered ? ", or run this release In Agentry." : "."));
   }
   // The release's own profile is this machine's: a run In Agentry takes its
-  // keys from the account's secrets there instead (agentry-desktop#300).
+  // keys from the account's secrets there instead.
   if (!inAgentry && needsProfile && profile) {
     const servers = mcp?.servers ?? [];
     const server = servers.length === 1 ? servers[0] : "this release";
@@ -504,8 +494,8 @@ export default function RunPanel({
     inAgentry, scheduling, saveInAgentry,
   }));
   blockers.push(...hostBlockers(hostQs, intakeValues, hostKeys, hostForms, { inAgentry, scheduling }));
-  // In Agentry a site must be one a sandbox host can open
-  // (agentry-desktop#903), as the registry checks it again.
+  // In Agentry a site must be one a sandbox host can open, as the registry
+  // checks it again.
   blockers.push(...siteBlockers(siteQs, intakeValues, inAgentry));
   if (provPending) blockers.push("Waiting for the provenance check on this version — if this persists, the registry could not answer; close and reopen the page.");
   if (unverifiable) blockers.push("The attestation could not be verified; the runner refuses such a release.");
@@ -515,16 +505,16 @@ export default function RunPanel({
   if (vuln.blocker) blockers.push(vuln.blocker);
   blockers.push(...connectionBlockers(signIns, inAgentry, hosted?.vault ?? true));
 
-  // What the release says about knowledge (plan knowledge.md §4.6): the
-  // packs it ships, mounted in every run on this computer, and what it asks
-  // the person to attach, shown here and never to the agent.
+  // What the release says about knowledge: the packs it ships, mounted in every
+  // run on this computer, and what it asks the person to attach, shown here and
+  // never to the agent.
   const ships = profile?.shipsKnowledge ?? [];
   const accepts = profile?.acceptsKnowledge;
   const steps = setupSteps({
     servers: mcp?.declaredServers?.length ?? 0,
     secrets: profile?.declaredSecrets.length ?? 0,
     // In Agentry, only where the registry attaches packs to a hosted run
-    // and this computer's token may read them (agentry-desktop#275); on
+    // and this computer's token may read them; on
     // this computer also when the release ships a pack or asks for one.
     knowledge: inAgentry
       ? ((packs?.length ?? 0) > 0 || !!accepts) && !!hosted?.knowledgeAttach
@@ -550,7 +540,7 @@ export default function RunPanel({
   const asking = inAgentry && hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0;
   if (asking) blockers.push("Enter the secrets this run needs above and start (an optional one may stay empty) — or Cancel.");
   // The servers Agentry keeps no connection to for this version: connected
-  // in the browser, then the start is made again (agentry-desktop#667).
+  // in the browser, then the start is made again.
   const connecting = inAgentry && hostedRefusal?.refusal === "connection-missing";
   if (connecting) blockers.push("Connect the servers named below in your browser; the run starts once Agentry holds them — or Cancel.");
   // Later or Repeat that this run cannot be holds the button rather than
@@ -588,7 +578,7 @@ export default function RunPanel({
   function problemHere(): string | null {
     // The keys form is this computer's: In Agentry it is not drawn, so it
     // holds nothing there, though it opened by itself for a required key
-    // with no profile (agentry-desktop#799).
+    // with no profile.
     if (step === "tools" && formOpen && !inAgentry) {
       return needsProfile
         ? "Save the keys to go on. A field left empty is read from this machine's environment at run time."
@@ -682,7 +672,7 @@ export default function RunPanel({
   }
 
   // The answers as they stand, kept with a run so that Back to the setup
-  // reopens this setup as it was (agentry-desktop#465).
+  // reopens this setup as it was.
   function currentForm(): RunForm {
     return {
       mode, task, inputs, pickedFiles, intakeValues, attach, outDir, timeoutSec, maxTurns, keep, keepTouched,
@@ -771,15 +761,14 @@ export default function RunPanel({
     }
   }
 
-  // Schedule In Agentry (agentry-desktop#745): the registry's create checks
-  // what every fire will need and keeps nothing until it all holds (D8). A
-  // gap comes back for this setup to ask for in place (the secrets to keep,
-  // the connections to make), then Schedule is made again; the schedule
-  // made, the setup closes onto the Scheduled page.
-  // askOptional (agentry-desktop#795): the first try asks the check to
-  // name an optional key the account does not keep too, so the gap asks
-  // for it as for a required one; the try the ask makes again does not, so
-  // an optional key left empty is gone without.
+  // Schedule In Agentry: the registry's create checks what every fire will need
+  // and keeps nothing until it all holds. A gap comes back for this setup to
+  // ask for in place (the secrets to keep, the connections to make), then
+  // Schedule is made again; the schedule made, the setup closes onto the
+  // Scheduled page. askOptional: the first try asks the check to name an
+  // optional key the account does not keep too, so the gap asks for it as for a
+  // required one; the try the ask makes again does not, so an optional key left
+  // empty is gone without.
   async function scheduleInAgentry(askOptional = true) {
     const spec = whenSpec(when);
     if (!spec) return;
@@ -795,7 +784,7 @@ export default function RunPanel({
       if (made.refusal) {
         setScheduleGap(made);
         // A server Agentry keeps no connection to: Connect tools opens in
-        // the browser now, as a run's start does (agentry-desktop#667).
+        // the browser now, as a run's start does.
         if (made.refusal === "connection-missing") RunAPI.OpenHostedConnect(registry, agentRef).catch((e) => setRunErr(String(e)));
         return;
       }
@@ -813,7 +802,7 @@ export default function RunPanel({
 
   // A chat on this computer: the chat's store starts it and its dialog opens
   // at once, with the start (the native consent, the sandbox) under way
-  // inside it, and this setup closes (agentry-desktop#467). Go's refusal
+  // inside it, and this setup closes. Go's refusal
   // shows in that dialog, with Back to the setup.
   function startLocalSession() {
     const { turns } = limits();
@@ -831,7 +820,7 @@ export default function RunPanel({
 
   // In Agentry: the inputs go up, the run is created, and the panel follows
   // where it stands until the outputs come back. A refused create is a
-  // sentence, not an error. askOptional (agentry-desktop#795): the start
+  // sentence, not an error. askOptional: the start
   // asks the registry to name an optional key the account does not keep
   // too, so the ask below takes it as it takes a required one; the start
   // the ask makes again does not, so an optional key left empty is gone
@@ -846,8 +835,8 @@ export default function RunPanel({
         : () => RunAPI.StartHostedRun(registry, agentRef, task, inputs, outDir.trim(), intakeAnswers(), attached, writeInVoice, askOptional, tokensForRun(sourceQs, intakeValues, typed));
       const started = await startedInAgentry(call);
       // A server Agentry keeps no connection to for this version: Connect
-      // tools opens in the browser now, at Start (plan D5), and the start
-      // is made again until Agentry holds it (agentry-desktop#667).
+      // tools opens in the browser now, at Start, and the start
+      // is made again until Agentry holds it.
       if (started?.refusal === "connection-missing") {
         RunAPI.OpenHostedConnect(registry, agentRef).catch((e) => setRunErr(String(e)));
         void awaitConnections();
@@ -860,9 +849,8 @@ export default function RunPanel({
   }
 
   // A start's answer In Agentry, followed: a chat above the pages once the
-  // registry has created it (agentry-desktop#467), a run likewise
-  // (agentry-desktop#466), and this setup closes; a refusal stays here, with
-  // its ask before any run exists.
+  // registry has created it, a run likewise, and this setup closes; a refusal
+  // stays here, with its ask before any run exists.
   async function startedInAgentry(call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> {
     const setup = { panel: { registry, ns, name, version, summary, attestation, local }, form: currentForm() };
     if (sessionInAgentry) {
@@ -1015,7 +1003,7 @@ export default function RunPanel({
           {step === "start" && (
             <>
               <h4>What it does</h4>
-              {/* The author's guide (manifest v2, DEV-141; agentry-desktop#228)
+              {/* The author's guide (manifest v2)
                   speaks first when the release has one: the overview is
                   markdown under the same rules as a run's output, and the
                   prepare list is shown as text. Without one, the summary and
@@ -1035,8 +1023,8 @@ export default function RunPanel({
                 ).map((line, i) => <li key={i}><GuideText text={line} /></li>)}
               </ul>
               <h4>Where to run it</h4>
-              {/* Run mode (plan §7): the modes the release declares, plus In
-                  Agentry where the registry runs it (hosted-runs.md §4.7). */}
+              {/* Run mode: the modes the release declares, plus In
+                  Agentry where the registry runs it. */}
               {profile && (profile.modes ?? []).length > 0 && (
                 <>
                   <div className="row" style={{ gap: 14 }}>
@@ -1061,7 +1049,7 @@ export default function RunPanel({
                         </span>
                       </label>
                     )}
-                    {/* Talk to it In Agentry (agentry-desktop#403): offered only
+                    {/* Talk to it In Agentry: offered only
                         where the registry runs sessions and says this account's
                         payer may start one; a Standard payer sees why. */}
                     {hosted?.session?.offered && (
@@ -1118,7 +1106,7 @@ export default function RunPanel({
                   )}
                 </>
               )}
-              {/* Machine readiness (§P1) — the local modes only; a run In
+              {/* Machine readiness — the local modes only; a run In
                   Agentry needs nothing from this machine. */}
               {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
               {setup && !setup.dockerOk && !inAgentry && (
@@ -1145,8 +1133,7 @@ export default function RunPanel({
               {unscanned && hosted?.offered && (
                 <p className="muted small">A run In Agentry is not offered for this release: the registry admitted it without a scan.</p>
               )}
-              {/* A target host is reached only from this computer (plan
-                  runtime-hosts.md D11; agentry-desktop#812). */}
+              {/* A target host is reached only from this computer. */}
               {hosted?.targetHosts && (
                 <p className="muted small">A run In Agentry is not offered for this QuickAgent: it works a server you name over SSH, which only a run on this computer does.</p>
               )}
@@ -1312,9 +1299,9 @@ export default function RunPanel({
                   <DeclaredServersTable servers={mcp?.declaredServers} />
                 </>
               )}
-              {/* The servers that sign in by OAuth (agentry-desktop#666): on
+              {/* The servers that sign in by OAuth: on
                   this computer, Connect; In Agentry, Agentry's own
-                  connections, made on the site (agentry-desktop#667). */}
+                  connections, made on the site. */}
               {conns && conns.servers.length > 0 && !inAgentry && (
                 <ServerSignIns registry={registry} agentRef={agentRef} release={conns} onChanged={readConns} />
               )}
@@ -1322,7 +1309,7 @@ export default function RunPanel({
                 <HostedSignIns registry={registry} agentRef={agentRef} servers={conns.servers.filter((c) => !c.unsupported).map((c) => c.server)} />
               )}
               {/* In Agentry the keys are the account's secrets there, asked
-                  for at the start (agentry-desktop#300); the profile below
+                  for at the start; the profile below
                   is this machine's. */}
               {inAgentry && hosted && profile && profile.declaredSecrets.length > 0 && (
                 <>
@@ -1330,7 +1317,7 @@ export default function RunPanel({
                   <HostedSecretsNote hosted={hosted} />
                 </>
               )}
-              {/* Guided MCP-profile setup (§P3). */}
+              {/* Guided MCP-profile setup. */}
               {!inAgentry && profile && profile.declaredSecrets.length > 0 && (
                 <>
                   <h4>Keys</h4>
@@ -1347,8 +1334,7 @@ export default function RunPanel({
                   )}
                   {/* Every key optional and none saved: the form does not open
                       by itself, so it is offered, and an optional key is set
-                      here rather than only in the environment
-                      (agentry-desktop#784). */}
+                      here rather than only in the environment. */}
                   {!formOpen && offerSetKeys(profile) && (
                     <div className="row">
                       <span className="muted small">
@@ -1386,7 +1372,7 @@ export default function RunPanel({
                           />
                           {/* The author's help for this key: where to create
                               it, which access it needs, as markdown under
-                              the output reader's rules (DEV-167). */}
+                              the output reader's rules. */}
                           {connectHelp(guide?.connect, s) && (
                             <div className="run-key-help">
                               <AuthorHelp name={s} help={connectHelp(guide?.connect, s)} />
@@ -1421,7 +1407,7 @@ export default function RunPanel({
 
           {step === "details" && (
             <>
-              {/* Up-front questions (manifest v2 intake, plan §3.5): the same form
+              {/* Up-front questions (manifest v2 intake): the same form
                   shape as the profile; answers are staged read-only for the agent. */}
               {profile && profile.intake.length > 0 && (
                 <>
@@ -1668,7 +1654,7 @@ export default function RunPanel({
               )}
               <div className="row">
                 {/* Filled by the picker only: Go accepts a path a native dialog
-                    returned in this process and refuses one the page typed (D-030). */}
+                    returned in this process and refuses one the page typed. */}
                 <input
                   type="text"
                   className="grow mono"
@@ -1687,7 +1673,7 @@ export default function RunPanel({
             <>
               {/* The ceilings have the policy's defaults and the keep toggle its
                       recorded choice: none is needed for a run, so they sit under
-                      Advanced (agentry-desktop#167). */}
+                      Advanced. */}
                   <details className="advanced">
                     <summary className="muted small">Advanced</summary>
                   {mode === "interactive" && (
@@ -1698,7 +1684,7 @@ export default function RunPanel({
                   )}
                   <div className="row">
                     {/* A chat's only time limit is Run defaults' Chat idle timeout,
-                        which Go reads itself (agentry-desktop#468). */}
+                        which Go reads itself. */}
                     {mode !== "interactive" && <label className="row" style={{ gap: 6 }}>
                       <span className="muted small">timeout (s)</span>
                       <input
@@ -1799,8 +1785,8 @@ export default function RunPanel({
                   <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
                     {blockers.map((b) => <li key={b}>{b}</li>)}
                   </ul>
-                  {/* A gap is fixed in place where the setup has the place
-                      (plan D8): the keys on Connect tools; the model key in
+                  {/* A gap is fixed in place where the setup has the place:
+                      the keys on Connect tools; the model key in
                       the keychain is Settings → Model provider. */}
                   {scheduling && check.state === "done" && !check.ready && (
                     <p className="small" style={{ margin: "4px 0 0" }} data-when-fixes>
@@ -1815,12 +1801,11 @@ export default function RunPanel({
                 </div>
               )}
               {/* A refused create, as a sentence — and, for credits, the way
-                  onward the Build page already offers (desktop#74). */}
+                  onward the Build page already offers. */}
               {/* The declared secrets the account does not keep: asked for
                   here, each with Keep it for later runs unticked, then the
-                  start is made again (plan D12, agentry-desktop#300); an
-                  optional one marked, and allowed to stay empty
-                  (agentry-desktop#795). */}
+                  start is made again; an
+                  optional one marked, and allowed to stay empty. */}
               {hostedRefusal?.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0 && (
                 <HostedSecretsAsk
                   registry={registry}
@@ -1832,7 +1817,7 @@ export default function RunPanel({
               )}
               {/* The servers Agentry keeps no connection to for this
                   version: Connect tools is open in the browser, and the
-                  start is made again until it holds them (agentry-desktop#667). */}
+                  start is made again until it holds them. */}
               {connecting && hostedRefusal && (
                 <HostedConnectAsk
                   registry={registry}
@@ -1866,7 +1851,7 @@ export default function RunPanel({
                     <p className="small" style={{ marginBottom: 0 }}>
                       {/* The destination is the registry's to name and the app's
                           to check, so this asks for the registry and never hands
-                          a URL to be opened (agentry-enterprise#41). */}
+                          a URL to be opened. */}
                       <Button onClick={() => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e)))}>
                         Credits and upgrade
                       </Button>
@@ -1911,7 +1896,7 @@ function gapAsksSecrets(gap: main.HostedScheduleMadeView): boolean {
 }
 
 /** What the registry would not schedule In Agentry yet, and its fix in
- *  place (plan quickagent-scheduling.md D8; agentry-desktop#745): the
+ *  place: the
  *  secrets to keep, asked for here; the connections, made in the browser
  *  on Connect tools; the plan, through the upgrade page; anything else in
  *  the registry's own words. */

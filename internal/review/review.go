@@ -1,15 +1,13 @@
-// Package review is Review Your QuickAgents locally (plan
-// desktop-review-key-and-run-cards.md §6.3, D2, D19, D20, D24, D25, D28;
-// agentry-desktop#469): the CLI's built-in Examiner, run on this computer
-// over a QuickAgent the person built, with their own TypeSafe key and the
-// model their runner policy names, for no credits. It drives the CLI's own
-// pkg/examiner in the order `agentry review` does: the pre-step runs the
-// registry's rules here and stages a read-only copy of the files a
-// submission would carry; the Examiner runs over that copy with the review
-// grant (AI Review asked as stage S5 asks it, every file it reads scanned
-// first); the post-step writes report.json beside the run's receipts, in a
-// folder no earlier run wrote. The staged copy is removed when the review
-// returns, whatever it returns with.
+// Package review is Review Your QuickAgents locally: the CLI's built-in
+// Examiner, run on this computer over a QuickAgent the person built, with
+// their own TypeSafe key and the model their runner policy names, for no
+// credits. It drives the CLI's own pkg/examiner in the order `agentry
+// review` does: the pre-step runs the registry's rules here and stages a
+// read-only copy of the files a submission would carry; the Examiner runs
+// over that copy with the review grant (AI Review asked as stage S5 asks
+// it, every file it reads scanned first); the post-step writes report.json
+// beside the run's receipts, in a folder no earlier run wrote. The staged
+// copy is removed when the review returns, whatever it returns with.
 package review
 
 import (
@@ -58,8 +56,7 @@ type Plan struct {
 // Budgets are the review's: the runner policy's, with the Examiner's own
 // timeout floor (30 minutes, since one rubric review may take 15), as
 // `agentry review` gives it, or no limit shown while Run defaults' no-limit
-// switch for the built-in agents is on, the default (settings.BuiltinBudgets,
-// D-062).
+// switch for the built-in agents is on, the default (settings.BuiltinBudgets).
 func (p *Plan) Budgets() settings.BuiltinLimits {
 	return settings.BuiltinBudgets(localrun.Examiner(), p.Policy.Budgets)
 }
@@ -93,8 +90,8 @@ const noKeySentence = "Reviewing on this computer needs your own TypeSafe Jev ke
 // Prepare checks a review before anything leaves this computer: the
 // folder holds a QuickAgent, the runner policy, and the person's own key,
 // read as a draft reads it. Without the key it refuses, saying where to add
-// one, and nothing else happens (D28). Like a draft's, it writes the
-// default runner policy when there is none.
+// one, and nothing else happens. Like a draft's, it writes the default
+// runner policy when there is none.
 func Prepare(dir string) (*Plan, error) {
 	m, err := validate.ReadManifest(dir)
 	if err != nil {
@@ -163,8 +160,7 @@ type Request struct {
 	Runner func(context.Context, localrun.Run) (*receipt.Envelope, error)
 	// OnStaged is told where the pre-step staged its copy, before the
 	// Examiner starts, so the caller's crash path can record it and sweep it
-	// when the app dies mid-review (agentry-desktop#463's sweep); nil tells
-	// nobody.
+	// when the app dies mid-review; nil tells nobody.
 	OnStaged func(dir string)
 	// Progress, when set, is told how far the review has got; nil tells
 	// nobody.

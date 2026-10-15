@@ -1,19 +1,18 @@
 package hostedrun
 
-// Schedules In Agentry (plan quickagent-scheduling.md §6, §7, M10;
-// agentry-desktop#745): the client for the enterprise schedules extension
-// (agentry-enterprise schemas/x-schedules.yaml, M7). A schedule runs a
+// Schedules In Agentry: the client for the enterprise schedules extension
+// (agentry-enterprise schemas/x-schedules.yaml). A schedule runs a
 // QuickAgent In Agentry once later or on a repeat; every occurrence fires
 // once, through the runs extension's own create, as its owner. The routes
 // take the account's token: run:read to read, run:write to change, the
 // scopes a run In Agentry already asks for, so the app mints no new one.
 //
-// No token reads the account's secrets or connections (DEV-165), and the
-// extension has no dry run: a create is the check (D8). It runs the run's
-// own create, stopped before anything is held, with the schedule's
-// credential, and stores nothing unless every input a fire needs is in
-// place; its refusal names what is missing (secret-missing,
-// secret-not-kept, connection-missing, …) for the app to offer the fix.
+// No token reads the account's secrets or connections, and the extension
+// has no dry run: a create is the check. It runs the run's own create,
+// stopped before anything is held, with the schedule's credential, and
+// stores nothing unless every input a fire needs is in place; its refusal
+// names what is missing (secret-missing, secret-not-kept,
+// connection-missing, …) for the app to offer the fix.
 
 import (
 	"context"
@@ -86,8 +85,8 @@ type ScheduleRequest struct {
 	Inputs []string    `json:"inputs,omitempty"`
 	When   *Recurrence `json:"when,omitempty"`
 	// AskOptionalSecrets makes the create's or the edit's check refuse an
-	// optional secret the account does not keep, as a required one
-	// (agentry-enterprise#517); the schedule does not keep it.
+	// optional secret the account does not keep, as a required one; the
+	// schedule does not keep it.
 	AskOptionalSecrets bool `json:"ask_optional_secrets,omitempty"`
 }
 

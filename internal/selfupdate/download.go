@@ -20,7 +20,7 @@ import (
 // Both fields come from the signed sums and nothing else. That is the whole
 // design: the manifest is written by the site and is not signed, so a name or
 // a digest taken from it would be a name or a digest whoever serves the site
-// chose. The sums are covered by the estate's key, so a release can only
+// chose. The sums are covered by the update-signing key, so a release can only
 // offer the files it actually signed, under the digests it actually signed.
 type Artifact struct {
 	Name   string
@@ -40,12 +40,12 @@ const maxArtifact = 512 << 20
 // looked up, never taken.
 //
 //   - Windows installs from the per-user setup executable, which is what
-//     makes a silent reinstall possible without elevation (D11, M2).
+//     makes a silent reinstall possible without elevation.
 //   - macOS installs from the zip rather than the dmg: a zip is unpacked with
 //     no mounting and no privileges, where a dmg needs hdiutil and leaves a
 //     mount to clean up. The dmg is what a person downloads; the zip is what
-//     the app swaps (plan §7).
-//   - Linux gets nothing. A .deb or .rpm belongs to the package manager (D7),
+//     the app swaps.
+//   - Linux gets nothing. A .deb or .rpm belongs to the package manager,
 //     and this returns the refusal rather than a file.
 func ArtifactFor(sums, version, goos, goarch string) (Artifact, error) {
 	var want string
@@ -101,9 +101,9 @@ func Download(ctx context.Context, client *http.Client, manifestURL string, a Ar
 	}
 
 	// A name from the signed sums is already one of ours, but it still becomes
-	// a path here, so it is reduced to its last element and checked — a
-	// defence that costs nothing and would matter the day the release
-	// workflow's matrix grew a name with a slash in it.
+	// a path here, so it is reduced to its last element and checked — a defence
+	// that costs nothing and would matter if a release ever named a file with a
+	// slash in it.
 	name := filepath.Base(filepath.Clean("/" + a.Name))
 	if name == "." || name == string(filepath.Separator) || name != a.Name {
 		return "", fmt.Errorf("the release names %q, which is not a plain file name", a.Name)
@@ -132,8 +132,7 @@ func Download(ctx context.Context, client *http.Client, manifestURL string, a Ar
 	//
 	// written, not the named return: `return "", err` sets path to "" BEFORE
 	// the deferred function runs, so a defer that used path would remove ""
-	// and leave the rejected bytes on disk. That is not hypothetical — it is
-	// what this code did until the test for it was written.
+	// and leave the rejected bytes on disk. A test holds it.
 	written := path
 	defer func() {
 		if err != nil {
@@ -170,7 +169,7 @@ func (r *Release) ThisPlatform() (Artifact, error) {
 // Re-running it rather than reading Release.Retired is the point. That field
 // was set when the check ran, which may have been a day ago in a process that
 // has been asleep; and a boolean a caller has to remember to read is the
-// shape D-026 replaced with a function precisely because it is forgettable.
+// shape a function replaces precisely because it is forgettable.
 // Installing is the operation where forgetting it installs something, so the
 // question is asked again, of the same bytes, through the call that refuses a
 // retired key on its own.

@@ -5,27 +5,26 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// Run defaults → Unsafe Mode (agentry-notes plans/unsafe-mode.md M3;
-// agentry-desktop#418, D-050). While the switch is on, a run on this
-// computer no longer needs this machine's exec catalogue to name each
-// command the QuickAgent declares: the commands are installed from the
-// Unsafe Mode image (Kali Linux) instead, and each runs with that image's
-// PATH (the CLI's DR-53). It is also the one way a declared MCP server the
-// registry's gate rates high or critical runs here, with the person's consent for each
-// run (agentry-desktop#459, D-055). Nothing else about a run changes, and
-// a run In Agentry never carries it (D7).
+// Run defaults → Unsafe Mode. While the switch is on, a run on this computer
+// no longer needs this machine's exec catalogue to name each command the
+// QuickAgent declares: the commands are installed from the Unsafe Mode image
+// (Kali Linux) instead, and each runs with that image's PATH. It is also the
+// one way a declared MCP server the registry's gate rates high or critical
+// runs here, with the person's consent for each run. Nothing else about a
+// run changes, and a run In Agentry never carries it.
 //
-// The renderer is not a principal (D-030), so the page cannot turn it on:
-// SetUnsafeMode(true) is a native confirmation the page cannot answer,
-// then the image's pull, and only then is unsafeMode written to
-// desktop.yaml. No other binding writes it, and no run binding takes it as
-// an argument: RunAgent and StartSession read it from that file.
+// The renderer is not a principal, so the page cannot turn it on:
+// SetUnsafeMode(true) is a native confirmation the page cannot answer, then
+// the image's pull, and only then is unsafeMode written to desktop.yaml. No
+// other binding writes it, and no run binding takes it as an argument:
+// RunAgent and StartSession read it from that file.
 
-// The confirmation's words. The first two sentences are the plan's (§4.2);
-// the rest says what DR-53 added (PyPI for the tools Kali does not package,
-// the image's PATH in an image that keeps everything it installed) and what
-// stays, without saying more than is enforced: run_command's allowlist is
-// the declared names, and a declared interpreter can start anything.
+// The confirmation's words. The first two sentences say what the switch
+// does; the rest says what the image adds (PyPI for the tools Kali does not
+// package, the image's PATH in an image that keeps everything it installed)
+// and what stays, without saying more than is enforced: run_command's
+// allowlist is the declared names, and a declared interpreter can start
+// anything.
 const (
 	unsafeConfirmTitle   = "Turn on Unsafe Mode?"
 	unsafeConfirmMessage = "QuickAgents can run commands this computer has not approved. Each command is installed from Kali Linux's repository when the QuickAgent first runs. Tools Kali does not package come from PyPI.\n\n" +
@@ -45,7 +44,7 @@ func unsafeModeOn() bool {
 // they now stand.
 //
 // Off is immediate and removes nothing: the images stay until the person
-// removes them (D12; Run defaults → Docker images).
+// removes them (Run defaults → Docker images).
 //
 // On asks in a native dialog first, then pulls the Unsafe Mode image under
 // the run lock with its progress streamed as runner:unsafe-progress, and
@@ -86,11 +85,10 @@ func (r *RunAPI) SetUnsafeMode(on bool) (*RunDefaultsView, error) {
 
 // setUnsafeLive records whether the live run is in Unsafe Mode and tells the
 // shell when that changes: true from the start of a run that read the switch
-// on, then its compile's answer, and false when endRun ends it
-// (agentry-desktop#479, D-050's addendum). Turning the switch off changes
-// the next run, never this one, so the window keeps saying so while this
-// one is live. The change and its event are one step under unsafeMu, and
-// nothing is recorded for a run that has ended.
+// on, then its compile's answer, and false when endRun ends it. Turning the
+// switch off changes the next run, never this one, so the window keeps
+// saying so while this one is live. The change and its event are one step
+// under unsafeMu, and nothing is recorded for a run that has ended.
 func (r *RunAPI) setUnsafeLive(l *liveRun, on bool) {
 	r.unsafeMu.Lock()
 	defer r.unsafeMu.Unlock()
@@ -103,7 +101,7 @@ func (r *RunAPI) setUnsafeLive(l *liveRun, on bool) {
 
 // UnsafeLive says whether a run or chat in Unsafe Mode is live on this
 // computer now: the shell draws the red edge and the badge while it is or
-// the switch is on. A run In Agentry is never one (D7).
+// the switch is on. A run In Agentry is never one.
 func (r *RunAPI) UnsafeLive() bool {
 	r.unsafeMu.Lock()
 	defer r.unsafeMu.Unlock()
@@ -124,8 +122,8 @@ type UnsafeNoticeView struct {
 
 // UnsafeNotice says whether Unsafe Mode is on and, when it is, the line a
 // run of ref on this computer carries: the declared commands, and the ones
-// the Unsafe Mode image cannot provide (D8). It resolves the release as a
-// run would and pulls nothing. The page shows it; it decides nothing.
+// the Unsafe Mode image cannot provide. It resolves the release as a run
+// would and pulls nothing. The page shows it; it decides nothing.
 func (r *RunAPI) UnsafeNotice(reg, ref string) (*UnsafeNoticeView, error) {
 	if !unsafeModeOn() {
 		return &UnsafeNoticeView{Unplaced: []string{}}, nil

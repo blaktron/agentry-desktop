@@ -16,9 +16,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/build"
 )
 
-// A draft In Agentry (plan builder-rework.md §7.5, D15, D16; #281): the
-// sandbox host's output.tar is unpacked into the run's folder as any run
-// In Agentry's is, and the draft.json at its root is read here as data.
+// A draft In Agentry: the sandbox host's output.tar is unpacked into the
+// run's folder as any run In Agentry's is, and the draft.json at its
+// root is read here as data.
 // That file was written on a sandbox host by a model that read the web, so
 // it is held to bounds before any of it reaches the page, and it is never
 // opened, launched or written anywhere: the form's Model comes from it
@@ -45,10 +45,10 @@ const (
 var draftJSONFields = map[string]bool{
 	"manifest": true, "instructions": true, "notes": true, "matches": true, "sources": true, "openQuestions": true,
 	"drafter": true, "aiReview": true, "validation": true, "manifestError": true,
-	// The person's packs the Drafter read (agentry-desktop#497).
+	// The person's packs the Drafter read.
 	"knowledge": true,
-	// The release a revision drafted the next version of
-	// (agentry-desktop#501): its ref and archive digest.
+	// The release a revision drafted the next version of:
+	// its ref and archive digest.
 	"revises": true,
 }
 
@@ -234,8 +234,8 @@ func holdDraft(d *drafter.Draft) error {
 	return nil
 }
 
-// holdCheck holds AI Review's check of the finished draft (aiReview.check,
-// agentry-cli#418) as holdDraft holds the rest: the findings' count and
+// holdCheck holds AI Review's check of the finished draft (aiReview.check)
+// as holdDraft holds the rest: the findings' count and
 // each finding's id and path, the flags, the scores, the hash, the model,
 // the question set, each failure, and why a check had no answer.
 func holdCheck(c *drafter.Check, list func(string, int) error, value func(string, string, int) error) error {

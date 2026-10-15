@@ -1,29 +1,28 @@
-// The interactive run surface (plan §7, D-017): a chat over a session, one
-// component with two transports (plan hosted-sessions.md §5, §6;
-// agentry-desktop#403).
+// The interactive run surface: a chat over a session, one
+// component with two transports.
 //
 // On this machine it drives the runner's session API: every message goes
 // through RunAPI.SendTurn, every file through RunAPI.AddSessionInput, and
 // the engine ends the session on the operator's caps whatever this view
 // does. Finish asks the agent for its final result before teardown; Stop
 // ends without one. Either way the receipts folder holds transcript.md and
-// the session's events. Its strip has no caps and no meter (D9).
+// the session's events. Its strip has no caps and no meter.
 //
-// In Agentry it follows a hosted session the registry relays: the same
-// events, from runner:hosted-session-event, with the run's state and
-// session record from runner:hosted-session-state; messages, files and the
-// end go through SendHostedTurn, AddHostedSessionFile and EndHostedSession.
-// Its strip says the time it has run, the free minutes left, the credits
-// its time has cost and the idle close, and D2's sentence sits beside the
-// input. The result, once it ends, is the chat's flow's result view
-// (ChatFlow) over the sealed output, which holds transcript.md.
+// In Agentry it follows a hosted session the registry relays: the same events,
+// from runner:hosted-session-event, with the run's state and session record
+// from runner:hosted-session-state; messages, files and the end go through
+// SendHostedTurn, AddHostedSessionFile and EndHostedSession. Its strip says the
+// time it has run, the free minutes left, the credits its time has cost and the
+// idle close, and the transport sentence sits beside the input. The result,
+// once it ends, is the chat's flow's result view (ChatFlow) over the sealed
+// output, which holds transcript.md.
 import { useEffect, useRef, useState } from "react";
 import { ChooseFiles } from "../../wailsjs/go/main/App";
 import { Button, ErrorBox, Input, Spinner } from "../ui";
 import { addChatFiles, endChat, sendChat } from "../runs";
 import { SESSION_TRANSPORT_SENTENCE, endText, hostedStatusLine, localStatusLine, working, type ChatRecord } from "../sessionChat";
 
-// Since agentry-desktop#467 the chat's store (runs.ts over sessionChat.ts's
+// The chat's store (runs.ts over sessionChat.ts's
 // createChatStore) starts the session and owns its events, messages, files
 // and end; this component only draws the record it is given, so the chat's
 // dialog can close into its corner card and open again with nothing lost

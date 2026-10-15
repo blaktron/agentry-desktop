@@ -1,10 +1,9 @@
-// Fork in the desktop (plan forks-and-publisher.md §5, D6–D10, D12; M7,
-// agentry-desktop#706): which QuickAgent the agent page offers Fork on,
+// Fork in the desktop: which QuickAgent the agent page offers Fork on,
 // how a fork's origin and copy are said, and how a new fork's progress
-// reads while the Publisher section follows it, in the site's words
-// (agentry-web lib/fork.ts). Pure, so the node tests can import it. Go
-// makes the fork and says what happened (services_fork.go); the core
-// decides every rule, so what is drawn here only saves a refused click.
+// reads while the Publisher section follows it, in the site's words.
+// Pure, so the node tests can import it. Go makes the fork and says what
+// happened (services_fork.go); the core decides every rule, so what is
+// drawn here only saves a refused click.
 
 /** The fields of the agent page's model that decide what it says of forks. */
 export interface ForkAgent {
@@ -63,7 +62,7 @@ function sentenceOf(s: string): string {
   return /[.!?]$/.test(head) ? head : `${head}.`;
 }
 
-/** A public QuickAgent's fork count, a number only (invariant 5: nothing
+/** A public QuickAgent's fork count, a number only (nothing
  * names a fork to the origin's publisher). */
 export function forkCountLine(n: number | undefined): string | null {
   if (n === undefined || n <= 0) return null;

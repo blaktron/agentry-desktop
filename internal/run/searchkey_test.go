@@ -1,10 +1,10 @@
 package run
 
-// The person's own web search key (#301): a provider the runner policy
-// admits, its key kept in the OS keychain as provider:<provider>, the
-// provider and the source recorded in the policy, shown as saved and never
-// as its value, never logged, and tested with one search whose answer is
-// said in plain words. A key saved for one provider never serves another.
+// The person's own web search key: a provider the runner policy admits,
+// its key kept in the OS keychain as provider:<provider>, the provider and
+// the source recorded in the policy, shown as saved and never as its
+// value, never logged, and tested with one search whose answer is said in
+// plain words. A key saved for one provider never serves another.
 
 import (
 	"context"

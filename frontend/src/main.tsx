@@ -6,7 +6,7 @@ import {Recover} from './Recover'
 import {installDropGuard} from './dropGuard'
 
 // A file or link dropped where no page takes it must not open in place of
-// the app (agentry-desktop#644).
+// the app.
 installDropGuard(window)
 
 const container = document.getElementById('root')
@@ -16,7 +16,7 @@ const root = createRoot(container!)
 root.render(
     <React.StrictMode>
         {/* The last catch: a fault in the shell itself would otherwise
-            leave a blank window (agentry-desktop#351). */}
+            leave a blank window. */}
         <Recover subject="Agentry Desktop" recoverLabel="Reload" onRecover={() => window.location.reload()}
                  hint="Reload starts it again from the beginning.">
             <App/>

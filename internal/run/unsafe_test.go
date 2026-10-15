@@ -20,12 +20,10 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/unsafeexec"
 )
 
-// Unsafe Mode's desktop half (plan unsafe-mode.md M3; agentry-desktop#418).
-// The runner's half, and invariants 1–3, 8 and 9, are the CLI's tests
-// (DR-53); these hold what the desktop adds: a run carries Unsafe Mode
-// only when its request says so (invariant 4), a plan compiled one way is
-// never reused the other way, and the consent line names what the image
-// cannot provide (D8).
+// Unsafe Mode's desktop half. The runner's half is the CLI's tests;
+// these hold what the desktop adds: a run carries Unsafe Mode only when
+// its request says so, a plan compiled one way is never reused the
+// other way, and the consent line names what the image cannot provide.
 
 // testUnsafeBase is a well-formed base pinned by digest, as the policy's
 // default is.
@@ -53,8 +51,8 @@ func testUnsafeData(t *testing.T, base string) *unsafeexec.Data {
 }
 
 // A plan compiled with Unsafe Mode on is never reused by a run with it
-// off, and the other way round; the hand-off of agentry-cli#490 asked for
-// exactly this, and the CLI's own reuse refuses such a plan too.
+// off, and the other way round, as the CLI's own reuse refuses such a plan
+// too.
 func TestEnsurePlanRecompilesWhenUnsafeModeDiffersFromTheSwitch(t *testing.T) {
 	home := isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
@@ -208,11 +206,10 @@ func unsafeRunFixture(t *testing.T) (string, *dockerx.Fake) {
 func TestARunIsUnsafeOnlyWhenItsRequestSaysSo(t *testing.T) {
 	regURL, fake := unsafeRunFixture(t)
 
-	// Off (the request's zero value, which is what a run has when
-	// desktop.yaml says nothing): the catalogue refuses, and nothing of
-	// Unsafe Mode was read or built.
-	// compiled counts PlanCompiled's Unsafe answers, the desktop's signal
-	// to keep the red edge up while the run is live (agentry-desktop#479).
+	// Off (the request's zero value, which is what a run has when desktop.yaml
+	// says nothing): the catalogue refuses, and nothing of Unsafe Mode was read or
+	// built. compiled counts PlanCompiled's Unsafe answers, the desktop's signal
+	// to keep the red edge up while the run is live.
 	compiled := 0
 	counted := func(req Request) Request {
 		req.PlanCompiled = func(unsafe bool) {
@@ -359,8 +356,7 @@ func TestUnsafeNoticeNamesWhatTheImageCannotProvide(t *testing.T) {
 // The line goes into a native dialog, and the names in it come from a
 // registry's resolve answer, which nothing has verified yet. A hostile
 // answer cannot write the dialog: only names that pass the command grammar
-// are shown, the rest are counted, and each list is bounded (the review of
-// agentry-desktop#418).
+// are shown, the rest are counted, and each list is bounded.
 func TestUnsafeNoticeShowsOnlyCommandNamesAndBoundsThem(t *testing.T) {
 	isolateRunEnv(t)
 	doc := manifestDocFromYAML(t, runManifestYAML)
@@ -410,7 +406,7 @@ func TestUnsafeNoticeShowsOnlyCommandNamesAndBoundsThem(t *testing.T) {
 }
 
 // Turning Unsafe Mode on pulls the base the policy names and reads its
-// data back before the switch may read on (plan D2, D6).
+// data back before the switch may read on.
 func TestTurningUnsafeModeOnPullsTheBaseAndReadsItsIndex(t *testing.T) {
 	isolateRunEnv(t)
 

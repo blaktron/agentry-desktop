@@ -2,10 +2,10 @@ import { main } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { fmtDuration } from "../../usage";
 
-// Home's Run defaults card (agentry-desktop#658): where runs go, their time
+// Home's Run defaults card: where runs go, their time
 // and turn limits, the output folder, and Unsafe Mode while it is on, as
 // Settings → Run defaults keeps them. It edits nothing; the card opens that
-// page (D9).
+// page.
 export function RunDefaultsCard({ defaults, error, onOpen }: {
   defaults: main.RunDefaultsView | null;
   error: string | null;

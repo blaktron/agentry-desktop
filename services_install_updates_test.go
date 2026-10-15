@@ -36,12 +36,12 @@ func resolveStub(t *testing.T, version string) string {
 	return srv.URL
 }
 
-// The last check's result is a snapshot the chrome reads (agentry-
-// desktop#147, D8): a read never starts a check; a record whose registry
-// cannot be reached is that record's line and counts nothing; only a row
-// this app manages, whose directory is there, counts toward the badge;
-// one QuickAgent's check on the agent page refreshes its row in place;
-// an install, an update or a removal refreshes its row at once.
+// The last check's result is a snapshot the chrome reads: a read never
+// starts a check; a record whose registry cannot be reached is that record's
+// line and counts nothing; only a row this app manages, whose directory is
+// there, counts toward the badge; one QuickAgent's check on the agent page
+// refreshes its row in place; an install, an update or a removal refreshes
+// its row at once.
 func TestInstallUpdatesStatusIsASnapshot(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	home := t.TempDir()

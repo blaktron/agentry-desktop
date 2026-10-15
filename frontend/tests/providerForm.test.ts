@@ -1,7 +1,7 @@
-// The provider form's base URL travels for the custom provider only
-// (agentry-desktop#724): a URL loaded from a custom policy, or typed and
+// The provider form's base URL travels for the custom provider only:
+// a URL loaded from a custom policy, or typed and
 // left behind on a switch, must not reach ApplySetup with a known
-// provider, which refuses it (D-030).
+// provider, which refuses it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { baseURLFor, takesBaseURL, tileAfterKey } from "../src/providerForm.ts";
@@ -22,7 +22,7 @@ test("only the custom provider shows the field", () => {
   for (const provider of ["anthropic", "openai", "google"]) assert.equal(takesBaseURL(provider), false, provider);
 });
 
-// The provider tiles are one radio group (agentry-desktop#830): the arrows
+// The provider tiles are one radio group: the arrows
 // walk them in order and wrap, Home and End go to the ends, and a provider
 // no tile names starts the walk at an end.
 test("the arrows move the provider choice as a radio group's do", () => {

@@ -14,9 +14,9 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// The install consent's shipped knowledge (agentry-desktop#277): each pack's
-// size is read from the verified archive's headers, and the archive may not
-// ship a pack the consented contract did not name.
+// The install consent's shipped knowledge: each pack's size is read from the
+// verified archive's headers, and the archive may not ship a pack the
+// consented contract did not name.
 func TestShippedPackSizesFromTheArchive(t *testing.T) {
 	dir := t.TempDir()
 	pack := knowledgetest.Make(t, "aws-docs", nil)

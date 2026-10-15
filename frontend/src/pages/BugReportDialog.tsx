@@ -3,9 +3,9 @@ import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import { Button, ErrorBox, Modal, Notice, Textarea } from "../ui";
 import { bugReportOutcome, bugTextProblem } from "../bugReport";
 
-// Report bug (plan report-bug.md §6, D1, D2, D6; agentry-desktop#841): the
-// card the sidebar's link above the version opens. Signed out, it says so
-// and offers Settings' sign-in instead of the box (D1). Submit files the
+// Report bug: the card the sidebar's link above the version opens. Signed
+// out, it says so and offers Settings' sign-in instead of the box. Submit
+// files the
 // text with the active registry as the person (SettingsAPI.ReportBug),
 // with the app's version and OS; filed, it thanks them and closes itself.
 // The text is plain text and is shown back only in the box.

@@ -1,10 +1,9 @@
 // Self-update bindings: whether a newer Agentry Desktop exists, and the
-// toggle that decides whether the app looks (agentry-desktop#87; plan
-// desktop-installers.md §7, D5, D6, D7).
+// toggle that decides whether the app looks.
 //
 // Notify only. Nothing here downloads or replaces anything; applying an
-// update is M7 (#88) on Windows and macOS, and on Linux it is the package
-// manager's job for good (D7), so this surface is the whole feature there.
+// update is a separate step on Windows and macOS, and on Linux it is the
+// package manager's job, so this surface is the whole feature there.
 //
 // The name is SELF-UPDATE throughout, never "update" alone: internal/install
 // already owns that word for an installed QuickAgent, and a person reading
@@ -56,16 +55,14 @@ type SelfUpdateView struct {
 	// commit come from the signature, not from the manifest.
 	Available *selfupdate.Release `json:"available,omitempty"`
 	// Err is a sentence for the person when the last check could not be
-	// completed or could not be believed. A verification failure says what it
-	// is; it is never retried quietly and never falls back to "the checksum
-	// matched" (plan §3).
+	// completed or could not be believed. A verification failure says what
+	// it is; it is never retried quietly and never falls back to "the
+	// checksum matched".
 	Err string `json:"err,omitempty"`
 	// DownloadURL is where to get the release: the download page of the site
 	// this build checks, derived from the channel rather than configured
 	// separately — one fewer thing to point at the wrong place. Releases are
-	// on GitHub too since DEV-148 (agentry-desktop#192), but the repository
-	// is private until the flip, so the site's page is the destination a
-	// person can open.
+	// on GitHub too; the site's page is the destination a person can open.
 	DownloadURL string `json:"downloadUrl,omitempty"`
 	// Nothing is set when the channel answered but publishes no signed
 	// release at all. Distinct from "nothing newer", because they are
@@ -73,7 +70,7 @@ type SelfUpdateView struct {
 	Nothing bool `json:"nothing,omitempty"`
 	// CanApply is true when this platform installs a newer Agentry Desktop
 	// from inside the app AND this copy is somewhere the person can replace.
-	// False on Linux always (D7), and on a copy installed for everyone by an
+	// False on Linux always, and on a copy installed for everyone by an
 	// administrator — in which case Why says so.
 	CanApply bool `json:"canApply"`
 	// CannotApplyWhy is the sentence to show when CanApply is false and the
@@ -86,9 +83,9 @@ type SelfUpdateView struct {
 	// can say so and cannot be pressed twice.
 	Applying bool `json:"applying,omitempty"`
 	// Dismissed is set by "Not now": the chrome line goes until the next
-	// launch. Deliberately not written to the settings file — a person saying
-	// "not now" is saying it about today, and D-019's banner has the same
-	// shape.
+	// launch. Deliberately not written to the settings file — a person
+	// saying "not now" is saying it about today, and the update banner has
+	// the same shape.
 	Dismissed bool `json:"dismissed,omitempty"`
 }
 
@@ -279,7 +276,7 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 			// Said plainly rather than shown as a failure: a site with
 			// nothing signed yet is the ordinary case today, and a person
 			// should still be able to tell it apart from "you are up to
-			// date" (D-027).
+			// date".
 			v.Nothing = true
 		case cerr != nil:
 			v.Err = cerr.Error()
@@ -306,8 +303,8 @@ func (u *SelfUpdateAPI) check(ctx context.Context) {
 	u.mu.Unlock()
 }
 
-// InstallSelfUpdate downloads the release this build was offered and installs
-// it: the "Install and relaunch" button (agentry-desktop#88).
+// InstallSelfUpdate downloads the release this build was offered and
+// installs it: the "Install and relaunch" button.
 //
 // Every refusal below happens BEFORE a byte is downloaded where it can, so a
 // person is not made to wait for a download that was never going to be
@@ -345,7 +342,7 @@ func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
 	// The whole verification again, over the same bytes, through the call
 	// that refuses a retired key on its own. Not a read of rel.Retired: that
 	// was decided when the check ran, and this is the operation where
-	// forgetting to read it installs something (D-026).
+	// forgetting to read it installs something.
 	keys, err := u.keys()
 	if err != nil {
 		return nil, err
@@ -383,9 +380,9 @@ func (u *SelfUpdateAPI) install(relaunch bool) (*SelfUpdateView, error) {
 
 // SetInstallOnQuit writes Settings → "Install automatically when I quit".
 //
-// Off by default and off until someone says otherwise (D6): an application
-// that replaced itself without ever having been asked would be a surprise
-// the next time it opened, however well the bytes verified.
+// Off by default and off until someone says otherwise: an application that
+// replaced itself without ever having been asked would be a surprise the
+// next time it opened, however well the bytes verified.
 func (u *SelfUpdateAPI) SetInstallOnQuit(on bool) (*SelfUpdateView, error) {
 	s, err := settings.Load()
 	if err != nil {

@@ -1,10 +1,9 @@
 package main
 
-// A run and a schedule In Agentry given an input source, live
-// (agentry-desktop#833; agentry-enterprise#516, #532): the bound methods
-// driven as the run panel drives them, against a real registry that keeps
-// secrets. Skipped unless the variables are set, because the runs spend
-// the account's credits:
+// A run and a schedule In Agentry given an input source, live: the bound
+// methods driven as the run panel drives them, against a real registry that
+// keeps secrets. Skipped unless the variables are set, because the runs
+// spend the account's credits:
 //
 //	AGENTRY_LIVE_HOSTED_SOURCE_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_SOURCE_TOKEN=<a Pro account's PAT: run:read, run:write, secret:write> \

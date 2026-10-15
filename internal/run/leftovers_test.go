@@ -1,10 +1,10 @@
 package run
 
-// The leftovers sweep (agentry-desktop#463): what a run an app was killed in
-// the middle of left on this computer, swept by its record at the next start
-// and at quit. The run here is the real engine's, on the CLI's dockerx.Fake
-// and the fake registry, stopped where a kill would stop it: every directory,
-// file and docker object the sweep must reach is one the engine itself made.
+// The leftovers sweep: what a run an app was killed in the middle of left on
+// this computer, swept by its record at the next start and at quit. The run
+// here is the real engine's, on the CLI's dockerx.Fake and the fake registry,
+// stopped where a kill would stop it: every directory, file and docker object
+// the sweep must reach is one the engine itself made.
 
 import (
 	"context"
@@ -141,8 +141,8 @@ func secretsLeft(t *testing.T, home string) []string {
 	return found
 }
 
-// assertNothingLeft is plan §5.4's rule for a run that is over: nothing of
-// it on this computer but its output folder, and everything that is the
+// assertNothingLeft is the rule for a run that is over: nothing of it
+// on this computer but its output folder, and everything that is the
 // QuickAgent's rather than the run's (its install record and cached
 // release, its kept profile) untouched.
 func (a abandoned) assertNothingLeft(t *testing.T) {
@@ -357,10 +357,11 @@ func TestTheStartupSweepLeavesNothingOfAKilledAppsChat(t *testing.T) {
 }
 
 // Quitting with a chat started ends it without asking for a final result
-// (RunAPI.shutdown calls this End, and TestQuittingWithAChatStartedEndsItThenSweeps
-// holds it to that), which writes its receipts as far as it got; the quit
-// sweep that follows then asks for everything a run can leave, finds
-// nothing of this one but the output folder, and leaves that whole.
+// (RunAPI.shutdown calls this End, and
+// TestQuittingWithAChatStartedEndsItThenSweeps holds it to that), which
+// writes its receipts as far as it got; the quit sweep that follows then asks
+// for everything a run can leave, finds nothing of this one but the output
+// folder, and leaves that whole.
 func TestAChatEndedByQuittingHasItsReceiptsAndLeavesNothing(t *testing.T) {
 	const runID = "5e1f0005"
 	s, fake, home, outDir := startChat(t, runID)

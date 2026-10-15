@@ -1,19 +1,17 @@
-// Describe it In Agentry (plan builder-rework.md §7.1, §7.4, §7.5, D5,
-// D15, D16; Builder M7, agentry-desktop#281): the Build tab's draft made on
-// a sandbox host by the built-in Drafter against the platform's model, for
-// credits, with every text it reads scanned by AI Review through the
-// registry. It needs an account, since it spends credits.
+// Describe it In Agentry: the Build tab's draft made on a sandbox host by
+// the built-in Drafter against the platform's model, for credits, with every
+// text it reads scanned by AI Review through the registry. It needs an
+// account, since it spends credits.
 //
-// The draft is a run of kind draft in the registry's runs extension
-// (agentry-enterprise#183): created with the description and hints, as
-// StartHostedRun creates a run, and followed by polling, as a run In
-// Agentry is, with every state change sent as build:hosted-draft. When it
-// is over, its sealed output.tar is unpacked into the run's own folder as
-// any run In Agentry's is, and its draft.json is decoded into the Build
-// form's Model as data (internal/draft ReadHosted, D-041): nothing in it
-// is opened or launched, and nothing reaches a QuickAgent folder until the
-// person saves into one the native picker gives. No platform key reaches
-// this app; the token is the account's own.
+// The draft is a run of kind draft in the registry's runs extension: created
+// with the description and hints, as StartHostedRun creates a run, and
+// followed by polling, as a run In Agentry is, with every state change sent
+// as build:hosted-draft. When it is over, its sealed output.tar is unpacked
+// into the run's own folder as any run In Agentry's is, and its draft.json
+// is decoded into the Build form's Model as data (internal/draft
+// ReadHosted): nothing in it is opened or launched, and nothing reaches a
+// QuickAgent folder until the person saves into one the native picker gives.
+// No platform key reaches this app; the token is the account's own.
 package main
 
 import (
@@ -53,10 +51,9 @@ type DescribeHostedView struct {
 	TimeoutSeconds int    `json:"timeoutSeconds"`
 	MaxTurns       int    `json:"maxTurns"`
 	MaxPages       int    `json:"maxPages"`
-	// KnowledgeEnabled says a draft here may read the person's packs kept
-	// in Agentry (agentry-enterprise#295), at most MaxPacks of them and
-	// MaxBytes in all; KnowledgeNote says why it may not where the token is
-	// the reason (agentry-desktop#497).
+	// KnowledgeEnabled says a draft here may read the person's packs kept in
+	// Agentry, at most MaxPacks of them and MaxBytes in all; KnowledgeNote
+	// says why it may not where the token is the reason.
 	KnowledgeEnabled bool   `json:"knowledgeEnabled"`
 	MaxPacks         int    `json:"maxPacks"`
 	MaxBytes         int64  `json:"maxBytes"`
@@ -73,8 +70,8 @@ type DescribeHostedView struct {
 	Short        bool   `json:"short"`
 
 	// Revise is Edit with AI In Agentry's offer on the same facts
-	// (hostedrun.DecideRevise, agentry-desktop#501): a draft's, gated on
-	// the payer's tier; Upgrade says the way out is Pro.
+	// (hostedrun.DecideRevise): a draft's, gated on the payer's tier;
+	// Upgrade says the way out is Pro.
 	ReviseOffered   bool   `json:"reviseOffered"`
 	ReviseAvailable bool   `json:"reviseAvailable"`
 	ReviseReason    string `json:"reviseReason,omitempty"`
@@ -105,8 +102,8 @@ type HostedDraftView struct {
 	Draft      *DraftView `json:"draft,omitempty"`
 	DraftError string     `json:"draftError,omitempty"`
 	// Revises is the release an Edit with AI revision drafts the next
-	// version of, ns/name@version, as the registry recorded it; empty for
-	// a draft from a description (agentry-desktop#501).
+	// version of, ns/name@version, as the registry recorded it; empty for a
+	// draft from a description.
 	Revises string `json:"revises,omitempty"`
 	// Final says this is the last word on the draft.
 	Final bool `json:"final"`
@@ -182,14 +179,13 @@ func (b *BuildAPI) DescribeInAgentryStatus(reg string) (*DescribeHostedView, err
 	return v, nil
 }
 
-// DescribeInAgentry drafts a QuickAgent from a description In Agentry.
-// The description and hints are held to the registry's bounds before
-// anything is sent, and the draft is created and followed; it is this
-// app's one draft In Agentry while it lasts. packs are the names of the
-// person's knowledge packs kept in Agentry the Drafter reads first
-// (agentry-desktop#497), resolved to the registry's ids as a run's are
-// (each kept and scanned there); the registry checks each again, and holds
-// them to its bounds.
+// DescribeInAgentry drafts a QuickAgent from a description In Agentry. The
+// description and hints are held to the registry's bounds before anything is
+// sent, and the draft is created and followed; it is this app's one draft In
+// Agentry while it lasts. packs are the names of the person's knowledge
+// packs kept in Agentry the Drafter reads first, resolved to the registry's
+// ids as a run's are (each kept and scanned there); the registry checks each
+// again, and holds them to its bounds.
 func (b *BuildAPI) DescribeInAgentry(reg, description string, hints, packs []string) (*HostedDraftStartView, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
@@ -292,11 +288,11 @@ func (b *BuildAPI) CancelHostedDraft() (*HostedDraftView, error) {
 	return hostedDraftView(r, false), nil
 }
 
-// DescribeAgainText is the description a new draft starts from, as the
-// site composes it (plan D11; internal/draft DescribeAgain): what the
-// person first asked, what they want changed now, and the form's draft as
-// it stands, written by the form's own renderer. The page sends it to
-// DescribeInAgentry or DescribeOnThisComputer. It reads and writes nothing.
+// DescribeAgainText is the description a new draft starts from, as the site
+// composes it (internal/draft DescribeAgain): what the person first asked,
+// what they want changed now, and the form's draft as it stands, written by
+// the form's own renderer. The page sends it to DescribeInAgentry or
+// DescribeOnThisComputer. It reads and writes nothing.
 func (b *BuildAPI) DescribeAgainText(m build.Model, followUp, firstDescription string) (string, error) {
 	followUp = strings.TrimSpace(followUp)
 	if followUp == "" {
@@ -382,8 +378,8 @@ func (b *BuildAPI) landHostedDraft(ctx context.Context, client *hostedrun.Client
 	dv := draftView(res)
 	dv.Where = draftInAgentry
 	if fd := final.Draft; fd != nil && fd.Revises != nil {
-		// Edit with AI's revision (agentry-desktop#501): the registry's
-		// record names the release, and the draft must say the same.
+		// Edit with AI's revision: the registry's record names the release,
+		// and the draft must say the same.
 		dv.Description = revisionWords(fd.Instructions, fd.Problems)
 		if err := b.landRevision(ctx, reg, token, dv, res.Draft, fd.Revises.Ref, id, true); err != nil {
 			v.DraftError = err.Error()
@@ -473,10 +469,9 @@ func draftOutcomeLine(r *hostedrun.Run) string {
 	return "Done."
 }
 
-// draftCreditsLine is the site's sentence about a draft's ledger
-// (agentry-web lib/runs.ts creditsSentence): the hold while it is in
-// flight, then what it cost, naming the searches' and AI Review's parts
-// the record wrote.
+// draftCreditsLine is the site's sentence about a draft's ledger the hold
+// while it is in flight, then what it cost, naming the searches' and AI
+// Review's parts the record wrote.
 func draftCreditsLine(r *hostedrun.Run) string {
 	if r.SettledCredits == nil || !r.Terminal() {
 		return fmt.Sprintf("%d credits are held for this draft.", r.HoldCredits)

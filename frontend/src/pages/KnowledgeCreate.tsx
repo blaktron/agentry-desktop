@@ -1,16 +1,16 @@
-// Create knowledge and Add documents (plan knowledge.md §4.8; D19;
-// agentry-desktop#273): a stepped flow on the step chrome the first-run
+// Create knowledge and Add documents: a stepped flow on the step chrome
+// the first-run
 // wizard and Build share (primitives.tsx) — the documents, the name, then a
 // review that says, before anything runs, that the Knowledge Creator runs
 // on this computer against the runner policy's model and that nothing it
 // reads or writes is scanned — then the build's progress and what it made.
 //
 // The documents come only from the native file and folder pickers; Go
-// refuses any other path (D-030). A build on this computer takes the run
+// refuses any other path. A build on this computer takes the run
 // lock, as a run does, so it is refused while a run or another build holds
 // it.
 //
-// Where the registry builds knowledge (Knowledge M6, agentry-desktop#274),
+// Where the registry builds knowledge,
 // a Where step offers In Agentry beside this computer: the Knowledge
 // Creator runs on the platform against its model, for credits, the pack is
 // kept in Agentry and scanned there, then downloaded here. The step states
@@ -20,22 +20,21 @@
 // it in the corner card (below) until it is over; an app started while a
 // build In Agentry runs follows it again when Create knowledge opens.
 //
-// A build on this computer is long work (agentry-desktop#352): the review
+// A build on this computer is long work: the review
 // step says so and how long it may run (at least 60 minutes, Go's
 // CreatorBudgets), and the build shows its progress as it goes (elapsed
 // against the timeout, turns, the pages written so far) over its log.
 //
 // A build on this computer takes up to 1 GB of documents, a build In
-// Agentry up to 10 MB (agentry-desktop#354, agentry-cli#429): the Documents
+// Agentry up to 10 MB: the Documents
 // step shows what the documents come to, warns past 10 MB that the build
 // can take a very long time and that its pack stays on this computer, and
 // refuses past 1 GB; past 10 MB In Agentry is not choosable.
 //
-// A build needs no documents since agentry-desktop#498 (plan
-// knowledge-and-drafter.md §7, D15, D16): the Documents step takes
-// documents, a brief (what the pack should cover and for whom, at most
-// 8 KiB), or both, with the plan's warning that specific documents make the
-// best knowledge, louder when none is chosen. Its Search the web choice is
+// A build needs no documents: the Documents step takes documents, a brief
+// (what the pack should cover and for whom, at most 8 KiB), or both, with
+// a warning that specific documents make the best knowledge, louder when
+// none is chosen. Its Search the web choice is
 // on by default for a new pack with no documents and off otherwise, and
 // follows the documents until the person sets it. On this computer it takes
 // the person's own AI Review key and a search key (Go's CreatorWeb), and the
@@ -44,14 +43,14 @@
 // build uses. The choice is sent as made either way.
 //
 // The Local and Cloud Knowledge pages each open this flow preset to their
-// place (plan knowledge-cards.md §4.5, D5; agentry-desktop#619): `place`
+// place: `place`
 // chooses the Where step's answer, which the person can still change. Where
-// In Agentry cannot be chosen (Standard, DEV-162; signed out; a registry
+// In Agentry cannot be chosen (Standard; signed out; a registry
 // that builds nothing; documents past its cap), the answer falls back to
 // this computer, the Where step says why, and a pack made here from the
 // Cloud page is offered Copy to Cloud when it is done.
 //
-// A running build does not take over the app (agentry-desktop#353): App
+// A running build does not take over the app: App
 // mounts this flow above the pages, and closing the dialog while a build
 // runs, or Run in the background, shrinks it to a card in the bottom-right
 // corner. The card keeps the build's progress, opens the full view again,
@@ -60,7 +59,7 @@
 // outliving the stop; In Agentry: the registry's cancel), and, once
 // the build is over, says how it ended and offers Preview (and Continue, for
 // a build In Agentry that stopped short). The run lock is unchanged: a run
-// started meanwhile is refused with the reason, as it always was.
+// started meanwhile is refused with the reason.
 import { useEffect, useRef, useState } from "react";
 import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
@@ -210,7 +209,7 @@ export default function KnowledgeCreate({
   // ticked box on a computer without the keys does not search.
   const warning = sourcesWarning(docs.length, searches(webOn, where, localWeb, agentryWeb));
   // In Agentry preset where it cannot be chosen falls back to this
-  // computer, as its radio is disabled then (D5).
+  // computer, as its radio is disabled then.
   const agentryChoosable = !!avail?.offered && avail.available && !pastAgentry && !agentryNoBrief;
   // Add documents from the Cloud page does not fall back: the pack may not
   // be kept here, and documents added here would change only this
@@ -484,9 +483,9 @@ export default function KnowledgeCreate({
                   <p className="muted small">
                     In Agentry is not available: {avail.reason}
                     {avail.remedy ? ` ${avail.remedy}` : ""}
-                    {/* Creating knowledge in Agentry is Pro and above (DEV-162,
-                        agentry-desktop#328): the registry's subscription page, in
-                        the system browser, never inside the app. */}
+                    {/* Creating knowledge in Agentry is Pro and above: the
+                        registry's subscription page, in the system
+                        browser, never inside the app. */}
                     {avail.upgradeUrl && (
                       <>
                         {" "}
@@ -644,7 +643,7 @@ function clip(text: string, max: number): string {
 }
 
 // AGENTRY_NO_BRIEF is why In Agentry cannot take the brief: the registry
-// predates briefs (agentry-enterprise#296), and Go refuses one to it too.
+// predates briefs, and Go refuses one to it too.
 const AGENTRY_NO_BRIEF = "This registry builds In Agentry from documents only, without a brief: leave the brief out, or build it on this computer.";
 
 // BuildProgressView is how far a build on this computer has got: the shared
@@ -742,7 +741,7 @@ function BuildDone({ result, added, onClose, onPreview, copyToCloud }: {
   onClose: () => void;
   onPreview: () => void;
   /** Offered when the Cloud page opened the flow and the pack was made
-   *  here (plan knowledge-cards.md D5): keeps a copy in the account. */
+   *  here: keeps a copy in the account. */
   copyToCloud?: () => Promise<string>;
 }) {
   const docs = result.documents ?? [];

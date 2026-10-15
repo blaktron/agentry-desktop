@@ -1,5 +1,4 @@
-// The run page (plan desktop-home-and-library.md §4.7, D7, D13; D-068;
-// agentry-desktop#659): a run Recent runs lists, opened as a page with the
+// The run page: a run Recent runs lists, opened as a page with the
 // result view the run dialog draws, and a way back.
 //
 // A run on this computer, and a run In Agentry whose output this app
@@ -10,7 +9,7 @@
 // (RunResultView, AgentMarkdown). A run In Agentry is read live from the
 // registry (RunAPI.HostedRecord), and one whose output is not here offers
 // Download output, which costs no credits. A built-in's job links to its
-// own place (D13). A folder that has gone is said, with a way to remove
+// own place. A folder that has gone is said, with a way to remove
 // the entry; it is never looked for.
 import { useEffect, useRef, useState } from "react";
 import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
@@ -109,7 +108,7 @@ function LocalRunPage({ registry, id, backLabel, onBack, onOpenPlace, onOpenDraf
 }) {
   const [view, setView] = useState<main.RecordedRunView | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // An Examiner review's report, which is the review's page (D13).
+  // An Examiner review's report, which is the review's page.
   const [report, setReport] = useState<main.ReviewView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   useEffect(() => {

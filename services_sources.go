@@ -1,12 +1,11 @@
 package main
 
-// An input source's access token in the run setup (plan input-sources.md
-// §5, D5, D13; agentry-desktop#794). A repository or url question shows its
-// address fields and, beside them, whether a key is saved for the address's
-// host in the system keychain; a token typed there goes to the run for this
-// run alone, or is saved for the host, where the CLI and a schedule's fire
-// read it too. The calls that carry a token take it inward only, and none
-// returns it (internal/run/sourcekeys.go).
+// An input source's access token in the run setup. A repository or url
+// question shows its address fields and, beside them, whether a key is saved
+// for the address's host in the system keychain; a token typed there goes to
+// the run for this run alone, or is saved for the host, where the CLI and a
+// schedule's fire read it too. The calls that carry a token take it inward
+// only, and none returns it (internal/run/sourcekeys.go).
 
 import (
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -42,8 +41,7 @@ func (r *RunAPI) SourceKeyStatus(qtype, answer string) (*SourceKeyView, error) {
 // it started with.
 //
 // A schedule that runs while the person is signed out has the key sealed
-// beside it (agentry-cli#854, DR-84), so a save re-seals them, as every
-// other key change does.
+// beside it, so a save re-seals them, as every other key change does.
 func (r *RunAPI) SaveSourceKey(qtype, answer, token string) (*SourceKeyView, error) {
 	if err := run.SaveSourceKey(qtype, answer, token); err != nil {
 		return nil, err

@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Acceptance for agentry-desktop#183 (the desktop's copy of agentry-cli#240's):
-# a release cut from main bakes production's registry, one cut from dev bakes
+# Acceptance for the registry a release bakes (the same mechanism as the
+# CLI's release): a release cut from main bakes production's registry, one cut from dev bakes
 # dev's, and nothing else is a release.
 #
 #   scripts/acceptance/release-registry.sh
 #
-# Builds a throwaway origin with the estate's branch model — dev merges
+# Builds a throwaway origin with the repository's branch model — dev merges
 # feature branches with merge commits, main takes only promotions of dev
 # with merge commits — clones it as actions/checkout does (fetch-depth 0,
 # origin/* refs), and asks scripts/release-registry.sh about each kind of
-# commit a tag could name. The CLI's copy then builds a binary and reads the
-# registry back; the desktop's build is a wails build the release workflow
-# checks itself (every artifact must carry the registry and its update
-# channel), so this one stops at the script. Needs git; no network.
+# commit a tag could name. The release workflow checks the built artifacts
+# itself (every artifact must carry the registry and its update channel),
+# so this one stops at the script. Needs git; no network.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")/../.." && pwd)

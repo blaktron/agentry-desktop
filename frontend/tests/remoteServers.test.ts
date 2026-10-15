@@ -1,7 +1,6 @@
-// A remote MCP server and a package server's OAuth sign-in in the Builder
-// (OAuth connections M11, agentry-desktop#668): the page's readings of the
-// Go model's rules (internal/build MCPServerRow.Declared, Hosts), in the
-// site's words (agentry-web lib/builder-form.ts networkReach).
+// A remote MCP server and a package server's OAuth sign-in in the Builder:
+// the page's readings of the Go model's rules (internal/build
+// MCPServerRow.Declared, Hosts), in the site's words.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isRemote, reachRow, remoteScopes, serverHosts, serverKeys, serverRef, signInPhrase } from "../src/remoteServers.ts";

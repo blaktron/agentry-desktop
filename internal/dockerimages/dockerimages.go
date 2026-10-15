@@ -1,19 +1,19 @@
 // Package dockerimages finds and removes the Docker images Agentry put on
-// this machine (agentry-desktop#424): the ones the runner pulls from
-// Agentry's registry, the runner and per-QuickAgent exec images it builds,
-// and whatever the runner policy names in their place. The Windows
-// uninstaller removes them unless "Keep my Docker images" is ticked, and
-// Run defaults offers the same on every platform, because the deb, rpm and
-// dmg have no uninstaller that can ask.
+// this machine: the ones the runner pulls from Agentry's registry, the
+// runner and per-QuickAgent exec images it builds, and whatever the runner
+// policy names in their place. The Windows uninstaller removes them unless
+// "Keep my Docker images" is ticked, and Run defaults offers the same on
+// every platform, because the deb, rpm and dmg have no uninstaller that
+// can ask.
 //
 // Images are chosen by the label every build of the runner carries
-// (imagelabel.Key, agentry-cli#892), untagged leftovers included, and by
-// name, and removed one by one by image ID (agentry-desktop#846): Docker
-// Desktop's containerd store names an image pulled as repo:tag@digest by
-// that whole reference, so the repository:tag the listing shows is not a
-// name it can be removed by. Nothing here runs `docker image prune` or
-// removes an image it did not select: a person's own images share the
-// daemon, and some share Agentry's GitHub owner.
+// (imagelabel.Key), untagged leftovers included, and by name, and
+// removed one by one by image ID: Docker Desktop's containerd store
+// names an image pulled as repo:tag@digest by that whole reference, so
+// the repository:tag the listing shows is not a name it can be removed
+// by. Nothing here runs `docker image prune` or removes an image it did
+// not select: a person's own images share the daemon, and some share
+// Agentry's GitHub owner.
 package dockerimages
 
 import (
@@ -40,8 +40,8 @@ const runnerRepo = "agentry-runner"
 
 // builtRepos are the other images the runner builds on this machine, by
 // repository: the decode step's, the host link's and the two harness
-// images. A build made before the runner labelled its images
-// (agentry-cli#892) is found by these names.
+// images. A build made before the runner labelled its images is found by
+// these names.
 var builtRepos = []string{"agentry-decode", "agentry-hostlink-local", "agentry-claude-code", "agentry-copilot"}
 
 // Image is one line of `docker image ls`.
@@ -130,10 +130,9 @@ func ReadPolicy(home string) Policy {
 	}
 	i := pol.Images
 	p := Policy{Runner: i.Runner}
-	// images.unsafe is Unsafe Mode's base where an operator repointed it
-	// (plan unsafe-mode.md D12); the files and host link images and the
-	// harness images likewise. Their defaults are under RegistryPrefix or
-	// built here.
+	// images.unsafe is Unsafe Mode's base where an operator repointed it;
+	// the files and host link images and the harness images likewise.
+	// Their defaults are under RegistryPrefix or built here.
 	refs := []string{i.Gateway, i.HarnessDockerAgent, i.GoBuilder, i.NodeRuntime, i.PythonRuntime, i.Unsafe, i.Files, i.Hostlink}
 	for _, h := range i.HarnessImages {
 		refs = append(refs, h.Ref)
@@ -149,7 +148,7 @@ func ReadPolicy(home string) Policy {
 // Select keeps the images that are Agentry's, and nothing else:
 //   - every image carrying the runner's build label (imagelabel.Key),
 //     untagged ones included: a build left behind by a newer one, or a
-//     stage the classic builder left (agentry-cli#892);
+//     stage the classic builder left;
 //   - every image under Agentry's registry prefix;
 //   - the decode, host link and harness images the runner builds, by
 //     repository, for builds made before the label;
@@ -306,8 +305,8 @@ func removeName(ctx context.Context, d Docker, i Image) error {
 }
 
 // gone reports the daemon's answer for an image that is not there. The
-// wording, like manyNames', was read from both stores' daemons
-// (agentry-desktop#846).
+// wording, like manyNames', was read from both stores'
+// daemons.
 func gone(err error) bool { return strings.Contains(err.Error(), "No such image") }
 
 // manyNames reports the daemon's refusal of an ID several names point at

@@ -1,5 +1,4 @@
-// The Library's search (plan desktop-home-and-library.md D3;
-// agentry-desktop#657): typing filters what is installed on this computer,
+// The Library's search: typing filters what is installed on this computer,
 // and the way to the registry always carries what was typed.
 import { test } from "node:test";
 import assert from "node:assert/strict";

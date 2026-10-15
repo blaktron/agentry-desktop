@@ -1,5 +1,4 @@
-// The first-run wizard's recap rules (agentry-desktop#462; plan
-// desktop-review-key-and-run-cards.md D13): the AI Review key has a row on
+// The first-run wizard's recap rules: the AI Review key has a row on
 // Done, and that row is never part of what Browse's "Setup isn't finished"
 // notice lists, whose sentence ("cannot sign in, run or build anything until
 // it is") is not true of the key. Saving the key writes the runner policy

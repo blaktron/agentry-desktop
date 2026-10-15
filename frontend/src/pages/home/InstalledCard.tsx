@@ -2,7 +2,7 @@ import { install } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { installedLine, recentInstalls } from "../../homeLines";
 
-// Home's Installed QuickAgents card (agentry-desktop#658): how many
+// Home's Installed QuickAgents card: how many
 // QuickAgents are on this computer and how many have an update (the launch
 // check's snapshot, never a new check), and the newest five. The card
 // opens the Library; a name opens its page, or the Library for one

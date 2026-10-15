@@ -13,12 +13,12 @@ import (
 
 // windowsApplier runs the release's per-user setup executable silently.
 //
-// The installer does the work, which is why M2 made it per-user (D11): NSIS
-// with RequestExecutionLevel user installs into %LOCALAPPDATA%\Programs and
+// The installer does the work, which is why it is per-user: NSIS with
+// RequestExecutionLevel user installs into %LOCALAPPDATA%\Programs and
 // writes an HKCU uninstall key, so /S replaces the installed files and
 // relaunches with no UAC prompt at all. A per-machine installer could not be
 // updated this way and would have to ask for an administrator password,
-// which plan §3 forbids.
+// which the updater must never do.
 type windowsApplier struct {
 	// installDir is where this copy is installed; empty means "the directory
 	// of the running executable". A field so the acceptance can drive it.
@@ -66,7 +66,7 @@ func (a *windowsApplier) Apply(setupPath string, relaunch bool) error {
 
 	// /S is NSIS's silent flag, and /D sets the install directory so the
 	// update lands where this copy already is rather than at the default —
-	// the same reason the installer records InstallLocation (M2).
+	// the same reason the installer records InstallLocation.
 	//
 	// The command line is built by hand because NSIS requires /D to be LAST,
 	// UNQUOTED and absolute, and Go's argument escaping does the opposite:
@@ -102,12 +102,10 @@ func (a *windowsApplier) Apply(setupPath string, relaunch bool) error {
 	// page does not. Without relaunch, it is the caller's business to exit;
 	// the app is quitting anyway.
 	//
-	// UNVERIFIED, and this is the honest statement of it: none of this has
-	// run on Windows. The estate has no Windows runner (#55, a launch
-	// prerequisite), so the sequence above — silent install over a running
-	// copy, then relaunch — is reasoned from NSIS's documented behaviour and
-	// has never been observed. The acceptance in
-	// scripts/acceptance/windows-install.ps1 is where it gets observed.
+	// UNVERIFIED in CI: there is no Windows CI runner, so the sequence above
+	// — silent install over a running copy, then relaunch — is reasoned from
+	// NSIS's documented behaviour. The acceptance in
+	// scripts/acceptance/windows-install.ps1 is where it is observed.
 	if relaunch {
 		os.Exit(0)
 	}

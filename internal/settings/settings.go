@@ -32,8 +32,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
-// DefaultRegistryURL is the production registry (§1: base URLs must stay
-// configurable — this is only the out-of-the-box value).
+// DefaultRegistryURL is the production registry. Base URLs stay
+// configurable: this is only the out-of-the-box value.
 // A var, not a const, so a release build can bake its own registry in
 // (-X .../internal/settings.DefaultRegistryURL=…) — the desktop app served
 // from a site's /download page starts pointed at that site.
@@ -42,7 +42,7 @@ var DefaultRegistryURL = "https://secureagentry.net"
 // KeyringService matches the CLI's go-keyring service name; the account key
 // is the registry host, so multiple registries coexist and both clients see
 // the same credential. The CLI's model keys live under the same service as
-// provider:<name> (its DR-24), so the service names everything an uninstall
+// provider:<name>, so the service names everything an uninstall
 // with "also remove my sign-in" takes (ForgetKeychain).
 const KeyringService = "agentry"
 
@@ -61,36 +61,33 @@ type Settings struct {
 	Registries      []Registry `yaml:"registries,omitempty" json:"registries"`
 	// Onboarded is set once the first-run wizard has been completed or
 	// explicitly skipped. While it is false and no registry is signed in,
-	// the desktop app opens the guided setup on start (agentry-desktop#41).
+	// the desktop app opens the guided setup on start.
 	Onboarded bool `yaml:"onboarded,omitempty" json:"onboarded"`
-	// CheckForUpdates is Settings → "Check for newer versions"
-	// (agentry-desktop#87). A POINTER because the default is on and this file
-	// is parsed leniently: absent must mean "on", and a plain bool cannot
-	// tell an absent field from a deliberate false. Read it through
-	// UpdateCheckEnabled rather than dereferencing it.
+	// CheckForUpdates is Settings → "Check for newer versions". A POINTER
+	// because the default is on and this file is parsed leniently: absent
+	// must mean "on", and a plain bool cannot tell an absent field from a
+	// deliberate false. Read it through UpdateCheckEnabled rather than
+	// dereferencing it.
 	CheckForUpdates *bool `yaml:"checkForUpdates,omitempty" json:"checkForUpdates,omitempty"`
-	// InstallUpdatesOnQuit is Settings → "Install automatically when I quit"
-	// (agentry-desktop#88, plan D6). A plain bool, not a pointer, because
-	// this one defaults OFF: absent and false mean the same thing, and the
-	// operator's D6 asked for off by default so that nothing replaces the
-	// application without the person having said so at least once.
+	// InstallUpdatesOnQuit is Settings → "Install automatically when I quit". A
+	// plain bool, not a pointer, because this one defaults OFF: absent and
+	// false mean the same thing, and it is off by default so that nothing
+	// replaces the application without the person having said so at least once.
 	InstallUpdatesOnQuit bool `yaml:"installUpdatesOnQuit,omitempty" json:"installUpdatesOnQuit,omitempty"`
 	// InstallIntoCodingAgent is Settings → Coding agents → "Also install
-	// into <coding agent>" (agentry-desktop#148, plan
-	// desktop-one-click-install.md D6): with it on, a one-click Install
-	// also writes the coding-agent export — the Claude skill or AGENTS.md,
-	// whichever the operator policy implies — beside the runner-home
-	// install. A plain bool because it defaults OFF: nothing is written
-	// outside the runner home until the person has said so once.
+	// into <coding agent>": with it on, a one-click Install also writes
+	// the coding-agent export — the Claude skill or AGENTS.md, whichever
+	// the operator policy implies — beside the runner-home install. A
+	// plain bool because it defaults OFF: nothing is written outside the
+	// runner home until the person has said so once.
 	InstallIntoCodingAgent bool `yaml:"installIntoCodingAgent,omitempty" json:"installIntoCodingAgent,omitempty"`
 	// CodingAgentProjectDir is the project directory the AGENTS.md export
-	// is written to (<dir>/AGENTS.md and <dir>/agents/<name>, D-002),
-	// chosen through the native picker and nowhere else (D-030); "" means
-	// none chosen yet. The Claude skill has no such setting: it lives in
+	// is written to (<dir>/AGENTS.md and <dir>/agents/<name>), chosen
+	// through the native picker and nowhere else; "" means none chosen
+	// yet. The Claude skill has no such setting: it lives in
 	// ~/.claude/skills, where Claude Code reads.
 	CodingAgentProjectDir string `yaml:"codingAgentProjectDir,omitempty" json:"codingAgentProjectDir,omitempty"`
-	// RunWhere is Settings → Run defaults → Where to run (plan
-	// settings-cards.md D2, D13; agentry-desktop#347): RunWhereHere or
+	// RunWhere is Settings → Run defaults → Where to run: RunWhereHere or
 	// RunWhereAgentry, "" meaning this computer. It only pre-selects the run
 	// setup's Where step; the credit hold and every consent are still asked
 	// on each run.
@@ -98,60 +95,54 @@ type Settings struct {
 	// DefaultOutputDir is Settings → Run defaults → Output folder, chosen
 	// through the native picker on that page and nowhere else, "" for none.
 	// A run's gate admits it as an output folder because it is read from
-	// this file, never as an input root (D-044).
+	// this file, never as an input root.
 	DefaultOutputDir string `yaml:"defaultOutputDir,omitempty" json:"defaultOutputDir,omitempty"`
-	// ChatIdleTimeoutSeconds is Settings → Run defaults → Chat idle timeout
-	// (plan desktop-review-key-and-run-cards.md D21, D32;
-	// agentry-desktop#468): a chat on this computer ends after this much
-	// silence from the person. 0, the default, is none: such a chat has no
-	// idle timeout, wall clock or count of the person's turns, and ends when
-	// the person ends it or quits. It lives here, not in the runner policy,
-	// which the CLI's chats read and which keeps their limits.
+	// ChatIdleTimeoutSeconds is Settings → Run defaults → Chat idle timeout:
+	// a chat on this computer ends after this much silence from the person.
+	// 0, the default, is none: such a chat has no idle timeout, wall clock
+	// or count of the person's turns, and ends when the person ends it or
+	// quits. It lives here, not in the runner policy, which the CLI's chats
+	// read and which keeps their limits.
 	ChatIdleTimeoutSeconds int `yaml:"chatIdleTimeoutSeconds,omitempty" json:"chatIdleTimeoutSeconds,omitempty"`
-	// UnsafeMode is Settings → Run defaults → Unsafe Mode (plan
-	// unsafe-mode.md D5, D6; agentry-desktop#418): while it is on, a run on
-	// this computer is compiled without this machine's exec catalogue, its
-	// declared commands installed from the Unsafe Mode image instead. A
-	// plain bool because it defaults OFF. It lives in this file and never in
-	// the runner policy, so the CLI and a run In Agentry cannot read it.
+	// UnsafeMode is Settings → Run defaults → Unsafe Mode: while it is on, a
+	// run on this computer is compiled without this machine's exec
+	// catalogue, its declared commands installed from the Unsafe Mode image
+	// instead. A plain bool because it defaults OFF. It lives in this file
+	// and never in the runner policy, so the CLI and a run In Agentry cannot
+	// read it.
 	// Save does not write it: only SetUnsafeMode does, which the app calls
-	// after a native confirmation and the image's pull (D-030: the page
+	// after a native confirmation and the image's pull (the page
 	// cannot turn it on, and no other setting's save can carry it).
 	UnsafeMode bool `yaml:"unsafeMode,omitempty" json:"unsafeMode,omitempty"`
-	// BuiltinNoLimit is Settings → Run defaults → Timeout and turns → "No
-	// time or turn limit for the built-in agents" (agentry-desktop#606,
-	// D-062; on by default and over the turns too since
-	// agentry-desktop#699, D-062's 2026-10-06 addendum): while it is on, a
-	// run on this computer of a built-in package (the Drafter, the
-	// Knowledge Creator, the Examiner and the Voice Writer) has no whole-run
-	// timeout and no turn cap the app shows; only BuiltinFailsafeTurns,
-	// never shown, ends a run that loops. The cost cap still applies. A
-	// POINTER because the default is on: absent means on (the switch's
-	// first key, builtinNoTimeout, which defaulted off, is no longer read).
-	// It lives in this file and never in the runner policy, so the CLI, a
+	// BuiltinNoLimit is Settings → Run defaults → Timeout and turns → "No time
+	// or turn limit for the built-in agents" (on by default, and over the turns
+	// too): while it is on, a run on this computer of a built-in package (the
+	// Drafter, the Knowledge Creator, the Examiner and the Voice Writer) has no
+	// whole-run timeout and no turn cap the app shows; only
+	// BuiltinFailsafeTurns, never shown, ends a run that loops. The cost cap
+	// still applies. A POINTER because the default is on: absent means on. It
+	// lives in this file and never in the runner policy, so the CLI, a
 	// QuickAgent's run and a run In Agentry cannot read it, and no installed
 	// package can claim it. Read it through BuiltinBudgets.
 	BuiltinNoLimit *bool `yaml:"builtinNoLimit,omitempty" json:"builtinNoLimit,omitempty"`
-	// RememberRuns is Settings → Run defaults → Remember recent runs (plan
-	// desktop-home-and-library.md §4.6, D1; D-068; agentry-desktop#659):
+	// RememberRuns is Settings → Run defaults → Remember recent runs:
 	// while it is on, Go keeps the last 50 runs on this computer in
 	// runs.yaml (internal/runhistory) for Home's Recent runs and the run
 	// page. A POINTER because the default is on: absent means on. Read it
 	// through RememberRunsEnabled. Turning it off clears the history.
 	RememberRuns *bool `yaml:"rememberRuns,omitempty" json:"rememberRuns,omitempty"`
 
-	// Home is the Home page's cards, in order (plan
-	// desktop-home-and-library.md §4.4, D-067; home.go). Absent means the
+	// Home is the Home page's cards, in order (home.go). Absent means the
 	// defaults. Read it through HomeLayoutNow; it is written only by the
 	// Home setters, each of which changes one thing.
 	Home *HomeLayout `yaml:"home,omitempty" json:"-"`
 }
 
 // BuiltinFailsafeTurns is the turn cap of a built-in's run on this computer
-// while Run defaults' no-limit switch is on (D-062's addendum): far more
-// than a built-in, tested not to run away, takes to finish its job, there
-// only to end a run that loops. The app never shows it; a runner policy
-// that allows more keeps its own.
+// while Run defaults' no-limit switch is on: far more than a built-in,
+// tested not to run away, takes to finish its job, there only to end a run
+// that loops. The app never shows it; a runner policy that allows more
+// keeps its own.
 const BuiltinFailsafeTurns = 200
 
 // BuiltinLimits are the budgets of a built-in's run on this computer. Run
@@ -164,19 +155,19 @@ type BuiltinLimits struct {
 }
 
 // BuiltinNoLimitOn says whether Run defaults' no-limit switch for the
-// built-in agents is on. Unset means on (D-062's addendum).
+// built-in agents is on. Unset means on.
 func (s Settings) BuiltinNoLimitOn() bool {
 	return s.BuiltinNoLimit == nil || *s.BuiltinNoLimit
 }
 
 // BuiltinBudgets are the budgets a run of the built-in b on this computer
 // starts from. With the switch off they are the CLI's b.LocalBudgets over
-// the runner policy's p (its timeout floor, DR-54) and the policy's turns.
+// the runner policy's p (its timeout floor) and the policy's turns.
 // With it on, the default, the run has no timeout and runs to the hidden
-// BuiltinFailsafeTurns, and the app shows it no limit at all (D-062's
-// addendum). Every built-in the app runs here takes its budgets from this,
-// so the four cannot drift apart. A settings file that cannot be read keeps
-// the floor and the policy's turns: nothing loses a limit by failing.
+// BuiltinFailsafeTurns, and the app shows it no limit at all. Every
+// built-in the app runs here takes its budgets from this, so the four
+// cannot drift apart. A settings file that cannot be read keeps the floor
+// and the policy's turns: nothing loses a limit by failing.
 func BuiltinBudgets(b localrun.Builtin, p policy.Budgets) BuiltinLimits {
 	out := b.LocalBudgets(p)
 	if st, err := Load(); err != nil || !st.BuiltinNoLimitOn() {
@@ -220,7 +211,7 @@ func (s Settings) UpdateCheckEnabled() bool {
 }
 
 // RememberRunsEnabled says whether Go keeps a history of runs on this
-// computer. Unset means yes (D1).
+// computer. Unset means yes.
 func (s Settings) RememberRunsEnabled() bool {
 	return s.RememberRuns == nil || *s.RememberRuns
 }
@@ -265,12 +256,11 @@ var saveMu sync.Mutex
 // Save writes the settings file with 0600 permissions (it may carry a PAT
 // when the keychain is unavailable).
 //
-// It never changes the Unsafe Mode switch: whatever s.UnsafeMode says, the
-// file keeps the value it has. Every other setting is saved by a binding
-// that loads, changes one field and saves, with no lock across the three;
-// were the switch saved the same way, a save that loaded it on before it
-// was turned off would turn it back on with no confirmation (the review of
-// agentry-desktop#418). SetUnsafeMode is its one writer.
+// It never changes the Unsafe Mode switch: whatever s.UnsafeMode says, the file
+// keeps the value it has. Every other setting is saved by a binding that loads,
+// changes one field and saves, with no lock across the three; were the switch
+// saved the same way, a save that loaded it on before it was turned off would
+// turn it back on with no confirmation. SetUnsafeMode is its one writer.
 func Save(s Settings) error {
 	saveMu.Lock()
 	defer saveMu.Unlock()
@@ -397,8 +387,8 @@ func ValidateURL(regURL string) error {
 		return nil
 	case "http":
 		// The keychain token is keyed by host, so a plain-http registry at
-		// a real host would carry the same PAT in clear (security review
-		// 2026-09-20 §8.6; D-030). A dev stack on this machine keeps http.
+		// a real host would carry the same PAT in clear.
+		// A dev stack on this machine keeps http.
 		if h := u.Hostname(); h == "localhost" || strings.HasSuffix(h, ".localhost") {
 			return nil
 		}

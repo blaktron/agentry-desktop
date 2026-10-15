@@ -1,13 +1,13 @@
 package run
 
-// Target hosts in the desktop's run setup (agentry-desktop#812): each host
-// is readied by the CLI's own targethost.Prepare against a real SSH server,
-// with the sign-in the setup gave (never a variable of the process's
-// environment) or the one saved in the keychain; a host key no file holds
-// is put to the native dialog with its type and SHA256 fingerprint and,
-// accepted, kept in the runner home's file; a changed key refuses with both
-// fingerprints; a key file the picker did not return refuses; and nothing
-// the run writes or says carries a credential.
+// Target hosts in the desktop's run setup: each host is readied by the
+// CLI's own targethost.Prepare against a real SSH server, with the sign-in
+// the setup gave (never a variable of the process's environment) or the one
+// saved in the keychain; a host key no file holds is put to the native
+// dialog with its type and SHA256 fingerprint and, accepted, kept in the
+// runner home's file; a changed key refuses with both fingerprints; a key
+// file the picker did not return refuses; and nothing the run writes or
+// says carries a credential.
 
 import (
 	"context"
@@ -52,8 +52,8 @@ type sshHost struct {
 }
 
 // nonLoopback is an IPv4 address of this machine that is not loopback or
-// link-local, which a target host may be (plan D8); the test is skipped on
-// a machine with none.
+// link-local, which a target host may be; the test is skipped on a
+// machine with none.
 func nonLoopback(t *testing.T) netip.Addr {
 	t.Helper()
 	addrs, err := net.InterfaceAddrs()
@@ -70,7 +70,7 @@ func nonLoopback(t *testing.T) netip.Addr {
 			return ip.Unmap()
 		}
 	}
-	t.Skip("this machine has no address but loopback; a target host may not be loopback (plan D8)")
+	t.Skip("this machine has no address but loopback; a target host may not be loopback")
 	return netip.Addr{}
 }
 
@@ -387,7 +387,7 @@ func TestASavedSignInIsTheCLIsEntryAndTheNextRunUsesIt(t *testing.T) {
 	}
 }
 
-// A schedule keeps the sign-in whatever Save says (plan D12).
+// A schedule keeps the sign-in whatever Save says.
 func TestAScheduleKeepsTheSignIn(t *testing.T) {
 	home := hostKeychain(t)
 	h := startSSHHost(t)
@@ -451,7 +451,7 @@ func TestRecentHostsAreAddressesNewestFirst(t *testing.T) {
 }
 
 // A run or a schedule In Agentry of a release with a target host is
-// refused, naming it (plan D11).
+// refused, naming it.
 func TestARunInAgentryOfATargetHostReleaseIsRefused(t *testing.T) {
 	m := &manifest.Manifest{Capabilities: manifest.Capabilities{TargetHosts: []string{"server"}}}
 	if err := RefuseHostedTargetHosts(m); err == nil || !strings.Contains(err.Error(), "only a run on this computer") {

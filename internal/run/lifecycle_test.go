@@ -2,9 +2,9 @@ package run
 
 // Lifecycle tests for the desktop run engine, against the fake registry
 // (registryfake_test.go) and the CLI's dockerx.Fake: materialize's
-// verified-install cache, ensurePlan's reuse/recompile/tamper rules
-// (§R6/§R9), and Run()'s whole resolve → verify → materialize → compile →
-// run → receipt pipeline with §P2 profile semantics.
+// verified-install cache, ensurePlan's reuse/recompile/tamper rules,
+// and Run()'s whole resolve → verify → materialize → compile → run →
+// receipt pipeline with its profile semantics.
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func resolveFixture(t *testing.T, regURL string) *Signature {
 }
 
 // TestResolveSignature pins the identity fields a resolve carries into
-// every later stage (§P2: the signature keys the caches and profiles).
+// every later stage (the signature keys the caches and profiles).
 func TestResolveSignature(t *testing.T) {
 	isolateRunEnv(t)
 	fr := &fakeRunRegistry{}
@@ -74,7 +74,7 @@ func TestResolveSignature(t *testing.T) {
 	}
 }
 
-// TestMaterializeCachesVerifiedInstall pins the §R1 gate and the shared
+// TestMaterializeCachesVerifiedInstall pins the attestation gate and the shared
 // cache contract: download → digest check → attestation → extract →
 // install.json in the CLI's exact layout, then reuse with no re-download.
 func TestMaterializeCachesVerifiedInstall(t *testing.T) {
@@ -144,10 +144,9 @@ func TestMaterializeCachesVerifiedInstall(t *testing.T) {
 		t.Fatalf("cached install re-downloaded the archive (%d hits)", got)
 	}
 	// The fixture's registry publishes no attestation, so this install is
-	// unsigned; the reuse is narrated honestly — a cached unsigned release
-	// says so, and that the consent given now admits it — rather than
-	// calling itself verified (M23; the CLI's DR-21 shape), and without
-	// the consent it is refused.
+	// unsigned; the reuse is narrated honestly — a cached unsigned release says
+	// so, and that the consent given now admits it — rather than calling itself
+	// verified (as the CLI does), and without the consent it is refused.
 	if meta.Attestation.State != "unsigned" {
 		t.Fatalf("the fixture's install is %q, want unsigned", meta.Attestation.State)
 	}
@@ -256,7 +255,7 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatal("matching plan was recompiled instead of reused")
 	}
 
-	// Policy change: the fingerprint participates in the reuse key (§R9).
+	// Policy change: the fingerprint participates in the reuse key.
 	plant()
 	plan2, _, err := ensurePlan(&log, home, m, meta, installDir, workspaceDir, pol, "pol-sha-2", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err != nil {
@@ -266,8 +265,8 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 		t.Fatalf("policy change must recompile (canary=%v, sha=%s)", surviving(), plan2.PolicySHA256)
 	}
 
-	// Another build compiled it (same schema, possibly different output;
-	// desktop#94): recompiled, and the log names both builds.
+	// Another build compiled it (same schema, possibly different output):
+	// recompiled, and the log names both builds.
 	plant()
 	b, err := os.ReadFile(filepath.Join(planDir, "plan.json"))
 	if err != nil {
@@ -291,8 +290,8 @@ func TestEnsurePlanReuseAndRecompile(t *testing.T) {
 
 	// An unstamped build of other code recorded the bare version: this test
 	// binary is unstamped too, so the version alone would match and the old
-	// compile would be reused (agentry-desktop#218, the CLI's #144). The
-	// build identity adds the executable's digest, so it recompiles.
+	// compile would be reused. The build identity adds the executable's
+	// digest, so it recompiles.
 	plant()
 	b, err = os.ReadFile(filepath.Join(planDir, "plan.json"))
 	if err != nil {
@@ -413,11 +412,11 @@ func widenEgress(t *testing.T, planPath string) string {
 }
 
 // TestEnsurePlanIntegrityRecord pins the CLI's plan.json integrity rule
-// (agentry-cli#266, desktop#255) in the desktop: every compile writes the
-// record under the runner home's key; a plan.json edited after that
-// (fields ensurePlan does not compare, here the egress contract) refuses
-// the run with the verify class and is left in place; a plan with no
-// record (an older desktop's) is recompiled, never reused.
+// in the desktop: every compile writes the record under the runner
+// home's key; a plan.json edited after that (fields ensurePlan does not
+// compare, here the egress contract) refuses the run with the verify
+// class and is left in place; a plan with no record (an older desktop's)
+// is recompiled, never reused.
 func TestEnsurePlanIntegrityRecord(t *testing.T) {
 	home := isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
@@ -498,8 +497,8 @@ func TestEnsurePlanPolicyRefusalSurfaces(t *testing.T) {
 	}
 
 	// An exec command the policy does not catalogue is the compiler's
-	// refusal too (agentry-cli#100): the fixture declares exec: [echo] and
-	// the default policy maps no package to it.
+	// refusal too: the fixture declares exec: [echo] and the default
+	// policy maps no package to it.
 	m, _, installDir, workspaceDir := planFixture(t)
 	_, _, err = ensurePlan(&log, home, m, meta, installDir, workspaceDir, policy.Default(), "sha", adapter.DefaultName, nil, manifest.ModeAutonomous, nil)
 	if err == nil || !strings.Contains(err.Error(), "refused by policy") || !strings.Contains(err.Error(), "does not catalogue") {
@@ -535,7 +534,7 @@ func request(regURL, outDir string) Request {
 	}
 }
 
-// TestRunHappyPath drives the whole §R6 lifecycle through Run and asserts
+// TestRunHappyPath drives the whole lifecycle through Run and asserts
 // the envelope-derived view plus the on-disk side effects the frontend
 // depends on.
 func TestRunHappyPath(t *testing.T) {
@@ -563,7 +562,7 @@ func TestRunHappyPath(t *testing.T) {
 		t.Errorf("identity fields = %+v", res)
 	}
 	// The fixture declares exec: {commands: [echo]}, so the run builds the
-	// per-QuickAgent exec image the plan names (agentry-cli#9, desktop#17).
+	// per-QuickAgent exec image the plan names.
 	execTag := fixtureExecTag()
 	builtExec := false
 	for _, op := range fd.Ops() {
@@ -597,7 +596,7 @@ func TestRunHappyPath(t *testing.T) {
 	}
 
 	// The install cache is the CLI's layout and the accepted capability
-	// contract was recorded under the shared consent key (D-010).
+	// contract was recorded under the shared consent key.
 	installDir := filepath.Join(home, "agents", "acme", "reporter", "1.0.0-"+installdir.DigestSuffix(fr.digest))
 	if _, err := os.Stat(filepath.Join(installDir, "install.json")); err != nil {
 		t.Errorf("install cache missing: %v", err)
@@ -625,8 +624,7 @@ func TestRunHappyPath(t *testing.T) {
 // TestRunWithNoTaskRunsTheAgentsOwnInstruction keeps the run setup's
 // promise ("Left empty, its own instruction runs with no extra task"): a
 // run whose task is left empty hands the harness the release's own
-// instruction, not an empty stdin, which docker-agent refuses (exit 14;
-// agentry-cli#449, taken with the pin on v0.6.18, #372).
+// instruction, not an empty stdin, which docker-agent refuses (exit 14).
 func TestRunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
 	_, regURL, fd, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -648,10 +646,11 @@ func TestRunWithNoTaskRunsTheAgentsOwnInstruction(t *testing.T) {
 	}
 }
 
-// TestRunRefusesAnEditedPlan is desktop#255's acceptance through Run: a
-// plan.json edited after the desktop compiled it (the contract widened,
-// every compared field intact) refuses the next run with the verify class
-// before any container starts, the same outcome as `agentry run` (exit 10).
+// TestRunRefusesAnEditedPlan is the acceptance of the plan integrity record
+// through Run: a plan.json edited after the desktop compiled it (the contract
+// widened, every compared field intact) refuses the next run with the verify
+// class before any container starts, the same outcome as `agentry run` (exit
+// 10).
 func TestRunRefusesAnEditedPlan(t *testing.T) {
 	fr, regURL, fd, home := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -678,7 +677,7 @@ func TestRunRefusesAnEditedPlan(t *testing.T) {
 	}
 }
 
-// TestRunSecretFromProfile pins §P2 consumption: the profile's stored
+// TestRunSecretFromProfile pins profile consumption: the profile's stored
 // value satisfies a declared secret the host environment does not have,
 // and keep=true retains the profile with lastUsedAt stamped.
 func TestRunSecretFromProfile(t *testing.T) {
@@ -711,7 +710,7 @@ func TestRunSecretFromProfile(t *testing.T) {
 	}
 }
 
-// TestRunKeepProfilePrecedence pins the §P2 completion-choice order:
+// TestRunKeepProfilePrecedence pins the completion-choice order:
 // request parameter > stored profile > policy default.
 func TestRunKeepProfilePrecedence(t *testing.T) {
 	fr, regURL, _, home := runFixture(t)
@@ -766,10 +765,10 @@ func TestRunKeepProfilePrecedence(t *testing.T) {
 	}
 }
 
-// TestRunAgentFailureStillReturnsView pins the §R8 contract the frontend
+// TestRunAgentFailureStillReturnsView pins the envelope contract the frontend
 // depends on: once the engine starts, failures ride in the envelope
-// (status/exit class/error), never a rejected promise that loses the
-// receipt paths. Also covers the yanked-release warning.
+// (status/exit class/error), never a rejected promise that loses the receipt
+// paths. Also covers the yanked-release warning.
 func TestRunAgentFailureStillReturnsView(t *testing.T) {
 	isolateRunEnv(t)
 	saveCataloguedPolicy(t)
@@ -836,9 +835,9 @@ func TestRunBudgetOverrides(t *testing.T) {
 	}
 }
 
-// TestRunMissingSecretRefusesWithExit11 pins the §P2 fallback: no profile
-// and no host env value refuses inside the engine with the variable named
-// (v1 exit-11 semantics), still returning the envelope view.
+// TestRunMissingSecretRefusesWithExit11 pins the fallback: no profile and
+// no host env value refuses inside the engine with the variable named (v1
+// exit-11 semantics), still returning the envelope view.
 func TestRunMissingSecretRefusesWithExit11(t *testing.T) {
 	_, regURL, _, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "restore-guard")
@@ -912,7 +911,7 @@ func TestRunDefaultOutDir(t *testing.T) {
 }
 
 // receiptExecLine reads the exec line of capabilities_enforced from the
-// run's result.json (the §R8 envelope) and the plan's own exec text from
+// run's result.json (the envelope) and the plan's own exec text from
 // receipts/run-plan.json.
 func receiptExecLine(t *testing.T, outDir string) (line, planned string, present bool) {
 	t.Helper()
@@ -940,11 +939,11 @@ func receiptExecLine(t *testing.T, outDir string) (line, planned string, present
 	return line, plan.Enforcement["exec"], present
 }
 
-// TestRunReceiptNamesResolvedExecPackages (desktop#95): a release that
-// declares exec gets the exec image's resolved package versions on its
-// receipt's exec line, the CLI's wording byte for byte — the compiled
-// text, then "; packages resolved at image build: " and the versions the
-// build recorded (the fake serves "busybox" as that record).
+// TestRunReceiptNamesResolvedExecPackages: a release that declares exec
+// gets the exec image's resolved package versions on its receipt's exec
+// line, the CLI's wording byte for byte — the compiled text, then ";
+// packages resolved at image build: " and the versions the build
+// recorded (the fake serves "busybox" as that record).
 func TestRunReceiptNamesResolvedExecPackages(t *testing.T) {
 	_, regURL, _, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -962,9 +961,9 @@ func TestRunReceiptNamesResolvedExecPackages(t *testing.T) {
 	}
 }
 
-// TestRunReceiptWithoutExecIsUnchanged (desktop#95): a release that
-// declares no exec builds no exec image and its receipt carries no exec
-// line and no package claim — nothing was installed, so nothing is named.
+// TestRunReceiptWithoutExecIsUnchanged: a release that declares no exec
+// builds no exec image and its receipt carries no exec line and no
+// package claim — nothing was installed, so nothing is named.
 func TestRunReceiptWithoutExecIsUnchanged(t *testing.T) {
 	isolateRunEnv(t)
 	saveCataloguedPolicy(t)
@@ -1000,17 +999,16 @@ func TestRunReceiptWithoutExecIsUnchanged(t *testing.T) {
 	}
 }
 
-// TestEnsurePlanConcurrentRecompiles (agentry-desktop#265): a desktop run
-// and a CLI run started together on one release and mode share the plan
-// directory under the runner home's install. Compile replaces that
-// directory whole and ReadInstalledPlan waits out an in-flight publish
-// (agentry-cli#289), so no caller may clear the directory first: a clear
-// could delete the plan another run just published, or fail with
-// "directory not empty" while a publish lands. Each caller here stands for
-// one client (the CLI's ensurePlan has the same read-then-compile shape
-// over the same module); alternating policy fingerprints force a recompile
-// on nearly every call, and every call must end with a plan, never a
-// "clear stale plan" or a tamper refusal.
+// TestEnsurePlanConcurrentRecompiles: a desktop run and a CLI run started
+// together on one release and mode share the plan directory under the
+// runner home's install. Compile replaces that directory whole and
+// ReadInstalledPlan waits out an in-flight publish, so no caller may clear
+// the directory first: a clear could delete the plan another run just
+// published, or fail with "directory not empty" while a publish lands.
+// Each caller here stands for one client (the CLI's ensurePlan has the
+// same read-then-compile shape over the same module); alternating policy
+// fingerprints force a recompile on nearly every call, and every call must
+// end with a plan, never a "clear stale plan" or a tamper refusal.
 func TestEnsurePlanConcurrentRecompiles(t *testing.T) {
 	home := isolateRunEnv(t)
 	m, meta, installDir, workspaceDir := planFixture(t)
@@ -1047,11 +1045,11 @@ func TestEnsurePlanConcurrentRecompiles(t *testing.T) {
 	}
 }
 
-// assertPolicyBlock is agentry-desktop#269's acceptance on a flattened
-// envelope: a desktop run or session names the operator policy file it
-// enforced (agentry-cli#152) — the runner home's policy.yaml, source "env"
-// because the tests relocate the home with AGENTRY_RUNNER_HOME, and the
-// digest of that file's bytes, which is what the plan was compiled against.
+// assertPolicyBlock is the acceptance check on a flattened envelope: a
+// desktop run or session names the operator policy file it enforced — the
+// runner home's policy.yaml, source "env" because the tests relocate the
+// home with AGENTRY_RUNNER_HOME, and the digest of that file's bytes, which
+// is what the plan was compiled against.
 func assertPolicyBlock(t *testing.T, res *Result) {
 	t.Helper()
 	path := filepath.Join(os.Getenv(policy.HomeEnv), "policy.yaml")
@@ -1068,8 +1066,8 @@ func assertPolicyBlock(t *testing.T, res *Result) {
 
 // A run tells its caller its effective budgets once it is prepared (the
 // policy's, with the request's overrides) and the harness's usage as it
-// arrives, for the progress dialog (agentry-desktop#465): the engine's own
-// usage hook, passed through.
+// arrives, for the progress dialog: the engine's own usage hook, passed
+// through.
 func TestARunReportsItsBudgetsAndUsage(t *testing.T) {
 	_, regURL, _, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -1126,7 +1124,7 @@ func TestARunReportsThePolicysBudgetsWithNoOverride(t *testing.T) {
 
 // A run stopped mid-flight (its context cancelled, as RunAPI.StopRun does)
 // still ends with its envelope and receipts written as far as it got, and
-// Run returns them (agentry-desktop#465).
+// Run returns them.
 func TestAStoppedRunWritesItsReceiptsAsFarAsItGot(t *testing.T) {
 	_, regURL, fd, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -1166,8 +1164,8 @@ func TestAStoppedRunWritesItsReceiptsAsFarAsItGot(t *testing.T) {
 }
 
 // A release's run on this computer ends blocked, not ok, when its QuickAgent
-// could not do the task (agentry-cli#629, #680), as `agentry run` does: the
-// view carries the class and the reason the frontend words it from.
+// could not do the task, as `agentry run` does: the view carries the class
+// and the reason the frontend words it from.
 func TestARunWhoseQuickAgentCouldNotDoItsTaskEndsBlocked(t *testing.T) {
 	_, regURL, fd, _ := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")

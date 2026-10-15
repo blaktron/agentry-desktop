@@ -1,7 +1,6 @@
-// Command signrelease signs a release's SHA256SUMS with the estate's own
+// Command signrelease signs a release's SHA256SUMS with Agentry's own
 // update-signing key and then verifies what it wrote with the very code the
-// application will use to check it (agentry-desktop#86; plan
-// desktop-installers.md §7, D5).
+// application will use to check it.
 //
 // It exists rather than a `go run aead.dev/minisign/cmd/minisign@vX` line in
 // the workflow for two reasons, and the second is the important one:
@@ -104,9 +103,9 @@ func run() error {
 }
 
 // sumsNameProduct refuses to sign one product's SHA256SUMS with another
-// product's comment. The artifact names are the estate's product contract —
-// the site's importer reads the product off them: agentry-desktop-<v>-… is
-// the desktop, agentry-<v>-… anything else is the CLI — so a sums file whose
+// product's comment. The artifact names are Agentry's product contract — the
+// site's importer reads the product off them: agentry-desktop-<v>-… is the
+// desktop, agentry-<v>-… anything else is the CLI — so a sums file whose
 // names are the other product's is the misuse this catches: a CLI release
 // signed with the default product would carry a signed statement calling it
 // the desktop, the site would import it, and the app would offer it and then
@@ -184,13 +183,13 @@ func signAndVerify(priv minisign.PrivateKey, message []byte, comment string, car
 // unencrypted one `minisign -G -W` writes, and the password-protected one it
 // writes by default.
 //
-// Both are supported because the two keys in this estate want different things.
+// Both are supported because the two keys here want different things.
 // The dev key is an Actions secret written to a job-scoped file and removed at
 // the end of the job; a password on it would be a second Actions secret in the
 // same store, which anything able to read the first can read too, so it would
 // add ceremony rather than protection. The production key lives on hardware the
-// operator holds, where a password is the difference between a stolen laptop
-// and a stolen signing key. D-026 records that.
+// maintainers hold, where a password is the difference between a stolen laptop
+// and a stolen signing key.
 //
 // The password is read from a FILE, never a flag or an environment variable: a
 // flag reaches the process listing and an environment variable reaches every

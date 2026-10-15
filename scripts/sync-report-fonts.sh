@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# The Report design page's web fonts (plan report-designs.md D3, D10, D13;
-# agentry-desktop#759).
+# The Report design page's web fonts.
 #
 #   scripts/sync-report-fonts.sh [AGENTRY_WEB_CHECKOUT] [REF]
 #
 # The preview draws a design's faces as web fonts: the fourteen families
-# the Typst image carries (agentry-dockerimages#58), as Latin WOFF2. The
-# site makes them from the image's hash-pinned files (agentry-web
-# scripts/sync-report-fonts.py, which records each source and digest in
-# PROVENANCE.json); this copies the site's, at REF (default origin/dev) of
-# a checkout of it (default ~/agentry/agentry-web), into
+# the Typst image carries, as Latin WOFF2. The site makes them from the
+# image's hash-pinned files (its sync-report-fonts.py, which records each
+# source and digest in PROVENANCE.json); this copies the site's, at REF
+# (default origin/dev) of a checkout of it (default ~/agentry/agentry-web), into
 # frontend/src/reportFonts/, with their licences and that provenance, and
 # writes SOURCE naming the commit. fonts.css is the site's with each family
 # renamed "Report <family>", so a face the app sets itself (IBM Plex Sans)

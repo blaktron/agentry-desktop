@@ -1,13 +1,12 @@
-// Model sign-ins on this computer (plan model-sign-ins.md §4.1, D6, D7;
-// agentry-desktop#734, M9): the person's own ChatGPT, Claude or Copilot plan,
-// or a connected OpenRouter, Poe or Hugging Face account, kept beside any
+// Model sign-ins on this computer: the person's own ChatGPT, Claude or Copilot
+// plan, or a connected OpenRouter, Poe or Hugging Face account, kept beside any
 // number of keys, one of them the active choice in model setup. Every sign-in
 // and connect runs through the CLI's own packages (pkg/mcpauth,
 // pkg/runner/modelsignin, pkg/runner/claudesignin), on the store the CLI
-// shares, so there is one refresher per machine. Nothing here returns a
-// token, a key or an authorization code: what the page sees is the account a
-// vendor names, the models a plan offers, and, for Sign in with GitHub, the
-// short code GitHub asks the person to enter on its own page.
+// shares, so there is one refresher per machine. Nothing here returns a token,
+// a key or an authorization code: what the page sees is the account a vendor
+// names, the models a plan offers, and, for Sign in with GitHub, the short code
+// GitHub asks the person to enter on its own page.
 package run
 
 import (
@@ -156,9 +155,9 @@ type SignedIn struct {
 	Models  []string `json:"models"`
 }
 
-// SignInChatGPT is Sign in with ChatGPT (plan §4.3): OpenAI's page in the
-// browser, its answer on this computer's loopback. newAccount registers
-// again, for another account than this computer's.
+// SignInChatGPT is Sign in with ChatGPT: OpenAI's page in the browser,
+// its answer on this computer's loopback. newAccount registers again,
+// for another account than this computer's.
 func SignInChatGPT(ctx context.Context, ui SignInUI, newAccount bool) (*SignedIn, error) {
 	s, _, err := signInStore()
 	if err != nil {
@@ -212,10 +211,10 @@ type CopilotModel struct {
 
 // CopilotModels lists the models the kept Copilot sign-in's plan offers for
 // plan (individual, business, enterprise), asked of Copilot CLI in a run's
-// container through the CLI's own copilotmodels.List (agentry-cli#808): the
-// runner and Copilot CLI images are made present first, as setup makes
-// them, so a first list can take minutes; logw has their progress. A plan
-// the account's policy disables a model on does not list it.
+// container through the CLI's own copilotmodels.List: the runner and
+// Copilot CLI images are made present first, as setup makes them, so a
+// first list can take minutes; logw has their progress. A plan the
+// account's policy disables a model on does not list it.
 func CopilotModels(ctx context.Context, plan string, logw io.Writer) ([]CopilotModel, error) {
 	// The plan comes from the page and names the host the list's proxy
 	// allows: one of GitHub's three, held before anything is built.
@@ -252,12 +251,12 @@ func claude(home string) claudesignin.SignIn {
 	return claudesignin.SignIn{Home: home, Docker: claudeDocker, Keys: connectionKeys()}
 }
 
-// SignInClaude is Use your Claude subscription (runs Claude Code), plan
-// §4.4: Claude Code itself signs the person in, in Anthropic's own pages in
-// their browser, into the Claude Code image's volume, which Agentry never
-// reads (agentry-cli#848). The page is given no input: Claude Code takes
-// the browser's answer on its own callback, relayed into its container, and
-// a sign-in that could only finish by pasting a code ends instead.
+// SignInClaude is Use your Claude subscription (runs Claude Code): Claude
+// Code itself signs the person in, in Anthropic's own pages in their
+// browser, into the Claude Code image's volume, which Agentry never reads.
+// The page is given no input: Claude Code takes the browser's answer on its
+// own callback, relayed into its container, and a sign-in that could only
+// finish by pasting a code ends instead.
 func SignInClaude(ctx context.Context, ui SignInUI, logw io.Writer) (*SignedIn, error) {
 	_, home, err := signInStore()
 	if err != nil {
@@ -271,10 +270,10 @@ func SignInClaude(ctx context.Context, ui SignInUI, logw io.Writer) (*SignedIn, 
 	return &SignedIn{Vendor: modelsignin.Claude, Account: rec.Label, Models: []string{}}, nil
 }
 
-// SignInCopilot is Sign in with GitHub (plan §4.5): GitHub's device flow
-// through Agentry's GitHub App, or its OAuth App, the fallback (D26). The
-// code GitHub issues is handed to Code, which shows it and puts it on the
-// clipboard (operator, 2026-10-11), and GitHub's page is opened.
+// SignInCopilot is Sign in with GitHub: GitHub's device flow through
+// Agentry's GitHub App, or its OAuth App, the fallback. The code GitHub
+// issues is handed to Code, which shows it and puts it on the clipboard,
+// and GitHub's page is opened.
 func SignInCopilot(ctx context.Context, ui SignInUI, oauthApp bool) (*SignedIn, error) {
 	s, _, err := signInStore()
 	if err != nil {
@@ -301,8 +300,8 @@ func SignInCopilot(ctx context.Context, ui SignInUI, oauthApp bool) (*SignedIn, 
 }
 
 // ConnectAccount is Connect your account for OpenRouter, Poe or Hugging
-// Face (plan §4.6): the vendor mints an ordinary key for Agentry in the
-// person's browser, kept in the model key's keychain entry for its provider.
+// Face: the vendor mints an ordinary key for Agentry in the person's
+// browser, kept in the model key's keychain entry for its provider.
 func ConnectAccount(ctx context.Context, ui SignInUI, vendor string) (*SignedIn, error) {
 	if !modelsignin.IsConnectVendor(vendor) {
 		return nil, fmt.Errorf("%s is not an account this app connects (openrouter, poe, huggingface)", vendor)

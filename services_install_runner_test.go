@@ -10,11 +10,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/install"
 )
 
-// The one-click install's gates (agentry-desktop#146, D-031) are native
-// dialogs: a signed, scanned release within its declared capabilities
-// raises none; an unsigned or unscanned one raises "Install anyway?"; a
-// first install that declares egress or exec, or an update that widens,
-// raises the contract itself; the first No is the refusal.
+// The one-click install's gates are native dialogs: a signed, scanned
+// release within its declared capabilities raises none; an unsigned or
+// unscanned one raises "Install anyway?"; a first install that declares
+// egress or exec, or an update that widens, raises the contract itself; the
+// first No is the refusal.
 func TestInstallRunnerGatesAreNativeDialogs(t *testing.T) {
 	var asked []string
 	answer := true
@@ -67,10 +67,10 @@ func TestInstallRunnerGatesAreNativeDialogs(t *testing.T) {
 		t.Fatal("an unreachable registry installed")
 	}
 
-	// The bound Confirm cannot be the way around the dialogs: a runner
-	// plan the page prepared and confirms with every box ticked gets the
-	// plan's own gates raised here, and a No installs nothing and leaves
-	// nothing pending (D-030, D-031).
+	// The bound Confirm cannot be the way around the dialogs: a runner plan
+	// the page prepared and confirms with every box ticked gets the plan's
+	// own gates raised here, and a No installs nothing and leaves nothing
+	// pending.
 	asked = nil
 	answer = false
 	i.engine.AddPendingForTest(install.Plan{ID: "runner-plan", Target: "runner", Namespace: "acme", Name: "demo", Version: "1.0.0", NeedsCapabilityConfirm: true,

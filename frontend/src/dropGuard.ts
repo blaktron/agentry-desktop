@@ -1,4 +1,4 @@
-// The window's drop guard (agentry-desktop#644). No page of the app takes a
+// The window's drop guard. No page of the app takes a
 // dropped file, and a drop that no element takes gets the webview's default,
 // which in a browser opens the dropped file or link in place of the app's
 // document. That page would be outside the bundle the window's
@@ -7,13 +7,13 @@
 //
 // - every drag that carries a file, wherever it is dropped, the voice
 //   editor and the text fields included (ProseMirror inserts only a drop's
-//   text or HTML, and filters those through the schema, agentry-desktop#612).
+//   text or HTML, and filters those through the schema).
 //   A drag reports a file as "Files" among its types, except in WebKitGTK,
 //   which reports a file manager's drag as text/uri-list and text/html and
 //   withholds the URI list from the page (it reads as ""), and a field would
 //   take the file's address as text. Data is readable only on drop, so a
 //   drop whose URI list is listed but withheld, or names a file: URI, is
-//   cancelled there (measured in WebKitGTK 4.1 in the GUI box, 2026-10-13);
+//   cancelled there (observed in WebKitGTK 4.1);
 // - a drag of text or a link anywhere but a text field or the voice editor,
 //   where it would otherwise navigate or open.
 //

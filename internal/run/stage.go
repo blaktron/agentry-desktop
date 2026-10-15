@@ -10,15 +10,15 @@ import (
 	"time"
 )
 
-// A review's staged copy (agentry-desktop#469). The Examiner's pre-step
-// (the CLI's examiner.Prepare) copies the QuickAgent under review into a
-// directory of its own in the system's temp directory, named
-// agentry-examiner-*, which its Cleanup removes when the review returns. An
-// app killed mid-review runs no Cleanup, and the copy is outside the
-// runner home, where Sweep looks. So the review records the copy's path in
-// its run's record as soon as the pre-step returns (RecordStage), and
-// forgetting the record removes it (ForgetInFlight): at the next start for
-// a review whose app died, at quit for one the quit's wait gave up on.
+// A review's staged copy. The Examiner's pre-step (the CLI's
+// examiner.Prepare) copies the QuickAgent under review into a directory of
+// its own in the system's temp directory, named agentry-examiner-*, which
+// its Cleanup removes when the review returns. An app killed mid-review
+// runs no Cleanup, and the copy is outside the runner home, where Sweep
+// looks. So the review records the copy's path in its run's record as soon
+// as the pre-step returns (RecordStage), and forgetting the record removes
+// it (ForgetInFlight): at the next start for a review whose app died, at
+// quit for one the quit's wait gave up on.
 //
 // What the record cannot name is a copy made by a pre-step the app died
 // inside, in the seconds before it returned; SweepStaleStages removes this

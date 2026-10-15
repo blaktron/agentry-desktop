@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Reads the built disk image back and checks it is the one the plan describes
-# (agentry-desktop#85; agentry-notes/plans/desktop-installers.md §5, D2, D3).
-# Runs on macOS only: it mounts the image.
+# Reads the built disk image back and checks it holds the bundle and an
+# Applications shortcut and nothing else. Runs on macOS only: it mounts the image.
 #
 #   scripts/check-darwin-dmg.sh [--signed] <out.dmg> <agentry-desktop.app>
 #
 # What it proves:
-#   1. the file name is one the site's manifest admits
-#      (agentry-web/scripts/release/manifest.py NAME: .dmg is the "dmg"
+#   1. the file name is one the download manifest admits (.dmg is the "dmg"
 #      format, and the download page renders a dmg card for darwin/universal);
 #   2. the image's own checksum verifies (hdiutil verify): what was written
 #      is what is read back;
@@ -18,12 +16,13 @@
 #      x86_64, the same check the release already runs on the built bundle;
 #   5. its signature verifies. Without --signed the authority is printed
 #      rather than asserted (the ad-hoc one wails applies, which a PR build
-#      and a dev prerelease ship). With --signed (the production release,
-#      agentry-desktop#6) both the image and the bundle on it must be
-#      Developer ID-signed by APPLE_SIGNING_IDENTITY of APPLE_TEAM_ID (from
-#      the environment; the release sets both from build/release.env), carry a stapled notarization ticket and be
-#      accepted by Gatekeeper as Notarized Developer ID: the read-back is
-#      `scripts/sign-darwin.sh assess`, the same one the signing step ran;
+#      and a dev prerelease ship). With --signed (the production release)
+#      both the image and the bundle on it must be Developer ID-signed by
+#      APPLE_SIGNING_IDENTITY of APPLE_TEAM_ID (from the environment; the
+#      release sets both from build/release.env), carry a stapled
+#      notarization ticket and be accepted by Gatekeeper as Notarized
+#      Developer ID: the read-back is `scripts/sign-darwin.sh assess`, the
+#      same one the signing step ran;
 #   6. the bundle on the image is byte-for-byte the bundle <agentry-desktop.app>
 #      holds, which is the bundle the zip was made from: the dmg is a second
 #      wrapper, not a second build. It compares the content of every file and
@@ -100,8 +99,7 @@ inner="$mnt/$appname/Contents/MacOS/agentry-desktop"
 # Listed once into a variable: a grep -q on a live pipe would close it early
 # and pipefail would read the SIGPIPE as "not universal" (the hazard
 # check-windows-installer.sh documents at its own file listing). The grep
-# reads all of tr's output (>/dev/null, not -q) so tr is never cut off
-# (agentry-desktop#236).
+# reads all of tr's output (>/dev/null, not -q) so tr is never cut off.
 arches=$(lipo -archs "$inner")
 for want in arm64 x86_64; do
   tr ' ' '\n' <<<"$arches" | grep -x "$want" >/dev/null || fail "the bundle on the image is not universal: lipo says '$arches'"

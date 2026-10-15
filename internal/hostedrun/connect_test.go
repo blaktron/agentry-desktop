@@ -6,10 +6,9 @@ import (
 	"testing"
 )
 
-// OAuth connections M9 (agentry-desktop#667): run create's 409
-// connection-missing names the servers still to connect, and the site's
-// Connect tools for the exact version this computer runs is the page that
-// connects them. Nothing here carries a token: the vault returns none.
+// Run create's 409 connection-missing names the servers still to connect, and
+// the site's Connect tools for the exact version this computer runs is the page
+// that connects them. Nothing here carries a token: the vault returns none.
 
 func TestConnectionMissingNamesTheServers(t *testing.T) {
 	const linear = "https://mcp.linear.app/mcp"

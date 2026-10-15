@@ -26,7 +26,7 @@ import (
 // Empty in a build of the open core, which anyone can make and which has no
 // channel to check — Settings says so and nothing is fetched. A self-hosted
 // registry's operator serves their own manifest and builds against it; GitHub
-// Releases is an archive, not a channel (plan desktop-installers.md §7, D5).
+// Releases is an archive, not a channel.
 var ManifestURL = ""
 
 // ErrNoChannel means this build has no update channel, which is a state to
@@ -40,14 +40,14 @@ var ErrNoChannel = errors.New("this build has no update channel, so it cannot ch
 var ErrNothingSigned = errors.New("the update channel publishes no signed release")
 
 // ErrNotApplicable means this platform does not install a newer Agentry
-// Desktop from inside the app. On Linux that is permanent (D7): a .deb or
-// .rpm belongs to the package manager, and an app that overwrote a file dpkg
-// owns would leave the package database describing something that is no
-// longer there.
+// Desktop from inside the app. On Linux that is permanent: a .deb or .rpm
+// belongs to the package manager, and an app that overwrote a file dpkg owns
+// would leave the package database describing something that is no longer
+// there.
 var ErrNotApplicable = errors.New("this platform does not install a newer Agentry Desktop from inside the app")
 
 // Release is a release the channel is offering, as far as the signature
-// proves it. Version and Commit are covered by the estate's key; the rest
+// proves it. Version and Commit are covered by the update-signing key; the rest
 // describes the key that covered them.
 type Release struct {
 	// Version and Commit come from the signed trusted comment, never from the
@@ -57,7 +57,7 @@ type Release struct {
 	// SignedBy names the key whose signature carried them.
 	SignedBy string `json:"signedBy"`
 	// Retired is true when that key has been replaced. The release is still
-	// genuinely ours; M7 will refuse to install from it.
+	// genuinely ours; installing refuses it.
 	Retired bool `json:"retired"`
 	// Checksums is the release's SHA256SUMS, verified, kept so that the
 	// install can check a downloaded artifact against it without fetching it
@@ -95,9 +95,9 @@ type Manifest struct {
 const maxSidecar = 1 << 20
 
 // Check asks the channel whether there is a newer Agentry Desktop, and
-// returns it only when the estate's own signature says so.
+// returns it only when Agentry's own signature says so.
 //
-// The order is the point, and it is the plan's §3 invariant: nothing is
+// The order is the point, and it is the invariant: nothing is
 // believed until the signature over it verifies. The manifest is fetched
 // first because it says where the sums and the signature are, but nothing it
 // claims — least of all the version — is used until those two have been
@@ -120,7 +120,7 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 		// is enough to keep someone on a version with a known problem. A
 		// shipped build makes no exception, loopback included; only a build
 		// with the agentry_dev_loopback tag accepts http on this machine
-		// (loopback_dev.go, agentry-desktop#127).
+		// (loopback_dev.go).
 		return nil, fmt.Errorf("the update channel %q is not https", manifestURL)
 	}
 	if client == nil {
@@ -141,8 +141,8 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 		return nil, fmt.Errorf("the update channel did not answer with a manifest: %w", err)
 	}
 	if m.Desktop.Checksums == nil || m.Desktop.Signature == nil {
-		// The site publishes both or neither (agentry-web#154), so neither
-		// normally means there is nothing signed yet — not an error.
+		// The site publishes both or neither, so neither normally means
+		// there is nothing signed yet — not an error.
 		//
 		// It is also what a hostile channel would serve to keep someone on an
 		// old version for ever: withholding is the one thing a signature
@@ -150,7 +150,7 @@ func Check(ctx context.Context, client *http.Client, manifestURL, current string
 		// existed. ErrNothingSigned rather than a silent "up to date" is what
 		// this package can do about it — Settings shows the state, so a
 		// channel that has gone quiet is visible instead of indistinguishable
-		// from good news. D-027 records the limit.
+		// from good news.
 		return nil, ErrNothingSigned
 	}
 
