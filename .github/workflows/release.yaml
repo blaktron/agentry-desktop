@@ -438,11 +438,13 @@ jobs:
             echo "DARWIN_SIGNING_REPORT=$RUNNER_TEMP/darwin-signing.txt"
           } >> "$GITHUB_ENV"
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
-      # Job-scoped on this persistent host (see ci.yaml): removed at the end.
+      # Job-scoped on this persistent host, with the host's keychain helper
+      # cleared (see ci.yaml): removed at the end.
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}
         run: |
+          git config --file "$GIT_CONFIG_GLOBAL" credential.helper ""
           git config --file "$GIT_CONFIG_GLOBAL" url."https://x-access-token:${AGENTRY_BUILD_TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: What this release bakes in
         env:
