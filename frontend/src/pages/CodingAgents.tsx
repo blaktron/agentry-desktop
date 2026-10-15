@@ -7,10 +7,10 @@
 // model provider when neither is chosen — the folder for it, and the
 // switch "also install into <coding agent>", off by default.
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice, Spinner } from "../ui";
 
 // harnessLabel is the product's name the adapter carries ("Claude Code"),
@@ -27,7 +27,7 @@ export const exportLabel = (target: string) => (target === "claude-skill" ? "the
 // switch and the link say Claude Code. The Claude skill is Claude Code's
 // whether it was chosen or implied by an Anthropic key; AGENTS.md is
 // Codex's when Codex is chosen, else any coding agent's.
-export function codingAgentName(view: main.CodingAgentsView | null): string {
+export function codingAgentName(view: app.CodingAgentsView | null): string {
   if (!view) return "a coding agent";
   if (view.export.target === "claude-skill") return "Claude Code";
   const codex = view.chosen.find((h) => h.name === "codex");
@@ -35,8 +35,8 @@ export function codingAgentName(view: main.CodingAgentsView | null): string {
 }
 
 export type HarnessState = {
-  harnesses: main.HarnessView[] | null;
-  chosen: main.HarnessView[] | null;
+  harnesses: app.HarnessView[] | null;
+  chosen: app.HarnessView[] | null;
   // busy while a choice or a forget is being recorded.
   busy: boolean;
 };
@@ -56,8 +56,8 @@ export function HarnessChooser({ probeOnEntry = false, allowForget = false, onSt
   onState?: (s: HarnessState) => void;
   onChanged?: () => void;
 }) {
-  const [chosen, setChosen] = useState<main.HarnessView[] | null>(null);
-  const [harnesses, setHarnesses] = useState<main.HarnessView[] | null>(null);
+  const [chosen, setChosen] = useState<app.HarnessView[] | null>(null);
+  const [harnesses, setHarnesses] = useState<app.HarnessView[] | null>(null);
   const [looking, setLooking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export function HarnessChooser({ probeOnEntry = false, allowForget = false, onSt
     try {
       const still = await RunAPI.ForgetHarness(name);
       setChosen(still);
-      setHarnesses((hs) => hs && hs.map((h) => main.HarnessView.createFrom({ ...h, chosen: still.some((c) => c.name === h.name) })));
+      setHarnesses((hs) => hs && hs.map((h) => app.HarnessView.createFrom({ ...h, chosen: still.some((c) => c.name === h.name) })));
       onChanged?.();
     } catch (e) {
       setError(String(e));
@@ -191,7 +191,7 @@ export function HarnessChooser({ probeOnEntry = false, allowForget = false, onSt
 // until the person turns it on, and will not go on while AGENTS.md has
 // nowhere to go.
 export function CodingAgentsCard() {
-  const [view, setView] = useState<main.CodingAgentsView | null>(null);
+  const [view, setView] = useState<app.CodingAgentsView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [policyWrites, setPolicyWrites] = useState(0);
@@ -203,7 +203,7 @@ export function CodingAgentsCard() {
   }, [policyWrites]);
   const onPolicyWrite = useCallback(() => setPolicyWrites((n) => n + 1), []);
 
-  const run = async (fn: () => Promise<main.CodingAgentsView>) => {
+  const run = async (fn: () => Promise<app.CodingAgentsView>) => {
     setBusy(true); setError(null);
     try {
       setView(await fn());

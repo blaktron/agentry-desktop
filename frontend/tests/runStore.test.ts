@@ -3,7 +3,7 @@
 // start changes nothing, and Stop and Dismiss reach the run they mean.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import { createRunStore, type RunProgress } from "../src/localRun.ts";
 
 type Cb = (v: never) => void;
@@ -29,12 +29,12 @@ function harness() {
 
 // A call standing in for RunAPI.RunAgent, settled by the test.
 function pending() {
-  let resolve!: (r: main.RunResultView) => void;
+  let resolve!: (r: app.RunResultView) => void;
   let reject!: (e: unknown) => void;
-  const p = new Promise<main.RunResultView>((res, rej) => { resolve = res; reject = rej; });
+  const p = new Promise<app.RunResultView>((res, rej) => { resolve = res; reject = rej; });
   return { call: () => p, resolve, reject };
 }
-const result = (runId: string, status = "ok", exitCode = 0) => ({ runId, status, exitCode }) as unknown as main.RunResultView;
+const result = (runId: string, status = "ok", exitCode = 0) => ({ runId, status, exitCode }) as unknown as app.RunResultView;
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 test("a run is followed from its first report to its result", async () => {

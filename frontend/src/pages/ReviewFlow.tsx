@@ -16,8 +16,8 @@
 // Examiner's model could have written is drawn as text, with its invisible
 // characters shown.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import type { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import type { app } from "../../wailsjs/go/models";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { RevealText } from "../reveal";
 import { type ReviewProgress, outcome, outcomeTone } from "../review";
@@ -133,7 +133,7 @@ function At({ file, line }: { file?: string; line?: number }) {
   return <div className="loc mono"><RevealText text={line ? `${file}:${line}` : file} /></div>;
 }
 
-function Finding({ f, kind }: { f: main.ReviewFindingView; kind?: string }) {
+function Finding({ f, kind }: { f: app.ReviewFindingView; kind?: string }) {
   return (
     <div className="finding">
       <div className="row">
@@ -153,7 +153,7 @@ const READ_KIND: Record<string, string> = { secret: "a secret", script: "a scrip
 
 /** The report of a finished review: the expected outcome, the three kinds of
  *  finding, what did not run here, and the notice. */
-export function ReviewReport({ v, log }: { v: main.ReviewView; log: string[] }) {
+export function ReviewReport({ v, log }: { v: app.ReviewView; log: string[] }) {
   const [err, setErr] = useState<string | null>(null);
   const showFolder = () => RunAPI.ShowRunFolder(v.runId).catch((e) => setErr(String(e)));
   const policy = v.policyFromRegistry

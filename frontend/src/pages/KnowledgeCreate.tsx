@@ -61,11 +61,11 @@
 // a build In Agentry that stopped short). The run lock is unchanged: a run
 // started meanwhile is refused with the reason.
 import { useEffect, useRef, useState } from "react";
-import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/main/App";
+import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { ChooseDirectory, ChooseFiles, OpenExternal } from "../../wailsjs/go/app/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { knowledge, main } from "../../wailsjs/go/models";
+import { knowledge, app } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Field, Input, Modal, Notice, Recap, Spinner, StepFoot, StepHeading, StepList, Textarea, fmtBytes } from "../ui";
 import type { Tone } from "../jobProgress";
 import { buildHoldLine, creatorUseLine } from "../usage";
@@ -111,18 +111,18 @@ export default function KnowledgeCreate({
   initialResult?: knowledge.BuildResult;
   initialBuilding?: boolean;
   /** Harness-only: the In Agentry answer, and a build In Agentry to show. */
-  initialAvailability?: main.KnowledgeHostedAvailabilityView;
-  initialHosted?: main.KnowledgeHostedBuildView;
+  initialAvailability?: app.KnowledgeHostedAvailabilityView;
+  initialHosted?: app.KnowledgeHostedBuildView;
   initialWhere?: "local" | "agentry";
   /** Harness-only: the brief, and this computer's answer on the web. */
   initialBrief?: string;
   initialWeb?: LocalWeb;
 }) {
-  const [avail, setAvail] = useState<main.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
+  const [avail, setAvail] = useState<app.KnowledgeHostedAvailabilityView | null>(initialAvailability ?? null);
   const [where, setWhere] = useState<"local" | "agentry">(initialWhere ?? place ?? "local");
   // availRead: the registry's answer on In Agentry has come, or failed.
   const [availRead, setAvailRead] = useState(!!initialAvailability);
-  const [hosted, setHosted] = useState<main.KnowledgeHostedBuildView | null>(initialHosted ?? null);
+  const [hosted, setHosted] = useState<app.KnowledgeHostedBuildView | null>(initialHosted ?? null);
   const [refusal, setRefusal] = useState<string | null>(null);
   // starting: a build In Agentry's documents are uploading and the build
   // is being created; the button waits rather than starting a second.
@@ -138,11 +138,11 @@ export default function KnowledgeCreate({
   const [localWeb, setLocalWeb] = useState<LocalWeb | null>(initialWeb ?? null);
   const [problem, setProblem] = useState<string | null>(null);
   const [model, setModel] = useState("");
-  const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
+  const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [building, setBuilding] = useState(initialBuilding ?? false);
   const [log, setLog] = useState<string[]>([]);
-  const [budget, setBudget] = useState<main.CreatorBudgetView | null>(null);
-  const [size, setSize] = useState<main.DocumentsView | null>(null);
+  const [budget, setBudget] = useState<app.CreatorBudgetView | null>(null);
+  const [size, setSize] = useState<app.DocumentsView | null>(null);
   const [progress, setProgress] = useState<BuildProgress | null>(null);
   const [result, setResult] = useState<knowledge.BuildResult | null>(initialResult ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -178,7 +178,7 @@ export default function KnowledgeCreate({
       KnowledgeAPI.AttachHostedBuild(registry).then((v) => v.build && setHosted(v.build)).catch(() => {});
     }
   }, []);
-  useEffect(() => EventsOn("knowledge:hosted-build", (v: main.KnowledgeHostedBuildView) => setHosted(v)), []);
+  useEffect(() => EventsOn("knowledge:hosted-build", (v: app.KnowledgeHostedBuildView) => setHosted(v)), []);
   // sizing: the documents are being sized, so Next waits for the answer;
   // an answer for documents since changed is dropped.
   const [sizing, setSizing] = useState(false);
@@ -668,7 +668,7 @@ function BuildProgressView({ progress, compact }: { progress: BuildProgress | nu
 
 // HostedCost is what a build In Agentry holds and may take, before it
 // starts: the registry's numbers, and the balance it is paid from.
-function HostedCost({ avail }: { avail: main.KnowledgeHostedAvailabilityView }) {
+function HostedCost({ avail }: { avail: app.KnowledgeHostedAvailabilityView }) {
   const short = avail.balanceKnown && !avail.unmetered && avail.holdCredits > 0 && avail.balance < avail.holdCredits;
   return (
     <div className="small">
@@ -698,7 +698,7 @@ function HostedCost({ avail }: { avail: main.KnowledgeHostedAvailabilityView }) 
 // HostedDone is a build In Agentry's last word: how it ended, what it did
 // to the pack, what it cost, and — once the pack is downloaded — its scan.
 function HostedDone({ v, onContinue, onClose, onPreview }: {
-  v: main.KnowledgeHostedBuildView;
+  v: app.KnowledgeHostedBuildView;
   onContinue: () => void;
   onClose: () => void;
   onPreview: () => void;

@@ -22,11 +22,11 @@
 // HTML, no image, links only to the system browser), a withheld address is
 // plain text and never a link, and every other field is text.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
-import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { build, knowledge, main } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
+import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { build, knowledge, app } from "../../wailsjs/go/models";
 import { keepPickable, packSize, pickNote, pickProblem, pickable, scanFirstLine, totalLine, whyNot, type Bounds } from "../describeKnowledge";
 import { Where, attachHosted, draftInFlight, showDraft, startDraft, takeLandedDraft, useDraft, whenLanded } from "../drafts";
 import { AgentMarkdown, ExternalLink, webHref } from "../AgentMarkdown";
@@ -66,7 +66,7 @@ function minutes(s: number): string {
 
 export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   registry: string;
-  onDrafted: (v: main.DraftView) => void;
+  onDrafted: (v: app.DraftView) => void;
   onOpenSettings?: () => void;
 }) {
   const [text, setText] = useState(kept.text);
@@ -76,9 +76,9 @@ export function DescribePanel({ registry, onDrafted, onOpenSettings }: {
   // name, and the person's packs as the Knowledge list gives them.
   const [picked, setPicked] = useState<string[]>(kept.picked);
   const [packs, setPacks] = useState<knowledge.Pack[]>([]);
-  const [status, setStatus] = useState<main.DescribeStatusView | null>(null);
-  const [agentry, setAgentry] = useState<main.DescribeHostedView | null>(null);
-  const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
+  const [status, setStatus] = useState<app.DescribeStatusView | null>(null);
+  const [agentry, setAgentry] = useState<app.DescribeHostedView | null>(null);
+  const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const d = useDraft();
 
@@ -291,7 +291,7 @@ function refParts(ref: string): { ns: string; name: string } | null {
 // each question at 2 or more with its file, the draft question set's verdict
 // and flags, or why there was no answer. Every string is the draft's, drawn
 // as text. The summary gives it one line; this is where the line points.
-function CheckNotes({ c }: { c: main.DraftCheckView }) {
+function CheckNotes({ c }: { c: app.DraftCheckView }) {
   const word = (v: string) => (v === "not_scanned" ? "not scanned" : v);
   return (
     <div className="build-check-notes">
@@ -333,7 +333,7 @@ function CheckNotes({ c }: { c: main.DraftCheckView }) {
 
 // DraftNotes is Review's folded "How it was drafted": the plumbing the
 // summary leaves out.
-export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?: (ns: string, name: string) => void }) {
+export function DraftNotes({ v, onOpenAgent }: { v: app.DraftView; onOpenAgent?: (ns: string, name: string) => void }) {
   const ai = v.aiReview;
   const heldBack = ai.withheld + ai.notScanned;
   const how = v.where === "agentry" ? "through the registry" : "with your key";
@@ -450,12 +450,12 @@ export function DraftNotes({ v, onOpenAgent }: { v: main.DraftView; onOpenAgent?
 // this one when it lands, which is what Describe again asks for.
 export function DescribeAgain({ registry, v, model, onStarted }: {
   registry: string;
-  v: main.DraftView;
+  v: app.DraftView;
   model: build.Model;
   onStarted: () => void;
 }) {
   const [note, setNote] = useState("");
-  const [agentry, setAgentry] = useState<main.DescribeHostedView | null>(null);
+  const [agentry, setAgentry] = useState<app.DescribeHostedView | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const where: Where = v.where === "agentry" ? "agentry" : "here";
   useEffect(() => {

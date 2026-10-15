@@ -13,11 +13,11 @@
 // in a sentence, and the ones on this computer work as they did. A past
 // occurrence says what happened, and never reads as done when nothing ran.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
-import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
-import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { install, main, schedules } from "../../wailsjs/go/models";
+import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
+import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
+import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { install, app, schedules } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, EmptyState, ErrorBox, Modal, Notice, OptionsMenu, PageHeader } from "../ui";
 import { scheduledOnHome } from "../homeCards";
@@ -31,7 +31,7 @@ import { RepeatFields, SignedOutBox, type Availability } from "./WhenStep";
 
 /** A row of the page's list: a schedule on this computer, or one In
  *  Agentry (hosted). */
-type Row = (Omit<schedules.Item, "convertValues"> & { hosted: false }) | (Omit<main.HostedScheduleItem, "convertValues"> & { hosted: true });
+type Row = (Omit<schedules.Item, "convertValues"> & { hosted: false }) | (Omit<app.HostedScheduleItem, "convertValues"> & { hosted: true });
 
 // How many rows Upcoming and History show.
 const UPCOMING = 8;
@@ -66,7 +66,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
 }) {
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [availability, setAvailability] = useState<Availability | null>(null);
-  const [list, setList] = useState<main.SchedulesView | null>(null);
+  const [list, setList] = useState<app.SchedulesView | null>(null);
   const [listErr, setListErr] = useState<string | null>(null);
   const [month, setMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const [cal, setCal] = useState<FireRow[]>([]);
@@ -79,23 +79,23 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
   const [reseal, setReseal] = useState<string | null>(null);
   // In Agentry: the account's schedules, their month and their history; each
   // read that did not answer says so.
-  const [hosted, setHosted] = useState<main.HostedSchedulesView | null>(null);
+  const [hosted, setHosted] = useState<app.HostedSchedulesView | null>(null);
   // Whether a new one can be made there, read once for the registry: its
   // facts are several reads of the registry, which every refresh making
   // again outlasted an edge that spaces out a burst.
-  const [offer, setOffer] = useState<main.HostedScheduleOfferView | null>(null);
+  const [offer, setOffer] = useState<app.HostedScheduleOfferView | null>(null);
   const [hostedCal, setHostedCal] = useState<FireRow[]>([]);
   const [hostedCalSaid, setHostedCalSaid] = useState<string | null>(null);
   const [hostedHistory, setHostedHistory] = useState<FireRow[]>([]);
   // Home's layout, for the options menu's Pin to Home or Unpin: null until
   // read, or when it cannot be, and then the menu offers nothing. pinSaid is
   // what the last Pin or Unpin did.
-  const [home, setHome] = useState<main.HomeLayoutView | null>(null);
+  const [home, setHome] = useState<app.HomeLayoutView | null>(null);
   const [pinSaid, setPinSaid] = useState<{ text: string; error?: boolean } | null>(null);
   // The Options menu's Install or Reinstall the agentry command: the site's
   // install script runs in Go, after a native dialog; installed is what it did.
   const [installing, setInstalling] = useState(false);
-  const [installed, setInstalled] = useState<main.CLIInstallView | null>(null);
+  const [installed, setInstalled] = useState<app.CLIInstallView | null>(null);
   const [installErr, setInstallErr] = useState<string | null>(null);
 
   const weeks = useMemo(() => monthGrid(month.year, month.month, now), [month, now]);
@@ -132,7 +132,7 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
     // did not answer, not a throw.
     const list = Promise.resolve().then(() => ScheduleAPI.HostedSchedules(registry))
       .then(setHosted)
-      .catch((e) => setHosted(main.HostedSchedulesView.createFrom({ registry, unavailable: `Your schedules In Agentry could not be read: ${String(e)}`, schedules: [] })));
+      .catch((e) => setHosted(app.HostedSchedulesView.createFrom({ registry, unavailable: `Your schedules In Agentry could not be read: ${String(e)}`, schedules: [] })));
     const cal = Promise.resolve().then(() => ScheduleAPI.HostedCalendar(registry, range.from, range.to))
       .then((c) => { if (n === reads.current) { setHostedCal(c.fires as FireRow[]); setHostedCalSaid(c.unavailable || null); } })
       .catch(() => { if (n === reads.current) { setHostedCal([]); setHostedCalSaid(null); } });

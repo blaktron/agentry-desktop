@@ -4,8 +4,8 @@
 // NAMES only; an empty field means "resolve from the environment at run
 // time"; values leave this component the moment they are stored.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Field, Input, Modal, Notice, Spinner, shortDigest } from "../ui";
 import { connectHelp } from "../GuideText";
 import { AuthorHelp } from "../KeyHelp";
@@ -20,7 +20,7 @@ export default function ToolsPanel({
   onClose: () => void;
 }) {
   const agentRef = `${ns}/${name}@${version}`;
-  const [profile, setProfile] = useState<main.ProfileStatusView | null>(null);
+  const [profile, setProfile] = useState<app.ProfileStatusView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [keep, setKeep] = useState(true);

@@ -5,10 +5,10 @@
 // the App through SettingsAPI.MarkOnboarded when the wizard closes). It opens
 // over the app on first start (App gates it) and is re-runnable from Settings.
 import { useEffect, useState, type ReactNode } from "react";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
-import { main } from "../../wailsjs/go/models";
+import { app } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
@@ -33,9 +33,9 @@ export type WizardOutcome = { kind: "done" } | { kind: "later"; missing: string[
 export default function Wizard({
   settings, activeRegistry, onChanged, onSelectRegistry, onFinish, initialStep = "welcome", probeOnEntry = false,
 }: {
-  settings: main.SettingsView;
+  settings: app.SettingsView;
   activeRegistry: string;
-  onChanged: () => Promise<main.SettingsView>;
+  onChanged: () => Promise<app.SettingsView>;
   onSelectRegistry: (url: string) => void;
   // Dismiss the wizard; the App marks onboarding done so it does not reopen.
   onFinish: (outcome: WizardOutcome) => void;
@@ -131,9 +131,9 @@ function Welcome({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => void 
 function SignInStep({
   settings, activeRegistry, onChanged, onSelectRegistry, onBack, onNext,
 }: {
-  settings: main.SettingsView;
+  settings: app.SettingsView;
   activeRegistry: string;
-  onChanged: () => Promise<main.SettingsView>;
+  onChanged: () => Promise<app.SettingsView>;
   onSelectRegistry: (url: string) => void;
   onBack: () => void;
   onNext: () => void;
@@ -485,17 +485,17 @@ function CodingAgentStep({ onBack, onNext, probeOnEntry = false }: { onBack: () 
 function DoneStep({
   settings, activeRegistry, onBack, onStartOver, onFinish,
 }: {
-  settings: main.SettingsView;
+  settings: app.SettingsView;
   activeRegistry: string;
   onBack: () => void;
   onStartOver: () => void;
   onFinish: (outcome: WizardOutcome) => void;
 }) {
-  const [status, setStatus] = useState<main.SetupStatusView | null>(null);
-  const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
+  const [status, setStatus] = useState<app.SetupStatusView | null>(null);
+  const [prereq, setPrereq] = useState<app.PrereqView | null>(null);
   // Read from the policy, never probed: the recap runs no harness.
-  const [chosenNames, setChosenNames] = useState<main.HarnessView[]>([]);
-  const [keyStatus, setKeyStatus] = useState<main.JevKeyView | null>(null);
+  const [chosenNames, setChosenNames] = useState<app.HarnessView[]>([]);
+  const [keyStatus, setKeyStatus] = useState<app.JevKeyView | null>(null);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     Promise.allSettled([

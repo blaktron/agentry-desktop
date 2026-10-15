@@ -69,7 +69,8 @@ with node's own test runner (`npm test` in `frontend/`).
 
 | path | contents |
 |---|---|
-| `main.go`, `app.go`, `services*.go` | the Wails entry point and the bound services that expose view models to the frontend |
+| `main.go` | the Wails entry point: builds the bound services, binds them and embeds the frontend bundle |
+| `internal/app/` | the bound services that expose view models and events to the frontend (`app.go`, `services*.go`), with their tests; the live end-to-end tests (`live*_test.go`) run only with `AGENTRY_LIVE_REGISTRY` set |
 | `internal/` | the engines behind the services: registry client, install, validate, settings, run, build, knowledge, schedules, self-update, version and others |
 | `internal/selfupdate/keys.json` | the update-signing keys a build trusts |
 | `frontend/` | the React, TypeScript and Vite frontend (`src/`, `tests/`), the generated Wails bindings (`wailsjs/`, never edited by hand) and `harness/`, a design preview for development |

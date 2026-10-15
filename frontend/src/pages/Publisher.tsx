@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as PublisherAPI from "../../wailsjs/go/main/PublisherAPI";
-import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
+import * as PublisherAPI from "../../wailsjs/go/app/PublisherAPI";
+import * as BrowseAPI from "../../wailsjs/go/app/BrowseAPI";
 import { forkProgressLine } from "../fork";
-import { main } from "../../wailsjs/go/models";
+import { app } from "../../wailsjs/go/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Field, Input, Modal, Notice, PageHeader, Select, Spinner, Toolbar, fmtDate,
 } from "../ui";
@@ -35,9 +35,9 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
   /** Settings' registry part, where a sign-in is made or made again. */
   onOpenSettings: () => void;
 }) {
-  const [view, setView] = useState<main.PublisherView | null>(null);
+  const [view, setView] = useState<app.PublisherView | null>(null);
   const [ns, setNs] = useState("");
-  const [rows, setRows] = useState<main.PublisherAgent[] | null>(null);
+  const [rows, setRows] = useState<app.PublisherAgent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(follow?.sentence || null);
   // The followed fork's progress, in words, and whether it is over.
@@ -50,7 +50,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
   // The action in flight, "ns/name:which", so its own button shows it and
   // every other action waits.
   const [busy, setBusy] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<main.PublisherAgent | null>(null);
+  const [deleting, setDeleting] = useState<app.PublisherAgent | null>(null);
   const [typed, setTyped] = useState("");
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
     if (!ns) return;
     setError(null);
     try {
-      setRows(await PublisherAPI.List(registry, ns, new main.PublisherQuery({ q, state, forks, sort })));
+      setRows(await PublisherAPI.List(registry, ns, new app.PublisherQuery({ q, state, forks, sort })));
     } catch (e) {
       setRows([]);
       setError(String(e));
@@ -131,7 +131,7 @@ export default function Publisher({ registry, onOpenAgent, onEdit, onOpenSetting
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, follow?.namespace, follow?.name]);
 
-  async function act(row: main.PublisherAgent, which: "visibility" | "retire" | "delete", run: () => Promise<main.PublisherDone>) {
+  async function act(row: app.PublisherAgent, which: "visibility" | "retire" | "delete", run: () => Promise<app.PublisherDone>) {
     setBusy(`${row.namespace}/${row.name}:${which}`);
     setError(null);
     setNotice(null);

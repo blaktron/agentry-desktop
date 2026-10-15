@@ -17,7 +17,7 @@ export function isHostType(type: string): boolean {
   return type === HOST_TYPE;
 }
 
-/** What Go says of an answer (main.TargetHostView): a problem, or the
+/** What Go says of an answer (app.TargetHostView): a problem, or the
  *  account and host it names and whether a sign-in is saved for them.
  *  Never a credential. */
 export type TargetHost = {

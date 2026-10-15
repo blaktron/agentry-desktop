@@ -20,8 +20,8 @@
 // documents of a build only from the native file and folder pickers, and a
 // build takes the run lock. This page shows what the bindings answer.
 import { type ReactNode, useCallback, useEffect, useState } from "react";
-import * as KnowledgeAPI from "../../wailsjs/go/main/KnowledgeAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
+import * as KnowledgeAPI from "../../wailsjs/go/app/KnowledgeAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
 import { knowledge } from "../../wailsjs/go/models";
 import { Button, EmptyState, ErrorBox, Notice, PageHeader, Spinner, fmtBytes, fmtStorage } from "../ui";
 import { AGENTRY_MAX_BYTES, fmtCap, pagesOf, scanTone } from "../knowledge";

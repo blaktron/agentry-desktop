@@ -24,11 +24,11 @@
 // keeps the Drafter's notes folded under "How it was drafted", with
 // Describe again under them.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { ChooseDirectory, OpenExternal } from "../../wailsjs/go/main/App";
+import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { ChooseDirectory, OpenExternal } from "../../wailsjs/go/app/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { build, main, mcpvuln, validate } from "../../wailsjs/go/models";
+import { build, app, mcpvuln, validate } from "../../wailsjs/go/models";
 import { DescribeAgain, DescribePanel, DraftNotes } from "./BuildDescribe";
 import { draftInFlight, takeLandedDraft } from "../drafts";
 import { editingLine, noteHeldForm, sameRegistry, stillEditing, takeEditRequest, type Editing } from "../edit";
@@ -51,7 +51,7 @@ const MAX_INSTRUCTION_BYTES = 1 << 20;
 // every tab change, and the form is not a file until the first save, so
 // this module keeps the model, the folder and the view for the rest of the
 // app's session, and the start page offers it back as Continue.
-let kept: { model: build.Model; dir: string; view: View; drafted: main.DraftView | null; editing: Editing | null; revisionShown: boolean } | null = null;
+let kept: { model: build.Model; dir: string; view: View; drafted: app.DraftView | null; editing: Editing | null; revisionShown: boolean } | null = null;
 
 type View = "start" | "steps" | "advanced" | "describe" | "summary";
 type SectionKey = "basics" | "instructions" | "tools" | "access" | "questions" | "guide" | "publish";
@@ -358,7 +358,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   initialView?: View;
   initialStep?: number;
   /** Harness only: open with a draft in the form. */
-  initialDraft?: main.DraftView | null;
+  initialDraft?: app.DraftView | null;
   /** Raised by the draft's dialog or card's "Open the draft": the draft
    *  that landed opens now, whatever view the tab is on. */
   openDraftRev?: number;
@@ -378,7 +378,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [model, setModel] = useState<build.Model | null>(kept?.model ?? null);
   const [touched, setTouched] = useState(!!kept || !!initialDraft);
   // The Drafter's notes, while its draft is in the form.
-  const [drafted, setDrafted] = useState<main.DraftView | null>(kept?.drafted ?? initialDraft);
+  const [drafted, setDrafted] = useState<app.DraftView | null>(kept?.drafted ?? initialDraft);
   // The release the form edits, while the form still
   // names its QuickAgent: Submit then adds a version to it.
   const [editing, setEditing] = useState<Editing | null>(kept?.editing ?? null);
@@ -400,7 +400,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   const [result, setResult] = useState<validate.Result | null>(null);
   const [pubResult, setPubResult] = useState<build.PublishResult | null>(null);
   // What Install laid down on this computer.
-  const [localInstall, setLocalInstall] = useState<main.LocalInstallView | null>(null);
+  const [localInstall, setLocalInstall] = useState<app.LocalInstallView | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const logRef = useRef<HTMLPreElement | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
@@ -702,7 +702,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
 
   // A draft made by Describe it: into the form, with no folder yet (the
   // first save makes it), and open on the summary.
-  function takeDraft(v: main.DraftView) {
+  function takeDraft(v: app.DraftView) {
     if (!v.model) return;
     tookDraft.current = true;
     moved.current = true;
@@ -725,7 +725,7 @@ export default function Build({ registry, initialView = "start", initialStep = 0
   // minor, with no folder yet (the first save makes it), on the summary,
   // as a draft opens. What the Builder cannot hold was dropped in Go,
   // without a word.
-  function takeEdit(v: main.EditView) {
+  function takeEdit(v: app.EditView) {
     if (!v.model) return;
     tookDraft.current = true;
     moved.current = true;
@@ -1414,7 +1414,7 @@ function ValidateCard({ result }: { result: validate.Result }) {
   );
 }
 
-function LocalInstallOutcome({ v, onOpenLibrary }: { v: main.LocalInstallView; onOpenLibrary?: () => void }) {
+function LocalInstallOutcome({ v, onOpenLibrary }: { v: app.LocalInstallView; onOpenLibrary?: () => void }) {
   return (
     <div className="selectable">
       <strong>{v.repaired ? "laid down again" : "installed"} {v.ref} on this computer — local and unsigned</strong>

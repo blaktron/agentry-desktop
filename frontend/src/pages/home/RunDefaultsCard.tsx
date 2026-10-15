@@ -1,4 +1,4 @@
-import { main } from "../../../wailsjs/go/models";
+import { app } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { fmtDuration } from "../../usage";
 
@@ -7,7 +7,7 @@ import { fmtDuration } from "../../usage";
 // Settings → Run defaults keeps them. It edits nothing; the card opens that
 // page.
 export function RunDefaultsCard({ defaults, error, onOpen }: {
-  defaults: main.RunDefaultsView | null;
+  defaults: app.RunDefaultsView | null;
   error: string | null;
   onOpen: () => void;
 }) {

@@ -5,14 +5,14 @@
 // same store (`agentry connections`), so what either made is listed here.
 // Nothing here carries a token or a client secret: Go's views have none.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main, run } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { app, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { clientWords, dateOf, hostOf, scopeWords, sharedGrantWarning } from "../connections";
 export { connectionsStatus } from "../connections";
 
 export function ConnectionsSettings() {
-  const [view, setView] = useState<main.KeptConnectionsView | null>(null);
+  const [view, setView] = useState<app.KeptConnectionsView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

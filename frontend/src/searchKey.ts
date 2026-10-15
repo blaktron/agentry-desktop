@@ -1,4 +1,4 @@
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 
 // The person's own web search key: where it stands,
 // and what saving a key for another provider does, decided once for the
@@ -8,12 +8,12 @@ import type { main } from "../wailsjs/go/models";
 
 /** The provider the picker starts on: the policy's, else the first the
  *  policy offers (Brave, the registry's own). */
-export function initialProvider(k: main.SearchKeyView): string {
+export function initialProvider(k: app.SearchKeyView): string {
   return k.provider || k.providers[0]?.name || "";
 }
 
 /** Where the key stands, in one sentence. */
-export function searchKeySentence(k: main.SearchKeyView): string {
+export function searchKeySentence(k: app.SearchKeyView): string {
   if (!k.provider) {
     return "No search provider chosen. A draft on this computer reads the registry and the pages it knows, and does not search the web.";
   }
@@ -31,7 +31,7 @@ export function searchKeySentence(k: main.SearchKeyView): string {
 
 /** What Save will do to a key saved for another provider, or "" when it
  *  replaces nothing. */
-export function replaceNote(k: main.SearchKeyView, chosen: string): string {
+export function replaceNote(k: app.SearchKeyView, chosen: string): string {
   // Go removes the replaced key only when the policy reads it from the
   // keychain; a key the policy does not read stays, and is not mentioned.
   if (!k.provider || k.provider === chosen || !k.stored || k.source !== "keyring") return "";

@@ -13,7 +13,7 @@ export function isSourceType(type: string): boolean {
   return (SOURCE_TYPES as readonly string[]).includes(type);
 }
 
-/** What Go says of an answer (main.SourceKeyView): a problem, or its host
+/** What Go says of an answer (app.SourceKeyView): a problem, or its host
  *  and whether a key is saved for that host. Never a token. */
 export type SourceKey = {
   problem?: string;

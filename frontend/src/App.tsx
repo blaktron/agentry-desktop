@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as SettingsAPI from "../wailsjs/go/main/SettingsAPI";
-import { AppVersion } from "../wailsjs/go/main/App";
-import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/main/SelfUpdateAPI";
-import { UpdatesStatus } from "../wailsjs/go/main/InstallAPI";
-import { UnsafeLive } from "../wailsjs/go/main/RunAPI";
+import * as SettingsAPI from "../wailsjs/go/app/SettingsAPI";
+import { AppVersion } from "../wailsjs/go/app/App";
+import { DismissSelfUpdate, SelfUpdateStatus } from "../wailsjs/go/app/SelfUpdateAPI";
+import { UpdatesStatus } from "../wailsjs/go/app/InstallAPI";
+import { UnsafeLive } from "../wailsjs/go/app/RunAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
-import { main } from "../wailsjs/go/models";
+import { app } from "../wailsjs/go/models";
 import Browse from "./pages/Browse";
 import Home from "./pages/Home";
 import AgentPage from "./pages/AgentPage";
@@ -95,7 +95,7 @@ export default function App() {
   const [reopened, setReopened] = useState<RunSetup | null>(null);
   const [previewRequest, setPreviewRequest] = useState<{ registry: string; name: string } | null>(null);
   const clearPreviewRequest = useCallback(() => setPreviewRequest(null), []);
-  const [settings, setSettings] = useState<main.SettingsView | null>(null);
+  const [settings, setSettings] = useState<app.SettingsView | null>(null);
   // The Report bug card over the page.
   const [reportingBug, setReportingBug] = useState(false);
   const [registry, setRegistry] = useState<string>("");
@@ -103,7 +103,7 @@ export default function App() {
   // A newer Agentry Desktop, when the last check found one. Reading the
   // status never starts a check: the app looks on launch and daily in the
   // background, and this only renders what it found.
-  const [newer, setNewer] = useState<main.SelfUpdateView | null>(null);
+  const [newer, setNewer] = useState<app.SelfUpdateView | null>(null);
   // How many installed QuickAgents have a newer version, from the launch
   // check and the agent page's own checks: the
   // number on Library. Reading it never starts a check.

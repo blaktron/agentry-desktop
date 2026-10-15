@@ -13,8 +13,8 @@
 // opens in the app's viewer (PdfViewer) or, as a fresh copy, in the
 // system's; any other PDF is Save only.
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { RevealText, plainName } from "../reveal";
 import { Button, Card, ErrorBox, fmtBytes, shortDigest } from "../ui";
@@ -46,7 +46,7 @@ export function RunResultView({
   /** Run details, drawn under the result. */
   children?: React.ReactNode;
 }) {
-  const [outputs, setOutputs] = useState<main.RunOutputsView | null>(null);
+  const [outputs, setOutputs] = useState<app.RunOutputsView | null>(null);
   const [outputsErr, setOutputsErr] = useState<string | null>(null);
   const [folderErr, setFolderErr] = useState<string | null>(null);
 
@@ -165,7 +165,7 @@ export function RunResultView({
 
 /** A PDF the run left: View (the app's viewer), Open in system viewer and
  *  Save for one the run's PDF export made; Save alone for any other. */
-function PdfFile({ runId, file }: { runId: string; file: main.OutputFileView }) {
+function PdfFile({ runId, file }: { runId: string; file: app.OutputFileView }) {
   const [viewing, setViewing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -242,7 +242,7 @@ function ResultBody({ raw }: { raw: string }) {
  *  badges and usage, its folder, receipts and plan digest, the operator
  *  policy it enforced, and its log.
  *  The run's flow and a chat's result both draw it. */
-export function LocalRunDetails({ result, log }: { result: main.RunResultView; log: string[] }) {
+export function LocalRunDetails({ result, log }: { result: app.RunResultView; log: string[] }) {
   return (
     <>
       <Card className="selectable">

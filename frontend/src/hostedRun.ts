@@ -5,10 +5,10 @@
 // desktop follows the run and never drives it: Cancel asks the
 // registry, and what the dialog and card say is what the registry said.
 // Pure, so the store (runs.ts) and its tests share one set of rules.
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import type { JobProgress, Tone } from "./jobProgress";
 
-type View = main.HostedRunView;
+type View = app.HostedRunView;
 
 /** The run is still moving: queued, claimed by a host, or running. */
 export function hostedActive(v: View): boolean {
@@ -154,7 +154,7 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
     /** Starts a run In Agentry by call (RunAPI.StartHostedRun) and follows
      *  it once the registry has created it. A refusal, or an answer with no
      *  run, is handed back for the setup to show, and nothing is followed. */
-    async start(s: S, reg: string, call: () => Promise<main.HostedStartView>): Promise<main.HostedStartView> {
+    async start(s: S, reg: string, call: () => Promise<app.HostedStartView>): Promise<app.HostedStartView> {
       if (starting) throw "A run In Agentry is being started; wait for the registry's answer.";
       listen();
       starting = true;
@@ -174,10 +174,10 @@ export function createHostedRunStore<S>(deps: HostedRunDeps) {
     /** Follows the run an attach found (RunAPI.AttachHostedRunAtStart), as
      *  its card: at start, and when the person asks to follow a run the app
      *  lost touch with. It says whether there was one. */
-    async attach(reg: string, call: () => Promise<main.HostedStartView>, card = true): Promise<boolean> {
+    async attach(reg: string, call: () => Promise<app.HostedStartView>, card = true): Promise<boolean> {
       if (starting || (run && !run.final)) return false;
       listen();
-      let v: main.HostedStartView;
+      let v: app.HostedStartView;
       try {
         v = await Promise.resolve().then(call);
       } catch (e) {

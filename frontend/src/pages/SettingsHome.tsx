@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
-import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
-import { install, main } from "../../wailsjs/go/models";
+import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
+import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
+import { install, app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
@@ -24,7 +24,7 @@ function Said({ said, part }: { said: Answer | null; part: HomePart }) {
 }
 
 export function HomeSettings() {
-  const [view, setView] = useState<main.HomeLayoutView | null>(null);
+  const [view, setView] = useState<app.HomeLayoutView | null>(null);
   const [records, setRecords] = useState<install.Item[] | null>(null);
   const [recordsFailed, setRecordsFailed] = useState(false);
   // The read's error; a change's answer or refusal is said in the part
@@ -43,7 +43,7 @@ export function HomeSettings() {
     return () => { live = false; };
   }, []);
 
-  async function act(part: HomePart, fn: () => Promise<main.HomeLayoutView>, done?: string) {
+  async function act(part: HomePart, fn: () => Promise<app.HomeLayoutView>, done?: string) {
     setBusy(true);
     setSaid(null);
     try {

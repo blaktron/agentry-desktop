@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
-import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as ScheduleAPI from "../../wailsjs/go/main/ScheduleAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { install, main } from "../../wailsjs/go/models";
+import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
+import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as ScheduleAPI from "../../wailsjs/go/app/ScheduleAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { install, app } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Notice, PageHeader } from "../ui";
 import { cardsToDraw, HOME_DEFAULTS, scheduledOnHome, type DrawnCard, type HomeCardKind, type LayoutCard } from "../homeCards";
@@ -48,7 +48,7 @@ export type HomeOpen = {
   signIn: () => void;
   runDefaults: () => void;
   // Recent runs: a row's run page, and Run defaults' Recent runs part.
-  run: (row: main.RecentRunView) => void;
+  run: (row: app.RecentRunView) => void;
   runHistory: () => void;
   // A pin's Run for a QuickAgent from a registry: its page, with the run
   // setup open (a folder install's opens here, as the Library's does).
@@ -67,7 +67,7 @@ const RUNS_READ = 50;
 
 export default function Home({ registry, settings, open, banner, now: nowProp }: {
   registry: string;
-  settings: main.SettingsView | null;
+  settings: app.SettingsView | null;
   open: HomeOpen;
   // The "Setup isn't finished" notice, when App has one to show.
   banner?: ReactNode;
@@ -77,7 +77,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   // The Scheduled card's month: this one's grid.
   const weeks = useMemo(() => monthGrid(now.getFullYear(), now.getMonth(), now), [now]);
-  const [layout, setLayout] = useState<Got<main.HomeLayoutView>>(pending);
+  const [layout, setLayout] = useState<Got<app.HomeLayoutView>>(pending);
   const [records, setRecords] = useState<Got<install.Item[]>>(pending);
   // The launch check's snapshot: each record's answer for the Pinned
   // cards, and the count of updates this app can apply, which the
@@ -86,10 +86,10 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
   const [updateCount, setUpdateCount] = useState(0);
   // A folder install's Run, from its pin: the run setup, here.
   const [runningLocal, setRunningLocal] = useState<install.Item | null>(null);
-  const [profile, setProfile] = useState<Got<main.ProfileView>>(pending);
-  const [defaults, setDefaults] = useState<Got<main.RunDefaultsView>>(pending);
-  const [recent, setRecent] = useState<Got<main.RecentRunsView>>(pending);
-  const [scheduled, setScheduled] = useState<Got<main.ScheduledCardView>>(pending);
+  const [profile, setProfile] = useState<Got<app.ProfileView>>(pending);
+  const [defaults, setDefaults] = useState<Got<app.RunDefaultsView>>(pending);
+  const [recent, setRecent] = useState<Got<app.RecentRunsView>>(pending);
+  const [scheduled, setScheduled] = useState<Got<app.ScheduledCardView>>(pending);
   // null until the settings are read.
   const signedIn = settings ? signedInTo(settings, registry) : null;
 
@@ -144,7 +144,7 @@ export default function Home({ registry, settings, open, banner, now: nowProp }:
     HomeAPI.Unpin(pin.ref, pin.registry ?? "").then((v) => setLayout({ value: v, error: null })).catch(() => {});
   };
   // A plain object, not createFrom.
-  const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as main.RecentRunsView) : null;
+  const recentView = recent.value ? ({ ...recent.value, runs: recent.value.runs.slice(0, RECENT_ROWS) } as app.RecentRunsView) : null;
   const renderers: Partial<Record<HomeCardKind, (c: DrawnCard) => ReactNode>> = {
     "recent-runs": () => (
       <RecentRunsCard view={recentView} error={recent.error} now={new Date()} onOpenRun={open.run} onOpenSettings={open.runHistory} />

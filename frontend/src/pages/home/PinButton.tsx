@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import * as HomeAPI from "../../../wailsjs/go/main/HomeAPI";
-import { main } from "../../../wailsjs/go/models";
+import * as HomeAPI from "../../../wailsjs/go/app/HomeAPI";
+import { app } from "../../../wailsjs/go/models";
 import { Button } from "../../ui";
 import { homeFullSentence, pinOffer } from "../../pins";
 
@@ -13,8 +13,8 @@ import { homeFullSentence, pinOffer } from "../../pins";
 /** Home's layout as Go keeps it, the setter a pin's answer goes to, and a
  * re-read for after an uninstall, which removes the QuickAgent's pin in Go.
  * null until read, or when it cannot be (no Pin is offered then). */
-export function useHomeLayout(): [main.HomeLayoutView | null, (v: main.HomeLayoutView) => void, () => void] {
-  const [layout, setLayout] = useState<main.HomeLayoutView | null>(null);
+export function useHomeLayout(): [app.HomeLayoutView | null, (v: app.HomeLayoutView) => void, () => void] {
+  const [layout, setLayout] = useState<app.HomeLayoutView | null>(null);
   const reread = useCallback(() => { HomeAPI.Layout().then(setLayout).catch(() => {}); }, []);
   useEffect(() => {
     let live = true;
@@ -26,7 +26,7 @@ export function useHomeLayout(): [main.HomeLayoutView | null, (v: main.HomeLayou
 
 /** The sentence a page shows while Home holds every pin it can, so a
  * held Pin button is explained, not silent. */
-export function homeFullLine(layout: main.HomeLayoutView | null): string | null {
+export function homeFullLine(layout: app.HomeLayoutView | null): string | null {
   if (!layout || layout.newer || layout.unreadable) return null;
   return homeFullSentence(layout.cards, layout);
 }
@@ -36,8 +36,8 @@ export function PinButton({ agentRef, registry, layout, onLayout }: {
   agentRef: string;
   // The record's origin, "" for a folder install.
   registry: string;
-  layout: main.HomeLayoutView | null;
-  onLayout: (v: main.HomeLayoutView) => void;
+  layout: app.HomeLayoutView | null;
+  onLayout: (v: app.HomeLayoutView) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

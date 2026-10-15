@@ -60,7 +60,7 @@ const local = hash === "draft-local" || hash === "card-local";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
-g.go = { main: {
+g.go = { app: {
   BuildAPI: {
     DescribeStatus: async () => ({ key: { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true }, search: "no-provider",
       modelName: "openai qwen3.8-flash-next", searchSentence: "It has no web search, since your runner policy names no search provider, so it reads the registry and the pages it knows." }),

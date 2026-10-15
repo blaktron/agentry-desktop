@@ -6,8 +6,8 @@
 // dialog and card (ReviewFlow). Without the person's own TypeSafe key it
 // says to add one and opens Provider settings at the key, and runs nothing.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../../wailsjs/go/main/BuildAPI";
-import type { main } from "../../wailsjs/go/models";
+import * as BuildAPI from "../../wailsjs/go/app/BuildAPI";
+import type { app } from "../../wailsjs/go/models";
 import { Button } from "../ui";
 
 export function ReviewAction({ onReview, busy, disabled, onOpenSettings, what = "it" }: {
@@ -20,7 +20,7 @@ export function ReviewAction({ onReview, busy, disabled, onOpenSettings, what = 
   /** What the sentence calls the QuickAgent. */
   what?: string;
 }) {
-  const [status, setStatus] = useState<main.ReviewStatusView | null>(null);
+  const [status, setStatus] = useState<app.ReviewStatusView | null>(null);
   useEffect(() => {
     BuildAPI.ReviewStatus().then(setStatus).catch(() => setStatus(null));
   }, []);

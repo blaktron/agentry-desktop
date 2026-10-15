@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
-import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as InstallAPI from "../../wailsjs/go/main/InstallAPI";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import { install, installed, main, trust } from "../../wailsjs/go/models";
+import * as BrowseAPI from "../../wailsjs/go/app/BrowseAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as InstallAPI from "../../wailsjs/go/app/InstallAPI";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import { install, installed, app, trust } from "../../wailsjs/go/models";
 import {
   Button, Card, CapabilityBadges, ErrorBox, Excerpt, Modal, ModeBadges,
   Notice, PageHeader, QuarantineBadge, ServerEnv, Sev, SignedBadge, Spinner, fmtDate, shortDigest,
@@ -69,7 +69,7 @@ export default function AgentPage({
   /** Another QuickAgent's page: a fork's origin, from its Fork of line. */
   onOpenAgent?: (ns: string, name: string) => void;
 }) {
-  const [detail, setDetail] = useState<main.AgentDetailView | null>(null);
+  const [detail, setDetail] = useState<app.AgentDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("agent");
   const [forkOpen, setForkOpen] = useState(false);
@@ -78,9 +78,9 @@ export default function AgentPage({
   const [rev, setRev] = useState(0);
   const [readme, setReadme] = useState<string | null>(null);
   // The release's instruction file, under the README on the Agent tab.
-  const [instructions, setInstructions] = useState<main.InstructionsView | null>(null);
+  const [instructions, setInstructions] = useState<app.InstructionsView | null>(null);
   const [instructionsErr, setInstructionsErr] = useState<string | null>(null);
-  const [report, setReport] = useState<main.ReportView | null>(null);
+  const [report, setReport] = useState<app.ReportView | null>(null);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [prov, setProv] = useState<trust.AttestationResult | null>(null);
   // The coding-agent export (the wizard) is the one-off behind a link;
@@ -89,7 +89,7 @@ export default function AgentPage({
   // The link is named for the coding agent Settings → Coding agents holds
   // and opens the wizard on the export it implies;
   // read once, since nothing on this page changes that setting.
-  const [codingAgents, setCodingAgents] = useState<main.CodingAgentsView | null>(null);
+  const [codingAgents, setCodingAgents] = useState<app.CodingAgentsView | null>(null);
   useEffect(() => {
     SettingsAPI.CodingAgents().then(setCodingAgents).catch(() => setCodingAgents(null));
   }, []);
@@ -550,7 +550,7 @@ function MCPSection({
   name: string;
   hasPublished: boolean;
 }) {
-  const [info, setInfo] = useState<main.MCPView | null>(null);
+  const [info, setInfo] = useState<app.MCPView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -675,7 +675,7 @@ function MCPSection({
 export function ReportCard({
   report, error, version,
 }: {
-  report: main.ReportView | null;
+  report: app.ReportView | null;
   error: string | null;
   version: string;
 }) {

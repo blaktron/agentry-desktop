@@ -1,4 +1,4 @@
-import { main } from "../../../wailsjs/go/models";
+import { app } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from "../../recentRuns";
 
@@ -8,10 +8,10 @@ import { emptyLine, howItEnded, signedOutNote, whatRan, whenRan, whereRan } from
 // the card opens Run defaults' Recent runs, where the history is turned off
 // or cleared. Nothing a run wrote is shown here.
 export function RecentRunsCard({ view, error, now, onOpenRun, onOpenSettings }: {
-  view: main.RecentRunsView | null;
+  view: app.RecentRunsView | null;
   error: string | null;
   now: Date;
-  onOpenRun: (row: main.RecentRunView) => void;
+  onOpenRun: (row: app.RecentRunView) => void;
   onOpenSettings: () => void;
 }) {
   const rows = view?.runs ?? [];

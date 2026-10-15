@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
 import { ClipboardSetText, EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, ErrorBox, Notice, Spinner } from "../ui";
 import { keptFor, keptLine, removeLabel, type KeptSignIn, type Way } from "../modelSetup";

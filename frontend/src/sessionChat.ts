@@ -7,9 +7,9 @@
 // notes, and "Session ended: out of credits" where a minute the balance could
 // not cover stopped it. Every text here is data the agent or the person wrote,
 // drawn as text.
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 
-/** One session event (main.SessionEventView on the Go side; it travels
+/** One session event (app.SessionEventView on the Go side; it travels
  * only over the event bus, so it is not in the bindings). */
 export interface SessionEvent {
   /** A hosted session's frame sequence number; absent on this machine. */
@@ -213,12 +213,12 @@ export function hostedStatusLine(a: {
 // app. Pure, so the store (runs.ts) and its tests share one set of
 // rules.
 
-/** A hosted session's state (main.HostedSessionStateView). */
+/** A hosted session's state (app.HostedSessionStateView). */
 export type HostedChatState = {
   status: string;
   startedAt?: string;
   finishedAt?: string;
-  session?: main.HostedSessionView;
+  session?: app.HostedSessionView;
 };
 
 export type ChatKind = "local" | "hosted";
@@ -246,11 +246,11 @@ export type ChatRecord = {
   log: string[];
   /** In Agentry: the run as the registry reports it, its state and the
    *  terms the strip reads. */
-  run: main.HostedRunView | null;
+  run: app.HostedRunView | null;
   hosted: HostedChatState | null;
-  terms: main.HostedSessionOfferView | null;
+  terms: app.HostedSessionOfferView | null;
   /** On this computer, once it has ended: its envelope. */
-  result: main.RunResultView | null;
+  result: app.RunResultView | null;
   /** The last thing that went wrong, in Go's words. */
   error: string | null;
   /** On this computer: it never started, or it ended with no envelope. */
@@ -278,7 +278,7 @@ export type ChatDeps = {
   on: (event: string, cb: (v: never) => void) => () => void;
   sendLocal: (text: string) => Promise<void>;
   addLocal: (path: string) => Promise<void>;
-  endLocal: (finish: boolean) => Promise<main.RunResultView>;
+  endLocal: (finish: boolean) => Promise<app.RunResultView>;
   sendHosted: (text: string) => Promise<void>;
   addHosted: (path: string) => Promise<void>;
   endHosted: (finish: boolean) => Promise<void>;
@@ -293,8 +293,8 @@ export type ChatStoreState<S> = { chat: ChatRecord | null; setup: S | null; show
 /** What the store follows a chat In Agentry from. */
 export type HostedChatStart = {
   registry: string;
-  run: main.HostedRunView;
-  terms: main.HostedSessionOfferView | null;
+  run: app.HostedRunView;
+  terms: app.HostedSessionOfferView | null;
   opening: string;
   task: string;
 };
@@ -360,7 +360,7 @@ export function createChatStore<S>(deps: ChatDeps) {
       if (!c || c.kind !== "hosted" || c.over) return;
       update(gen, (r) => ({ ...r, hosted: s }));
     });
-    deps.on("runner:hosted-run", (v: main.HostedRunView) => {
+    deps.on("runner:hosted-run", (v: app.HostedRunView) => {
       // Go follows a waiting chat too: its last word is kept for when it is
       // shown.
       if (pending && v.id === pending.run.id) pending = { ...pending, run: v };
