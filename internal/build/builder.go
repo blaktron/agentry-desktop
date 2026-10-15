@@ -7,11 +7,9 @@ import (
 	"strings"
 )
 
-// What the Builder sets on a draft, whatever the draft said (plan
-// builder-simplify.md §4.2, D10): a first release's version, and the one
-// licence whose full text Save writes. MIT, not the plan's Apache-2.0, is
-// the operator's decision of 2026-09-29, as on the site (DEV-151's
-// addendum), pending a licensing pass before 1.0.0.
+// What the Builder sets on a draft, whatever the draft said: a first
+// release's version, and the one licence whose full text Save writes
+// (MIT, as on the site).
 const (
 	BuilderVersion = "0.1.0"
 	BuilderLicense = "MIT"
@@ -21,12 +19,12 @@ const (
 const maxNameChars = 65
 
 // SetByBuilder writes what does not depend on the task onto a drafted
-// model, as the site's import does (agentry-web#651): the version, the
-// licence unless the person's own words name the draft's, the instruction
-// file, the include list Save writes, and a name none of the person's own
-// QuickAgents (taken) already has. The namespace is FromDraft's. The
-// Drafter decides the rest (the name itself, tags, modes, data access and
-// the contract). It returns one note per change, for the draft's notes.
+// model, as the site's import does: the version, the licence unless the
+// person's own words name the draft's, the instruction file, the include
+// list Save writes, and a name none of the person's own QuickAgents
+// (taken) already has. The namespace is FromDraft's. The Drafter decides
+// the rest (the name itself, tags, modes, data access and the contract).
+// It returns one note per change, for the draft's notes.
 func SetByBuilder(m *Model, words string, taken []string) []string {
 	var notes []string
 	if v := strings.TrimSpace(m.Version); v != BuilderVersion {

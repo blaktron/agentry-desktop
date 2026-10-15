@@ -9,9 +9,8 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// CodingAgentExport is Settings → Coding agents as the install reads it
-// (agentry-desktop#148, plan desktop-one-click-install.md §6, D6): the
-// coding-agent export the operator policy implies — the one rule the
+// CodingAgentExport is Settings → Coding agents as the install reads it:
+// the coding-agent export the operator policy implies — the one rule the
 // runner home's export/ follows (installdir.StyleFor: a chosen Claude Code
 // → the Claude skill, else a chosen Codex → AGENTS.md, else an Anthropic
 // key → the Claude skill, else AGENTS.md) — the folder it is written to,

@@ -2,13 +2,12 @@
 // SHA256SUMS.minisig with the key set this build carries
 // (internal/selfupdate/keys.json), and that the signed trusted comment names
 // the product and version expected. scripts/fetch-cli.sh runs it on the CLI
-// release the desktop carries, when that release is signed
-// (agentry-desktop#580; plan cli-on-path.md §6).
+// release the desktop carries, when that release is signed.
 //
 //	go run ./internal/cmd/verifysums -product agentry-cli -version 0.6.52 SHA256SUMS SHA256SUMS.minisig
 //
 // A retired key is refused: it may prove an old release genuine and may
-// never put one into a new build (VerifyForInstall, D-026).
+// never put one into a new build (VerifyForInstall).
 package main
 
 import (

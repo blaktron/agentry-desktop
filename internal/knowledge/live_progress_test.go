@@ -1,8 +1,8 @@
 package knowledge
 
-// A build on this computer live (agentry-desktop#352): the real Creator,
-// this machine's docker and the model a runner policy names, on a runner
-// home of the test's own, with its progress recorded as the panel sees it.
+// A build on this computer live: the real Creator, this machine's docker
+// and the model a runner policy names, on a runner home of the test's own,
+// with its progress recorded as the panel sees it.
 // Skipped unless AGENTRY_LIVE_BUILD_POLICY names that policy file; the
 // model key its apiKeyEnv names must be in the environment:
 //
@@ -82,10 +82,9 @@ func TestLiveBuildProgress(t *testing.T) {
 	}
 }
 
-// A build on this computer past Agentry's 10 MB, live (agentry-desktop#354):
-// one short note the Creator reads and an 11 MB file no decoder reads. The
-// old cap refused the documents before anything ran; now the build runs,
-// warns first, and makes the pack. Same variables as TestLiveBuildProgress.
+// A build on this computer past Agentry's 10 MB, live: one short note the
+// Creator reads and an 11 MB file no decoder reads. The build runs, warns
+// first, and makes the pack. Same variables as TestLiveBuildProgress.
 func TestLiveBuildPastAgentrysCap(t *testing.T) {
 	pol := os.Getenv("AGENTRY_LIVE_BUILD_POLICY")
 	if pol == "" {

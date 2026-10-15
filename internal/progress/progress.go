@@ -1,9 +1,7 @@
 // Package progress is how far a long job of the app's own has got, for the
-// progress dialog and the corner card it shrinks to (agentry-desktop#352,
-// #410; plan desktop-review-key-and-run-cards.md §5.1): the report every job
+// progress dialog and the corner card it shrinks to: the report every job
 // carries, and the meter that fills it from the engine's usage reports and
-// from what the job itself counts. A draft and a knowledge build use it
-// (agentry-desktop#464); a run and a chat will.
+// from what the job itself counts. A draft and a knowledge build use it.
 package progress
 
 import (

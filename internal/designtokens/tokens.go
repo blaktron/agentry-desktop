@@ -1,5 +1,5 @@
 // Package designtokens reads the desktop's design token table out of
-// frontend/src/style.css and holds it to the site's (agentry-desktop#49).
+// frontend/src/style.css and holds it to the site's.
 //
 // The desktop's stylesheet copies the site's token table (agentry-web
 // app/globals.css) by design: one product, one palette. A copy drifts unless

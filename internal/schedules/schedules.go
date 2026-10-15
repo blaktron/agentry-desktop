@@ -1,12 +1,11 @@
-// Package schedules is the desktop's side of schedules on this computer
-// (plan quickagent-scheduling.md §5, §7, M4; agentry-desktop#743; D-073).
+// Package schedules is the desktop's side of schedules on this computer.
 //
 // The CLI owns them. Its store under the runner home is the truth, and each
 // schedule's entry in the system's own scheduler pins the absolute path of
 // the agentry binary that wrote it (a systemd user timer, a LaunchAgent, a
 // Task Scheduler task). So every change goes through the installed agentry
-// command (the Windows install's bin\agentry.exe, D-061; the site's install
-// script's ~/.local/bin/agentry, D-076; the Linux package's /usr/bin/agentry),
+// command (the Windows install's bin\agentry.exe; the site's install
+// script's ~/.local/bin/agentry; the Linux package's /usr/bin/agentry),
 // never through this process: an entry written
 // from here would name the desktop's own executable. What the page shows is
 // read in process, through the CLI's pkg/schedule: the schedules, what each
@@ -34,12 +33,12 @@ import (
 )
 
 // MinCLI is the oldest agentry that has what the desktop drives: add
-// --check, reseal and check-signed-out (agentry-cli#777).
+// --check, reseal and check-signed-out.
 var MinCLI = [3]int{0, 6, 86}
 
 // MinTargetHostsCLI is the oldest agentry whose schedule add readies a
-// target host and pins its key (agentry-cli#863): a QuickAgent that asks
-// for a server is scheduled only through it (agentry-desktop#812).
+// target host and pins its key: a QuickAgent that asks for a server is
+// scheduled only through it.
 var MinTargetHostsCLI = [3]int{0, 6, 111}
 
 // ErrNoCLI says why scheduling on this computer is not offered here.
@@ -54,13 +53,13 @@ var (
 	statFile   = os.Stat
 )
 
-// linuxPackageCLI is where the Linux packages install the command (D-061).
+// linuxPackageCLI is where the Linux packages install the command.
 const linuxPackageCLI = "/usr/bin/agentry"
 
 // FindCLI is the installed agentry this app drives. On Windows, the one its
 // installer put down. On macOS and Linux, the one the site's install script
 // put in ~/.local/bin, which the Scheduled page's Options menu installs and
-// reinstalls (internal/cliinstall, agentry-desktop#788, D-076), and which an
+// reinstalls (internal/cliinstall), and which an
 // app's PATH often lacks; on Linux it comes before the package's
 // /usr/bin/agentry, as it does on the person's own PATH, so a reinstall to
 // the site's latest is the one used. Else the one on PATH.
@@ -511,7 +510,7 @@ func (c *CLI) Act(ctx context.Context, verb, id string) error {
 }
 
 // Sync rewrites every schedule's alarm from the store (the desktop does
-// at every start, plan §5).
+// it at every start).
 func (c *CLI) Sync(ctx context.Context) error {
 	_, err := c.Run(ctx, "schedule", "sync")
 	return err

@@ -16,7 +16,7 @@ import (
 // With the agentry_dev_loopback tag, and only then, a plain-http channel on
 // this machine gets past the scheme rule (it then fails here on the empty
 // channel, which is the point: it was fetched), while a remote one is still
-// refused (agentry-desktop#127). Run with: go test -tags agentry_dev_loopback.
+// refused. Run with: go test -tags agentry_dev_loopback.
 func TestDevBuildAcceptsAPlainHTTPLoopbackChannelOnly(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	t.Cleanup(srv.Close)

@@ -1,8 +1,7 @@
 // Package uninstall is the app's half of the Windows uninstaller's
-// optional boxes: "Also remove my Agentry settings and sign-in" (plan
-// agentry-notes/plans/desktop-installers.md §8, D8; agentry-desktop#83),
-// here, and "Keep my Docker images", whose unticked default removes
-// Agentry's Docker images (images.go; agentry-desktop#424, D-048).
+// optional boxes: "Also remove my Agentry settings and sign-in", here,
+// and "Keep my Docker images", whose unticked default removes Agentry's
+// Docker images (images.go).
 //
 // The installer is a file-copy program: it does not know where the
 // configuration lives, that AGENTRY_CONFIG_DIR and AGENTRY_RUNNER_HOME
@@ -97,5 +96,5 @@ func Remove() (removed []string, problems []error) {
 }
 
 // guard is pathguard.RefuseDangerousDir: the refusal install's managed
-// clear shares (agentry-desktop#121).
+// clear shares.
 func guard(dir, home string) error { return pathguard.RefuseDangerousDir(dir, home) }

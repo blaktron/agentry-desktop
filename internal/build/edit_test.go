@@ -41,8 +41,8 @@ func TestFromReleaseFixesTheNameSetsTheVersionAndDropsWhatTheBuilderCannotHold(t
 		m.KnowledgePrompt != "Your team's glossary." || m.Instructions != "# Meeting actions\n\nRead the notes.\n" {
 		t.Fatalf("held fields: %+v", m)
 	}
-	// What the site's Builder cannot hold is dropped (D6), and the runtime
-	// and the instruction file are the form's own.
+	// What the site's Builder cannot hold is dropped, and the runtime and
+	// the instruction file are the form's own.
 	fresh := Default("chris")
 	if m.Homepage != "" || len(m.Authors) != 0 || m.IdleTimeoutSeconds != 0 || len(m.KnowledgeShips) != 0 ||
 		len(m.Dependencies) != 0 || m.PublishChannel != "" || len(m.PublishInclude) != 0 ||

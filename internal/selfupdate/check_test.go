@@ -94,7 +94,7 @@ func TestCheckOffersANewerSignedRelease(t *testing.T) {
 		t.Errorf("offered %+v", rel)
 	}
 	if rel.Checksums != sumsBody {
-		t.Error("the verified checksums were not kept for M7 to use")
+		t.Error("the verified checksums were not kept for the install to use")
 	}
 }
 
@@ -194,7 +194,7 @@ func TestCheckRefusesAnUnknownKey(t *testing.T) {
 }
 
 // A retired key is REPORTED, not refused: the release is genuinely ours and
-// the person should know it exists. M7 is what refuses to install from it.
+// the person should know it exists. Installing is what refuses it.
 func TestCheckReportsARetiredKey(t *testing.T) {
 	priv, entry := keystest.Key(t, "dev", true)
 	set := keystest.Set(t, entry)
@@ -353,16 +353,17 @@ func TestTrustedCommentRoundTrips(t *testing.T) {
 	}
 }
 
-// The estate signs more than the desktop's releases with this key (the CLI,
-// agentry-desktop#171): a comment names its product, the app reads only its
-// own, and the general reader gives every product back exactly.
+// The key signs more than the desktop's releases (the CLI's too): a comment
+// names its product, the app reads only its own, and the general reader gives
+// every product back exactly.
 func TestTrustedCommentNamesItsProductAndTheAppReadsOnlyItsOwn(t *testing.T) {
 	cli := selfupdate.TrustedCommentFor("agentry-cli", "0.1.0", "abc1234")
 	if cli != "agentry-cli 0.1.0 (commit abc1234)" {
 		t.Fatalf("TrustedCommentFor(agentry-cli) = %q", cli)
 	}
 	// The desktop's own comment is byte-identical to what every release
-	// before #171 signed: an older build reads a newer release's comment.
+	// signed before other products shared the key: an older build reads a
+	// newer release's comment.
 	if got := selfupdate.TrustedComment("0.2.0", "a7d2e603"); got != "agentry-desktop 0.2.0 (commit a7d2e603)" {
 		t.Errorf("the desktop's comment changed shape: %q", got)
 	}
@@ -392,7 +393,7 @@ func TestTrustedCommentNamesItsProductAndTheAppReadsOnlyItsOwn(t *testing.T) {
 }
 
 // The update path itself, not only the reader: a channel serving a CLI
-// release's sums, signed by the estate's key with the CLI's comment, is
+// release's sums, signed by the same key with the CLI's comment, is
 // refused as another product's before an artifact is chosen or fetched.
 func TestCheckRefusesAnotherProductsRelease(t *testing.T) {
 	priv, entry := keystest.Key(t, "prod", false)
@@ -440,9 +441,9 @@ func TestIsNewerReadsGitDescribeTheWayGitMeansIt(t *testing.T) {
 	}
 }
 
-// A dev build (vX.Y.Z-dev.N, DEV-148) is only ever offered a newer dev
+// A dev build (vX.Y.Z-dev.N) is only ever offered a newer dev
 // prerelease, and a production build only a newer production release: the
-// update channel follows the branch a build was cut from (agentry-desktop#279).
+// update channel follows the branch a build was cut from.
 // Within dev, N orders the prereleases of one X.Y.Z, as numbers; a build past
 // a dev tag (describe's -K-g<sha>) is at that tag and a little beyond.
 func TestIsNewerKeepsEachChannelToItself(t *testing.T) {

@@ -94,9 +94,8 @@ func TestSetOnboardedPreservesRegistries(t *testing.T) {
 }
 
 // A registry over plain http off loopback would carry the keychain PAT in
-// clear, and the token is keyed by host: http://secureagentry.net resolves
-// the same entry as https://secureagentry.net (security review 2026-09-20
-// §8.6; D-030). Loopback keeps http for a dev stack.
+// clear, and the token is keyed by host: http://secureagentry.net resolves the
+// same entry as https://secureagentry.net. Loopback keeps http for a dev stack.
 func TestValidateURLRefusesPlainHTTPOffLoopback(t *testing.T) {
 	for _, u := range []string{"http://secureagentry.net", "http://10.0.0.5:8080", "http://agentry:8080", "ftp://registry.example", "https://"} {
 		if err := ValidateURL(u); err == nil {
@@ -110,9 +109,9 @@ func TestValidateURLRefusesPlainHTTPOffLoopback(t *testing.T) {
 	}
 }
 
-// TestCodingAgentExportIsOffByDefault (agentry-desktop#148, plan D6): a
-// fresh settings file has "also install into <coding agent>" off and no
-// project directory for AGENTS.md; both round-trip through Save.
+// TestCodingAgentExportIsOffByDefault: a fresh settings file has "also
+// install into <coding agent>" off and no project directory for
+// AGENTS.md; both round-trip through Save.
 func TestCodingAgentExportIsOffByDefault(t *testing.T) {
 	isolate(t)
 	s, err := Load()
@@ -136,13 +135,12 @@ func TestCodingAgentExportIsOffByDefault(t *testing.T) {
 	}
 }
 
-// Run defaults' no-limit switch for the built-in agents (agentry-desktop#606,
-// D-062; agentry-desktop#699, its addendum): on by default, every built-in
-// runs with no timeout and to the hidden failsafe of 200 turns, and is shown
-// no limit at all; off, every one starts from the CLI's LocalBudgets, its
-// timeout floor over the policy's, and the policy's turns. The cost cap is
-// the policy's either way, a policy that allows more turns than the failsafe
-// keeps them, and a settings file that cannot be read keeps the floor.
+// Run defaults' no-limit switch for the built-in agents (on by default): every
+// built-in runs with no timeout and to the hidden failsafe of 200 turns, and is
+// shown no limit at all; off, every one starts from the CLI's LocalBudgets, its
+// timeout floor over the policy's, and the policy's turns. The cost cap is the
+// policy's either way, a policy that allows more turns than the failsafe keeps
+// them, and a settings file that cannot be read keeps the floor.
 func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuiltin(t *testing.T) {
 	isolate(t)
 	pol := policy.Budgets{TimeoutSeconds: 900, MaxTurns: 60, MaxCostUSD: 2}

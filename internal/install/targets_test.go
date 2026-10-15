@@ -1,7 +1,7 @@
 package install
 
-// Target-export and engine-flow tests: the agents-md §5.6 row end
-// to end against the fake registry, the first-install capability gate, the
+// Target-export and engine-flow tests: the agents-md export end to end
+// against the fake registry, the first-install capability gate, the
 // Prepare refusals that never touch the network, and the list surface.
 
 import (
@@ -44,8 +44,8 @@ func buildArchiveFiles(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
-// TestDefaultTarget (D-031, the CLI's DR-28): the default install target
-// is the runner home whatever runtime.interfaces lists.
+// TestDefaultTarget: the default install target is the runner home
+// whatever runtime.interfaces lists.
 func TestDefaultTarget(t *testing.T) {
 	for _, interfaces := range [][]string{nil, {manifest.InterfaceClaudeSkill}, {manifest.InterfaceAgentsMD, manifest.InterfaceClaudeSkill}} {
 		m := &manifest.Manifest{}
@@ -56,7 +56,7 @@ func TestDefaultTarget(t *testing.T) {
 	}
 }
 
-// TestInstallAgentsMDTargetEndToEnd pins the §5.6 agents-md row plus the
+// TestInstallAgentsMDTargetEndToEnd pins the agents-md export plus the
 // reinstall path: the section is upserted (never duplicated) and an
 // unchanged contract re-installs without any consent gate.
 func TestInstallAgentsMDTargetEndToEnd(t *testing.T) {
@@ -127,7 +127,7 @@ func TestPrepareRefusesTargetNeedingDir(t *testing.T) {
 	}
 }
 
-// TestFirstInstallCapabilityGate pins §11: the FIRST install of a contract
+// TestFirstInstallCapabilityGate pins that the FIRST install of a contract
 // declaring exec (or egress) requires explicit capability acceptance.
 func TestFirstInstallCapabilityGate(t *testing.T) {
 	isolate(t)
@@ -241,8 +241,8 @@ func TestConfirmMissingSkillEntrypoint(t *testing.T) {
 	}
 }
 
-// TestUndeclaredTargetWarning pins §5.2: interfaces, when declared, list
-// what §5.6 may emit — an off-list target warns, an empty list never does.
+// TestUndeclaredTargetWarning pins that interfaces, when declared, list what an
+// export may emit — an off-list target warns, an empty list never does.
 func TestUndeclaredTargetWarning(t *testing.T) {
 	none := &manifest.Manifest{}
 	if w := undeclaredTargetWarning(none, "claude-skill"); w != "" {
@@ -308,17 +308,16 @@ func TestListSurfacesCorruptState(t *testing.T) {
 }
 
 // TestListPresentAndManageable pins the two facts the Installed page sorts
-// on (agentry-desktop#63): a manageable install whose directory exists, a
-// runner consent the CLI wrote (present, not manageable), and a record whose
-// directory is gone.
+// on: a manageable install whose directory exists, a runner consent the CLI
+// wrote (present, not manageable), and a record whose directory is gone.
 func TestListPresentAndManageable(t *testing.T) {
 	isolate(t)
 	here := t.TempDir()
 	gone := filepath.Join(t.TempDir(), "deleted-project")
 	var st installed.State
 	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "skill", Target: "claude-skill", Dir: here}, "1.0.0", installed.CapSnapshot{}, true)
-	// A runner record is an install this app manages since D-031 (it was a
-	// consent the CLI wrote and this app only showed).
+	// A runner record is an install this app manages (a consent the CLI
+	// wrote is one too).
 	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "consent", Target: "runner", Dir: here}, "1.0.0", installed.CapSnapshot{}, false)
 	st.Upsert(installed.Key{Registry: "r", Namespace: "acme", Name: "vanished", Target: "agents-md", Dir: gone}, "1.0.0", installed.CapSnapshot{}, true)
 	if err := installed.Save(st); err != nil {

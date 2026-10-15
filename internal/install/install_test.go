@@ -216,7 +216,7 @@ func hexEncode(b []byte) string {
 // isolate points every agentry client file at a temp dir — the config
 // dir, the runner home, and HOME itself, so a test that exports a Claude
 // skill with no directory picked lands in a temp ~/.claude/skills and
-// never in the person's (one did, on 2026-09-21, before HOME was here).
+// never in the person's.
 func isolate(t *testing.T) {
 	t.Helper()
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
@@ -265,8 +265,8 @@ func TestInstallHappyPathVerifiesAndExports(t *testing.T) {
 	}
 }
 
-// TestInstallRefusesCorruptedArchive is the §10.4 negative test: flip one
-// byte of the downloaded archive and the install must refuse at the digest
+// TestInstallRefusesCorruptedArchive is the negative test: flip one byte
+// of the downloaded archive and the install must refuse at the digest
 // check, before any signature or write.
 func TestInstallRefusesCorruptedArchive(t *testing.T) {
 	isolate(t)
@@ -431,14 +431,14 @@ func osvServer(fields map[string]any) map[string]any {
 	return map[string]any{"mcpServers": []any{srv}}
 }
 
-// TestArchiveIsHeldToTheConsentedContract (agentry-desktop#163): the person
-// consents to the resolve manifest's contract, and the exports compile
-// their grants from the archive's own agent.yaml. An archive that declares
-// more is refused at Confirm with the widening named and nothing written —
-// no destination, no release directory, no record — including what the
-// core's diff does not compare, a declared server's own egress, secrets
-// and tool restriction. One that matches or narrows installs, and the
-// record carries the archive's contract.
+// TestArchiveIsHeldToTheConsentedContract: the person consents to the
+// resolve manifest's contract, and the exports compile their grants from
+// the archive's own agent.yaml. An archive that declares more is refused at
+// Confirm with the widening named and nothing written — no destination, no
+// release directory, no record — including what the core's diff does not
+// compare, a declared server's own egress, secrets and tool restriction.
+// One that matches or narrows installs, and the record carries the
+// archive's contract.
 func TestArchiveIsHeldToTheConsentedContract(t *testing.T) {
 	egress := func(hosts ...string) map[string]any {
 		return map[string]any{"network": map[string]any{"egress": hosts}}
@@ -525,10 +525,10 @@ func TestArchiveIsHeldToTheConsentedContract(t *testing.T) {
 	}
 }
 
-// TestUnscannedRequiresItsOwnAcceptance mirrors the CLI's --allow-unscanned
-// (M23; the core's M21): a version the registry admitted without a scan is
-// its own outcome — not unsigned — and needs its own consent, which
-// accepting an unsigned release does not give.
+// TestUnscannedRequiresItsOwnAcceptance mirrors the CLI's
+// --allow-unscanned: a version the registry admitted without a scan is its
+// own outcome — not unsigned — and needs its own consent, which accepting
+// an unsigned release does not give.
 func TestUnscannedRequiresItsOwnAcceptance(t *testing.T) {
 	isolate(t)
 	reg := startRegistry(t, &fakeRegistry{unscanned: true})
@@ -553,8 +553,7 @@ func TestUnscannedRequiresItsOwnAcceptance(t *testing.T) {
 	}
 }
 
-// TestRunnerTargetInstallsIntoTheRunnerHome (agentry-desktop#146, plan
-// desktop-one-click-install.md D3/D9/D10): the runner target — the
+// TestRunnerTargetInstallsIntoTheRunnerHome: the runner target — the
 // default — lays the verified release down in the runner home the CLI's
 // run reads (installdir), writes the export beside it in the style the
 // policy implies (no policy: AGENTS.md), records it under the run's own
@@ -644,7 +643,7 @@ func TestRunnerTargetInstallsIntoTheRunnerHome(t *testing.T) {
 }
 
 // TestRunnerTargetExportFollowsThePolicy: the policy's coding agent, then
-// its provider, decide the export written beside the release (D2).
+// its provider, decide the export written beside the release.
 func TestRunnerTargetExportFollowsThePolicy(t *testing.T) {
 	isolate(t)
 	home := t.TempDir()
@@ -676,12 +675,11 @@ func TestRunnerTargetExportFollowsThePolicy(t *testing.T) {
 	}
 }
 
-// TestExportPlanDerivesFromTheRunnerPlan (agentry-desktop#148): with
-// Settings' "also install into <coding agent>" on, a one-click install
-// writes the coding-agent export from the same verified bytes as the
-// runner-home install — one download, one attestation verdict, two
-// destinations, two records — and the export plan owes the gates its own
-// record owes.
+// TestExportPlanDerivesFromTheRunnerPlan: with Settings' "also install
+// into <coding agent>" on, a one-click install writes the coding-agent
+// export from the same verified bytes as the runner-home install — one
+// download, one attestation verdict, two destinations, two records — and
+// the export plan owes the gates its own record owes.
 func TestExportPlanDerivesFromTheRunnerPlan(t *testing.T) {
 	isolate(t)
 	home := t.TempDir()
@@ -769,11 +767,11 @@ func TestExportPlanDerivesFromTheRunnerPlan(t *testing.T) {
 	}
 }
 
-// TestExportSettingsFollowThePolicyAndTheSwitch (agentry-desktop#148):
-// what Settings → Coding agents shows and what a one-click install with
-// the switch on writes — the export the operator policy implies (the same
-// rule as the runner home's export/), its folder, and whether a folder is
-// still to be chosen.
+// TestExportSettingsFollowThePolicyAndTheSwitch: what Settings → Coding
+// agents shows and what a one-click install with the switch on writes —
+// the export the operator policy implies (the same rule as the runner
+// home's export/), its folder, and whether a folder is still to be
+// chosen.
 func TestExportSettingsFollowThePolicyAndTheSwitch(t *testing.T) {
 	isolate(t)
 	home := t.TempDir()
@@ -820,11 +818,11 @@ func TestExportSettingsFollowThePolicyAndTheSwitch(t *testing.T) {
 	}
 }
 
-// TestClaudeSkillExportOfAnInstructionOnlyRelease (agentry-desktop#162):
-// the desktop's Claude-skill export is the CLI's writer — a prompt agent
-// (AGENT.md, no SKILL.md) gets a SKILL.md made from its instruction with
-// the contract's allowed-tools, as the CLI writes it (agentry-cli#193);
-// a release that names a skill file it does not carry is still refused.
+// TestClaudeSkillExportOfAnInstructionOnlyRelease: the desktop's
+// Claude-skill export is the CLI's writer — a prompt agent (AGENT.md, no
+// SKILL.md) gets a SKILL.md made from its instruction with the
+// contract's allowed-tools, as the CLI writes it; a release that names a
+// skill file it does not carry is still refused.
 func TestClaudeSkillExportOfAnInstructionOnlyRelease(t *testing.T) {
 	isolate(t)
 	archive := buildArchiveWith(t, "AGENT.md", "# Changelog\n\nRead the git log.\n")
@@ -879,7 +877,7 @@ func TestClaudeSkillExportOfAnInstructionOnlyRelease(t *testing.T) {
 }
 
 // The review shows each declared MCP server's pin, tools and plain env as
-// sorted rows (agentry-desktop#62); a server with no env has none.
+// sorted rows; a server with no env has none.
 func TestPlanShowsEachDeclaredServersEnv(t *testing.T) {
 	isolate(t)
 	caps := map[string]any{"mcpServers": []any{
@@ -910,11 +908,10 @@ func TestPlanShowsEachDeclaredServersEnv(t *testing.T) {
 	}
 }
 
-// TestRunnerInstallWarnsOnAnUnreadablePolicy (agentry-desktop#220): the
-// runner home's policy is read by the CLI's installdir.StyleForHome, so a
-// policy that cannot be read is said in the result's Warning, beside the
-// button, and the install goes on with the AGENTS.md shape, as the CLI's
-// does; before, the desktop fell to AGENTS.md without a word.
+// TestRunnerInstallWarnsOnAnUnreadablePolicy: the runner home's policy is
+// read by the CLI's installdir.StyleForHome, so a policy that cannot be
+// read is said in the result's Warning, beside the button, and the
+// install goes on with the AGENTS.md shape, as the CLI's does.
 func TestRunnerInstallWarnsOnAnUnreadablePolicy(t *testing.T) {
 	isolate(t)
 	home := os.Getenv("AGENTRY_RUNNER_HOME")
@@ -944,8 +941,8 @@ func TestRunnerInstallWarnsOnAnUnreadablePolicy(t *testing.T) {
 }
 
 // The consent names every declared secret, the release's own and its
-// servers', whatever its marking, and says which a run can start without
-// (plan optional-secrets.md D6, agentry-desktop#655).
+// servers', whatever its marking, and says which a run can start
+// without.
 func TestTheConsentNamesEveryDeclaredSecret(t *testing.T) {
 	m := &manifest.Manifest{Capabilities: manifest.Capabilities{
 		Secrets:         []string{"REQ_KEY", "OPT_KEY"},
@@ -963,7 +960,7 @@ func TestTheConsentNamesEveryDeclaredSecret(t *testing.T) {
 	}
 }
 
-// D6: moving a secret between optional and required changes nothing the
+// Moving a secret between optional and required changes nothing the
 // install record holds, so an update that only flips one asks for no new
 // consent; a newly declared secret, optional or not, still does.
 func TestAFlipBetweenOptionalAndRequiredAsksNoNewConsent(t *testing.T) {
@@ -979,8 +976,7 @@ func TestAFlipBetweenOptionalAndRequiredAsksNoNewConsent(t *testing.T) {
 }
 
 // A first install of a release that declares a target host asks for the
-// capability consent, as the CLI's install gate does (agentry-cli#861,
-// agentry-desktop#812).
+// capability consent, as the CLI's install gate does.
 func TestATargetHostNeedsTheCapabilityConsent(t *testing.T) {
 	if needsCapabilityConfirm(manifest.Capabilities{}) {
 		t.Fatal("nothing declared asks for consent")
@@ -991,8 +987,8 @@ func TestATargetHostNeedsTheCapabilityConsent(t *testing.T) {
 }
 
 // A first install of a release that declares a browser asks for the
-// capability consent, as the CLI's install gate does (agentry-cli#915,
-// agentry-desktop#878), and an update that widens the line asks again.
+// capability consent, as the CLI's install gate does, and an update
+// that widens the line asks again.
 func TestABrowserNeedsTheCapabilityConsent(t *testing.T) {
 	b := &manifest.Browser{Sites: []string{"site"}}
 	if !needsCapabilityConfirm(manifest.Capabilities{Browser: b}) {

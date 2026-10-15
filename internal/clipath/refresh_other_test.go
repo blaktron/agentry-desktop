@@ -12,7 +12,7 @@ func TestScriptCLIIsInstallShsDefault(t *testing.T) {
 	want := func(got, linux string) {
 		t.Helper()
 		if runtime.GOOS == "darwin" {
-			linux = "" // nothing to refresh it with (agentry-desktop#581)
+			linux = "" // nothing to refresh it with
 		}
 		if got != linux {
 			t.Fatalf("got %q, want %q", got, linux)

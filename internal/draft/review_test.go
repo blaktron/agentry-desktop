@@ -12,8 +12,8 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/build"
 )
 
-// Review marks every host the person's words do not name (plan §7.6), as
-// the site's import does (agentry-web lib/draft-import.ts unmentionedHosts).
+// Review marks every host the person's words do not name, as the site's
+// import does (agentry-web lib/draft-import.ts unmentionedHosts).
 func TestUnmentionedHostsAreTheOnesThePersonNeverNamed(t *testing.T) {
 	m := build.Default("chris")
 	m.EgressMode, m.EgressHosts = "hosts", []string{"api.github.com", "Slack.com", "evil.example"}
@@ -76,8 +76,8 @@ func TestProblemsListWhatTheDraftStillFailsInTheSitesWords(t *testing.T) {
 	}
 }
 
-// A remote server's one host is its address's (agentry-desktop#668), so a
-// draft that reaches a vendor the person never named has it marked.
+// A remote server's one host is its address's, so a draft that reaches a
+// vendor the person never named has it marked.
 func TestARemoteServersHostIsMarkedWhenThePersonNeverNamedIt(t *testing.T) {
 	m := build.Default("chris")
 	m.MCPServers = []build.MCPServerRow{{Source: "url", URL: "https://mcp.linear.app/mcp", Auth: "oauth", Egress: []string{"hidden.example"}}}

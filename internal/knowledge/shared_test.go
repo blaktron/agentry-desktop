@@ -10,8 +10,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 )
 
-// An organization's shared packs in the panel (Knowledge M8,
-// agentry-desktop#276; plan §4.7, D13, D26): listed beside the person's
+// An organization's shared packs in the panel: listed beside the person's
 // own, kept and opened through the organization's route with nothing of
 // the key kept on this computer, and exported as the organization allows.
 
@@ -116,8 +115,8 @@ func TestASharedPackOpensForAMemberAndNotOnceTheyAreRemoved(t *testing.T) {
 }
 
 // TestASharedPacksExportIsTheOrganizations: the panel offers Export of a
-// shared pack only to its admins or once it is marked exportable (D26), and
-// the export itself is the registry's to allow.
+// shared pack only to its admins or once it is marked exportable, and the
+// export itself is the registry's to allow.
 func TestASharedPacksExportIsTheOrganizations(t *testing.T) {
 	reg, e, _, id := sharedEnv(t)
 	ctx := context.Background()
@@ -157,7 +156,7 @@ func TestASharedPacksExportIsTheOrganizations(t *testing.T) {
 
 // TestTheMembershipsReadHoldsTheURLRule: GET /user carries the token, so
 // it is held to Settings' URL rule before a token is looked up, as every
-// other registry call here is (agentry-desktop#307's class).
+// other registry call here is.
 func TestTheMembershipsReadHoldsTheURLRule(t *testing.T) {
 	reg := knowledgetest.NewRegistry(t)
 	asked := []string{}

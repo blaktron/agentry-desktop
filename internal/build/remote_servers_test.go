@@ -11,12 +11,11 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// A remote MCP server and a package server's OAuth sign-in (OAuth
-// connections M11, agentry-desktop#668; the site's half is agentry-web#1183).
-// The Build page's step check runs the core's own V5 over what the Model
-// writes, so these tests pin the Model's half: every field is written and
-// read back, only the fields of a row's own shape reach agent.yaml, and the
-// summary says how each server signs in in the site's words.
+// A remote MCP server and a package server's OAuth sign-in. The Build
+// page's step check runs the core's own V5 over what the Model writes, so
+// these tests pin the Model's half: every field is written and read back,
+// only the fields of a row's own shape reach agent.yaml, and the summary
+// says how each server signs in in the site's words.
 
 func linearRow() MCPServerRow {
 	return MCPServerRow{Source: "url", URL: "https://mcp.linear.app/mcp", Auth: "oauth", Scopes: []string{"read", "write"},
@@ -77,8 +76,8 @@ func TestRemoteServersAndSignInsRoundTripAndPassTheCore(t *testing.T) {
 	}
 }
 
-// Before #668 the reader took a remote server for an empty npm package, so
-// opening a workspace that declared one and saving it dropped it.
+// The reader takes a remote server for a remote server, not an empty npm
+// package: opening a workspace that declared one and saving it keeps it.
 func TestLoadingAWorkspaceKeepsItsRemoteServer(t *testing.T) {
 	dir := t.TempDir()
 	if err := Save(dir, withServers(linearRow())); err != nil {
@@ -132,7 +131,7 @@ func TestOnlyARowsOwnShapeIsWritten(t *testing.T) {
 		t.Errorf("auth secret writes its key and no scopes: %+v\n%s", res.First, res.YAML)
 	}
 	if got := m.OptionalSecrets(); !reflect.DeepEqual(got, []string{"EXAMPLE_TOKEN", "GITHUB_TOKEN"}) {
-		t.Errorf("a remote server's key starts Optional like any attached key (D2): %v", got)
+		t.Errorf("a remote server's key starts Optional like any attached key: %v", got)
 	}
 }
 

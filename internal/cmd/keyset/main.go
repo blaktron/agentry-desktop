@@ -1,7 +1,6 @@
 // Command keyset generates an update-signing key pair and maintains
 // internal/selfupdate/keys.json, the set of keys a build of Agentry Desktop
-// will accept a release from (agentry-desktop#86; plan desktop-installers.md
-// §7, D5, D15; register D-026).
+// will accept a release from.
 //
 // It exists so that a trust root is never hand-edited. keys.json has three ways
 // to be wrong that a person editing it would not notice until a release failed
@@ -131,8 +130,8 @@ func generate(args []string) error {
 	// release workflow could not read without a password it does not have.
 	// MarshalText is the plain form `minisign -G -W` writes. Unencrypted is
 	// right for this copy because it becomes a GitHub Actions secret that the
-	// release workflow reads with no person present; D-026 and
-	// internal/cmd/signrelease record what protects it instead.
+	// release workflow reads with no person present;
+	// internal/cmd/signrelease records what protects it instead.
 	privText, err := priv.MarshalText()
 	if err != nil {
 		return fmt.Errorf("encoding the private half: %w", err)

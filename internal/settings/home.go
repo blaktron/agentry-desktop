@@ -9,8 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// The Home page's layout (plan desktop-home-and-library.md §4.4, D-067;
-// agentry-desktop#658): an ordered, versioned list of cards under the
+// The Home page's layout: an ordered, versioned list of cards under the
 // settings file's home key. It is basic on purpose, show or hide a default
 // card, and shaped for more: order is the list's, a card carries a size,
 // and whatever a card or the layout holds that this app does not know is
@@ -28,10 +27,9 @@ const (
 	HomeInstalled   = "installed"
 	HomeProfile     = "profile"
 	HomeRunDefaults = "run-defaults"
-	// HomePinned is a card of pinned QuickAgents, one of several (M4).
+	// HomePinned is a card of pinned QuickAgents, one of several.
 	HomePinned = "pinned"
-	// HomeScheduled is the Scheduled page's mini calendar (plan
-	// quickagent-scheduling.md D13; agentry-desktop#744): at most one,
+	// HomeScheduled is the Scheduled page's mini calendar: at most one,
 	// Large, pinned from the Scheduled page and shown or hidden in Settings
 	// → Home. It is a card, not one of the 16 QuickAgent pins, and it is no
 	// default: Reset Home removes it.
@@ -60,7 +58,7 @@ type HomeLayout struct {
 type homeFields HomeLayout
 
 // UnmarshalYAML decodes the layout, or keeps the node whole when it does
-// not fit (the review of agentry-desktop#658).
+// not fit.
 func (l *HomeLayout) UnmarshalYAML(n *yaml.Node) error {
 	var f homeFields
 	if err := n.Decode(&f); err != nil {
@@ -80,22 +78,20 @@ func (l HomeLayout) MarshalYAML() (any, error) {
 }
 
 // HomeCard is one card. Size is "" or "large", the size of the Build,
-// Voice and Knowledge cards (D12); smaller sizes come with later
-// customising. Rest keeps a card's keys this app does not know.
+// Voice and Knowledge cards. Rest keeps a card's keys this app does not know.
 type HomeCard struct {
 	Kind   string `yaml:"kind" json:"kind"`
 	Hidden bool   `yaml:"hidden,omitempty" json:"hidden,omitempty"`
 	Size   string `yaml:"size,omitempty" json:"size,omitempty"`
-	// Pins are a Pinned card's QuickAgents, at most PinsPerCard (D5).
+	// Pins are a Pinned card's QuickAgents, at most PinsPerCard.
 	Pins []HomePin      `yaml:"pins,omitempty" json:"pins,omitempty"`
 	Rest map[string]any `yaml:",inline" json:"-"`
 }
 
-// HomePin is one pinned QuickAgent (agentry-desktop#660): its ref
-// (namespace/name, no version) and the registry it was installed from,
-// empty for a QuickAgent installed from a folder. A pin is kept on this
-// computer only and is not a star (D5). Rest keeps a pin's keys this app
-// does not know.
+// HomePin is one pinned QuickAgent: its ref (namespace/name, no version)
+// and the registry it was installed from, empty for a QuickAgent
+// installed from a folder. A pin is kept on this computer only and is
+// not a star. Rest keeps a pin's keys this app does not know.
 type HomePin struct {
 	Ref      string         `yaml:"ref" json:"ref"`
 	Registry string         `yaml:"registry,omitempty" json:"registry,omitempty"`
@@ -229,12 +225,11 @@ func ResetHome() error {
 	return Save(s)
 }
 
-// Pins (plan desktop-home-and-library.md D5, D11, D12; agentry-desktop#660):
-// four to a Pinned card, at most four Pinned cards, so at most 16 pins. Go
-// places them: a new pin joins the first Pinned card with room, and a new
-// card, Large, is added after every other card only when each one holds
-// four. An unpin leaves its gap for the next pin and moves no other pin
-// between cards; a card it empties is removed.
+// Pins: four to a Pinned card, at most four Pinned cards, so at most 16
+// pins. Go places them: a new pin joins the first Pinned card with room, and
+// a new card, Large, is added after every other card only when each one
+// holds four. An unpin leaves its gap for the next pin and moves no other
+// pin between cards; a card it empties is removed.
 const (
 	PinsPerCard    = 4
 	MaxPinnedCards = 4
@@ -370,10 +365,10 @@ func UnpinFromHome(ref, registry string) error {
 }
 
 // UnpinRef removes ref's pins when its last install of one kind goes from
-// this computer (D5): the folder install's pin (no registry) when fromFolder,
-// else its pins from any registry, since a runner record's origin follows
-// the app's default registry. A layout this app keeps rather than uses is
-// left alone, without an error: an uninstall never fails on Home.
+// this computer: the folder install's pin (no registry) when fromFolder, else
+// its pins from any registry, since a runner record's origin follows the
+// app's default registry. A layout this app keeps rather than uses is left
+// alone, without an error: an uninstall never fails on Home.
 func UnpinRef(ref string, fromFolder bool) error {
 	err := unpin(func(p HomePin) bool { return p.Ref == ref && (p.Registry == "") == fromFolder })
 	if errors.Is(err, errNewerHome) || errors.Is(err, errUnreadableHome) {

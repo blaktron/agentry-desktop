@@ -1,16 +1,14 @@
 // Package cliinstall installs the agentry command on macOS and Linux when the
-// person asks for it, from the Scheduled page's Options menu
-// (agentry-desktop#788; D-076).
+// person asks for it, from the Scheduled page's Options menu.
 //
 // It runs the site's own install script, /install.sh (agentry-web
-// scripts/install/install.sh; plan agentry-notes/plans/cli-on-path.md §4),
-// rather than a copy of it: the script is the one place that knows which CLI
-// the site serves, holds the download to the SHA-256 the site lists, puts it
-// in ${XDG_BIN_HOME:-~/.local/bin} and adds the marked PATH line to the
-// shell's rc file once (cli-on-path.md D1 rejects a copy that would drift).
-// The site is the one this build's update channel names, so a dev build
-// installs the dev CLI and a production build the production one, as the
-// one-liner on that site's /download page does.
+// scripts/install/install.sh), rather than a copy of it: the script is the one
+// place that knows which CLI the site serves, holds the download to the SHA-256
+// the site lists, puts it in ${XDG_BIN_HOME:-~/.local/bin} and adds the marked
+// PATH line to the shell's rc file once. A copy of it would drift, so the app
+// runs the script itself. The site is the one this build's update channel
+// names, so a dev build installs the dev CLI and a production build the
+// production one, as the one-liner on that site's /download page does.
 //
 // The script runs as the person, never as root, with AGENTRY_NO_NODE=1: an
 // app's PATH does not see a Node from Homebrew or a version manager, so the
@@ -49,7 +47,7 @@ const Timeout = 10 * time.Minute
 // Offered reports whether the app installs the command on goos, as the
 // account euid: macOS and Linux, never as root, where sudo or pkexec could
 // hand it another account's home. Windows carries the command in its
-// installer (D-061).
+// installer.
 func Offered(goos string, euid int) bool {
 	return (goos == "darwin" || goos == "linux") && euid != 0
 }

@@ -127,10 +127,9 @@ func noPlaintextLeft(t *testing.T, e Env) {
 }
 
 // A pack kept on one runner home opens on a fresh one after sign-in, with
-// nothing carried between the two but the account (plan D4), against a
-// core-only registry, whose wrapper is the deployment's key (the fake is
-// the core's routes and shapes; knowledge.md §3's core-only row). Signed
-// out, with no key cached, it does not open.
+// nothing carried between the two but the account, against a core-only
+// registry, whose wrapper is the deployment's key (the fake is the core's
+// routes and shapes). Signed out, with no key cached, it does not open.
 func TestAPackKeptOnOneHomeOpensOnAFreshOneAfterSignIn(t *testing.T) {
 	ctx := context.Background()
 	reg := knowledgetest.NewRegistry(t)
@@ -185,7 +184,7 @@ func TestAPackKeptOnOneHomeOpensOnAFreshOneAfterSignIn(t *testing.T) {
 
 // Kept signed out, a pack is wrapped by this computer's key, which is in
 // this computer's keychain only: a copy of the store on another computer
-// does not open without it, and the next sign-in rewraps it (D20).
+// does not open without it, and the next sign-in rewraps it.
 func TestAPackKeptSignedOutNeedsThisComputersKeyUntilSignIn(t *testing.T) {
 	ctx := context.Background()
 	reg := knowledgetest.NewRegistry(t)
@@ -231,7 +230,7 @@ func TestAPackKeptSignedOutNeedsThisComputersKeyUntilSignIn(t *testing.T) {
 }
 
 // The panel's words for each pack: where it is, what holds its key, and
-// what read it, never "safe", "secure" or "private" (plan §3).
+// what read it, never "safe", "secure" or "private".
 func TestTheListSaysWhereEachPackIsAndWhatHoldsItsKey(t *testing.T) {
 	ctx := context.Background()
 	reg := knowledgetest.NewRegistry(t)
@@ -274,14 +273,13 @@ func TestTheListSaysWhereEachPackIsAndWhatHoldsItsKey(t *testing.T) {
 	if p := byName["remote-only"]; p.Local || !p.InAgentry || p.Where != "Agentry" || p.ScanState != ScanScanned || p.Key != "" {
 		t.Errorf("remote-only = %+v", p)
 	}
-	// What a run In Agentry may attach (agentry-desktop#275): the copies
-	// Agentry keeps and has scanned, never a pack kept only here.
+	// What a run In Agentry may attach: the copies Agentry keeps and has
+	// scanned, never a pack kept only here.
 	if !byName["both"].AgentryReady || !byName["remote-only"].AgentryReady || byName["local-only"].AgentryReady {
 		t.Errorf("agentryReady: both %v, remote-only %v, local-only %v", byName["both"].AgentryReady, byName["remote-only"].AgentryReady, byName["local-only"].AgentryReady)
 	}
 
-	// The dates the Local and Cloud Knowledge pages show (plan
-	// knowledge-cards.md §4.2, §4.3; agentry-desktop#619): when the copy
+	// The dates the Local and Cloud Knowledge pages show: when the copy
 	// here last changed, from its manifest, and when Agentry's did, from
 	// its list. A pack kept in one place has only that place's date.
 	for name, want := range map[string][2]bool{"local-only": {true, false}, "both": {true, true}, "remote-only": {false, true}} {
@@ -507,12 +505,11 @@ func TestNoTokenGoesToAURLSettingsWouldRefuse(t *testing.T) {
 	noPlaintextLeft(t, e)
 }
 
-// ForDraft (agentry-desktop#497; plan knowledge-and-drafter.md K4, D3):
-// each named pack kept here opened for the Drafter, once, with a scratch
-// inside the store; a pack with no scan in Agentry is named to be scanned
-// first; done removes every copy. A pack not kept, a name that is not a
-// pack's, or more packs than a draft reads is refused with nothing left in
-// the clear.
+// ForDraft: each named pack kept here opened for the Drafter, once, with a
+// scratch inside the store; a pack with no scan in Agentry is named to be
+// scanned first; done removes every copy. A pack not kept, a name that is
+// not a pack's, or more packs than a draft reads is refused with nothing
+// left in the clear.
 func TestForDraftOpensThePacksAndNamesThoseToScanFirst(t *testing.T) {
 	ctx := context.Background()
 	reg := knowledgetest.NewRegistry(t)

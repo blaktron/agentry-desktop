@@ -25,12 +25,12 @@ import (
 // the pack through the store (store.OpenScratch, store.Open), which checks
 // the sealed tree against its manifest before a page is written out.
 
-// Attach opens each named pack for a run on this computer (plan §4.5), into
-// a 0700 directory inside the store that done removes; the engine copies
-// each into the run's own directory, mounts it read-only on the tools
-// container and deletes its copy at teardown. A pack that is not kept or
-// will not open (signed out of the registry that wraps its key, another
-// account's, altered) is refused before anything runs, naming it.
+// Attach opens each named pack for a run on this computer, into a 0700
+// directory inside the store that done removes; the engine copies each into
+// the run's own directory, mounts it read-only on the tools container and
+// deletes its copy at teardown. A pack that is not kept or will not open
+// (signed out of the registry that wraps its key, another account's,
+// altered) is refused before anything runs, naming it.
 func (e Env) Attach(ctx context.Context, current string, names []string) (_ []engine.AttachedPack, done func(), err error) {
 	var cleanups []func()
 	done = func() {
@@ -96,7 +96,7 @@ func (e Env) Export(ctx context.Context, current, name, parent string) (string, 
 	}
 	// The store's Export opens the person's own pack here, and sends an
 	// organization's shared pack's export through the registry, which
-	// decides (DR-46, D26).
+	// decides.
 	if _, err := s.Export(ctx, name, dst); err != nil {
 		// The folder is this export's own, made by it: nothing half
 		// written is left behind in the person's folder.
@@ -204,7 +204,7 @@ func pagePath(p string) bool {
 // listPages is every page under wiki/ but the indexes and the log, by
 // path, with the title its frontmatter gives. A pack with none answers an
 // empty list, never nil: nil encodes as null, and the preview once took
-// that for a list and blanked the app (agentry-desktop#351).
+// that for a list and blanked the app.
 func listPages(root *os.Root) ([]PageInfo, error) {
 	out := []PageInfo{}
 	err := fs.WalkDir(root.FS(), kn.WikiDir, func(rel string, d fs.DirEntry, err error) error {

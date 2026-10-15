@@ -1,11 +1,11 @@
 {
   "_comment": [
     "The signing keys this build of Agentry Desktop trusts for 'a newer Agentry",
-    "Desktop' (plan desktop-installers.md §7, D5; register D-026). The release",
+    "Desktop'. The release",
     "workflow signs SHA256SUMS with the private half of one of these; the app",
     "and the site's downloads importer verify against the public halves here.",
     "This is OUR key, not the operating system's: it is independent of Developer",
-    "ID signing and Authenticode (agentry-desktop#6, #54), which secure a",
+    "ID signing and Authenticode, which secure a",
     "different thing.",
     "",
     "Fields, per key:",
@@ -24,10 +24,10 @@
     "  addedAt    the day it was added, ISO date. For the record only.",
     "  note       where the private half lives and what it is for: every",
     "             repository that holds it, since the CLI and the MCP server",
-    "             sign with the same key (agentry-desktop#181).",
+    "             sign with the same key.",
     "",
     "A build with no keys here trusts nothing and refuses every update; that is",
-    "the correct state for the open core, which anyone can build (plan §7).",
+    "the correct state for the open core, which anyone can build.",
     "Keys are added by scripts/operator/update-signing-key.sh, never by hand:",
     "the wizard is what keeps the committed public half and the Actions secret",
     "the two halves of one pair."
@@ -39,7 +39,7 @@
       "keyID": "FF4886FDE25FBCCB",
       "retired": false,
       "addedAt": "2026-09-20",
-      "note": "private half: the AGENTRY_UPDATE_SIGNING_KEY secret of blaktron/agentry-desktop. The CLI (a repository secret, agentry-cli#197) and the MCP server (a secret of its release environment, agentry-mcp#33) sign with the same key under the same name once their operator steps load it; a rotation moves all three, with the DESKTOP_SIGNRELEASE_REF pins in their release workflows (agentry-desktop#181)."
+      "note": "private half: the AGENTRY_UPDATE_SIGNING_KEY secret of blaktron/agentry-desktop. The CLI (a repository secret) and the MCP server (a secret of its release environment) sign with the same key under the same name; a rotation moves all three, with the DESKTOP_SIGNRELEASE_REF pins in their release workflows."
     }
   ]
 }
