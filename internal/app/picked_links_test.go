@@ -38,19 +38,20 @@ func TestAPickedPathIsJudgedWithItsLinksResolved(t *testing.T) {
 	app := &App{ctx: context.Background()}
 	picked, through := linkedOut(t)
 	app.markPicked(picked)
-	refused := map[string]string{
-		"a file through the link":            through,
-		"the link itself":                    filepath.Join(picked, "link"),
-		"a file not made yet under the link": filepath.Join(picked, "link", "new", "out.txt"),
-		"a path with a .. element":           picked + string(filepath.Separator) + "sub" + string(filepath.Separator) + ".." + string(filepath.Separator) + "a.txt",
+	if err := os.Mkdir(filepath.Join(picked, "sub"), 0o700); err != nil {
+		t.Fatal(err)
 	}
 	if err := os.Symlink(filepath.Join(t.TempDir(), "missing"), filepath.Join(picked, "gone")); err != nil {
 		t.Fatal(err)
 	}
-	refused["a link whose target is missing"] = filepath.Join(picked, "gone")
-	refused["a file not made yet under a link whose target is missing"] = filepath.Join(picked, "gone", "out.txt")
-	if err := os.Mkdir(filepath.Join(picked, "sub"), 0o700); err != nil {
-		t.Fatal(err)
+	sep := string(filepath.Separator)
+	refused := map[string]string{
+		"a file through the link":                                  through,
+		"the link itself":                                          filepath.Join(picked, "link"),
+		"a file not made yet under the link":                       filepath.Join(picked, "link", "new", "out.txt"),
+		"a path with a .. element":                                 picked + sep + "sub" + sep + ".." + sep + "a.txt",
+		"a link whose target is missing":                           filepath.Join(picked, "gone"),
+		"a file not made yet under a link whose target is missing": filepath.Join(picked, "gone", "out.txt"),
 	}
 	for name, p := range refused {
 		if err := app.requirePicked("input", p); err == nil {
@@ -144,6 +145,12 @@ func TestAHostedRunSendsNothingThroughALink(t *testing.T) {
 	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", []string{through}, out, nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "through a link") {
 		t.Fatalf("an input through a link: %v", err)
 	}
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, filepath.Join(picked, "link"), nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "through a link") {
+		t.Fatalf("an output folder through a link: %v", err)
+	}
+	if _, err := r.AttachHostedRun(reg, filepath.Join(picked, "link")); err == nil || !strings.Contains(err.Error(), "through a link") {
+		t.Fatalf("a reattach into a folder through a link: %v", err)
+	}
 	f.mu.Lock()
 	created := f.created
 	f.mu.Unlock()
@@ -200,5 +207,32 @@ func TestASchedulePicksNothingThroughALink(t *testing.T) {
 	hf.mu.Unlock()
 	if len(sr.calls()) != 0 || uploads != 0 {
 		t.Fatalf("sent %v, uploads %d", sr.calls(), uploads)
+	}
+}
+
+func TestTheVoiceReviewAndRevisionRefuseALink(t *testing.T) {
+	picked, through := linkedOut(t)
+	linkDir := filepath.Join(picked, "link")
+
+	v := newVoiceFixture(t, false)
+	v.v.app.markPicked(picked)
+	if _, err := v.v.Write(v.reg.URL, "create", []string{through}, ""); err == nil || !strings.Contains(err.Error(), "through a link") {
+		t.Fatalf("a writing sample through a link: %v", err)
+	}
+
+	rv := newReviewFixture(t)
+	rv.withKey(t)
+	rv.b.app.markPicked(picked)
+	if _, err := rv.b.ReviewLocally(rv.reg, linkDir); err == nil || !strings.Contains(err.Error(), "through a link") {
+		t.Fatalf("a review of a folder through a link: %v", err)
+	}
+	if len(rv.asked) != 0 || len(rv.runs) != 0 {
+		t.Fatalf("asked %v, ran %d", rv.asked, len(rv.runs))
+	}
+
+	b := &BuildAPI{app: &App{ctx: context.Background()}}
+	b.app.markPicked(picked)
+	if _, err := b.PublishThisVersion("https://r.example", linkDir, "k"); err == nil || !strings.Contains(err.Error(), "through a link") {
+		t.Fatalf("a revision saved through a link: %v", err)
 	}
 }

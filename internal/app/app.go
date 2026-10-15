@@ -136,16 +136,21 @@ func (a *App) requirePicked(what, p string) error {
 	}
 	real, err := resolveExisting(clean)
 	if err != nil {
-		return fmt.Errorf("%s %q: %w", what, p, err)
+		return fmt.Errorf("%s %q could not be followed to the file it names (%w); pick it again", what, p, err)
 	}
+	resolved := false
 	for _, root := range roots {
 		realRoot, err := resolveExisting(root)
 		if err != nil {
 			continue
 		}
+		resolved = true
 		if real == realRoot || within(realRoot, real) {
 			return nil
 		}
+	}
+	if !resolved {
+		return fmt.Errorf("the folder %s %q was chosen from can no longer be read; pick it again", what, p)
 	}
 	return fmt.Errorf("%s %q reaches outside the folder it was chosen from through a link; pick the file itself", what, p)
 }
