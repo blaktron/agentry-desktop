@@ -45,7 +45,7 @@ func TestLiveHostedRunWithABrowser(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_HOSTED_BROWSER_REGISTRY, _TOKEN, _REF, _SITE, _USER and _PASSWORD to run one hosted run with a browser")
 	}
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

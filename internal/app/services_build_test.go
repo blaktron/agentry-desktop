@@ -81,7 +81,7 @@ func (c passCheck) Check(context.Context, draftcheck.Package) (*drafter.Check, e
 
 func newDescribeFixture(t *testing.T) *describeFixture {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	keyring.MockInit()

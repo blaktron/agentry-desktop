@@ -236,6 +236,7 @@ func (r *RunAPI) StartSession(reg, ref, task string, inputPaths []string, outDir
 	logw := r.eventWriter(eventRunLog)
 	s, err := r.startEngineSession(ctx, run.Request{
 		RunID:                  live.id,
+		InFlightDir:            r.inFlightDir(),
 		Registry:               reg,
 		Ref:                    ref,
 		Task:                   task,
@@ -1065,6 +1066,7 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		OnBudgets:          budgetsOf(meter),
 		OnUsage:            usage,
 		RunID:              live.id,
+		InFlightDir:        r.inFlightDir(),
 		Registry:           reg,
 		Ref:                ref,
 		Task:               task,

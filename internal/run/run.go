@@ -354,6 +354,11 @@ type Request struct {
 	// RunID names the run's docker objects (label agentry.run=<id>); ""
 	// mints one. The app sets it so it can Sweep the run on quit.
 	RunID string
+	// InFlightDir is the directory of the crash path's records, where the
+	// app recorded RunID. When set, the prepared run's profile and its keep
+	// decision go on the record before the engine starts (RecordProfile),
+	// so a run that never completes still has its unkept profile removed.
+	InFlightDir string
 	// AllowVulnerableMCP is the person's consent, asked in a native dialog, to run
 	// a declared MCP server whose advisory the registry's gate rates high or
 	// critical. It lets the run through only in Unsafe Mode (Unsafe), and the
@@ -706,6 +711,14 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if prof, err = ensureKeepProfile(profDir, sig, prof, req.KeepProfile); err != nil {
 		return nil, err
 	}
+	// The profile as this run holds it, for its crash-path record: read now,
+	// as it was loaded, so a profile saved again before the engine starts is
+	// the newer writer's.
+	held, err := heldProfile(profDir, installDir, keep)
+	if err != nil {
+		finishProfile(logw, prof, profDir, keep)
+		return nil, err
+	}
 
 	// The connections of the servers that sign in by OAuth: made on the run
 	// setup's Connect tools step, never asked for here; each is refreshed under
@@ -798,6 +811,16 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		}
 		overrides = merged
 	}
+	// The run's profile goes on its crash-path record before the engine
+	// starts, so a run that never completes still has an unkept profile
+	// removed. Best effort, as the record itself is: a run is not refused
+	// because the runner home is unwritable.
+	if req.InFlightDir != "" && held != nil {
+		if err := RecordProfile(req.InFlightDir, runID, *held); err != nil {
+			_, _ = fmt.Fprintf(logw, "warning: the run's profile could not be noted for removal if the app is closed mid-run: %v\n", err)
+		}
+	}
+
 	// RunnerHome is the home the CLI shares. Where relays share the host's one
 	// network (a platform with no docker filter), a run whose plan needs relays
 	// holds its relays.lock for the whole run, so a desktop run and a CLI run

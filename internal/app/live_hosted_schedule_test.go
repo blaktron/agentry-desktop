@@ -40,7 +40,7 @@ func TestLiveHostedSchedule(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_SCHEDULE_REGISTRY, _TOKEN and _REF to make one schedule In Agentry")
 	}
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	st, err := settings.Load()
@@ -158,7 +158,7 @@ func TestLiveHostedScheduleGap(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_SCHEDULE_REGISTRY, _TOKEN and _GAP_REF to see a schedule's gap come back")
 	}
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	st, err := settings.Load()

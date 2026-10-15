@@ -568,7 +568,7 @@ func signIn(t *testing.T, reg string) (home, runnerHome string) {
 	// held in memory for the test.
 	keyring.MockInit()
 	home, runnerHome = t.TempDir(), t.TempDir()
-	t.Setenv("HOME", home)
+	setUserHome(t, home)
 	t.Setenv("AGENTRY_RUNNER_HOME", runnerHome)
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()
@@ -728,7 +728,7 @@ func TestHostedAvailability(t *testing.T) {
 func TestHostedAvailabilityWithoutSigningIn(t *testing.T) {
 	f := &hostedFake{enabled: true}
 	reg := f.start(t)
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	r, _ := newRunAPI(t)
@@ -1339,5 +1339,64 @@ func TestATargetHostReleaseIsNeitherOfferedNorStartedInAgentry(t *testing.T) {
 	defer f.mu.Unlock()
 	if f.uploads != 0 || len(f.creates) != 0 {
 		t.Fatalf("uploads %d, creates %d", f.uploads, len(f.creates))
+	}
+}
+
+// tokenRecorder stands in for the network: it fails every request and
+// records the ones that carried a credential.
+type tokenRecorder struct {
+	mu   sync.Mutex
+	sent []string
+}
+
+func (t *tokenRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Authorization") != "" {
+		t.mu.Lock()
+		t.sent = append(t.sent, req.Method+" "+req.URL.String())
+		t.mu.Unlock()
+	}
+	return nil, io.ErrUnexpectedEOF
+}
+
+// The hosted-run bindings hold the page's registry URL to Settings' rule
+// before a token is read: with a token in the keychain for a real host, an
+// http:// spelling of it is refused by the availability and the starts, and
+// the attaches follow nothing, with no request carrying the token anywhere.
+func TestAHostedRunSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
+	keyring.MockInit()
+	setUserHome(t, t.TempDir())
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
+	if err := keyring.Set(settings.KeyringService, "dev.secureagentry.net", hostedTestToken); err != nil {
+		t.Fatal(err)
+	}
+	rec := &tokenRecorder{}
+	old := http.DefaultTransport
+	http.DefaultTransport = rec
+	t.Cleanup(func() { http.DefaultTransport = old })
+	r, _ := newRunAPI(t)
+	const reg = "http://dev.secureagentry.net"
+	dir := t.TempDir()
+	r.app.markPicked(dir)
+
+	if v, err := r.HostedAvailability(reg, "acme/reporter@1.0.0"); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("the availability over plain http: %+v %v", v, err)
+	}
+	if v, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "", nil, dir, nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("a run started over plain http: %+v %v", v, err)
+	}
+	if v, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "", nil, dir, nil, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("a session started over plain http: %+v %v", v, err)
+	}
+	if v, err := r.AttachHostedRun(reg, dir); err != nil || v.Run != nil {
+		t.Fatalf("an attach over plain http: %+v %v", v, err)
+	}
+	if v, err := r.AttachHostedRunAtStart(reg); err != nil || v.Run != nil {
+		t.Fatalf("an attach at start over plain http: %+v %v", v, err)
+	}
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.sent) != 0 {
+		t.Fatalf("the token was sent: %v", rec.sent)
 	}
 }

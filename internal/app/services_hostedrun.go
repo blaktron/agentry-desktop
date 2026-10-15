@@ -284,6 +284,9 @@ type HostedStartView struct {
 // does a run of this account's hold and what is the balance.
 func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, error) {
 	reg = settings.Normalize(reg)
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, err
+	}
 	ctx := r.ctx()
 	token := settings.TokenFor(reg)
 	v := &HostedAvailabilityView{
@@ -360,9 +363,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	v.Offered, v.Available, v.Reason, v.Remedy = o.Offered, o.Available, o.Reason, o.Remedy
 	v.Session = sessionOffer(hostedrun.DecideSession(facts), terms)
 	v.Schedule = scheduleOfferView(hostedrun.DecideSchedule(facts))
-	// Its reads carry the token, so they are held to Settings' URL rule,
-	// which the rest of this function does not apply yet.
-	if v.Offered && settings.ValidateURL(reg) == nil {
+	if v.Offered {
 		v.PublisherEarns = publisherEarnsHere(ctx, reg, token, ref, exts)
 	}
 	return v, nil
@@ -425,6 +426,9 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		}
 		r.DiscardHostedSecrets(reg)
 	}()
+	if err := settings.ValidateURL(reg); err != nil {
+		return nil, err
+	}
 	token := settings.TokenFor(reg)
 	if token == "" {
 		return nil, fmt.Errorf("sign in to %s to run In Agentry", reg)
@@ -583,7 +587,7 @@ func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
 	token := settings.TokenFor(reg)
-	if token == "" {
+	if settings.ValidateURL(reg) != nil || token == "" {
 		return &HostedStartView{}, nil
 	}
 	client := hostedrun.New(reg, token)

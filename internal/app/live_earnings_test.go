@@ -42,7 +42,7 @@ func TestLiveEarnings(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_EARNINGS_REGISTRY, _TOKEN and _REF to check the line and the star ask")
 	}
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

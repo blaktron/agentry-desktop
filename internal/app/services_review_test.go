@@ -56,7 +56,7 @@ const reviewAnswer = `{"summary":"Read 4 files.","findings":[{"kind":"instructio
 
 func newReviewFixture(t *testing.T) *reviewFixture {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	t.Setenv("TMPDIR", t.TempDir())

@@ -387,6 +387,16 @@ func (r *RunAPI) inFlight() (string, error) {
 	return filepath.Join(home, run.InFlightDirName), nil
 }
 
+// inFlightDir is inFlight for a run request, "" when the runner home
+// cannot be found (the run then records no profile, as it records no run).
+func (r *RunAPI) inFlightDir() string {
+	dir, err := r.inFlight()
+	if err != nil {
+		return ""
+	}
+	return dir
+}
+
 func (r *RunAPI) sweepRun(ctx context.Context, id string) error {
 	if r.sweep != nil {
 		return r.sweep(ctx, id)

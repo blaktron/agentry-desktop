@@ -20,8 +20,7 @@ import (
 func saveFolderAPI(t *testing.T) (*BuildAPI, string) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
+	setUserHome(t, home)
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	app := &App{
 		ctx:     context.Background(),

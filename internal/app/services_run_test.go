@@ -139,7 +139,7 @@ func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
 // when the key replaces another provider's.
 func TestTheSearchKeyIsNeverShownBackOrLogged(t *testing.T) {
 	const secret = "search-never-shown-back-8e41"
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	keyring.MockInit()
@@ -202,7 +202,7 @@ func TestTheSearchKeyIsNeverShownBackOrLogged(t *testing.T) {
 // the page is sent does either.
 func TestTheJevKeyIsNeverShownBackOrLogged(t *testing.T) {
 	const secret = "jev-never-shown-back-3b9e"
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	keyring.MockInit()
@@ -259,7 +259,7 @@ func TestTheJevKeyIsNeverShownBackOrLogged(t *testing.T) {
 // carries it back, and no progress line the page is sent does either.
 func TestTheHybridKeyIsNeverShownBackOrLogged(t *testing.T) {
 	const secret = "ha-never-shown-back-6d2a"
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv(policy.HomeEnv, t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	keyring.MockInit()
