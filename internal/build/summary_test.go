@@ -37,9 +37,9 @@ func kinds(s *Summary) []string {
 	return out
 }
 
-// The capability contract is shown in full before Submit (plan
-// builder-simplify.md §3): every kind the form can declare is listed when
-// it is declared, on its own, and nothing is listed that is not.
+// The capability contract is shown in full before Submit: every kind the
+// form can declare is listed when it is declared, on its own, and nothing
+// is listed that is not.
 func TestTheSummaryListsEveryDeclaredCapabilityAndNothingElse(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -107,7 +107,7 @@ func TestTheSummaryListsEveryDeclaredCapabilityAndNothingElse(t *testing.T) {
 			want: func(t *testing.T, s *Summary) { wantGrants(t, s, "Runs the commands git, jq.") }},
 		{name: "data", set: func(m *Model) { m.DataAccess = []string{"email", "calendar"} }, kinds: []string{"grants"},
 			want: func(t *testing.T, s *Summary) { wantGrants(t, s, "Touches these kinds of data: email, calendar.") }},
-		// The knowledge block (agentry-desktop#497), in the site's words.
+		// The knowledge block, in the site's words.
 		{name: "asks for a pack", set: func(m *Model) { m.KnowledgePrompt, m.KnowledgeRequired = "Attach your runbook.", true }, kinds: []string{"knowledge"},
 			want: func(t *testing.T, s *Summary) {
 				if !reflect.DeepEqual(s.Knowledge, []string{"Asks a person to attach a knowledge pack of their own, and cannot run without one."}) {
@@ -150,8 +150,8 @@ func wantGrants(t *testing.T, s *Summary, want ...string) {
 }
 
 // Every key is listed once, with every place that asks for it, the help
-// the guide writes for it and whether a run can do without it
-// (agentry-desktop#655); the summary's own text is the model's.
+// the guide writes for it and whether a run can do without it;
+// the summary's own text is the model's.
 func TestTheSummarysKeysCarryTheirHelpAndWhoAsks(t *testing.T) {
 	m := bare()
 	m.Guide.Overview = "Reads the channel.\n\n- one\n- two"
@@ -197,7 +197,7 @@ func TestTheSummaryMarksTheHostsTheDescriptionDidNotName(t *testing.T) {
 }
 
 // The page reads every list as a list: an empty one is [], never null (a
-// null list blanked the desktop once; wiki lessons/nil-list-blanked-the-desktop).
+// null list would blank the page).
 func TestTheSummaryHasNoNullLists(t *testing.T) {
 	m := bare()
 	m.MCPServers = []MCPServerRow{{Source: "npm", Package: "x", Version: "1.0.0"}}

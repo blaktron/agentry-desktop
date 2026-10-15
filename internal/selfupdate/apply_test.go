@@ -102,7 +102,7 @@ func TestWritableDirRefusesSomewhereThatDoesNotExist(t *testing.T) {
 	}
 }
 
-// Linux never applies: a .deb or .rpm is the package manager's (D7, D-027).
+// Linux never applies: a .deb or .rpm is the package manager's.
 func TestLinuxApplierRefuses(t *testing.T) {
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		t.Skip("this platform does apply")

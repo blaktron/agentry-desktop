@@ -99,10 +99,10 @@ func TestCheckUpdates(t *testing.T) {
 	}
 }
 
-// TestCheckUpdateForTheRunnerRecord (agentry-desktop#147): opening a
-// QuickAgent's page asks about its runner-home record alone — through the
-// record's origin, the app's default registry — and answers with the one
-// "newer" rule (semver); no record, no question.
+// TestCheckUpdateForTheRunnerRecord: opening a QuickAgent's page asks
+// about its runner-home record alone — through the record's origin, the
+// app's default registry — and answers with the one "newer" rule
+// (semver); no record, no question.
 func TestCheckUpdateForTheRunnerRecord(t *testing.T) {
 	isolate(t)
 	home := t.TempDir()
@@ -142,9 +142,9 @@ func TestCheckUpdateForTheRunnerRecord(t *testing.T) {
 	}
 }
 
-// TestALocalInstallAsksNoRegistry (agentry-desktop#425): a QuickAgent
-// installed from a folder lists as local with no origin, and its update
-// check sends nothing anywhere, the default registry included.
+// TestALocalInstallAsksNoRegistry: a QuickAgent installed from a folder
+// lists as local with no origin, and its update check sends nothing
+// anywhere, the default registry included.
 func TestALocalInstallAsksNoRegistry(t *testing.T) {
 	isolate(t)
 	home := t.TempDir()

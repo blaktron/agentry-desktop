@@ -12,17 +12,17 @@ import (
 )
 
 // These drive the REAL darwinApplier against a real bundle in a temporary
-// Applications folder. They exist because the shell acceptance that came
-// first did not: it re-implemented the swap in bash and would have passed
-// with apply_darwin.go deleted. A test that cannot fail when the code is
-// wrong is worse than no test, so the shell script now runs this.
+// Applications folder. They exist because a shell acceptance that
+// re-implemented the swap in bash would pass with apply_darwin.go deleted.
+// A test that cannot fail when the code is wrong is worse than no test, so
+// the shell script runs this.
 //
 // What is still not covered here is the relaunch: it ends in an exec of
-// `open`, which needs a console session the Mac runner has not got (#106).
+// `open`, which needs a console session CI does not have.
 // The exec is a field, so these observe what would have been run.
 
 // fakeBundle builds a .app with a real ad-hoc signature, which is what a
-// release carries (D-001) and what the applier re-verifies.
+// release carries and what the applier re-verifies.
 func fakeBundle(t *testing.T, dir, name, marker string) string {
 	t.Helper()
 	app := filepath.Join(dir, name)

@@ -1,6 +1,6 @@
 // Package hostpath gives the app the PATH a terminal would have given it,
-// for the programs it runs, on a platform whose GUI launch hands it less
-// (agentry-desktop#573, agentry-desktop#624).
+// for the programs it runs, on a platform whose GUI launch hands it
+// less.
 //
 // macOS: an app opened from Finder or the Dock inherits launchd's PATH,
 // /usr/bin:/bin:/usr/sbin:/sbin, not the shell's. Docker Desktop installs

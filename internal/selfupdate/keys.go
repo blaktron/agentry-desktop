@@ -2,23 +2,22 @@
 // set of signing keys this build will accept a release from, and the check that
 // says whether a given SHA256SUMS was signed by one of them.
 //
-// The vocabulary, kept apart on purpose (plan desktop-installers.md §7):
-// internal/install already owns "update" for an installed QuickAgent, so the
-// app's own mechanism is SELF-UPDATE in code and "a newer Agentry Desktop" in
-// anything a person reads.
+// The vocabulary, kept apart on purpose: internal/install already owns
+// "update" for an installed QuickAgent, so the app's own mechanism is
+// SELF-UPDATE in code and "a newer Agentry Desktop" in anything a person
+// reads.
 //
 // What this package is NOT: it is not OS code signing. A Developer ID signature
-// (agentry-desktop#6) or an Authenticode one (#54) tells the operating system
-// who built the application; this key tells the application whether a release it
-// is about to install came from us. The two are independent, and the plan's D3
-// turns on exactly that: the installers ship unsigned by the OS today, and the
-// updater's trust does not wait for them.
+// or an Authenticode one tells the operating system who built the application;
+// this key tells the application whether a release it is about to install came
+// from us. The two are independent: the updater's trust does not depend on the
+// installers being signed by the OS.
 //
 // This package verifies. It does not download, and it does not decide what to
 // do with the answer — Verify reports which key signed and whether that key is
-// retired, and the caller (M6, agentry-desktop#87) decides whether that is
-// grounds to install. Keeping the decision out of here is what lets a retired
-// key still prove an OLD release genuine while never authorising a new one.
+// retired, and the caller decides whether that is grounds to install. Keeping
+// the decision out of here is what lets a retired key still prove an OLD
+// release genuine while never authorising a new one.
 package selfupdate
 
 import (
@@ -76,9 +75,9 @@ type KeySet struct{ keys []Key }
 var (
 	// ErrNoKeys means this build carries no signing key at all, so it can
 	// verify nothing. That is the correct state for a build of the open core,
-	// which anyone can make and which has no update channel (plan §7); it is a
-	// broken state for a release build, which is why the release workflow
-	// refuses a tag it cannot sign.
+	// which anyone can make and which has no update channel; it is a broken
+	// state for a release build, which is why the release workflow refuses a
+	// tag it cannot sign.
 	ErrNoKeys = errors.New("this build carries no update-signing key, so it can verify no release")
 	// ErrUnknownKey means the signature was made by a key this build does not
 	// carry. Distinct from ErrBadSignature so the message can tell a person
@@ -252,9 +251,9 @@ var ErrRetiredKey = errors.New("the signature was made by a key that has since b
 //
 // It exists so that authorising an install is a DIFFERENT CALL from checking a
 // signature, rather than a field a caller has to remember to look at. Verify
-// returning (Key, error) makes `if _, err := Verify(...); err == nil { install }`
-// compile and silently accept a retired key; that shape is the bug this
-// function is here to make unwritable.
+// returning (Key, error) makes `if _, err := Verify(...); err == nil { install
+// }` compile and silently accept a retired key; that shape is the bug this
+// function makes unwritable.
 func (s *KeySet) VerifyForInstall(message, signature []byte) (Key, error) {
 	key, err := s.Verify(message, signature)
 	if err != nil {

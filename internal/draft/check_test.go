@@ -8,7 +8,7 @@ import (
 )
 
 // The summary gives AI Review's check one line in the site's words
-// (agentry-web#651 lib/builder-summary.ts checkLine): no count, never
+// (lib/builder-summary.ts checkLine): no count, never
 // "safe", and every line says the pipeline decides at submit.
 func TestCheckLineIsTheSitesOneLine(t *testing.T) {
 	pass := func() *drafter.Check {

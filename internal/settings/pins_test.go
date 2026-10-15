@@ -41,8 +41,7 @@ func pin(t *testing.T, names ...string) {
 }
 
 // The first pin opens a Pinned card after the default cards, Large, and a
-// pin already there is not pinned twice (plan desktop-home-and-library.md
-// D5, D11, D12).
+// pin already there is not pinned twice.
 func TestAFirstPinOpensAPinnedCardAfterTheDefaults(t *testing.T) {
 	isolate(t)
 	pin(t, "a", "a")
@@ -62,7 +61,7 @@ func TestAFirstPinOpensAPinnedCardAfterTheDefaults(t *testing.T) {
 	}
 }
 
-// Four pins share a card; the fifth opens a second (D5, D11).
+// Four pins share a card; the fifth opens a second.
 func TestTheFifthPinOpensASecondCard(t *testing.T) {
 	isolate(t)
 	pin(t, "a", "b", "c", "d")
@@ -76,7 +75,7 @@ func TestTheFifthPinOpensASecondCard(t *testing.T) {
 }
 
 // Home holds 16 pins: the 17th is refused with a sentence saying so, and
-// the layout is left as it was (D5).
+// the layout is left as it was.
 func TestTheSeventeenthPinIsRefused(t *testing.T) {
 	isolate(t)
 	for i := range MaxPins {
@@ -96,7 +95,7 @@ func TestTheSeventeenthPinIsRefused(t *testing.T) {
 }
 
 // Unpinning leaves its gap and moves no other pin; the next pin fills the
-// first card with room; an emptied card goes (D11).
+// first card with room; an emptied card goes.
 func TestUnpinLeavesTheGapTheNextPinFillsIt(t *testing.T) {
 	isolate(t)
 	pin(t, "a", "b", "c", "d", "e", "f")
@@ -165,7 +164,7 @@ func TestAPinsRefIsNamespaceAndName(t *testing.T) {
 }
 
 // A pin's unknown keys, and a Pinned card's, survive a pin elsewhere; a
-// newer layout takes no pin (D-067).
+// newer layout takes no pin.
 func TestPinsKeepWhatTheyDoNotKnowAndANewerLayoutTakesNone(t *testing.T) {
 	isolate(t)
 	writeRaw(t, `home:
@@ -205,10 +204,9 @@ func TestPinsKeepWhatTheyDoNotKnowAndANewerLayoutTakesNone(t *testing.T) {
 	}
 }
 
-// Settings → Home (agentry-desktop#661): hiding a default card between
-// Pinned cards keeps its place and leaves every pin where it was; showing
-// it puts it back there. A card hidden before a pin opened a Pinned card
-// stays ahead of it.
+// Settings → Home: hiding a default card between Pinned cards keeps its
+// place and leaves every pin where it was; showing it puts it back there.
+// A card hidden before a pin opened a Pinned card stays ahead of it.
 func TestHidingACardKeepsItsPlaceAmongThePinnedCards(t *testing.T) {
 	isolate(t)
 	if err := SetHomeCardShown(HomeProfile, false); err != nil {
@@ -240,7 +238,7 @@ func TestHidingACardKeepsItsPlaceAmongThePinnedCards(t *testing.T) {
 }
 
 // Reset Home restores the four default cards, every one shown, and drops
-// every pin with the Pinned cards (agentry-desktop#661: the page says so
+// every pin with the Pinned cards (the page says so
 // before it asks).
 func TestResetDropsEveryPin(t *testing.T) {
 	isolate(t)

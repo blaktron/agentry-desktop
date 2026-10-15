@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// staleAppPath is the shape of the PATH the operator's 0.6.53 carried on
-// 2026-10-04 (agentry-desktop#624), read out of the running process: the
-// first launch's, with the machine-wide Docker directory that no longer
-// existed and without the per-user one Docker Desktop had moved to.
+// staleAppPath is the shape of the PATH a running app carried, read
+// out of the process: the first launch's, with the machine-wide Docker
+// directory that no longer existed and without the per-user one Docker
+// Desktop had moved to.
 const staleAppPath = `C:\WINDOWS\system32;C:\WINDOWS;C:\Program Files\Docker\Docker\resources\bin;` +
 	`C:\Users\p\AppData\Local\Microsoft\WindowsApps`
 

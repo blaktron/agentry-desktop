@@ -69,7 +69,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if len(got.Secrets) != 1 || got.Secrets[0] != "EXAMPLE_TOKEN" {
 		t.Errorf("secrets round-trip = %v", got.Secrets)
 	}
-	// DEV-060 / desktop#5: the declared MCP server survives the round
+	// The declared MCP server survives the round
 	// trip as a structured row, and the real parser sees the exact pin.
 	if len(got.MCPServers) != 1 {
 		t.Fatalf("mcpServers round-trip = %+v", got.MCPServers)
@@ -86,7 +86,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 }
 
 // A PyPI server with its env renders as the manifest expects, a declared
-// server's "*" egress is refused (the runner always refuses it, DR-20), and
+// server's "*" egress is refused (the runner always refuses it), and
 // a manifest without servers loads to an empty list.
 func TestMCPServerRowsRenderAndValidate(t *testing.T) {
 	dir := t.TempDir()
@@ -274,10 +274,10 @@ func TestPublishRefusesAnonymous(t *testing.T) {
 	}
 }
 
-// A spent credit allowance (plan subscription-tiers.md §8): the registry
-// answers 402 credits-exhausted before storing anything, and Publish
-// returns it as a refused result — the sentence and the slug — rather
-// than an error, so the page can offer the way onward.
+// A spent credit allowance: the registry answers 402 credits-exhausted
+// before storing anything, and Publish returns it as a refused result —
+// the sentence and the slug — rather than an error, so the page can
+// offer the way onward.
 func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	dir := t.TempDir()
 	if err := Save(dir, model()); err != nil {
@@ -316,10 +316,9 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 		t.Fatalf("log lacks the refusal:\n%s", log.String())
 	}
 
-	// A refusal that names an account (plan organization-subscriptions.md
-	// D22): the pool that is short is the organization's, not the
-	// publisher's, so the page can say whose it is — the sentence names an
-	// organization this person never typed.
+	// A refusal that names an account: the pool that is short is the
+	// organization's, not the publisher's, so the page can say whose it is
+	// — the sentence names an organization this person never typed.
 	refusal = `{"type":"https://agentry.dev/problems/credits-exhausted","title":"Not enough credits for this submission","status":402,"detail":"a submission costs 10 credits; the acme organization's pool has 0, and its allowance resets on 11 October 2026.","account":"acme","balance":0,"tier":"business"}`
 	res, err = Publish(t.Context(), srv.URL, "agy_test", dir, true, &log)
 	if err != nil {
@@ -344,11 +343,10 @@ func TestPublishReturnsTheAllowanceRefusal(t *testing.T) {
 	}
 }
 
-// Load then Save loses nothing but comments (plan builder-rework.md D19,
-// agentry-desktop#280). The template's agent.yaml is the file an author
-// starts from: it carries authors, a homepage, runtime.models, a publish
-// channel and an include order the form never wrote before, and a save
-// used to drop them.
+// Load then Save loses nothing but comments. The template's agent.yaml
+// is the file an author starts from: it carries authors, a homepage,
+// runtime.models, a publish channel and an include order the form does not
+// edit, and a save keeps them.
 func TestTemplateManifestSurvivesLoadAndSave(t *testing.T) {
 	orig, err := os.ReadFile(filepath.Join("testdata", "template-agent.yaml"))
 	if err != nil {
@@ -409,8 +407,8 @@ func TestEveryFieldRoundTrips(t *testing.T) {
 	m.Dependencies = []DependencyRow{{Ref: "acme/helper", Version: "^1.2.0"}}
 	m.PublishChannel = "beta"
 	m.Intake = []IntakeRow{{ID: "region", Prompt: "Which region?", Type: "choice", Choices: []string{"emea", "apac"}, Required: true}}
-	// The knowledge block (agentry-desktop#497): the form edits accepts and
-	// carries a loaded ships list through, never adding one.
+	// The knowledge block: the form edits accepts and carries a loaded
+	// ships list through, never adding one.
 	m.KnowledgePrompt = "Attach your runbook: the steps it quotes come from it."
 	m.KnowledgeRequired = true
 	m.KnowledgeShips = []string{"glossary"}
@@ -501,9 +499,8 @@ func TestCheckAttributesProblemsToSections(t *testing.T) {
 }
 
 // A key's help is markdown of up to 2,000 characters that may span lines,
-// through the pinned core's V10 (agentry#707, DEV-167; agentry-desktop#343):
-// Check takes it, writes it as one quoted string, and refuses 2,001 and an
-// escape character.
+// through the pinned core's V10: Check takes it, writes it as one quoted
+// string, and refuses 2,001 and an escape character.
 func TestCheckTakesMarkdownKeyHelpOfUpTo2000Characters(t *testing.T) {
 	md := "1. Open **Settings → Developer settings → Fine-grained tokens**.\n2. Give it *read* access.\n\n\t- [Their guide](https://docs.github.com/)\n"
 	pad := func(n int) string { return md + strings.Repeat("é", n-utf8.RuneCountInString(md)) }
@@ -536,7 +533,7 @@ func TestCheckTakesMarkdownKeyHelpOfUpTo2000Characters(t *testing.T) {
 // Every value written bare is held to a grammar before Save writes it, so a
 // value typed, loaded or imported cannot add a key the form does not show:
 // a newline or a colon in an env name once could have declared a hidden
-// server. The review of agentry-desktop#280 found the gap.
+// server.
 func TestBareValuesAreHeldToAGrammar(t *testing.T) {
 	for name, mutate := range map[string]func(m *Model){
 		"env name":          func(m *Model) { m.MCPServers[0].Env = []EnvRow{{Name: "A: {x", Value: "1"}} },
@@ -645,8 +642,7 @@ func accepted(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(`{"version":"0.1.0","status":"scanning","channel":"stable","createdAt":"2026-08-31T00:00:00Z"}`))
 }
 
-// TestPublishLeavesAPrivateAgentPrivate (agentry-desktop#425, the
-// operator's decision of 2026-09-30): a desktop sign-in cannot change a
+// TestPublishLeavesAPrivateAgentPrivate: a desktop sign-in cannot change a
 // QuickAgent's visibility, so an agent that exists private takes the
 // version and stays private; nothing is patched, and the result says why
 // (the desktop's binding adds the site's settings page).
@@ -741,9 +737,9 @@ func TestPublishSaysWhyTheUploadWasRefused(t *testing.T) {
 	}
 }
 
-// Submit is public (agentry-desktop#425): an include list that leaves out
-// README.md or a licence file is Submit's problem, named before it, not
-// the registry's refusal after the agent was created.
+// Submit is public: an include list that leaves out README.md or a
+// licence file is Submit's problem, named before it, not the registry's
+// refusal after the agent was created.
 func TestCheckHoldsAPublicSubmitToV7(t *testing.T) {
 	m := model()
 	if c := m.Check(); c.Public != "" {
@@ -799,8 +795,8 @@ func TestPublishRefusesWhenTheAgentIsNoLongerPrivate(t *testing.T) {
 	}
 }
 
-// The knowledge a QuickAgent asks for (knowledge.accepts, V11;
-// agentry-desktop#497) is checked in the Before a run section: one line of
+// The knowledge a QuickAgent asks for (knowledge.accepts, V11)
+// is checked in the Before a run section: one line of
 // at most 300 characters, and a required ask names what it asks for.
 func TestCheckHoldsTheKnowledgeAskToV11(t *testing.T) {
 	for _, tc := range []struct {
@@ -830,8 +826,7 @@ func TestCheckHoldsTheKnowledgeAskToV11(t *testing.T) {
 	}
 }
 
-// Save's LICENSE says the licence the manifest declares (agentry-desktop#559,
-// the site's agentry-web#46): the MIT text for MIT or an empty field, and for
+// Save's LICENSE says the licence the manifest declares: the MIT text for MIT or an empty field, and for
 // any other id a file naming it and pointing at its SPDX page. A LICENSE
 // already in the folder is left alone.
 func TestSaveWritesTheLicenceTheManifestDeclares(t *testing.T) {
@@ -883,8 +878,8 @@ func TestSaveWritesTheLicenceTheManifestDeclares(t *testing.T) {
 }
 
 // A list item holding a comma, a bracket or a brace is one item after a
-// save and a load (agentry-desktop#567): inside a flow sequence a plain
-// scalar ends at the comma, so such an item is written double-quoted.
+// save and a load: inside a flow sequence a plain scalar ends at the
+// comma, so such an item is written double-quoted.
 func TestAListItemWithACommaIsOneItemAfterASave(t *testing.T) {
 	m := model()
 	m.Guide.Overview = "Profiles a dataset."
@@ -912,7 +907,7 @@ func TestAListItemWithACommaIsOneItemAfterASave(t *testing.T) {
 }
 
 // Publish this version of a revision drafted In Agentry names its run as
-// the upload's draftRun (agentry-desktop#501, as agentry-web#962); every
+// the upload's draftRun; every
 // other upload names none.
 func TestOnlyPublishRevisionSendsDraftRun(t *testing.T) {
 	const run = "01a1019e-3224-70c9-a2a3-5a5f954de9e0"

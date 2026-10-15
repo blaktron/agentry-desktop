@@ -44,13 +44,12 @@ type BuildRequest struct {
 	Documents []string
 	// Brief is what the pack should cover and for whom, in the person's
 	// words, at most build.MaxBriefBytes: a build takes documents, a brief
-	// or both (agentry-desktop#498; plan knowledge-and-drafter.md D15). The
-	// CLI keeps it in the pack as sources/brief.md.
+	// or both. The CLI keeps it in the pack as sources/brief.md.
 	Brief string
-	// Web is the person's Search the web choice (D16): the Creator may
-	// search, every result read by AI Review first with the person's own
-	// Jev key. Without that key or a search key the build runs without the
-	// web and says why, rather than failing.
+	// Web is the person's Search the web choice: the Creator may search,
+	// every result read by AI Review first with the person's own Jev key.
+	// Without that key or a search key the build runs without the web and
+	// says why, rather than failing.
 	Web bool
 	// RunID names the Creator run's containers, so quitting can sweep them.
 	RunID string
@@ -60,7 +59,7 @@ type BuildRequest struct {
 	Log io.Writer
 	// Progress, when set, is told how far the build has got: at its start,
 	// at every usage the harness reports, and whenever the count of pages
-	// the Creator has written changes (agentry-desktop#352).
+	// the Creator has written changes.
 	Progress func(Progress)
 }
 
@@ -76,17 +75,16 @@ type Progress struct {
 
 // CreatorBudgets are the budgets a build on this computer runs under: the
 // runner policy's, with the Knowledge Creator's own timeout floor, 60
-// minutes (agentry-desktop#458). A local model, or a frontier model at
-// high reasoning, takes far longer to draft a pack than the policy's run
-// budget, 15 minutes by default, allows; a policy that allows more keeps
-// its own. The floor is the CLI's (localrun.Builtin.LocalBudgets, the
-// CLI's DR-54), not a figure kept here, so a build gets the same time from
-// this app as from `agentry knowledge create`. No budget of a build
-// counts tokens. That is with Run defaults' no-limit switch for the
-// built-in agents off; on, the default, the build has no timeout and runs
-// to the hidden failsafe of turns, and Shown says no limit
-// (settings.BuiltinBudgets, D-062 and its addendum). The cost cap is the
-// policy's either way.
+// minutes. A local model, or a frontier model at high reasoning, takes far
+// longer to draft a pack than the policy's run budget, 15 minutes by
+// default, allows; a policy that allows more keeps its own. The floor is
+// the CLI's (localrun.Builtin.LocalBudgets), not a figure kept here, so a
+// build gets the same time from this app as from `agentry knowledge
+// create`. No budget of a build counts tokens. That is with Run defaults'
+// no-limit switch for the built-in agents off; on, the default, the build
+// has no timeout and runs to the hidden failsafe of turns, and Shown says
+// no limit (settings.BuiltinBudgets). The cost cap is the policy's either
+// way.
 func CreatorBudgets(pol *policy.Policy) settings.BuiltinLimits {
 	var b policy.Budgets
 	if pol != nil {
@@ -108,8 +106,7 @@ type BuildResult struct {
 	Documents []string `json:"documents"`
 	// Brief says the build was given a brief, which Documents lists by the
 	// name the pack cites it under (brief.md, or brief-N.md): the panel
-	// names it as the brief, never as one more document
-	// (agentry-desktop#600).
+	// names it as the brief, never as one more document.
 	Brief bool `json:"brief,omitempty"`
 	// Skipped are documents no decoder could read.
 	Skipped []string `json:"skipped,omitempty"`
@@ -130,7 +127,7 @@ type BuildResult struct {
 	// AgentryStale says Agentry keeps the copy from before this build.
 	AgentryStale bool `json:"agentryStale,omitempty"`
 	// Rewrapped names packs this computer's key wrapped that the build's
-	// sign-in moved to the account's key first (D20).
+	// sign-in moved to the account's key first.
 	Rewrapped []string `json:"rewrapped,omitempty"`
 	// The Creator run's usage, as its receipt measured it.
 	InputTokens  int64   `json:"inputTokens"`
@@ -154,8 +151,8 @@ type Dropped struct {
 // CLI leaves a pack it could not keep sealed in that directory for
 // `knowledge import`, this removes it: the app has no import, and its
 // pages would rest there in the clear. Nothing the Creator reads or writes
-// is scanned, and the pack records "not scanned" (D19): the panel says so
-// before the build.
+// is scanned, and the pack records "not scanned": the panel says so before
+// the build.
 func (e Env) Create(ctx context.Context, req BuildRequest) (*BuildResult, error) {
 	if err := kn.ValidName(req.Name); err != nil {
 		return nil, err
@@ -245,7 +242,7 @@ var sealTimeout = 2 * time.Minute
 // stopped by StopBuild has its context cancelled, and the pages it wrote
 // were applied; sealing them needs the registry's wrap or unwrap, which a
 // cancelled context would fail at once, losing them. So the seal outlives
-// the build's cancellation, bounded by sealTimeout (agentry-desktop#353).
+// the build's cancellation, bounded by sealTimeout.
 func sealContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), sealTimeout)
 }
@@ -270,7 +267,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		return nil, fmt.Errorf("operator policy: %w", err)
 	}
 	// Said before anything is built or read, in the log as on the review
-	// step (plan D19).
+	// step.
 	logf(req.Log, "The Knowledge Creator runs on this computer against the model your runner policy names (%s). "+
 		"It costs no credits, and nothing it reads or writes is scanned.", CreatorModel(pol))
 	if len(req.Documents) == 0 {
@@ -316,8 +313,7 @@ func (e Env) runBuild(ctx context.Context, req BuildRequest, dir, name, outDir s
 		Budgets: &budgets,
 		RunID:   req.RunID, Stderr: req.Log, OnUsage: prog.Usage,
 		// A pack made on this computer may hold up to 1 GB, documents
-		// included; Agentry keeps packs of at most 10 MB (agentry-desktop#354,
-		// agentry-cli#429).
+		// included; Agentry keeps packs of at most 10 MB.
 		MaxBytes: kn.MaxLocalBytes,
 	})
 	stop()
@@ -339,8 +335,8 @@ type built struct {
 }
 
 // CheckSources refuses a build given neither documents nor a brief, or a
-// brief past build.MaxBriefBytes (agentry-desktop#498), on this computer and
-// In Agentry alike, in the words the Documents step uses.
+// brief past build.MaxBriefBytes, on this computer and In Agentry alike, in
+// the words the Documents step uses.
 func CheckSources(documents []string, brief string) error {
 	err := build.CheckBrief(documents, strings.TrimSpace(brief))
 	if errors.Is(err, build.ErrNothingToBuild) {
@@ -350,7 +346,7 @@ func CheckSources(documents []string, brief string) error {
 }
 
 // NoDocumentsWarning is what a build with no documents is told, in the log
-// as on the Documents step (plan knowledge-and-drafter.md §7).
+// as on the Documents step.
 const NoDocumentsWarning = "Specific documents make the best knowledge. Without them the Creator researches the web and its own knowledge, which can be wrong or out of date."
 
 // localWeb is pkg/drafter's LocalWeb, the person's own keys as work on
@@ -467,8 +463,8 @@ func buildResult(res *built, en store.Entry, brief bool) *BuildResult {
 
 // DocumentsBytes is the size of the regular files the paths name, walking
 // folders and following no link, for the Documents step's total and the
-// warning a large build gets (agentry-desktop#354). A path it cannot read
-// counts nothing here; the build says why.
+// warning a large build gets. A path it cannot read counts nothing here;
+// the build says why.
 func DocumentsBytes(paths []string) int64 {
 	var total int64
 	for _, p := range paths {

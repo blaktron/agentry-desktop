@@ -10,10 +10,9 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// Optional secrets (plan optional-secrets.md D2, D7; agentry-desktop#655):
-// each key the QuickAgent or a server declares is Required or Optional,
-// the model holds the Required ones, and one the author attaches starts as
-// Optional.
+// Optional secrets: each key the QuickAgent or a server declares is
+// Required or Optional, the model holds the Required ones, and one the
+// author attaches starts as Optional.
 
 func keyed() *Model {
 	m := bare()
@@ -91,7 +90,7 @@ func TestARequiredMarkOnAnUndeclaredKeyIsRefused(t *testing.T) {
 	}
 }
 
-// D7: a secret question carried by the QuickAgent's own key is required
+// A secret question carried by the QuickAgent's own key is required
 // exactly when that key is, whatever its box says.
 func TestASecretQuestionFollowsItsKey(t *testing.T) {
 	m := keyed()

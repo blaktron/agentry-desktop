@@ -3,13 +3,12 @@ package voice
 import "time"
 
 // Sync is how this computer's voice stands against the account's, for the
-// Local Voice page's Download Cloud version and Upload to Cloud (plan
-// voice-page-redesign.md §8, D2; agentry-desktop#610). Newer and older are
-// judged with no backend change: equal digests are the same voice;
-// otherwise this computer's updated stamp (a download stamps it too)
-// against the account version's createdAt.
+// Local Voice page's Download Cloud version and Upload to Cloud. Newer and
+// older are judged with no backend change: equal digests are the same
+// voice; otherwise this computer's updated stamp (a download stamps it
+// too) against the account version's createdAt.
 //
-// The known gap (§8): a Restore by swap in the account keeps the restored
+// The known gap: a Restore by swap in the account keeps the restored
 // version's old createdAt, so it can look older than it is.
 type Sync struct {
 	// DownloadSame says this computer keeps the live version.

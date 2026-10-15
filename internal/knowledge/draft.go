@@ -11,10 +11,9 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
 )
 
-// DraftPacks are a draft's packs kept on this computer, opened for it (plan
-// knowledge-and-drafter.md K4, D3, D14; agentry-desktop#497): each pack as
-// the Drafter's library takes it, with Agentry's scan record where the
-// registry confirms one; the scratch directory inside the store that
+// DraftPacks are a draft's packs kept on this computer, opened for it: each
+// pack as the Drafter's library takes it, with Agentry's scan record where
+// the registry confirms one; the scratch directory inside the store that
 // drafter.ReadyKnowledge copies the packs into before the Drafter reads
 // them; and ScanFirst, the names of the packs AI Review scans with the
 // person's key before the draft starts, because no scan in Agentry stands

@@ -265,7 +265,7 @@ func TestResolvePathsRules(t *testing.T) {
 	if err != nil || a.AgentsMD != filepath.Join("/proj", "AGENTS.md") || !a.Managed {
 		t.Errorf("agents-md paths wrong: %+v err=%v", a, err)
 	}
-	// The mcp target left with the withdrawn kind (DEV-088).
+	// The mcp target does not exist.
 	for _, bad := range []string{"mcp", "nope"} {
 		if _, err := ResolvePaths(bad, "/proj", "acme", "demo"); err == nil {
 			t.Errorf("target %q resolved", bad)

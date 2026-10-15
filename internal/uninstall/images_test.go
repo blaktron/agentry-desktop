@@ -27,8 +27,8 @@ func (f *fakeDocker) Remove(_ context.Context, ref string) error {
 }
 
 // The uninstaller's images step: Agentry's images go, a person's stay, and
-// the exit code tells the uninstaller which message to show
-// (agentry-desktop#424).
+// the exit code tells the uninstaller which message to
+// show.
 func TestImagesMainExitCodes(t *testing.T) {
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	imgs := []dockerimages.Image{

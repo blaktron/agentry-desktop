@@ -1,11 +1,10 @@
 // Package mcpview is how the desktop shows a release's declared MCP
-// servers: each server's pin, its tool allowlist and its plain env
-// (agentry-desktop#62). The agent page's "MCP servers & tools" section and
-// the install review both read it, so the two cannot describe a server
-// differently.
+// servers: each server's pin, its tool allowlist and its plain env. The
+// agent page's "MCP servers & tools" section and the install review both
+// read it, so the two cannot describe a server differently.
 //
 // env is configuration, not a secret: the manifest carries it so it is in
-// the diff, the digest and the review (core DEV-098), and the core refuses
+// the diff, the digest and the review (core), and the core refuses
 // an env name that is also a declared secret (V5). A secret's value is
 // never in a manifest at all — secrets are names, collected into the MCP
 // profile by the runner's guided setup. As a second line, an env entry
@@ -35,12 +34,12 @@ type Server struct {
 	// Env is the server's plain env, sorted by name; empty when it
 	// declares none.
 	Env []EnvVar `json:"env"`
-	// Remote says it is a remote server, reached at its address
-	// (agentry-cli#663); ID is then that address.
+	// Remote says it is a remote server, reached at its
+	// address; ID is then that address.
 	Remote bool `json:"remote,omitempty"`
 	// SignsIn says it signs in by OAuth: a remote server's auth: oauth, or
-	// a package server's oauth block (plan mcp-oauth-connections.md). Its
-	// connection is made on the run setup's Connect tools step.
+	// a package server's oauth block. Its connection is made on the run
+	// setup's Connect tools step.
 	SignsIn bool `json:"signsIn,omitempty"`
 }
 

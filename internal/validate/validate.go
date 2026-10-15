@@ -1,10 +1,9 @@
 // Package validate is the author drop-zone engine: offline parity with the
-// server's submit validation (D-12) — the manifest rules via pkg/manifest
-// (the rule ids it emits are V1–V5 and V7–V10: V6 was withdrawn with the
-// mcp-server kind; agentry-desktop#51), the S1 inventory subset via the
+// server's submit validation — the manifest rules via pkg/manifest (the
+// rule ids it emits are V1–V5 and V7–V10), the S1 inventory subset via the
 // pkg/archive content sniffers, and the S3/S4 scan via pkg/rules over the
-// EMBEDDED rule bundle (pkg/ruleset).
-// Parity is by construction: these are the same packages the pipeline runs.
+// EMBEDDED rule bundle (pkg/ruleset). Parity is by construction: these are
+// the same packages the pipeline runs.
 //
 // One deliberate departure from the CLI's `agentry validate`: a folder with
 // no agent.yaml still gets scanned (every regular file, with a warning and a
@@ -168,8 +167,8 @@ func Run(dir string) (*Result, error) {
 	}
 	res.FileCount = len(loaded)
 
-	// S1 subset (D-12): magic bytes, never extensions — the inventory checks
-	// that used to reject a workspace at submit after it passed locally.
+	// S1 subset: magic bytes, never extensions — the inventory checks that
+	// reject a workspace at submit.
 	res.Inventory = scanS1(loaded)
 	for _, f := range res.Inventory {
 		if f.Severity != "info" {
@@ -179,7 +178,7 @@ func Run(dir string) (*Result, error) {
 
 	// S3/S4 over the embedded bundle. A bundle that will not load is a hard
 	// error, never a skipped scan: reporting PASSED over content the engine
-	// never examined is the failure mode §7 forbids.
+	// never examined is the failure mode to avoid.
 	bundle, err := ruleset.Load()
 	if err != nil {
 		return nil, fmt.Errorf("load embedded rule bundle: %w", err)
@@ -210,8 +209,8 @@ func Run(dir string) (*Result, error) {
 // scanS1 runs the S1 subset over already-read file contents — the same
 // classification, severities, and wording the pipeline's S1 stage and the
 // CLI's local scan produce, built on the same pkg/archive predicates. A
-// clean folder answers an empty list, never nil: the Result crosses the IPC
-// as JSON and the Validate page reads the list's length (agentry-desktop#534).
+// clean folder answers an empty list, never nil: the Result crosses the IPC as
+// JSON and the Validate page reads the list's length.
 func scanS1(files []scanFile) []InventoryFinding {
 	out := []InventoryFinding{}
 	for _, f := range files {

@@ -11,17 +11,15 @@ import (
 )
 
 // FromRelease reads a QuickAgent's published release into the form for
-// Edit (plan drafter-revisions.md §4, D1, D6, D7; agentry-desktop#500), as
-// the site's Edit does (agentry-web lib/release-edit.ts):
+// Edit, as the site's Edit does (agentry-web lib/release-edit.ts):
 //   - The namespace and name are the QuickAgent's, never the manifest's, so
 //     Submit adds a version to it. The version is the one given, the next
 //     minor (NextMinor), which the person can change.
 //   - The release's licence is kept; a release with none gets the form's.
-//   - What the site's Builder cannot hold is dropped without a word (D6:
-//     "they should be regenerated for a new version … This should be
-//     silent"): homepage, authors, the idle timeout, knowledge.ships,
-//     runtime (back to the form's own), dependencies and publish.channel
-//     and include. The instruction file is written as AGENT.md, whatever
+//   - What the site's Builder cannot hold is dropped without a word
+//     (they are regenerated for a new version): homepage, authors, the
+//     idle timeout, knowledge.ships, runtime (back to the form's own),
+//     dependencies and publish.channel and include. The instruction file is written as AGENT.md, whatever
 //     the release named it (a v1 skill's SKILL.md included). Fields the
 //     schema does not know never reach the form.
 //
@@ -86,8 +84,8 @@ func ReleaseInstructionPath(manifestJSON []byte) string {
 var versionCoreRE = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:[-+].*)?$`)
 
 // NextMinor is the minor after the highest version a QuickAgent has, in any
-// state (D7): a version still in review holds its number, so an edit that
-// reused it would be refused at upload. A pre-release counts by its core.
+// state: a version still in review holds its number, so an edit that reused
+// it would be refused at upload. A pre-release counts by its core.
 // With no version it is the form's first.
 func NextMinor(versions []string) string {
 	found := false

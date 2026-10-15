@@ -1,15 +1,14 @@
 // Package runhistory is the desktop's short history of runs on this
-// computer (plan desktop-home-and-library.md §4.6, D1, D8; D-068;
-// agentry-desktop#659): the last 50 runs, chats and built-in jobs, each
-// with its id, its kind, the release it ran, its times, how it ended and
-// the folder Go chose for it, kept in runs.yaml beside desktop.yaml (0600).
+// computer: the last 50 runs, chats and built-in jobs, each with its id,
+// its kind, the release it ran, its times, how it ended and the folder Go
+// chose for it, kept in runs.yaml beside desktop.yaml.
 //
 // Only Go writes it, and only from what Go itself produced: the engine's
 // result as it was read at the end of the run, a built-in's own return, or
 // the registry's record of a run In Agentry whose output this app
 // downloaded. It never holds the task, the inputs, the result text, a
 // secret or the log, and the page never names a folder to it: it is read
-// by run id (D-035).
+// by run id.
 package runhistory
 
 import (
@@ -34,7 +33,7 @@ const Max = 50
 // FileName is the history's file in the config directory.
 const FileName = "runs.yaml"
 
-// Kinds of entry: a QuickAgent's run or chat, or a built-in's job (D8).
+// Kinds of entry: a QuickAgent's run or chat, or a built-in's job.
 const (
 	KindRun       = "run"
 	KindChat      = "chat"
@@ -57,7 +56,7 @@ const (
 	OutcomeError   = "error"
 	OutcomeStopped = "stopped"
 	// OutcomeBlocked: the QuickAgent could not do its task with what the run
-	// had (the CLI's exit 18, agentry-cli#629; #680), by its own word or
+	// had (the CLI's exit 18), by its own word or
 	// the runner's evidence.
 	OutcomeBlocked = "blocked"
 )

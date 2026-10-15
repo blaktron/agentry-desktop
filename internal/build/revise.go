@@ -6,9 +6,8 @@ import (
 )
 
 // FromRevision reads a revision the Drafter wrote of a release (Edit with
-// AI, agentry-desktop#501; plan drafter-revisions.md §5) into the form as
-// the release itself is read for Edit (FromRelease): the QuickAgent's own
-// namespace and name, the version given (the next minor), and without a
+// AI) into the form as the release itself is read for Edit (FromRelease):
+// the QuickAgent's own namespace and name, the version given (the next minor), and without a
 // word what the site's Builder cannot hold. The licence is the release's,
 // unless the person's own words name the one the draft declares, as the
 // site's revision import keeps it (agentry-web lib/draft-import.ts).

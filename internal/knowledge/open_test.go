@@ -18,7 +18,7 @@ import (
 
 // A pack a build left short can hold its index and no page (the apply step
 // dropped what it wrote). Its preview lists no page as an empty list, which
-// the frontend can map over, never as null (agentry-desktop#351).
+// the frontend can map over, never as null.
 func TestPreviewOfAPackWithNoPageListsNone(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "wiki"), 0o700); err != nil {
@@ -53,7 +53,7 @@ func TestPreviewOfAPackWithNoPageListsNone(t *testing.T) {
 
 // The same through the store: a build that stopped before any page it wrote
 // was taken leaves a pack of its index alone, kept sealed, and the panel's
-// preview of it lists no page as an empty list (agentry-desktop#351).
+// preview of it lists no page as an empty list.
 func TestAStoppedBuildsPackWithNoPagePreviews(t *testing.T) {
 	ctx := context.Background()
 	reg := knowledgetest.NewRegistry(t)

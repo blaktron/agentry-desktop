@@ -15,8 +15,8 @@ import (
 )
 
 // These cover what the release workflow's signing step cannot be made to prove
-// on its own: it needs the real Actions secret, so until the operator has
-// loaded one there is nothing in CI to exercise it with. Generated keys let the
+// on its own: it needs the real Actions secret, so until one is
+// loaded there is nothing in CI to exercise it with. Generated keys let the
 // same logic run on every change.
 
 var sums = []byte("aa1f56ffcb84076209f4e5cf3eb0282c  agentry-desktop-0.2.0-darwin-universal.dmg\n")
@@ -48,9 +48,9 @@ func TestSignAndVerifyProducesASignatureTheAppAccepts(t *testing.T) {
 }
 
 // A CLI bundle signed by this tool names the CLI in its signed comment, and
-// nothing else about the signature changes (agentry-desktop#171): the key set
-// still has to carry the key as current, and the app's own reader refuses the
-// comment as a desktop update.
+// nothing else about the signature changes: the key set still has to carry
+// the key as current, and the app's own reader refuses the comment as a
+// desktop update.
 func TestSignAndVerifyCarriesAnotherProductsComment(t *testing.T) {
 	priv, entry := keystest.Key(t, "prod", false)
 	set := keystest.Set(t, entry)
@@ -69,11 +69,11 @@ func TestSignAndVerifyCarriesAnotherProductsComment(t *testing.T) {
 	if parsed.TrustedComment != comment {
 		t.Errorf("trusted comment = %q", parsed.TrustedComment)
 	}
-	// The bytes are validly signed by the estate's key (Verify says so) —
+	// The bytes are validly signed by Agentry's key (Verify says so) —
 	// and the desktop's update path, which reads the comment next, refuses
 	// it as a release of another product.
 	if _, err := set.Verify(sums, sig); err != nil {
-		t.Errorf("a CLI release signed by the estate's key does not verify: %v", err)
+		t.Errorf("a CLI release signed by Agentry's key does not verify: %v", err)
 	}
 	if _, _, err := selfupdate.ParseTrustedComment(parsed.TrustedComment); err == nil {
 		t.Errorf("the desktop's update path read a CLI release's comment as its own")

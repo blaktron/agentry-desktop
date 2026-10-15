@@ -13,7 +13,7 @@ import (
 // scriptCLI is where the site's install.sh puts the CLI by default:
 // ${XDG_BIN_HOME:-$HOME/.local/bin}/agentry (agentry-web
 // scripts/install/install.sh). "" on macOS, where the app carries no CLI to
-// refresh it with (agentry-desktop#581), and when there is no home.
+// refresh it with, and when there is no home.
 func scriptCLI(getenv func(string) string) string {
 	if runtime.GOOS == "darwin" {
 		return ""

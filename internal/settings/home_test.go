@@ -50,7 +50,7 @@ func readRaw(t *testing.T) string {
 }
 
 // With no home key, Home is the four default cards in their order, and
-// nothing is written by reading it (plan desktop-home-and-library.md §4.4).
+// nothing is written by reading it.
 func TestHomeAbsentIsTheDefaults(t *testing.T) {
 	isolate(t)
 	l, state, err := homeLayoutState()
@@ -114,8 +114,8 @@ func TestHomeSetShownAddsAMissingDefault(t *testing.T) {
 }
 
 // Only the default cards are shown or hidden by kind: a pinned card is one
-// of several and goes by its pins (M4), and a kind this app does not know
-// is refused rather than written.
+// of several and goes by its pins, and a kind this app does not know is
+// refused rather than written.
 func TestHomeSetShownRefusesOtherKinds(t *testing.T) {
 	isolate(t)
 	for _, k := range []string{HomePinned, "credits-chart", ""} {
@@ -130,7 +130,7 @@ func TestHomeSetShownRefusesOtherKinds(t *testing.T) {
 
 // A card of a kind this app does not know, and fields it does not know, are
 // kept through a save it makes, so an older app never destroys what a newer
-// one arranged (plan §4.4).
+// one arranged.
 func TestHomeKeepsWhatItDoesNotKnow(t *testing.T) {
 	isolate(t)
 	writeRaw(t, `home:
@@ -231,8 +231,7 @@ func fileExists(path string) bool {
 // A home value this app cannot decode, of whatever shape, never makes the
 // settings file unreadable: every other setting loads, Home is the defaults
 // and says so, another setting's save writes the value back as it was, a
-// change to it is refused, and Reset clears it (the review of
-// agentry-desktop#658).
+// change to it is refused, and Reset clears it.
 func TestHomeUnreadableNeverBreaksTheFile(t *testing.T) {
 	for name, home := range map[string]string{
 		"a number":           "home: 5\n",
@@ -240,7 +239,7 @@ func TestHomeUnreadableNeverBreaksTheFile(t *testing.T) {
 		"cards as a map":     "home:\n  cards: {a: 1}\n",
 		"a card as a scalar": "home:\n  cards: [x]\n",
 		"an object size":     "home:\n  version: 1\n  cards:\n    - kind: installed\n      size: {w: 2}\n",
-		// A Pinned card's pins (agentry-desktop#660), malformed three ways.
+		// A Pinned card's pins, malformed three ways.
 		"pins as a scalar":  "home:\n  version: 1\n  cards:\n    - kind: pinned\n      pins: x\n",
 		"a pin as a scalar": "home:\n  version: 1\n  cards:\n    - kind: pinned\n      pins: [x]\n",
 		"an object ref":     "home:\n  version: 1\n  cards:\n    - kind: pinned\n      pins:\n        - ref: {a: 1}\n",
@@ -297,8 +296,7 @@ func equalYAML(t *testing.T, a, b any) bool {
 	return string(x) == string(y)
 }
 
-// The Scheduled card (plan quickagent-scheduling.md D13;
-// agentry-desktop#744): pinned from the Scheduled page, at most one, Large,
+// The Scheduled card: pinned from the Scheduled page, at most one, Large,
 // after every other card, and never one of the 16 QuickAgent pins.
 func TestPinScheduledAddsOneLargeCard(t *testing.T) {
 	isolate(t)

@@ -63,13 +63,12 @@ func cliBinary(t *testing.T) string {
 	return filepath.Join(out, "agentry")
 }
 
-// The CLI and the desktop open each other's packs on one runner home
-// (knowledge.md §4.3, moved here from agentry-cli#319): a pack this app
-// keeps is listed and exported by `agentry knowledge`, and one the CLI
-// keeps is listed, previewed and attached here. Both are signed in to the
-// same (fake core) registry, with the keychain off, as a machine without a
-// Secret Service is. `agentry run --knowledge NAME` needs docker, and is
-// checked live (the issue's closing record says how).
+// The CLI and the desktop open each other's packs on one runner home: a
+// pack this app keeps is listed and exported by `agentry knowledge`, and
+// one the CLI keeps is listed, previewed and attached here. Both are
+// signed in to the same (fake core) registry, with the keychain off, as a
+// machine without a Secret Service is. `agentry run --knowledge NAME`
+// needs docker, and is checked live.
 func TestTwoClientsOpenEachOthersPacks(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the pinned CLI")

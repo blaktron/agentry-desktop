@@ -21,11 +21,10 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 )
 
-// The Cloud Voice page's Discard, Restore and Delete (plan
-// voice-page-redesign.md §4.3, §5.2, D5; agentry-desktop#611): the core's
-// DELETE /voice/pending, POST /voice/restore and DELETE /voice, which the
-// CLI's client does not speak. The CLI's fake registry serves none of them,
-// so this registry is the core's routes as docs/voice.md describes them.
+// The Cloud Voice page's Discard, Restore and Delete: the core's DELETE
+// /voice/pending, POST /voice/restore and DELETE /voice, which the CLI's
+// client does not speak. The CLI's fake registry serves none of them, so
+// this registry is the core's routes as docs/voice.md describes them.
 
 type voiceRoutes struct {
 	mu    sync.Mutex
@@ -194,7 +193,7 @@ func TestDiscardRestoreAndDeleteSendNoTokenSignedOutOrToARefusedURL(t *testing.T
 		t.Fatalf("signed out: %v", err)
 	}
 	// The token is found by host alone, so a URL Settings refuses is
-	// refused before it is looked up (agentry-desktop#307's lesson).
+	// refused before it is looked up.
 	everywhere := Env{Env: knowledge.Env{TokenFor: func(string) string { return "agy_token" }, HTTP: e.HTTP}}
 	if _, _, err := everywhere.RestoreAccount(context.Background(), "http://example.com"); err == nil {
 		t.Fatal("Restore at a plain-http registry off this machine was not refused")

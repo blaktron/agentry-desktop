@@ -1,9 +1,7 @@
 // Package pathguard is the one refusal every recursive delete of a derived
 // directory in the desktop passes: uninstall's, and install's clearing of a
-// managed skill directory before it is rewritten. It lived in uninstall
-// alone until the security review of 2026-09-20 (§8.2) found install
-// clearing a directory named by an unvalidated registry response with no
-// such check.
+// managed skill directory before it is rewritten. A directory named by a
+// registry response is never cleared without it.
 package pathguard
 
 import (

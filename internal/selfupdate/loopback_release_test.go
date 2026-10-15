@@ -16,8 +16,7 @@ import (
 
 // A shipped build makes no exception for this machine: a plain-http channel
 // on a loopback address is refused like any other, before anything is
-// fetched (agentry-desktop#127). Until then localhost and 127.0.0.1 were
-// exempt in every build.
+// fetched.
 func TestCheckRefusesAPlainHTTPLoopbackChannel(t *testing.T) {
 	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

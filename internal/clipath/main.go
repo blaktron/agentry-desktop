@@ -55,8 +55,8 @@ func Main(w io.Writer, flag string) int {
 	}
 	if flag == AddFlag {
 		// An older CLI from the site's install script comes first on the
-		// Path; bring it up to the one just installed (agentry-desktop#770,
-		// D-074). Its failure is reported and never fails the install.
+		// Path; bring it up to the one just installed. Its failure is
+		// reported and never fails the install.
 		reportRefresh(w)
 	}
 	return 0

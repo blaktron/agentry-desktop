@@ -76,7 +76,7 @@ func TestTheFileIsPrivateAndHoldsNoTaskInputResultOrLog(t *testing.T) {
 	}
 	want := "ID Kind Where Registry Ref Digest StartedAt EndedAt Outcome ExitCode ExitClass Folder"
 	if strings.Join(fields, " ") != want {
-		t.Fatalf("an entry holds %v; a new field must not carry the task, inputs, result, a secret or the log (D-068), and this test is changed with it", fields)
+		t.Fatalf("an entry holds %v; a new field must not carry the task, inputs, result, a secret or the log, and this test is changed with it", fields)
 	}
 	raw, _ := os.ReadFile(path)
 	for _, word := range []string{"task", "input", "result", "log", "token", "secret"} {

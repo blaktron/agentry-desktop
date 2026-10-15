@@ -8,8 +8,7 @@ import (
 )
 
 // The browser's consent line is the CLI's word for word (agentry-cli
-// cmd/agentry/caps.go browserLine), which the site's consent row shares
-// (agentry-web#1644).
+// cmd/agentry/caps.go browserLine), which the site's consent row shares.
 func TestBrowserLineIsTheCLIs(t *testing.T) {
 	cases := map[string]struct {
 		b    *manifest.Browser

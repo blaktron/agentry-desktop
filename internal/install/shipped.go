@@ -23,9 +23,9 @@ type ShippedPack struct {
 // shippedPackSizes reads a release archive's tar headers (zstd, as the
 // registry builds it) and sums, for each shipped pack, the sizes of the
 // files of its tree — what the consent shows before anything is unpacked,
-// the CLI's rule (agentry-cli#389), replicated because it lives in the
-// CLI's package main (D-006). It reads within the install's own bounds,
-// since it runs before the consent.
+// the CLI's rule, replicated because it lives in the CLI's package main.
+// It reads within the install's own bounds, since it runs before the
+// consent.
 func shippedPackSizes(archive []byte, ships []string) (map[string]int64, error) {
 	if len(ships) == 0 {
 		return nil, nil

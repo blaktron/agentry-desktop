@@ -30,9 +30,9 @@ func TestCommittedKeySetIsValid(t *testing.T) {
 			t.Errorf("key %s has a malformed id", k.Name)
 		}
 	}
-	// Not an error today: the key set is empty until the operator loads the
-	// first key (agentry-desktop#86). The test says so out loud rather than
-	// letting an empty set look like a passing check of something.
+	// Not an error: the key set is empty until the first key is loaded. The
+	// test says so out loud rather than letting an empty set look like a
+	// passing check of something.
 	if len(set.Keys()) == 0 {
 		t.Log("the committed key set is empty: this build trusts no release, which is correct until scripts/operator/update-signing-key.sh has been run")
 	}
@@ -118,7 +118,7 @@ func TestVerifyRefusesAMalformedSignature(t *testing.T) {
 }
 
 // A build of the open core carries no key and must refuse everything rather
-// than fall back to "the checksum matched" (plan §3).
+// than fall back to "the checksum matched".
 func TestVerifyRefusesEverythingWhenTheBuildCarriesNoKey(t *testing.T) {
 	priv, _ := keystest.Key(t, "prod", false)
 	set := keystest.Set(t)
