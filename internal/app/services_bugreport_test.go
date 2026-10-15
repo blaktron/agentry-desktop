@@ -13,7 +13,6 @@ import (
 
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 
-	"github.com/blaktron/agentry-desktop/internal/settings"
 	"github.com/blaktron/agentry-desktop/internal/version"
 )
 
@@ -45,9 +44,7 @@ func TestReportBugFilesAsTheDesktopWithTheStoredCredential(t *testing.T) {
 		t.Fatalf("signed out: %+v, %v, sent %v", res, err, got)
 	}
 
-	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
-		t.Fatal(err)
-	}
+	storeTestToken(t, srv.URL)
 	res, err = sapi.ReportBug(srv.URL+"/", "  The run card overlaps\r\nthe version.  ")
 	if err != nil || !res.Filed {
 		t.Fatalf("filed: %+v, %v", res, err)

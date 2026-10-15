@@ -25,6 +25,7 @@ import { followPart } from "../followPart";
 import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
+import { signInLabel, signInLine, twoSignIns, type SignInKind } from "../signIns";
 
 // Settings as five cards: the landing is a card per section, each card the
 // whole of a link to its section page, with one sentence, a status line
@@ -702,7 +703,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   const [newURL, setNewURL] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [signIn, setSignIn] = useState<{ url: string; token: string } | null>(null);
+  const [signIn, setSignIn] = useState<{ url: string; token: string; kind: SignInKind } | null>(null);
   const [busy, setBusy] = useState(false);
   // The registry a browser sign-in is waiting on; shows the Cancel control.
   const [browserWait, setBrowserWait] = useState<string | null>(null);
@@ -757,8 +758,8 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   return (
     <>
       <p className="muted small">
-        Credentials live in the OS keychain under the same convention the <span className="mono">agentry</span> CLI
-        uses, so a sign-in here works there too.
+        {twoSignIns(settings)} Credentials live in the OS keychain under the same convention
+        the <span className="mono">agentry</span> CLI uses, so a sign-in here works there too.
       </p>
       <ErrorBox error={error} />
       {browserWait && (
@@ -779,12 +780,18 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
             <div className="grow">
               <div className="row">
                 <strong className="mono selectable">{r.url}</strong>
+                <span className={r.signIn ? "badge kind" : "badge warn"}>{signInLabel(r.signIn as SignInKind)}</span>
                 {r.isDefault && <span className="badge kind">default</span>}
                 {r.url === activeRegistry && <span className="badge ok">active</span>}
-                {r.hasToken
+                {r.signIn && (r.hasToken
                   ? <span className="badge">signed in ({r.tokenSource})</span>
-                  : <span className="badge warn">anonymous</span>}
+                  : <span className="badge warn">anonymous</span>)}
               </div>
+              {/* A registry the app keeps no sign-in for says why, and
+                  offers only Remove. */}
+              {r.signInRefused && (
+                <div className="muted small" style={{ marginTop: 4 }}>{r.signInRefused}</div>
+              )}
               {/* Who the credential is; the account and the subscription
                   are the Profile card's. */}
               {accounts[r.url] && (
@@ -809,7 +816,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                 <Button disabled={busy} onClick={() => wrap(async () => { await SettingsAPI.SignOut(r.url); await onChanged(); setNotice(`Signed out of ${r.url}.`); })}>
                   Sign out
                 </Button>
-              ) : (
+              ) : r.signIn && (
                 <>
                   <Button
                     variant="primary"
@@ -837,7 +844,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                   >
                     Sign in via browser
                   </Button>
-                  <Button disabled={busy} onClick={() => setSignIn({ url: r.url, token: "" })}>
+                  <Button disabled={busy} onClick={() => setSignIn({ url: r.url, token: "", kind: r.signIn as SignInKind })}>
                     Paste token
                   </Button>
                 </>
@@ -856,11 +863,16 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
 
       <section id="settings-part-add-registry" className="settings-part">
       <h2>Add a registry</h2>
+      <p className="muted small">
+        {settings.selfHostedRegistry
+          ? <>Your self-hosted registry is <span className="mono">{settings.selfHostedRegistry}</span>. Remove it above to add another.</>
+          : "Add your self-hosted registry here to sign in to it beside SecureAgentry."}
+      </p>
       <Toolbar>
         <Input
           type="text"
           className="grow mono"
-          placeholder="https://secureagentry.net — or http://agentry:8080 for a dev stack"
+          placeholder="https://agentry.example.com — or http://localhost:8080 for a dev stack"
           value={newURL}
           onChange={(e) => setNewURL(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && newURL.trim() && addRegistry()}
@@ -870,7 +882,8 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
       </section>
 
       {signIn && (
-        <Modal title={`Sign in to ${signIn.url}`} onClose={() => setSignIn(null)}>
+        <Modal title={`${signInLabel(signIn.kind)}: ${signIn.url}`} onClose={() => setSignIn(null)}>
+            <p className="muted">{signInLine(settings, signIn.url)}</p>
             <p className="muted">
               Paste a personal access token. Create one on the registry's site under Settings →
               Authentication (<span className="mono">/ui/account/tokens</span> on a registry without the

@@ -1098,9 +1098,11 @@ import { isRemote, serverHosts, serverKeys, serverRef } from "../src/remoteServe
 
 const settingsView = {
   defaultRegistry: "https://secureagentry.net", configPath: "~/.config/agentry/config.yaml", unsafeMode: unsafeOn,
+  secureAgentryRegistry: "https://secureagentry.net", selfHostedRegistry: "https://agentry.example.com",
   registries: [
-    { url: "https://secureagentry.net", isDefault: true, hasToken: true, tokenSource: "keyring" },
-    { url: "http://agentry:8080", isDefault: false, hasToken: false, tokenSource: "" },
+    { url: "https://secureagentry.net", isDefault: true, hasToken: true, tokenSource: "keyring", signIn: "secureagentry" },
+    { url: "https://agentry.example.com", isDefault: false, hasToken: false, tokenSource: "", signIn: "self-hosted" },
+    { url: "https://old.example", isDefault: false, hasToken: false, tokenSource: "", signIn: "", signInRefused: "this Agentry Desktop keeps one self-hosted registry, and it is https://agentry.example.com: remove it in Settings first to use https://old.example" },
   ],
 };
 const REG = "https://secureagentry.net";

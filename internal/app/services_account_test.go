@@ -7,10 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zalando/go-keyring"
-
 	"github.com/blaktron/agentry-cli/pkg/configdir"
-	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // The account on Settings: the credential's user; the subscription only
@@ -141,13 +138,10 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 	opened := make(chan string, 1)
 	sapi := &SettingsAPI{app: app, open: func(u string) error { opened <- u; return nil }}
 	t.Setenv(configdir.EnvVar, t.TempDir())
-	// The keychain in memory: StoreToken writes it first, and the real one
-	// would keep agy_test under 127.0.0.1:<port> after the test, where a
-	// later test's server on the same port reads it.
-	keyring.MockInit()
-	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
-		t.Fatal(err)
-	}
+	// The keychain in memory (storeTestToken): StoreToken writes it first,
+	// and the real one would keep agy_test under 127.0.0.1:<port> after the
+	// test, where a later test's server on the same port reads it.
+	storeTestToken(t, srv.URL)
 	if err := sapi.OpenUpgrade(srv.URL + "/"); err != nil {
 		t.Fatal(err)
 	}
@@ -303,10 +297,7 @@ func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
 	opened := make(chan string, 1)
 	sapi := &SettingsAPI{app: &App{ctx: ctx}, open: func(u string) error { opened <- u; return nil }}
 	t.Setenv(configdir.EnvVar, t.TempDir())
-	keyring.MockInit()
-	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
-		t.Fatal(err)
-	}
+	storeTestToken(t, srv.URL)
 	accountDoc = doc(`,"topUp":{"available":true,"url":"` + srv.URL + `/settings/profile#top-up","processing":false,` + packs + `}`)
 	if err := sapi.OpenTopUp(srv.URL + "/"); err != nil {
 		t.Fatal(err)

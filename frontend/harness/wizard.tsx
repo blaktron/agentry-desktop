@@ -107,8 +107,10 @@ const settingsView = {
   defaultRegistry: "https://secureagentry.net",
   configPath: "~/.config/agentry/config.yaml",
   onboarded: false,
+  secureAgentryRegistry: "https://secureagentry.net",
+  selfHostedRegistry: "",
   registries: [
-    { url: "https://secureagentry.net", isDefault: true, hasToken: signedIn, tokenSource: signedIn ? "keyring" : "" },
+    { url: "https://secureagentry.net", isDefault: true, hasToken: signedIn, tokenSource: signedIn ? "keyring" : "", signIn: "secureagentry" },
   ],
 };
 

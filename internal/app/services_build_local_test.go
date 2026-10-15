@@ -178,6 +178,22 @@ func TestSubmitWarningNamesTheCost(t *testing.T) {
 func storeTestToken(t *testing.T, reg string) {
 	t.Helper()
 	keyring.MockInit()
+	// The app signs in to one self-hosted registry: the test's server
+	// takes the place of any an earlier test added to the shared config.
+	cfg, err := settings.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := cfg.Registries[:0]
+	for _, r := range cfg.Registries {
+		if settings.IsSecureAgentry(r.URL) {
+			kept = append(kept, r)
+		}
+	}
+	cfg.Registries = append(kept, settings.Registry{URL: reg})
+	if err := settings.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := settings.StoreToken(reg, "agy_test"); err != nil {
 		t.Fatal(err)
 	}

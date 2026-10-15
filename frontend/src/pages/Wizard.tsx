@@ -18,6 +18,7 @@ import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } fr
 import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure } from "./WizardFigures";
+import { signInKindFor, signInLabel, signInLine, twoSignIns } from "../signIns";
 
 const LABELS: Record<WizardStep, string> = {
   welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime",
@@ -196,9 +197,9 @@ function SignInStep({
       <div className="wizard-body">
         <h1>Sign in to a registry</h1>
         <p className="page-sub">
-          Sign in to install and run QuickAgents. The credential is kept in the OS keychain and
-          shared with the <span className="mono">agentry</span> CLI. You can also browse anonymously
-          and sign in later.
+          Sign in to install and run QuickAgents. {twoSignIns(settings)} The credential is kept in
+          the OS keychain and shared with the <span className="mono">agentry</span> CLI. You can also
+          browse anonymously and sign in later.
         </p>
 
         <ErrorBox error={error} />
@@ -206,7 +207,8 @@ function SignInStep({
 
         {signedIn ? (
           <Notice tone="ok">
-            Signed in to <span className="mono">{norm(regURL)}</span> ({current?.tokenSource}).
+            Signed in to <span className="mono">{norm(regURL)}</span> ({current?.tokenSource}): your{" "}
+            {signInLabel(signInKindFor(settings, regURL)).replace(/^\w/, (c) => c.toLowerCase())}.
           </Notice>
         ) : (
           <>
@@ -216,6 +218,7 @@ function SignInStep({
                 type="text" className="mono" placeholder="https://secureagentry.net"
                 value={regURL} onChange={(e) => setRegURL(e.target.value)} disabled={busy}
               />
+              {signInLine(settings, regURL) && <span className="muted small field-hint">{signInLine(settings, regURL)}</span>}
             </label>
 
             {waiting ? (

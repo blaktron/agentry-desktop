@@ -236,30 +236,36 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 // so an http:// spelling of a signed-in https registry gets nothing, from the
 // keychain or the settings file, while http on this machine still does.
 func TestTokenForRefusesAURLSettingsWouldRefuse(t *testing.T) {
-	isolate(t)
-	keyring.MockInit()
-	const tok = "agy_keychaintoken0000"
-	if err := keyring.Set(KeyringService, "registry.example", tok); err != nil {
-		t.Fatal(err)
-	}
-	s, err := Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Upsert(Registry{URL: "http://old.example", Token: "agy_filetoken0000"})
-	s.Upsert(Registry{URL: "http://127.0.0.1:8080", Token: "agy_localtoken0000"})
-	if err := Save(s); err != nil {
-		t.Fatal(err)
-	}
-	for url, want := range map[string]string{
-		"https://registry.example": tok,
-		"http://registry.example":  "",
-		"ftp://registry.example":   "",
-		"http://old.example":       "",
-		"http://127.0.0.1:8080":    "agy_localtoken0000",
+	for _, c := range []struct {
+		self string
+		want map[string]string
+	}{
+		{"https://registry.example", map[string]string{
+			"https://registry.example": "agy_keychaintoken0000",
+			"http://registry.example":  "",
+			"ftp://registry.example":   "",
+		}},
+		{"http://old.example", map[string]string{"http://old.example": ""}},
+		{"http://127.0.0.1:8080", map[string]string{"http://127.0.0.1:8080": "agy_localtoken0000"}},
 	} {
-		if got := TokenFor(url); got != want {
-			t.Errorf("TokenFor(%q) = %q, want %q", url, got, want)
+		isolate(t)
+		keyring.MockInit()
+		if err := keyring.Set(KeyringService, "registry.example", "agy_keychaintoken0000"); err != nil {
+			t.Fatal(err)
+		}
+		s, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		tok := map[string]string{"http://old.example": "agy_filetoken0000", "http://127.0.0.1:8080": "agy_localtoken0000"}[c.self]
+		s.Upsert(Registry{URL: c.self, Token: tok})
+		if err := Save(s); err != nil {
+			t.Fatal(err)
+		}
+		for url, want := range c.want {
+			if got := TokenFor(url); got != want {
+				t.Errorf("TokenFor(%q) = %q, want %q", url, got, want)
+			}
 		}
 	}
 }

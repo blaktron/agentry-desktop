@@ -13,13 +13,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/blaktron/agentry/pkg/apiclient"
 	pkgarchive "github.com/blaktron/agentry/pkg/archive"
 	"github.com/blaktron/agentry/pkg/manifest"
+
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 // Client-side safety caps for release archives, mirroring the CLI. The
@@ -144,12 +145,11 @@ func Digest(b []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// SameHost reports whether two URLs share a host, so the bearer token is
-// only ever attached to the registry itself, never to a CDN.
-func SameHost(a, b string) bool {
-	ua, err1 := url.Parse(a)
-	ub, err2 := url.Parse(b)
-	return err1 == nil && err2 == nil && ua.Host == ub.Host
+// SameOrigin reports whether two URLs share an origin (scheme, host and
+// port), so the bearer token is only ever attached to the registry itself,
+// never to a CDN and never to an http:// spelling of the registry's host.
+func SameOrigin(a, b string) bool {
+	return settings.SameOrigin(a, b)
 }
 
 // Resolve calls GET /resolve for a ns/name[@range] reference. installIntent
@@ -185,7 +185,7 @@ func Download(ctx context.Context, regURL, token string, res *apiclient.ResolveR
 	if err != nil {
 		return nil, fmt.Errorf("build download request: %w", err)
 	}
-	if token != "" && SameHost(archiveURL, regURL) {
+	if token != "" && SameOrigin(archiveURL, regURL) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := HTTPClient.Do(req)

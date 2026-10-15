@@ -49,6 +49,15 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 	if err := settings.ValidateURL(url); err != nil {
 		return nil, err
 	}
+	// A registry the app keeps no sign-in for is refused before the browser
+	// opens, so no token is minted that would then be thrown away.
+	cfg, err := settings.Load()
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Admit(url); err != nil {
+		return nil, err
+	}
 	base := s.app.ctx
 	if base == nil {
 		base = context.Background()

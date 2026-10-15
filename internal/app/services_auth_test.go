@@ -7,11 +7,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/blaktron/agentry-cli/pkg/configdir"
 )
 
 // A browser sign-in that the user abandons must end at once, say so, and
 // leave the app ready for the next attempt.
 func TestBrowserSignInCancel(t *testing.T) {
+	t.Setenv(configdir.EnvVar, t.TempDir())
 	opened := make(chan string, 2)
 	s := &SettingsAPI{app: &App{ctx: context.Background()}, open: func(u string) error { opened <- u; return nil }}
 	if s.CancelBrowserSignIn() {
