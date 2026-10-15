@@ -91,8 +91,10 @@ func TestTwoClientsOpenEachOthersPacks(t *testing.T) {
 		cmd := exec.Command(cli, append(args, "--registry", reg.URL)...)
 		cmd.Env = []string{
 			"PATH=" + os.Getenv("PATH"), "HOME=" + userHome, "AGENTRY_CONFIG_DIR=" + config,
+			// AGENTRY_TOKEN authenticates only to the self-hosted registry
+			// AGENTRY_REGISTRY names.
 			policy.HomeEnv + "=" + home, modelkey.EnvNoKeyring + "=1", "AGENTRY_TOKEN=" + tok,
-			"AGENTRY_SKIP_VERSION_CHECK=1",
+			"AGENTRY_REGISTRY=" + reg.URL, "AGENTRY_SKIP_VERSION_CHECK=1",
 		}
 		b, err := cmd.CombinedOutput()
 		if err != nil {

@@ -707,6 +707,8 @@ const states = [
     expectSection: "profile", expectText: ["Save profile"], expectNone: '[data-preview="settings"] #settings-part-subscription' },
   { name: "settings-registry-account", url: "/pages.html?settings=registry", note: "Registry settings keeps who the credential is and links the Profile card; the tier and credits moved there", locator: '[data-preview="settings"]',
     expectSection: "registry", expectText: ["signed in as chris", "Profile and subscription"], expectNone: '[data-preview="settings"] #settings-part-registries :text("credits")' },
+  { name: "settings-registry-signins", url: "/pages.html?settings=registry", note: "Registry settings names the app's two sign-ins on each registry, and a listed registry that is neither says why and offers no sign-in", locator: '[data-preview="settings"]',
+    expectSection: "registry", expectText: ["Agentry Desktop keeps two sign-ins: one for SecureAgentry at secureagentry.net, and one for your self-hosted registry, agentry.example.com.", "SecureAgentry sign-in", "Self-hosted sign-in", "No sign-in", "This Agentry Desktop keeps one self-hosted registry, and it is https://agentry.example.com", "Your self-hosted registry is"] },
   { name: "settings-open-registry", url: "/pages.html", note: "the Registry settings card opened: the registries, Secrets and Add a registry under ← Settings", locator: '[data-preview="settings"]',
     click: '[data-preview="settings"] .settings-card:has-text("Registry settings") .settings-card-link', expectSection: "registry", expectText: ["← Settings", "Registries", "Add a registry", "Secrets for runs In Agentry"] },
   { name: "settings-open-updates", url: "/pages.html", note: "Update settings: the self-update card and the QuickAgents switch", locator: '[data-preview="settings"]',
@@ -860,7 +862,8 @@ const states = [
   { name: "toolspanel-hostile", url: "/modals.html#toolspanel-hostile", note: "the hostile guide's key help in the tools panel: markdown, framed, each link's host beside it, nothing that acts", linksIn: ".key-help", expectText: ["The author's help for", "U+202E", "(evil.example)", "(github.com.evil.example)"], expectLinks: ["https://github.com/settings/tokens", "https://xn--gthub-n2e.com/new", "https://evil.example/steal", "https://github.co/", "https://github.com.evil.example/"], expectNone: ".key-help img, .key-help script, .key-help b[onclick], .key-help a[href^='javascript'], .key-help a[href^='file']" },
   { name: "chat", url: "/modals.html#chat", note: "a session's chat pane", locator: ".chat-pane" },
   { name: "wizard-welcome", url: "/wizard.html#0", note: "the first-run wizard: welcome", locator: ".wizard" },
-  { name: "wizard-signin", url: "/wizard.html#1", note: "the first-run wizard: sign-in", locator: ".wizard" },
+  { name: "wizard-signin", url: "/wizard.html#1", note: "the first-run wizard: sign-in, naming the two sign-ins and which one the address is", locator: ".wizard", expectText: ["Agentry Desktop keeps two sign-ins", "This is your SecureAgentry sign-in, sent only to secureagentry.net."] },
+  { name: "wizard-signin-other", url: "/wizard.html#1", note: "another SecureAgentry address typed: the app signs in to its own SecureAgentry registry only", locator: ".wizard", fill: [['.wizard input.mono', "https://dev.secureagentry.net"]], expectText: "Agentry Desktop signs in to SecureAgentry at secureagentry.net only.", expectSelector: '.wizard-body button:has-text("Sign in via browser"):disabled' },
   // Local or Cloud after Sign in: Cloud locked with
   // "Please sign in" across it until a registry is signed in; Local goes on
   // to the runtime; Cloud to its data page, whose Finish records it.
