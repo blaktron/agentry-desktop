@@ -37,6 +37,7 @@ import (
 
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/registry"
+	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
 func TestLiveKnowledge(t *testing.T) {
@@ -129,7 +130,14 @@ func TestLiveKnowledge(t *testing.T) {
 	// The other client opens the same pack by name, on the same runner home.
 	if cli := os.Getenv("AGENTRY_CLI_BIN"); cli != "" {
 		cmd := exec.Command(cli, "run", ref, "--registry", reg, "--allow-unsigned", "--knowledge", name, "--output-format", "json", "--out", t.TempDir())
-		cmd.Env = append(os.Environ(), "AGENTRY_TOKEN="+token)
+		// The CLI sends SECUREAGENTRY_TOKEN only to the SecureAgentry
+		// registry its release is built for, and AGENTRY_TOKEN only to the
+		// self-hosted registry AGENTRY_REGISTRY names.
+		tokenEnv := []string{"AGENTRY_TOKEN=" + token, "AGENTRY_REGISTRY=" + reg}
+		if settings.IsSecureAgentry(reg) {
+			tokenEnv = []string{"SECUREAGENTRY_TOKEN=" + token}
+		}
+		cmd.Env = append(os.Environ(), tokenEnv...)
 		cmd.Stdin = strings.NewReader("Using the knowledge tools, what does a queue depth above 500 mean? One sentence, citing the page.")
 		out, err := cmd.Output()
 		if err != nil {
