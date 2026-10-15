@@ -22,10 +22,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/voice"
 )
 
-// The Voice panel's bound surface (plan writing-voice.md §8, D6, D11, D12;
-// agentry-desktop#510): this computer's voice and the account's, Submit
-// and Use between them, the dialogs that guard a replace or a delete, and
-// the voice a run writes in.
+// The Voice panel's bound surface: this computer's voice and the account's,
+// Submit and Use between them, the dialogs that guard a replace or a delete,
+// and the voice a run writes in.
 
 type voiceFixture struct {
 	v      *VoiceAPI
@@ -148,7 +147,7 @@ func TestTheVoiceWriterTakesOnlyPickedSamplesAndANoteForAnEdit(t *testing.T) {
 	if _, err := f.v.Write(f.reg.URL, "edit", nil, " "); err == nil {
 		t.Fatal("an AI Edit with no note ran")
 	}
-	// An AI Edit takes samples now (agentry-cli#605), and still only picked ones.
+	// An AI Edit takes samples now, and still only picked ones.
 	if _, err := f.v.Write(f.reg.URL, "edit", []string{"/etc/passwd"}, "shorter"); err == nil || !strings.Contains(err.Error(), "file dialog") {
 		t.Fatalf("an AI Edit's sample no picker returned: %v", err)
 	}
@@ -157,10 +156,9 @@ func TestTheVoiceWriterTakesOnlyPickedSamplesAndANoteForAnEdit(t *testing.T) {
 	}
 }
 
-// Edit with AI on the Local Voice page (plan voice-page-redesign.md §7, D3;
-// agentry-desktop#610) is one dialog: with a voice here it runs an AI Edit
-// with the note and the samples the person added; with none it runs a
-// Create, whose samples are required and whose text is the brief.
+// Edit with AI on the Local Voice page is one dialog: with a voice here it
+// runs an AI Edit with the note and the samples the person added; with none
+// it runs a Create, whose samples are required and whose text is the brief.
 func TestEditWithAIIsAnEditOverAVoiceHereAndACreateWithout(t *testing.T) {
 	f := newVoiceFixture(t, false)
 	var seen []voicebuild.Options
@@ -209,7 +207,7 @@ func TestEditWithAIIsAnEditOverAVoiceHereAndACreateWithout(t *testing.T) {
 
 // Download Cloud version warns, in the native confirm Use always asked
 // before a replace, when the voice here was saved after the live version,
-// and says so when a newer version is in review (plan §8, D2).
+// and says so when a newer version is in review.
 func TestDownloadWarnsWhenItWouldReplaceANewerVoiceOrOneIsInReview(t *testing.T) {
 	f := newVoiceFixture(t, true)
 	if _, err := f.v.SaveAccount(f.reg.URL, voiceText); err != nil {
@@ -260,9 +258,9 @@ func TestDownloadWarnsWhenItWouldReplaceANewerVoiceOrOneIsInReview(t *testing.T)
 	}
 }
 
-// Upload to Cloud says "already the same" where the account's newest
-// version is this computer's, and warns, saying what AI Review costs, when
-// the account's newest version was set after this computer's (plan §8, D2).
+// Upload to Cloud says "already the same" where the account's newest version
+// is this computer's, and warns, saying what AI Review costs, when the
+// account's newest version was set after this computer's.
 func TestUploadWarnsWhenTheAccountsVersionIsNewerAndRefusesTheSame(t *testing.T) {
 	f := newVoiceFixture(t, true)
 	if _, err := f.v.SaveLocal(f.reg.URL, voiceText); err != nil {
@@ -433,12 +431,10 @@ func TestTheVoicePageAsksTheStatusRouteOnlyAtAnAdmittedURL(t *testing.T) {
 	}
 }
 
-// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, D5;
-// agentry-desktop#611): Discard and Delete act on the account only after
-// the person's Yes in a native dialog; Restore is asked nowhere, as the
-// site's, and its line says what it does. Edit with AI In Agentry is an
-// AI Edit over the account's newest version and a Create where it keeps
-// none.
+// The Cloud Voice page: Discard and Delete act on the account only after the
+// person's Yes in a native dialog; Restore is asked nowhere, as the site's,
+// and its line says what it does. Edit with AI In Agentry is an AI Edit over
+// the account's newest version and a Create where it keeps none.
 
 func TestDiscardAndDeleteInTheAccountAskFirstAndTouchNothingHere(t *testing.T) {
 	f := newVoiceFixture(t, true)
@@ -480,7 +476,7 @@ func TestEditWithAIInAgentryIsAnEditOverTheAccountsNewestVersionAndACreateWithou
 		{"unread", nil, hostedrun.VoiceCreate},
 		{"live", &voice.Account{Exists: true, Live: &voice.Version{}}, hostedrun.VoiceEdit},
 		// A first version still in review or flagged is the voice to edit:
-		// the site's Edit mode is the same (agentry-web#1069).
+		// the site's Edit mode is the same.
 		{"pending only", &voice.Account{Exists: true, Pending: &voice.Version{Review: "flagged"}}, hostedrun.VoiceEdit},
 	} {
 		if got := accountJob(c.a); got != c.want {

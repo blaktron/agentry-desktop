@@ -1,10 +1,9 @@
 package main
 
-// Describe it, on this computer (#282, plan builder-rework.md §7.1, D22,
-// D25) through the bound surface: no key, no draft and no dialog; a native
-// dialog before anything leaves this computer; the draft a run under the
-// run lock, decoded into the form's Model, with no key in anything the
-// page is given.
+// Describe it, on this computer through the bound surface: no key, no draft
+// and no dialog; a native dialog before anything leaves this computer; the
+// draft a run under the run lock, decoded into the form's Model, with no key
+// in anything the page is given.
 
 import (
 	"cmp"
@@ -149,9 +148,9 @@ const describeAnswer = `{"manifest": {"schemaVersion": "2", "name": "meeting-act
 	"summary": "Turns meeting notes into actions.", "license": "Apache-2.0", "modes": ["autonomous"], "x-extra": 1},
 	"matches": [{"ref": "acme/minutes", "why": "writes minutes"}], "sources": [{"url": "https://bad.example/", "used": "the format", "withheld": false}], "openQuestions": ["Dates?"]}`
 
-// A local draft the rules pass is checked by AI Review with the person's
-// own key, and the page's view carries the check's one line for the
-// summary, as a hosted draft's does (#395).
+// A local draft the rules pass is checked by AI Review with the person's own
+// key, and the page's view carries the check's one line for the summary, as
+// a hosted draft's does.
 func TestALocalDraftsViewCarriesItsCheckLine(t *testing.T) {
 	f := newDescribeFixture(t)
 	f.result = `{"manifest": {"schemaVersion": "2", "name": "meeting-actions", "namespace": "draft", "version": "0.1.0",
@@ -229,7 +228,7 @@ func TestDescribeIsARunUnderTheRunLockAndDecodesTheDraft(t *testing.T) {
 	// This draft's manifest does not parse (its x-extra), which the rules
 	// report, so the CLI's post-step gives it its one repair turn, without
 	// the web tools, under the same run lock, and recorded for the crash
-	// path while it runs (#395).
+	// path while it runs.
 	if f.scan.read != 1 || len(f.runs) != 2 || f.b.run.current() != nil {
 		t.Fatalf("scanned %d, ran %d, still in flight %v", f.scan.read, len(f.runs), f.b.run.current())
 	}
@@ -304,8 +303,8 @@ func TestTheChecksVerdictsAreTheChecksOwnWords(t *testing.T) {
 	}
 }
 
-// A draft on this computer reports its progress as build:draft-progress,
-// as a knowledge build reports its own (agentry-desktop#410).
+// A draft on this computer reports its progress as build:draft-progress, as
+// a knowledge build reports its own.
 func TestADraftOnThisComputerReportsItsProgress(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
@@ -325,8 +324,8 @@ func TestADraftOnThisComputerReportsItsProgress(t *testing.T) {
 
 // StopDraft stops the draft in flight and nothing else: the Drafter's
 // context is cancelled and the draft returns; with no draft running, or a
-// run or a knowledge build holding the lock instead, it refuses and
-// cancels nothing (agentry-desktop#410).
+// run or a knowledge build holding the lock instead, it refuses and cancels
+// nothing.
 func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	f := newDescribeFixture(t)
 	saveDescribeKey(t)
@@ -375,10 +374,9 @@ func TestStopDraftStopsOnlyADraft(t *testing.T) {
 	}
 }
 
-// The dialog before a draft on this computer names its packs, and says
-// which AI Review scans first with the person's key because no scan in
-// Agentry stands in (agentry-desktop#497; D3). A draft with none says
-// nothing of knowledge.
+// The dialog before a draft on this computer names its packs, and says which
+// AI Review scans first with the person's key because no scan in Agentry
+// stands in. A draft with none says nothing of knowledge.
 func TestTheDraftDialogSaysWhichPacksAreScannedFirst(t *testing.T) {
 	pack := func(name string) drafter.KnowledgeIn {
 		return drafter.KnowledgeIn{Pack: &kn.Pack{Manifest: kn.Manifest{Name: name}}}

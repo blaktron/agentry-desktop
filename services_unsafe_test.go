@@ -24,9 +24,8 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// Unsafe Mode (plan unsafe-mode.md M3; agentry-desktop#418, D-050), the
-// plan's invariants 5–7 as tests: a run In Agentry carries nothing of it,
-// the page cannot turn it on, and every consent that existed still asks.
+// Unsafe Mode: a run In Agentry carries nothing of it, the page cannot turn
+// it on, and every consent that existed still asks.
 
 // unsafeApp is a RunAPI under a settings file and a runner home of the
 // test's own, whose dialog answers as the test says and records what it
@@ -79,11 +78,10 @@ func savedUnsafeMode(t *testing.T) bool {
 	return st.UnsafeMode
 }
 
-// Invariant 6: the renderer cannot turn Unsafe Mode on by itself. The
-// binding the page calls is a native dialog the page cannot answer, then
-// the image's pull; the setting is written only after both, and never into
-// the runner policy. In the pattern of
-// TestConsentIsANativeDialogNotAPageFlag.
+// The renderer cannot turn Unsafe Mode on by itself. The binding the page
+// calls is a native dialog the page cannot answer, then the image's pull;
+// the setting is written only after both, and never into the runner policy.
+// In the pattern of TestConsentIsANativeDialogNotAPageFlag.
 func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
 	u := newUnsafeApp(t)
 	if v, err := (&SettingsAPI{app: u.r.app}).RunDefaults(); err != nil || v.UnsafeMode {
@@ -98,7 +96,7 @@ func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
 	if len(u.asked) != 1 || u.pulls != 0 || savedUnsafeMode(t) {
 		t.Fatalf("after a No: dialogs %d, pulls %d, saved %v", len(u.asked), u.pulls, savedUnsafeMode(t))
 	}
-	// The dialog says what changes, in the plan's words, and DR-53's PATH.
+	// The dialog says what changes, and the image's PATH.
 	for _, want := range []string{"Turn on Unsafe Mode?",
 		"QuickAgents can run commands this computer has not approved.",
 		"Each command is installed from Kali Linux's repository when the QuickAgent first runs.",
@@ -157,7 +155,7 @@ func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
 		t.Fatal(err)
 	}
 	if raw, err := os.ReadFile(polPath); err == nil && strings.Contains(strings.ToLower(string(raw)), "unsafemode") {
-		t.Fatalf("the runner policy was written with the switch (D5):\n%s", raw)
+		t.Fatalf("the runner policy was written with the switch:\n%s", raw)
 	}
 	if sv, err := settingsView(); err != nil || !sv.UnsafeMode {
 		t.Fatalf("the shell's settings view: %+v, %v; want Unsafe Mode on for the glow", sv, err)
@@ -168,17 +166,16 @@ func TestUnsafeModeIsTurnedOnOnlyThroughTheNativeDialog(t *testing.T) {
 		t.Fatalf("turning on what is on: err %v, dialogs %d→%d, pulls %d→%d", err, asked, len(u.asked), pulls, u.pulls)
 	}
 
-	// Off is immediate: no dialog, no docker, nothing removed (D12).
+	// Off is immediate: no dialog, no docker, nothing removed.
 	v, err = u.r.SetUnsafeMode(false)
 	if err != nil || v.UnsafeMode || savedUnsafeMode(t) || len(u.asked) != asked || u.pulls != pulls {
 		t.Fatalf("turning it off: view %+v, err %v, dialogs %d→%d, pulls %d→%d", v, err, asked, len(u.asked), pulls, u.pulls)
 	}
 }
 
-// Invariant 4's desktop half, and the other half of 6: a run is an Unsafe
-// Mode run only because desktop.yaml says so. No argument of RunAgent or
-// StartSession carries it, so whatever the page sends, a run with the
-// setting absent is compiled in the default posture.
+// A run is an Unsafe Mode run only because desktop.yaml says so. No argument
+// of RunAgent or StartSession carries it, so whatever the page sends, a run
+// with the setting absent is compiled in the default posture.
 func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 	u := newUnsafeApp(t)
 	var got []run.Request
@@ -189,8 +186,8 @@ func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 	runIt := func() {
 		t.Helper()
 		// Every consent flag the page can send, accepted in the dialog. A
-		// vulnerable server's consent is refused with the switch off
-		// (D-055), so it is sent only while the switch is on.
+		// vulnerable server's consent is refused with the switch off, so it
+		// is sent only while the switch is on.
 		u.answer = true
 		vuln := savedUnsafeMode(t)
 		if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, map[string]string{"unsafeMode": "true"}, vuln, true, nil, false, nil, nil); err != nil {
@@ -222,11 +219,11 @@ func TestARunIsUnsafeOnlyFromTheSettingsFile(t *testing.T) {
 	}
 }
 
-// Invariant 7: with Unsafe Mode on, every consent that exists still asks,
-// in its own dialog, and a No still refuses (a vulnerable server's consent
-// exists only there since D-055). The dialog carries one more
-// line naming Unsafe Mode and the commands its image cannot provide (D6,
-// D8), and Unsafe Mode adds no dialog to a run that had none.
+// With Unsafe Mode on, every consent that exists still asks, in its own
+// dialog, and a No still refuses (a vulnerable server's consent exists only
+// there). The dialog carries one more line naming Unsafe Mode and the
+// commands its image cannot provide, and Unsafe Mode adds no dialog to a run
+// that had none.
 func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	u := newUnsafeApp(t)
 	switchOn(t)
@@ -276,7 +273,7 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	}
 
 	// A run with nothing to accept raises no dialog, Unsafe Mode or not:
-	// turning it on was the confirmation (D6, "no extra dialog per run").
+	// turning it on was the confirmation ("no extra dialog per run").
 	before = len(u.asked)
 	if _, err := u.r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, false, nil, false, false, nil, false, nil, nil); err != nil {
 		t.Fatal(err)
@@ -303,10 +300,10 @@ func TestEveryConsentStillAsksInUnsafeMode(t *testing.T) {
 	}
 }
 
-// In Unsafe Mode a declared server the gate rates high runs on the
-// person's Yes to the native dialog (agentry-desktop#459, D-055): the
-// engine gets the switch and the consent together, and decides on the
-// registry's answer itself. A No reaches nothing.
+// In Unsafe Mode a declared server the gate rates high runs on the person's
+// Yes to the native dialog: the engine gets the switch and the consent
+// together, and decides on the registry's answer itself. A No reaches
+// nothing.
 func TestUnsafeModeRunsAVulnerableServerOnTheDialogsYes(t *testing.T) {
 	u := newUnsafeApp(t)
 	switchOn(t)
@@ -455,9 +452,9 @@ func TestTheSwitchIsReadOncePerRun(t *testing.T) {
 	}
 }
 
-// Invariant 5: Unsafe Mode never reaches a run In Agentry (D7). With the
-// switch on, a hosted run's requests carry nothing of it, no local engine
-// or docker is touched, and nothing about Unsafe Mode is asked or read.
+// Unsafe Mode never reaches a run In Agentry. With the switch on, a hosted
+// run's requests carry nothing of it, no local engine or docker is touched,
+// and nothing about Unsafe Mode is asked or read.
 func TestARunInAgentryCarriesNothingOfUnsafeMode(t *testing.T) {
 	f := &hostedFake{enabled: true, outputs: map[string]string{"result.json": hostedEnvelope}}
 	upstream, err := url.Parse(f.start(t))
@@ -572,11 +569,10 @@ func liveEvents(t *testing.T) *[]bool {
 	return &got
 }
 
-// agentry-desktop#479 (the operator's choice, 2026-09-30; D-050's
-// addendum): turning the switch off does not take the red edge and the
-// badge from a run or a chat compiled in Unsafe Mode while it is live.
-// They go when it ends. A run the switch was on for, whose plan Unsafe
-// Mode did not change (no declared commands), is not one.
+// Turning the switch off does not take the red edge and the badge from a run
+// or a chat compiled in Unsafe Mode while it is live. They go when it ends.
+// A run the switch was on for, whose plan Unsafe Mode did not change (no
+// declared commands), is not one.
 func TestTheEdgeStaysWhileARunCompiledInUnsafeModeIsLive(t *testing.T) {
 	u := newUnsafeApp(t)
 	u.answer = true

@@ -24,11 +24,11 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
-// RunAPI.ListModels (agentry-desktop#131) carries the key inward and
-// returns names: the view holds the ids, the display names, the kind and
-// the sentence, never the key — and an error from the listing reaches the
-// page as the provider's words with the key absent (setup.ListModels
-// scrubs it; this surface adds nothing that could carry it).
+// RunAPI.ListModels carries the key inward and returns names: the view holds
+// the ids, the display names, the kind and the sentence, never the key — and
+// an error from the listing reaches the page as the provider's words with
+// the key absent (setup.ListModels scrubs it; this surface adds nothing that
+// could carry it).
 func TestListModelsReturnsNamesNeverTheKey(t *testing.T) {
 	var got []string
 	run.SetListModelsForTest(t, func(_ context.Context, provider, baseURL, key string) (*setup.Catalog, error) {
@@ -60,8 +60,8 @@ func TestListModelsReturnsNamesNeverTheKey(t *testing.T) {
 	}
 }
 
-// A listing's plain-http warning reaches the page (agentry-desktop#317), and
-// the binding the form asks as the URL is typed says the same sentence.
+// A listing's plain-http warning reaches the page, and the binding the form
+// asks as the URL is typed says the same sentence.
 func TestListModelsAndEndpointWarningCarryThePlainHTTPWarning(t *testing.T) {
 	run.SetListModelsForTest(t, func(_ context.Context, provider, baseURL, key string) (*setup.Catalog, error) {
 		return &setup.Catalog{Provider: provider, Models: []setup.Model{{ID: "m"}}, Warning: setup.PlainHTTPWarning(baseURL)}, nil
@@ -79,10 +79,10 @@ func TestListModelsAndEndpointWarningCarryThePlainHTTPWarning(t *testing.T) {
 	}
 }
 
-// The setup view carries which providers have a stored key (desktop#141)
-// as names only — the badge's fact for whichever provider the form shows;
-// the policy-provider boolean it carried is not on the wire any more. An
-// empty list is a list, not an absent field, so the page's includes() has
+// The setup view carries which providers have a stored key as names only —
+// the badge's fact for whichever provider the form shows; the
+// policy-provider boolean it carried is not on the wire any more. An empty
+// list is a list, not an absent field, so the page's includes() has
 // something to ask.
 func TestSetupStatusViewListsStoredKeyProviders(t *testing.T) {
 	v := setupStatusView(&run.Status{Provider: "openai", KeysStored: []string{"anthropic", "custom"}})
@@ -94,10 +94,10 @@ func TestSetupStatusViewListsStoredKeyProviders(t *testing.T) {
 	}
 }
 
-// TestProfileStatusViewCarriesTheGuide (agentry-desktop#228): the run
-// setup's view hands the page every guide field the author wrote, with
-// arrays and maps never null, and no guide at all when the release has
-// none. Profile values never appear: the view has names only.
+// TestProfileStatusViewCarriesTheGuide: the run setup's view hands the page
+// every guide field the author wrote, with arrays and maps never null, and
+// no guide at all when the release has none. Profile values never appear:
+// the view has names only.
 func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
 	v := profileStatusView(&run.ProfileInfo{
 		Ref:             "acme/reporter@1.0.0",
@@ -132,7 +132,7 @@ func TestProfileStatusViewCarriesTheGuide(t *testing.T) {
 	}
 }
 
-// The person's own web search key (#301), as the AI Review key is held:
+// The person's own web search key, as the AI Review key is held:
 // StoreSearchKey is the one call that carries it inward; no view
 // StoreSearchKey, SearchKeyStatus, TestSearchKey or ForgetSearchKey returns
 // carries it back, and no progress line the page is sent does either, even
@@ -196,10 +196,10 @@ func TestTheSearchKeyIsNeverShownBackOrLogged(t *testing.T) {
 	}
 }
 
-// The person's own AI Review key (#282, plan builder-rework.md D25), as the
-// model key is held: StoreJevKey is the one call that carries it inward;
-// no view StoreJevKey, JevKeyStatus, TestJevKey or ForgetJevKey returns
-// carries it back, and no progress line the page is sent does either.
+// The person's own AI Review key, as the model key is held: StoreJevKey is
+// the one call that carries it inward; no view StoreJevKey, JevKeyStatus,
+// TestJevKey or ForgetJevKey returns carries it back, and no progress line
+// the page is sent does either.
 func TestTheJevKeyIsNeverShownBackOrLogged(t *testing.T) {
 	const secret = "jev-never-shown-back-3b9e"
 	t.Setenv("HOME", t.TempDir())
@@ -253,8 +253,8 @@ func TestTheJevKeyIsNeverShownBackOrLogged(t *testing.T) {
 	}
 }
 
-// The person's own Hybrid Analysis key (#530), as the AI Review key is
-// held: StoreHybridKey is the one call that carries it inward; no view
+// The person's own Hybrid Analysis key, as the AI Review key is held:
+// StoreHybridKey is the one call that carries it inward; no view
 // StoreHybridKey, HybridKeyStatus, TestHybridKey or ForgetHybridKey returns
 // carries it back, and no progress line the page is sent does either.
 func TestTheHybridKeyIsNeverShownBackOrLogged(t *testing.T) {

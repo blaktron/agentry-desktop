@@ -1,10 +1,10 @@
 package main
 
-// The Knowledge panel live (agentry-desktop#273): the bound methods driven
-// as the page drives them, against a real registry and this machine's
-// docker and model, with the person's part — the native dialogs and the
-// pickers — answered by the test. Skipped unless the three variables below
-// are set, because it needs a registry, docker and a model key:
+// The Knowledge panel live: the bound methods driven as the page drives
+// them, against a real registry and this machine's docker and model, with
+// the person's part — the native dialogs and the pickers — answered by the
+// test. Skipped unless the three variables below are set, because it needs a
+// registry, docker and a model key:
 //
 //	AGENTRY_LIVE_KNOWLEDGE_REGISTRY=http://127.0.0.1:8080 \
 //	AGENTRY_LIVE_KNOWLEDGE_TOKEN=<a PAT with knowledge:read and knowledge:write> \
@@ -190,7 +190,7 @@ func TestLiveKnowledge(t *testing.T) {
 	t.Logf("opened on a fresh runner home: %s, index %q", kn.CountPages(len(pv.Pages)), firstLine(pv.Index.Markdown))
 
 	// Delete Agentry's copy, then this computer's: each place's Delete
-	// removes its own copy (agentry-desktop#619).
+	// removes its own copy.
 	l, err = env.List(context.Background(), reg)
 	if err != nil {
 		t.Fatal(err)

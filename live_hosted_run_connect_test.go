@@ -1,10 +1,10 @@
 package main
 
-// A run In Agentry of a release whose MCP server signs in by OAuth, live
-// (OAuth connections M9, agentry-desktop#667; plan D5, D19): the bound
-// methods driven as the run panel drives them, against a real registry
-// whose vault keeps connections. Skipped unless the variables are set,
-// because the runs spend the account's credits and a person must consent:
+// A run In Agentry of a release whose MCP server signs in by OAuth, live:
+// the bound methods driven as the run panel drives them, against a real
+// registry whose vault keeps connections. Skipped unless the variables are
+// set, because the runs spend the account's credits and a person must
+// consent:
 //
 //	AGENTRY_LIVE_HOSTED_CONNECT_REGISTRY=https://dev.secureagentry.net \
 //	AGENTRY_LIVE_HOSTED_CONNECT_TOKEN=<a PAT of the account: run:read, run:write, …> \

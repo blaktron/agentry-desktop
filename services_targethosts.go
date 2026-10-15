@@ -1,11 +1,10 @@
 package main
 
-// Target hosts in the run setup (plan runtime-hosts.md §6, §8, D6, D7,
-// D14; agentry-desktop#812). A host question shows its address field, the
-// hosts this computer's runs reached before, and whether a sign-in is saved
-// for the account and host; the sign-in given there (a key file from the
-// native picker, a password, a sudo password) goes to the run for this run
-// alone, or is saved in the system keychain as the run starts, where the
+// Target hosts in the run setup. A host question shows its address field,
+// the hosts this computer's runs reached before, and whether a sign-in is
+// saved for the account and host; the sign-in given there (a key file from
+// the native picker, a password, a sudo password) goes to the run for this
+// run alone, or is saved in the system keychain as the run starts, where the
 // CLI and a schedule's fire read it too. A host key no known_hosts file
 // holds is put to the person in a native dialog when the run starts. The
 // calls that carry a sign-in take it inward only, and none returns it
@@ -53,7 +52,7 @@ func (r *RunAPI) TargetHostStatus(answer string) *TargetHostView {
 
 // ForgetHostSignIn removes the sign-in saved for the account and host of
 // answer, and from the keys sealed beside the schedules that run while the
-// person is signed out (agentry-cli#863 seals it there).
+// person is signed out (the CLI seals it there).
 func (r *RunAPI) ForgetHostSignIn(answer string) (*TargetHostView, error) {
 	if err := run.ForgetHostSignIn(answer); err != nil {
 		return nil, err
@@ -78,7 +77,7 @@ func (r *RunAPI) ForgetRecentHost(answer string) ([]string, error) {
 // ChooseHostKeyFile opens the native file dialog on ~/.ssh, hidden files
 // shown, for a target host's private key, and returns the path ("" when
 // cancelled). The pick is recorded apart from the run's input files: a key
-// chosen here signs in to a target host and is never an input (D-030).
+// chosen here signs in to a target host and is never an input.
 func (r *RunAPI) ChooseHostKeyFile(host string) (string, error) {
 	title := "Choose the private key to sign in with"
 	if host != "" {

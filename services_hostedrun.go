@@ -1,13 +1,12 @@
 // In Agentry: a hosted run of a published release, started with the app's
-// token, watched on the registry, its outputs and receipt downloaded
-// into the run folder the person picked (plan hosted-runs.md §4.7, D10;
-// agentry-desktop#77).
+// token, watched on the registry, its outputs and receipt downloaded into
+// the run folder the person picked.
 //
 // Nothing here touches docker, the operator policy or the run lock: the
-// execution plane lives beside the registry's daemon (D3), so a hosted run
-// and a local run cannot wait on each other. The app sends the task, the
-// intake answers, the input files and the account's bearer token, and
-// nothing else — no model key, no worker token.
+// execution plane lives beside the registry's daemon, so a hosted run and a
+// local run cannot wait on each other. The app sends the task, the intake
+// answers, the input files and the account's bearer token, and nothing else
+// — no model key, no worker token.
 package main
 
 import (
@@ -32,8 +31,7 @@ import (
 )
 
 // eventHostedRun carries the hosted run's state to the panel. A run In
-// Agentry has no log to send (D12, D16); runner:run-log is the local
-// engine's alone.
+// Agentry has no log to send; runner:run-log is the local engine's alone.
 const eventHostedRun = "runner:hosted-run"
 
 // emitEvent is the Wails emitter, a package variable purely as a test seam
@@ -76,8 +74,7 @@ type hostedFollow struct {
 
 // HostedCapsView is a tier's ceilings for one run, as the person is told
 // them: time and turns. The registry's token ceiling is not carried: a
-// hosted run is stated in credits, time and turns only (plan
-// scan-and-run-tweaks.md track B, agentry-desktop#457).
+// hosted run is stated in credits, time and turns only.
 type HostedCapsView struct {
 	TimeoutSeconds int `json:"timeoutSeconds"`
 	MaxTurns       int `json:"maxTurns"`
@@ -102,10 +99,9 @@ type HostedAvailabilityView struct {
 
 	SignedIn  bool `json:"signedIn"`
 	Extension bool `json:"extension"`
-	// TargetHosts says the release declares a target host, which only a
-	// run on this computer reaches (plan runtime-hosts.md D11): no choice
-	// In Agentry is offered for it, and the setup says why
-	// (agentry-desktop#812).
+	// TargetHosts says the release declares a target host, which only a run
+	// on this computer reaches: no choice In Agentry is offered for it, and
+	// the setup says why.
 	TargetHosts bool `json:"targetHosts,omitempty"`
 	Enabled     bool `json:"enabled"`
 	// RunnersOnline counts what can take a run now: the sandbox hosts the
@@ -116,7 +112,7 @@ type HostedAvailabilityView struct {
 	// Tier, HoldCredits and Caps are the registry's numbers for a run of
 	// this account's; the app does no arithmetic of its own with them. The
 	// rates a settlement is computed at are the registry's and are not
-	// carried (plan scan-and-run-tweaks.md D9).
+	// carried.
 	Tier        string          `json:"tier,omitempty"`
 	HoldCredits int64           `json:"holdCredits"`
 	Caps        *HostedCapsView `json:"caps,omitempty"`
@@ -125,9 +121,9 @@ type HostedAvailabilityView struct {
 	Balance      int64 `json:"balance"`
 	BalanceKnown bool  `json:"balanceKnown"`
 	// KnowledgeAttach says a run In Agentry here may attach the account's
-	// packs kept in Agentry (agentry-enterprise#172), at most MaxPacks:
-	// the registry says so and the token reads knowledge. KnowledgeNote
-	// says why not where the registry would but the token cannot.
+	// packs kept in Agentry, at most MaxPacks: the registry says so and the
+	// token reads knowledge. KnowledgeNote says why not where the registry
+	// would but the token cannot.
 	KnowledgeAttach bool   `json:"knowledgeAttach"`
 	MaxPacks        int    `json:"maxPacks,omitempty"`
 	KnowledgeNote   string `json:"knowledgeNote,omitempty"`
@@ -135,14 +131,13 @@ type HostedAvailabilityView struct {
 	MaxInputFiles int   `json:"maxInputFiles"`
 	MaxInputBytes int64 `json:"maxInputBytes"`
 
-	// DeclaredSecrets are the secrets the release declares, its own and
-	// its MCP servers', by name: a secret the account keeps in Agentry is
-	// used as it is, one it does not keep is asked for at the start
-	// (agentry-desktop#300).
+	// DeclaredSecrets are the secrets the release declares, its own and its
+	// MCP servers', by name: a secret the account keeps in Agentry is used
+	// as it is, one it does not keep is asked for at the start.
 	DeclaredSecrets []string `json:"declaredSecrets,omitempty"`
-	// OptionalSecrets are those of DeclaredSecrets a run can start without
-	// (agentry-desktop#655): a run In Agentry carries one only where the
-	// account keeps it, and is never held for one.
+	// OptionalSecrets are those of DeclaredSecrets a run can start without:
+	// a run In Agentry carries one only where the account keeps it, and is
+	// never held for one.
 	OptionalSecrets []string `json:"optionalSecrets,omitempty"`
 	// Vault says the registry keeps an account's secrets for runs In
 	// Agentry: where it keeps none, a release offered here has only
@@ -150,19 +145,18 @@ type HostedAvailabilityView struct {
 	Vault bool `json:"vault"`
 
 	// Session is Talk to it In Agentry, a hosted session of the release's
-	// interactive mode (agentry-desktop#403): whether it is offered, and
-	// the registry's terms for one. Nil where it is not offered.
+	// interactive mode: whether it is offered, and the registry's terms for
+	// one. Nil where it is not offered.
 	Session *HostedSessionOfferView `json:"session,omitempty"`
 
-	// Schedule is Later and Repeat In Agentry for this release
-	// (agentry-desktop#745): whether they are offered and can be chosen.
-	// Nil where they are not offered (a registry without schedules).
+	// Schedule is Later and Repeat In Agentry for this release: whether they
+	// are offered and can be chosen. Nil where they are not offered (a
+	// registry without schedules).
 	Schedule *HostedScheduleOfferView `json:"schedule,omitempty"`
 
 	// PublisherEarns says the release's publisher earns a share of the
 	// credits runs of it spend, which the run setup says under what a run
-	// costs (plan creator-monetization.md D10; agentry-desktop#613). Never
-	// for the reader's own QuickAgent or their organization's.
+	// costs. Never for the reader's own QuickAgent or their organization's.
 	PublisherEarns bool `json:"publisherEarns"`
 }
 
@@ -190,9 +184,9 @@ type HostedRunView struct {
 	QueuePosition   int    `json:"queuePosition,omitempty"`
 	CancelRequested bool   `json:"cancelRequested"`
 
-	// Outcome, ExitClass and OutcomeLine are the finished run's verdict
-	// (plan §5): the registry's word for it, the runner's exit class
-	// verbatim, and the sentence that says what it means.
+	// Outcome, ExitClass and OutcomeLine are the finished run's verdict: the
+	// registry's word for it, the runner's exit class verbatim, and the
+	// sentence that says what it means.
 	Outcome     string `json:"outcome,omitempty"`
 	ExitClass   string `json:"exitClass,omitempty"`
 	OutcomeLine string `json:"outcomeLine,omitempty"`
@@ -201,7 +195,7 @@ type HostedRunView struct {
 
 	// Turns and WallMS are the run's use as the person is told it; its
 	// tokens and their dollar cost stay with the registry, which settles
-	// them in credits (agentry-desktop#457).
+	// them in credits.
 	Turns  int   `json:"turns"`
 	WallMS int64 `json:"wallMs"`
 
@@ -213,10 +207,9 @@ type HostedRunView struct {
 	Settled        bool  `json:"settled"`
 
 	// ReceiptKept says the registry holds a receipt for the run. A pushed
-	// run's is the host's cut of the CLI's stdout envelope
-	// (agentry-enterprise#121); a run the registry kept none for — one
-	// pushed before that — has the panel say so rather than read one from
-	// a file in the outputs.
+	// run's is the host's cut of the CLI's stdout envelope; a run the
+	// registry kept none for — one pushed before that — has the panel say so
+	// rather than read one from a file in the outputs.
 	ReceiptKept bool `json:"receiptKept"`
 	// CapabilitiesEnforced is the receipt's block, listed verbatim; its
 	// knowledge line is also KnowledgeLine, which the result view shows
@@ -225,7 +218,7 @@ type HostedRunView struct {
 	KnowledgeLine        string            `json:"knowledgeLine,omitempty"`
 	// Knowledge are the packs the run attaches, as the registry records
 	// them: each by name, and from its hand-off the digest of the tree it
-	// was given (agentry-desktop#275).
+	// was given.
 	Knowledge        []HostedPackView `json:"knowledge,omitempty"`
 	AttestationState string           `json:"attestationState,omitempty"`
 	Adapter          string           `json:"adapter,omitempty"`
@@ -269,21 +262,20 @@ type HostedStartView struct {
 	// secrets-declared, mode-not-declared…); Detail the sentence.
 	Refusal string `json:"refusal,omitempty"`
 	Detail  string `json:"detail,omitempty"`
-	// Balance and ResetsAt come from a credits-exhausted refusal. Where
-	// the subscription is managed is deliberately not here: the panel asks
+	// Balance and ResetsAt come from a credits-exhausted refusal. Where the
+	// subscription is managed is deliberately not here: the panel asks
 	// SettingsAPI.OpenUpgrade at the moment a person clicks, so the
 	// registry's answer is checked against its own origin before anything
-	// opens (agentry-enterprise#41).
+	// opens.
 	Balance  int64  `json:"balance,omitempty"`
 	Hold     int64  `json:"hold,omitempty"`
 	ResetsAt string `json:"resetsAt,omitempty"`
 	// Missing are the declared secrets a secret-missing refusal names: the
-	// ones the panel asks for (agentry-desktop#300); for connection-missing,
-	// the servers still to connect In Agentry (agentry-desktop#667).
+	// ones the panel asks for; for connection-missing, the servers still to
+	// connect In Agentry.
 	Missing []string `json:"missing,omitempty"`
 	// Optional are the release's optional secrets, as a secrets refusal
-	// names them: those of Missing the ask may leave empty
-	// (agentry-desktop#795).
+	// names them: those of Missing the ask may leave empty.
 	Optional []string `json:"optional,omitempty"`
 }
 
@@ -369,8 +361,7 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 	v.Session = sessionOffer(hostedrun.DecideSession(facts), terms)
 	v.Schedule = scheduleOfferView(hostedrun.DecideSchedule(facts))
 	// Its reads carry the token, so they are held to Settings' URL rule,
-	// which the rest of this function does not apply yet (agentry-desktop
-	// #307).
+	// which the rest of this function does not apply yet.
 	if v.Offered && settings.ValidateURL(reg) == nil {
 		v.PublisherEarns = publisherEarnsHere(ctx, reg, token, ref, exts)
 	}
@@ -381,30 +372,27 @@ func (r *RunAPI) HostedAvailability(reg, ref string) (*HostedAvailabilityView, e
 // following it. The panel has shown the declared contract and collected
 // the intake answers first: nothing is created until Run is clicked.
 //
-// packs names the account's knowledge packs to attach (agentry-desktop#275;
-// plan knowledge.md §4.5): each must be one this computer's Knowledge list
-// shows as kept in Agentry and scanned there, and it is sent as the
-// registry's id for it — a name the list does not show that way is refused
-// here, before anything is uploaded, so the page cannot attach what it was
-// not offered. The registry checks again that each is the account's and
-// ready.
+// packs names the account's knowledge packs to attach: each must be one this
+// computer's Knowledge list shows as kept in Agentry and scanned there, and
+// it is sent as the registry's id for it — a name the list does not show
+// that way is refused here, before anything is uploaded, so the page cannot
+// attach what it was not offered. The registry checks again that each is the
+// account's and ready.
 //
-// The secrets this app set for the start and did not keep
-// (SetHostedSecret with keep false) are deleted again when the run does
-// not start, whatever stopped it; when it starts, the vault removes them
-// as the run ends (plan hosted-credentials-vault.md D12).
+// The secrets this app set for the start and did not keep (SetHostedSecret
+// with keep false) are deleted again when the run does not start, whatever
+// stopped it; when it starts, the vault removes them as the run ends.
 //
 // askOptional asks the registry to refuse the start while the account keeps
-// no value for one of the release's optional secrets (agentry-desktop#795,
-// agentry-enterprise#517), so the panel asks for it as for a required one;
-// the start the ask makes again leaves it false, so an optional key left
-// empty is gone without.
+// no value for one of the release's optional secrets, so the panel asks for
+// it as for a required one; the start the ask makes again leaves it false,
+// so an optional key left empty is gone without.
 //
 // sourceTokens are tokens typed in the setup for the release's input
-// sources, by question id (agentry-desktop#833): each answered source is
-// sent its typed token, else the key saved on this computer for its host,
-// in the create's sourceTokens, which the registry holds for this run
-// alone (HostedSourceTokens).
+// sources, by question id: each answered source is sent its typed token,
+// else the key saved on this computer for its host, in the create's
+// sourceTokens, which the registry holds for this run alone
+// (HostedSourceTokens).
 func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, writeInVoice, askOptional bool, sourceTokens map[string]string) (*HostedStartView, error) {
 	return r.startHosted(reg, ref, task, inputPaths, outDir, intakeAnswers, packs, "", writeInVoice, askOptional, sourceTokens)
 }
@@ -413,9 +401,9 @@ func (r *RunAPI) StartHostedRun(reg, ref, task string, inputPaths []string, outD
 // same uploads and the same create, which mode makes a run ("") or a hosted
 // session (hostedrun.ModeInteractive).
 //
-// writeInVoice asks the run to write in the account's live Writing Voice
-// (plan writing-voice.md §5, D5): the registry checks there is one, and at
-// the hand-off gives the run the live version as it stands then.
+// writeInVoice asks the run to write in the account's live Writing Voice:
+// the registry checks there is one, and at the hand-off gives the run the
+// live version as it stands then.
 func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir string, intakeAnswers map[string]string, packs []string, mode string, writeInVoice, askOptional bool, typedTokens map[string]string) (view *HostedStartView, err error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
@@ -446,7 +434,7 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	}
 	// A new start replaces one waiting for its connections.
 	r.dropAwaiting(nil)
-	// The paths came from a native picker, or they are not used (D-030).
+	// The paths came from a native picker, or they are not used.
 	for _, p := range inputPaths {
 		if err := r.app.requirePicked("input", p); err != nil {
 			return nil, err
@@ -455,28 +443,25 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
 	}
-	// A release the registry admitted without a scan is not run In
-	// Agentry from here (M23, D-029): the platform records no consent for
-	// it yet (agentry-enterprise#55), and a run nobody consented to would
-	// carry a receipt that says nothing of it. The page withholds the
-	// mode; this is the same rule in Go, for any caller of the binding.
+	// A release the registry admitted without a scan is not run In Agentry
+	// from here: the platform records no consent for it yet, and a run
+	// nobody consented to would carry a receipt that says nothing of it. The
+	// page withholds the mode; this is the same rule in Go, for any caller
+	// of the binding.
 	var sourceTokens map[string]string
 	if sig, err := run.ResolveSignature(ctx, reg, ref, false); err == nil {
 		if sig.Unscanned() {
-			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent (agentry-enterprise#55) — run it on this machine, where the consent is yours", ref)
+			return nil, fmt.Errorf("%s was admitted by the registry without a scan; a run In Agentry is not offered for an unscanned release until the platform records that consent — run it on this machine, where the consent is yours", ref)
 		}
-		// A target host is reached only from this computer (plan
-		// runtime-hosts.md D11): the page offers no run In Agentry for it,
-		// and this is the same rule in Go (agentry-desktop#812).
+		// A target host is reached only from this computer: the page offers
+		// no run In Agentry for it, and this is the same rule in Go.
 		if err := run.RefuseHostedTargetHosts(sig.Manifest); err != nil {
 			return nil, err
 		}
-		// A browser runs In Agentry since browser testing M7
-		// (agentry-enterprise#565, agentry-desktop#903): its site goes as a
-		// plain answer, never a source, and the registry refuses a site no
-		// sandbox host can open (409 browser-site).
-		// Each input source's token: typed for this run, else the key
-		// saved on this computer for its host (agentry-desktop#833).
+		// A browser runs In Agentry: its site goes as a plain answer, never
+		// a source, and the registry refuses a site no sandbox host can open
+		// (409 browser-site). Each input source's token: typed for this run,
+		// else the key saved on this computer for its host.
 		if sourceTokens, err = run.HostedSourceTokens(sig.Manifest, intakeAnswers, typedTokens, nil); err != nil {
 			return nil, err
 		}
@@ -585,14 +570,13 @@ func inAgentryNamed(packs []knowledge.Pack, name string) int {
 	return len(ids)
 }
 
-// AttachHostedRun reattaches to this account's active run, if there is
-// one, rather than starting a second (one run per account, D11). It
-// returns a view with no run when the account has none.
+// AttachHostedRun reattaches to this account's active run, if there is one,
+// rather than starting a second (one run per account). It returns a view
+// with no run when the account has none.
 func (r *RunAPI) AttachHostedRun(reg, outDir string) (*HostedStartView, error) {
 	// The folder a reattached run's outputs download into, and that the
 	// result view lists and reveals afterwards, is one a native picker
-	// returned, as for StartHostedRun (D-030, D-035): never a path the page
-	// typed.
+	// returned, as for StartHostedRun: never a path the page typed.
 	if err := r.app.requireOutputDir(outDir); err != nil {
 		return nil, err
 	}
@@ -677,15 +661,13 @@ type lostKey struct{ registry, id string }
 
 // AttachHostedRunAtStart follows this account's run or chat In Agentry
 // already in flight when the app starts, so that it is followed in its card
-// whether or not a run setup is ever opened (agentry-desktop#466, #467;
-// plan desktop-review-key-and-run-cards.md D15). It takes a run or a chat
-// and nothing else: a knowledge build is the Knowledge panel's and a draft
-// the Build tab's.
-// No folder was picked at start, so Go chooses the one the run downloads
-// into: the folder it was started to when this app lost touch with it,
-// else Run defaults' saved folder, a folder of the run's own inside it
-// (D-044), else the default under Downloads (D-030: never a path the page
-// names). The card's Follow it again asks the same.
+// whether or not a run setup is ever opened. It takes a run or a chat and
+// nothing else: a knowledge build is the Knowledge panel's and a draft the
+// Build tab's. No folder was picked at start, so Go chooses the one the run
+// downloads into: the folder it was started to when this app lost touch with
+// it, else Run defaults' saved folder, a folder of the run's own inside it,
+// else the default under Downloads (never a path the page names). The card's
+// Follow it again asks the same.
 func (r *RunAPI) AttachHostedRunAtStart(reg string) (*HostedStartView, error) {
 	reg = settings.Normalize(reg)
 	ctx := r.ctx()
@@ -746,9 +728,8 @@ func (r *RunAPI) CancelHostedRun() (*HostedRunView, error) {
 
 // followHosted watches the run in the background and reports every status
 // change and the final result as runner:hosted-run. There is no log to
-// forward: a pushed run keeps none (hosted runs in production, D12, D16),
-// so the panel shows where the run stands and, at the end, what it
-// produced.
+// forward: a pushed run keeps none (hosted runs in production), so the panel
+// shows where the run stands and, at the end, what it produced.
 func (r *RunAPI) followHosted(reg, token, outDir string, started *hostedrun.Run) (string, *hostedFollow) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &hostedFollow{registry: reg, id: started.ID, ref: started.Ref, outDir: outDir, cancel: cancel, done: make(chan struct{})}
@@ -820,9 +801,9 @@ func (r *RunAPI) watchAndDeliver(ctx context.Context, client *hostedrun.Client, 
 // result render.
 func (r *RunAPI) deliver(client *hostedrun.Client, reg string, final *hostedrun.Run, outDir string) {
 	got, derr := client.DownloadOutputs(context.Background(), final, outDir)
-	// Whatever landed is this run's folder, for the result view and the
-	// run history (D-068). The id is the registry's, so it is remembered
-	// only when it is an id.
+	// Whatever landed is this run's folder, for the result view and the run
+	// history. The id is the registry's, so it is remembered only when it is
+	// an id.
 	if validRunID(final.ID) {
 		r.rememberFolder(final.ID, outDir)
 		recordHosted(reg, final, outDir)
@@ -835,8 +816,8 @@ func (r *RunAPI) deliver(client *hostedrun.Client, reg string, final *hostedrun.
 }
 
 // hostedIdle refuses a second hosted run from this app while one is being
-// followed — the registry allows one active run per account anyway (D11),
-// and this says so before the upload rather than after it.
+// followed — the registry allows one active run per account anyway, and this
+// says so before the upload rather than after it.
 func (r *RunAPI) hostedIdle() error {
 	if r.hostedCurrent() != nil {
 		return fmt.Errorf("a run In Agentry is already in progress — wait for it to finish, or cancel it")
@@ -866,11 +847,10 @@ func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 		Balance: refusal.Balance, Hold: refusal.Hold, ResetsAt: refusal.ResetsAt,
 		Missing: refusal.Missing, Optional: refusal.Optional,
 	}
-	// No destination here: the panel asks SettingsAPI.OpenUpgrade for it
-	// at the moment a person clicks, so the registry's answer is checked
-	// against its own origin before anything opens (agentry-enterprise#41).
-	// Carrying the URL in the view would put an unchecked one in the front
-	// end for nobody to use.
+	// No destination here: the panel asks SettingsAPI.OpenUpgrade for it at
+	// the moment a person clicks, so the registry's answer is checked
+	// against its own origin before anything opens. Carrying the URL in the
+	// view would put an unchecked one in the front end for nobody to use.
 	return v
 }
 
@@ -889,7 +869,7 @@ func hostedOutDir(dir string, r *hostedrun.Run) (string, error) {
 		ns, name = ref.Namespace, ref.Name
 	}
 	// Run defaults' saved folder is every run's, so a run In Agentry lands
-	// in a folder of its own inside it, as a local run does (D-044).
+	// in a folder of its own inside it, as a local run does.
 	if isSavedOutputDir(dir) {
 		dir = run.RunFolder(dir, ns, name, r.ID)
 	}
@@ -913,12 +893,11 @@ func resultText(got []hostedrun.Downloaded) string {
 	return ""
 }
 
-// resultWithoutTokens is a hosted run's result.json as the page gets it.
-// On a sandbox host that file is the CLI's run/v1 envelope, whose usage
-// block carries the run's token counts and their dollar cost; a run In
-// Agentry is stated in credits, so they are taken out before the page sees
-// it (agentry-desktop#457). The file in the run folder keeps them, as a
-// downloaded receipt does (plan scan-and-run-tweaks.md D11). Anything that
+// resultWithoutTokens is a hosted run's result.json as the page gets it. On
+// a sandbox host that file is the CLI's run/v1 envelope, whose usage block
+// carries the run's token counts and their dollar cost; a run In Agentry is
+// stated in credits, so they are taken out before the page sees it. The file
+// in the run folder keeps them, as a downloaded receipt does. Anything that
 // is not a JSON object is passed on as it is: it carries no usage block.
 func resultWithoutTokens(b []byte) string {
 	var env map[string]json.RawMessage

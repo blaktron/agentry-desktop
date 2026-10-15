@@ -1,8 +1,7 @@
-// Publisher Earnings' run-setup line and the star ask after a hosted run
-// (plan creator-monetization.md D10, D13; agentry-desktop#613), against a
-// registry that answers the reads the site's rules make (agentry-web
-// #1087): the program's public answer for the publisher, the agent's
-// visibility, the reader and their organizations, and the reader's star.
+// Publisher Earnings' run-setup line and the star ask after a hosted run,
+// against a registry that answers the reads the site's rules make: the
+// program's public answer for the publisher, the agent's visibility, the
+// reader and their organizations, and the reader's star.
 package main
 
 import (

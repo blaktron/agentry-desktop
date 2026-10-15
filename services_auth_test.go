@@ -10,7 +10,7 @@ import (
 )
 
 // A browser sign-in that the user abandons must end at once, say so, and
-// leave the app ready for the next attempt (agentry-desktop#24).
+// leave the app ready for the next attempt.
 func TestBrowserSignInCancel(t *testing.T) {
 	opened := make(chan string, 2)
 	s := &SettingsAPI{app: &App{ctx: context.Background()}, open: func(u string) error { opened <- u; return nil }}
@@ -74,11 +74,11 @@ func TestBrowserSignInCancel(t *testing.T) {
 	}
 }
 
-// The scopes a browser sign-in asks for (plan hosted-runs.md §6, agentry
-// #348): everything the app's surfaces used before, plus run:read and
-// run:write for a run In Agentry. The registry mints from its own fixed
-// set, so this is what the app asks for — and what a token lacks is what
-// HostedAvailability reports back as the reason In Agentry is unavailable.
+// The scopes a browser sign-in asks for: everything the app's surfaces used
+// before, plus run:read and run:write for a run In Agentry. The registry
+// mints from its own fixed set, so this is what the app asks for — and what
+// a token lacks is what HostedAvailability reports back as the reason In
+// Agentry is unavailable.
 func TestAuthorizeURLAsksForTheRunScopes(t *testing.T) {
 	opened := make(chan string, 1)
 	s := &SettingsAPI{app: &App{ctx: context.Background()}, open: func(u string) error { opened <- u; return nil }}

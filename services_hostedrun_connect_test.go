@@ -13,8 +13,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 )
 
-// OAuth connections M9 (agentry-desktop#667; plan mcp-oauth-connections.md
-// D5, D19): run create's 409 connection-missing drives the ask, as
+// OAuth connections: run create's 409 connection-missing drives the ask, as
 // secret-missing does; the app opens the site's Connect tools for the
 // version it runs and makes the same create again until Agentry holds the
 // connection, then the run starts, its inputs uploaded once. The app never
@@ -308,7 +307,7 @@ func TestOpenHostedConnectOpensTheSitesConnectToolsForTheVersion(t *testing.T) {
 	if !reflect.DeepEqual(opened, want) {
 		t.Fatalf("opened %v, want %v", opened, want)
 	}
-	// Settings' URL rule (D-039), and an exact version, before anything opens.
+	// Settings' URL rule, and an exact version, before anything opens.
 	for _, c := range [][2]string{{"http://registry.example", "acme/linear@0.1.0"}, {"https://registry.example", "acme/linear"}} {
 		if err := r.OpenHostedConnect(c[0], c[1]); err == nil {
 			t.Fatalf("OpenHostedConnect(%q, %q) opened", c[0], c[1])

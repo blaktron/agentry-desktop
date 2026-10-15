@@ -1,9 +1,8 @@
 package main
 
-// Unsafe Mode live (agentry-desktop#418; plan unsafe-mode.md M3's
-// end-to-end check as an executable): the bound methods driven as the page
-// drives them, against a real registry, this machine's docker and a real
-// model, with the person's part (the native dialog, the file picker)
+// Unsafe Mode live, as an end-to-end check: the bound methods driven as the
+// page drives them, against a real registry, this machine's docker and a
+// real model, with the person's part (the native dialog, the file picker)
 // answered by the test. Skipped unless AGENTRY_LIVE_UNSAFE=1, because it
 // pulls the Unsafe Mode image, builds an exec image from Kali's repository
 // and PyPI, and spends model tokens:
@@ -18,9 +17,9 @@ package main
 //
 // It refuses to run on the person's own settings: both directories must be
 // named, so the switch it turns on is never the real desktop.yaml's. The
-// model key is the one the policy's apiKeyEnv names, in the environment.
-// The registry and release default to production's
-// blaktron/binary-reverse-engineer@0.1.0, the QuickAgent the plan was
+// model key is the one the policy's apiKeyEnv names, in the environment. The
+// registry and release default to production's
+// blaktron/binary-reverse-engineer@0.1.0, the QuickAgent the check was
 // written for (AGENTRY_LIVE_UNSAFE_REGISTRY, AGENTRY_LIVE_UNSAFE_REF).
 //
 // What it holds: with the switch off the run is refused by the exec
@@ -107,7 +106,7 @@ func TestLiveUnsafeMode(t *testing.T) {
 		dialogs = append(dialogs, title+"\n"+message)
 		return answer, nil
 	}}
-	app.markPicked(input, outRoot) // what the native pickers record (D-030)
+	app.markPicked(input, outRoot) // what the native pickers record
 	r := &RunAPI{app: app}
 	runIt := func(name string) (*RunResultView, error) {
 		out := filepath.Join(outRoot, name)
@@ -198,8 +197,8 @@ func TestLiveUnsafeMode(t *testing.T) {
 
 // ghidraRan reads the run's event receipt for a run_command call of
 // analyzeHeadless that Ghidra answered with an import report. The receipt's
-// other files name analyzeHeadless whatever the agent did (the plan's
-// allowlist, the task), so only a call and its answer count.
+// other files name analyzeHeadless whatever the agent did (the allowlist,
+// the task), so only a call and its answer count.
 func ghidraRan(t *testing.T, receiptsDir string) bool {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(receiptsDir, "events.ndjson")) //nolint:gosec // the run's own folder

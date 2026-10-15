@@ -1,25 +1,22 @@
-// VoiceAPI: the Voice page (plan writing-voice.md §8, D6, D11, D12;
-// agentry-desktop#510, D-054; reshaped by plan voice-page-redesign.md §4,
-// §7, §8, agentry-desktop#610, D-063). A person keeps a Writing Voice in
-// two places, never synced on their own: this computer's (the CLI's local
-// store, free, never reviewed) and, signed in, the account's (reviewed by
-// AI Review before it is live). Upload to Cloud (Submit) sends this
-// computer's up for review; Download Cloud version (UseAccount) keeps the
-// account's live one here, each warning first when it would put an older
-// voice over a newer one (D2). Edit with AI (WriteWithAI) runs the Voice
-// Writer on this computer for no credits: an AI Edit with a note and
-// optional samples, or a Create where this computer keeps no voice. The
-// Cloud Voice page (agentry-desktop#611) is the site's Voice settings page:
-// the account's editor, Discard of a pending version, Restore previous,
-// Delete, and Edit with AI run In Agentry (HostedWithAI) as a hosted run at
-// the registry's flat price (agentry-enterprise#306).
+// VoiceAPI: the Voice page. A person keeps a Writing Voice in two places,
+// never synced on their own: this computer's (the CLI's local store, free,
+// never reviewed) and, signed in, the account's (reviewed by AI Review
+// before it is live). Upload to Cloud (Submit) sends this computer's up for
+// review; Download Cloud version (UseAccount) keeps the account's live one
+// here, each warning first when it would put an older voice over a newer
+// one. Edit with AI (WriteWithAI) runs the Voice Writer on this computer for
+// no credits: an AI Edit with a note and optional samples, or a Create where
+// this computer keeps no voice. The Cloud Voice page is the site's Voice
+// settings page: the account's editor, Discard of a pending version, Restore
+// previous, Delete, and Edit with AI run In Agentry (HostedWithAI) as a
+// hosted run at the registry's flat price.
 //
-// The gates are the Knowledge panel's (D-030): samples come only from the
-// native pickers; a download over a different voice here, an upload after
-// a newer version in the account, a Discard and both Deletes are asked in
-// a native dialog (a Save or a Voice Writer run replaces this computer's
-// voice at the person's own press, as the page says beside it); and a
-// Voice Writer run here takes the run lock.
+// The gates are the Knowledge panel's: samples come only from the native
+// pickers; a download over a different voice here, an upload after a newer
+// version in the account, a Discard and both Deletes are asked in a native
+// dialog (a Save or a Voice Writer run replaces this computer's voice at the
+// person's own press, as the page says beside it); and a Voice Writer run
+// here takes the run lock.
 package main
 
 import (
@@ -81,7 +78,7 @@ type VoiceView struct {
 	ReviewCredits int64 `json:"reviewCredits"`
 	AttachEnabled bool  `json:"attachEnabled"`
 	// Sync is how this computer's voice stands against the account's, for
-	// Download Cloud version and Upload to Cloud (D2).
+	// Download Cloud version and Upload to Cloud.
 	Sync voice.Sync `json:"sync"`
 }
 
@@ -107,7 +104,7 @@ func (v *VoiceAPI) View(reg string) (*VoiceView, error) {
 		out.AccountOffered, out.Account, out.Sync = true, a, voice.SyncOf(local, a)
 	}
 	// The token is found by host alone: the status route is asked only at a
-	// URL Settings' rule admits (agentry-desktop#307's lesson).
+	// URL Settings' rule admits.
 	if out.AccountOffered && settings.ValidateURL(reg) == nil {
 		if st, err := hostedrun.New(reg, e.TokenFor(reg)).Status(ctx); err == nil && st.VoiceBuild != nil {
 			out.ReviewCredits, out.AttachEnabled = st.VoiceBuild.AIReviewCredits, st.VoiceBuild.Attach.Enabled
@@ -117,7 +114,7 @@ func (v *VoiceAPI) View(reg string) (*VoiceView, error) {
 }
 
 // VoiceSaveView is a voice kept on this computer, and whether it was the
-// first, which is now on for every run here (D11).
+// first, which is now on for every run here.
 type VoiceSaveView struct {
 	Voice   *voice.Local `json:"voice"`
 	Created bool         `json:"created"`
@@ -161,8 +158,8 @@ var ErrAlreadyTheSame = errors.New("already the same: this computer and your acc
 
 // Submit is Upload to Cloud: it sends this computer's voice to the account
 // for review, asking first in a native dialog when the account's newest
-// version was set after this computer's voice was saved (D2). Nothing on
-// this computer changes.
+// version was set after this computer's voice was saved. Nothing on this
+// computer changes.
 func (v *VoiceAPI) Submit(reg string) (*voice.Account, error) {
 	reg = settings.Normalize(reg)
 	ctx := v.app.ctx
@@ -187,8 +184,8 @@ func (v *VoiceAPI) Submit(reg string) (*voice.Account, error) {
 	return e.Submit(ctx, reg)
 }
 
-// uploadWarning is Upload to Cloud's native confirm (plan §8, D2): asked
-// only when the account's newest version is the newer one.
+// uploadWarning is Upload to Cloud's native confirm: asked only when the
+// account's newest version is the newer one.
 func uploadWarning(here *voice.Local, a *voice.Account, s voice.Sync, credits int64) (title, msg string, ask bool) {
 	if !s.AccountAfterLocal {
 		return "", "", false
@@ -203,11 +200,11 @@ func uploadWarning(here *voice.Local, a *voice.Account, s voice.Sync, credits in
 			confirmStamp(a.Newest().CreatedAt), confirmStamp(t), cost), true
 }
 
-// downloadWarning is Download Cloud version's native confirm (plan §8, D2),
-// which folds in the confirm Use always asked before it replaced a
-// different voice here: asked when it would replace one, worded for a voice
-// here saved after the live version, and saying so when a newer version is
-// in review in the account.
+// downloadWarning is Download Cloud version's native confirm, which folds in
+// the confirm Use always asked before it replaced a different voice here:
+// asked when it would replace one, worded for a voice here saved after the
+// live version, and saying so when a newer version is in review in the
+// account.
 func downloadWarning(here *voice.Local, a *voice.Account, s voice.Sync) (title, msg string, ask bool) {
 	replaces := here.Exists && !s.DownloadSame
 	inReview := ""
@@ -233,9 +230,9 @@ func downloadWarning(here *voice.Local, a *voice.Account, s voice.Sync) (title, 
 func confirmStamp(t time.Time) string { return t.Local().Format("2 Jan 15:04") }
 
 // reviewCredits is what AI Review of a voice costs at reg (the runs status
-// route's voiceBuild.aiReviewCredits); 0 where it charges nothing or did
-// not say. The token is found by host alone, so the URL is held to
-// Settings' rule before it is looked up (agentry-desktop#307's lesson).
+// route's voiceBuild.aiReviewCredits); 0 where it charges nothing or did not
+// say. The token is found by host alone, so the URL is held to Settings'
+// rule before it is looked up.
 func (v *VoiceAPI) reviewCredits(ctx context.Context, reg string) int64 {
 	if settings.ValidateURL(reg) != nil {
 		return 0
@@ -283,9 +280,9 @@ func (v *VoiceAPI) SetAccountAttach(reg string, on bool) (*voice.Account, error)
 	return v.env().SetAccountAttach(v.app.ctx, settings.Normalize(reg), on)
 }
 
-// DiscardAccount drops the account's pending version, in review or
-// flagged, after a native dialog (the Cloud Voice page's Discard, plan
-// voice-page-redesign.md §5.2, D5). The live voice stays live.
+// DiscardAccount drops the account's pending version, in review or flagged,
+// after a native dialog (the Cloud Voice page's Discard). The live voice
+// stays live.
 func (v *VoiceAPI) DiscardAccount(reg string) (*voice.Account, error) {
 	if err := v.app.askConsent("Discard your new version?",
 		"This drops the version of your voice waiting in your account, in review or flagged by AI Review. Your live voice, if you have one, stays live. "+
@@ -340,9 +337,8 @@ func voiceJob(job string) (build.Job, error) {
 
 // checkVoiceJob holds a job's samples and brief to the rule both places
 // share: Create and Improve take samples, an AI Edit a note and samples if
-// the person adds some (agentry-cli#605, agentry-enterprise#388), and a
-// brief or a note is at most 4 KiB. Every sample is one a native picker
-// returned.
+// the person adds some, and a brief or a note is at most 4 KiB. Every sample
+// is one a native picker returned.
 func (v *VoiceAPI) checkVoiceJob(job build.Job, samples []string, brief string) error {
 	switch {
 	case job == build.Edit && strings.TrimSpace(brief) == "":
@@ -397,11 +393,11 @@ func (v *VoiceAPI) Write(reg, job string, samples []string, brief string) (*voic
 	return res, err
 }
 
-// WriteWithAI is the Edit with AI dialog on the Local Voice page (plan
-// voice-page-redesign.md §7, D3): the Voice Writer on this computer, for no
-// credits. Where this computer keeps a voice it is an AI Edit, the text
-// being what should change and the samples optional; where it keeps none it
-// is a Create, the samples required and the text read as the brief.
+// WriteWithAI is the Edit with AI dialog on the Local Voice page: the Voice
+// Writer on this computer, for no credits. Where this computer keeps a voice
+// it is an AI Edit, the text being what should change and the samples
+// optional; where it keeps none it is a Create, the samples required and the
+// text read as the brief.
 func (v *VoiceAPI) WriteWithAI(reg, text string, samples []string) (*voice.BuildResult, error) {
 	reg = settings.Normalize(reg)
 	here, err := v.env().Local(v.app.ctx, reg)
@@ -465,7 +461,7 @@ type VoiceHostedAvailabilityView struct {
 func (v *VoiceAPI) HostedAvailability(reg, job string) (*VoiceHostedAvailabilityView, error) {
 	reg = settings.Normalize(reg)
 	// The token is found by host alone: the URL is held to Settings' rule
-	// before it is looked up (agentry-desktop#307's lesson).
+	// before it is looked up.
 	if err := settings.ValidateURL(reg); err != nil {
 		return nil, fmt.Errorf("the registry: %w", err)
 	}
@@ -604,8 +600,8 @@ func (v *VoiceAPI) StartHosted(reg, job string, samples []string, brief string) 
 	} else {
 		req.Brief = strings.TrimSpace(brief)
 	}
-	// An AI Edit's samples are optional (agentry-enterprise#388); Create's
-	// and Improve's were checked present above.
+	// An AI Edit's samples are optional; Create's and Improve's were checked
+	// present above.
 	if len(samples) > 0 {
 		files, err := hostedrun.StageDocuments(samples)
 		if err != nil {
@@ -640,12 +636,11 @@ func voiceRefusal(r *hostedrun.Refusal) *VoiceHostedStartView {
 	return out
 }
 
-// HostedWithAI is Edit with AI on the Cloud Voice page (plan
-// voice-page-redesign.md §4.3, §7, D3): the Voice Writer In Agentry at the
-// registry's flat price. Where the account keeps a voice it is an AI Edit
-// of its newest version, the text being what should change and the samples
-// optional; where it keeps none it is a Create, the samples required and
-// the text read as the brief (accountJob).
+// HostedWithAI is Edit with AI on the Cloud Voice page: the Voice Writer In
+// Agentry at the registry's flat price. Where the account keeps a voice it
+// is an AI Edit of its newest version, the text being what should change and
+// the samples optional; where it keeps none it is a Create, the samples
+// required and the text read as the brief (accountJob).
 func (v *VoiceAPI) HostedWithAI(reg, text string, samples []string) (*VoiceHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	a, err := v.env().Account(v.app.ctx, reg)
@@ -702,11 +697,10 @@ func (v *VoiceAPI) followHosted(reg, token string, started *hostedrun.Run) {
 	}()
 }
 
-// AttachHosted follows this account's Voice Writer run In Agentry in
-// flight, if it has one, so a Cloud Voice page opened again (left and
-// reopened, or after a restart) shows it and its Cancel rather than
-// offering a second. The URL is held to Settings' rule before its token is
-// looked up (agentry-desktop#307's lesson).
+// AttachHosted follows this account's Voice Writer run In Agentry in flight,
+// if it has one, so a Cloud Voice page opened again (left and reopened, or
+// after a restart) shows it and its Cancel rather than offering a second.
+// The URL is held to Settings' rule before its token is looked up.
 func (v *VoiceAPI) AttachHosted(reg string) (*VoiceHostedStartView, error) {
 	reg = settings.Normalize(reg)
 	if err := settings.ValidateURL(reg); err != nil {
@@ -747,8 +741,8 @@ func (v *VoiceAPI) AttachHosted(reg string) (*VoiceHostedStartView, error) {
 }
 
 // CancelHosted asks the registry to cancel the Voice Writer run In Agentry
-// this app follows (D-022: the registry stops it; the app never drives it).
-// What it held is settled as the registry settles a cancelled run.
+// this app follows (the registry stops it, the app never drives it). What it
+// held is settled as the registry settles a cancelled run.
 func (v *VoiceAPI) CancelHosted() (*VoiceHostedView, error) {
 	cur := v.hosted.current()
 	if cur == nil || cur.id == "" {

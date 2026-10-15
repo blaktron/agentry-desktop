@@ -1,15 +1,13 @@
-// Review Your QuickAgents locally (agentry-desktop#469; plan
-// desktop-review-key-and-run-cards.md §6.3, D19, D20, D24, D25, D28): on the
-// Build tab's summary and on Validate, a click runs the built-in Examiner
-// over the QuickAgent in a folder the person picked, on this computer, with
-// their own TypeSafe key and their runner policy's model, after a native
-// dialog that says where its text goes. It is a local job under the run
-// lock, followed in the progress dialog and corner card every job has, and
-// stopped only by its own Stop. Its report is written to a folder of its
-// own beside the run's receipts; the page shows it, and Dismiss makes the
-// app forget the folder, as for a run. Submit is never held or changed by
-// it: the registry scans again at Submit, and its answer is the one that
-// counts.
+// Review Your QuickAgents locally: on the Build tab's summary and on
+// Validate, a click runs the built-in Examiner over the QuickAgent in a
+// folder the person picked, on this computer, with their own TypeSafe key
+// and their runner policy's model, after a native dialog that says where its
+// text goes. It is a local job under the run lock, followed in the progress
+// dialog and corner card every job has, and stopped only by its own Stop.
+// Its report is written to a folder of its own beside the run's receipts;
+// the page shows it, and Dismiss makes the app forget the folder, as for a
+// run. Submit is never held or changed by it: the registry scans again at
+// Submit, and its answer is the one that counts.
 package main
 
 import (
@@ -58,12 +56,12 @@ func (b *BuildAPI) ReviewStatus() (*ReviewStatusView, error) {
 
 // ReviewLocally reviews the QuickAgent in dir with the built-in Examiner on
 // this computer, in this order:
-//  1. dir must be a folder the native picker gave (D-030), once links are
-//     resolved, since its files leave this computer (agentry-desktop#274).
+//  1. dir must be a folder the native picker gave, once links are
+//     resolved, since its files leave this computer.
 //  2. Without the person's own Jev key it refuses, saying where to add one,
-//     and nothing leaves this computer (D28).
+//     and nothing leaves this computer.
 //  3. A native dialog asks, saying where the QuickAgent's text goes
-//     (D-030: the page's click is not the consent). A No reviews nothing
+//     (the page's click is not the consent). A No reviews nothing
 //     and returns nil.
 //  4. Under the run lock, as the run in flight, the registry's rules run
 //     here, the Examiner runs over a read-only copy, and the report is

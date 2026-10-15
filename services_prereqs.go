@@ -18,7 +18,7 @@ type PrereqView struct {
 	Command     string `json:"command,omitempty"`
 	DownloadURL string `json:"downloadUrl"`
 	Note        string `json:"note,omitempty"`
-	// State is run.State*: what the card shows and offers (agentry-desktop#64).
+	// State is run.State*: what the card shows and offers.
 	State           string `json:"state"`
 	EngineInstalled bool   `json:"engineInstalled"`
 	InDockerGroup   bool   `json:"inDockerGroup"`
@@ -40,9 +40,9 @@ func (r *RunAPI) PrereqStatus() (*PrereqView, error) {
 	return prereqView(run.DetectPrereqs(r.app.ctx)), nil
 }
 
-// AddToDockerGroup runs only the usermod half of the install through
-// pkexec, for a machine where the engine landed but the membership did
-// not; detection afterwards says pendingRestart (agentry-desktop#64).
+// AddToDockerGroup runs only the usermod half of the install through pkexec,
+// for a machine where the engine landed but the membership did not;
+// detection afterwards says pendingRestart.
 func (r *RunAPI) AddToDockerGroup() (*PrereqView, error) {
 	if err := r.app.askConsent("Add your account to the docker group?", "This grants your account control of the Docker daemon, which is root-equivalent on this machine. An elevation prompt follows. Continue?"); err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (r *RunAPI) AddToDockerGroup() (*PrereqView, error) {
 // if polkit refuses). The page confirms first; the app never runs as root.
 func (r *RunAPI) RestartNow() error {
 	// The page confirms first; so does the OS, in a dialog the page cannot
-	// answer (D-030): a reboot is not a thing script in the webview gets.
+	// answer: a reboot is not a thing script in the webview gets.
 	if err := r.app.askConsent("Restart this machine now?", "Anything unsaved in other applications will be lost. Restart?"); err != nil {
 		return err
 	}

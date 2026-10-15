@@ -87,9 +87,9 @@ func startRun(t *testing.T, r *RunAPI, f *fakeEngine) (run.Request, chan error) 
 	return run.Request{}, nil
 }
 
-// §9 "teardown on every path": quitting mid-run cancels the run, and the
-// engine's teardown, then the label sweep, have both happened before
-// shutdown returns — the process does not exit under a live run.
+// Teardown on every path: quitting mid-run cancels the run, and the engine's
+// teardown, then the label sweep, have both happened before shutdown returns
+// — the process does not exit under a live run.
 func TestQuittingMidRunTearsDownBeforeShutdownReturns(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
@@ -116,8 +116,8 @@ func TestQuittingMidRunTearsDownBeforeShutdownReturns(t *testing.T) {
 	}
 }
 
-// A draft's repair turn runs under its own run id (#395): it is recorded for
-// the crash path while it runs, and quitting sweeps it with the run's own.
+// A draft's repair turn runs under its own run id: it is recorded for the
+// crash path while it runs, and quitting sweeps it with the run's own.
 func TestARepairTurnIsSweptWithTheRun(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
@@ -207,9 +207,8 @@ func recorded(r *RunAPI, id string) bool {
 	return err == nil
 }
 
-// A run in flight is recorded under its id for the crash path
-// (agentry-desktop#198) from before the engine starts, and the record goes
-// when the engine has returned.
+// A run in flight is recorded under its id for the crash path from before
+// the engine starts, and the record goes when the engine has returned.
 func TestARunIsRecordedWhileInFlight(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
@@ -269,9 +268,9 @@ func goneOwner(t *testing.T) int {
 	return cmd.Process.Pid
 }
 
-// The leftovers sweep runs at quit as well as at start (agentry-desktop#463,
-// plan §5.4): with nothing live, quitting sweeps what a dead app left and
-// what an earlier run of this app left, and never another live app's run.
+// The leftovers sweep runs at quit as well as at start: with nothing live,
+// quitting sweeps what a dead app left and what an earlier run of this app
+// left, and never another live app's run.
 func TestQuittingSweepsLeftoversWithNothingLive(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
@@ -355,12 +354,12 @@ func (c *fakeChat) End(_ context.Context, finish bool) (*run.Result, error) {
 	return &run.Result{RunID: c.id}, nil
 }
 
-// Quitting with a chat started (the case the quit path's tests lacked,
-// agentry-desktop#463): the chat is ended, without asking the QuickAgent for
-// a final result, which is where the engine writes its receipts as far as
-// it got and tears its sandbox down; then its run id is swept, and nothing
-// of it is left recorded. The engine's half, the receipts on disk, is
-// internal/run's TestAChatEndedByQuittingHasItsReceiptsAndLeavesNothing.
+// Quitting with a chat started (a case the quit path must cover): the chat
+// is ended, without asking the QuickAgent for a final result, which is where
+// the engine writes its receipts as far as it got and tears its sandbox
+// down; then its run id is swept, and nothing of it is left recorded. The
+// engine's half, the receipts on disk, is internal/run's
+// TestAChatEndedByQuittingHasItsReceiptsAndLeavesNothing.
 func TestQuittingWithAChatStartedEndsItThenSweeps(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)
@@ -401,8 +400,8 @@ func leaveScratch(t *testing.T, r *RunAPI, id string) string {
 }
 
 // A run whose engine returned without deleting its files (Docker Desktop
-// still held one, agentry-cli#422) is not forgotten with them on disk: they
-// are tried again when the run ends, and the record goes with them.
+// still held one) is not forgotten with them on disk: they are tried again
+// when the run ends, and the record goes with them.
 func TestARunsFilesAreRemovedWhenItEnds(t *testing.T) {
 	f := &fakeEngine{started: make(chan run.Request, 1)}
 	r := newQuitAPI(t, f, nil)

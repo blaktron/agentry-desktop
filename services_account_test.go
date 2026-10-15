@@ -13,9 +13,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The account on Settings (agentry-desktop#74): the credential's user;
-// the subscription only where the registry mounts the billing extension;
-// Upgrade opens the site's subscription page for the registry.
+// The account on Settings: the credential's user; the subscription only
+// where the registry mounts the billing extension; Upgrade opens the site's
+// subscription page for the registry.
 func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 	billing := false
 	mux := http.NewServeMux()
@@ -62,7 +62,7 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 		t.Fatalf("subscription = %+v", sub)
 	}
 	// The destination is the registry's answer, never a path this app
-	// builds (agentry-enterprise#41, D28).
+	// builds.
 	if sub.Upgrade.URL != srv.URL+"/settings/subscription" || !sub.Upgrade.Available {
 		t.Fatalf("upgrade = %+v", sub.Upgrade)
 	}
@@ -77,8 +77,8 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 	}
 
 	// A member of an organization: the account answered is the
-	// organization's, so the tier is its tier, the balance its pool's,
-	// and the page is its console — not this person's own (D22).
+	// organization's, so the tier is its tier, the balance its pool's, and
+	// the page is its console — not this person's own.
 	userDoc = `{"id":"00000000-0000-0000-0000-000000000002","handle":"chris","email":"c@example.test","displayName":"Chris","emailVerified":true,"totpEnabled":false,"createdAt":"2026-01-02T03:04:05Z","orgs":[{"handle":"acme","role":"admin","state":"active"}]}`
 	accountDoc = `{"kind":"org","tier":"business","standing":"active","memberOf":"acme","seats":{"used":3,"max":10},"balance":3960,"allowance":5000,"submissionCost":10,"periodStart":"2026-09-11T00:00:00Z","periodEnd":"2026-10-11T00:00:00Z","tierSince":"2026-09-11T00:00:00Z","privateAgents":{"max":0,"used":4},"upgrade":{"available":false,"manage":false,"url":"` + srv.URL + `/orgs/acme/admin"}}`
 	sub, err = fetchSubscription(ctx, srv.URL, "agy_test")
@@ -143,7 +143,7 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	// The keychain in memory: StoreToken writes it first, and the real one
 	// would keep agy_test under 127.0.0.1:<port> after the test, where a
-	// later test's server on the same port reads it (agentry-desktop#497).
+	// later test's server on the same port reads it.
 	keyring.MockInit()
 	if _, err := settings.StoreToken(srv.URL, "agy_test"); err != nil {
 		t.Fatal(err)
@@ -157,9 +157,8 @@ func TestAccountShowsTheSubscriptionWhereThereIsOne(t *testing.T) {
 }
 
 // A registry that sells nothing still reports the memberships, so the app
-// can say which organization a person belongs to and in what role without
-// a word about tiers (the issue: "a core registry shows the organization
-// and role without tier words").
+// can say which organization a person belongs to and in what role without a
+// word about tiers.
 func TestACoreRegistryStillShowsTheOrganization(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/meta", func(w http.ResponseWriter, _ *http.Request) {
@@ -229,10 +228,9 @@ func TestTheAppOpensOnlyTheRegistrysOwnPage(t *testing.T) {
 	}
 }
 
-// Top up credits (agentry-desktop#511, plan credit-top-ups.md D7): the
-// view carries the registry's packs, and Buy opens the site's card only
-// where packs are offered (or a suspension sends the person to pay), never
-// for a member and never off the registry's origin.
+// Top up credits: the view carries the registry's packs, and Buy opens the
+// site's card only where packs are offered (or a suspension sends the person
+// to pay), never for a member and never off the registry's origin.
 func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
 	var accountDoc string
 	mux := http.NewServeMux()
@@ -327,10 +325,9 @@ func TestTopUpOpensOnlyTheRegistrysOwnCard(t *testing.T) {
 	}
 }
 
-// The hand-rolled /x/ calls set the token themselves, so they hold
-// agentry-desktop#856's rule through the shared client: a registry whose
-// billing route answers 307 to another server gets the refusal, and the
-// other server sees nothing.
+// The hand-rolled /x/ calls set the token themselves, so they hold the
+// shared client's rule: a registry whose billing route answers 307 to
+// another server gets the refusal, and the other server sees nothing.
 func TestTheSubscriptionReadNeverFollowsARedirect(t *testing.T) {
 	var elsewhere int
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -1,17 +1,15 @@
 package main
 
-// Schedules on this computer (plan quickagent-scheduling.md §5, §7, M4;
-// agentry-desktop#743; D-073): the Scheduled page, the run setup's When
-// step, the fires in Recent runs, and the re-seal after a key change.
+// Schedules on this computer: the Scheduled page, the run setup's When step,
+// the fires in Recent runs, and the re-seal after a key change.
 //
 // The CLI owns them. Its store under the runner home is the truth, and each
 // schedule's entry in the system's scheduler pins the agentry binary that
 // wrote it, so every change is the installed agentry command's
 // (internal/schedules): an entry written from this process would name the
-// desktop. What the page shows is read in process from the same store.
-// The page names a schedule by its id and never a path (D-035); the paths
-// a schedule is given come from this session's pickers (D-030), as a run's
-// do.
+// desktop. What the page shows is read in process from the same store. The
+// page names a schedule by its id and never a path; the paths a schedule is
+// given come from this session's pickers, as a run's do.
 
 import (
 	"context"
@@ -45,7 +43,7 @@ const (
 	eventSchedulesReseal = "schedules:reseal"
 )
 
-// lingerSentence is what turning linger on does, in the CLI's words (D17).
+// lingerSentence is what turning linger on does, in the CLI's words.
 const lingerSentence = "Agentry's schedules will start when this computer starts, even if you are not signed in"
 
 // cliTimeout bounds a call that changes or checks a schedule: add's
@@ -59,8 +57,8 @@ const (
 // ScheduleAPI is the Scheduled page's and the When step's.
 type ScheduleAPI struct {
 	app *App
-	// run is the hosted runs' API, whose Knowledge list resolves the packs
-	// a schedule In Agentry attaches (agentry-desktop#745).
+	// run is the hosted runs' API, whose Knowledge list resolves the packs a
+	// schedule In Agentry attaches.
 	run *RunAPI
 	// Seams for tests; nil is this computer's.
 	findCLI  func(ctx context.Context) (*schedules.CLI, error)
@@ -180,8 +178,8 @@ type ScheduleAvailabilityView struct {
 	// LingerOn: schedules already start with this computer, so the
 	// signed-out checkbox asks nothing more.
 	LingerOn bool `json:"lingerOn"`
-	// InstallCLI is the Options menu's entry that installs or reinstalls
-	// the agentry command, "" where the app offers none (D-076).
+	// InstallCLI is the Options menu's entry that installs or reinstalls the
+	// agentry command, "" where the app offers none.
 	InstallCLI string `json:"installCLI,omitempty"`
 }
 
@@ -273,9 +271,8 @@ func calendarRange(from, to string) (time.Time, time.Time, error) {
 	return f, t, nil
 }
 
-// ScheduledCardView is Home's Scheduled card (plan
-// quickagent-scheduling.md §7, D13; agentry-desktop#744, #745): the month's
-// occurrences and the next three to come, on this computer and In Agentry.
+// ScheduledCardView is Home's Scheduled card: the month's occurrences and
+// the next three to come, on this computer and In Agentry.
 type ScheduledCardView struct {
 	// Reason is why this computer cannot schedule a run, when the agentry
 	// command cannot be found: the card says it rather than an empty month.
@@ -296,10 +293,9 @@ type ScheduledCardView struct {
 	Next []CalendarFire `json:"next"`
 }
 
-// cardNext is how many occurrences the Home card lists (D13), and
-// cardAhead how far ahead it looks for them: a year here, so a once
-// schedule months away is still found, and the registry's widest range In
-// Agentry.
+// cardNext is how many occurrences the Home card lists, and cardAhead how
+// far ahead it looks for them: a year here, so a once schedule months away
+// is still found, and the registry's widest range In Agentry.
 const (
 	cardNext        = 3
 	cardAhead       = 366 * 24 * time.Hour
@@ -429,7 +425,7 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 		return err
 	}
 	// A pack is attached by its name in the store, as a run's is: a
-	// path-shaped value would name a folder no picker chose (D-030).
+	// path-shaped value would name a folder no picker chose.
 	for _, k := range req.Knowledge {
 		if err := cliknowledge.ValidName(k); err != nil {
 			return err
@@ -450,8 +446,7 @@ func (s *ScheduleAPI) gates(req *schedules.Request, unsafe bool) error {
 }
 
 // Check is the When step's: whether the schedule req describes could be
-// made, and every gap a fire would meet (D8). It asks nothing and keeps
-// nothing.
+// made, and every gap a fire would meet. It asks nothing and keeps nothing.
 func (s *ScheduleAPI) Check(req schedules.Request) (*schedules.Check, error) {
 	if err := s.gates(&req, unsafeModeOn()); err != nil {
 		return nil, err
@@ -475,11 +470,10 @@ type ScheduleMadeView struct {
 // which pins the version, installs it and writes its alarm.
 //
 // A release that asks for a target host has each host readied first, with
-// the person here (plan runtime-hosts.md D12; agentry-desktop#812): a host
-// key no known_hosts file holds is put to them in a native dialog, and the
-// sign-in, hostSignIns' for that host or the one saved, is kept in the
-// system keychain, where the schedule's fires read it. The command then
-// finds both, and pins the key.
+// the person here: a host key no known_hosts file holds is put to them in a
+// native dialog, and the sign-in, hostSignIns' for that host or the one
+// saved, is kept in the system keychain, where the schedule's fires read it.
+// The command then finds both, and pins the key.
 func (s *ScheduleAPI) Add(req schedules.Request, hostSignIns map[string]run.HostSignIn) (*ScheduleMadeView, error) {
 	unsafe := unsafeModeOn()
 	if err := s.gates(&req, unsafe); err != nil {
@@ -532,7 +526,7 @@ func (s *ScheduleAPI) readyHosts(ctx context.Context, c *schedules.CLI, req sche
 		Picked: s.app.keyFiles.require, Trust: s.app.trustHostKey,
 		Say: func(msg string) { log.Printf("agentry-desktop: schedule %s: %s", req.Ref, msg) },
 		// Only an agentry that readies target hosts pins the key a fire
-		// holds the host to (agentry-cli#863).
+		// holds the host to.
 		Before: func() error {
 			line, err := c.Version(ctx)
 			if err != nil {
@@ -641,8 +635,8 @@ func (s *ScheduleAPI) Pause(id string) error { return s.act("pause", id) }
 // Resume lets a paused schedule run again.
 func (s *ScheduleAPI) Resume(id string) error { return s.act("resume", id) }
 
-// Remove deletes a schedule after a native Yes/No (D-070's rule for what
-// cannot be undone); its runs' folders are kept. A No is no error.
+// Remove deletes a schedule after a native Yes/No (the rule for what cannot
+// be undone); its runs' folders are kept. A No is no error.
 func (s *ScheduleAPI) Remove(id, name string) (bool, error) {
 	if err := s.app.askConsent("Delete the schedule "+name+"?", "It will not run again, and its alarm goes from this computer's scheduler. The folders its runs wrote are kept.\n\nDelete it?"); err != nil {
 		if errors.Is(err, errNotConfirmed) {
@@ -690,9 +684,9 @@ func (s *ScheduleAPI) RunNow(id string) error {
 	return nil
 }
 
-// start rewrites every schedule's alarm from the store once the app is up
-// (plan §5): an entry removed by hand, or written by an older agentry,
-// comes back. Nothing is done where no schedule exists.
+// start rewrites every schedule's alarm from the store once the app is up:
+// an entry removed by hand, or written by an older agentry, comes back.
+// Nothing is done where no schedule exists.
 func (s *ScheduleAPI) start(ctx context.Context) {
 	go func() {
 		st, err := s.store()
@@ -754,12 +748,12 @@ var resealSchedules = func(app *App) {
 	}()
 }
 
-// resealNow seals the keys of every schedule that runs while the
-// person is signed out again, after a key or a sign-in changed in this app
-// (the CLI does it after setup, login and logout; DR-84). What fails is
-// said on the Scheduled page and to the page that made the change, never
-// fatal: the change it follows is made. A schedule whose keys were not
-// sealed again loses the old ones (the command's rule) and shows so.
+// resealNow seals the keys of every schedule that runs while the person is
+// signed out again, after a key or a sign-in changed in this app (the CLI
+// does it after setup, login and logout). What fails is said on the
+// Scheduled page and to the page that made the change, never fatal: the
+// change it follows is made. A schedule whose keys were not sealed again
+// loses the old ones (the command's rule) and shows so.
 func resealNow(app *App) {
 	resealing.Lock()
 	defer resealing.Unlock()

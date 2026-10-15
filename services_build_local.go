@@ -1,11 +1,11 @@
 package main
 
-// The Build tab's Install (agentry-desktop#425, D-049): a QuickAgent that
-// was never published, laid down in the runner home from the folder the
-// person saved it to, through the CLI's local install (DR-52). Private and
-// local: no registry, no pipeline, no credit. What is installed is what
-// `agentry publish` would submit for the folder, held to its integrity
-// record like any release, and unsigned on every run.
+// The Build tab's Install: a QuickAgent that was never published, laid down
+// in the runner home from the folder the person saved it to, through the
+// CLI's local install. Private and local: no registry, no pipeline, no
+// credit. What is installed is what `agentry publish` would submit for the
+// folder, held to its integrity record like any release, and unsigned on
+// every run.
 
 import (
 	"errors"
@@ -35,11 +35,11 @@ type LocalInstallView struct {
 }
 
 // Install lays the QuickAgent in dir down on this computer. dir is the
-// folder Save wrote, which the native picker gave (D-030). The consent is
-// a native dialog the page cannot answer: the contract, and that the
-// install is local and unsigned; a No installs nothing and returns nil. A
-// copy of the same release whose files changed since it was installed is
-// laid down again only on a second Yes.
+// folder Save wrote, which the native picker gave. The consent is a native
+// dialog the page cannot answer: the contract, and that the install is local
+// and unsigned; a No installs nothing and returns nil. A copy of the same
+// release whose files changed since it was installed is laid down again only
+// on a second Yes.
 func (b *BuildAPI) Install(dir string) (*LocalInstallView, error) {
 	if !b.mu.TryLock() {
 		return nil, errBuildBusy

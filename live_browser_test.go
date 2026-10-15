@@ -1,9 +1,9 @@
 package main
 
-// A browser live (agentry-desktop#878; plan browser-testing.md M6): the
-// bound methods driven as the run setup drives them, against this
-// machine's Docker, with a QuickAgent installed from a folder whose url
-// question is its browser's site. Skipped unless AGENTRY_LIVE_BROWSER=1:
+// A browser live: the bound methods driven as the run setup drives them,
+// against this machine's Docker, with a QuickAgent installed from a folder
+// whose url question is its browser's site. Skipped unless
+// AGENTRY_LIVE_BROWSER=1:
 //
 //	AGENTRY_LIVE_BROWSER=1 \
 //	AGENTRY_CONFIG_DIR=<a scratch config dir> \
@@ -15,9 +15,9 @@ package main
 //
 // With AGENTRY_LIVE_BROWSER_MODEL_URL the test writes the runner home's
 // policy from the CLI's defaults with that endpoint as a custom provider
-// (model "stub", key variable AGENTRY_LIVE_BROWSER_KEY), so a scripted
-// model can drive the browser where no real model key answers
-// (agentry-notes#186); without it the runner home's own policy is used.
+// (model "stub", key variable AGENTRY_LIVE_BROWSER_KEY), so a scripted model
+// can drive the browser where no real model key answers; without it the
+// runner home's own policy is used.
 //
 // What it holds: the site question is the browser's, so the answer is in
 // intake.json and nothing under inputs/ was fetched for it; the run's
@@ -44,7 +44,7 @@ name: browser-probe
 namespace: local
 modes: [autonomous]
 version: 0.1.0
-summary: "Opens the site it is given and takes a screenshot (agentry-desktop#878 live check)"
+summary: "Opens the site it is given and takes a screenshot (live check)"
 entrypoints:
   instruction: SKILL.md
 intake:

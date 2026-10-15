@@ -15,10 +15,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/build"
 )
 
-// The renderer is not a principal (D-030; security review 2026-09-20 §8.4,
-// §8.6). A consent the page passes is asked again in a native dialog the
-// page cannot answer, and a path the page names is refused unless a native
-// picker in this process returned it.
+// The renderer is not a principal. A consent the page passes is asked again
+// in a native dialog the page cannot answer, and a path the page names is
+// refused unless a native picker in this process returned it.
 
 func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	asked := []string{}
@@ -27,7 +26,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 		return false, nil // the person says No
 	}}
 	// The consent-free run below reaches beginRun: its crash-path record
-	// (agentry-desktop#198) goes to a temp dir, not the real runner home.
+	// goes to a temp dir, not the real runner home.
 	r := &RunAPI{app: app, runnerHomeDir: t.TempDir()}
 	// A draft reaches its dialog only with a Jev key of the person's, here
 	// the variable's, under a runner home of the test's own.
@@ -48,8 +47,8 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 			_, err := i.Confirm("plan", false, true, true)
 			return err
 		},
-		// Describe it, on this computer (#282): where the description goes is
-		// asked before anything leaves this computer.
+		// Describe it, on this computer: where the description goes is asked
+		// before anything leaves this computer.
 		"BuildAPI.DescribeOnThisComputer": func() error {
 			b := &BuildAPI{app: app, run: r}
 			_, err := b.DescribeOnThisComputer("https://r.example", "Summarize my meeting notes.", nil, nil)
@@ -70,10 +69,10 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	if len(asked) != before {
 		t.Fatalf("a run with no consent flags raised a dialog: %v", asked[before:])
 	}
-	// A declared server the gate rates high runs here only in Unsafe Mode
-	// (agentry-desktop#459, D-055): with the switch off, the page's consent
-	// for one is refused before any dialog, since a Yes could not let it
-	// through, and the page cannot turn the switch on (no binding takes it).
+	// A declared server the gate rates high runs here only in Unsafe Mode:
+	// with the switch off, the page's consent for one is refused before any
+	// dialog, since a Yes could not let it through, and the page cannot turn
+	// the switch on (no binding takes it).
 	before = len(asked)
 	for name, call := range map[string]func() error{
 		"RunAgent": func() error {
@@ -155,10 +154,10 @@ func TestPathsMustComeFromTheNativePicker(t *testing.T) {
 	}
 }
 
-// A target host's key file is chosen in a picker of its own, recorded
-// apart from the run's inputs (agentry-desktop#812): a key picked there is
-// never an input a run stages, and an input picked as one is never a key
-// sent to a host. A cancelled pick records nothing.
+// A target host's key file is chosen in a picker of its own, recorded apart
+// from the run's inputs: a key picked there is never an input a run stages,
+// and an input picked as one is never a key sent to a host. A cancelled pick
+// records nothing.
 func TestAHostKeyPickIsNeverAnInputAndAnInputNeverAKey(t *testing.T) {
 	keyPath := filepath.Join(t.TempDir(), "id_ed25519")
 	app := &App{ctx: context.Background(), confirm: func(context.Context, string, string) (bool, error) { return true, nil }}

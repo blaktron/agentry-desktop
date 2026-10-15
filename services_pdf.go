@@ -18,20 +18,19 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// PDF reports in the run result (plan scratch-and-pdf-reports.md D10, D15,
-// D16; agentry-desktop#730, D-072). A run's export_pdf records each PDF it
-// made in the envelope the engine writes after the run, result.json's
-// `pdfs` block: path, SHA-256, pages, and the theme. A PDF that block lists
-// with the SHA-256 of its bytes opens in the app's viewer (a bundled
-// pdf.js, scripting off) and in the system's PDF viewer; any other PDF in
-// the folder is Save only. The check is Go's, made on the bytes it then
-// hands on, never the page's: RunPDF gives the viewer checked bytes,
-// OpenRunPDF opens a fresh copy of checked bytes (never the file in the
-// run folder, which could be swapped between the check and the open), and
-// SaveRunPDF writes where a native dialog in this process says. Like the
-// rest of the result view's bindings, they take a run id this app produced,
-// and a path inside that run's outputs/ or reports/ that is read with no
-// link at any part of it (readRunFile), nothing else.
+// PDF reports in the run result. A run's export_pdf records each PDF it made
+// in the envelope the engine writes after the run, result.json's `pdfs`
+// block: path, SHA-256, pages, and the theme. A PDF that block lists with
+// the SHA-256 of its bytes opens in the app's viewer (a bundled pdf.js,
+// scripting off) and in the system's PDF viewer; any other PDF in the folder
+// is Save only. The check is Go's, made on the bytes it then hands on, never
+// the page's: RunPDF gives the viewer checked bytes, OpenRunPDF opens a
+// fresh copy of checked bytes (never the file in the run folder, which could
+// be swapped between the check and the open), and SaveRunPDF writes where a
+// native dialog in this process says. Like the rest of the result view's
+// bindings, they take a run id this app produced, and a path inside that
+// run's outputs/ or reports/ that is read with no link at any part of it
+// (readRunFile), nothing else.
 
 // OutputPDFView is what the result view may do with a PDF: Exported is true
 // when the run's envelope lists it with these bytes, and then Pages and
@@ -43,7 +42,7 @@ type OutputPDFView struct {
 }
 
 // maxPDFBytes is the largest PDF the bindings read: export_pdf's own cap on
-// a render (DR-81). maxEnvelopeBytes bounds the read of result.json.
+// a render. maxEnvelopeBytes bounds the read of result.json.
 const (
 	maxPDFBytes      = 64 << 20
 	maxEnvelopeBytes = 8 << 20

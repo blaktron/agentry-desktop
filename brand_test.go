@@ -3,9 +3,9 @@ package main
 // The Agentry mark is drawn in three places this repository ships: the
 // in-app mark (frontend/src/brand.tsx), the app icon's source
 // (build/appicon.svg) and its small-size source (build/appicon-small.svg).
-// They carry the same geometry as the site's lib/brand-mark.ts, the faceted
-// shield with the delta A (agentry-desktop#367); this fails when one drifts
-// or the shield-and-check it replaced comes back.
+// They carry the same geometry as the site's brand mark, the faceted shield
+// with the delta A; this fails when one drifts or the shield-and-check it
+// replaced comes back.
 
 import (
 	"os"

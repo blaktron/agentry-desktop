@@ -13,9 +13,9 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
-// The Build tab's Save, Install and Submit write without a file dialog
-// (agentry-desktop#585, D-060): Go makes a new folder under the default
-// output folder, named for the QuickAgent, and admits it as picked.
+// The Build tab's Save, Install and Submit write without a file dialog: Go
+// makes a new folder under the default output folder, named for the
+// QuickAgent, and admits it as picked.
 
 func saveFolderAPI(t *testing.T) (*BuildAPI, string) {
 	t.Helper()
