@@ -106,6 +106,15 @@ type Model struct {
 	// structured row per server so the form never guesses at a line
 	// syntax.
 	MCPServers []MCPServerRow `json:"mcpServers"`
+	// TargetHosts is capabilities.targetHosts: the host questions whose
+	// answers are machines a run may administer. Browser is
+	// capabilities.browser, nil for none: the url questions whose answers
+	// the run's browser may open, the fixed hosts its pages need, its scope
+	// and the keys it may type. The form has no editor for either and
+	// carries both unchanged from a draft or a load to the next save; a run
+	// without them has no host tools and no browser.
+	TargetHosts []string    `json:"targetHosts"`
+	Browser     *BrowserRow `json:"browser,omitempty"`
 
 	// The knowledge block. The prompt is knowledge.accepts: one plain line
 	// the run setup's Knowledge step shows when the QuickAgent needs a pack
@@ -128,6 +137,20 @@ type Model struct {
 	// HadComments reports that the loaded agent.yaml carried comments,
 	// which a save does not keep. Never written.
 	HadComments bool `json:"hadComments"`
+}
+
+// BrowserRow is capabilities.browser as the form carries it.
+type BrowserRow struct {
+	Sites   []string `json:"sites"`
+	Hosts   []string `json:"hosts"`
+	Scope   string   `json:"scope,omitempty"`
+	Secrets []string `json:"secrets"`
+}
+
+// manifest is the row as the core's type, for the words the install review
+// and consent share.
+func (b *BrowserRow) manifest() *manifest.Browser {
+	return &manifest.Browser{Sites: compact(b.Sites), Hosts: compact(b.Hosts), Scope: manifest.BrowserScope(strings.TrimSpace(b.Scope)), Secrets: compact(b.Secrets)}
 }
 
 // AuthorRow is one authors entry.
@@ -300,7 +323,7 @@ func Default(namespace string) *Model {
 		InstructionFile: defaultInstructionFile, Intake: []IntakeRow{}, InputKinds: []string{},
 		EgressMode: "none", FSRead: "workspace", FSWrite: "none",
 		Tags: []string{}, EgressHosts: []string{}, FSReadPaths: []string{}, FSWritePaths: []string{},
-		ExecCommands: []string{}, Secrets: []string{}, RequiredSecrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{},
+		ExecCommands: []string{}, Secrets: []string{}, RequiredSecrets: []string{}, DataAccess: []string{}, MCPServers: []MCPServerRow{}, TargetHosts: []string{},
 		Authors: []AuthorRow{}, Guide: GuideModel{Prepare: []string{}, Connect: []ConnectRow{}},
 		RuntimeModels: []string{}, RuntimeInterfaces: []string{"claude-skill", "agents-md"},
 		Dependencies: []DependencyRow{}, PublishInclude: []string{},
@@ -489,7 +512,9 @@ func (m *Model) formProblems() []SectionProblem {
 		// A repository or url question asks for an input source the run
 		// fetches: no choices, no secret of its own; the core's V13 warns
 		// on a repository with inputs.kinds that lack code.
-		case "", "text", "file", "repository", "url":
+		// A host question names a target host, which
+		// capabilities.targetHosts lists (the core's V14).
+		case "", "text", "file", "repository", "url", "host":
 		case "choice":
 			if len(compact(q.Choices)) == 0 {
 				add(SectionQuestions, "intake question %s: a choice question needs its choices", id)
@@ -499,7 +524,7 @@ func (m *Model) formProblems() []SectionProblem {
 				add(SectionQuestions, "intake question %s: a secret answer is carried by a key of its own named %s — add it under Files, commands and data", id, strings.ToUpper(id))
 			}
 		default:
-			add(SectionQuestions, "intake question %s: unknown type %q (text, secret, choice, file, repository, url)", id, q.Type)
+			add(SectionQuestions, "intake question %s: unknown type %q (text, secret, choice, file, repository, url, host)", id, q.Type)
 		}
 		if q.Type != "choice" && len(compact(q.Choices)) > 0 {
 			add(SectionQuestions, "intake question %s: choices only apply to a choice question", id)
@@ -960,6 +985,37 @@ func (m *Model) serverLines() []string {
 	return out
 }
 
+// reachLines are capabilities.targetHosts and capabilities.browser, written
+// as they were read. They follow mcpServers so a key the browser may type
+// is declared above it.
+func (m *Model) reachLines() []string {
+	var out []string
+	if th := compact(m.TargetHosts); len(th) > 0 {
+		out = append(out, "  targetHosts: "+seq(th))
+	}
+	b := m.Browser
+	if b == nil {
+		return out
+	}
+	var lines []string
+	if s := compact(b.Sites); len(s) > 0 {
+		lines = append(lines, "    sites: "+seq(s))
+	}
+	if h := compact(b.Hosts); len(h) > 0 {
+		lines = append(lines, "    hosts: "+seq(h))
+	}
+	if sc := strings.TrimSpace(b.Scope); sc != "" {
+		lines = append(lines, "    scope: "+q(sc))
+	}
+	if sec := compact(b.Secrets); len(sec) > 0 {
+		lines = append(lines, "    secrets: "+seq(sec))
+	}
+	if len(lines) == 0 {
+		return append(out, "  browser: {}")
+	}
+	return append(append(out, "  browser:"), lines...)
+}
+
 // declaredSecrets is every key the QuickAgent declares, its own then each
 // server's, each once, in the form's order.
 func (m *Model) declaredSecrets() []string {
@@ -1133,6 +1189,7 @@ func (m *Model) manifestYAML() string {
 	caps := append([]string{"capabilities:"}, m.networkLines()...)
 	caps = append(caps, m.accessLines()...)
 	caps = append(caps, m.serverLines()...)
+	caps = append(caps, m.reachLines()...)
 	block(append(caps, m.optionalLines()...))
 	block(m.knowledgeLines())
 	block(m.dependencyLines())
@@ -1363,8 +1420,15 @@ func decodeManifest(raw []byte) (*Model, error) {
 			Exec            yaml.Node `yaml:"exec"`
 			Secrets         []string  `yaml:"secrets"`
 			OptionalSecrets []string  `yaml:"optionalSecrets"`
-			DataAccess      []string  `yaml:"dataAccess"`
-			MCPServers      []struct {
+			TargetHosts     []string  `yaml:"targetHosts"`
+			Browser         *struct {
+				Sites   []string `yaml:"sites"`
+				Hosts   []string `yaml:"hosts"`
+				Scope   string   `yaml:"scope"`
+				Secrets []string `yaml:"secrets"`
+			} `yaml:"browser"`
+			DataAccess []string `yaml:"dataAccess"`
+			MCPServers []struct {
 				NPM     string            `yaml:"npm"`
 				PyPI    string            `yaml:"pypi"`
 				URL     string            `yaml:"url"`
@@ -1460,6 +1524,10 @@ func decodeManifest(raw []byte) (*Model, error) {
 	m.FSRead, m.FSReadPaths = decodeFS(doc.Capabilities.Filesystem.Read)
 	m.FSWrite, m.FSWritePaths = decodeFS(doc.Capabilities.Filesystem.Write)
 	m.ExecCommands = decodeExec(doc.Capabilities.Exec)
+	m.TargetHosts = orEmpty(doc.Capabilities.TargetHosts)
+	if b := doc.Capabilities.Browser; b != nil {
+		m.Browser = &BrowserRow{Sites: orEmpty(b.Sites), Hosts: orEmpty(b.Hosts), Scope: b.Scope, Secrets: orEmpty(b.Secrets)}
+	}
 	for i, srv := range doc.Capabilities.MCPServers {
 		if err := heldWhole(i, srv.NPM, srv.PyPI, srv.URL, strings.TrimSpace(srv.Auth), srv.Version, srv.Scopes, srv.Secrets, srv.Egress, len(srv.Env) > 0, srv.OAuth != nil); err != nil {
 			return nil, err

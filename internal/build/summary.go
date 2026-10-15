@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
@@ -218,6 +219,18 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	}
 	if data := compact(m.DataAccess); len(data) > 0 {
 		s.Grants = append(s.Grants, "Touches these kinds of data: "+strings.Join(data, ", ")+".")
+	}
+	// The site's words (lib/builder-summary.ts) for a target host, and the
+	// install review's for where a browser may go.
+	if ids := compact(m.TargetHosts); len(ids) > 0 {
+		which := "a server (" + ids[0] + ")"
+		if len(ids) > 1 {
+			which = fmt.Sprintf("%d servers (%s)", len(ids), strings.Join(ids, ", "))
+		}
+		s.Grants = append(s.Grants, "Asks for "+which+" when it runs, and can run any command there as the account the person signs in with, on their own computer only.")
+	}
+	if b := m.Browser; b != nil {
+		s.Grants = append(s.Grants, "Opens these in a headless browser it drives: "+mcpview.BrowserReach(b.manifest())+".")
 	}
 	// The site's words (lib/builder-summary.ts).
 	if ships := compact(m.KnowledgeShips); len(ships) > 0 {
