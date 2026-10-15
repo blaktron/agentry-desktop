@@ -403,7 +403,15 @@ func ValidateURL(regURL string) error {
 
 // TokenFor resolves the PAT for a registry: the OS keychain first, then the
 // settings-file fallback. Empty means anonymous.
+//
+// A URL ValidateURL refuses gets no token. The keychain keys a token by host
+// alone, so without this an http:// spelling of a signed-in https registry,
+// which a page can pass, would be handed that registry's token to send in
+// clear.
 func TokenFor(regURL string) string {
+	if ValidateURL(regURL) != nil {
+		return ""
+	}
 	host, err := Host(regURL)
 	if err == nil {
 		if token, err := keyring.Get(KeyringService, host); err == nil && token != "" {

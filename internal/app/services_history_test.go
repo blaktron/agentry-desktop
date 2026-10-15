@@ -506,8 +506,11 @@ func TestTheRunPagesHostedReadsHoldToTheURLRule(t *testing.T) {
 	if err := settings.Save(s); err != nil {
 		t.Fatal(err)
 	}
-	if settings.TokenFor(reg) == "" {
+	if s, _ := settings.Load(); s.Find(reg) == nil || s.Find(reg).Token == "" {
 		t.Fatal("the test's token was not kept")
+	}
+	if settings.TokenFor(reg) != "" {
+		t.Fatal("a token was handed out for an http registry off this machine")
 	}
 	r := &RunAPI{app: &App{ctx: context.Background()}}
 	id := "22222222-2222-2222-2222-222222222222"

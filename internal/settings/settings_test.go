@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/blaktron/agentry-cli/pkg/configdir"
 	"github.com/blaktron/agentry-cli/pkg/runner/localrun"
 	"github.com/blaktron/agentry-cli/pkg/runner/policy"
@@ -226,6 +228,38 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 	for _, b := range localrun.Builtins() {
 		if got := BuiltinBudgets(b, pol); got != noLimit {
 			t.Errorf("%s with the switch turned on again: %+v", b.Ref(), got)
+		}
+	}
+}
+
+// A token goes to no URL ValidateURL refuses: the keychain keys it by host,
+// so an http:// spelling of a signed-in https registry gets nothing, from the
+// keychain or the settings file, while http on this machine still does.
+func TestTokenForRefusesAURLSettingsWouldRefuse(t *testing.T) {
+	isolate(t)
+	keyring.MockInit()
+	const tok = "agy_keychaintoken0000"
+	if err := keyring.Set(KeyringService, "registry.example", tok); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Upsert(Registry{URL: "http://old.example", Token: "agy_filetoken0000"})
+	s.Upsert(Registry{URL: "http://127.0.0.1:8080", Token: "agy_localtoken0000"})
+	if err := Save(s); err != nil {
+		t.Fatal(err)
+	}
+	for url, want := range map[string]string{
+		"https://registry.example": tok,
+		"http://registry.example":  "",
+		"ftp://registry.example":   "",
+		"http://old.example":       "",
+		"http://127.0.0.1:8080":    "agy_localtoken0000",
+	} {
+		if got := TokenFor(url); got != want {
+			t.Errorf("TokenFor(%q) = %q, want %q", url, got, want)
 		}
 	}
 }
