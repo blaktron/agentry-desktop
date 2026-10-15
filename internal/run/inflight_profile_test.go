@@ -17,7 +17,7 @@ import (
 // profileOf saves the fixture release's profile under home, holding a
 // secret value, with its MCP server store beside it, and returns the
 // profile's directory and the release's run root.
-func profileOf(t *testing.T, home string, keep bool) (profDir, runRoot string) {
+func saveFixtureProfile(t *testing.T, home string, keep bool) (profDir, runRoot string) {
 	t.Helper()
 	profDir = profile.Dir(home, "acme", "reporter", "1.0.0", "0123456789ab")
 	if err := profile.New("acme/reporter@1.0.0", "sha256:0123456789ab", keep, map[string]string{"API_TOKEN": "sekret-value-1234"}).Save(profDir); err != nil {
@@ -37,8 +37,8 @@ func profileOf(t *testing.T, home string, keep bool) (profDir, runRoot string) {
 	return profDir, runRoot
 }
 
-// withRunsInUse stands for a release whose run directories a live run
-// holds the locks of exactly the runs given.
+// withRunsInUse makes the given runs, and no others, the ones whose run
+// lock a live process holds in any release's run directories.
 func withRunsInUse(t *testing.T, ids ...string) {
 	t.Helper()
 	old := runsInUse
@@ -52,7 +52,17 @@ func deadRecord(t *testing.T, dir, runID, profDir, runRoot string, keep bool) {
 	t.Helper()
 	pid, start := deadPID(t)
 	writeRecord(t, dir, inFlight{RunID: runID, PID: pid, Start: start})
-	if err := RecordProfile(dir, runID, profDir, runRoot, keep); err != nil {
+	recordProfile(t, dir, runID, profDir, runRoot, keep)
+}
+
+// recordProfile puts the fixture's profile, as it is now, on runID's record.
+func recordProfile(t *testing.T, dir, runID, profDir, runRoot string, keep bool) {
+	t.Helper()
+	held, err := heldProfile(profDir, runRoot, keep)
+	if err != nil || held == nil {
+		t.Fatalf("held profile = %v, %v", held, err)
+	}
+	if err := RecordProfile(dir, runID, *held); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -65,7 +75,7 @@ func TestTheStartupSweepRemovesAKilledRunsUnkeptProfile(t *testing.T) {
 	withFakeDocker(t, &dockerx.Fake{})
 	withRunsInUse(t)
 	dir := filepath.Join(home, InFlightDirName)
-	profDir, runRoot := profileOf(t, home, false)
+	profDir, runRoot := saveFixtureProfile(t, home, false)
 	deadRecord(t, dir, "dead0001", profDir, runRoot, false)
 
 	if _, err := SweepOrphaned(context.Background(), dir, Sweep); err != nil {
@@ -89,13 +99,11 @@ func TestTheQuitPathRemovesThisAppsUnkeptProfile(t *testing.T) {
 		// The engine still runs, holding its own run's lock.
 		withRunsInUse(t, "5e1f0004")
 		dir := filepath.Join(home, InFlightDirName)
-		profDir, runRoot := profileOf(t, home, false)
+		profDir, runRoot := saveFixtureProfile(t, home, false)
 		if err := RecordInFlight(dir, "5e1f0004"); err != nil {
 			t.Fatal(err)
 		}
-		if err := RecordProfile(dir, "5e1f0004", profDir, runRoot, false); err != nil {
-			t.Fatal(err)
-		}
+		recordProfile(t, dir, "5e1f0004", profDir, runRoot, false)
 		if viaSweep {
 			if _, err := SweepAtQuit(context.Background(), dir, Sweep); err != nil {
 				t.Fatal(err)
@@ -118,7 +126,7 @@ func TestAKeptProfileOutlivesAKilledRun(t *testing.T) {
 		withFakeDocker(t, &dockerx.Fake{})
 		withRunsInUse(t)
 		dir := filepath.Join(home, InFlightDirName)
-		profDir, runRoot := profileOf(t, home, stored)
+		profDir, runRoot := saveFixtureProfile(t, home, stored)
 		deadRecord(t, dir, "dead0001", profDir, runRoot, true)
 		if _, err := SweepOrphaned(context.Background(), dir, Sweep); err != nil {
 			t.Fatal(err)
@@ -129,14 +137,14 @@ func TestAKeptProfileOutlivesAKilledRun(t *testing.T) {
 	}
 }
 
-// A record written before it carried the profile is swept as it was, and
-// the profile left alone: nothing says what the run decided.
+// A record with no profile is swept as any record is, and the release's
+// profile left alone: nothing says what the run decided.
 func TestARecordWithoutAProfileLeavesTheProfileAlone(t *testing.T) {
 	home := isolateRunEnv(t)
 	withFakeDocker(t, &dockerx.Fake{})
 	withRunsInUse(t)
 	dir := filepath.Join(home, InFlightDirName)
-	profDir, _ := profileOf(t, home, false)
+	profDir, _ := saveFixtureProfile(t, home, false)
 	pid, start := deadPID(t)
 	writeRecord(t, dir, inFlight{RunID: "dead0001", PID: pid, Start: start})
 	swept, err := SweepOrphaned(context.Background(), dir, Sweep)
@@ -158,7 +166,7 @@ func TestAProfileALiveRunOfTheReleaseUsesIsLeft(t *testing.T) {
 		withFakeDocker(t, &dockerx.Fake{})
 		withRunsInUse(t, "c11c0003")
 		dir := filepath.Join(home, InFlightDirName)
-		profDir, runRoot := profileOf(t, home, false)
+		profDir, runRoot := saveFixtureProfile(t, home, false)
 		deadRecord(t, dir, "dead0001", profDir, runRoot, false)
 		if _, err := SweepOrphaned(context.Background(), dir, Sweep); err != nil {
 			t.Fatal(err)
@@ -175,13 +183,11 @@ func TestAProfileALiveRunOfTheReleaseUsesIsLeft(t *testing.T) {
 		withFakeDocker(t, &dockerx.Fake{})
 		withRunsInUse(t)
 		dir := filepath.Join(home, InFlightDirName)
-		profDir, runRoot := profileOf(t, home, false)
+		profDir, runRoot := saveFixtureProfile(t, home, false)
 		parent := os.Getppid()
 		pstart, _ := owner.StartTime(parent)
 		writeRecord(t, dir, inFlight{RunID: "a11e0002", PID: parent, Start: pstart})
-		if err := RecordProfile(dir, "a11e0002", profDir, runRoot, false); err != nil {
-			t.Fatal(err)
-		}
+		recordProfile(t, dir, "a11e0002", profDir, runRoot, false)
 		deadRecord(t, dir, "dead0001", profDir, runRoot, false)
 		if _, err := SweepOrphaned(context.Background(), dir, Sweep); err != nil {
 			t.Fatal(err)
@@ -199,7 +205,7 @@ func TestAProfileSavedAgainSinceIsLeft(t *testing.T) {
 	withFakeDocker(t, &dockerx.Fake{})
 	withRunsInUse(t)
 	dir := filepath.Join(home, InFlightDirName)
-	profDir, runRoot := profileOf(t, home, false)
+	profDir, runRoot := saveFixtureProfile(t, home, false)
 	deadRecord(t, dir, "dead0001", profDir, runRoot, false)
 	if err := profile.New("acme/reporter@1.0.0", "sha256:0123456789ab", false, map[string]string{"API_TOKEN": "a-newer-value"}).Save(profDir); err != nil {
 		t.Fatal(err)
@@ -220,7 +226,7 @@ func TestARecordNamingAnotherDirectoryRemovesNothing(t *testing.T) {
 	withFakeDocker(t, &dockerx.Fake{})
 	withRunsInUse(t)
 	dir := filepath.Join(home, InFlightDirName)
-	_, runRoot := profileOf(t, home, false)
+	_, runRoot := saveFixtureProfile(t, home, false)
 	for i, elsewhere := range []string{
 		t.TempDir(),
 		filepath.Join(home, "profiles", "acme"),
@@ -240,20 +246,35 @@ func TestARecordNamingAnotherDirectoryRemovesNothing(t *testing.T) {
 	}
 }
 
-// A run's record carries its profile only once the run is prepared, and a
-// run with no profile records none.
-func TestRecordProfileWithNoProfileRecordsNone(t *testing.T) {
+// A release with no profile gives a run none to hold, and none is recorded.
+func TestARunWithNoProfileHoldsNone(t *testing.T) {
+	held, err := heldProfile(filepath.Join(t.TempDir(), "profiles", "a", "b", "c"), "", false)
+	if err != nil || held != nil {
+		t.Fatalf("held = %+v, %v; want none", held, err)
+	}
+}
+
+// A link standing for any level of a profile directory, or for the
+// profiles directory itself, removes nothing through it.
+func TestARecordRemovesNothingThroughALink(t *testing.T) {
 	home := isolateRunEnv(t)
+	withFakeDocker(t, &dockerx.Fake{})
+	withRunsInUse(t)
 	dir := filepath.Join(home, InFlightDirName)
-	if err := RecordInFlight(dir, "ab12cd34"); err != nil {
+	profDir, runRoot := saveFixtureProfile(t, home, false)
+	elsewhere := filepath.Join(t.TempDir(), "1.0.0-0123456789ab")
+	if err := os.Rename(profDir, elsewhere); err != nil {
 		t.Fatal(err)
 	}
-	if err := RecordProfile(dir, "ab12cd34", filepath.Join(home, "profiles", "a", "b", "c"), "", false); err != nil {
+	if err := os.Symlink(elsewhere, profDir); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
+	deadRecord(t, dir, "dead0001", profDir, runRoot, false)
+	if _, err := SweepOrphaned(context.Background(), dir, Sweep); err != nil {
 		t.Fatal(err)
 	}
-	rec, err := readRecord(dir, "ab12cd34")
-	if err != nil || rec.Profile != nil {
-		t.Fatalf("record = %+v, %v; want no profile", rec, err)
+	if !exists(filepath.Join(elsewhere, "profile.json")) {
+		t.Fatal("the sweep removed a profile through a link")
 	}
 }
 
@@ -310,5 +331,52 @@ func TestARunRecordsItsProfileForTheStartupSweep(t *testing.T) {
 	}
 	if exists(profDir) {
 		t.Fatal("the startup sweep left the killed run's unkept profile")
+	}
+}
+
+// The record carries the run's own keep decision, the one its completion
+// applies: the run setup's tick over the stored flag in either direction,
+// and the stored flag when nothing was ticked.
+func TestARunRecordsItsOwnKeepDecision(t *testing.T) {
+	yes, no := true, false
+	for _, c := range []struct {
+		name   string
+		stored bool
+		tick   *bool
+		want   bool
+	}{
+		{"kept by the stored flag", true, nil, true},
+		{"kept by the tick over a profile saved with Keep off", false, &yes, true},
+		{"removed by the tick over a profile saved with Keep on", true, &no, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fr, regURL, _, home := runFixture(t)
+			withRunsInUse(t)
+			t.Setenv("RUN_TEST_TOKEN", "env-secret")
+			sig := resolveFixture(t, regURL)
+			if _, err := saveProfileForSig(sig, map[string]string{"RUN_TEST_TOKEN": "v"}, c.stored); err != nil {
+				t.Fatal(err)
+			}
+			dir := filepath.Join(home, InFlightDirName)
+			if err := RecordInFlight(dir, "ab12cd34"); err != nil {
+				t.Fatal(err)
+			}
+			req := request(regURL, filepath.Join(t.TempDir(), "out"))
+			req.RunID, req.InFlightDir, req.KeepProfile = "ab12cd34", dir, c.tick
+			if _, err := Run(context.Background(), req, &strings.Builder{}); err != nil {
+				t.Fatal(err)
+			}
+			rec, err := readRecord(dir, "ab12cd34")
+			if err != nil || rec.Profile == nil {
+				t.Fatalf("record = %+v, %v", rec, err)
+			}
+			if rec.Profile.Keep != c.want {
+				t.Fatalf("recorded keep = %v, want %v", rec.Profile.Keep, c.want)
+			}
+			profDir := profile.Dir(home, "acme", "reporter", "1.0.0", installdir.DigestSuffix(fr.digest))
+			if exists(filepath.Join(profDir, "profile.json")) != c.want {
+				t.Fatalf("the completing run's choice disagrees with the record: profile present = %v", !c.want)
+			}
+		})
 	}
 }

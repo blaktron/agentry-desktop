@@ -711,6 +711,14 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if prof, err = ensureKeepProfile(profDir, sig, prof, req.KeepProfile); err != nil {
 		return nil, err
 	}
+	// The profile as this run holds it, for its crash-path record: read now,
+	// as it was loaded, so a profile saved again before the engine starts is
+	// the newer writer's.
+	held, err := heldProfile(profDir, installDir, keep)
+	if err != nil {
+		finishProfile(logw, prof, profDir, keep)
+		return nil, err
+	}
 
 	// The connections of the servers that sign in by OAuth: made on the run
 	// setup's Connect tools step, never asked for here; each is refreshed under
@@ -803,6 +811,16 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 		}
 		overrides = merged
 	}
+	// The run's profile goes on its crash-path record before the engine
+	// starts, so a run that never completes still has an unkept profile
+	// removed. Best effort, as the record itself is: a run is not refused
+	// because the runner home is unwritable.
+	if req.InFlightDir != "" && held != nil {
+		if err := RecordProfile(req.InFlightDir, runID, *held); err != nil {
+			_, _ = fmt.Fprintf(logw, "warning: the run's profile could not be noted for removal if the app is closed mid-run: %v\n", err)
+		}
+	}
+
 	// RunnerHome is the home the CLI shares. Where relays share the host's one
 	// network (a platform with no docker filter), a run whose plan needs relays
 	// holds its relays.lock for the whole run, so a desktop run and a CLI run
@@ -810,13 +828,6 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// sessions take it the same way. Behind the filter (Linux, and macOS and
 	// Windows from CLI v0.6.117), each run's relays are on networks of its own and
 	// the engine takes no lock.
-	// Best effort, as the record itself is: a run is not refused because
-	// the runner home is unwritable.
-	if req.InFlightDir != "" && prof != nil {
-		if err := RecordProfile(req.InFlightDir, runID, profDir, installDir, keep); err != nil {
-			_, _ = fmt.Fprintf(logw, "warning: %v\n", err)
-		}
-	}
 	return &prepared{
 		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
 		params: engine.Params{
