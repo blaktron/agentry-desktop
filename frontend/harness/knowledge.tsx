@@ -151,7 +151,7 @@ const availability = {
     ? {
         available: false,
         reason: "Creating knowledge in Agentry is part of Pro, Business and Enterprise.",
-        remedy: "Create it on this computer with your own model provider, for no credits, then Copy to Cloud; or upgrade to Pro.",
+        remedy: "Create it on this computer with your own model provider, for no credits, then Copy to Cloud, where its scan is 1 credit; or upgrade to Pro.",
         upgradeUrl: REG + "/settings/subscription?upgrade=pro",
       }
     : {}),
