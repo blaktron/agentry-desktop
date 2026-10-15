@@ -43,7 +43,7 @@ publish:
 // folder holding the QuickAgent.
 func localBuild(t *testing.T, answer bool) (*BuildAPI, string, string, *[]string) {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	home := t.TempDir()
 	t.Setenv("AGENTRY_RUNNER_HOME", home)
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))

@@ -39,7 +39,7 @@ func TestLiveHostedSession(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_SESSION_REGISTRY, _TOKEN and _REF to run one hosted session")
 	}
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

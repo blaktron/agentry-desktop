@@ -54,7 +54,7 @@ func TestLiveDescribeInAgentry(t *testing.T) {
 	// hold a desktop token for the same registry.
 	keyring.MockInit()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setUserHome(t, home)
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

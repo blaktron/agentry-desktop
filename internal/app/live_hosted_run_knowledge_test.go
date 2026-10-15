@@ -47,7 +47,7 @@ func TestLiveHostedRunWithKnowledge(t *testing.T) {
 	// The token under test, and no other: this machine's own keychain may
 	// hold a desktop token for the same registry.
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

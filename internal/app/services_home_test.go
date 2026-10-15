@@ -60,7 +60,7 @@ func TestHomeBindingShowsHidesAndResets(t *testing.T) {
 // pins with no registry.
 func TestPinIsLocalOnlyInstalledAndNotAStar(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Errorf("pinning asked the registry: %s %s", r.Method, r.URL.Path)
 		http.Error(w, "no", http.StatusTeapot)
@@ -105,7 +105,7 @@ func TestPinIsLocalOnlyInstalledAndNotAStar(t *testing.T) {
 // once no other install of it is left.
 func TestUninstallAndForgetRemoveThePin(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	const reg = "https://registry.test"
 	keep, drop := t.TempDir(), t.TempDir()
@@ -150,7 +150,7 @@ func TestUninstallAndForgetRemoveThePin(t *testing.T) {
 // are kept apart: removing the folder install takes only its pin.
 func TestRemovingAFolderInstallKeepsTheRegistryPin(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	const reg = "https://registry.test"
 	local := installed.Key{Registry: "runner", Namespace: "acme", Name: "triage", Target: "runner", Dir: filepath.Join(t.TempDir(), "gone")}
 	fromReg := installed.Key{Registry: reg, Namespace: "acme", Name: "triage", Target: "claude-skill", Dir: t.TempDir()}
