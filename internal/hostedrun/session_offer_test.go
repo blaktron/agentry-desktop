@@ -5,12 +5,10 @@ import (
 	"testing"
 )
 
-// Talk to it In Agentry as a table (plan hosted-sessions.md §6, D12 as
-// amended; agentry-desktop#403): offered only where the release declares the
-// interactive mode, the registry's status runs sessions and says the
-// caller's payer may start one; a payer on Standard sees why, with the way
-// up. Every fact is one the app already has (D-022): nothing here probes a
-// session route.
+// Talk to it In Agentry as a table: offered only where the release declares the
+// interactive mode, the registry's status runs sessions and says the caller's
+// payer may start one; a payer on Standard sees why, with the way up. Every
+// fact is one the app already has: nothing here probes a session route.
 func TestSessionOfferMatrix(t *testing.T) {
 	yes, no := true, false
 	full := []string{ScopeRunRead, ScopeRunWrite, "agent:read"}
@@ -36,20 +34,20 @@ func TestSessionOfferMatrix(t *testing.T) {
 		{"autonomous only", with(func(f *Facts) { f.Modes = []string{"autonomous"} }), false, false, false, ""},
 		{"not signed in", with(func(f *Facts) { f.SignedIn = false }), false, false, false, ""},
 		{"no runs extension", with(func(f *Facts) { f.Extension = false }), false, false, false, ""},
-		// The registry does not run sessions, or predates them: the choice
-		// is absent and the local modes are as they were.
+		// The registry does not run sessions, or says nothing of them: the
+		// choice is absent and the local modes are as they were.
 		{"sessions off", with(func(f *Facts) { f.SessionsEnabled = false }), false, false, false, ""},
-		{"a registry from before sessions", with(func(f *Facts) { f.SessionsEnabled, f.SessionAllowed = false, nil }), false, false, false, ""},
+		{"a registry that says nothing of sessions", with(func(f *Facts) { f.SessionsEnabled, f.SessionAllowed = false, nil }), false, false, false, ""},
 		{"no caller line", with(func(f *Facts) { f.SessionAllowed = nil }), false, false, false, ""},
 		{"status unreadable", with(func(f *Facts) { f.StatusKnown, f.SessionsEnabled, f.SessionAllowed = false, false, nil }), false, false, false, ""},
-		// A payer on Standard (agentry-enterprise#286): offered, not
-		// available, the registry's reason and the way up.
+		// A payer on Standard: offered, not available, the registry's reason and the
+		// way up.
 		{"a Standard payer", with(func(f *Facts) { f.SessionAllowed = &no }), true, false, true, "Pro"},
 		{"a Standard payer with an old token", with(func(f *Facts) { f.SessionAllowed, f.Scopes = &no, []string{"agent:read"} }), true, false, true, "Pro"},
 		{"an old token", with(func(f *Facts) { f.Scopes = []string{"agent:read"} }), true, false, false, "run:read"},
-		// A person waits on a session as it starts, so the registry refuses
-		// one with no sandbox host answering (409 sessions-unavailable)
-		// rather than queueing it (agentry-desktop#437).
+		// A person waits on a session as it starts, so the registry refuses one with
+		// no sandbox host answering (409 sessions-unavailable) rather than queueing
+		// it.
 		{"no sandbox host answering", with(func(f *Facts) { f.HostsOnline = 0 }), true, false, false, "No sandbox host is answering"},
 		{"no host, and a Standard payer", with(func(f *Facts) { f.HostsOnline, f.SessionAllowed = 0, &no }), true, false, true, "Pro"},
 		{"scopes unreadable", with(func(f *Facts) { f.ScopesKnown, f.Scopes = false, nil }), true, false, false, "did not say"},

@@ -16,9 +16,9 @@ import (
 	"github.com/blaktron/agentry/pkg/apiclient"
 )
 
-// The unsigned-run consent is enforced in Go (desktop#3, D-011 closure): a
-// registry with no attestation refuses the run unless AcceptUnsigned was
-// given, and then marks the receipt unsigned.
+// The unsigned-run consent is enforced in Go: a registry with no
+// attestation refuses the run unless AcceptUnsigned was given, and then
+// marks the receipt unsigned.
 func TestVerifyRunAttestationUnsignedGate(t *testing.T) {
 	reg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/attestation") {
@@ -42,13 +42,13 @@ func TestVerifyRunAttestationUnsignedGate(t *testing.T) {
 	}
 }
 
-// The unscanned-run consent (M23; the core's M21): a version the registry
-// admitted without a scan is its own outcome, read from resolve before any
-// attestation is looked for; it refuses without AcceptUnscanned — accepting
-// unsigned does not stand in — and, accepted, marks the receipt unscanned
-// with the consent that admitted it. On a run from the cache the gate is
-// asked again, the cache holds no consent, and an install cached as
-// unsigned by an older desktop is unscanned once the registry says so.
+// The unscanned-run consent: a version the registry admitted without a scan
+// is its own outcome, read from resolve before any attestation is looked
+// for; it refuses without AcceptUnscanned — accepting unsigned does not
+// stand in — and, accepted, marks the receipt unscanned with the consent
+// that admitted it. On a run from the cache the gate is asked again, the
+// cache holds no consent, and an install cached as unsigned by an older
+// desktop is unscanned once the registry says so.
 func TestUnscannedIsItsOwnConsent(t *testing.T) {
 	home := isolateRunEnv(t)
 	fr := &fakeRunRegistry{unscanned: true}

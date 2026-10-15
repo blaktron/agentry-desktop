@@ -1,13 +1,12 @@
-// An input source's access token on this computer (plan input-sources.md
-// §5, D5, D13; agentry-desktop#794). A QuickAgent asks for a repository or
-// a file at a web address with an intake question of that type, and the
-// run setup asks beside it for an access token, which the run's fetch step
-// alone uses (the CLI's engine writes it to that step's stdin and nowhere
-// else). A token can be saved for its host in the OS keychain, as the
-// entry source:<host> under the CLI's service: the CLI's `agentry run` and
-// a schedule's fire read the same entry (pkg/runner/sources), so a key
-// saved here is the one a scheduled run uses. The token crosses the app's
-// IPC inward only, and no surface returns it.
+// An input source's access token on this computer. A QuickAgent asks for a
+// repository or a file at a web address with an intake question of that type,
+// and the run setup asks beside it for an access token, which the run's fetch
+// step alone uses (the CLI's engine writes it to that step's stdin and nowhere
+// else). A token can be saved for its host in the OS keychain, as the entry
+// source:<host> under the CLI's service: the CLI's `agentry run` and a
+// schedule's fire read the same entry (pkg/runner/sources), so a key saved here
+// is the one a scheduled run uses. The token crosses the app's IPC inward only,
+// and no surface returns it.
 package run
 
 import (
@@ -152,16 +151,15 @@ func giveSourceTokens(a *intake.Answers, given map[string]string, warn func(stri
 }
 
 // HostedSourceTokens are what a run In Agentry sends as its create's
-// sourceTokens (agentry-enterprise#516, agentry-desktop#833): for each
-// input-source question of m the answers give an address to, the token
-// typed for this run, else the key saved on this computer for the host the
-// CLI's own parse reads from the answer, else none, and the fetch on the
-// sandbox host is anonymous (or uses the key the account saved in Agentry
-// for that host, agentry-enterprise#532). The registry holds each token in
-// the account's vault for that run alone. A token typed for an id that is
-// no answered source refuses the run, as giveSourceTokens does, and an
-// answer the CLI would refuse is said here rather than at the host. A
-// keychain that cannot be read is said through warn.
+// sourceTokens: for each input-source question of m the answers give an
+// address to, the token typed for this run, else the key saved on this
+// computer for the host the CLI's own parse reads from the answer, else
+// none, and the fetch on the sandbox host is anonymous (or uses the key
+// the account saved in Agentry for that host). The registry holds each
+// token in the account's vault for that run alone. A token typed for an id
+// that is no answered source refuses the run, as giveSourceTokens does,
+// and an answer the CLI would refuse is said here rather than at the host.
+// A keychain that cannot be read is said through warn.
 func HostedSourceTokens(m *manifest.Manifest, answers, typed map[string]string, warn func(string)) (map[string]string, error) {
 	out := map[string]string{}
 	if m == nil {
@@ -200,21 +198,19 @@ func HostedSourceTokens(m *manifest.Manifest, answers, typed map[string]string, 
 
 // browserSite says a url question is the site the release's browser opens
 // (capabilities.browser.sites): the runner never fetches it, so it takes
-// no token and no saved key, In Agentry as on this computer (DR-96;
-// agentry-desktop#903).
+// no token and no saved key, In Agentry as on this computer.
 func browserSite(m *manifest.Manifest, id string) bool {
 	return m.Capabilities.Browser != nil && slices.Contains(m.Capabilities.Browser.Sites, id)
 }
 
 // HostedScheduleKeys are the keys a schedule In Agentry saves in the
-// account's vault for its fires (agentry-enterprise#532), by host: for
-// each answered source with a token (typed for this schedule, else the key
-// saved on this computer for its host), that token. A schedule's fire has
-// no setup to send a one-run token from, so it uses the key saved in
-// Agentry for each source's host; one with no token here is fetched with
-// the key Agentry already keeps for the host, if any, else anonymously.
-// Two sources on one host given different tokens are refused: a host keeps
-// one key.
+// account's vault for its fires, by host: for each answered source with a
+// token (typed for this schedule, else the key saved on this computer for
+// its host), that token. A schedule's fire has no setup to send a one-run
+// token from, so it uses the key saved in Agentry for each source's host;
+// one with no token here is fetched with the key Agentry already keeps for
+// the host, if any, else anonymously. Two sources on one host given
+// different tokens are refused: a host keeps one key.
 func HostedScheduleKeys(m *manifest.Manifest, answers, typed map[string]string, warn func(string)) (map[string]string, error) {
 	keys := map[string]string{}
 	if m == nil {

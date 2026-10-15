@@ -121,9 +121,9 @@ func TestAConnectionIsMadeOnceAndEveryStartAfterReusesIt(t *testing.T) {
 		tokens = append(tokens, renewed.AccessToken)
 	}
 
-	// D8's probe: no refresh token the vendor issued is in anything a
-	// run was given, nor in any file of the runner home but the store's
-	// own secret, which the keychain holds here instead.
+	// No refresh token the vendor issued is in anything a run was given, nor in
+	// any file of the runner home but the store's own secret, which the
+	// keychain holds here instead.
 	if len(v.Issued) < 2 {
 		t.Fatalf("the vendor issued %d refresh tokens; rotation is not exercised", len(v.Issued))
 	}
@@ -484,9 +484,9 @@ func TestAStartRefusesAnUnsupportedPackageAndConnectAnUndeclaredServer(t *testin
 }
 
 // Google revokes an account's whole grant to a client, not one refresh
-// token (agentry-desktop#666's live check). Connecting again with the same
-// client must therefore not revoke the old token: that would end the new
-// grant, and every other connection made with the client.
+// token. Connecting again with the same client must therefore not revoke
+// the old token: that would end the new grant, and every other
+// connection made with the client.
 func TestConnectingAgainWithTheSameClientRevokesNothing(t *testing.T) {
 	v := mcpauthtest.New(t)
 	home := fakeVendorSeams(t, v, &memKeys{m: map[string]string{}})

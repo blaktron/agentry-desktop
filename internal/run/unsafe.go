@@ -1,12 +1,10 @@
 package run
 
-// Unsafe Mode's desktop half (agentry-notes plans/unsafe-mode.md M3;
-// agentry-desktop#418): the base's pull when the switch is turned on, the
-// data a run on this computer compiles with while it is on, and the line
-// the run's consent carries. The runner's half is the CLI's
-// (pkg/runner/unsafeexec, compile.Inputs.Unsafe; DR-53); nothing here
-// decides that Unsafe Mode is on — the caller reads desktop.yaml, which
-// only Go writes after a native confirmation (D-030, D-050).
+// Unsafe Mode's desktop half: the base's pull when the switch is turned on, the
+// data a run on this computer compiles with while it is on, and the line the
+// run's consent carries. The runner's half is the CLI's (pkg/runner/unsafeexec,
+// compile.Inputs.Unsafe); nothing here decides that Unsafe Mode is on — the
+// caller reads desktop.yaml, which only Go writes after a native confirmation.
 
 import (
 	"context"
@@ -71,9 +69,9 @@ func unsafeBase() (string, error) {
 }
 
 // PullUnsafeBase is what turning Unsafe Mode on does before the switch
-// reads on (plan D2, D6): pull the base the policy names, with docker's
-// progress on logw, then read its command index and extras list back, so a
-// base that is on this machine is also one a run can compile with.
+// reads on: pull the base the policy names, with docker's progress on
+// logw, then read its command index and extras list back, so a base that
+// is on this machine is also one a run can compile with.
 func PullUnsafeBase(ctx context.Context, logw io.Writer) error {
 	base, err := unsafeBase()
 	if err != nil {
@@ -151,8 +149,8 @@ type UnsafeNotice struct {
 	// Malformed counts the declared names that are not command names: the
 	// image cannot place them and run_command cannot call them.
 	Malformed int
-	// Unplaced are the declared commands the image cannot provide (D8),
-	// each with the packages that ship it when there are several.
+	// Unplaced are the declared commands the image cannot provide, each
+	// with the packages that ship it when there are several.
 	Unplaced []string
 	// Unknown says why the placement could not be read (the image is not
 	// on this computer, docker is not running), "" when it was.
@@ -176,9 +174,9 @@ const (
 func UnsafeNoticeUnread() *UnsafeNotice { return &UnsafeNotice{Unread: true} }
 
 // Line is the one paragraph a local run's consent carries while Unsafe Mode
-// is on (plan D6, D8, DR-53's PATH, and D-055's servers): what Unsafe Mode
-// does to any run, then what this release declares and what the image
-// cannot provide.
+// is on (its PATH and the servers it lets through): what Unsafe Mode does
+// to any run, then what this release declares and what the image cannot
+// provide.
 func (n *UnsafeNotice) Line() string {
 	line := "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. A declared MCP server the registry's gate rates high or critical can run too, only with your consent for the run."
 	switch {

@@ -1,9 +1,9 @@
 package run
 
-// A QuickAgent installed from a folder on this computer (the CLI's DR-52;
-// agentry-desktop#425): the desktop's run finds it before any registry,
-// holds it to its integrity record, asks the unsigned consent on every run,
-// and keeps its record local when it records the run's consent.
+// A QuickAgent installed from a folder on this computer: the desktop's run
+// finds it before any registry, holds it to its integrity record, asks the
+// unsigned consent on every run, and keeps its record local when it records the
+// run's consent.
 
 import (
 	"context"

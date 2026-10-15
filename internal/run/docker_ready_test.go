@@ -117,8 +117,7 @@ func TestDockerDetectionBoundsUnresponsiveProbes(t *testing.T) {
 }
 
 // Each probe first gives the process a fresh PATH, so a Docker installed
-// or moved since the app started is found by the next check
-// (agentry-desktop#624).
+// or moved since the app started is found by the next check.
 func TestEachDockerProbeRefreshesThePathFirst(t *testing.T) {
 	isolateRunEnv(t)
 	d := &wakingDocker{Fake: readyImagesFake(), failures: 1}

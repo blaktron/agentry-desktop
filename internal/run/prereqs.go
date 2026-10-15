@@ -28,7 +28,7 @@ var osReleasePath = "/etc/os-release"
 // fixture: the group database, the engine's socket, whether its unit is
 // active, and the groups this process actually carries — which differ from
 // /etc/group until the session restarts, and that difference is the
-// pendingRestart state (agentry-desktop#64).
+// pendingRestart state.
 var (
 	groupPath        = "/etc/group"
 	dockerSocketPath = "/var/run/docker.sock"
@@ -60,8 +60,8 @@ var (
 	lookPath = exec.LookPath
 )
 
-// The docker-engine states the page renders (plan desktop-linux-first-run
-// D4). Each names a fact about the machine, not an error string.
+// The docker-engine states the page renders. Each names a fact about the
+// machine, not an error string.
 const (
 	// StateReady: the engine answers.
 	StateReady = "ready"
@@ -98,7 +98,7 @@ type Prereqs struct {
 	// Note carries the honest caveat (group membership needs a re-login).
 	Note string `json:"note,omitempty"`
 	// State is one of the State* constants: what the page shows and which
-	// action it offers (agentry-desktop#64).
+	// action it offers.
 	State string `json:"state"`
 	// EngineInstalled is true when the docker unit is active or its socket
 	// exists, whether or not this process may use it.
@@ -240,10 +240,10 @@ func hasGroup(groups []int, gid int) bool {
 	return false
 }
 
-// AddToDockerGroup runs only the group half of the install through pkexec
-// (agentry-desktop#64): for a machine where the engine landed but the
-// membership did not. Detection afterwards reports pendingRestart, since
-// this session's groups do not change until it restarts.
+// AddToDockerGroup runs only the group half of the install through pkexec:
+// for a machine where the engine landed but the membership did not.
+// Detection afterwards reports pendingRestart, since this session's groups
+// do not change until it restarts.
 func AddToDockerGroup(ctx context.Context, logw io.Writer) error {
 	p := DetectPrereqs(ctx)
 	if p.State != StateGroupMissing {

@@ -12,16 +12,15 @@ import (
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
-// withShippedKnowledge loads the knowledge packs a release ships (plan
-// knowledge.md §4.6) from the materialized release's own files and puts
-// them before the packs the person attached, as the CLI's run does
-// (agentry-cli#389, DR-38's M9 addendum): each is verified with
-// knowledge.Load and pinned by digest, and the engine stages it from the
-// run's own copy of the workspace and holds it to that digest, so what is
-// mounted is what the archive covers. A pack that does not load is a
-// verification failure; an attached pack that takes a shipped pack's name
-// is refused, since both would mount at /knowledge/<name>. It repeats the
-// CLI's shippedKnowledge, which lives in its package main (D-006).
+// withShippedKnowledge loads the knowledge packs a release ships from the
+// materialized release's own files and puts them before the packs the person
+// attached, as the CLI's run does: each is verified with knowledge.Load and
+// pinned by digest, and the engine stages it from the run's own copy of the
+// workspace and holds it to that digest, so what is mounted is what the archive
+// covers. A pack that does not load is a verification failure; an attached pack
+// that takes a shipped pack's name is refused, since both would mount at
+// /knowledge/<name>. It repeats the CLI's shippedKnowledge, which lives in its
+// package main.
 func withShippedKnowledge(workspaceDir string, m *manifest.Manifest, meta *installdir.Meta, attached []engine.AttachedPack, logw io.Writer) ([]engine.AttachedPack, error) {
 	ships := m.ShippedPacks()
 	if len(ships) == 0 {
@@ -40,9 +39,8 @@ func withShippedKnowledge(workspaceDir string, m *manifest.Manifest, meta *insta
 		if p.Manifest.Name != name {
 			return nil, engine.Classify(engine.ExitVerify, fmt.Errorf("the release ships the knowledge pack %s, and its manifest.json names %s", name, p.Manifest.Name))
 		}
-		// A shipped pack is Agentry's to carry, so Agentry's cap holds, as
-		// in the CLI's shippedKnowledge (agentry-cli#429): Load now takes a
-		// pack of up to this computer's 1 GB.
+		// A shipped pack is Agentry's to carry, so Agentry's cap holds, as in the
+		// CLI's shippedKnowledge: Load takes a pack of up to this computer's 1 GB.
 		if p.Manifest.Bytes > knowledge.MaxBytes {
 			return nil, engine.Classify(engine.ExitVerify, fmt.Errorf("the release ships the knowledge pack %s at %d bytes; a shipped pack is at most %s", name, p.Manifest.Bytes, knowledge.FormatCap(knowledge.MaxBytes)))
 		}

@@ -44,10 +44,9 @@ func claudeSubscriptionRun(t *testing.T) (string, *dockerx.Fake, string) {
 	return regURL, fd, home
 }
 
-// A run started from the desktop on a Claude subscription runs on the
-// Claude Code image, not docker-agent (the desktop always ran docker-agent
-// before agentry-desktop#734), and is handed the person's sign-in: its
-// agent container mounts the sign-in's own volume.
+// A run started from the desktop on a Claude subscription runs on the Claude
+// Code image, not docker-agent (otherwise it runs docker-agent), and is handed
+// the person's sign-in: its agent container mounts the sign-in's own volume.
 func TestARunOnAClaudeSubscriptionUsesClaudeCodeAndItsSignIn(t *testing.T) {
 	regURL, fd, home := claudeSubscriptionRun(t)
 	installLocalFixture(t, home)

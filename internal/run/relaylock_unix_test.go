@@ -18,19 +18,17 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
-// TestRunTakesTheHostRelayLock is desktop#258's acceptance, as the engine
-// has narrowed it: the desktop passes the runner home it shares with the
-// CLI as engine.Params.RunnerHome, where the engine takes
-// <runner home>/relays.lock for a relay run that shares the host's one
-// relay network (agentry-cli#268). Behind the daemon filter a run's relays
-// are on networks of its own and no lock is taken: on Linux since
-// agentry-cli#220 (DR-22 narrowed, the CLI's v0.6.0), and on macOS since the
-// filter runs there as a container of the run's (agentry-cli#322, v0.6.117;
-// agentry-desktop#878). So on every platform this test runs on, a held lock
-// refuses nothing and the run makes its own two relay networks. The lock is
-// held here the way the CLI's engine holds it, flock on the same file; the
-// desktop's own params come from prepare, the path Run and StartSession
-// both take.
+// TestRunTakesTheHostRelayLock is the acceptance of the relay lock, as the
+// engine has narrowed it: the desktop passes the runner home it shares with the
+// CLI as engine.Params.RunnerHome, where the engine takes <runner
+// home>/relays.lock for a relay run that shares the host's one relay network.
+// Behind the daemon filter a run's relays are on networks of its own and no
+// lock is taken: on Linux, and on macOS and Windows from CLI v0.6.117, where
+// the filter runs as a container of the run's. So on every platform this test
+// runs on, a held lock refuses nothing and the run makes its own two relay
+// networks. The lock is held here the way the CLI's engine holds it, flock on
+// the same file; the desktop's own params come from prepare, the path Run and
+// StartSession both take.
 func TestRunTakesTheHostRelayLock(t *testing.T) {
 	_, regURL, fd, home := runFixture(t)
 	t.Setenv("RUN_TEST_TOKEN", "env-secret")
@@ -75,7 +73,7 @@ func TestRunTakesTheHostRelayLock(t *testing.T) {
 
 	_, err = engine.Run(context.Background(), p.docker, p.params)
 	if err != nil {
-		t.Fatalf("behind the docker filter a relay run's networks are its own (agentry-cli#220, #322), so a held %s must refuse nothing, got %v", engine.RelayLockFile, err)
+		t.Fatalf("behind the docker filter a relay run's networks are its own, so a held %s must refuse nothing, got %v", engine.RelayLockFile, err)
 	}
 	var own []string
 	for _, op := range fd.Ops() {
@@ -84,6 +82,6 @@ func TestRunTakesTheHostRelayLock(t *testing.T) {
 		}
 	}
 	if len(own) < 2 {
-		t.Fatalf("a relay run behind the filter makes its own two relay networks (agentry-cli#220); saw %v in %v", own, fd.Ops())
+		t.Fatalf("a relay run behind the filter makes its own two relay networks; saw %v in %v", own, fd.Ops())
 	}
 }

@@ -76,7 +76,7 @@ func TestDetectViaIDLike(t *testing.T) {
 
 // fixtureMachine points every detection seam at fixtures: the engine
 // answers or not, the unit and socket, /etc/group membership, and the
-// groups this process carries (agentry-desktop#64).
+// groups this process carries.
 type fixtureMachine struct {
 	dockerErr   error
 	unitActive  bool

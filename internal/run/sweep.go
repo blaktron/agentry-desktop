@@ -20,29 +20,27 @@ import (
 // gateway started), then its volumes, then its networks, then its scratch
 // directory under the runner home and the socket of its docker filter
 // (SweepFiles). The engine's own teardown does exactly this when its Run or
-// session End returns (§R11 invariant 6, "teardown on every path"); Sweep
-// is the desktop's second pass for the paths the engine cannot see: the app
-// quitting while a run is still in flight (agentry-desktop#125), when the
-// bounded wait for the engine's teardown ran out, and the app killed
-// mid-run (agentry-desktop#198), which runs no teardown at all and leaves
-// the run's secrets file, staged inputs and knowledge pages in the clear
-// (agentry-desktop#463). Each step is best-effort and absent objects are
-// not errors, so sweeping a run the engine already tore down is a no-op.
+// session End returns ("teardown on every path"); Sweep is the desktop's
+// second pass for the paths the engine cannot see: the app quitting while a
+// run is still in flight, when the bounded wait for the engine's teardown
+// ran out, and the app killed mid-run, which runs no teardown at all and
+// leaves the run's secrets file, staged inputs and knowledge pages in the
+// clear. Each step is best-effort and absent objects are not errors, so
+// sweeping a run the engine already tore down is a no-op.
 //
 // The files go whatever the docker steps answered: a daemon that is not
 // running must not keep a secrets file on disk. Nothing else is touched:
 // the run's output folder with its receipts, the QuickAgent's install
 // record and cached release, its profile and every docker image are the
-// person's or the QuickAgent's, not the run's (plan
-// desktop-review-key-and-run-cards.md §5.4).
+// person's or the QuickAgent's, not the run's.
 //
 // Not reached, because nothing names them by the run's id: a container the
 // gateway started where there is no docker filter to label it (macOS and
-// Windows), the gateway's anonymous volume (agentry-cli#458), a profile the
-// run was to remove when it completed (agentry-desktop#478), the opened
-// copy of an attached knowledge pack (the store's own sweep, an hour on;
-// DR-42), a Knowledge Creator build's work directory (agentry-cli#358), and
-// the filter's fallback socket directory under the system's temp directory.
+// Windows), the gateway's anonymous volume, a profile the run was to remove
+// when it completed, the opened copy of an attached knowledge pack (the
+// store's own sweep, an hour on), a Knowledge Creator build's work
+// directory, and the filter's fallback socket directory under the system's
+// temp directory.
 func Sweep(ctx context.Context, runID string) error {
 	// The id becomes a docker label, object names and a path element. An
 	// empty one would match every run on the machine, the CLI's included.
@@ -92,18 +90,16 @@ func Sweep(ctx context.Context, runID string) error {
 	return errors.Join(errs...)
 }
 
-// runNetworks are the networks a run can make: the engine's names for
-// them (agentry-cli pkg/runner/engine: networkName, proxyEgressNetwork,
-// webNetwork, relayNetworks, browserNetwork), which are the run network,
-// the model proxy's egress network under a sandboxed runtime, the web
-// tools' network, the relays' pair and the browser's own (agentry-cli#915,
-// agentry-desktop#878); then every other network carrying the run's label, which
-// finds those a step names itself, such as an input source's
-// (agentry-cli#852, agentry-desktop#828). The names are the engine's own
-// and not exported, so they are restated here as engine.SweepAbandoned
-// restates them, held to the engine by
-// TestSweepNamesEveryNetworkTheEngineMakes, and are returned with the
-// error when docker cannot list.
+// runNetworks are the networks a run can make: the engine's names for them
+// (agentry-cli pkg/runner/engine: networkName, proxyEgressNetwork, webNetwork,
+// relayNetworks, browserNetwork), which are the run network, the model proxy's
+// egress network under a sandboxed runtime, the web tools' network, the relays'
+// pair and the browser's own; then every other network carrying the run's
+// label, which finds those a step names itself, such as an input source's. The
+// names are the engine's own and not exported, so they are restated here as
+// engine.SweepAbandoned restates them, held to the engine by
+// TestSweepNamesEveryNetworkTheEngineMakes, and are returned with the error
+// when docker cannot list.
 func runNetworks(ctx context.Context, d dockerx.Client, runID, label string) ([]string, error) {
 	p := "agentry-" + runID
 	names := []string{p + "-net", p + "-egress", p + "-web", p + "-relays", p + "-relays-out", p + "-browser"}
@@ -123,17 +119,16 @@ func runNetworks(ctx context.Context, d dockerx.Client, runID, label string) ([]
 // run keeps under the runner home while it is live. That is its scratch
 // directory, <release directory>/runs/<run id>, which holds the workspace
 // copy, the staged inputs, the copies of the attached knowledge packs and
-// the rendered configuration with secrets.env; and the socket of its
-// docker filter, <runner home>/s/<run id>.sock. The app also calls it when
-// a run's engine has returned, for what the engine's own teardown could
-// not delete.
+// the rendered configuration with secrets.env; and the socket of its docker
+// filter, <runner home>/s/<run id>.sock. The app also calls it when a run's
+// engine has returned, for what the engine's own teardown could not delete.
 //
 // The scratch directory is found by the run id under every release
 // directory, not from a path the record carries: the record is written
 // before the release is resolved, and a kill between the two must still
 // leave the next start enough to find it. A run id belongs only to the
-// process that minted it (D-034), so a directory of that name is that
-// run's under whichever release it ran.
+// process that minted it, so a directory of that name is that run's under
+// whichever release it ran.
 func SweepFiles(home, runID string) error {
 	if !runIDPattern.MatchString(runID) {
 		return fmt.Errorf("sweep: %q is not a run id", runID)
