@@ -11,8 +11,8 @@
 // derives for the account from the deployment's own sealing key), so the
 // pack opens on any computer they sign in on. Signed out, this computer's
 // key in the keychain wraps it instead, and the next sign-in rewraps it.
-// The words say what holds the key, by the wrapper's kind, and never call a
-// pack "safe", "secure" or "private".
+// The words say what holds the key, by the wrapper's kind, and make no
+// claim about the pack's safety (scripts/copy-check.sh holds the line).
 //
 // An organization's shared packs are listed beside the person's own for each
 // organization they are an active member of, and kept by the same store: a

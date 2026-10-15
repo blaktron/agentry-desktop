@@ -6,8 +6,8 @@
 // Knowledge every pack the account keeps in Agentry, and each
 // organization's shared packs in a group of their own. A pack kept in
 // both places is on both pages, marked so. The words name what holds
-// a key and what read a pack, and never call a pack "safe", "secure" or
-// "private" (the copy check holds the line). Sizes are written by the
+// a key and what read a pack, and make no claim about the pack's safety
+// (scripts/copy-check.sh holds the line). Sizes are written by the
 // caller's formatter (ui's fmtStorage), so this module imports nothing at
 // run time and node's test runner reads it as it is.
 import type { knowledge } from "../wailsjs/go/models";
