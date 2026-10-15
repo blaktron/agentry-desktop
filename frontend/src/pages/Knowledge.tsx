@@ -216,8 +216,8 @@ export default function Knowledge({
         ))}
         {list && here.length > 0 && (
           <p className="muted small">
-            Copy to Cloud keeps a copy in your Agentry account, where AI Review scans it and it counts toward your storage there; the copy here
-            stays.
+            Copy to Cloud keeps a copy in your Agentry account, where AI Review scans it for 1 credit and it counts toward your storage
+            there; sending the same pack again costs nothing. The copy here stays.
           </p>
         )}
         {previewModal}
