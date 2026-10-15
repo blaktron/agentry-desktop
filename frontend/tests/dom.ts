@@ -1,5 +1,5 @@
-// A browser document for the tests that need one (the voice editor's,
-// agentry-desktop#612): jsdom's window, its globals copied onto Node's, as a
+// A browser document for the tests that need one (the voice editor's):
+// jsdom's window, its globals copied onto Node's, as a
 // browser has them. Import it before anything that reads `document` at load.
 import { JSDOM } from "jsdom";
 

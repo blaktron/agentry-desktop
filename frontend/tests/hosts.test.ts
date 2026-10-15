@@ -1,5 +1,4 @@
-// Target hosts in the run setup (plan runtime-hosts.md §6, §8, D6, D12,
-// D14; agentry-desktop#812): a host question is asked as user@host[:port]
+// Target hosts in the run setup: a host question is asked as user@host[:port]
 // with a sign-in beside it (the saved one, a key file or a password, and a
 // sudo password); a sign-in typed for one account never goes to another;
 // the run is held until each server has an address the CLI reads and a way

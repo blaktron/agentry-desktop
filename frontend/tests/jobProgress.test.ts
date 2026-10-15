@@ -1,5 +1,5 @@
-// A job's clock, as the progress view and its card read it
-// (agentry-desktop#464): minutes and seconds, then hours past the hour.
+// A job's clock, as the progress view and its card read it:
+// minutes and seconds, then hours past the hour.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fmtClock } from "../src/jobProgress.ts";

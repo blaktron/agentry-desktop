@@ -1,5 +1,4 @@
-// Fork in the desktop (plan forks-and-publisher.md §5, D9; agentry-desktop
-// #706), held to the site's lib/fork.ts.
+// Fork in the desktop, held to the site's fork rules.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FORK_TERMS, forkable, forkCopyNotice, forkCountLine, forkOfLabel, forkProgressLine, type ForkAgent } from "../src/fork.ts";

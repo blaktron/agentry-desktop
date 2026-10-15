@@ -1,4 +1,4 @@
-// The window's drop guard (agentry-desktop#644). A drop that no page takes
+// The window's drop guard. A drop that no page takes
 // would get the webview's default, which in a browser opens a dropped file
 // or link in place of the app's document; the guard cancels it. Text
 // dragged into a field or the voice editor still lands there, and a file
@@ -69,7 +69,7 @@ describe("the window's drop guard", () => {
 
   // WebKitGTK reports a file manager's drag with no "Files" among its types:
   // text/uri-list and text/html, the URI list withheld from the page (read
-  // as ""), as measured in a WebKitGTK 4.1 probe on 2026-10-13. Over a field
+  // as ""). Over a field
   // the guard cannot tell it from a link until the drop, where a URI list
   // that is listed but withheld, or that names a file: URI, is a file's.
   test("cancels a drop into a field whose URI list is withheld, as WebKitGTK gives a file's", () => {

@@ -1,5 +1,5 @@
-// Run-surface previews (agentry-desktop#39, extended for In Agentry in
-// #77): RunPanel and ToolsPanel are modals and SessionChat is a chat pane.
+// Run-surface previews: RunPanel and ToolsPanel are modals and SessionChat
+// is a chat pane.
 // Mocks the bindings and selects one surface by location.hash so each gets
 // a clean screenshot. Not shipped.
 //
@@ -8,30 +8,28 @@
 //   #runpanel-unavailable  In Agentry offered, unavailable with the reason
 //   #runpanel-hosted-earns In Agentry chosen for a release whose publisher is
 //                          in Publisher Earnings: the line under the cost
-//                          (agentry-desktop#613)
 //   #runpanel-hosted-followed  Review and start In Agentry while a run In
 //                          Agentry is followed in its card: Run held, and
-//                          the line above it says why (agentry-desktop#466)
-//   (a run In Agentry, once started, is the run's flow's since
-//   agentry-desktop#466: runs.html#hosted-* shows it queued, running, over,
-//   failed and with hostile output)
+//                          the line above it says why
+//   (a run In Agentry, once started, is the run's flow's: runs.html#hosted-*
+//   shows it queued, running, over, failed and with hostile output)
 //   #runpanel-keys         pr-review-brief's shape: keys unsaved, no intake —
 //                          the line above Run names the keys, Input files
-//                          collapsed (agentry-desktop#167)
+//                          collapsed
 //   #runpanel-keys-optional  the same release with its one key optional and
 //                          nothing saved: Connect tools offers Set keys…, so
 //                          the key is set at run time and not only from the
-//                          environment (agentry-desktop#784); -saved clicks
+//                          environment; -saved clicks
 //                          it and saves
 //   #runpanel-file-intake  a release asking for a file up front
 //   #runpanel-unscanned    a release the registry admitted without a scan:
 //                          its own mark and consent, In Agentry not offered
-//   #install-unscanned     the install wizard on the same release (M23)
+//   #install-unscanned     the install wizard on the same release
 //   #install-mcp-env       the install review of a release declaring two MCP
-//                          servers, one with plain env (agentry-desktop#62)
+//                          servers, one with plain env
 //   #toolspanel | #chat    the other two run surfaces
 //
-// Report bug (agentry-desktop#841), the card over the page with the
+// Report bug, the card over the page with the
 // sidebar's foot showing the link above the version:
 //   #bugreport             signed in: the box, Cancel and Submit
 //   #bugreport-signedout   signed out: Sign in instead of the box
@@ -40,7 +38,7 @@
 //   #bugreport-limited     the registry's ten-an-hour refusal, in its words
 //   #bugreport-absent      a registry without the extension
 //
-// The guided run setup (agentry-desktop#226) shows one step at a time, so
+// The guided run setup shows one step at a time, so
 // each state opens on the step that shows it (STEP_OF below), and four
 // more show the steps themselves:
 //   #runpanel-step-files    Files: the chosen files, Add files / Add folder
@@ -53,21 +51,21 @@
 //   #runpanel-chat-review   Review and start for a chat on this computer:
 //                           Advanced has no timeout, and says why
 //   #runpanel-schedule      Review and start with When on Repeat (Schedule
-//                           a new run, agentry-desktop#743): the check ready
+//                           a new run): the check ready
 //   #runpanel-schedule-gaps the check names what a fire would lack
 //   #runpanel-schedule-windows  the signed-out box off, with the reason
 //   #runpanel-schedule-hosted   When on Repeat for a run In Agentry, on Pro:
 //                           the hold, the balance and the check the create
-//                           makes (agentry-desktop#745)
+//                           makes
 //   #runpanel-schedule-hosted-standard  the same on Standard: Later and
 //                           Repeat off, with the plan and the way up
 //   #runpanel-schedule-hosted-gap  Schedule In Agentry refused
 //                           secret-not-kept: the secrets asked for, kept
 //   #runpanel-step-review-long  the same with an intake prompt as long as
 //                           binary-reverse-engineer's: the label wraps and
-//                           every value keeps its width (agentry-desktop#420)
+//                           every value keeps its width
 //
-// The author's guide (manifest v2's guide block, agentry-desktop#228), on
+// The author's guide (manifest v2's guide block), on
 // pr-review-brief's shape with a guide:
 //   #runpanel-guided          Before you start: the overview, then the
 //                             author's "What to have ready"
@@ -80,50 +78,48 @@
 //                             characters, on Before you start
 //   #runpanel-guided-hostile-tools  the same guide's key help on Connect tools
 //
-// Knowledge attached to a run on this machine (plan knowledge.md §4.5,
-// agentry-desktop#273):
+// Knowledge attached to a run on this machine:
 //   #runpanel-step-knowledge      the Knowledge step: the packs kept on this
 //                                 computer, each with its scan state
 //   #runpanel-local-finished-files a local run given files, finished (shots.mjs
 //                                 clicks Run): the receipt's decode line,
-//                                 ClamAV's and Hybrid Analysis's outcomes
-//                                 (agentry-desktop#530); -nokey: no Hybrid
+//                                 ClamAV's and Hybrid Analysis's outcomes;
+// -nokey: no Hybrid
 //                                 Analysis key, so "not checked: no key"
 //   #runpanel-knowledge-finished  a local run with a pack attached, finished
 //                                 (shots.mjs clicks Run): the receipt's
 //                                 knowledge line under the result
 //
-// A release that ships a pack and asks for one of the person's own
-// (agentry-desktop#277, plan knowledge.md §4.6):
+// A release that ships a pack and asks for one of the person's own:
 //   #runpanel-step-knowledge-ships  the Knowledge step: the release's ask,
 //                                   required; its shipped pack; the packs
 //                                   kept here, none ticked, so Next is held
 //   #install-ships-knowledge        the install review: the contract's
 //                                   knowledge row with the pack's size
 //
-// Knowledge attached to a run In Agentry (agentry-desktop#275):
+// Knowledge attached to a run In Agentry:
 //   #runpanel-hosted-knowledge          the Knowledge step In Agentry: packs
 //                                       kept and scanned in Agentry can be
 //                                       ticked; one kept only here offers
 //                                       Copy to Cloud; one being scanned
 //                                       there says so
-//   (a run In Agentry that is over is the run's flow's since
-//   agentry-desktop#466: runs.html#hosted-finished shows its knowledge line)
+//   (a run In Agentry that is over is the run's flow's:
+//   runs.html#hosted-finished shows its knowledge line)
 //
-// A run In Agentry of a release that declares a secret (agentry-desktop#300):
+// A run In Agentry of a release that declares a secret:
 //   #runpanel-hosted-secrets      Review and start In Agentry: the note on
 //                                 what the start asks for; shots.mjs clicks
 //                                 Run In Agentry and the registry answers
 //                                 secret-missing, so the ask shows, Keep it
 //                                 for later runs unticked
 //   #runpanel-hosted-optional     the same with STATUSPAGE_TOKEN optional
-//                                 too (agentry-desktop#795): the ask names
+//                                 too: the ask names
 //                                 both, the optional one marked, and Save
 //                                 and start is held for the required one
 //   #runpanel-hosted-optional-only  STATUSPAGE_TOKEN alone, optional: the
 //                                 ask offers Start with the field empty
 //
-// Talk to it In Agentry, a hosted session (agentry-desktop#403), on an
+// Talk to it In Agentry, a hosted session, on an
 // interactive-only copy of the release:
 //   #runpanel-session-offer    Before you start with Talk to it In Agentry
 //                              chosen: what a session costs, from the
@@ -131,19 +127,18 @@
 //   #runpanel-session-tier     a payer on Standard: the choice offered,
 //                              unavailable, with the reason and See Pro
 //   #runpanel-session-nohost   no sandbox host answering: the choice offered,
-//                              unavailable, with the reason (#437)
-//   (a chat, once started, is the chat's flow's since agentry-desktop#467:
-//   runs.html#chat-* shows it here and In Agentry, going and over)
+//                              unavailable, with the reason
+//   (a chat, once started, is the chat's flow's: runs.html#chat-* shows it
+//   here and In Agentry, going and over)
 //
 // A run on this machine, finished (shots.mjs clicks Run on the review):
 //   #runpanel-local-finished      its Run details name the operator policy
 //                                 it enforced, the runner home's default
-//                                 (agentry-cli#152, agentry-desktop#269)
 //   #runpanel-local-finished-env  the same run with the runner home
 //                                 relocated by AGENTRY_RUNNER_HOME
 //
 // A release with a remote server that signs in by OAuth, Google's Gmail
-// server (agentry-desktop#666), on Connect tools:
+// server, on Connect tools:
 //   #runpanel-signin             not connected: Connect, and what it asks for
 //   #runpanel-signin-connecting  Connect clicked: the wait, the consent
 //                                address, and the field for the address a
@@ -154,8 +149,8 @@
 //                                among them) and the client form
 //   #runpanel-signin-connected   connected, with Connect again and Disconnect
 //   #runpanel-signin-review      Review and start: Run held until connected
-//   #runpanel-signin-hosted      Connect tools In Agentry (agentry-desktop
-//                                #667): Agentry's own connections, made on
+//   #runpanel-signin-hosted      Connect tools In Agentry:
+//                                Agentry's own connections, made on
 //                                the site, and Connect in your browser now
 //   #runpanel-signin-hosted-connect  Review and start In Agentry: shots.mjs
 //                                clicks Run In Agentry, the registry answers
@@ -164,11 +159,11 @@
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
-// In Agentry (hosted runs M6). The view is the panel's: what a run holds,
+// In Agentry. The view is the panel's: what a run holds,
 // where it stands, and what it produced — the registry's numbers.
 const view = location.hash.replace("#", "") || "runpanel";
 // #install-mcp-env: two declared servers, one with plain env and a tool
-// allowlist, one with neither (agentry-desktop#62).
+// allowlist, one with neither.
 const mcpEnvServers = [
   { id: "npm:@modelcontextprotocol/server-github@2025.4.8", tools: ["get_issue", "list_issues", "search_issues"],
     env: [{ name: "GITHUB_API_URL", value: "https://api.github.com" }, { name: "GITHUB_TOOLSETS", value: "issues,pull_requests" }] },
@@ -176,7 +171,7 @@ const mcpEnvServers = [
 ];
 const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length) : "";
 
-// The run form asks only for what the release declares (agentry-desktop#167).
+// The run form asks only for what the release declares.
 // #runpanel-keys is agentry/pr-review-brief's shape: one GitHub MCP server
 // with GITHUB_TOKEN, no intake, no filesystem — the keys unsaved, so the
 // line above Run names them and nothing else; #runpanel-file-intake a
@@ -185,12 +180,11 @@ const hostedState = view.startsWith("runpanel-") ? view.slice("runpanel-".length
 const guidedShape = view.startsWith("runpanel-guided") || view === "toolspanel-hostile";
 const optionalKeysShape = view.startsWith("runpanel-keys-optional");
 // #runpanel-hosted-keys-tools: the same release In Agentry on Connect tools,
-// whose local keys form opened by itself and must not hold Next there
-// (agentry-desktop#799).
+// whose local keys form opened by itself and must not hold Next there.
 const hostedKeysTools = view === "runpanel-hosted-keys-tools";
 const keysShape = view === "runpanel-keys" || view === "runpanel-keys-saved" || view === "runpanel-step-tools" || guidedShape || optionalKeysShape || hostedKeysTools;
 // A Gmail-reading release whose one server is Google's remote Gmail server,
-// signing in by OAuth with the person's own client (agentry-desktop#666).
+// signing in by OAuth with the person's own client.
 const signInShape = view.startsWith("runpanel-signin");
 const hostedSignIn = view.startsWith("runpanel-signin-hosted");
 const gmailServer = "https://gmailmcp.googleapis.com/mcp/v1";
@@ -219,7 +213,7 @@ const googleGuide = {
   note: "Google may show an \"unverified app\" screen when you sign in with a client of your own: the app is yours, and Google says so because it has not reviewed it. Every QuickAgent you connect to Google from this computer uses the client you keep here; each version still asks for its own consent.",
 };
 const hostileGuide = view.startsWith("runpanel-guided-hostile") || view === "toolspanel-hostile";
-// What pr-review-brief's author could write in its guide (DEV-141).
+// What pr-review-brief's author could write in its guide.
 const guide = hostileGuide
   ? {
     overview:
@@ -230,7 +224,7 @@ const guide = hostileGuide
     task: "e.g. <script>alert(1)</script>",
     connect: {
       GITHUB_TOKEN: "Paste it <b onclick=\"steal()\">here</b>. Not javascript:alert(1), file:///etc/passwd or https://github.com@evil.example/x but https://github.com/settings/tokens\u202E, or the look-alike https://g\u0456thub.com/new.\n\n" +
-        // As markdown (agentry-desktop#343): an image, a javascript: link, link
+        // As markdown: an image, a javascript: link, link
         // text that claims another host, bold link text, and a host hidden in
         // percent-encoding each keep their real host beside them.
         "![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [GitHub settings](https://evil.example/steal) [**github.com**](https://github.co/) <https://github.com%2Eevil.example/>",
@@ -248,7 +242,7 @@ const guide = hostileGuide
     },
   };
 const fileIntakeShape = view === "runpanel-file-intake";
-// Input sources (agentry-desktop#794): a release that asks for a
+// Input sources: a release that asks for a
 // repository and, optionally, a file at an address. #runpanel-source-details
 // opens with nothing answered; -saved has the repository answered on a host
 // whose key is saved; -typed has a token typed for an unsaved host;
@@ -257,7 +251,7 @@ const fileIntakeShape = view === "runpanel-file-intake";
 const sourceShape = view.startsWith("runpanel-source");
 const sourceAnswered = sourceShape && view !== "runpanel-source-details";
 const sourceSavedHost = view === "runpanel-source-saved" || view === "runpanel-source-review" || view === "runpanel-source-hosted";
-// Target hosts (agentry-desktop#812): a release that asks for a server.
+// Target hosts: a release that asks for a server.
 // #runpanel-host-where is Before you start, In Agentry not offered;
 // #runpanel-host-details opens with nothing answered and the recent hosts;
 // -key has a server with no saved sign-in (the key file and sudo fields);
@@ -265,14 +259,14 @@ const sourceSavedHost = view === "runpanel-source-saved" || view === "runpanel-s
 const hostShape = view.startsWith("runpanel-host-") || view === "install-target-host";
 const hostAnswered = hostShape && view !== "runpanel-host-details" && view !== "runpanel-host-where";
 const hostSaved = view === "runpanel-host-saved" || view === "runpanel-host-review";
-// A browser (agentry-desktop#878): a release whose url question is its
+// A browser: a release whose url question is its
 // browser's site. #runpanel-site-where is Before you start, In Agentry not
 // offered; #runpanel-site-details is Details with an address that is no
 // site; #runpanel-site-review is Review and start with one.
 const siteShape = view.startsWith("runpanel-site-");
 const siteAnswer = view === "runpanel-site-details" ? "staging.example.com" : view === "runpanel-site-review" ? "https://staging.example.com" : "";
 // An intake prompt as long as blaktron/binary-reverse-engineer@0.1.0's,
-// which once took the recap's whole width (agentry-desktop#420).
+// which once took the recap's whole width.
 const longPromptShape = view === "runpanel-step-review-long";
 const unsafeShape = view.startsWith("runpanel-unsafe");
 // A finished local run: no intake question, so Run on the review is enabled.
@@ -286,7 +280,7 @@ const hostedDeclared = hostedOptionalOnly ? ["STATUSPAGE_TOKEN"] : hostedOptiona
 const hostedOptionalNames = hostedOptional ? ["STATUSPAGE_TOKEN"] : [];
 const hostedEarns = view === "runpanel-hosted-earns";
 const sessionShape = view.startsWith("runpanel-session");
-// Schedules In Agentry (agentry-desktop#745): Pro, but for the Standard
+// Schedules In Agentry: Pro, but for the Standard
 // state; the gap state's first create is refused secret-not-kept and the
 // one after the ask is made.
 const hostedSchedule = view.startsWith("runpanel-schedule-hosted");
@@ -343,7 +337,7 @@ const profile = signInShape
     ref: "agentry/pr-review-brief@1.2.1", digest: "sha256:4e6d650976b7a1b2",
     capabilityLines: ["network egress: none", "filesystem: read none, write none", "MCP: github-mcp-server-js (api.github.com; secrets: GITHUB_TOKEN)", "dataAccess: code"],
     declaredSecrets: hostileGuide ? ["GITHUB_TOKEN", "constructor"] : optionalKeysShape ? ["SEARCH_KEY"] : ["GITHUB_TOKEN", "SEARCH_KEY"], storedSecretNames: [], exists: false, keep: true,
-    // SEARCH_KEY is optional (agentry-desktop#655): marked so in the keys
+    // SEARCH_KEY is optional: marked so in the keys
     // form, and the line above Run names GITHUB_TOKEN alone.
     optionalSecrets: hostileGuide ? [] : ["SEARCH_KEY"],
     modes: ["autonomous"], intake: [], opening: "",
@@ -388,12 +382,12 @@ const mcp = {
   secretNames: keysShape ? ["GITHUB_TOKEN"] : [], embeddedTools: [],
 };
 
-// Settings → Run defaults (agentry-desktop#347): #runpanel-default-agentry
+// Settings → Run defaults: #runpanel-default-agentry
 // has where to run saved as In Agentry, and the setup opens with it chosen;
 // #runpanel-default-agentry-unscanned the same for a release admitted without
 // a scan, which starts on this computer and says why; #runpanel-default-folder
 // a saved output folder, filled in on Review and start.
-// Unsafe Mode (agentry-desktop#418): #runpanel-unsafe-review is Review and
+// Unsafe Mode: #runpanel-unsafe-review is Review and
 // start with Run defaults' switch on, for a release shaped like
 // blaktron/binary-reverse-engineer: the line names the declared commands
 // and the one the image cannot provide, the red edge frames the dialog, and
@@ -433,13 +427,12 @@ const availability = {
   knowledgeAttach: hostedKnowledge, maxPacks: hostedKnowledge ? 5 : 0,
   declaredSecrets: hostedDeclared, optionalSecrets: hostedOptionalNames, vault: true,
   publisherEarns: hostedEarns,
-  // A release with a target host is offered nothing In Agentry
-  // (agentry-desktop#812).
+  // A release with a target host is offered nothing In Agentry.
   ...(hostShape ? { offered: false, available: false, targetHosts: true } : {}),
-  // Nor is one with a browser, until hosted runs carry one (agentry-desktop#878).
+  // Nor is one with a browser, until hosted runs carry one.
   ...(siteShape ? { offered: false, available: false, browser: true } : {}),
   // Later and Repeat In Agentry follow the plan: Standard is offered them
-  // unavailable, with the way up (agentry-desktop#745).
+  // unavailable, with the way up.
   schedule: hostedSchedule && view !== "runpanel-schedule-hosted-standard"
     ? { offered: true, available: true }
     : { offered: true, available: false, upgrade: true, reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.",
@@ -582,7 +575,7 @@ const STEP_OF: Record<string, StepKey> = {
 const g = window as any;
 g.go = { main: {
   SettingsAPI: { RunDefaults: async () => runDefaults },
-  // Schedules on this computer (agentry-desktop#743): this computer can
+  // Schedules on this computer: this computer can
   // schedule; on the Windows state it cannot also run signed out.
   ScheduleAPI: {
     Availability: async () => ({
@@ -625,7 +618,7 @@ g.go = { main: {
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
     ProfileStatus: async () => profile,
     // Saving the keys makes the profile exist: the line above Run goes and
-    // Run enables (#runpanel-keys-saved, agentry-desktop#167).
+    // Run enables (#runpanel-keys-saved).
     SaveProfile: async () => ({ ...profile, exists: true, storedSecretNames: profile.declaredSecrets }),
     HostedAvailability: async () => availability,
     AttachHostedRun: async () => ({ run: hostedRun }),
@@ -638,7 +631,7 @@ g.go = { main: {
       : view === "runpanel-signin-hosted-connect"
         ? { refusal: "connection-missing", detail: `A tool is not connected: The release's tools sign in by OAuth, and you have not connected ${gmailServer} for this version. Connect them, then start the run.`, missing: [gmailServer] }
         : { run: hostedRuns.queued }),
-    // A run In Agentry's sign-ins (agentry-desktop#667): the page opens in
+    // A run In Agentry's sign-ins: the page opens in
     // the browser, which never answers here, so the start waits.
     OpenHostedConnect: async () => {},
     AwaitHostedConnections: () => new Promise(() => {}),
@@ -649,9 +642,9 @@ g.go = { main: {
     StarAsk: async () => ({ ask: false }),
     StarQuickAgent: async () => {},
     CancelHostedRun: async () => ({ ...hostedRuns.queued, cancelRequested: true, statusLine: "cancelling" }),
-    // A run on this computer is handed to the run's flow at Run
-    // (agentry-desktop#465): Go's first report says it has begun, then its
-    // result comes back, and the flow shows the result the panel used to.
+    // A run on this computer is handed to the run's flow at Run:
+    // Go's first report says it has begun, then its
+    // result comes back, and the flow shows the result.
     RunAgent: async () => {
       const begun = { runId: localResult.runId, ref: localResult.ref, startedAt: Date.now() - 41_200, timeoutSeconds: 900, maxTurns: 60, turns: 4, inputTokens: 5120, outputTokens: 1430, prepared: true };
       for (const cb of listeners["runner:run-progress"] ?? []) cb(begun);
@@ -661,7 +654,7 @@ g.go = { main: {
     UnsafeNotice: async () => unsafeNotice,
     RunOutputs: async () => runOutputs,
     ShowRunFolder: async () => {},
-    // Connect tools' sign-ins (agentry-desktop#666): none for the other
+    // Connect tools' sign-ins: none for the other
     // states; on #runpanel-signin-connecting Connect sends the consent
     // address and waits for the browser, which never answers here.
     ReleaseConnections: async () => (signInShape ? signInRelease : { ref: profile.ref, digest: profile.digest, servers: [] }),
@@ -691,7 +684,7 @@ g.go = { main: {
         ? { egressHosts: ["api.pagerduty.com"], fsRead: "workspace", fsWrite: "paths", fsWritePaths: ["reports"], secrets: ["PAGERDUTY_TOKEN"], knowledge: ["pagerduty-docs"] }
         : { network: { egress: ["api.pagerduty.com"] }, filesystem: { read: "workspace", write: { paths: ["reports"] } }, secrets: ["PAGERDUTY_TOKEN"] },
       shippedKnowledge: view === "install-ships-knowledge" ? [{ name: "pagerduty-docs", bytes: 4_404_019 }] : [],
-      // Every declared secret, an optional one marked (agentry-desktop#655).
+      // Every declared secret, an optional one marked.
       declaredSecrets: ["PAGERDUTY_TOKEN", "STATUSPAGE_TOKEN"], optionalSecrets: ["STATUSPAGE_TOKEN"],
       needsCapabilityConfirm: true, prevVersion: "", diff: null, requiresWidenedConfirm: false,
       vulnerabilities: [], vulnerabilityLine: "have no known high or critical advisories", vulnerabilityRefusal: "",
@@ -706,7 +699,7 @@ g.go = { main: {
   KnowledgeAPI: {
     List: async () => ({ packs: knowledgePacks, registry: "https://secureagentry.net", signedIn: true }),
   },
-  // This computer's Writing Voice (agentry-desktop#510): on for every run
+  // This computer's Writing Voice: on for every run
   // here on #runpanel-voice, so Review and start shows Write in my voice
   // ticked; none on every other state, which shows no box.
   VoiceAPI: {
@@ -725,7 +718,7 @@ g.go.main.SettingsAPI.ReportBug = async () =>
     : view === "bugreport-absent" ? { filed: false, reason: "absent" }
       : { filed: true };
 // The app's EventsOn goes through EventsOnMultiple (the wails runtime
-// shim). A run In Agentry sends no log (agentry-desktop#182), so nothing
+// shim). A run In Agentry sends no log, so nothing
 // is scripted on runner:run-log.
 const subscribe = (name: string, cb: (v: any) => void) => {
   (listeners[name] ??= []).push(cb);
@@ -750,7 +743,7 @@ import { Wordmark } from "../src/ui";
 import { SidebarNav } from "../src/nav";
 import { UnsafeBadge, UnsafeGlow } from "../src/unsafe";
 
-// #runpanel-local-install (agentry-desktop#425): a QuickAgent installed
+// #runpanel-local-install: a QuickAgent installed
 // from a folder on this computer, run from the Library.
 const localInstall = view === "runpanel-local-install";
 const att = (localInstall ? { state: "local", detail: "installed from a folder on this computer" }

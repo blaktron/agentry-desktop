@@ -1,5 +1,4 @@
-// The Writing Voice's choices and words (plan writing-voice.md §5, §8, D11,
-// D12; agentry-desktop#510): Write in my voice is drawn only where the voice
+// The Writing Voice's choices and words: Write in my voice is drawn only where the voice
 // the run would use exists, ticked from that voice's own switch; the editor
 // holds a voice to the format's rule; the price is the registry's.
 import { test } from "node:test";
@@ -44,8 +43,7 @@ test("a finding says the question in words, and the cost is the registry's", () 
   assert.equal(reviewCostLine(0, false), "Save sends it to AI Review. It goes live when it passes.");
 });
 
-// The Voice page's cards and the Local Voice page (plan
-// voice-page-redesign.md §4, §7, §8, D2; agentry-desktop#610).
+// The Voice page's cards and the Local Voice page.
 const NOON = "2026-10-04T12:00:00Z";
 const live = { review: "passed", digest: "sha256:live", createdAt: "2026-10-03T12:00:00Z" };
 const signedIn = { signedIn: true, accountOffered: true };
@@ -113,9 +111,8 @@ test("Edit with AI asks what should change over a voice, and samples where there
   assert.match(editWithAIProblem(true, "é".repeat(2049), 0) ?? "", /at most 4 KiB/);
 });
 
-// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, D5;
-// agentry-desktop#611): the site's Voice settings page in the desktop, in
-// its words (agentry-web lib/voice-view.ts).
+// The Cloud Voice page: the site's Voice settings page in the desktop, in
+// its words.
 
 test("the pending version's line says whether it is flagged, unfinished or being read, and that the page follows it", () => {
   assert.match(pendingLine({ review: "flagged" }, true), /^AI Review flagged this version, so your live voice stays live\. Edit it and save it again, or discard it\.$/);

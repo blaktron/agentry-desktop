@@ -1,4 +1,4 @@
-// The run In Agentry store (agentry-desktop#466), driven by scripted events
+// The run In Agentry store, driven by scripted events
 // and calls in place of Go: the run is followed by its id for the app's
 // life, a run that ends with its dialog closed lands in its card with its
 // result, and a refused start follows nothing.

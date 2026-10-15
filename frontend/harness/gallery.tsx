@@ -1,8 +1,8 @@
-// Design harness (agentry-desktop#36). Not shipped in the app bundle — it
-// lives outside tsconfig's `include` and the app's Vite entry. It renders
-// the shell chrome and the primitive layer against the real style.css and
-// fonts so a redesign can be screenshotted (Playwright, light and dark)
-// without webkit or the Go backend. Later milestones add page previews here.
+// Design harness. Not shipped in the app bundle: it lives outside
+// tsconfig's `include` and the app's Vite entry. It renders the shell chrome
+// and the primitive layer against the real style.css and fonts so the UI can
+// be screenshotted (Playwright, light and dark) without webkit or the Go
+// backend.
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import {

@@ -1,17 +1,17 @@
-// First-run wizard preview (agentry-desktop#41). Selects the step by
+// First-run wizard preview. Selects the step by
 // location.hash (#0 welcome | #1 sign-in | #2 Local or Cloud | #3 runtime |
 // #4 AI Review key | #5 coding agent | #6 done | #cloud the Cloud path's
 // data page) and renders it over the shell chrome, the same
 // pattern the run-surface modals use. Not shipped: it sits outside tsconfig
 // include and the app's Vite entry.
 //
-// Suffixes pick a state (agentry-desktop#89): #5 shows the step after
+// Suffixes pick a state: #5 shows the step after
 // "Look for coding agents" with Claude Code found and chosen and Codex
 // missing; #5-missing the same with neither on the machine; #5-unprobed
 // the step as it opens, before the look; #6-nothing every step skipped —
 // the Nothing set up ending instead of Done.
 //
-// The AI Review key (agentry-desktop#462): no key is saved unless the
+// The AI Review key: no key is saved unless the
 // suffix is -saved or -keyonly, or the step is Done and something was set
 // up; -refused has the keychain refuse the save, so the shot script types a
 // key and clicks Save; -slow has the save never answer, so the footer's
@@ -22,17 +22,17 @@ import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
 // wizard.html#3-pendingRestart (or #6-pendingRestart) previews the runtime
-// step's docker card, and the done recap, in that docker state
-// (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.
+// step's docker card, and the done recap, in that docker state:
+// installable | groupMissing | pendingRestart | manual.
 // #3-models previews the runtime step after Get models filled the list;
 // #3-nomodels the failed listing (the model stays typeable); #3-subscription
-// a stored Anthropic subscription token and its sentence
-// (agentry-desktop#131); #3-refused a save the backend refuses after the
+// a stored Anthropic subscription token and its sentence;
+// #3-refused a save the backend refuses after the
 // key was stored — the shot script types the custom provider's form and
-// clicks Save (agentry-desktop#141); #3-preparing an image pull that never
+// clicks Save; #3-preparing an image pull that never
 // ends in the harness, #3-prepared one that ends, #3-prepare-refused one the
 // backend refuses — the shot script clicks Prepare images now and shoots the
-// step holding, then releasing, its Continue and Back (agentry-desktop#145).
+// step holding, then releasing, its Continue and Back.
 const suffix = (location.hash.match(/-(\w+)$/) || [])[1] || "";
 const modelsFail = suffix === "nomodels";
 const subscription = suffix === "subscription";
@@ -47,10 +47,10 @@ const catalog = {
   ],
 };
 const nothing = suffix === "nothing";
-// The save refused after the key was stored (desktop#141): the shot script
+// The save refused after the key was stored: the shot script
 // switches to the custom provider and types a bad URL.
 const refused = suffix === "refused";
-// The image pull (desktop#145): in flight and never answering in the
+// The image pull: in flight and never answering in the
 // harness; answered after a beat; refused by the backend.
 const preparing = suffix === "preparing";
 const prepared = suffix === "prepared";
@@ -58,7 +58,7 @@ const prepareRefused = location.hash.endsWith("-prepare-refused");
 const keyOnly = suffix === "keyonly";
 const harnessesMissing = suffix === "missing" || nothing || keyOnly;
 const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
-// Model sign-ins (agentry-desktop#734): #3-chatgpt OpenAI with nothing
+// Model sign-ins: #3-chatgpt OpenAI with nothing
 // kept (Sign in with ChatGPT leads, the key second); #3-claudekept the
 // Claude subscription chosen and signed in; #3-waiting a ChatGPT sign-in
 // waiting in the browser (the shot clicks Sign in with ChatGPT, which never
@@ -66,7 +66,7 @@ const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].
 // copied (the shot clicks the button; the code arrives as the event);
 // #3-connected an OpenRouter account connected, its model typed;
 // #3-copilotkept a Copilot sign-in kept, its plan's models listed by
-// Copilot CLI once asked (agentry-desktop#811; the shot clicks List).
+// Copilot CLI once asked (the shot clicks List).
 const signInState = ["chatgpt", "claudekept", "waiting", "copilotcode", "connected", "copilotkept"].includes(suffix) ? suffix : "";
 const signInProvider = { chatgpt: "openai", waiting: "openai", claudekept: "anthropic", copilotcode: "copilot", connected: "openrouter", copilotkept: "copilot" }[signInState] ?? "";
 const signInKind = { claudekept: "claude-signin", copilotkept: "copilot-signin" }[signInState] ?? "";
@@ -77,8 +77,8 @@ const keptSignIns = signInState === "claudekept"
   : signInState === "connected"
     ? [{ vendor: "openrouter", provider: "openrouter", kind: "api", connected: true, account: "you", image: true, createdAt: "2026-10-11T12:00:00Z" }]
     : [];
-// #3-unlisted: a hand-written policy names a provider no tile shows
-// (agentry-desktop#830): no tile lit, the line under them saying so, and
+// #3-unlisted: a hand-written policy names a provider no tile shows:
+// no tile lit, the line under them saying so, and
 // the form paid by a key.
 const unlisted = suffix === "unlisted";
 // The runtime's events, so a binding can answer through them as Go does.
@@ -100,8 +100,7 @@ const setup = {
 };
 
 // #2 is the Local or Cloud step signed out, Cloud locked; #2-signedin the
-// same signed in, Cloud open; #cloud the Cloud path's data page, signed in
-// (agentry-desktop#842).
+// same signed in, Cloud open; #cloud the Cloud path's data page, signed in.
 const cloudPage = location.hash === "#cloud";
 const signedIn = suffix === "signedin" || cloudPage;
 const settingsView = {
@@ -136,7 +135,7 @@ const keySaved = suffix === "saved" || keyOnly || (step === 6 && !nothing);
 const noKey = { stored: false, envName: "TYPESAFE_API_KEY", envSet: false, ready: false };
 const savedKey = { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
 
-// Engine wakes between the parent check and prerequisite detection (#594).
+// Engine wakes between the parent check and prerequisite detection.
 let dockerChecks = 0;
 const g = window as any;
 g.go = { main: {
@@ -175,11 +174,11 @@ g.go = { main: {
     HarnessStatus: async () => harnesses,
     ChosenHarnesses: async () => harnesses.filter((h) => h.chosen),
     // The key-only call answers with the provider it stored under listed,
-    // the policy untouched (desktop#139, #141).
+    // the policy untouched.
     StoreModelKey: async (provider: string) => ({ ...setup, keysStored: [...setup.keysStored, provider] }),
     // The CLI's sentence for plain http off this machine, as pages.tsx
-    // answers it (agentry-desktop#317); without it the step's URL field
-    // throws and the wizard unmounts (agentry-desktop#378).
+    // answers it; without it the step's URL field
+    // throws and the wizard unmounts.
     EndpointWarning: async (u: string) => {
       const m = /^http:\/\/([^/:]+)/i.exec(u.trim());
       if (!m || m[1] === "localhost" || m[1].startsWith("127.")) return "";

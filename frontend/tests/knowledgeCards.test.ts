@@ -1,5 +1,4 @@
-// The Knowledge page's two places (plan knowledge-cards.md §4, D3, D6;
-// agentry-desktop#619): which packs each page lists, the cards' lines, and
+// The Knowledge page's two places: which packs each page lists, the cards' lines, and
 // the badges a row carries about the other place.
 import { test } from "node:test";
 import assert from "node:assert/strict";

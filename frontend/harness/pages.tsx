@@ -1,4 +1,4 @@
-// Page previews (agentry-desktop#37+). Mocks the Wails bindings
+// Page previews. Mocks the Wails bindings
 // (window.go / window.runtime) with fixture data so the REAL page
 // components render in a plain browser for screenshots — the bindings
 // resolve through window.go at call time, so setting it before render is
@@ -17,13 +17,13 @@ const hits = [
   { namespace: "acme", name: "pr-triage", summary: "Reads an open PR and drafts a triage note under a strict egress allowlist.", modes: ["autonomous", "interactive"], quarantine: "", installs30d: 7 },
   { namespace: "labs", name: "log-explainer", summary: "An interactive session over a log bundle; no filesystem write, no network.", modes: ["interactive"], quarantine: "", installs30d: 0 },
 ];
-// #agent-unscanned (M23): the latest version was admitted without a scan
+// #agent-unscanned: the latest version was admitted without a scan
 // — its own verdict, its own mark, no attestation to verify.
 const unscanned = window.location.hash === "#agent-unscanned";
-// #agent-fork is a fork's page (agentry-desktop#706): its origin, its copy
+// #agent-fork is a fork's page: its origin, its copy
 // under way, no Fork. The origin itself carries a fork count.
 const agentFork = window.location.hash === "#agent-fork";
-// An instruction file whose name and text hide characters (#835): both
+// An instruction file whose name and text hide characters: both
 // must show as chips.
 const agentInstructionsHidden = window.location.hash === "#agent-instructions-hidden";
 const detail = {
@@ -51,7 +51,7 @@ const report = {
 const prov = unscanned
   ? { state: "unscanned", detail: "the registry admitted this version without a scan: no findings, no report and no attestation stand behind it" }
   : { state: "verified", keyId: "a1b2c3d4", detail: "DSSE verified", rulesetVersion: "2026.09.1", judgeModel: "claude-sonnet-4-5" };
-// The Library's three sections (agentry-desktop#63): two installs this
+// The Library's three sections: two installs this
 // app manages, a run consent the CLI wrote into the same file, and a record
 // whose directory is gone.
 const installedRecs = [
@@ -59,14 +59,14 @@ const installedRecs = [
   { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "acme", name: "pr-triage", version: "0.4.1", target: "claude-skill", dir: "/home/me/work/acme", managed: true, installedAt: "2026-08-30T14:00:00Z", capabilities: { egressHosts: ["api.github.com"], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["gh"] }, present: true, manageable: true },
   { registry: "runner", origin: "https://secureagentry.net", namespace: "agentry", name: "changelog-from-git", version: "1.2.1", target: "runner", dir: "/home/me/.agentry/runner/agents/agentry/changelog-from-git", managed: true, installedAt: "2026-09-11T16:20:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: ["git"] }, present: true, manageable: true },
   { registry: "https://secureagentry.net", origin: "https://secureagentry.net", namespace: "acme", name: "release-notes", version: "0.2.0", target: "claude-skill", dir: "/home/me/old-project", managed: true, installedAt: "2026-07-14T10:00:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "none", secrets: [], execCommands: [] }, present: false, manageable: true },
-  // Installed from a folder with the Build tab's Install (agentry-desktop#425):
+  // Installed from a folder with the Build tab's Install:
   // local and unsigned, no origin, run from here.
   { registry: "runner", origin: "", namespace: "me", name: "csv-quality-check", version: "0.1.0", target: "runner", dir: "/home/me/.agentry/runner/agents/me/csv-quality-check", managed: true, source: "local", digest: "sha256:5565240b85d9c2f41e0a7d3b1c9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e", local: true, installedAt: "2026-09-30T08:10:00Z", capabilities: { egressHosts: [], fsRead: "workspace", fsWrite: "workspace", secrets: [], execCommands: [] }, present: true, manageable: true },
 ];
 // pages.html#fresh previews a first run: nothing installed, and a registry
-// that sent no total (a core before agentry#290) gets a list with no count.
+// that sent no total (an older core) gets a list with no count.
 const fresh = window.location.hash === "#fresh";
-// The agent page's one-click Install (agentry-desktop#146, D-031):
+// The agent page's one-click Install:
 // #agent-installed has the runner-home record for the shown QuickAgent at
 // its latest (Update, disabled); #agent-installed-older at an older
 // version (Update to <latest>); #agent-install-refused makes the one-click
@@ -75,21 +75,21 @@ const fresh = window.location.hash === "#fresh";
 const agentInstalled = window.location.hash.startsWith("#agent-installed");
 const agentInstalledOlder = window.location.hash === "#agent-installed-older";
 // #agent-installed-unreachable: the record's registry cannot be asked, so
-// Update stays disabled and the page says why (agentry-desktop#147).
+// Update stays disabled and the page says why.
 const agentInstalledUnreachable = window.location.hash === "#agent-installed-unreachable";
 // #installed-updates: the launch check found two newer versions — the
-// number on Library in the sidebar (agentry-desktop#147).
+// number on Library in the sidebar.
 const installedUpdates = window.location.hash === "#installed-updates" ? 2 : 0;
 // #installed-update-warning: the runner-home record has a newer version,
-// and its Update completes with a warning — the policy it could not read
-// (agentry-desktop#235); the page shows the engine's sentence.
+// and its Update completes with a warning — the policy it could not read;
+// the page shows the engine's sentence.
 const installedUpdateWarning = window.location.hash === "#installed-update-warning";
 // Set once that Update answers, so the list reads back the record at 1.3.0
 // with nothing newer, as the real refresh would.
 let updateApplied = false;
 const agentInstallRefused = window.location.hash === "#agent-install-refused";
 const agentInstalling = window.location.hash === "#agent-installing";
-// Settings → Coding agents (agentry-desktop#148): the hash picks the
+// Settings → Coding agents: the hash picks the
 // coding agent the policy records. #coding-codex has Codex alone, so the
 // export is AGENTS.md in the chosen project folder, and the switch on;
 // #coding-none has nothing chosen and no folder, so the switch cannot go
@@ -130,9 +130,9 @@ const buildModel = {
   egressMode: "hosts", egressHosts: window.location.hash === "#build-summary-hostile" ? ["api.pagerduty.com", "<img src=x onerror=alert(1)>\u202e"] : ["api.pagerduty.com"], fsRead: "workspace", fsReadPaths: [],
   fsWrite: "paths", fsWritePaths: ["reports"], execCommands: [], secrets: ["PAGERDUTY_TOKEN", "STATUSPAGE_TOKEN"],
   // PAGERDUTY_TOKEN marked Required; STATUSPAGE_TOKEN left Optional, as a
-  // newly attached key starts (agentry-desktop#655).
+  // newly attached key starts.
   requiredSecrets: ["PAGERDUTY_TOKEN"],
-  // #build-tools-remote and #build-summary-remote (agentry-desktop#668): a
+  // #build-tools-remote and #build-summary-remote: a
   // remote server signed in to by OAuth, one by a key, and a package server
   // with a sign-in, beside the npm server every other state shows.
   mcpServers: [
@@ -150,7 +150,7 @@ const buildModel = {
   guide: { overview: window.location.hash === "#build-summary-hostile"
     ? "Reads the channel. <script>alert(1)</script><b onclick=\"steal()\">now</b> ![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) \u202eexe.txt"
     : "Reads the incident channel and returns a one-page report card.", prepare: ["The incident number", "Read access to the channel"], files: "", task: "Summarise INC-1234", connect: [{ secret: "PAGERDUTY_TOKEN", help: window.location.hash.endsWith("-hostile") && window.location.hash.startsWith("#build-") && !window.location.hash.startsWith("#build-drafted")
-    // agentry-desktop#343: a key's help is markdown (DEV-167). A hostile one
+    // A key's help is markdown. A hostile one
     // on Before a run's preview and on Review shows as text there.
     ? "1. Open **Integrations → API Access Keys**.\n2. Create a *read-only* key.\n\n<b onclick=\"steal()\">now</b> ![pixel](https://evil.example/p.gif) [open me](javascript:alert(1)) [PagerDuty](https://evil.example/pd) https://support.pagerduty.com/keys\u202E and https://p\u0430gerduty.com/new <https://pagerduty.com%2Eevil.example/>"
     : "Create a read-only API key under Integrations" }] },
@@ -158,7 +158,7 @@ const buildModel = {
   hadComments: window.location.hash === "#build-comments",
   instructions: "You summarise an incident channel. Read it, redact secrets, and write reports/report.md.",
 };
-// BuildAPI.Check's answer for the model above (agentry-desktop#280): every
+// BuildAPI.Check's answer for the model above: every
 // step passes, so each shows the lines it writes and Review the file.
 const buildCheck = {
   yaml: 'schemaVersion: "2"\nname: incident-summarizer\nnamespace: demo1\nmodes: [autonomous]\nversion: 1.2.0\nsummary: Summarises an incident channel into a report card, redacting secrets first.\nlicense: Apache-2.0\n',
@@ -174,7 +174,7 @@ const buildCheck = {
 };
 // pages.html#build-* opens the Build preview on a view and a step.
 const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "";
-// The summary (#344): #build-summary is a QuickAgent written in the form,
+// The summary: #build-summary is a QuickAgent written in the form,
 // with every kind of capability; #build-summary-drafted a draft landed on it
 // with AI Review's check and a host the description did not name;
 // #build-summary-hostile an overview, a key's help and a host that carry
@@ -182,14 +182,14 @@ const buildHash = (window.location.hash.match(/^#build-([\w-]+)/) || [])[1] || "
 const buildSummary = buildHash.startsWith("summary");
 const buildView = buildHash === "" || buildHash === "landed" ? "start" : buildHash === "advanced" || buildHash === "comments" ? "advanced" : buildSummary ? "summary" : "steps";
 const buildStep = ({ instructions: 1, tools: 2, "tools-remote": 2, access: 3, questions: 4, guide: 5, "guide-hostile": 5, publish: 6, review: 7, "review-hostile": 7, validate: 7, drafted: 7, "drafted-hostile": 7, "drafted-agentry": 7, "drafted-knowledge": 7 } as Record<string, number>)[buildHash] ?? 0;
-// Describe it (#282): #build-describe with the person's AI Review key saved,
+// Describe it: #build-describe with the person's AI Review key saved,
 // #build-describe-nokey without one; #build-drafted opens Review with a
 // draft the Drafter made and its notes, and #build-drafted-hostile with
 // notes, a match, a source and a withheld address that carry markup, an
 // image, a javascript: link and a right-to-left override.
 const buildDescribe = buildHash.startsWith("describe");
 const hostileDraft = buildHash === "drafted-hostile";
-// Describe it In Agentry (#281): #build-describe-agentry offers it with the
+// Describe it In Agentry: #build-describe-agentry offers it with the
 // hold, the caps and the balance; #build-describe-agentry-short is a payer
 // short of the hold; #build-describe-agentry-drafting follows one queued;
 // #build-describe-signedout offers it but asks for an account;
@@ -211,7 +211,7 @@ const hostedDrafting = buildHash === "describe-agentry-drafting"
       queuePosition: 1, cancelRequested: false, holdCredits: 41, creditsLine: "41 credits are held for this draft.", final: false }
   : null;
 const summaryDraft = buildHash === "summary-drafted";
-// Describe it's Knowledge pick (agentry-desktop#497): #build-describe-knowledge
+// Describe it's Knowledge pick: #build-describe-knowledge
 // on this computer, a pack scanned in Agentry and one kept only here, which
 // is scanned first; #build-describe-knowledge-over a pick past 10 MB;
 // #build-describe-agentry-knowledge In Agentry, the pack kept only here
@@ -226,7 +226,7 @@ const describePacks = !describeKnowledge ? [] : buildHash === "describe-knowledg
   ? [pickPack("manuals", { bytes: 6 << 20, pages: 120 }), pickPack("catalogue", { bytes: 5 << 20, pages: 90 })]
   : [pickPack("m6-dev-runbook"), pickPack("team-notes", { inAgentry: false, agentryReady: false, scan: "not scanned", scanState: "not-scanned", pages: 2, bytes: 1900 }),
     pickPack("handbook", { local: false, shared: true, org: "acme", pages: 12, bytes: 48000 })];
-// #build-landed (agentry-desktop#410): a draft that landed while the tab was
+// #build-landed: a draft that landed while the tab was
 // away, opened as Build mounts, with the fresh form's NewModel answering
 // after it; the draft must stay in the form.
 const landedDraft = buildHash === "landed";
@@ -256,7 +256,7 @@ const draftedView = buildHash.startsWith("drafted") || summaryDraft || landedDra
   aiReview: { scan: agentryDraft ? "registry" : "jev", read: hostileDraft ? 7 : 6, passed: hostileDraft ? 6 : 6, withheld: hostileDraft ? 1 : 0, notScanned: 0,
     withheldSources: hostileDraft ? [{ tool: "web_read", url: "https://evil.example/inject\u202e", reason: "AI Review flagged it (injection)" }] : [] },
   manifestError: "", drafterModel: "openai/qwen3.8-flash-next", runId: "0192a3", outDir: "/home/me/Downloads/agentry-out/agentry-drafter-0192a3",
-  // AI Review's check of the finished draft (agentry-cli#418): a C3 finding,
+  // AI Review's check of the finished draft: a C3 finding,
   // and a hostile id and path.
   check: {
     line: { tone: "review", text: "AI Review read the draft as the Drafter finished it, as the pipeline will, and flagged something the release check looks for. Expect the pipeline to send the version to review when you submit it. The details are under How it was drafted, in the form." },
@@ -311,7 +311,7 @@ const jevKeyView = window.location.hash === "#aireview-none" || buildHash === "d
   : window.location.hash === "#aireview-env"
     ? { stored: false, envName: "TYPESAFE_API_KEY", envSet: true, ready: true }
     : { stored: true, source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: true };
-// Settings → Provider settings → Hybrid Analysis key (agentry-desktop#530):
+// Settings → Provider settings → Hybrid Analysis key:
 // saved by default; #hybrid-none has none; #hybrid-env takes it from the
 // variable; #hybrid-refused answers Test key with the service's refusal.
 const hybridKeyView = window.location.hash === "#hybrid-none"
@@ -319,7 +319,7 @@ const hybridKeyView = window.location.hash === "#hybrid-none"
   : window.location.hash === "#hybrid-env"
     ? { stored: false, envName: "HYBRID_API_KEY", envSet: true, ready: true }
     : { stored: true, source: "keyring", envName: "HYBRID_API_KEY", envSet: false, ready: true };
-// Settings → Provider settings → Web search (agentry-desktop#301): Brave
+// Settings → Provider settings → Web search: Brave
 // saved by default; #search-none has no provider; #search-env takes the
 // key from the variable; #search-refused answers Test key with a 401.
 const searchProviders = [
@@ -339,13 +339,13 @@ const validateResult = {
   issues: [], inventory: [], findings: [], readErrors: [],
 };
 
-// Settings → Run defaults (agentry-desktop#347): the policy's budgets,
+// Settings → Run defaults: the policy's budgets,
 // runs on this computer, no folder saved.
-// Unsafe Mode (agentry-desktop#418): #unsafe-on is the switch on, with the
+// Unsafe Mode: #unsafe-on is the switch on, with the
 // red edge round the window and the sidebar's badge on every page;
 // #unsafe-pulling answers the switch's click as the Go host does after the
 // native Yes, with the image's pull under way; #unsafe-running is the switch
-// off while a run compiled in Unsafe Mode is still live (agentry-desktop#479).
+// off while a run compiled in Unsafe Mode is still live.
 const unsafeOn = window.location.hash === "#unsafe-on";
 const unsafeRunning = window.location.hash === "#unsafe-running";
 const unsafePulling = window.location.hash === "#unsafe-pulling";
@@ -357,7 +357,7 @@ const emitPage = (name: string, v: unknown) => { for (const cb of pageListeners[
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
-// The Voice page (agentry-desktop#510, #610): this computer's voice, on for
+// The Voice page: this computer's voice, on for
 // every run here and the same as the account's live one, which has a
 // flagged new version beside it (so Download is "Already the same" and
 // Upload asks first); #voice-none has neither, #voice-signed-out is signed
@@ -365,8 +365,8 @@ const g = window as any;
 // log lines; #voice-reviewing's account has a first version in review and
 // nothing live, and #voice-standard a Standard account whose Voice Writer
 // run In Agentry this cycle is used, and on #voice-attached an AI Edit In
-// Agentry is already running when the Cloud page opens (agentry-desktop#611).
-// The editor is WYSIWYG since agentry-desktop#612: on #voice-hostile this
+// Agentry is already running when the Cloud page opens.
+// The editor is WYSIWYG: on #voice-hostile this
 // computer's voice carries raw HTML, a script, an image, a javascript: link
 // and invisible characters (a right-to-left override among them), all kept
 // as text, and a link's address and title and a code block's info string
@@ -408,14 +408,14 @@ const voiceView = voiceHash === "#voice-none" || voiceHash === "#voice-failed"
       },
       sync: { ...voiceNoSync, downloadSame: true, accountAfterLocal: true },
     };
-// The Cloud page's Edit with AI In Agentry (agentry-desktop#611): offered
+// The Cloud page's Edit with AI In Agentry: offered
 // and available, or on #voice-standard offered with this cycle's run used.
 const voiceAvail = voiceHash === "#voice-standard"
   ? { offered: true, available: false, reason: "On Standard you can run the Voice Writer in Agentry once a billing cycle, and this cycle's runs are used. The next is yours on 28 October 2026.", remedy: "Edit your voice by hand, or run the Voice Writer on this computer for no credits; or upgrade to Pro.", upgradeUrl: "https://dev.secureagentry.net/settings/subscription?upgrade=pro", credits: 20, holdCredits: 20, limited: true, max: 1, left: 0, aiReviewCredits: 1, balance: 30, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 }
   : { offered: true, available: true, credits: 20, holdCredits: 20, limited: false, max: 0, left: 0, aiReviewCredits: 1, balance: 3977, balanceKnown: true, maxInputFiles: 20, maxInputBytes: 10000000 };
 const voiceHostedRun = { id: "run-7f3a", op: "create", status: "queued", state: "queued", statusLine: "Queued: waiting for a sandbox host.", cancelRequested: false, holdCredits: 20, settledCredits: 0, settled: false, applied: false, final: false };
 
-// Home's Recent runs (agentry-desktop#659), relative to now so the card
+// Home's Recent runs, relative to now so the card
 // reads the same on any day.
 const REG_DEFAULT = "https://secureagentry.net";
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
@@ -437,12 +437,12 @@ function recentRunsView(signedOut: boolean, limit = 5) {
   return { runs: runs.slice(0, limit), remember: true, signedIn: !signedOut };
 }
 
-// Home's layout (agentry-desktop#658): #home-hidden hides the Installed
+// Home's layout: #home-hidden hides the Installed
 // QuickAgents card, #home-newer is a layout a newer app arranged and
 // #home-unreadable one this app cannot decode (the defaults are drawn for
 // both), #home-broken a settings file that cannot be read at all.
 const homeHash = window.location.hash;
-// Pins (agentry-desktop#660), four to a Pinned card as Go places them:
+// Pins, four to a Pinned card as Go places them:
 // #home-pin-one, #home-pin-never (one pin of a QuickAgent never run),
 // #home-pins-four (one card: a run that finished, one stopped, one never
 // run, a folder install), #home-pins-five (a second card, holding a pin whose QuickAgent
@@ -457,17 +457,16 @@ const pinSets: Record<string, { ref: string; registry: string }[][]> = {
   "#home-pins-four": [fourPins],
   "#home-pins-five": [fourPins, [pinOf("acme/release-notes")]],
   // A pin whose origin carries userinfo: Settings → Home names its host
-  // alone (agentry-desktop#661).
+  // alone.
   "#home-pin-userinfo": [[pinOf("demo1/incident-summarizer", "https://chris:s3cret@registry.example")]],
   "#home-pins-sixteen": [
     fourPins.slice(0, 3).concat(pinOf("acme/q01")),
     ...[0, 1, 2].map((c) => [1, 2, 3, 4].map((i) => pinOf(`acme/q${String(c * 4 + i + 1).padStart(2, "0")}`))),
   ],
 };
-// #home-all-hidden hides every default card and pins nothing
-// (agentry-desktop#661).
+// #home-all-hidden hides every default card and pins nothing.
 const allHidden = homeHash === "#home-all-hidden";
-// The Scheduled card (agentry-desktop#744): #home-scheduled pins it, with
+// The Scheduled card: #home-scheduled pins it, with
 // the Scheduled page's October; #home-scheduled-empty with no schedule,
 // #home-scheduled-nocli where the agentry command is not found;
 // #home-strict-scheduled is #home-strict with the card.
@@ -476,7 +475,7 @@ let homeCards: any[] = [{ kind: "recent-runs", hidden: allHidden }, { kind: "ins
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
   ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
 // Pin and Unpin as Go places them: the first Pinned card with room, a new
-// one after it, an emptied one removed (D11).
+// one after it, an emptied one removed.
 // Reset replaces a kept (newer or unreadable) layout too.
 let homeReset = false;
 const homeView = () => ({ cards: homeCards, newer: !homeReset && homeHash === "#home-newer", unreadable: !homeReset && homeHash === "#home-unreadable", maxPins: 16, pinsPerCard: 4 });
@@ -488,7 +487,7 @@ function harnessPin(ref: string, registry: string) {
   homeCards = [...homeCards];
   return homeView();
 }
-// Settings → Home (agentry-desktop#661) as Go does it: a switch flips its
+// Settings → Home as Go does it: a switch flips its
 // card's hidden in place, and Reset is the four defaults, no pins.
 function harnessSetShown(kind: string, shown: boolean) {
   homeCards = homeCards.some((c) => c.kind === kind)
@@ -496,7 +495,7 @@ function harnessSetShown(kind: string, shown: boolean) {
     : [...homeCards, { kind, hidden: !shown, ...(kind === "scheduled" ? { size: "large" } : {}) }];
   return homeView();
 }
-// The Scheduled page's Pin to Home and Unpin (agentry-desktop#744).
+// The Scheduled page's Pin to Home and Unpin.
 const harnessUnpinScheduled = () => { homeCards = homeCards.filter((c) => c.kind !== "scheduled"); return homeView(); };
 function harnessReset() {
   homeReset = true;
@@ -510,9 +509,9 @@ function harnessUnpin(ref: string, registry: string) {
   return homeView();
 }
 
-// The Publisher section (agentry-desktop#705): pat's namespace and two
+// The Publisher section: pat's namespace and two
 // organizations, one pat administers (acme) and one pat is a member of
-// (crew). #publisher-old-signin is a sign-in from before agentry#993, whose
+// (crew). #publisher-old-signin is a sign-in whose
 // token carries no agent:manage; #publisher-signed-out has none at all.
 const publisherHash = window.location.hash;
 let forkReads = 0;
@@ -547,7 +546,7 @@ function publisherChange(ns: string, name: string, change: (r: any) => void) {
   return { ...r };
 }
 
-// The Scheduled page (agentry-desktop#743): two schedules, one paused and
+// The Scheduled page: two schedules, one paused and
 // one that runs signed out, a fortnight of October 2026 that ran, failed
 // and was missed, and what is due.
 const SCHED_NOW = new Date(2026, 9, 9, 12, 0);
@@ -567,14 +566,14 @@ const scheduleItems = [
   { id: "cd34ef56gh", name: "acme/pr-triage", ref: "acme/pr-triage", version: "0.4.1", describe: "every Tue, Thu at 22:00 (Europe/London)",
     when: { kind: "weekly", time: "22:00", days: ["tue", "thu"], zone: "Europe/London", end: "after", times: 10 }, outDir: "/home/me/agentry-runs", paused: true },
 ];
-// Schedules In Agentry (agentry-desktop#745): #scheduled-hosted adds one
+// Schedules In Agentry: #scheduled-hosted adds one
 // of the account's, which started a run, was skipped for credits and is
 // due; #scheduled-hosted-unreachable is a registry that did not answer,
 // with this computer's schedules as they are; #scheduled-hosted-standard a
 // Standard account, offered the upgrade. #home-scheduled-hosted is Home's
 // card with the same schedule merged.
 const schedHostedHash = window.location.hash.startsWith("#scheduled-hosted") || window.location.hash === "#home-scheduled-hosted";
-// The agentry command (agentry-desktop#788): #scheduled-nocli is a
+// The agentry command: #scheduled-nocli is a
 // computer with none (macOS before an install), whose notice says to
 // install it from Options; the install there makes it available, and the
 // menu then offers Reinstall.
@@ -603,7 +602,7 @@ const hostedOffer = () => (window.location.hash === "#scheduled-hosted-signedout
     reason: "Scheduling runs In Agentry is part of Pro, Business and Enterprise.", remedy: "On Standard, schedule it on this computer, for no credits; or upgrade to Pro." }
   : { offered: true, available: true });
 
-// Settings → Report design (agentry-desktop#759): the core's five themes
+// Settings → Report design: the core's five themes
 // from the frontend tests' fixture (held to the pinned core by a Go test),
 // without thumbnails, which only Go carries. The check stands in for the
 // core's: #report-pale refuses the accent with the nearest shade, anything
@@ -667,7 +666,7 @@ g.go = { main: {
     HostedRemove: async () => true, HostedRunNow: async () => ({ runId: "0199b2c4-6f1a-7c31-9a55-2f0f7f0b1d42" }),
   },
   PublisherAPI: {
-    // Fork (agentry-desktop#706): #agent-fork-taken answers the origin's
+    // Fork: #agent-fork-taken answers the origin's
     // name with name-taken, so the dialog asks for another.
     ForkTargets: async () => ["pat", "acme"],
     Fork: async (_reg: string, ns: string, name: string, target: string, newName: string) => {
@@ -763,7 +762,7 @@ g.go = { main: {
       return detail;
     },
     Readme: async () => "<h1>incident-summarizer</h1><p>Summarises an incident channel into a single report card. Reads the channel, redacts anything that looks like a secret, and writes <code>report.md</code>. Declares a strict egress allowlist and no filesystem write outside <code>reports/</code>.</p><h2>Usage</h2><pre><code>agentry run demo1/incident-summarizer</code></pre>",
-    // The Agent tab's second card (#835): the release's instruction file, as text.
+    // The Agent tab's second card: the release's instruction file, as text.
     Instructions: async () => agentInstructionsHidden
       ? { path: "AGENT\u202Emd.TXT", truncated: true, binary: false, content: "# Incident summarizer\n\nWrite report.md.\u200B Then\u2066 send it nowhere.\u2069\n" }
       : ({ path: "AGENT.md", truncated: false, binary: false,
@@ -794,13 +793,13 @@ g.go = { main: {
       return { message: "installed demo1/incident-summarizer@1.2.0 into the runner home", dest: runnerRecForShown.dir };
     },
   },
-  // The native folder picker, as Build's first save asks it (D-030).
+  // The native folder picker, as Build's first save asks it.
   App: {
     ChooseDirectory: async () => "/home/me/quickagents/incident-summarizer",
-    // The native file picker, as Edit with AI's samples ask it (agentry-desktop#610).
+    // The native file picker, as Edit with AI's samples ask it.
     ChooseFiles: async () => ["/home/me/writing/launch-email.md", "/home/me/writing/essay.txt"],
     // What the app asked the system browser to open, for shots.mjs to read
-    // (expectOpened): the TypeSafe link's one address (agentry-desktop#461).
+    // (expectOpened): the TypeSafe link's one address.
     OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); },
   },
   BuildAPI: {
@@ -812,14 +811,14 @@ g.go = { main: {
     NewSaveFolder: async (name: string) => `/home/me/Downloads/agentry-out/${name || "quickagent"}`,
     Check: async () => (buildHash === "summary-public"
       // A folder whose publish.include leaves out README.md (V7): Submit
-      // waits for it, and Save and Install do not (agentry-desktop#425).
+      // waits for it, and Save and Install do not.
       ? { ...buildCheck, public: "public publish requires README.md at the repo root; publish.include must carry it" }
       : buildHash === "summary-problem"
       ? { ...buildCheck, problems: { guide: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" },
           first: { section: "guide", problem: "guide.connect.PAGERDUTY_TOKEN: 2,140 characters; the maximum is 2,000" } }
       : buildCheck),
     Summary: async (m: typeof buildModel, unmentioned: string[]) => summaryFor(m, unmentioned ?? []),
-    // Review Your QuickAgents locally (agentry-desktop#469): its flow's
+    // Review Your QuickAgents locally: its flow's
     // states are reviews.html's; here only the action, with a key and
     // without (#build-summary-nokey).
     ReviewStatus: async () => ({ key: { stored: buildHash !== "summary-nokey", source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: buildHash !== "summary-nokey" },
@@ -827,7 +826,7 @@ g.go = { main: {
     ReviewLocally: async () => null,
     StopReview: async () => undefined,
     Save: async () => undefined,
-    // The summary's Install and Submit (agentry-desktop#425), each after the
+    // The summary's Install and Submit, each after the
     // Go side's native dialog, answered Yes here. #build-summary-private is
     // a Submit to an agent that exists private, which stays private.
     Install: async () => ({ ref: "demo1/incident-summarizer@0.1.0", digest: "sha256:5565240b85d9c2f41e0a7d3b1c9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e", repaired: false, warnings: [] }),
@@ -855,9 +854,8 @@ g.go = { main: {
   // The person's packs, for Describe it's Knowledge pick: only where a
   // knowledge state asks for them, so no other preview gains a list.
   KnowledgeAPI: { List: async () => ({ packs: describePacks, registry: "https://dev.secureagentry.net", signedIn: true }) },
-  // Registry settings' "signed in as" line reads the user alone since
-  // agentry-desktop#423; the account and the subscription are the Profile
-  // card's (Profile below).
+  // Registry settings' "signed in as" line reads the user alone; the
+  // account and the subscription are the Profile card's (Profile below).
   SettingsAPI: {
     ReportDesignOptions: async () => rdOptions,
     ReportDesign: async () => rdView(),
@@ -867,9 +865,9 @@ g.go = { main: {
     Whoami: async () => profileView().user,
     OpenUpgrade: async () => undefined,
     OpenTopUp: async () => undefined,
-    // Settings → Profile (agentry-desktop#423). The hash picks the account:
+    // Settings → Profile. The hash picks the account:
     // #profile-pro a Pro person offered credit packs, #profile-suspended one
-    // suspended for non-payment (agentry-desktop#511),
+    // suspended for non-payment,
     // #profile-promo a Promo Pro trial, #profile-org a member of an
     // organization, #profile-core a registry that sells nothing; anything
     // else a person on Standard who signed up with Google.
@@ -879,11 +877,11 @@ g.go = { main: {
       return profileView().user;
     },
     CodingAgents: async () => codingView(),
-    // Settings → Run defaults (agentry-desktop#347): the saves answer as Go
+    // Settings → Run defaults: the saves answer as Go
     // would, and the picker "returns" a folder.
     RunDefaults: async () => runDefaultsView,
     SetBuiltinNoLimit: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, builtinNoLimit: on }),
-    // Remember recent runs (agentry-desktop#659): off forgets them all.
+    // Remember recent runs: off forgets them all.
     SetRememberRuns: async (on: boolean) => (runDefaultsView = { ...runDefaultsView, rememberRuns: on, runHistoryCount: on ? runDefaultsView.runHistoryCount : 0 }),
     ClearRunHistory: async () => (runDefaultsView = { ...runDefaultsView, runHistoryCount: 0 }),
     SetRunBudgets: async (t: number, m: number) => (runDefaultsView = { ...runDefaultsView, timeoutSeconds: t, maxTurns: m }),
@@ -894,7 +892,7 @@ g.go = { main: {
     SetInstallIntoCodingAgent: async (on: boolean) => { codingSwitch = on; return codingView(); },
     ChooseCodingAgentProjectDir: async () => codingView(),
   },
-  // The "a newer Agentry Desktop" card (agentry-desktop#87). The hash picks
+  // The "a newer Agentry Desktop" card. The hash picks
   // which state Settings previews: #selfupdate-none (nothing newer),
   // #selfupdate-nochannel (a build of the open core), #selfupdate-failed (the
   // last check could not be believed); anything else offers a release.
@@ -915,7 +913,7 @@ g.go = { main: {
     DismissSelfUpdate: async () => ({ channel: "https://dev.secureagentry.net/downloads/manifest.json", current: "0.1.0", enabled: true, dismissed: true }),
   },
   RunAPI: {
-    // Home's Recent runs (agentry-desktop#659): #home-runs-empty has none,
+    // Home's Recent runs: #home-runs-empty has none,
     // #home-runs-off has Remember recent runs off; signed out (?active=anon)
     // the history alone; otherwise this computer's runs and built-in jobs
     // merged with the account's runs In Agentry.
@@ -927,7 +925,7 @@ g.go = { main: {
     ProfileStatus: async (_registry: string, ref: string) => ({ ref, digest: "sha256:5565240b85d9c2f4", capabilityLines: ["network egress: none", "filesystem: read workspace, write workspace"],
       declaredSecrets: [], storedSecretNames: [], exists: false, keep: true, modes: ["autonomous"], intake: [], opening: "", shipsKnowledge: [] }),
     HostedAvailability: async () => ({ offered: false, available: false }),
-    // Run defaults → Unsafe Mode (agentry-desktop#418). Off answers at once.
+    // Run defaults → Unsafe Mode. Off answers at once.
     // On is the Go host's: here the native Yes is taken as given, the pull's
     // lines arrive as runner:unsafe-progress, and #unsafe-pulling never
     // finishes, so the shot shows the pull under way with the switch off.
@@ -941,7 +939,7 @@ g.go = { main: {
     },
     UnsafeLive: async () => unsafeRunning,
     UnsafeNotice: async () => ({ on: unsafeOn, line: unsafeOn ? "Unsafe Mode is on: every command this QuickAgent declares is installed from Kali Linux's repository or PyPI without asking this computer's approved list, and each runs with the image's own PATH, so it can start any program that image holds. run_command still takes only the declared commands. As resolved, it declares none." : "", unplaced: [] }),
-    // Run defaults → Docker images (agentry-desktop#424). #images-none has
+    // Run defaults → Docker images. #images-none has
     // none, #images-nodocker a daemon that does not answer; otherwise
     // three of Agentry's. Remove answers as the Go host would after Yes.
     AgentryImages: async () => {
@@ -953,7 +951,7 @@ g.go = { main: {
       imagesRemoved = true;
       return { removed: agentryImages.map((i) => i.ref), failed: [] };
     },
-    // Settings' Secrets card (agentry-desktop#300): the registry keeps
+    // Settings' Secrets card: the registry keeps
     // secrets; a save and a delete answer as the vault does.
     KeepsSecrets: async () => true,
     SetHostedSecret: async () => {},
@@ -964,7 +962,7 @@ g.go = { main: {
     ChooseHarness: async () => [claudeCode, codex].map((h) => ({ ...h, chosen: true })),
     ForgetHarness: async () => [],
     // pages.html#agent-mcp-env: the MCP tab of a release declaring two
-    // servers, one with plain env beneath its line (agentry-desktop#62).
+    // servers, one with plain env beneath its line.
     GatewayRequirements: async () => (window.location.hash === "#agent-mcp-env"
       ? {
         toolRows: [
@@ -985,8 +983,8 @@ g.go = { main: {
         vulnerabilities: [], dataAccess: [], secretNames: ["GITHUB_TOKEN"], embeddedTools: [], refusal: "", vulnerabilityLine: "",
       }
       : { toolRows: [], servers: [], declaredServers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
-    // pages.html#docker-<state> previews the docker card in that state
-    // (agentry-desktop#64): installable | groupMissing | pendingRestart | manual.
+    // pages.html#docker-<state> previews the docker card in that state:
+    // installable | groupMissing | pendingRestart | manual.
     PrereqStatus: async () => {
       const state = (window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "installable";
       const base = { os: "linux", distro: "fedora", downloadUrl: "https://docs.docker.com/engine/install/", command: "dnf install -y moby-engine && systemctl enable --now docker && usermod -aG docker me", note: "After installation, log out and back in (or reboot) so your user joins the docker group.", groupCommand: "usermod -aG docker me", dockerErr: "permission denied while trying to connect to the docker daemon socket" };
@@ -1003,14 +1001,14 @@ g.go = { main: {
       ? { dockerOk: true, imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
       : { dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     // The CLI's sentence (setup.PlainHTTPWarning) for plain http off this
-    // machine; "" for https and loopback (agentry-desktop#317).
+    // machine; "" for https and loopback.
     EndpointWarning: async (u: string) => {
       const m = /^http:\/\/([^/:]+)/i.exec(u.trim());
       if (!m || m[1] === "localhost" || m[1].startsWith("127.")) return "";
       return `${u.trim()} uses plain http: the API key and the prompts travel unencrypted to ${m[1]}. Use https if the endpoint supports it.`;
     },
     ListModels: async () => ({ provider: "anthropic", kind: "api", notice: "", models: [{ id: "claude-opus-5", displayName: "Claude Opus 5" }, { id: "claude-sonnet-4-5", displayName: "Claude Sonnet 4.5" }] }),
-    // Model sign-ins (agentry-desktop#734): #signins keeps a ChatGPT
+    // Model sign-ins: #signins keeps a ChatGPT
     // sign-in, a Claude one and a connected Poe account whose key expires,
     // listed under Kept on this computer with Remove and Disconnect.
     ModelSignIns: async () => (window.location.hash === "#signins" ? [
@@ -1028,7 +1026,7 @@ g.go = { main: {
       ? { ok: false, message: "TypeSafe refused the key (401). Check that you pasted the whole key and that it has not been revoked.", from: "the keychain" }
       : { ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
     HybridKeyStatus: async () => hybridKeyView,
-    // Settings → Connections (agentry-desktop#666): one connection made in
+    // Settings → Connections: one connection made in
     // the app, one made by the CLI's agentry connect that no longer works,
     // and the person's own Google client. No release here signs in.
     ReleaseConnections: async (_registry: string, ref: string) => ({ ref, digest: "sha256:5565240b85d9c2f4", servers: [] }),
@@ -1116,7 +1114,7 @@ let profileName = "Chris";
 const profileView = () => {
   const user = { handle: "chris", displayName: profileName, email: "chris@example.test", emailVerified: true };
   // A hosted run's terms as Go carries them to the page: the hold, the
-  // time and the turns, never tokens or a rate (agentry-desktop#457).
+  // time and the turns, never tokens or a rate.
   const caps = { caps: { timeoutSeconds: 900, maxTurns: 60 }, holdCredits: 20 };
   const page = "https://secureagentry.net/settings/subscription";
   if (location.hash === "#profile-core") return { user, signedUpWith: "" };
@@ -1189,7 +1187,7 @@ function Shell({ active, children, signedIn }: { active: NavPage; children: Reac
   );
 }
 
-// Settings as five cards (agentry-desktop#346): the preview keeps its own
+// Settings as five cards: the preview keeps its own
 // route, as App does, so a shot can open a card, follow a part's link, come
 // back by "← Settings", and follow each deep link App gives the places that
 // open Settings. ?settings=<section> opens on a section page; the hash keeps
@@ -1200,7 +1198,7 @@ function SettingsPreview() {
   return (
     <>
       {/* ?active=anon makes the anonymous registry the active one: the
-          landing then has no Profile card (agentry-desktop#423). */}
+          landing then has no Profile card. */}
       <Settings settings={settingsView as any} activeRegistry={q.get("active") === "anon" ? "http://agentry:8080" : REG} onChanged={async () => settingsView as any} onSelectRegistry={() => {}}
         onRunSetup={() => {}} section={at.section} part={at.part} onOpen={(section, part) => setAt({ section, part })} />
       <div className="harness-deeplinks muted small" style={{ marginTop: 24 }}>
@@ -1238,17 +1236,17 @@ function HomePreview() {
 const render = () => createRoot(document.getElementById("root")!).render(
   <div>
     {/* #browse-query: Browse as the Library's search opens it, searched for
-        what was typed there (agentry-desktop#657). */}
+        what was typed there. */}
     <div data-preview="browse"><Shell active="browse"><Browse registry={REG} initialQuery={window.location.hash === "#browse-query" ? "triage" : undefined} onOpenAgent={() => {}} /></Shell></div>
     <div data-preview="agent"><Shell active="agent"><AgentPage registry={REG} ns={detail.agent.namespace} name="incident-summarizer" onBack={() => {}} openRun={window.location.hash === "#agent-open-run"}
       onFork={() => {}} onOpenAgent={(ns, name) => { document.body.dataset.open = `agent:${ns}/${name}`; }} /></Shell></div>
     {/* Where the Library would lead, marked on the body so a shot can see
-        the query it hands to Browse (agentry-desktop#657). */}
-    {/* Home (agentry-desktop#658). ?active=anon makes the anonymous
+        the query it hands to Browse. */}
+    {/* Home. ?active=anon makes the anonymous
         registry the active one, so the Profile card is a Sign in card. What a
         card opens is marked on the body (data-open) for a shot to see. */}
     <div data-preview="home"><Shell active="home"><HomePreview /></Shell></div>
-    {/* Scheduled (agentry-desktop#743): what a row opens is marked on the
+    {/* Scheduled: what a row opens is marked on the
         body (data-open) for a shot to see. */}
     <div data-preview="scheduled"><Shell active="scheduled"><Scheduled now={SCHED_NOW} registry={REG}
       onOpenRun={(id, hosted) => { document.body.dataset.open = `${hosted ? "hosted-run" : "run"}:${id}`; }}
@@ -1259,7 +1257,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
       initialDraft={landedDraft ? null : draftedView as any} onOpenAgent={() => {}} onOpenSettings={() => {}} /></Shell></div>
     <div data-preview="validate"><Shell active="validate"><Validate registry={REG} /></Shell></div>
     <div data-preview="voice"><Shell active="voice"><Voice registry={REG} onOpenSettings={() => {}} /></Shell></div>
-    {/* The Publisher section (agentry-desktop#705): what an action and a row
+    {/* The Publisher section: what an action and a row
         open are marked on the body (data-open) for a shot to see. */}
     <div data-preview="publisher"><Shell active="publisher" signedIn={publisherHash !== "#publisher-signed-out"}><Publisher registry={REG}
       follow={publisherHash === "#publisher-follow" ? { namespace: "pat", name: "incident-summarizer", sentence: "Forked demo1/incident-summarizer into pat/incident-summarizer." } : undefined}
@@ -1269,7 +1267,7 @@ const render = () => createRoot(document.getElementById("root")!).render(
     <div data-preview="settings"><Shell active="settings"><SettingsPreview /></Shell></div>
     {/* Room below the last preview, so a deep link to a part near the end of
         a Settings page can still be scrolled to the top of the view and a
-        shot can tell when it was not (agentry-desktop#673). Outside every
+        shot can tell when it was not. Outside every
         preview, so no locator's shot grows. */}
     <div aria-hidden style={{ height: "100vh" }} />
   </div>,
@@ -1278,12 +1276,10 @@ if (landedDraft) {
   startDraft(REG, "here", "Check a CSV file I add for missing values, duplicate rows and mixed formats.", []);
   setTimeout(render, 100);
 } else if (homeHash === "#home-strict" || homeHash === "#home-strict-scheduled") {
-  // Home starts nothing on load (plan desktop-home-and-library.md §3,
-  // invariant 4): only Home is drawn, and every binding but the reads Home
+  // Home starts nothing on load: only Home is drawn, and every binding but the reads Home
   // makes throws and names itself on the body, which the shot checks is
   // never marked.
-  // The Scheduled card reads the CLI's store and runs nothing
-  // (agentry-desktop#744).
+  // The Scheduled card reads the CLI's store and runs nothing.
   const reads = new Set(["Layout", "ListInstalled", "UpdatesStatus", "RunDefaults", "Profile", "RecentRuns", ...(homeScheduled ? ["HomeCard"] : [])]);
   for (const api of Object.values(g.go.main) as Record<string, unknown>[]) {
     for (const k of Object.keys(api)) {

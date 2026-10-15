@@ -1,7 +1,7 @@
-// The Knowledge panel's states (agentry-desktop#273, plan knowledge.md
-// §4.8; the two places since agentry-desktop#619, plan knowledge-cards.md
-// §4), by location.hash, under the shell chrome, with the bindings mocked
-// (the pattern pages.tsx and modals.tsx use). Not shipped.
+// The Knowledge panel's states (Local and Cloud Knowledge, Create knowledge,
+// Add documents, Preview), by location.hash, under the shell chrome, with
+// the bindings mocked (the pattern pages.tsx and modals.tsx use). Not
+// shipped.
 //
 //   #knowledge            signed in: the start page's two cards, Local
 //                         Knowledge and Cloud Knowledge, with their lines
@@ -23,33 +23,32 @@
 //                         Create knowledge's steps (blocked: docker not ready)
 //   #create-documents-large  documents of 48 MB: the warning that the build
 //                         can take a very long time and the pack stays here
-//   #create-documents-huge   documents past 1 GB: Next refused (#354)
+//   #create-documents-huge   documents past 1 GB: Next refused
 //   #hosted-where-large   the Where step with 48 MB: In Agentry not choosable
 //   #create-building      the build under way: time, turns, pages written
-//                         and tokens over its folded log (#352)
+//                         and tokens over its folded log
 //   #create-done          what the build made
 //   #create-stopped-brief a brief-only build that stopped at its turn budget:
 //                         continued with the same brief, never documents
-//                         (agentry-desktop#600)
 //   #hosted-stopped-brief the same In Agentry: Continue starts from this
-//                         brief (agentry-desktop#600)
+//                         brief
 //   #card-building        a build shrunk to its corner card over the page,
-//                         its progress counting up (agentry-desktop#353)
+//                         its progress counting up
 //   #card-done            the card once the build is over: how it ended
 //   #card-hosted          a build In Agentry in its card
 //   #add-review           Add documents' review
 //   #hosted-where-pro     the Where step for a Standard account: In Agentry
-//                         not choosable, the Pro sentence and See Pro (DEV-162)
+//                         not choosable, the Pro sentence and See Pro
 //   #hosted-where-pro-cloud  the same, opened from the Cloud page: On this
-//                         computer selected (plan knowledge-cards.md D5)
+//                         computer selected
 //   #create-done-cloud    a pack made here from the Cloud page: Copy to Cloud
 //   #preview              a pack's index and pages
 //   #preview-hostile      a page with raw HTML, a script, an image, a
 //                         javascript: link and a right-to-left override
 //   #preview-empty        a pack a build left short: its index and no page,
-//                         the list answered as null (agentry-desktop#351)
+//                         the list answered as null
 //   #render-fault         a page that throws while rendering, caught by
-//                         Recover under a sidebar that still works (#351)
+//                         Recover under a sidebar that still works
 import { createRoot } from "react-dom/client";
 import "../src/style.css";
 import { Wordmark } from "../src/ui";
@@ -77,7 +76,7 @@ const packs = signedOut
     { updated: "2026-09-21T07:00:00Z", name: "scanned-archive", id: "kp_7e6d5c4b3a2918f7e6d5c4b3a2918f7e", pages: 212, bytes: 231_000_000, scan: "not scanned", scanState: "not-scanned", local: true, inAgentry: false, changed: false, where: "this computer",
       key: `your account's key at ${HOST}, which Agentry holds`, wrapper: "registry", registry: HOST, opensOffline: true },
     { agentryUpdated: "2026-10-04T15:10:00Z", agentryScan: "being scanned in Agentry", agentryScanState: "scanning", agentryPages: 14, agentryBytes: 402_000, name: "vendor-faq", agentryId: "c2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f60", pages: 14, bytes: 402_000, scan: "being scanned in Agentry", scanState: "scanning", local: false, inAgentry: true, changed: false, where: "Agentry", opensOffline: false },
-    // acme's shared knowledge (Knowledge M8): one kept here too, one in Agentry only.
+    // acme's shared knowledge one kept here too, one in Agentry only.
     { name: "acme-runbook", id: "kp_2b3c4d5e6f708192a3b4c5d6e7f80912", agentryId: "d3e4f5a6-b7c8-4d9e-8f0a-1b2c3d4e5f61", pages: 22, bytes: 512_000, scan: "scanned in Agentry, 0 findings", scanState: "scanned", local: true, inAgentry: true, changed: false, where: "this computer and Agentry",
       key: `acme's organization key at ${HOST}, which Agentry holds; it opens the pack's key only for the organization's current members`, wrapper: "registry", registry: HOST, opensOffline: false,
       shared: true, org: "acme", exportable: false, canExport: false, updated: "2026-10-01T11:00:00Z", agentryUpdated: "2026-09-29T11:00:00Z",
@@ -122,7 +121,7 @@ const result = {
   key: `your account's key at ${HOST}, which Agentry holds`, inputTokens: 184_210, outputTokens: 41_088, costUsd: 0.1893,
 };
 // A build given only a brief, stopped at its turn budget with what it wrote
-// kept (agentry-desktop#600; seen in #498's real-window check).
+// kept.
 const stoppedBrief = {
   name: "espresso", pages: 17, bytes: 96_400, documents: ["brief.md"], brief: true,
   stopped: "turn budget exceeded (60 tool calls)",
@@ -138,14 +137,14 @@ const buildLog = [
   "tool: write_report wiki/topics/buckets.md",
 ];
 
-// In Agentry (agentry-desktop#274): the registry's answer and a build's
+// In Agentry: the registry's answer and a build's
 // states, as the Go side reports them. Offered only on the #hosted-* states,
 // so the local flow's shots keep their three steps.
 const hostedState = hash.startsWith("hosted-");
 const availability = {
   offered: hostedState, available: hostedState, holdCredits: 100, scanCredits: 1, timeoutSeconds: 3600, maxTurns: 300,
   balance: 494, balanceKnown: true, unmetered: false, maxInputFiles: 20, maxInputBytes: 10 << 20,
-  // A registry since agentry-enterprise#296: a brief alone, and the web.
+  // A registry that takes a brief alone, and the web.
   takesBrief: true, maxBriefBytes: 8192, web: true,
   webNote: "Searching the web can raise the credits a build uses: each search costs 1 credit, inside the build's hold. It is on by default for a new pack with no documents, and off with them.",
   ...(hash.startsWith("hosted-where-pro")
@@ -164,7 +163,7 @@ const hostedRunning = {
   documents: [{ name: "storage-guide.pdf", bytes: 412000 }, { name: "buckets.md", bytes: 3100 }], canContinue: false,
   downloaded: false, final: false,
 };
-// A brief alone (agentry-desktop#498): the #*-brief states, and #*-noweb
+// A brief alone: the #*-brief states, and #*-noweb
 // where this computer has no search key.
 const briefState = hash.includes("-brief") || hash.endsWith("-noweb");
 const brief = "How to look after the café's espresso machine, for new staff: daily cleaning, descaling, grind and dose, and what to do when a shot runs fast.";
@@ -188,8 +187,7 @@ const hostedDone = {
 };
 
 // A brief-only build In Agentry stopped at its turn limit: Continue starts
-// again from this brief, never documents it did not have
-// (agentry-desktop#600).
+// again from this brief, never documents it did not have.
 const hostedStoppedBrief = {
   ...hostedDone, state: "done — budget", outcome: "budget", outcomeLine: "Stopped at its turn or cost limit.", outcomeTone: "warn",
   canContinue: true, pages: 11, bytes: 22_600, settledCredits: 201,
@@ -234,7 +232,7 @@ g.go = { main: {
 // The build's log, streamed as the Go side streams it. The app's EventsOn
 // goes through EventsOnMultiple (the wails runtime shim).
 // The progress counts up as the Go side reports it: the start, then usage
-// and pages (agentry-desktop#352).
+// and pages.
 const started = Date.now() - 754_000;
 const progressReports = [
   { startedAt: started, timeoutSeconds: 3600, maxTurns: 60, turns: 0, inputTokens: 0, outputTokens: 0, pages: 0 },
@@ -257,7 +255,7 @@ import { Recover } from "../src/Recover";
 import KnowledgeCreate from "../src/pages/KnowledgeCreate";
 
 // #render-fault: a page that throws while rendering, as the preview did on a
-// null list (agentry-desktop#351), until Try again clears the fault.
+// null list, until Try again clears the fault.
 let faulty = hash.startsWith("render-fault");
 function MaybeBoom({ children }: { children: React.ReactNode }) {
   if (faulty) throw new TypeError("Cannot read properties of null (reading 'map')");

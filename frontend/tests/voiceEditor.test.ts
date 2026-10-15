@@ -1,6 +1,5 @@
-// The Voice pages' WYSIWYG editor (plan voice-page-redesign.md §6, D1,
-// invariants 2-5; agentry-desktop#612, the site's voice-editor.test.ts of
-// agentry-web#1070 under node's runner). It reads VOICE.md as Markdown and
+// The Voice pages' WYSIWYG editor (the same cases as the site's editor
+// tests, under node's runner). It reads VOICE.md as Markdown and
 // saves Markdown, in one view, so two things must hold before it replaces
 // the textarea: a voice the Voice Writer wrote comes back byte for byte (and
 // where the serializer would normalize, Save sends nothing until the person
@@ -102,8 +101,8 @@ describe("the voice editor's round trip", () => {
 
   // Prose the serializer would escape (`*`, `_`, `\`, an autolink): the
   // model reads VOICE.md as raw text, so an edit to one block leaves every
-  // other block as the bytes it was read from (agentry-desktop#612's review
-  // found `snake_case` written back as `snake\_case`).
+  // other block as the bytes it was read from (`snake_case` must not
+  // be written back as `snake\_case`).
   for (const src of [
     "Write a * b, never a*b.\n",
     "Name it snake_case_name, never __init__.\n",
@@ -356,7 +355,7 @@ describe("the voice editor holds hostile Markdown as text", () => {
   });
 
   test("shows each invisible character as a visible code point, and keeps it in the voice", () => {
-    // DEV-138's reveal, as the Preview drew it: zero-width, bidi, tag.
+    // The reveal, as the Preview draws it: zero-width, bidi, tag.
     const src = "Plain​ text ‮evil‬ and a tag\u{e0041}.\n";
     const editor = open(src);
     const chips = [...(editor.view.dom as HTMLElement).querySelectorAll(".agy-invisible")].map((el) => el.textContent);

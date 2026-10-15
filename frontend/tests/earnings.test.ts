@@ -1,5 +1,5 @@
-// Publisher Earnings in the desktop (agentry-desktop#613): the run setup's
-// line and the star ask say the site's words (agentry-web#1087), and only a
+// Publisher Earnings in the desktop: the run setup's
+// line and the star ask say the site's words, and only a
 // run that finished and succeeded asks to be starred.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ import {
 test("the run setup's line is the site's, with what you pay unchanged", () => {
   assert.equal(PUBLISHER_EARNS_SENTENCE, "Its publisher earns a share of the credits runs of it spend.");
   assert.equal(PUBLISHER_EARNS_AFTER, "What you pay does not change.");
-  // The program's name is Publisher Earnings, never Creator (plan D1).
+  // The program's name is Publisher Earnings, never Creator.
   assert.doesNotMatch(PUBLISHER_EARNS_SENTENCE + PUBLISHER_EARNS_AFTER, /creator/i);
 });
 

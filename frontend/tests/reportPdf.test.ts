@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pdfActions } from "../src/reportPdf.ts";
 
-// D15, D16: only a PDF the run's export made opens, in the app or the
+// Only a PDF the run's export made opens, in the app or the
 // system's viewer; any other is Save only, and says why.
 test("an exported PDF opens in the app and the system viewer, and can be saved", () => {
   const a = pdfActions({ exported: true, pages: 3, theme: "House" });

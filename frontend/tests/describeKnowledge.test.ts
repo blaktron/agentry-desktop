@@ -1,4 +1,4 @@
-// Describe it's Knowledge pick (agentry-desktop#497): which packs a draft
+// Describe it's Knowledge pick: which packs a draft
 // may read where it is made, the 10 MB total and its refusal, and the
 // warning that a draft on this computer scans an unscanned pack first.
 import { test } from "node:test";

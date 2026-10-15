@@ -1,4 +1,4 @@
-// Create knowledge's sources (agentry-desktop#498): documents, a brief or
+// Create knowledge's sources: documents, a brief or
 // both, the plan's warning, and Search the web's default and its words.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -67,7 +67,7 @@ test("what a build reads, in words", () => {
 });
 
 // What continues a build that stopped short: what it was given, never
-// documents it did not have (agentry-desktop#600).
+// documents it did not have.
 test("a stopped build is continued with what it was given", () => {
   assert.equal(continuesWith(0, true), "the same brief");
   assert.equal(continuesWith(2, false), "the same documents");
