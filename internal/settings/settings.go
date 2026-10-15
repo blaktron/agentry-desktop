@@ -407,8 +407,8 @@ func ValidateURL(regURL string) error {
 // settings-file fallback. Empty means anonymous.
 //
 // Only the two sign-ins this app keeps are ever returned, each for a URL of
-// its own registry's origin (SignInFor): a registry the CLI signed in to, or
-// one left in the list from before, gets nothing. The token is read under
+// its own registry's origin (SignInFor): a registry only the CLI signed in
+// to, or a listed registry that is neither sign-in, gets nothing. The token is read under
 // the sign-in's own registry host, not the host as the caller spelled it.
 // A URL ValidateURL refuses gets no token either: the keychain keys a token
 // by host alone, so without this an http:// spelling of a signed-in https
@@ -501,19 +501,31 @@ func StoreToken(regURL, token string) (string, error) {
 	return "file", nil
 }
 
-// DeleteToken removes the stored PAT for a registry from both stores.
+// DeleteToken removes the stored PAT for a registry from both stores,
+// under the address as given and under the registry of the sign-in it
+// belongs to, so another spelling of the same origin signs it out too.
 func DeleteToken(regURL string) error {
-	if host, err := Host(regURL); err == nil {
-		// ErrNotFound is fine; any other keychain error still lets the file
-		// fallback be cleared below.
-		_ = keyring.Delete(KeyringService, host)
-	}
 	s, err := Load()
 	if err != nil {
 		return err
 	}
-	if e := s.Find(regURL); e != nil && e.Token != "" {
-		e.Token = ""
+	urls := []string{regURL}
+	if _, reg := s.SignInFor(regURL); reg != "" && reg != Normalize(regURL) {
+		urls = append(urls, reg)
+	}
+	changed := false
+	for _, u := range urls {
+		if host, err := Host(u); err == nil {
+			// ErrNotFound is fine; any other keychain error still lets the
+			// file fallback be cleared below.
+			_ = keyring.Delete(KeyringService, host)
+		}
+		if e := s.Find(u); e != nil && e.Token != "" {
+			e.Token = ""
+			changed = true
+		}
+	}
+	if changed {
 		return Save(s)
 	}
 	return nil

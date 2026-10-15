@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -85,7 +86,7 @@ func TestEachSignInGoesOnlyToItsOwnRegistry(t *testing.T) {
 		"https://agentry.example.com:8443": "",
 		"http://agentry.example.com":       "",
 		"https://sub.agentry.example.com":  "",
-		// A registry in the list (from before) that is neither sign-in,
+		// A listed registry that is neither sign-in,
 		// and one only the CLI knows.
 		"https://other.example":    "",
 		"https://unlisted.example": "",
@@ -156,7 +157,7 @@ func TestAdmitKeepsOneSignInOfEachKind(t *testing.T) {
 		"https://SECUREAGENTRY.net:443": "",
 		"https://dev.secureagentry.net": "signs in to SecureAgentry at https://secureagentry.net only",
 		"https://a.example":             "",
-		"ftp://":                        "not a registry address",
+		"ftp://":                        "no host this app can sign in to",
 	} {
 		err := s.Admit(url)
 		if (err == nil) != (wantErr == "") || (err != nil && !strings.Contains(err.Error(), wantErr)) {
@@ -180,7 +181,7 @@ func TestAdmitKeepsOneSignInOfEachKind(t *testing.T) {
 
 // A sign-in is stored under its own registry's host only: storing for a
 // registry the app keeps no sign-in for is refused, and a token stored for
-// the new self-hosted registry after the old one was removed is that
+// the new self-hosted registry after the first was removed is that
 // registry's alone, so switching never carries the other's token.
 func TestStoreTokenKeepsTheTwoSignInsApart(t *testing.T) {
 	isolate(t)
@@ -289,5 +290,48 @@ func TestOriginsCompareAsRequestsResolveThem(t *testing.T) {
 		if got := IsSecureAgentry(url); got != want {
 			t.Errorf("IsSecureAgentry(%q) = %v, want %v", url, got, want)
 		}
+	}
+}
+
+// Signing out with another spelling of a sign-in's origin removes the
+// sign-in itself, so it cannot come back with the registry.
+func TestSignOutByAnySpellingRemovesTheSignIn(t *testing.T) {
+	isolate(t)
+	buildFor(t, "https://secureagentry.net")
+	keychainHolds(t, map[string]string{"secureagentry.net": saToken, "a.example": selfToken})
+	saveRegistries(t, "https://secureagentry.net", "https://a.example")
+
+	for _, spelling := range []string{"https://SecureAgentry.net:443/", "https://A.example."} {
+		if err := DeleteToken(spelling); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, host := range []string{"secureagentry.net", "a.example"} {
+		if _, err := keyring.Get(KeyringService, host); err == nil {
+			t.Errorf("%s still holds its sign-in", host)
+		}
+	}
+}
+
+// A settings file that cannot be read names no self-hosted registry: the
+// self-hosted sign-in is withheld, and the SecureAgentry one, which needs
+// nothing from the file, still goes to SecureAgentry.
+func TestAnUnreadableSettingsFileWithholdsTheSelfHostedSignIn(t *testing.T) {
+	isolate(t)
+	buildFor(t, "https://secureagentry.net")
+	keychainHolds(t, map[string]string{"secureagentry.net": saToken, "a.example": selfToken})
+	saveRegistries(t, "https://secureagentry.net", "https://a.example")
+	path, err := Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("registries: [unclosed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := TokenFor("https://a.example"); got != "" {
+		t.Errorf("the self-hosted registry got %q from an unreadable file", got)
+	}
+	if got := TokenFor("https://secureagentry.net"); got != saToken {
+		t.Errorf("SecureAgentry got %q", got)
 	}
 }

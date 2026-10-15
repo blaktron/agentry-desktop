@@ -149,7 +149,7 @@ func (s Settings) SignInFor(regURL string) (kind, reg string) {
 // stands in the way.
 func (s Settings) Admit(regURL string) error {
 	if Origin(regURL) == "" {
-		return fmt.Errorf("%q is not a registry address", DisplayOrigin(regURL))
+		return fmt.Errorf("the registry address has no host this app can sign in to")
 	}
 	if IsSecureAgentry(regURL) {
 		sa := SecureAgentryRegistry()
@@ -165,4 +165,17 @@ func (s Settings) Admit(regURL string) error {
 		return fmt.Errorf("this Agentry Desktop keeps one self-hosted registry, and it is %s: remove it in Settings first to use %s", DisplayOrigin(self), DisplayOrigin(regURL))
 	}
 	return nil
+}
+
+// Resolve admits regURL (Admit) and names it as the list keeps it: the
+// registry of the sign-in it belongs to, so two spellings of one origin
+// are one registry, or regURL itself when it is not in the list yet.
+func (s Settings) Resolve(regURL string) (string, error) {
+	if err := s.Admit(regURL); err != nil {
+		return "", err
+	}
+	if _, reg := s.SignInFor(regURL); reg != "" {
+		return reg, nil
+	}
+	return Normalize(regURL), nil
 }

@@ -155,9 +155,8 @@ func TestASignInTheAppDoesNotKeepIsRefusedBeforeItIsSent(t *testing.T) {
 	}
 }
 
-// A registry left in the list from before, that is neither sign-in, shows
-// why the app will not sign in to it, and gets no token the CLI stored for
-// it.
+// A listed registry that is neither sign-in shows why the app will not sign
+// in to it, and gets no token the CLI stored for it.
 func TestSettingsSaysWhyARegistryHasNoSignIn(t *testing.T) {
 	s := twoSignInApp(t)
 	cfg, err := settings.Load()

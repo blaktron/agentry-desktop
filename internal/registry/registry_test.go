@@ -103,3 +103,30 @@ func TestADownloadCarriesTheTokenOnlyToTheRegistrysOrigin(t *testing.T) {
 		}
 	}
 }
+
+// The attestation an answer names gets the token only on the registry's
+// own origin, as the archive does.
+func TestAnAttestationCarriesTheTokenOnlyToTheRegistrysOrigin(t *testing.T) {
+	var auth atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth.Store(r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+
+	for _, c := range []struct {
+		reg, att, want string
+	}{
+		{srv.URL, "/api/v1/agents/a/b/versions/1.0.0/attestation", "Bearer agy_test"},
+		{srv.URL, srv.URL + "/att", "Bearer agy_test"},
+		{"https://" + host, "http://" + host + "/att", ""},
+		{"http://localhost" + host[strings.LastIndex(host, ":"):], srv.URL + "/att", ""},
+	} {
+		auth.Store("unset")
+		VerifyAttestation(context.Background(), c.reg, "agy_test", c.att, "sha256:00")
+		if got := auth.Load(); got != c.want {
+			t.Errorf("registry %s, attestation %s: sent %q, want %q", c.reg, c.att, got, c.want)
+		}
+	}
+}

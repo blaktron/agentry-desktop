@@ -454,7 +454,7 @@ func verifyAttestation(ctx context.Context, regURL, token string, res *apiclient
 	if attURL == "" {
 		attURL = fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", res.Namespace, res.Name, res.Version)
 	}
-	return trust.VerifyAttestation(ctx, registry.HTTPClient, regURL, token, attURL, computed)
+	return registry.VerifyAttestation(ctx, regURL, token, attURL, computed)
 }
 
 // Confirm applies the consent gates and writes the install. The booleans

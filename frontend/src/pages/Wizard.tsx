@@ -18,7 +18,7 @@ import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } fr
 import { keyStanding } from "../keyRecommendation";
 import { cloudOpen, pathAt, pathOf, runWhereFor, stepAfter, stepBefore, stepsFor, type WizardPath, type WizardStep } from "../wizardPath";
 import { CloudFigure, LocalFigure } from "./WizardFigures";
-import { signInKindFor, signInLabel, signInLine, twoSignIns } from "../signIns";
+import { signInKindFor, signInLine, signInPhrase, twoSignIns } from "../signIns";
 
 const LABELS: Record<WizardStep, string> = {
   welcome: "Welcome", signin: "Sign in", where: "Local or Cloud", runtime: "Runtime",
@@ -150,6 +150,7 @@ function SignInStep({
 
   const current = settings.registries.find((r) => norm(r.url) === norm(regURL));
   const signedIn = !!current?.hasToken;
+  const line = signInLine(settings, regURL);
 
   async function ensureRegistry(): Promise<string> {
     const u = norm(regURL);
@@ -208,7 +209,7 @@ function SignInStep({
         {signedIn ? (
           <Notice tone="ok">
             Signed in to <span className="mono">{norm(regURL)}</span> ({current?.tokenSource}): your{" "}
-            {signInLabel(signInKindFor(settings, regURL)).replace(/^\w/, (c) => c.toLowerCase())}.
+            {signInPhrase(signInKindFor(settings, regURL))}.
           </Notice>
         ) : (
           <>
@@ -218,7 +219,7 @@ function SignInStep({
                 type="text" className="mono" placeholder="https://secureagentry.net"
                 value={regURL} onChange={(e) => setRegURL(e.target.value)} disabled={busy}
               />
-              {signInLine(settings, regURL) && <span className="muted small field-hint">{signInLine(settings, regURL)}</span>}
+              {line && <span className="muted small field-hint">{line}</span>}
             </label>
 
             {waiting ? (

@@ -197,11 +197,8 @@ func (s *SettingsAPI) AddRegistry(url string) (*SettingsView, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := cfg.Admit(url); err != nil {
+	if url, err = cfg.Resolve(url); err != nil {
 		return nil, err
-	}
-	if _, reg := cfg.SignInFor(url); reg != "" {
-		url = reg
 	}
 	cfg.Upsert(settings.Registry{URL: url})
 	if cfg.DefaultRegistry == "" {
@@ -309,11 +306,8 @@ func (s *SettingsAPI) SignIn(url, token string) (*SignInResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := cfg.Admit(url); err != nil {
+	if url, err = cfg.Resolve(url); err != nil {
 		return nil, err
-	}
-	if _, reg := cfg.SignInFor(url); reg != "" {
-		url = reg
 	}
 	user, err := whoami(s.app, url, token)
 	if err != nil {
@@ -895,7 +889,7 @@ func (b *BrowseAPI) Provenance(reg, ns, name, version, declaredDigest, scanStatu
 	}
 	reg = settings.Normalize(reg)
 	attURL := fmt.Sprintf("/api/v1/agents/%s/%s/versions/%s/attestation", ns, name, version)
-	att := trust.VerifyAttestation(b.app.ctx, registry.HTTPClient, reg, settings.TokenFor(reg), attURL, declaredDigest)
+	att := registry.VerifyAttestation(b.app.ctx, reg, settings.TokenFor(reg), attURL, declaredDigest)
 	return &att, nil
 }
 

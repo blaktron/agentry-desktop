@@ -53,4 +53,7 @@ test("the sign-in screen says which sign-in a typed address is, or why none", ()
   assert.equal(signInLine(withSelf, "https://another.example"), "Agentry Desktop keeps one self-hosted registry, agentry.example.com. Remove it in Settings to use another.");
   assert.equal(signInLine(built, "https://dev.secureagentry.net"), "Agentry Desktop signs in to SecureAgentry at secureagentry.net only.");
   assert.equal(signInLine(built, ""), "");
+  assert.equal(signInKindFor(built, "http://agentry.example.com"), "");
+  assert.equal(signInKindFor(built, "http://localhost:8080"), "self-hosted");
+  assert.match(signInLine(built, "http://agentry.example.com"), /use https/);
 });

@@ -29,6 +29,18 @@ const sameOrigin = (a: string, b: string) => {
   return o !== "" && o === origin(b);
 };
 
+// usable says whether Settings would take the address at all: https, or
+// http on this machine only (settings.ValidateURL).
+function usable(url: string): boolean {
+  const o = origin(url);
+  if (!o) return false;
+  const u = new URL(o);
+  if (u.protocol === "https:") return true;
+  if (u.protocol !== "http:") return false;
+  const h = u.hostname;
+  return h === "localhost" || h.endsWith(".localhost") || /^127\./.test(h) || h === "[::1]";
+}
+
 // isSecureAgentry: secureagentry.net or any subdomain of it.
 export function isSecureAgentry(url: string): boolean {
   const o = origin(url);
@@ -41,12 +53,22 @@ export function isSecureAgentry(url: string): boolean {
 // gave a listed registry, else what its origin says. "" when the app keeps
 // no sign-in for it.
 export function signInKindFor(s: SignInSettings, url: string): SignInKind {
+  if (!usable(url)) return "";
   const listed = s.registries.find((r) => sameOrigin(r.url, url));
   if (listed) return listed.signIn as SignInKind;
   if (s.secureAgentryRegistry && sameOrigin(url, s.secureAgentryRegistry)) return "secureagentry";
   if (isSecureAgentry(url)) return "";
   if (!s.selfHostedRegistry || sameOrigin(url, s.selfHostedRegistry)) return origin(url) ? "self-hosted" : "";
   return "";
+}
+
+// signInPhrase names the sign-in inside a sentence.
+export function signInPhrase(kind: SignInKind): string {
+  switch (kind) {
+    case "secureagentry": return "your SecureAgentry sign-in";
+    case "self-hosted": return "your self-hosted sign-in";
+    default: return "no sign-in";
+  }
 }
 
 // signInLabel is the badge on a registry's card.
@@ -76,12 +98,9 @@ export function twoSignIns(s: SignInSettings): string {
 // to, which sign-in it will be, or why there is none.
 export function signInLine(s: SignInSettings, url: string): string {
   if (!origin(url)) return "";
-  switch (signInKindFor(s, url)) {
-    case "secureagentry":
-      return `This is your SecureAgentry sign-in, sent only to ${hostOf(origin(url))}.`;
-    case "self-hosted":
-      return `This is your self-hosted sign-in, sent only to ${hostOf(origin(url))}.`;
-  }
+  if (!usable(url)) return "Registries off this computer use https, so the sign-in never travels in clear.";
+  const kind = signInKindFor(s, url);
+  if (kind) return `This is ${signInPhrase(kind)}, sent only to ${hostOf(origin(url))}.`;
   if (isSecureAgentry(url)) {
     return s.secureAgentryRegistry
       ? `Agentry Desktop signs in to SecureAgentry at ${hostOf(s.secureAgentryRegistry)} only.`

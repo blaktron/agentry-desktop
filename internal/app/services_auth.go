@@ -55,7 +55,7 @@ func (s *SettingsAPI) SignInViaBrowser(url string) (*SignInResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := cfg.Admit(url); err != nil {
+	if url, err = cfg.Resolve(url); err != nil {
 		return nil, err
 	}
 	base := s.app.ctx

@@ -20,6 +20,8 @@ import (
 	pkgarchive "github.com/blaktron/agentry/pkg/archive"
 	"github.com/blaktron/agentry/pkg/manifest"
 
+	"github.com/blaktron/agentry-cli/pkg/trust"
+
 	"github.com/blaktron/agentry-desktop/internal/settings"
 )
 
@@ -150,6 +152,22 @@ func Digest(b []byte) string {
 // never to a CDN and never to an http:// spelling of the registry's host.
 func SameOrigin(a, b string) bool {
 	return settings.SameOrigin(a, b)
+}
+
+// VerifyAttestation is trust.VerifyAttestation with the token held to the
+// registry's origin: an attestation URL the registry's answer names on
+// another origin, the http:// spelling of its own host included, is fetched
+// without it. A URL that is not absolute is a path on the registry, as
+// trust.VerifyAttestation reads it.
+func VerifyAttestation(ctx context.Context, regURL, token, attURL, digest string) trust.AttestationResult {
+	target := attURL
+	if !strings.HasPrefix(target, "http") {
+		target = strings.TrimRight(regURL, "/") + target
+	}
+	if !SameOrigin(target, regURL) {
+		token = ""
+	}
+	return trust.VerifyAttestation(ctx, HTTPClient, regURL, token, attURL, digest)
 }
 
 // Resolve calls GET /resolve for a ns/name[@range] reference. installIntent
