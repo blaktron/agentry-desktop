@@ -354,6 +354,11 @@ type Request struct {
 	// RunID names the run's docker objects (label agentry.run=<id>); ""
 	// mints one. The app sets it so it can Sweep the run on quit.
 	RunID string
+	// InFlightDir is the directory of the crash path's records, where the
+	// app recorded RunID. When set, the prepared run's profile and its keep
+	// decision go on the record before the engine starts (RecordProfile),
+	// so a run that never completes still has its unkept profile removed.
+	InFlightDir string
 	// AllowVulnerableMCP is the person's consent, asked in a native dialog, to run
 	// a declared MCP server whose advisory the registry's gate rates high or
 	// critical. It lets the run through only in Unsafe Mode (Unsafe), and the
@@ -805,6 +810,13 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	// sessions take it the same way. Behind the filter (Linux, and macOS and
 	// Windows from CLI v0.6.117), each run's relays are on networks of its own and
 	// the engine takes no lock.
+	// Best effort, as the record itself is: a run is not refused because
+	// the runner home is unwritable.
+	if req.InFlightDir != "" && prof != nil {
+		if err := RecordProfile(req.InFlightDir, runID, profDir, installDir, keep); err != nil {
+			_, _ = fmt.Fprintf(logw, "warning: %v\n", err)
+		}
+	}
 	return &prepared{
 		sig: sig, m: m, plan: plan, docker: docker, prof: prof, profDir: profDir, keep: keep,
 		params: engine.Params{

@@ -32,12 +32,14 @@ import (
 // running must not keep a secrets file on disk. Nothing else is touched:
 // the run's output folder with its receipts, the QuickAgent's install
 // record and cached release, its profile and every docker image are the
-// person's or the QuickAgent's, not the run's.
+// person's or the QuickAgent's, not the run's. (A profile the run was to
+// remove when it completed goes when its record is forgotten, by what the
+// record says: settleProfile.)
 //
 // Not reached, because nothing names them by the run's id: a container the
 // gateway started where there is no docker filter to label it (macOS and
-// Windows), the gateway's anonymous volume, a profile the run was to remove
-// when it completed, the opened copy of an attached knowledge pack (the
+// Windows), the gateway's anonymous volume, the opened copy of an attached
+// knowledge pack (the
 // store's own sweep, an hour on), a Knowledge Creator build's work
 // directory, and the filter's fallback socket directory under the system's
 // temp directory.

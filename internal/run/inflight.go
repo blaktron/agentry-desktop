@@ -61,6 +61,10 @@ type inFlight struct {
 	// the run's own sweep does not reach it, and the record that is forgotten
 	// removes it.
 	Stage string `json:"stage,omitempty"`
+	// Profile is the run's profile once the run is prepared (RecordProfile),
+	// which forgetting the record settles as the completing run would have
+	// (inflight_profile.go).
+	Profile *recordedProfile `json:"profile,omitempty"`
 }
 
 // runIDPattern is the engine's run id (engine.NewRunID: 8 hex digits),
@@ -109,14 +113,20 @@ func saveRecord(dir string, rec inFlight) error {
 }
 
 // ForgetInFlight removes a run's record; a record already gone is fine. A
-// review's staged copy the record names goes first, and a copy that cannot
-// be removed keeps the record, so the next start or quit tries again.
+// review's staged copy the record names goes first, and so does a profile
+// the run was not to keep (settleProfile); either that cannot be removed
+// keeps the record, so the next start or quit tries again.
 func ForgetInFlight(dir, runID string) error {
 	if !runIDPattern.MatchString(runID) {
 		return fmt.Errorf("forget run: bad run id %q", runID)
 	}
-	if rec, err := readRecord(dir, runID); err == nil && rec.Stage != "" {
-		if err := removeStage(rec.Stage); err != nil {
+	if rec, err := readRecord(dir, runID); err == nil {
+		if rec.Stage != "" {
+			if err := removeStage(rec.Stage); err != nil {
+				return fmt.Errorf("forget run: %w", err)
+			}
+		}
+		if err := settleProfile(dir, rec); err != nil {
 			return fmt.Errorf("forget run: %w", err)
 		}
 	}
