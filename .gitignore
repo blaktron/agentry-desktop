@@ -13,8 +13,6 @@ vendor/
 # wails build -nsis drops the WebView2 bootstrapper here before makensis runs
 build/windows/installer/tmp/
 # Local credentials never enter the tree: secrets live in an .env file.
-# build/release.env is a committed, non-secret build input and is not
-# matched by these patterns.
 .env
 .env.*
 # The design harness writes its screenshots here (node harness/shots.mjs).

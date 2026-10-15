@@ -1,10 +1,7 @@
 // Package keystest makes update-signing keys for tests.
 //
-// It exists because the two packages that need them — internal/selfupdate and
-// internal/cmd/signrelease — otherwise grow the same twenty lines under two
-// names, and because the release workflow's signing step has no secret to
-// borrow in CI: everything that would need real key material to reproduce is
-// reproduced here instead.
+// A test signs with a key it made itself and verifies against a set holding
+// only that key, so nothing in a test needs real key material.
 package keystest
 
 import (

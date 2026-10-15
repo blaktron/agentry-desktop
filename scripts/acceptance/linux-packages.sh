@@ -56,8 +56,8 @@ rm -rf "$stage"; mkdir -p "$stage"
 trap 'rm -rf "$stage"' EXIT
 cp "$deb" "$stage/pkg.deb"; cp "$rpm" "$stage/pkg.rpm"; cp "$bin" "$stage/agentry-desktop.bin"
 cp "$prev_deb" "$stage/previous.deb"; cp "$prev_rpm" "$stage/previous.rpm"
-# The agentry CLI the packages carry when the build has one (build/cli,
-# scripts/fetch-cli.sh): /usr/bin/agentry must be it.
+# The agentry CLI the packages carry when the build has one (build/cli):
+# /usr/bin/agentry must be it.
 [ ! -f build/cli/agentry ] || cp build/cli/agentry "$stage/agentry.cli"
 
 # The part every container runs after installing the previous package.

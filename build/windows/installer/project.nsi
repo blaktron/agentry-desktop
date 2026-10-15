@@ -94,8 +94,8 @@ FunctionEnd
 
 ## Authenticode. SIGN_CMD is a command that signs the PE
 ## file given as its one argument in place; the Makefile passes it only for a
-## release build (scripts/sign-windows.sh), so a PR build or a local
-## build compiles exactly what it compiles without it. !uninstfinalize runs
+## release build, so a PR build or a local build compiles exactly what it
+## compiles without it. !uninstfinalize runs
 ## on the uninstaller before it is embedded — NSIS 3.08+ generates the whole
 ## uninstaller at compile time for this — and !finalize on the installer once
 ## it is written. %1 is the path NSIS hands over.
@@ -134,9 +134,9 @@ Section
 
     !insertmacro wails.files
 
-    # The agentry CLI, when the build carries it: the release fetches the
-    # CLI release go.mod pins, signed, into build/cli (scripts/fetch-cli.sh);
-    # a PR build has none and installs without it.
+    # The agentry CLI, when the build carries it: a release puts the signed
+    # CLI release go.mod pins into build/cli; a PR build has none and
+    # installs without it.
     !if /FileExists "..\..\cli\agentry.exe"
     SetOutPath "$INSTDIR\bin"
     # A running agentry.exe (an MCP session, a long run) cannot be

@@ -9,11 +9,8 @@ The structure is:
 * windows - Windows specific files
 * nfpm - the Linux package definition (`nfpm.yaml`), the desktop entry and the
   rendered hicolor icons
-* release.env - the committed, non-secret build inputs a release bakes in: the
-  production and dev registry URLs, the Windows signing certificate name and
-  the macOS signing identity
-* cli - where `scripts/fetch-cli.sh` puts the signed `agentry` CLI that the
-  packages carry (ignored by git)
+* cli - where a release puts the signed `agentry` CLI that the packages carry
+  (ignored by git)
 
 ## The app icon
 

@@ -1,6 +1,6 @@
 # The Linux packages of Agentry Desktop: one description, a .deb and an .rpm.
 # Built by nfpm from the binary scripts/build-linux.sh produced
-# (make package-linux; the release workflow's linux job), then installed in a
+# (make package-linux, which a release runs too), then installed in a
 # clean container of each family by scripts/acceptance/linux-packages.sh.
 #
 # What a package owns: the binary at /usr/bin, a desktop entry and the icon

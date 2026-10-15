@@ -78,8 +78,8 @@ cp -f "$bin" build/linux/stage/agentry-desktop
 chmod 0755 build/linux/stage/agentry-desktop
 trap 'rm -rf build/linux/stage' EXIT
 
-# The agentry CLI, when the build carries it (build/cli/agentry, which
-# scripts/fetch-cli.sh brings in): /usr/bin/agentry,
+# The agentry CLI, when the build carries it (build/cli/agentry, which a
+# release puts there): /usr/bin/agentry,
 # from a copy of the description with that one entry added after the app's,
 # so a PR build packages exactly what it did. Still no maintainer script.
 desc=build/nfpm/nfpm.yaml

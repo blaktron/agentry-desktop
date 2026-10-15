@@ -236,6 +236,9 @@ func TestTheBuiltinAgentsSwitchIsOnByDefaultAndLiftsTheTimeAndTurnsOfEveryBuilti
 // so an http:// spelling of a signed-in https registry gets nothing, from the
 // keychain or the settings file, while http on this machine still does.
 func TestTokenForRefusesAURLSettingsWouldRefuse(t *testing.T) {
+	// A build for SecureAgentry, whose default registry takes no
+	// self-hosted sign-in, so each case's own registry is the self-hosted one.
+	buildFor(t, "https://secureagentry.net")
 	for _, c := range []struct {
 		self string
 		want map[string]string

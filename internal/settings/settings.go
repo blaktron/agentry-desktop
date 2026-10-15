@@ -34,12 +34,12 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/spec"
 )
 
-// DefaultRegistryURL is the production registry. Base URLs stay
-// configurable: this is only the out-of-the-box value.
-// A var, not a const, so a release build can bake its own registry in
-// (-X .../internal/settings.DefaultRegistryURL=…) — the desktop app served
-// from a site's /download page starts pointed at that site.
-var DefaultRegistryURL = "https://secureagentry.net"
+// DefaultRegistryURL is the registry the app starts pointed at: a registry on
+// this machine in a build from source. Base URLs stay configurable: this is
+// only the out-of-the-box value. A var, not a const, so a release build bakes
+// its own registry in (-X .../internal/settings.DefaultRegistryURL=…), and the
+// app downloaded from a site's /download page starts pointed at that site.
+var DefaultRegistryURL = "http://localhost:8080"
 
 // KeyringService matches the CLI's go-keyring service name; the account key
 // is the registry host, so multiple registries coexist and both clients see
