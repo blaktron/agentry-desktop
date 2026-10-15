@@ -568,7 +568,7 @@ func signIn(t *testing.T, reg string) (home, runnerHome string) {
 	// held in memory for the test.
 	keyring.MockInit()
 	home, runnerHome = t.TempDir(), t.TempDir()
-	t.Setenv("HOME", home)
+	setUserHome(t, home)
 	t.Setenv("AGENTRY_RUNNER_HOME", runnerHome)
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()
@@ -728,7 +728,7 @@ func TestHostedAvailability(t *testing.T) {
 func TestHostedAvailabilityWithoutSigningIn(t *testing.T) {
 	f := &hostedFake{enabled: true}
 	reg := f.start(t)
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	r, _ := newRunAPI(t)
@@ -1364,7 +1364,7 @@ func (t *tokenRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
 // the attaches follow nothing, with no request carrying the token anywhere.
 func TestAHostedRunSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	if err := keyring.Set(settings.KeyringService, "dev.secureagentry.net", hostedTestToken); err != nil {

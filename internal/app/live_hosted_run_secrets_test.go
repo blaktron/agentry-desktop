@@ -41,7 +41,7 @@ func TestLiveHostedRunWithASecret(t *testing.T) {
 		t.Skip("set AGENTRY_LIVE_HOSTED_SECRET_REGISTRY, _TOKEN, _REF, _NAME and _VALUE to run one hosted run with a secret")
 	}
 	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

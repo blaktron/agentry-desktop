@@ -49,7 +49,7 @@ func TestLiveHostedRunAndScheduleWithASource(t *testing.T) {
 	}
 	keyring.MockInit()
 	t.Setenv(modelkey.EnvNoKeyring, "")
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	s, err := settings.Load()

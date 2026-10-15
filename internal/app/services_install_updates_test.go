@@ -46,7 +46,7 @@ func TestInstallUpdatesStatusIsASnapshot(t *testing.T) {
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	home := t.TempDir()
 	t.Setenv("AGENTRY_RUNNER_HOME", home)
-	t.Setenv("HOME", t.TempDir())
+	setUserHome(t, t.TempDir())
 	newer := resolveStub(t, "2.0.0")
 	// The runner record resolves through the app's default registry: the
 	// stub, so no test reaches a real one.

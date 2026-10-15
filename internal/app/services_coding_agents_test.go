@@ -27,12 +27,13 @@ import (
 
 // isolateHomes points every file this surface touches at temp dirs: the
 // config dir (settings, installed.yaml), the runner home (the policy, the
-// installs) and HOME (~/.claude/skills). Returns HOME and the runner home.
+// installs) and the user's home (~/.claude/skills). Returns the user's
+// home and the runner home.
 func isolateHomes(t *testing.T) (userHome, runnerHome string) {
 	t.Helper()
 	t.Setenv(configdir.EnvVar, filepath.Join(t.TempDir(), "config"))
 	userHome, runnerHome = t.TempDir(), t.TempDir()
-	t.Setenv("HOME", userHome)
+	setUserHome(t, userHome)
 	t.Setenv("AGENTRY_RUNNER_HOME", runnerHome)
 	return userHome, runnerHome
 }

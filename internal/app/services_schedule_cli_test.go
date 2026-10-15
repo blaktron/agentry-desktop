@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -31,8 +32,13 @@ func TestInstallCLIOffersAndRuns(t *testing.T) {
 	offered := false
 	s.installOffered = func() bool { return offered }
 	ran := 0
-	bin := filepath.Join(t.TempDir(), "agentry")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho 'agentry version 0.6.93 default registry: https://secureagentry.net'\n"), 0o755); err != nil {
+	// A stand-in command that prints a version line: a shell script, or a
+	// batch file on Windows, which has no /bin/sh.
+	bin, script := filepath.Join(t.TempDir(), "agentry"), "#!/bin/sh\necho 'agentry version 0.6.93 default registry: https://secureagentry.net'\n"
+	if runtime.GOOS == "windows" {
+		bin, script = bin+".cmd", "@echo agentry version 0.6.93 default registry: https://secureagentry.net\r\n"
+	}
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	s.installRun = func(context.Context) (cliinstall.Result, error) {
