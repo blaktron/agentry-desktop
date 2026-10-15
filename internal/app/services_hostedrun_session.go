@@ -352,7 +352,7 @@ func (r *RunAPI) AddHostedSessionFile(path string) error {
 	if err != nil {
 		return err
 	}
-	if err := r.app.requirePickedResolved("file", path); err != nil {
+	if err := r.app.requirePicked("file", path); err != nil {
 		return err
 	}
 	files, err := hostedrun.StageInputs([]string{path})

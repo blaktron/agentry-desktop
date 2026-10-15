@@ -349,7 +349,7 @@ func (v *VoiceAPI) checkVoiceJob(job build.Job, samples []string, brief string) 
 		return errors.New("a brief or a note is at most 4 KiB")
 	}
 	for _, p := range samples {
-		if err := v.app.requirePickedResolved("writing sample", p); err != nil {
+		if err := v.app.requirePicked("writing sample", p); err != nil {
 			return err
 		}
 	}

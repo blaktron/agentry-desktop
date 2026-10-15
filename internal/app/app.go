@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -103,22 +105,86 @@ func (a *App) markPicked(paths ...string) {
 // requirePicked refuses a path no native picker in this process returned:
 // the path itself, or a file under a directory that was picked. The empty
 // path is the binding's own default and passes.
+//
+// The path must lie under a picked root both as written and once links are
+// resolved, on both sides: a link inside a picked folder that leads out of
+// it would otherwise let the page name any file the link reaches, while a
+// picked folder that is itself reached through a link (a linked home
+// directory) still admits what lies under it. A path that does not exist
+// yet is judged by its nearest existing parent. A ".." element is refused
+// outright: the system applies it after following a link, while a lexical
+// clean removes it before, so the two would judge different files.
 func (a *App) requirePicked(what, p string) error {
 	if p == "" {
 		return nil
 	}
-	clean := filepath.Clean(p)
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.picked[clean] {
-		return nil
+	notPicked := fmt.Errorf("%s %q was not chosen through the file dialog; pick it there", what, p)
+	if hasDotDot(p) {
+		return notPicked
 	}
-	for dir := range a.picked {
-		if rel, err := filepath.Rel(dir, clean); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
+	clean := filepath.Clean(p)
+	var roots []string
+	a.mu.Lock()
+	for root := range a.picked {
+		if root == clean || within(root, clean) {
+			roots = append(roots, root)
+		}
+	}
+	a.mu.Unlock()
+	if len(roots) == 0 {
+		return notPicked
+	}
+	real, err := resolveExisting(clean)
+	if err != nil {
+		return fmt.Errorf("%s %q: %w", what, p, err)
+	}
+	for _, root := range roots {
+		realRoot, err := resolveExisting(root)
+		if err != nil {
+			continue
+		}
+		if real == realRoot || within(realRoot, real) {
 			return nil
 		}
 	}
-	return fmt.Errorf("%s %q was not chosen through the file dialog; pick it there", what, p)
+	return fmt.Errorf("%s %q reaches outside the folder it was chosen from through a link; pick the file itself", what, p)
+}
+
+// hasDotDot reports whether any element of p is "..".
+func hasDotDot(p string) bool {
+	for _, el := range strings.FieldsFunc(p, func(r rune) bool { return r == '/' || r == filepath.Separator }) {
+		if el == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveExisting resolves every link in the clean path p. A path that does
+// not exist resolves its nearest existing parent and keeps the rest as
+// written: nothing below that parent exists, so nothing there is a link. A
+// link whose target is missing is an error, not an absent name, because a
+// write through it would land wherever it points.
+func resolveExisting(p string) (string, error) {
+	real, err := filepath.EvalSymlinks(p)
+	if err == nil {
+		return real, nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	if _, lerr := os.Lstat(p); lerr == nil {
+		return "", fmt.Errorf("a link whose target is missing: %w", err)
+	}
+	parent := filepath.Dir(p)
+	if parent == p {
+		return "", err
+	}
+	realParent, err := resolveExisting(parent)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(realParent, filepath.Base(p)), nil
 }
 
 // requireOutputDir is requirePicked for a run's output folder, which may
@@ -146,37 +212,6 @@ func isSavedOutputDir(p string) bool {
 	}
 	st, err := settings.Load()
 	return err == nil && st.DefaultOutputDir != "" && filepath.Clean(st.DefaultOutputDir) == filepath.Clean(p)
-}
-
-// requirePickedResolved is requirePicked for a path whose bytes leave the
-// machine (a document a build uploads): the path must be one a picker
-// returned, or under one, both as written and once links are resolved.
-// requirePicked compares the paths as text, so a link inside a picked folder
-// could otherwise name a file outside it.
-func (a *App) requirePickedResolved(what, p string) error {
-	if err := a.requirePicked(what, p); err != nil {
-		return err
-	}
-	clean := filepath.Clean(p)
-	real, err := filepath.EvalSymlinks(clean)
-	if err != nil {
-		return fmt.Errorf("%s %q: %w", what, p, err)
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for root := range a.picked {
-		if root != clean && !within(root, clean) {
-			continue
-		}
-		realRoot, err := filepath.EvalSymlinks(root)
-		if err != nil {
-			continue
-		}
-		if real == realRoot || within(realRoot, real) {
-			return nil
-		}
-	}
-	return fmt.Errorf("%s %q reaches outside the folder it was chosen from through a link; pick the file itself", what, p)
 }
 
 // within reports whether p lies under dir.
