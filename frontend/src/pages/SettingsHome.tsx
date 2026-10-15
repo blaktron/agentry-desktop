@@ -6,14 +6,13 @@ import { Button, Card, ErrorBox, Modal, Notice } from "../ui";
 import { cardSwitches, HOME_DEFAULTS } from "../homeCards";
 import { pinRecord, pinsOf, registryHost, type Pin } from "../pins";
 
-// Settings → Home (plan desktop-home-and-library.md §4.5, D6, D-067;
-// agentry-desktop#661): which default cards Home shows, the QuickAgents
+// Settings → Home: which default cards Home shows, the QuickAgents
 // pinned to it, and Reset Home. Go owns the layout (HomeAPI): each switch,
 // Unpin and Reset is one change Go makes and answers with the layout as it
 // now is, so the page never writes it whole. Hiding a card keeps its place,
 // Unpin follows the Pinned cards' rules (an emptied card goes, no pin moves
 // to another card), and Reset drops every pin, which the page says before
-// it asks. Reordering and sizes are later (D6, D12).
+// it asks.
 
 type HomePart = "cards" | "pins" | "reset";
 // What a change in a part answered: Go's refusal, or what was done.
@@ -67,7 +66,7 @@ export function HomeSettings() {
   const switches = cardSwitches(view.cards);
   const pinCards = kept ? [] : view.cards.filter((c) => c.kind === "pinned" && (c.pins?.length ?? 0) > 0);
   const pins = kept ? [] : pinsOf(view.cards);
-  // The Scheduled card is no default, so Reset removes it (agentry-desktop#744).
+  // The Scheduled card is no default, so Reset removes it.
   const hasScheduled = !kept && view.cards.some((c) => c.kind === "scheduled");
 
   return (

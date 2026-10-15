@@ -1,4 +1,4 @@
-// The person's own web search key (#301): the provider they choose, from the
+// The person's own web search key: the provider they choose, from the
 // ones the CLI's runner policy admits (RunAPI.SearchKeyStatus carries them),
 // and its key, which Describe it, on this computer searches the web with. It
 // is kept in the OS keychain beside the AI Review key (RunAPI.StoreSearchKey,

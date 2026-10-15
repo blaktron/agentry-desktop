@@ -1,5 +1,4 @@
-// The one run on this computer this app is following (agentry-desktop#465;
-// plan desktop-review-key-and-run-cards.md §5.2), kept outside every page as
+// The one run on this computer this app is following, kept outside every page as
 // drafts.ts keeps a draft: the run setup hands the run over at Run, closes
 // once Go reports the run has begun, and RunFlow (mounted by App above the
 // pages) follows it in its dialog and corner card. The run is followed by
@@ -8,7 +7,7 @@
 // quitting forgets it too, since nothing of it is kept.
 //
 // A run In Agentry is followed the same way, by its own store beside this
-// one (agentry-desktop#466), which HostedRunFlow draws.
+// one, which HostedRunFlow draws.
 //
 // The stores' rules are localRun.ts's createRunStore and hostedRun.ts's
 // createHostedRunStore, which node tests hold; this module wires them to
@@ -76,7 +75,7 @@ export function backToSetup(): RunSetup | null {
   return s;
 }
 
-// The run In Agentry the app follows (agentry-desktop#466), beside the run
+// The run In Agentry the app follows, beside the run
 // on this computer: Go reports it as runner:hosted-run, which this store
 // listens to for the app's life, so a run that ends with its dialog closed
 // lands in its card with its result. At most one of each: Go runs one local
@@ -103,7 +102,7 @@ export const startHostedRun = (s: RunSetup, call: () => Promise<main.HostedStart
   hostedStore.start(s, s.panel.registry, call);
 
 /** Follows what an attach found In Agentry: a chat by the chat's store, a
- *  run by the run's (agentry-desktop#467). */
+ *  run by the run's. */
 async function followFound(registry: string, found: main.HostedStartView, card: boolean): Promise<boolean> {
   if (found.run?.mode === "interactive") {
     return chatStore.followHosted({ registry, run: found.run, terms: null, opening: "", task: found.run.task ?? "" }, null, card);
@@ -147,10 +146,10 @@ export function backToHostedSetup(): RunSetup | null {
   return s;
 }
 
-// The chat the app follows (agentry-desktop#467), on this computer or In
+// The chat the app follows, on this computer or In
 // Agentry: its store starts the session and owns its events, so the chat's
 // dialog and card only draw it, and collects a chat the engine ended whether
-// or not anything shows it. One chat per app (D-017).
+// or not anything shows it. One chat per app.
 const chatStore = createChatStore<RunSetup>({
   on: (event, cb) => EventsOn(event, cb as (v: unknown) => void),
   sendLocal: (text) => RunAPI.SendTurn(text),

@@ -1,9 +1,7 @@
-// The Publisher section's model (plan forks-and-publisher.md §4.2, D12; M6,
-// agentry-desktop#705): what a row of the list says about a QuickAgent and
-// which owner actions it offers, in the site's words (agentry-web
-// lib/publisher.ts). Pure, so the node tests can import it. Go makes the
-// calls and says what they did or why the registry refused them
-// (services_publisher.go).
+// The Publisher section's model: what a row of the list says about a QuickAgent
+// and which owner actions it offers, in the site's words. Pure, so the node
+// tests can import it. Go makes the calls and says what they did or why the
+// registry refused them (services_publisher.go).
 
 /** A row as the page reads it: main.PublisherAgent's fields that decide
  * what the row says. */
@@ -42,8 +40,8 @@ export interface RowBadge {
   tone: "kind" | "warn" | "bad"; // the stylesheet's .badge classes
 }
 
-/** The badges a row carries beside its name, in the order the plan names
- * them (§4.2): Private, Fork, Retired, then a quarantine by its state. */
+/** The badges a row carries beside its name, in the order shown: Private, Fork,
+ * Retired, then a quarantine by its state. */
 export function rowBadges(a: PublisherRow): RowBadge[] {
   const out: RowBadge[] = [];
   if (a.visibility === "private") out.push({ label: "Private", tone: "kind" });
@@ -63,13 +61,13 @@ export function forkOfLabel(a: PublisherRow): string | null {
   return `Fork of ${f.namespace}/${f.name}@${f.version}${state}`;
 }
 
-/** Why a fork offers no Make public (D9), in the site's words
+/** Why a fork offers no Make public, in the site's words
  * (lib/fork.ts). */
 export const FORK_STAYS_PRIVATE = "A fork stays private for good, so it cannot be made public.";
 
-/** The owner actions a row offers (D5). A retired QuickAgent offers Restore
+/** The owner actions a row offers. A retired QuickAgent offers Restore
  * in place of Make public and Retire, and no Edit, since it takes no new
- * version. A fork never offers Make public (D9). Delete is every row's. */
+ * version. A fork never offers Make public. Delete is every row's. */
 export interface RowActions {
   edit: boolean;
   visibility: "private" | "public" | null;
@@ -114,13 +112,13 @@ export function notAdminLine(ns: string): string {
 }
 
 /** What the section says to a sign-in that cannot take the owner actions:
- * one made before the grant carried agent:manage (agentry#993). */
+ * one made before the grant carried agent:manage. */
 export const SIGN_IN_AGAIN =
   "This sign-in was made before Agentry Desktop could retire, restore, delete or change who sees a QuickAgent. Sign out and sign in again under Settings to use those actions here.";
 
 /** What deleting does, said before the name is typed: the site's
  * DeleteWords. A QuickAgent with no version is deleted outright and frees
- * its name; one with versions leaves a tombstone and holds it (plan §4.1).
+ * its name; one with versions leaves a tombstone and holds it.
  * The list knows which from its last submission, as the site's does. */
 export function deleteWords(ns: string, name: string, hasVersions: boolean): string[] {
   const ref = `${ns}/${name}`;

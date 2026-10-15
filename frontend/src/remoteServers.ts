@@ -1,6 +1,5 @@
-// A remote MCP server and a package server's OAuth sign-in in the Builder
-// (OAuth connections M11, agentry-desktop#668; the site's half is
-// agentry-web#1183). The Go model (internal/build MCPServerRow.Declared)
+// A remote MCP server and a package server's OAuth sign-in in the Builder (the
+// site has the same rules). The Go model (internal/build MCPServerRow.Declared)
 // decides what is written; these are the page's readings of the same rules,
 // pure, so node tests them without the app.
 

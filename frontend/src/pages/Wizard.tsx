@@ -1,10 +1,9 @@
-// The first-run guided setup (agentry-desktop#41, plan §5). A skippable,
-// re-runnable flow, linear but for one fork after Sign in, Local or Cloud
-// (agentry-desktop#842, wizardPath.ts), that only ORCHESTRATES services the app
-// already has — SettingsAPI sign-in and RunAPI runtime setup — and adds no
-// state of its own beyond the persisted `onboarded` flag (set by the App
-// through SettingsAPI.MarkOnboarded when the wizard closes). It opens over
-// the app on first start (App gates it) and is re-runnable from Settings.
+// The first-run guided setup. A skippable, re-runnable flow, linear but for one
+// fork after Sign in, Local or Cloud (wizardPath.ts), that only ORCHESTRATES
+// services the app already has — SettingsAPI sign-in and RunAPI runtime setup —
+// and adds no state of its own beyond the persisted `onboarded` flag (set by
+// the App through SettingsAPI.MarkOnboarded when the wizard closes). It opens
+// over the app on first start (App gates it) and is re-runnable from Settings.
 import { useEffect, useState, type ReactNode } from "react";
 import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
 import * as RunAPI from "../../wailsjs/go/main/RunAPI";
@@ -27,9 +26,8 @@ const LABELS: Record<WizardStep, string> = {
 
 const norm = (u: string) => u.trim().replace(/\/+$/, "");
 
-// How the wizard closed (plan desktop-installers.md D10). Either way the
-// App marks onboarding done (D-019); "later" also raises the Browse banner
-// naming what is missing, for this session only.
+// How the wizard closed. Either way the App marks onboarding done; "later" also
+// raises the Browse banner naming what is missing, for this session only.
 export type WizardOutcome = { kind: "done" } | { kind: "later"; missing: string[] };
 
 export default function Wizard({
@@ -47,7 +45,7 @@ export default function Wizard({
   probeOnEntry?: boolean;
 }) {
   const [step, setStep] = useState<WizardStep>(initialStep);
-  // Which path the person picked after Sign in (agentry-desktop#842); null
+  // Which path the person picked after Sign in; null
   // until they pick, and the steps' dots follow it.
   const [path, setPath] = useState<WizardPath | null>(pathOf(initialStep));
   const steps = stepsFor(path);
@@ -264,8 +262,7 @@ function SignInStep({
   );
 }
 
-// WhereStep (agentry-desktop#842, the operator's request of 2026-10-12):
-// where the person's QuickAgents run, as two cards in the start pages'
+// WhereStep: where the person's QuickAgents run, as two cards in the start pages'
 // light-line frame (cards.tsx). Local goes on to the setup this computer
 // needs; Cloud needs none of it, so it ends on a page about how the
 // person's data is kept there. Cloud is held shut, with "Please sign in"
@@ -341,7 +338,7 @@ function ChoiceCard({ title, blurb, figure, onOpen, locked = false }: {
 }
 
 function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
-  // Held here while the images prepare (RuntimeSetup's onBusy, desktop#145).
+  // Held here while the images prepare (RuntimeSetup's onBusy).
   const [busy, setBusy] = useState(false);
   return (
     <>
@@ -369,17 +366,16 @@ function RuntimeStep({ onBack, onNext }: { onBack: () => void; onNext: () => voi
   );
 }
 
-// ReviewKeyStep (agentry-desktop#462; plan desktop-review-key-and-run-cards.md
-// D3): the person's own AI Review key, asked for where setup is. It is the
-// card Settings → Provider settings shows, recommendation and link included,
-// so the two cannot drift. The step keeps nothing of the key: what the card
-// reports is where the key stands and whether a save is in flight, and the
-// key itself goes to the keychain through the card's one call. A step of
-// its own, not a card under the provider form, because saving the key takes
-// the lock an image pull holds, and the Runtime step is where images are
-// pulled. The footer is held while a save is in flight, as the Runtime
-// step's is while images pull (desktop#145): a refusal that arrived after
-// the person moved on would never be shown.
+// ReviewKeyStep: the person's own AI Review key, asked for where setup is. It
+// is the card Settings → Provider settings shows, recommendation and link
+// included, so the two cannot drift. The step keeps nothing of the key: what
+// the card reports is where the key stands and whether a save is in flight, and
+// the key itself goes to the keychain through the card's one call. A step of
+// its own, not a card under the provider form, because saving the key takes the
+// lock an image pull holds, and the Runtime step is where images are pulled.
+// The footer is held while a save is in flight, as the Runtime step's is while
+// images pull: a refusal that arrived after the person moved on would never be
+// shown.
 function ReviewKeyStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const [state, setState] = useState<ReviewKeyState>({ status: null, busy: false });
   const { status, busy } = state;
@@ -414,15 +410,14 @@ function Recap({ rows }: { rows: RecapRow[] }) {
   );
 }
 
-// CodingAgentStep (agentry-desktop#89, plan desktop-installers.md §9, D9):
-// which of Claude Code and Codex are on this machine, per the same probe
-// `agentry doctor --adapter` runs; choosing one records where it lives in
-// the operator policy so `agentry run --adapter <name>` finds it. The
+// CodingAgentStep: which of Claude Code and Codex are on this machine, per the
+// same probe `agentry doctor --adapter` runs; choosing one records where it
+// lives in the operator policy so `agentry run --adapter <name>` finds it. The
 // agentry-mcp hook-up — the harness driving Agentry — is shown as the one
-// documented command to copy, because it needs Node and the agentry CLI,
-// which this app neither ships nor installs (D14).
+// documented command to copy, because it needs Node and the agentry CLI, which
+// this app neither ships nor installs.
 //
-// Looking is a click, not the step opening (review of #89): the probe runs
+// Looking is a click, not the step opening: the probe runs
 // each harness's version flag, and a binary named claude on the PATH of a
 // person who never asked for coding agents should not run just because the
 // wizard reached this page — the CLI's doctor probes only when asked, too.
@@ -517,7 +512,7 @@ function DoneStep({
     signedReg
       ? { ok: true, text: `Signed in to ${signedReg.url}` }
       : { ok: false, text: "Browsing anonymously — sign in any time from Settings" },
-    // The docker row names the state (agentry-desktop#64): a pending restart
+    // The docker row names the state: a pending restart
     // is a step done, waiting on the session, not a missing engine.
     status?.dockerOk
       ? { ok: true, text: "Docker is available" }
@@ -527,7 +522,7 @@ function DoneStep({
           ? { ok: false, text: "Docker is installed — add yourself to the docker group from Settings, then restart your session" }
           : { ok: false, text: "Docker not detected — install it from Settings before a run" },
     // By whether a provider was set up, not by whether the policy exists:
-    // the AI Review key's save writes the policy from defaults (#462).
+    // the AI Review key's save writes the policy from defaults.
     providerRow(status),
     status?.imagesReady
       ? { ok: true, text: "Runtime images are prepared" }
@@ -536,12 +531,12 @@ function DoneStep({
       ? { ok: true, text: `Coding agent: ${chosen} recorded in the runner policy` }
       : { ok: false, text: "No coding agent chosen — runs use the container harness; choose one any time by running setup again" },
   ];
-  // The key's row comes last and is an aside (D13): a recommendation, so
+  // The key's row comes last and is an aside: a recommendation, so
   // Browse's notice never lists it.
   const keyLine = keyRow(keyStatus && { standing: keyStanding(keyStatus), envName: keyStatus.envName });
   if (keyLine) rows.push(keyLine);
 
-  // Nothing set up (D10): the person did none of the three things this
+  // Nothing set up: the person did none of the three things this
   // wizard is for — a sign-in, a provider set up, a coding agent chosen
   // (wizardRecap.ts has the rule, and what does not count). Until the
   // reads settle the recap is the ordinary one.
@@ -586,15 +581,12 @@ function DoneStep({
   );
 }
 
-// CloudStep (agentry-desktop#842): how the person's data is kept in
-// Agentry's cloud, in the operator's terms, and the end of the Cloud path.
-// It names what is sealed and when it is opened, as the wiki's sealed-output,
-// knowledge-store, Writing Voice and vault pages and the enterprise runs code
-// have it (fact-checked for agentry-desktop#842), and nothing beyond: what is
-// not sealed, and that Agentry holds the keys, is the docs' to say, not this
-// page's (the operator, 2026-10-12). Nothing here claims all of a person's
-// data is sealed, or that only they can open it.
-// Finish records Cloud in Run defaults and closes the wizard as Done does.
+// CloudStep: how the person's data is kept in Agentry's cloud, and the end of
+// the Cloud path. It names what is sealed and when it is opened, and nothing
+// beyond: what is not sealed, and that Agentry holds the keys, is the docs' to
+// say, not this page's. Nothing here claims all of a person's data is sealed,
+// or that only they can open it. Finish records Cloud in Run defaults and
+// closes the wizard as Done does.
 function CloudStep({ onBack, onFinish }: { onBack: () => void; onFinish: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

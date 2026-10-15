@@ -1,6 +1,5 @@
-// The Writing Voice's words and choices (plan writing-voice.md §5, §8, D6,
-// D11, D12; agentry-desktop#510). Pure, so the Voice panel, Settings and the
-// run setup share them and the tests read them without a webview.
+// The Writing Voice's words and choices. Pure, so the Voice panel, Settings and
+// the run setup share them and the tests read them without a webview.
 //
 // A person keeps a voice in two places: this computer's (free, never
 // reviewed) and their account's (reviewed by AI Review before it is live).
@@ -14,7 +13,7 @@ function credits(n: number): string {
 }
 
 /** A day as the Voice cards say it: "4 October 2026", the UTC day the
- *  site's Voice page says too (agentry-web lib/voice-view.ts dayOf). */
+ *  site's Voice page says too. */
 export function voiceDay(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -22,13 +21,13 @@ export function voiceDay(iso?: string | null): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-/** The most a VOICE.md holds (plan D3). */
+/** The most a VOICE.md holds. */
 export const MAX_VOICE_BYTES = 32 * 1024;
 
-/** The notice after a voice is first made or first goes live (plan §8). */
+/** The notice after a voice is first made or first goes live. */
 export const VOICE_ON = "Your voice is on for every run. You can turn it off in Settings.";
 
-/** The run setup's checkbox and its line (plan §5, D11). */
+/** The run setup's checkbox and its line. */
 export const WRITE_IN_MY_VOICE = "Write in my voice";
 export const WRITE_IN_MY_VOICE_HINT =
   "The run is given your Writing Voice and told to write anything meant for a person in it. It is told the voice changes how it writes, not what it does.";
@@ -101,7 +100,7 @@ export function voiceBytes(text: string): number {
   return new TextEncoder().encode(text).length;
 }
 
-/** The editor's check before Save, the format's own rule (plan D3). */
+/** The editor's check before Save, the format's own rule. */
 export function voiceTextProblem(text: string): string | null {
   if (text.trim() === "") return "Write the voice before you save it.";
   const bytes = voiceBytes(text);
@@ -109,7 +108,7 @@ export function voiceTextProblem(text: string): string | null {
   return null;
 }
 
-/** Save's decision (plan voice-page-redesign.md §6, invariants 4-5): nothing
+/** Save's decision: nothing
  *  when the voice is as it was opened, the format's rule, else the text. */
 export type VoiceSave = { kind: "unchanged" } | { kind: "problem"; message: string } | { kind: "send"; text: string };
 
@@ -123,8 +122,7 @@ export function plainVoiceSave(opened: string, text: string): VoiceSave {
 }
 
 /** What one Voice Writer run In Agentry costs this payer, from the
- *  registry's numbers: the Cloud Voice page's Edit with AI says it
- *  (agentry-desktop#611). */
+ *  registry's numbers: the Cloud Voice page's Edit with AI says it. */
 export function hostedVoiceCost(a: { credits: number; holdCredits: number; limited: boolean; max: number; left: number }): string {
   if (a.holdCredits === 0) return "It costs no credits: the organization that pays for your runs is not metered.";
   const cost = `It costs ${a.credits} credits, AI Review included. If no voice comes out, the credits are refunded.`;
@@ -147,21 +145,20 @@ export function reviewCostLine(n: number, live: boolean): string {
     : `Save sends it to AI Review${cost}. It goes live when it passes.`;
 }
 
-// The Voice page's two cards and the Local Voice page (plan
-// voice-page-redesign.md §4, §7, §8, D2, D6; agentry-desktop#610).
+// The Voice page's two cards and the Local Voice page.
 
 /** The start page's line under its title, in the style of BUILD_TAGLINE. */
 export const VOICE_TAGLINE =
   "Your Writing Voice is the instructions a run follows to write the way you do. Keep one on this computer, one in your Agentry account, or both.";
 
-/** The cards' words (D6). */
+/** The cards' words. */
 export const LOCAL_CARD_BLURB =
   "The voice kept on this computer. Edit it by hand or with AI for free, and move it to or from your Agentry account.";
 export const CLOUD_CARD_BLURB =
   "The voice kept in your Agentry account. AI Review checks every version before it goes live, and your runs In Agentry use it.";
 
 /** The Local Voice page's switch: the same setting as Settings → Run
- *  defaults (D4). */
+ *  defaults. */
 export const LOCAL_SWITCH_LABEL = "Use this voice for every run on this computer";
 
 interface LocalFacts {
@@ -171,7 +168,7 @@ interface LocalFacts {
   problem?: string;
 }
 
-/** The Local Voice card's status (§4.1). */
+/** The Local Voice card's status. */
 export function localStatus(l: LocalFacts | null | undefined): string {
   if (!l?.exists) return "No voice on this computer yet.";
   const parts = ["Voice set"];
@@ -202,8 +199,7 @@ interface ViewFacts {
   account?: AccountFacts | null;
 }
 
-/** The Cloud Voice card's status (§4.1), in the site's words (agentry-web
- *  lib/voice-view.ts cloudStatus). */
+/** The Cloud Voice card's status, in the site's words. */
 export function cloudStatus(v: ViewFacts): string {
   if (!v.signedIn) return "Sign in to keep a voice in your account.";
   if (!v.accountOffered) return "This registry keeps no Writing Voices.";
@@ -243,7 +239,7 @@ function accountUnreachable(v: ViewFacts): string | null {
   return null;
 }
 
-/** Download Cloud version (§4.2, §8, D2): the account's live version kept
+/** Download Cloud version: the account's live version kept
  *  here; it asks first in a native dialog when it would replace a voice
  *  saved here after the live version, or a newer version is in review. */
 export function downloadButton(v: ViewFacts & { local?: LocalFacts | null; sync?: SyncFacts | null }): SyncButton {
@@ -257,7 +253,7 @@ export function downloadButton(v: ViewFacts & { local?: LocalFacts | null; sync?
   return { disabled: false, line: parts.join(" ") };
 }
 
-/** Upload to Cloud (§4.2, §8, D2): this computer's voice sent to AI Review
+/** Upload to Cloud: this computer's voice sent to AI Review
  *  for the registry's credit; it asks first when the account's newest
  *  version was set after this computer's voice was saved. */
 export function uploadButton(v: ViewFacts & { local?: LocalFacts | null; sync?: SyncFacts | null; reviewCredits: number }): SyncButton {
@@ -275,7 +271,7 @@ export function uploadButton(v: ViewFacts & { local?: LocalFacts | null; sync?: 
 /** The most an Edit with AI note or a brief holds (the registry's 4 KiB). */
 export const MAX_VOICE_NOTE_BYTES = 4 * 1024;
 
-/** The Edit with AI dialog's check before Start (§7, D3): with a voice
+/** The Edit with AI dialog's check before Start: with a voice
  *  here it is an AI Edit and says what should change, samples optional;
  *  with none it is a Create, samples required, the text its brief. */
 export function editWithAIProblem(hasVoice: boolean, text: string, samples: number): string | null {
@@ -285,12 +281,10 @@ export function editWithAIProblem(hasVoice: boolean, text: string, samples: numb
   return null;
 }
 
-// The Cloud Voice page (plan voice-page-redesign.md §4.3, §5.2, §7, D3, D5;
-// agentry-desktop#611): the site's Voice settings page in the desktop, in
-// its words (agentry-web lib/voice-view.ts).
+// The Cloud Voice page: the site's Voice settings page in the desktop, in
+// its words.
 
-/** The Cloud Voice page's switch: the same setting as Settings → Profile
- *  (D4). */
+/** The Cloud Voice page's switch: the same setting as Settings → Profile. */
 export const CLOUD_SWITCH_LABEL = "Use this voice for every run In Agentry";
 
 /** A voice not live yet (the site's NOT_LIVE_SENTENCE). */
@@ -317,8 +311,7 @@ export function pendingLine(p: { review: string; verdict?: string }, live: boole
     : "AI Review is reading this version. It goes live when it passes, and this page updates itself.";
 }
 
-/** An instant as the site's version lines say it: "2026-10-01 22:20 UTC"
- *  (agentry-web lib/format.ts fmtUTC). */
+/** An instant as the site's version lines say it: "2026-10-01 22:20 UTC". */
 export function voiceStamp(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);

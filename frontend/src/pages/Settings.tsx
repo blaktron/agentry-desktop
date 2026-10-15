@@ -26,20 +26,18 @@ import { HomeSettings } from "./SettingsHome";
 import { homeStatus } from "../homeCards";
 import { ConnectionsSettings, connectionsStatus } from "./SettingsConnections";
 
-// Settings as five cards (plan settings-cards.md M3, D1, D3, D12;
-// agentry-desktop#346): the landing is a card per section, each card the
+// Settings as five cards: the landing is a card per section, each card the
 // whole of a link to its section page, with one sentence, a status line
-// and its parts as links; each section page holds the cards Settings held
-// before, moved unchanged, under a "← Settings" link back.
-// Profile (agentry-desktop#423) is a sixth, offered only while the active
-// registry holds a token. Home (agentry-desktop#661) is the last: which
+// and its parts as links; each section page holds that section's cards,
+// under a "← Settings" link back.
+// Profile is a sixth, offered only while the active
+// registry holds a token. Home is the last: which
 // cards Home shows, its pins, and Reset Home. Connections
-// (agentry-desktop#666) sits before Home: the OAuth connections kept on this
+// sits before Home: the OAuth connections kept on this
 // computer, with Disconnect, and the person's own OAuth clients.
 //
-// Report design (agentry-desktop#759, D-075) comes second, after Profile,
-// as on the site: the account's report design and its editor, which took
-// the place of the Profile's Report theme.
+// Report design comes second, after Profile, as on the site: the account's
+// report design and its editor.
 export type SettingsSection = "profile" | "report-design" | "registry" | "updates" | "coding-agents" | "run-defaults" | "provider" | "connections" | "home";
 
 // The parts a landing link or a deep link can name; each section page
@@ -110,32 +108,32 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
 ];
 
-// Where each place that opens Settings goes (agentry-desktop#346): straight
+// Where each place that opens Settings goes: straight
 // to the section it means rather than to the landing.
 export const SETTINGS_FOR = {
   // the sidebar's line for a newer Agentry Desktop
   selfUpdate: { section: "updates", part: "desktop" },
   // the "Setup isn't finished" notice on Home
   setupNotice: { section: "provider" },
-  // Home's Profile, Sign in and Run defaults cards (agentry-desktop#658)
+  // Home's Profile, Sign in and Run defaults cards
   homeProfile: { section: "profile" },
   homeSignIn: { section: "registry", part: "registries" },
   homeRunDefaults: { section: "run-defaults" },
-  // Home's Recent runs card (agentry-desktop#659)
+  // Home's Recent runs card
   homeRunHistory: { section: "run-defaults", part: "history" },
   // Home's own Home settings link, and the line when every card is hidden
-  // (agentry-desktop#661)
+  //
   homeSettings: { section: "home" },
   // Knowledge's "Not signed in" notice
   knowledgeSignIn: { section: "registry", part: "registries" },
   // the Publisher section's Sign in, and its "sign in again" notice for a
-  // sign-in without agent:manage (agentry-desktop#705)
+  // sign-in without agent:manage
   publisherSignIn: { section: "registry", part: "registries" },
-  // the Report bug card's Sign in, signed out or refused (agentry-desktop#841)
+  // the Report bug card's Sign in, signed out or refused
   bugReportSignIn: { section: "registry", part: "registries" },
   // Build's Describe it, whose drafting needs the AI Review key
   describeKey: { section: "provider", part: "ai-review-key" },
-  // Review Your QuickAgents locally, which needs the AI Review key (#469)
+  // Review Your QuickAgents locally, which needs the AI Review key
   reviewKey: { section: "provider", part: "ai-review-key" },
   // the sidebar's Unsafe Mode badge
   unsafeMode: { section: "run-defaults", part: "unsafe" },
@@ -151,7 +149,7 @@ export default function Settings({
   onChanged: () => Promise<main.SettingsView>;
   onSelectRegistry: (url: string) => void;
   // Re-open the first-run guided setup. Optional so the page renders in the
-  // harness without the App shell (agentry-desktop#41).
+  // harness without the App shell.
   onRunSetup?: () => void;
   // The section page shown, or the landing when absent; part is the anchor
   // within it the landing's link named.
@@ -161,7 +159,7 @@ export default function Settings({
   onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
 }) {
   // A part named by a link is scrolled to once its section has rendered, and
-  // followed while the section's own reads fill it in (agentry-desktop#673);
+  // followed while the section's own reads fill it in;
   // the page's own scroll starts at the top otherwise. Only the view's first
   // load counts, so a save that refreshes it does not pull the page back.
   const loaded = !!settings;
@@ -335,7 +333,7 @@ function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
 export const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
 
 // signedInTo: whether the registry holds a token here, which is when the
-// Profile card is offered (agentry-desktop#423). Nothing when not signed in.
+// Profile card is offered. Nothing when not signed in.
 export const signedInTo = (settings: main.SettingsView, url: string) =>
   settings.registries.some((r) => r.url === url && r.hasToken);
 
@@ -371,7 +369,7 @@ export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusVi
   return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
 }
 
-// historyLine says what the run history holds (D-068).
+// historyLine says what the run history holds.
 function historyLine(d: main.RunDefaultsView): string {
   if (!d.rememberRuns) return "Off: no run is remembered.";
   if (d.runHistoryCount < 0) return "On. The run history cannot be read; Clear run history starts it again.";
@@ -380,7 +378,7 @@ function historyLine(d: main.RunDefaultsView): string {
 }
 
 // A chat on this computer has no limit but the Chat idle timeout, none by
-// default (agentry-desktop#468, D-052).
+// default.
 export function chatLimitLine(idleSeconds: number): string {
   return idleSeconds > 0
     ? `A chat on this computer ends after ${fmtDuration(idleSeconds)} without a message from you.`
@@ -401,7 +399,7 @@ export function runStatus(s: main.SetupStatusView): string {
   return "Docker answers and the run images are ready.";
 }
 
-// The key's line says where it comes from and never what it is (D-040):
+// The key's line says where it comes from and never what it is:
 // "saved" only when the keychain holds it and the policy reads it there.
 export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyView | null): string {
   const parts: string[] = [];
@@ -413,16 +411,14 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
   return parts.join(" · ") + ".";
 }
 
-// RunDefaultsSettings is Settings → Run defaults (plan settings-cards.md
-// D2, D13; agentry-desktop#347): the timeout and max turns the runner policy
-// holds, which the CLI runs with too; where the run setup starts; the output
-// folder it fills in; and the Docker engine's prerequisites. None of them is
-// a consent: every run still asks what it asks. Unsafe Mode's switch is here
-// too (agentry-desktop#418): the page asks Go to turn it on, and Go asks the
-// person in a native dialog and pulls the image before it reads on. The
-// built-in agents' switch (agentry-desktop#606, D-062; on by default since
-// agentry-desktop#699) sits with the timeout and turns it lifts, for drafts,
-// builds, reviews and voices on this computer.
+// RunDefaultsSettings is Settings → Run defaults: the timeout and max turns the
+// runner policy holds, which the CLI runs with too; where the run setup starts;
+// the output folder it fills in; and the Docker engine's prerequisites. None of
+// them is a consent: every run still asks what it asks. Unsafe Mode's switch is
+// here too: the page asks Go to turn it on, and Go asks the person in a native
+// dialog and pulls the image before it reads on. The built-in agents' switch
+// (on by default) sits with the timeout and turns it lifts, for drafts, builds,
+// reviews and voices on this computer.
 function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
   const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
   const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
@@ -710,11 +706,10 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   const [busy, setBusy] = useState(false);
   // The registry a browser sign-in is waiting on; shows the Cancel control.
   const [browserWait, setBrowserWait] = useState<string | null>(null);
-  // The account behind each stored credential, for its "signed in as" line;
-  // the tier, the credits and the organizations are the Profile card's
-  // since agentry-desktop#423. Read after the registries render, so a slow
-  // registry never holds the page; a read that fails leaves the card as it
-  // was.
+  // The account behind each stored credential, for its "signed in as" line; the
+  // tier, the credits and the organizations are the Profile card's. Read after
+  // the registries render, so a slow registry never holds the page; a read that
+  // fails leaves the card as it was.
   const [accounts, setAccounts] = useState<Record<string, main.UserView>>({});
   useEffect(() => {
     let cancelled = false;
@@ -791,7 +786,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
                   : <span className="badge warn">anonymous</span>}
               </div>
               {/* Who the credential is; the account and the subscription
-                  are the Profile card's since agentry-desktop#423. */}
+                  are the Profile card's. */}
               {accounts[r.url] && (
                 <div className="muted small" style={{ marginTop: 4 }}>
                   signed in as <span className="selectable">{accounts[r.url].handle}</span>
@@ -856,7 +851,7 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
       ))}
       </section>
       {/* The account's secrets for runs In Agentry, where the active
-          registry keeps them (agentry-desktop#300). */}
+          registry keeps them. */}
       {activeRegistry && <SecretsCard registry={activeRegistry} />}
 
       <section id="settings-part-add-registry" className="settings-part">
@@ -904,12 +899,12 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
 }
 
 // SelfUpdateCard shows whether a newer Agentry Desktop exists and lets the
-// person stop the app looking (agentry-desktop#87).
+// person stop the app looking.
 //
-// Notify only, deliberately: there is no Install button here. Applying an
-// update is M7 on Windows and macOS, and on Linux it stays the package
-// manager's job (D7) — so the card says where the release is and leaves the
-// choice where it already was.
+// The app applies an update itself only on Windows and macOS, from a copy
+// the person can write to; on Linux it stays the package manager's job — so
+// there the card says where the release is and leaves the choice where it
+// already was.
 function SelfUpdateCard() {
   const [view, setView] = useState<main.SelfUpdateView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -971,7 +966,7 @@ function SelfUpdateCard() {
           {view.available.retired && <> — which has since been retired, so this release is genuine but out of date and will not be installed</>}
           {"."}
           {/* Installing is offered only where the app can do it: not on Linux,
-              where the package manager owns the installed files (D7), and not
+              where the package manager owns the installed files, and not
               on a copy an administrator installed for everyone — there the
               card explains instead of offering a button that would fail. */}
           {canInstall && (

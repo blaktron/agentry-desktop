@@ -1,5 +1,4 @@
-// What the result view offers for a PDF a run left (plan
-// scratch-and-pdf-reports.md D15, D16; agentry-desktop#730). Go decides
+// What the result view offers for a PDF a run left. Go decides
 // whether the run's PDF export made it (services_pdf.go holds the bytes to
 // the envelope's pdfs record); this says what the card draws from that
 // answer: an exported PDF opens in the app's viewer and the system's, and

@@ -1,9 +1,8 @@
-// What Home's Recent runs card and the run page say of a run (plan
-// desktop-home-and-library.md §4.3, §4.6, §4.7, D8, D13; D-068;
-// agentry-desktop#659). Pure and self-contained, so the node tests can
-// import it: Go gives the rows (RunAPI.RecentRuns), this says them.
+// What Home's Recent runs card and the run page say of a run. Pure and
+// self-contained, so the node tests can import it: Go gives the rows
+// (RunAPI.RecentRuns), this says them.
 
-/** A built-in's own place, which its run page links to (D13). */
+/** A built-in's own place, which its run page links to. */
 export type BuiltinPage = "build" | "knowledge" | "voice";
 
 export type RunRow = {
@@ -17,7 +16,7 @@ export type RunRow = {
   exitCode?: number;
   state?: string;
   tone: string;
-  /** A schedule on this computer fired it (agentry-desktop#743). */
+  /** A schedule on this computer fired it. */
   scheduled?: boolean;
   schedule?: string;
 };
@@ -53,7 +52,7 @@ export function whatRan(row: Pick<RunRow, "kind" | "ref">): string {
 export const isBuiltin = (kind: string): boolean => kind in BUILTIN;
 
 /** Where it ran, in the glossary's words; a run a schedule fired is
- *  marked Scheduled (plan quickagent-scheduling.md D5). */
+ *  marked Scheduled. */
 export const whereRan = (row: Pick<RunRow, "where" | "scheduled">): string =>
   row.where === "agentry" ? "In Agentry" : row.scheduled ? "Scheduled, on this computer" : "On this computer";
 
@@ -103,7 +102,7 @@ export function rowLine(row: RunRow, now: Date): string {
   return [whereRan(row), whenRan(row, now), howItEnded(row)].filter(Boolean).join(" · ");
 }
 
-/** A built-in's own place, which its run page links to (D13); none for a
+/** A built-in's own place, which its run page links to; none for a
  *  review, whose report is on the run page itself, and for a QuickAgent. */
 export function builtinPlace(kind: string): { label: string; page: BuiltinPage } | null {
   switch (kind) {
@@ -124,5 +123,5 @@ export function emptyLine(view: { remember: boolean; signedIn: boolean }): strin
   return "No runs yet. A QuickAgent you run, and a draft, review or build you make, will show here.";
 }
 
-/** Signed out: what signing in would add (plan §4.3). */
+/** Signed out: what signing in would add. */
 export const signedOutNote = "Sign in to see your runs In Agentry here too.";

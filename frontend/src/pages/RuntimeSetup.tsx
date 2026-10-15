@@ -15,22 +15,21 @@ import { ProviderTiles } from "./ProviderTiles";
 // The provider table (src/modelSetup.ts) mirrors the CLI's for form
 // prefills; the Go side (pkg/runner/setup) holds the authoritative copy and
 // fills any gaps. The label is the product's name — a person picks
-// "Anthropic", not a provider id (agentry-desktop#131).
+// "Anthropic", not a provider id.
 export { providerLabel };
 
-/** "Agent runs" (RUNNER-PLAN-2 §P1, req 5): the LLM provider QuickAgent
- * runs use, written into the same operator policy the CLI reads
- * (~/.agentry/runner/policy.yaml), plus one-click preparation of the
- * docker MCP gateway plane.
+/** "Agent runs": the LLM provider QuickAgent runs use, written into the same
+ * operator policy the CLI reads (~/.agentry/runner/policy.yaml), plus one-click
+ * preparation of the docker MCP gateway plane.
  *
- * The form asks three things (agentry-desktop#131, D-028): the provider
- * (one logo tile each, agentry-desktop#830), the key, and — for a custom endpoint — its URL. The key goes to this
- * machine's keychain (the app's own store, D-024) and the policy records
- * only that the keychain is the source, never the value. "Get models"
- * asks the endpoint what it serves with that key, which is also the
- * endpoint test; the answer fills the model list. Settings (`advanced`)
- * keeps the environment-variable path under Advanced, where a person who
- * sets variables will look and one who does not never has to. */
+ * The form asks three things: the
+ * provider (one logo tile each), the key, and — for a custom endpoint — its
+ * URL. The key goes to this machine's keychain (the app's own store) and the
+ * policy records only that the keychain is the source, never the value. "Get
+ * models" asks the endpoint what it serves with that key, which is also the
+ * endpoint test; the answer fills the model list. Settings (`advanced`) keeps
+ * the environment-variable path under Advanced, where a person who sets
+ * variables will look and one who does not never has to. */
 export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenPrereqs }: {
   heading?: React.ReactNode;
   intro?: React.ReactNode;
@@ -38,14 +37,14 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // stored key); the welcome does not.
   advanced?: boolean;
   // Told when an image pull starts and ends, so a wizard around the form
-  // can hold its own Continue and Back for the pull (desktop#145): leaving
+  // can hold its own Continue and Back for the pull: leaving
   // mid-pull unmounts the form while the Go side keeps pulling with nobody
   // watching the log. The shorter calls (Get models, the policy write)
   // orphan nothing and are not reported.
   onBusy?: (busy: boolean) => void;
-  // Settings keeps the Docker engine's prerequisites in Run defaults
-  // (settings-cards.md D1): given this, a missing engine is a pointer there
-  // rather than the prerequisites card itself, which the welcome still shows.
+  // Settings keeps the Docker engine's prerequisites in Run defaults: given
+  // this, a missing engine is a pointer there rather than the prerequisites
+  // card itself, which the welcome still shows.
   onOpenPrereqs?: () => void;
 } = {}) {
   const [status, setStatus] = useState<main.SetupStatusView | null>(null);
@@ -60,7 +59,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   const [baseURL, setBaseURL] = useState("");
   // The typed key lives in this component's state until Save or Get
   // models sends it to the backend (StoreModelKey / ListModels, each a
-  // call of its own, desktop#102), and is cleared on the way out of Save.
+  // call of its own), and is cleared on the way out of Save.
   const [apiKey, setApiKey] = useState("");
   // keyMode is the source the policy will record: the keychain (the
   // default, and the only choice the welcome offers) or the variable
@@ -72,15 +71,15 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // wrong endpoint's models.
   const [catalog, setCatalog] = useState<main.CatalogView | null>(null);
   const [keyNotice, setKeyNotice] = useState<string | null>(null);
-  // How the provider's models are paid for (agentry-desktop#734): a model
+  // How the provider's models are paid for: a model
   // sign-in, a connected account, or a key; what this computer keeps; the
   // models a ChatGPT plan offers; and the Copilot plan.
   const [way, setWay] = useState<WayId>("key");
   const [kept, setKept] = useState<KeptSignIn[]>([]);
   const [planModels, setPlanModels] = useState<string[]>([]);
   const [copilotPlan, setCopilotPlan] = useState("individual");
-  // The models the Copilot plan offers, asked of Copilot CLI
-  // (agentry-desktop#811): null until listed; and why a list failed.
+  // The models the Copilot plan offers, asked of Copilot CLI: null until
+  // listed; and why a list failed.
   const [copilotModels, setCopilotModels] = useState<run.CopilotModel[] | null>(null);
   const [copilotListError, setCopilotListError] = useState<string | null>(null);
   // Whether a list was asked for, failed or not: a plan change asks again.
@@ -107,8 +106,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         // The keychain, unless this is Settings and the policy chose the
         // variable: a fresh machine has no source recorded, and the
         // welcome — which offers only the keychain — must not read that
-        // as "the variable" and hide the key field (the review of #131
-        // caught exactly that).
+        // as "the variable" and hide the key field.
         setKeyMode(advanced && s.apiKeySource === "env" ? "env" : "keyring");
         setKeyNotice(s.keyNotice ?? null);
       })
@@ -256,9 +254,9 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
 
   const needsBaseURL = takesBaseURL(provider);
 
-  // Plain http off this machine is allowed (agentry-desktop#317, D-042) and
-  // said out loud: the sentence is the CLI's, asked as the URL changes, so
-  // both clients word it the same. It gates nothing.
+  // Plain http off this machine is allowed and said out loud: the sentence is
+  // the CLI's, asked as the URL changes, so both clients word it the same. It
+  // gates nothing.
   const [endpointWarning, setEndpointWarning] = useState("");
   useEffect(() => {
     const u = baseURL.trim();
@@ -271,7 +269,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     return () => { live = false; };
   }, [baseURL, needsBaseURL]);
   // A stored key counts for the provider it is stored under — the status
-  // lists them all (desktop#141) — so a switch of provider needs a key
+  // lists them all — so a switch of provider needs a key
   // typed unless one is on this machine for the new one too.
   const keyStoredForProvider = !!status?.keysStored.includes(provider);
   const hasKey = !!apiKey.trim() || keyStoredForProvider;
@@ -312,12 +310,12 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
     }
     try {
       // A typed key travels once, in its own small call, straight to the
-      // keychain (desktop#102); the field is cleared before the call, so a
+      // keychain; the field is cleared before the call, so a
       // stale value never lingers on screen — a refused store means typing
       // it again, and the error says so. A store that succeeded is kept
       // as the status says it: the key is on this machine for this
       // provider, so a refusal of the save that follows does not ask for
-      // it again (desktop#141).
+      // it again.
       const key = keyMode === "keyring" && !forgetKey ? apiKey : "";
       const source = keyMode === "keyring" ? "keyring" : "env";
       setApiKey("");
@@ -612,7 +610,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   );
 }
 
-/** Prerequisites (D-014, agentry-desktop#64): QuickAgent runs need a docker
+/** Prerequisites: QuickAgent runs need a docker
  * engine. The card renders the machine's STATE, not an error string:
  * installable → the install through pkexec (the exact command shown before
  * consent); groupMissing → only the group step, through pkexec;
