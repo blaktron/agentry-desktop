@@ -244,7 +244,16 @@ jobs:
           # say nothing, which is the quietest way for this feature not to
           # exist.
           echo "AGENTRY_UPDATE_CHANNEL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
-          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
+          # The OAuth client metadata documents the CLI module's sign-ins
+          # present: empty in a source build of pkg/mcpauth, so a release
+          # sets them.
+          native=$(set -a; . build/release.env; printf '%s' "${AGENTRY_NATIVE_CLIENT_METADATA_URL:-}")
+          hf=$(set -a; . build/release.env; printf '%s' "${AGENTRY_HF_CLIENT_METADATA_URL:-}")
+          if [ -z "$native" ] || [ -z "$hf" ]; then
+            echo "::error::build/release.env must set AGENTRY_NATIVE_CLIENT_METADATA_URL and AGENTRY_HF_CLIENT_METADATA_URL"; exit 1
+          fi
+          m=github.com/blaktron/agentry-cli/pkg/mcpauth
+          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json -X $m.NativeClientMetadataURL=$native -X $m.HuggingFaceClientMetadataURL=$hf" >> "$GITHUB_ENV"
           # The CN the Windows signature must carry, when release.env names
           # one: the installer check refuses any other.
           # Read in a subshell, so nothing else in the file reaches the build.
@@ -461,7 +470,16 @@ jobs:
           # say nothing, which is the quietest way for this feature not to
           # exist.
           echo "AGENTRY_UPDATE_CHANNEL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
-          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json" >> "$GITHUB_ENV"
+          # The OAuth client metadata documents the CLI module's sign-ins
+          # present: empty in a source build of pkg/mcpauth, so a release
+          # sets them.
+          native=$(set -a; . build/release.env; printf '%s' "${AGENTRY_NATIVE_CLIENT_METADATA_URL:-}")
+          hf=$(set -a; . build/release.env; printf '%s' "${AGENTRY_HF_CLIENT_METADATA_URL:-}")
+          if [ -z "$native" ] || [ -z "$hf" ]; then
+            echo "::error::build/release.env must set AGENTRY_NATIVE_CLIENT_METADATA_URL and AGENTRY_HF_CLIENT_METADATA_URL"; exit 1
+          fi
+          m=github.com/blaktron/agentry-cli/pkg/mcpauth
+          echo "EXTRA_LDFLAGS=-w -s -X github.com/blaktron/agentry-desktop/internal/settings.DefaultRegistryURL=${AGENTRY_DEFAULT_REGISTRY} -X github.com/blaktron/agentry-desktop/internal/selfupdate.ManifestURL=${AGENTRY_DEFAULT_REGISTRY%/}/downloads/manifest.json -X $m.NativeClientMetadataURL=$native -X $m.HuggingFaceClientMetadataURL=$hf" >> "$GITHUB_ENV"
       - name: Install the wails CLI at the version go.mod pins
         run: go install "github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       # Production signs, dev does not (the job's comment above). The
