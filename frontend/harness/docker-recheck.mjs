@@ -15,9 +15,9 @@ try {
   await field("Endpoint URL", "input").fill("https://unsaved.example/v1");
   await field("API key", "input").fill("unsaved-test-key");
   await page.evaluate(() => {
-    const previous = window.go.main.RunAPI.SetupStatus;
+    const previous = window.go.app.RunAPI.SetupStatus;
     window.dockerChecks = 0;
-    window.go.main.RunAPI.SetupStatus = async () => {
+    window.go.app.RunAPI.SetupStatus = async () => {
       window.dockerChecks++;
       await new Promise((resolve) => { window.finishDockerCheck = resolve; });
       return { ...(await previous()), dockerOk: true, imagesReady: true };
@@ -36,7 +36,7 @@ try {
   const defaults = page.locator('[data-preview="settings"]');
   await defaults.getByRole("button", { name: "Check again", exact: true }).waitFor();
   await page.evaluate(() => {
-    window.go.main.RunAPI.PrereqStatus = async () => {
+    window.go.app.RunAPI.PrereqStatus = async () => {
       await new Promise((resolve) => { window.finishDockerCheck = resolve; });
       return { state: "ready", dockerOk: true };
     };

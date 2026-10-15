@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import { main, run } from "../../wailsjs/go/models";
+import { app, run } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Modal, Notice, Select, Spinner } from "../ui";
 import { baseURLFor, takesBaseURL } from "../providerForm";
 import {
@@ -47,7 +47,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // card itself, which the welcome still shows.
   onOpenPrereqs?: () => void;
 } = {}) {
-  const [status, setStatus] = useState<main.SetupStatusView | null>(null);
+  const [status, setStatus] = useState<app.SetupStatusView | null>(null);
   const [checkingDocker, setCheckingDocker] = useState(true);
   const dockerCheckPending = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // What the endpoint listed, for the provider and URL it was asked
   // about; cleared when either changes so a stale list never offers the
   // wrong endpoint's models.
-  const [catalog, setCatalog] = useState<main.CatalogView | null>(null);
+  const [catalog, setCatalog] = useState<app.CatalogView | null>(null);
   const [keyNotice, setKeyNotice] = useState<string | null>(null);
   // How the provider's models are paid for: a model
   // sign-in, a connected account, or a key; what this computer keeps; the
@@ -621,7 +621,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
  * Agent-runs log (runner:setup-progress). Elevation only through pkexec; a
  * reboot is asked of the session manager, never run as root. */
 export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
-  const [prereq, setPrereq] = useState<main.PrereqView | null>(null);
+  const [prereq, setPrereq] = useState<app.PrereqView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -659,7 +659,7 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
     }
   }
 
-  async function act(label: string, call: () => Promise<main.PrereqView>) {
+  async function act(label: string, call: () => Promise<app.PrereqView>) {
     setBusy(label);
     setError(null);
     try {

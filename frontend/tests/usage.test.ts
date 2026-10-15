@@ -3,7 +3,7 @@
 // computer in tokens, with no credit wording.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import {
   buildHoldLine,
   capsSentence,
@@ -84,7 +84,7 @@ test("progress on this computer shows its tokens; a run In Agentry's progress ca
   const local = progressTokens({ inputTokens: 48210, outputTokens: 3904 });
   assert.equal(local, "48,210 input, 3,904 output");
   noCredits(local!);
-  const v = { startedAt: "2026-10-02T10:00:00Z", caps, turns: 0 } as unknown as main.HostedRunView;
+  const v = { startedAt: "2026-10-02T10:00:00Z", caps, turns: 0 } as unknown as app.HostedRunView;
   const p = hostedProgress(v)!;
   assert.ok(p);
   assert.equal("inputTokens" in p, false);

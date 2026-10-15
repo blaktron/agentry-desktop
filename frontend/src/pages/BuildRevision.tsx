@@ -10,7 +10,7 @@
 // Every text the Drafter or the registry wrote is drawn as text, invisible
 // characters revealed.
 import type { ReactNode } from "react";
-import { main } from "../../wailsjs/go/models";
+import { app } from "../../wailsjs/go/models";
 import { RevealText } from "../reveal";
 import { Button, Card, Notice } from "../ui";
 import { DraftNotes } from "./BuildDescribe";
@@ -18,7 +18,7 @@ import { DraftNotes } from "./BuildDescribe";
 export function RevisionView({
   v, busy, outcome, onPublish, onOpenInBuilder, onOpenAgent,
 }: {
-  v: main.DraftView;
+  v: app.DraftView;
   busy: string | null;
   outcome: ReactNode;
   onPublish: () => void;

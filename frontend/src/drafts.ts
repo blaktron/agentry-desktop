@@ -6,9 +6,9 @@
 // pages) follow it; and whichever page is showing when it lands takes the
 // draft (takeLandedDraft). One can be in flight at a time.
 import { useEffect, useState } from "react";
-import * as BuildAPI from "../wailsjs/go/main/BuildAPI";
+import * as BuildAPI from "../wailsjs/go/app/BuildAPI";
 import { EventsOn } from "../wailsjs/runtime/runtime";
-import { main } from "../wailsjs/go/models";
+import { app } from "../wailsjs/go/models";
 import type { JobProgress } from "./jobProgress";
 
 export type Where = "agentry" | "here";
@@ -30,15 +30,15 @@ let stopping = false;
 let stopped = false;
 // hosted is the draft In Agentry this app follows, as its last event said;
 // hostedStarting covers the create's round trip.
-let hosted: main.HostedDraftView | null = null;
+let hosted: app.HostedDraftView | null = null;
 let hostedStarting = false;
 let hostedListening = false;
-let landed: main.DraftView | null = null;
+let landed: app.DraftView | null = null;
 // drafted names the draft that landed, for the dialog and the card, after
 // a page has taken it.
 let drafted: string | null = null;
 let landedError: string | null = null;
-let refusal: main.HostedDraftStartView | null = null;
+let refusal: app.HostedDraftStartView | null = null;
 // shown: the flow is up (as the dialog or the card) until it is dismissed;
 // raised counts the times it was asked to open, and asCard says the last
 // ask was for the card (a draft In Agentry the app found running).
@@ -55,7 +55,7 @@ export function draftInFlight(): boolean {
 }
 
 /** The draft that finished and no page has taken yet, taken. */
-export function takeLandedDraft(): main.DraftView | null {
+export function takeLandedDraft(): app.DraftView | null {
   const v = landed;
   landed = null;
   return v;
@@ -63,7 +63,7 @@ export function takeLandedDraft(): main.DraftView | null {
 
 /** A completed run selected from history uses the Builder handoff without
  *  starting or changing the active Drafter dialog. */
-export function stageRecordedDraft(v: main.DraftView): void {
+export function stageRecordedDraft(v: app.DraftView): void {
   if (draftInFlight()) throw new Error("A draft is still being made. Let it finish before opening another draft.");
   landed = v;
   landers.forEach((f) => f());
@@ -74,7 +74,7 @@ export function whenLanded(f: () => void): void {
   landers.add(f);
 }
 
-function land(v: main.DraftView | undefined | null, orError: string) {
+function land(v: app.DraftView | undefined | null, orError: string) {
   if (v?.model) {
     landed = v;
     drafted = v.model.name;
@@ -116,7 +116,7 @@ function begin(w: Where) {
 // through its record (HostedDraftView.revises).
 let revising: string | null = null;
 
-function startLocal(call: () => Promise<main.DraftView>) {
+function startLocal(call: () => Promise<app.DraftView>) {
   begin("here");
   stopping = false;
   const offLog = EventsOn("build:draft-log", (line: string) => {
@@ -147,7 +147,7 @@ function startLocal(call: () => Promise<main.DraftView>) {
 function listenHosted() {
   if (hostedListening) return;
   hostedListening = true;
-  EventsOn("build:hosted-draft", (v: main.HostedDraftView) => {
+  EventsOn("build:hosted-draft", (v: app.HostedDraftView) => {
     hosted = v;
     if (v.final) {
       const why = [v.outcomeLine, v.error, v.draftError].filter(Boolean).join(" ");
@@ -157,7 +157,7 @@ function listenHosted() {
   });
 }
 
-function startHosted(call: () => Promise<main.HostedDraftStartView>) {
+function startHosted(call: () => Promise<app.HostedDraftStartView>) {
   listenHosted();
   begin("agentry");
   hosted = null;
@@ -265,11 +265,11 @@ export type DraftState = {
   stopping: boolean;
   /** The draft ended because the person stopped it. */
   stopped: boolean;
-  hosted: main.HostedDraftView | null;
+  hosted: app.HostedDraftView | null;
   hostedStarting: boolean;
   drafted: string | null;
   error: string | null;
-  refusal: main.HostedDraftStartView | null;
+  refusal: app.HostedDraftStartView | null;
   /** The QuickAgent an Edit with AI revision revises, or null. */
   revising: string | null;
 };

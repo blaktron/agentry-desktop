@@ -8,9 +8,9 @@
 // The recommendation speaks of submitting, which needs no key, so the
 // paragraph beneath it says so.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
-import { main } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
+import { app } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Input, Notice } from "../ui";
 import { GET_A_KEY_LABEL, KEY_RECOMMENDATION, TYPESAFE_URL, keyStanding } from "../keyRecommendation";
 
@@ -22,7 +22,7 @@ export function GetAKeyLink() {
 }
 
 /** Where the key stands, in one sentence. */
-export function jevKeySentence(k: main.JevKeyView): string {
+export function jevKeySentence(k: app.JevKeyView): string {
   switch (keyStanding(k)) {
     case "env":
       return `$${k.envName} is set where this app was started, and a draft uses it before the keychain.`;
@@ -38,14 +38,14 @@ export function jevKeySentence(k: main.JevKeyView): string {
 /** What the card knows, for a caller that decides on it (the first-run
  *  wizard's Skip, and its footer held while a save is in flight). It never
  *  carries the key: status is the view Go returns, which has none. */
-export type ReviewKeyState = { status: main.JevKeyView | null; busy: boolean };
+export type ReviewKeyState = { status: app.JevKeyView | null; busy: boolean };
 
 export function AIReviewKeyCard({ onState }: { onState?: (s: ReviewKeyState) => void } = {}) {
-  const [status, setStatus] = useState<main.JevKeyView | null>(null);
+  const [status, setStatus] = useState<app.JevKeyView | null>(null);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tested, setTested] = useState<main.JevKeyTestView | null>(null);
+  const [tested, setTested] = useState<app.JevKeyTestView | null>(null);
 
   useEffect(() => {
     RunAPI.JevKeyStatus().then(setStatus).catch((e) => setError(String(e)));

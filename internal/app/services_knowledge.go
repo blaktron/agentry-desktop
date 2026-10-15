@@ -1,0 +1,327 @@
+// KnowledgeAPI: the Knowledge panel. The packs are the local store's, which
+// the CLI shares (internal/knowledge over agentry-cli's
+// pkg/knowledge/store): list, Create knowledge and Add documents with the
+// built-in Knowledge Creator on this computer, Copy to Cloud and Copy to
+// Local (Upload and Download), Export unencrypted…, Delete here or in
+// Agentry, and a page preview. The gates are the run surface's: documents
+// come only from the native picker, an export and a delete are asked in a
+// native dialog, an export's folder is the picker's by construction, and a
+// build takes the run lock, so it waits on no run and no run waits on it.
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/blaktron/agentry-cli/pkg/drafter"
+	kn "github.com/blaktron/agentry-cli/pkg/knowledge"
+	"github.com/blaktron/agentry-cli/pkg/knowledge/store"
+	"github.com/blaktron/agentry-cli/pkg/runner/policy"
+
+	"github.com/blaktron/agentry-desktop/internal/draft"
+	"github.com/blaktron/agentry-desktop/internal/knowledge"
+	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/settings"
+)
+
+// eventKnowledgeLog carries a Creator build's progress, line by line.
+const eventKnowledgeLog = "knowledge:build-log"
+
+// eventKnowledgeProgress carries how far a build on this computer has got
+// (knowledge.Progress): elapsed against the timeout, turns, the pages
+// written so far.
+const eventKnowledgeProgress = "knowledge:build-progress"
+
+// KnowledgeAPI is the Knowledge panel's bound surface.
+type KnowledgeAPI struct {
+	app *App
+	// run is the run surface: a build holds its lock and is tracked as
+	// the run in flight, so quitting ends it and sweeps what it started.
+	run *RunAPI
+	// build is the Creator seam a test substitutes; nil is the CLI's
+	// pkg/knowledge/build.
+	build knowledge.Builder
+	// openFolder reveals an exported folder; nil is the file manager.
+	openFolder func(dir string) error
+	// hosted is the build In Agentry this app follows
+	// (services_knowledge_hosted.go).
+	hosted hostedSlot
+}
+
+func (k *KnowledgeAPI) env() knowledge.Env { return k.run.knowledge() }
+
+// List is the panel: the packs kept on this computer and, signed in to
+// reg, the ones its account keeps in Agentry.
+func (k *KnowledgeAPI) List(reg string) (*knowledge.List, error) {
+	return k.env().List(k.app.ctx, reg)
+}
+
+// CreatorModel names the model the runner policy gives the Knowledge
+// Creator, for the sentence the review step says before a build.
+func (k *KnowledgeAPI) CreatorModel() string { return knowledge.PolicyModel() }
+
+// DocumentsView is how much the chosen documents come to, for the Documents
+// step: a build on this computer takes up to LocalMaxBytes of them, a build
+// In Agentry up to AgentryMaxBytes, and past AgentryMaxBytes the step warns
+// that the build can take a very long time.
+type DocumentsView struct {
+	Bytes           int64 `json:"bytes"`
+	LocalMaxBytes   int64 `json:"localMaxBytes"`
+	AgentryMaxBytes int64 `json:"agentryMaxBytes"`
+}
+
+// DocumentsSize sizes the documents the native picker returned; any other
+// path is refused, as a build refuses it.
+func (k *KnowledgeAPI) DocumentsSize(documents []string) (*DocumentsView, error) {
+	for _, p := range documents {
+		if err := k.app.requirePicked("document", p); err != nil {
+			return nil, err
+		}
+	}
+	return &DocumentsView{Bytes: knowledge.DocumentsBytes(documents), LocalMaxBytes: kn.MaxLocalBytes, AgentryMaxBytes: kn.MaxBytes}, nil
+}
+
+// CreatorBudgetView is how long a build on this computer may run, for the
+// review step's warning that a build takes a while.
+type CreatorBudgetView struct {
+	TimeoutSeconds int `json:"timeoutSeconds"`
+	MaxTurns       int `json:"maxTurns"`
+}
+
+// CreatorBudget answers the budgets a build on this computer is shown: the
+// runner policy's, with at least 60 minutes, or no timeout and no turn cap
+// while Run defaults' switch for the built-in agents is on, the default (the
+// hidden failsafe is never shown).
+func (k *KnowledgeAPI) CreatorBudget() CreatorBudgetView {
+	b := knowledge.PolicyBudgets()
+	return CreatorBudgetView{TimeoutSeconds: b.TimeoutSeconds, MaxTurns: b.MaxTurns}
+}
+
+// Create makes a new pack named name with the Knowledge Creator on this
+// computer and keeps it sealed, from the documents, the brief, or both,
+// searching the web when web is set and this computer has the keys for it.
+// Every document must be one the native picker returned. The build takes the
+// run lock; its progress streams as knowledge:build-log.
+func (k *KnowledgeAPI) Create(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
+	return k.runBuild(reg, name, documents, brief, web, false)
+}
+
+// Add extends the kept pack name with the documents, the brief, or both,
+// under the key it had.
+func (k *KnowledgeAPI) Add(reg, name string, documents []string, brief string, web bool) (*knowledge.BuildResult, error) {
+	return k.runBuild(reg, name, documents, brief, web, true)
+}
+
+// CreatorWebView is whether a build on this computer can search the web, for
+// the Documents step's Search the web choice: it takes the person's own AI
+// Review key, which reads every result first, and a search provider with its
+// key. Ready says both are there; otherwise Why says what is missing, and
+// the step says the build runs without the web. Answered from presence
+// alone: no key is read.
+type CreatorWebView struct {
+	Ready    bool   `json:"ready"`
+	Why      string `json:"why,omitempty"`
+	Provider string `json:"provider,omitempty"`
+}
+
+// CreatorWeb answers CreatorWebView for the policy this app's runs obey.
+func (k *KnowledgeAPI) CreatorWeb() (*CreatorWebView, error) {
+	st, err := draft.GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	pol, err := run.PolicyIfPresent()
+	if err != nil {
+		return nil, err
+	}
+	if pol == nil {
+		pol = policy.Default()
+	}
+	return creatorWebView(st.Key.Ready(), st.Search, pol), nil
+}
+
+// creatorWebView is CreatorWeb's rule, apart from the keychain and the
+// policy file: knowledge.WebReason, the words the build itself says.
+func creatorWebView(jev bool, search drafter.SearchState, pol *policy.Policy) *CreatorWebView {
+	why := knowledge.WebReason(pol, jev, search)
+	return &CreatorWebView{Ready: why == "", Why: why, Provider: pol.WebSearch.ProviderName()}
+}
+
+// knowledgeRunRef names a Creator build as the run in flight: what quitting
+// says it ends, and how StopBuild tells a build from a run.
+const knowledgeRunRef = "the Knowledge Creator"
+
+// StopBuild stops the build on this computer that is running, from the
+// corner card or the building view: its context is cancelled, the Creator
+// run tears down as a quit's does, and the pages it wrote that pass the
+// apply step are kept, as a build stopped at its timeout keeps them. It
+// stops only a Knowledge Creator build, never a run or a session, and says
+// so when none is running.
+func (k *KnowledgeAPI) StopBuild() error {
+	r := k.run
+	r.liveMu.Lock()
+	defer r.liveMu.Unlock()
+	if r.live == nil || r.live.ref != knowledgeRunRef {
+		return errors.New("no knowledge build is running on this computer")
+	}
+	r.live.cancel()
+	return nil
+}
+
+func (k *KnowledgeAPI) runBuild(reg, name string, documents []string, brief string, web, add bool) (*knowledge.BuildResult, error) {
+	for _, p := range documents {
+		if err := k.app.requirePicked("document", p); err != nil {
+			return nil, err
+		}
+	}
+	// A build is a run: the Creator's containers carry the run id, so
+	// quitting mid-build ends it and sweeps them (services_quit.go).
+	var res *knowledge.BuildResult
+	err := k.run.asRun(jobBuild, "a knowledge build by the Knowledge Creator", knowledgeRunRef, eventKnowledgeLog, func(ctx context.Context, runID string, logw io.Writer) error {
+		req := knowledge.BuildRequest{
+			Registry: reg, Name: name, Documents: documents, Brief: brief, Web: web, RunID: runID, Build: k.build, Log: logw,
+			Progress: func(p knowledge.Progress) { emitEvent(k.app, eventKnowledgeProgress, p) },
+		}
+		var err error
+		if add {
+			res, err = k.env().Add(ctx, req)
+		} else {
+			res, err = k.env().Create(ctx, req)
+		}
+		return err
+	})
+	return res, err
+}
+
+// Upload keeps a copy of the pack in Agentry, where it is scanned.
+func (k *KnowledgeAPI) Upload(reg, name string) (string, error) {
+	return k.env().Upload(k.app.ctx, reg, name)
+}
+
+// Download keeps Agentry's copy of the pack on this computer.
+func (k *KnowledgeAPI) Download(reg, name string) (string, error) {
+	return k.env().Download(k.app.ctx, reg, name)
+}
+
+// DownloadShared keeps a copy of org's shared pack on this computer: its key
+// stays the organization's, asked for at every open, so it opens only while
+// the person is a member and signed in.
+func (k *KnowledgeAPI) DownloadShared(reg, org, name string) (string, error) {
+	return k.env().DownloadShared(k.app.ctx, reg, org, name)
+}
+
+// ExportView is where an export wrote the pack.
+type ExportView struct {
+	Dir string `json:"dir"`
+}
+
+// Export writes the pack out unencrypted, in this order: a native dialog
+// asks, then the native folder picker chooses where, then the pack is
+// written into a new folder named for it there, and the file manager shows
+// that folder. The desktop never opens a page. A No or a cancelled picker
+// writes nothing.
+func (k *KnowledgeAPI) Export(reg, name string) (*ExportView, error) {
+	en, err := k.env().Find(reg, name)
+	if err != nil {
+		return nil, err
+	}
+	shared := ""
+	if en.Key.Org != "" {
+		shared = "It is " + en.Key.Org + "'s shared pack: Agentry exports it, to the organization's admins and, once an admin marks it exportable, to its members, and the copy you save stays yours if you leave. "
+	}
+	if err := k.app.askConsent("Export "+name+" unencrypted?",
+		"This writes the knowledge pack "+name+" ("+kn.CountPages(en.Manifest.Pages)+") and the documents it was made from, in the clear, into a folder you choose. "+
+			shared+"The copy there is not encrypted: anyone who can read that folder can read it. Continue?"); err != nil {
+		return nil, err
+	}
+	parent, err := k.app.chooseDirectory("Export " + name + " into…")
+	if err != nil {
+		return nil, err
+	}
+	if parent == "" {
+		return nil, errors.New("export cancelled: no folder was chosen")
+	}
+	dir, err := k.env().Export(k.app.ctx, reg, name, parent)
+	if err != nil {
+		return nil, err
+	}
+	open := k.openFolder
+	if open == nil {
+		open = openFolderInFileManager
+	}
+	if err := open(dir); err != nil {
+		return &ExportView{Dir: dir}, fmt.Errorf("exported to %s, but the file manager could not show it: %w", dir, err)
+	}
+	return &ExportView{Dir: dir}, nil
+}
+
+// Delete removes the pack from this computer — the sealed tree, its wrapped
+// key and the key the keychain caches — after a native dialog. Agentry's
+// copy is left as it is: each page deletes its own place's copy, and
+// Agentry's goes through DeleteFromAgentry. The dialog says when this
+// computer's copy is the only one.
+func (k *KnowledgeAPI) Delete(reg, name string) error {
+	en, err := k.env().Find(reg, name)
+	if err != nil {
+		return err
+	}
+	msg := "This deletes the knowledge pack " + name + " from this computer."
+	if en.Key.Agentry == nil {
+		msg += " It is the only copy: Agentry keeps none, and it cannot be recovered."
+	} else {
+		msg += " Agentry keeps its copy, which Copy to Local brings back."
+	}
+	if err := k.app.askConsent("Delete "+name+"?", msg+" Continue?"); err != nil {
+		return err
+	}
+	return k.env().Delete(k.app.ctx, reg, name, false)
+}
+
+// DeleteFromAgentry deletes the account's pack id in Agentry after a native
+// dialog, and leaves this computer's copy as it is. The pack is found by its
+// id in the account's own list first, and the dialog names it from there,
+// never from the page; an id that list does not hold (an organization's
+// shared pack, another account's, one already gone) is refused before
+// anything is asked. Whether a copy stays here is this computer's own
+// record's to say.
+func (k *KnowledgeAPI) DeleteFromAgentry(reg, id string) error {
+	r, err := k.env().AgentryPack(k.app.ctx, reg, id)
+	if err != nil {
+		return err
+	}
+	msg := "This deletes Agentry's copy of " + r.Name + " and its scan report."
+	if en, err := k.env().Find(reg, r.Name); err == nil && en.Key.Agentry != nil && en.Key.Agentry.ID == id {
+		msg += " The copy on this computer stays, and Copy to Cloud keeps it in Agentry again."
+	} else {
+		msg += " It is the only copy: this computer keeps none, and it cannot be recovered."
+	}
+	if err := k.app.askConsent("Delete "+r.Name+" from Agentry?", msg+" Continue?"); err != nil {
+		return err
+	}
+	return k.env().DeleteFromAgentry(k.app.ctx, reg, id)
+}
+
+// Preview is the pack's index and the pages it has, for the preview. The
+// pack is opened into a 0700 directory inside the store and removed
+// before the answer returns.
+func (k *KnowledgeAPI) Preview(reg, name string) (*knowledge.Preview, error) {
+	return k.env().Preview(k.app.ctx, reg, name)
+}
+
+// ReadPage is one page of the pack, as the preview lists it.
+func (k *KnowledgeAPI) ReadPage(reg, name, page string) (*knowledge.Page, error) {
+	return k.env().ReadPage(k.app.ctx, reg, name, page)
+}
+
+// rewrapKnowledge moves the packs this computer's key wraps to the account
+// signed in at reg, best effort: a sign-in is never refused for it, and a
+// pack not moved now moves at the next build or upload.
+func rewrapKnowledge(ctx context.Context, env knowledge.Env, reg string) ([]string, string) {
+	moved, err := env.Rewrap(ctx, settings.Normalize(reg))
+	if err != nil && !errors.Is(err, store.ErrSignedOut) {
+		return moved, "Some knowledge packs are still encrypted to this computer's key: " + err.Error()
+	}
+	return moved, ""
+}

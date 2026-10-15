@@ -9,8 +9,8 @@
 // in one call and is never shown back. Disconnect removes the connection
 // and revokes it at the vendor where it offers that.
 import { useEffect, useRef, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { OpenExternal } from "../../wailsjs/go/main/App";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { OpenExternal } from "../../wailsjs/go/app/App";
 import { run } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice } from "../ui";

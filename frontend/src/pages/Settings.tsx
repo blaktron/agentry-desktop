@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import * as SettingsAPI from "../../wailsjs/go/main/SettingsAPI";
-import * as SelfUpdateAPI from "../../wailsjs/go/main/SelfUpdateAPI";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import * as HomeAPI from "../../wailsjs/go/main/HomeAPI";
-import { main } from "../../wailsjs/go/models";
+import * as SettingsAPI from "../../wailsjs/go/app/SettingsAPI";
+import * as SelfUpdateAPI from "../../wailsjs/go/app/SelfUpdateAPI";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import * as HomeAPI from "../../wailsjs/go/app/HomeAPI";
+import { app } from "../../wailsjs/go/models";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar } from "../ui";
 import { fmtDuration } from "../usage";
@@ -144,9 +144,9 @@ export const sectionTitle = (s: SettingsSection) => SECTIONS.find((x) => x.id ==
 export default function Settings({
   settings, activeRegistry, onChanged, onSelectRegistry, onRunSetup, section, part, onOpen,
 }: {
-  settings: main.SettingsView | null;
+  settings: app.SettingsView | null;
   activeRegistry: string;
-  onChanged: () => Promise<main.SettingsView>;
+  onChanged: () => Promise<app.SettingsView>;
   onSelectRegistry: (url: string) => void;
   // Re-open the first-run guided setup. Optional so the page renders in the
   // harness without the App shell.
@@ -249,17 +249,17 @@ function PartSection({ id, title, children }: { id: SettingsPart; title: string;
 // settings file. None calls a registry,
 // so none carries a token. A read that fails drops its line, never its card.
 type Statuses = {
-  update?: main.SelfUpdateView | null;
-  coding?: main.CodingAgentsView | null;
-  setup?: main.SetupStatusView | null;
-  jev?: main.JevKeyView | null;
-  defaults?: main.RunDefaultsView | null;
-  home?: main.HomeLayoutView | null;
-  connections?: main.KeptConnectionsView | null;
+  update?: app.SelfUpdateView | null;
+  coding?: app.CodingAgentsView | null;
+  setup?: app.SetupStatusView | null;
+  jev?: app.JevKeyView | null;
+  defaults?: app.RunDefaultsView | null;
+  home?: app.HomeLayoutView | null;
+  connections?: app.KeptConnectionsView | null;
 };
 
 function SettingsLanding({ settings, activeRegistry, onRunSetup, onOpen }: {
-  settings: main.SettingsView;
+  settings: app.SettingsView;
   activeRegistry: string;
   onRunSetup?: () => void;
   onOpen: (section?: SettingsSection, part?: SettingsPart) => void;
@@ -334,16 +334,16 @@ export const hostOf = (url: string) => url.replace(/^https?:\/\//, "");
 
 // signedInTo: whether the registry holds a token here, which is when the
 // Profile card is offered. Nothing when not signed in.
-export const signedInTo = (settings: main.SettingsView, url: string) =>
+export const signedInTo = (settings: app.SettingsView, url: string) =>
   settings.registries.some((r) => r.url === url && r.hasToken);
 
-export function registryStatus(settings: main.SettingsView, activeRegistry: string): string {
+export function registryStatus(settings: app.SettingsView, activeRegistry: string): string {
   const r = settings.registries.find((x) => x.url === activeRegistry);
   if (!r) return settings.registries.length ? "No registry in use." : "No registry added yet.";
   return `${hostOf(r.url)}, ${r.hasToken ? "signed in" : "not signed in"}.`;
 }
 
-export function updateStatus(v: main.SelfUpdateView): string {
+export function updateStatus(v: app.SelfUpdateView): string {
   if (!v.channel) return "This build has no update channel.";
   if (v.available) return v.available.retired
     ? `${v.available.version} exists, signed by a retired key, and will not be installed.`
@@ -354,7 +354,7 @@ export function updateStatus(v: main.SelfUpdateView): string {
   return `Running ${v.current}.`;
 }
 
-export function codingStatus(v: main.CodingAgentsView): string {
+export function codingStatus(v: app.CodingAgentsView): string {
   const x = v.export;
   if (!x.enabled) return "Install puts QuickAgents in the runner home only.";
   return `Install also writes each QuickAgent as ${exportLabel(x.target)} for ${codingAgentName(v)}.`;
@@ -362,7 +362,7 @@ export function codingStatus(v: main.CodingAgentsView): string {
 
 // The Run defaults card's line: the timeout and where runs go, the built-in
 // agents' switch when it is on, and Docker when it is what stands in the way.
-export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusView | null): string {
+export function runDefaultsStatus(d: app.RunDefaultsView, s: app.SetupStatusView | null): string {
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
   const builtins = d.builtinNoLimit ? " The built-in agents have no time or turn limit here." : "";
   const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${builtins} ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
@@ -370,7 +370,7 @@ export function runDefaultsStatus(d: main.RunDefaultsView, s: main.SetupStatusVi
 }
 
 // historyLine says what the run history holds.
-function historyLine(d: main.RunDefaultsView): string {
+function historyLine(d: app.RunDefaultsView): string {
   if (!d.rememberRuns) return "Off: no run is remembered.";
   if (d.runHistoryCount < 0) return "On. The run history cannot be read; Clear run history starts it again.";
   if (d.runHistoryCount === 0) return "On. No run is remembered yet.";
@@ -393,7 +393,7 @@ const MAX_CHAT_IDLE_MINUTES = 7 * 24 * 60;
 // for none (and for a value Go would refuse, edited into desktop.yaml).
 const idleField = (seconds: number) => (seconds > 0 && seconds % 60 === 0 ? String(seconds / 60) : "");
 
-export function runStatus(s: main.SetupStatusView): string {
+export function runStatus(s: app.SetupStatusView): string {
   if (!s.dockerOk) return "Docker is not ready, so QuickAgents cannot run on this computer yet.";
   if (!s.imagesReady) return "Docker answers. The run images are fetched on the first run.";
   return "Docker answers and the run images are ready.";
@@ -401,7 +401,7 @@ export function runStatus(s: main.SetupStatusView): string {
 
 // The key's line says where it comes from and never what it is:
 // "saved" only when the keychain holds it and the policy reads it there.
-export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyView | null): string {
+export function providerStatus(s: app.SetupStatusView | null, k: app.JevKeyView | null): string {
   const parts: string[] = [];
   if (s) parts.push(s.policyExists && s.model ? `${providerLabel(s.provider)}, ${s.model}${paidBy(s.apiKeyKind ?? "") ? `, paid by ${paidBy(s.apiKeyKind ?? "")}` : ""}` : "No provider chosen yet");
   if (k) {
@@ -420,8 +420,8 @@ export function providerStatus(s: main.SetupStatusView | null, k: main.JevKeyVie
 // (on by default) sits with the timeout and turns it lifts, for drafts, builds,
 // reviews and voices on this computer.
 function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> }) {
-  const [setup, setSetup] = useState<main.SetupStatusView | null>(null);
-  const [defaults, setDefaults] = useState<main.RunDefaultsView | null>(null);
+  const [setup, setSetup] = useState<app.SetupStatusView | null>(null);
+  const [defaults, setDefaults] = useState<app.RunDefaultsView | null>(null);
   const [timeoutText, setTimeoutText] = useState("");
   const [turns, setTurns] = useState("");
   const [idleText, setIdleText] = useState("");
@@ -434,7 +434,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   // save only, so choosing where to run keeps a timeout typed and not saved;
   // the Chat idle timeout's field likewise, on the first read and after its
   // own save.
-  const show = (v: main.RunDefaultsView, budgets: boolean) => {
+  const show = (v: app.RunDefaultsView, budgets: boolean) => {
     setDefaults(v);
     if (!budgets) return;
     setTimeoutText(String(v.timeoutSeconds));
@@ -446,7 +446,7 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   }, []);
 
   // act returns Run defaults as Go now holds them, or null when it refused.
-  async function act(fn: () => Promise<main.RunDefaultsView>, said?: string): Promise<main.RunDefaultsView | null> {
+  async function act(fn: () => Promise<app.RunDefaultsView>, said?: string): Promise<app.RunDefaultsView | null> {
     setBusy(true);
     setErr(null);
     setSaved(null);
@@ -693,9 +693,9 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
 // their sign-in, account and organizations lines, the account's secrets,
 // and Add a registry — the cards that opened the one Settings page before.
 function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistry, onOpenProfile }: {
-  settings: main.SettingsView;
+  settings: app.SettingsView;
   activeRegistry: string;
-  onChanged: () => Promise<main.SettingsView>;
+  onChanged: () => Promise<app.SettingsView>;
   onSelectRegistry: (url: string) => void;
   onOpenProfile: () => void;
 }) {
@@ -710,13 +710,13 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
   // tier, the credits and the organizations are the Profile card's. Read after
   // the registries render, so a slow registry never holds the page; a read that
   // fails leaves the card as it was.
-  const [accounts, setAccounts] = useState<Record<string, main.UserView>>({});
+  const [accounts, setAccounts] = useState<Record<string, app.UserView>>({});
   useEffect(() => {
     let cancelled = false;
     const signedIn = settings.registries.filter((r) => r.hasToken);
     Promise.all(signedIn.map(async (r) => [r.url, await SettingsAPI.Whoami(r.url).catch(() => null)] as const)).then((pairs) => {
       if (cancelled) return;
-      const next: Record<string, main.UserView> = {};
+      const next: Record<string, app.UserView> = {};
       for (const [url, user] of pairs) if (user) next[url] = user;
       setAccounts(next);
     });
@@ -906,14 +906,14 @@ function RegistrySettings({ settings, activeRegistry, onChanged, onSelectRegistr
 // there the card says where the release is and leaves the choice where it
 // already was.
 function SelfUpdateCard() {
-  const [view, setView] = useState<main.SelfUpdateView | null>(null);
+  const [view, setView] = useState<app.SelfUpdateView | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     SelfUpdateAPI.SelfUpdateStatus().then(setView).catch(() => setView(null));
   }, []);
 
-  const run = async (fn: () => Promise<main.SelfUpdateView>) => {
+  const run = async (fn: () => Promise<app.SelfUpdateView>) => {
     setBusy(true);
     try {
       setView(await fn());

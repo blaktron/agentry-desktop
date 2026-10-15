@@ -23,7 +23,7 @@
 // go through AgentMarkdown's rules (AuthorHelp frames the help as the
 // author's), and the rest is text through RevealText.
 import type { ReactNode, Ref } from "react";
-import { build, main } from "../../wailsjs/go/models";
+import { build, app } from "../../wailsjs/go/models";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { AuthorHelp } from "../KeyHelp";
 import { ReviewAction } from "./ReviewAction";
@@ -48,7 +48,7 @@ export function SummaryView({
 }: {
   s: build.Summary;
   /** AI Review's check of a draft as one line, or null (a form-written QuickAgent has none). */
-  check: main.DraftCheckView["line"] | null;
+  check: app.DraftCheckView["line"] | null;
   /** The first rule the form still fails, and the step that fixes it; null when it passes. */
   problem: { label: string; text: string; fix: () => void } | null;
   /** The rule a public submission still fails (V7), and the step that fixes

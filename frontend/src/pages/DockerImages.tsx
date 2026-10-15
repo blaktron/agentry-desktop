@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import * as RunAPI from "../../wailsjs/go/main/RunAPI";
-import { main, dockerimages } from "../../wailsjs/go/models";
+import * as RunAPI from "../../wailsjs/go/app/RunAPI";
+import { app, dockerimages } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice } from "../ui";
 
 // Run defaults → Docker images: the images Agentry
@@ -9,7 +9,7 @@ import { Button, Card, ErrorBox, Notice } from "../ui";
 // "Keep my Docker images" is ticked; the Linux packages and the macOS app
 // have no uninstaller that can ask, so this is where they are removed.
 export function DockerImagesCard() {
-  const [view, setView] = useState<main.ImagesView | null>(null);
+  const [view, setView] = useState<app.ImagesView | null>(null);
   const [report, setReport] = useState<dockerimages.Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

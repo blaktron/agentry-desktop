@@ -91,7 +91,7 @@ const views: Record<string, object> = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
-g.go = { main: {
+g.go = { app: {
   BuildAPI: {
     ReviewStatus: async () => ({ key: { stored: hash !== "validate-nokey", source: "keyring", envName: "TYPESAFE_API_KEY", envSet: false, ready: hash !== "validate-nokey" },
       modelName: "openai qwen3.8-flash-next" }),

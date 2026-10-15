@@ -1,4 +1,4 @@
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 
 // The subscription's words, shared by Settings → Profile and its test: pure
 // functions of the billing account view, so node's own test runner can check
@@ -25,11 +25,11 @@ export function dayOf(iso: string): string {
 
 export const creditCount = (n: number) => (n === 1 ? "1 credit" : `${n.toLocaleString("en-US")} credits`);
 
-export const runningPromo = (s: main.SubscriptionView) => (s.promo?.state === "running" ? s.promo : null);
+export const runningPromo = (s: app.SubscriptionView) => (s.promo?.state === "running" ? s.promo : null);
 
 // creditsPhrase: what the account has to spend; during a promo trial the
 // credits are the code's.
-export function creditsPhrase(s: main.SubscriptionView): string {
+export function creditsPhrase(s: app.SubscriptionView): string {
   const promo = runningPromo(s);
   if (promo && promo.credits) return `${s.balance} of ${promo.credits} promo credits`;
   return `${s.balance} of ${s.allowance} credits`;
@@ -37,14 +37,14 @@ export function creditsPhrase(s: main.SubscriptionView): string {
 
 // changesPhrase: the tier the account moves to at the period's end
 // ("Standard from 30 October 2026"), or null when nothing is pending.
-export function changesPhrase(s: main.SubscriptionView): string | null {
+export function changesPhrase(s: app.SubscriptionView): string | null {
   return s.pendingTier ? `${tierLabel(s.pendingTier)} from ${dayOf(s.periodEnd)}` : null;
 }
 
 // Credit packs: the Top up credits card draws the registry's packs as the
 // site's does, and Buy opens the site's card. topUpOffer is the card's
 // condition: packs the registry offers this person, never on a member's view.
-export function topUpOffer(s: main.SubscriptionView): main.TopUpView | null {
+export function topUpOffer(s: app.SubscriptionView): app.TopUpView | null {
   const t = s.topUp;
   if (!t?.available || s.memberOf || !t.packs?.length) return null;
   return t;
@@ -55,17 +55,17 @@ export const creditNumber = (n: number) => n.toLocaleString("en-US");
 
 // bonusOf: the credits a pack brings above its struck base number; 0 for a
 // pack sold at its base, which draws no struck number.
-export const bonusOf = (p: main.TopUpPack) => Math.max(0, p.credits - p.baseCredits);
+export const bonusOf = (p: app.TopUpPack) => Math.max(0, p.credits - p.baseCredits);
 
 // packBonus: "+250 bonus", or null.
-export function packBonus(p: main.TopUpPack): string | null {
+export function packBonus(p: app.TopUpPack): string | null {
   const b = bonusOf(p);
   return b > 0 ? `+${creditNumber(b)} bonus` : null;
 }
 
 // packLabel is what a screen reader hears for the two numbers: "1,250
 // credits: 1,000 credits plus a 250 credit bonus", never two bare numbers.
-export function packLabel(p: main.TopUpPack): string {
+export function packLabel(p: app.TopUpPack): string {
   const b = bonusOf(p);
   if (b <= 0) return `${creditNumber(p.credits)} credits`;
   return `${creditNumber(p.credits)} credits: ${creditNumber(p.baseCredits)} credits plus a ${creditNumber(b)} credit bonus`;
@@ -73,7 +73,7 @@ export function packLabel(p: main.TopUpPack): string {
 
 // packPrice: "US$9.99" from 999 USD, in the currency's own minor unit; an
 // unknown currency code is printed beside the bare number.
-export function packPrice(p: Pick<main.TopUpPack, "amount" | "currency">): string {
+export function packPrice(p: Pick<app.TopUpPack, "amount" | "currency">): string {
   const code = p.currency.toUpperCase();
   try {
     const fmt = new Intl.NumberFormat("en-GB", { style: "currency", currency: code });

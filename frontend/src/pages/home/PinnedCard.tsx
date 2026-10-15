@@ -1,4 +1,4 @@
-import { install, main } from "../../../wailsjs/go/models";
+import { install, app } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { latestRunFor, pinRecord, type Pin } from "../../pins";
 import { howItEnded, whenRan, whereRan } from "../../recentRuns";
@@ -22,11 +22,11 @@ export function PinnedCard({ pins, records, updates, runs, now, onOpenLibrary, o
   updates: install.UpdateInfo[];
   // Recent runs, newest first, as RunAPI.RecentRuns merges them; null
   // while they are read.
-  runs: main.RecentRunView[] | null;
+  runs: app.RecentRunView[] | null;
   now: Date;
   onOpenLibrary: () => void;
   onOpenAgent: (registry: string, ns: string, name: string) => void;
-  onOpenRun: (row: main.RecentRunView) => void;
+  onOpenRun: (row: app.RecentRunView) => void;
   onRun: (rec: install.Item) => void;
   onUnpin: (pin: Pin) => void;
 }) {

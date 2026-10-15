@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import * as BrowseAPI from "../../wailsjs/go/main/BrowseAPI";
-import { main } from "../../wailsjs/go/models";
+import * as BrowseAPI from "../../wailsjs/go/app/BrowseAPI";
+import { app } from "../../wailsjs/go/models";
 import {
   AgentRow, Button, EmptyState, ErrorBox, Input, ModeBadges, PageHeader,
   QuarantineBadge, Select, Spinner, Toolbar,
@@ -24,7 +24,7 @@ export default function Browse({
   const [mode, setMode] = useState("");
   const [capability, setCapability] = useState("");
   const [sort, setSort] = useState("relevance");
-  const [results, setResults] = useState<main.SearchView | null>(null);
+  const [results, setResults] = useState<app.SearchView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +36,7 @@ export default function Browse({
     setLoading(true);
     setError(null);
     try {
-      const query = new main.SearchQuery({ q, mode, capability, sort, limit: 30, offset: 0 });
+      const query = new app.SearchQuery({ q, mode, capability, sort, limit: 30, offset: 0 });
       setResults(await BrowseAPI.Search(registry, query));
     } catch (e) {
       setResults(null);

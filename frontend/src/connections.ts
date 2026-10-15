@@ -5,7 +5,7 @@
 // (internal/run/connections.go); these are the words the page says about
 // it.
 
-import type { main, run } from "../wailsjs/go/models";
+import type { app, run } from "../wailsjs/go/models";
 
 /** One declared server that signs in by OAuth, as Go reports it
  *  (run.ServerConnection): never a token. Its fields are the generated
@@ -130,7 +130,7 @@ export function pastedProblem(address: string): string | null {
 }
 
 /** Settings → Connections' landing line: what is kept, never a token. */
-export function connectionsStatus(v: Pick<main.KeptConnectionsView, "connections" | "clients">): string {
+export function connectionsStatus(v: Pick<app.KeptConnectionsView, "connections" | "clients">): string {
   const n = v.connections.length;
   const c = v.clients.length;
   const conns = n === 0 ? "No connections kept" : n === 1 ? "1 connection kept" : `${n} connections kept`;

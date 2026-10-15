@@ -21,7 +21,7 @@
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { OpenExternal } from "../wailsjs/go/main/App";
+import { OpenExternal } from "../wailsjs/go/app/App";
 import { isInvisible } from "./invisible";
 import { RevealText } from "./reveal";
 

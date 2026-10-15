@@ -4,7 +4,7 @@
 // comes when no review of this start is under way changes nothing, and a start
 // Go refuses, or the person declines in the native dialog, leaves the review
 // being followed as it is.
-import type { main } from "../wailsjs/go/models";
+import type { app } from "../wailsjs/go/models";
 import type { JobProgress, Tone } from "./jobProgress";
 
 /** How far a review has got, as Go reports it (build:review-progress,
@@ -18,7 +18,7 @@ export type Review = {
   runId: string | null;
   progress: ReviewProgress | null;
   log: string[];
-  view: main.ReviewView | null;
+  view: app.ReviewView | null;
   /** Why it ended with no report, in Go's words. */
   error: string | null;
   over: boolean;
@@ -42,7 +42,7 @@ export function withLine(r: Review, line: string): Review {
   return { ...r, log: [...r.log, line] };
 }
 
-export function finished(r: Review, view: main.ReviewView): Review {
+export function finished(r: Review, view: app.ReviewView): Review {
   if (r.over) return r;
   return { ...r, runId: r.runId ?? view.runId, view, over: true, stopped: r.stopping };
 }
@@ -117,7 +117,7 @@ export function createReviewStore(deps: ReviewStoreDeps) {
      *  true once Go reports that it has begun, which is when its dialog
      *  opens, and false when the person said No in the native dialog;
      *  rejects with Go's words if it never began. */
-    start(dir: string, call: () => Promise<main.ReviewView | null>): Promise<boolean> {
+    start(dir: string, call: () => Promise<app.ReviewView | null>): Promise<boolean> {
       if (starting_) return Promise.reject("A review is being started on this computer; wait for it to begin.");
       starting_ = true;
       const token = {};

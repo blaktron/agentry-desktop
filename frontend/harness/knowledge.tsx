@@ -196,7 +196,7 @@ const hostedStoppedBrief = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const g = window as any;
-g.go = { main: {
+g.go = { app: {
   KnowledgeAPI: {
     List: async () => list,
     CreatorModel: async () => "anthropic claude-sonnet-4-5",

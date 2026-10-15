@@ -573,7 +573,7 @@ const STEP_OF: Record<string, StepKey> = {
 };
 
 const g = window as any;
-g.go = { main: {
+g.go = { app: {
   SettingsAPI: { RunDefaults: async () => runDefaults },
   // Schedules on this computer: this computer can
   // schedule; on the Windows state it cannot also run signed out.
@@ -712,8 +712,8 @@ g.go = { main: {
   },
   App: { OpenExternal: async () => {}, ChooseFiles: async () => [] },
 } };
-g.go.main.SettingsAPI.OpenUpgrade = async () => {};
-g.go.main.SettingsAPI.ReportBug = async () =>
+g.go.app.SettingsAPI.OpenUpgrade = async () => {};
+g.go.app.SettingsAPI.ReportBug = async () =>
   view === "bugreport-limited" ? { filed: false, reason: "limited", message: "You have sent 10 bug reports in the last hour. Try again later." }
     : view === "bugreport-absent" ? { filed: false, reason: "absent" }
       : { filed: true };

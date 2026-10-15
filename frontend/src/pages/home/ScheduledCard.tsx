@@ -1,4 +1,4 @@
-import { main } from "../../../wailsjs/go/models";
+import { app } from "../../../wailsjs/go/models";
 import { CardFrame } from "../../cards";
 import { asSentence, byDay, mergeFires, scheduledCardStatus, whenOf, type FireRow, type GridDay } from "../../scheduled";
 import { MonthGrid } from "../MonthGrid";
@@ -10,7 +10,7 @@ import { MonthGrid } from "../MonthGrid";
 // Scheduled page's options menu. The card opens the Scheduled page, where
 // every change is made; it changes and runs nothing.
 export function ScheduledCard({ view, error, weeks, title, onOpen }: {
-  view: main.ScheduledCardView | null;
+  view: app.ScheduledCardView | null;
   error: string | null;
   /** This month's grid (monthGrid of now), and its title. */
   weeks: GridDay[][];
