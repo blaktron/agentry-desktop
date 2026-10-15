@@ -280,7 +280,7 @@ func (k *KnowledgeAPI) StartHostedBuild(reg, name, addTo string, documents []str
 		return nil, fmt.Errorf("sign in to %s to build In Agentry", regHost(reg))
 	}
 	for _, p := range documents {
-		if err := k.app.requirePickedResolved("document", p); err != nil {
+		if err := k.app.requirePicked("document", p); err != nil {
 			return nil, err
 		}
 	}
