@@ -47,17 +47,29 @@ installed="$apps/$(basename "$old_app")"
 echo "   $(basename "$installed") is in the Applications folder"
 # The agentry command, when the bundle carries one: a link to it, as Install
 # the agentry command makes in ~/.local/bin, which the update must keep
-# working. It is run now, while the bundle's seal is intact: the marker
-# written next breaks the seal, and a Developer ID bundle whose seal is broken
-# makes Gatekeeper ask a person before anything inside it runs.
+# working. Nothing is ever executed from inside a bundle here: executing
+# inside a Developer ID bundle has Gatekeeper evaluate the whole bundle,
+# which asks a person when its seal is broken (the marker written below
+# breaks it), and once anything inside a bundle has run, macOS keeps every
+# other process from changing or removing the bundle. So the CLI is proved
+# on a copy taken out of the bundle, and the link is held to its target by
+# path.
 carried="$installed/Contents/Resources/bin/agentry"
 command_link=""
+runs_out_of_bundle() { # <cli inside a bundle> <what>: the copy answers --version
+  local copy="$work/bin/cli-copy"
+  cp "$1" "$copy" || fail "$2: cannot copy the CLI out of the bundle"
+  local out
+  out=$(bounded "$copy" --version 2>&1) || { rm -f "$copy"; fail "$2: the CLI does not run (or did not answer within 20 s): $out"; }
+  rm -f "$copy"
+  printf '%s' "${out%%$'\n'*}"
+}
 if [ -e "$carried" ]; then
   mkdir -p "$work/bin"
   command_link="$work/bin/agentry"
   ln -s "$carried" "$command_link"
-  bounded "$command_link" --version >/dev/null 2>&1 || fail "the agentry command does not run before the update (or did not answer within 20 s)"
-  echo "   the agentry command links to the CLI the bundle carries"
+  runs_out_of_bundle "$carried" "before the update" >/dev/null
+  echo "   the agentry command links to the CLI the bundle carries, which runs"
 fi
 # A file only this release has, so the swap can be told from a merge.
 printf 'only in the release being replaced\n' > "$installed/Contents/Resources/only-in-the-old-one.txt"
@@ -116,12 +128,13 @@ for f in "$AGENTRY_CONFIG_DIR/desktop.yaml" "$AGENTRY_CONFIG_DIR/installed.yaml"
 done
 
 if [ -n "$command_link" ]; then
-  echo "== 5b. the agentry command runs the CLI the new bundle carries"
-  [ -e "$installed/Contents/Resources/bin/agentry" ] || fail "the new bundle carries no agentry CLI"
-  v=$(bounded "$command_link" --version 2>&1) || fail "the agentry command does not run after the update (or did not answer within 20 s): $v"
-  want=$("$installed/Contents/Resources/bin/agentry" --version 2>&1)
-  [ "$v" = "$want" ] || fail "the agentry command says '$v', the new bundle's CLI '$want'"
-  echo "   ${v%%$'\n'*}"
+  echo "== 5b. the agentry command leads into the new bundle, whose CLI runs"
+  new_cli="$installed/Contents/Resources/bin/agentry"
+  [ -e "$new_cli" ] || fail "the new bundle carries no agentry CLI"
+  [ "$(readlink "$command_link")" = "$new_cli" ] || fail "the agentry command no longer points into the installed bundle: $(readlink "$command_link")"
+  [ -x "$command_link" ] || fail "the agentry command's target is not executable after the update"
+  v=$(runs_out_of_bundle "$new_cli" "after the update")
+  echo "   $v"
 fi
 
 echo "== 6. nothing is left beside the application"
@@ -135,5 +148,5 @@ outside=$(cd "$apps" && find . -name '*.app' -prune -o -print | grep -v '^\.$' |
 # was wrong.
 
 echo
-echo "darwin-selfupdate: ok — internal/selfupdate's darwin tests passed against the REAL applier (swap, replace not merge, nothing left behind, unwritable parent refused, two-bundle archive refused, no relaunch when not asked), and a swap in a real Applications folder left the settings, the installed agents, the pinned key and the runner policy byte-identical$( [ -n "$command_link" ] && printf ', and the agentry command, a link into the bundle, runs the new bundle'"'"'s CLI' )."
+echo "darwin-selfupdate: ok — internal/selfupdate's darwin tests passed against the REAL applier (swap, replace not merge, nothing left behind, unwritable parent refused, two-bundle archive refused, no relaunch when not asked), and a swap in a real Applications folder left the settings, the installed agents, the pinned key and the runner policy byte-identical$( [ -n "$command_link" ] && printf ', and the agentry command, a link into the bundle, leads to the new bundle'"'"'s CLI, which runs (proved on a copy taken out of the bundle: nothing is executed inside one)' )."
 echo "NOT proven here: the relaunch. Applying ends with 'open -n' on the new bundle, which needs a console session; a CI runner has none. The Go test observes the exec that WOULD have run, not the window that would have opened."
