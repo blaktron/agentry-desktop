@@ -72,6 +72,10 @@ type ScheduleAPI struct {
 	// install of the agentry command (services_schedule_cli.go).
 	installOffered func() bool
 	installRun     func(ctx context.Context) (cliinstall.Result, error)
+	// carriedCLI and shellLookup stand in for the command a macOS bundle
+	// carries and what a new terminal finds as `agentry`.
+	carriedCLI  func() string
+	shellLookup func() string
 	// readyScheduleHosts readies a schedule's target hosts; nil is
 	// run.ReadyScheduleHosts.
 	readyScheduleHosts func(ctx context.Context, s run.ScheduleHosts) (int, error)

@@ -57,12 +57,16 @@ var (
 const linuxPackageCLI = "/usr/bin/agentry"
 
 // FindCLI is the installed agentry this app drives. On Windows, the one its
-// installer put down. On macOS and Linux, the one the site's install script
-// put in ~/.local/bin, which the Scheduled page's Options menu installs and
-// reinstalls (internal/cliinstall), and which an
-// app's PATH often lacks; on Linux it comes before the package's
-// /usr/bin/agentry, as it does on the person's own PATH, so a reinstall to
-// the site's latest is the one used. Else the one on PATH.
+// installer put down. On macOS and Linux, the one in ~/.local/bin, which an
+// app's PATH often lacks: on macOS the link the app makes there to the CLI
+// its bundle carries (or a copy the site's install script put there), and
+// failing that the bundle's own; on Linux the script's copy, which the
+// Scheduled page's Options menu installs and reinstalls
+// (internal/cliinstall), before the package's /usr/bin/agentry, as on the
+// person's own PATH, so a reinstall to the site's latest is the one used.
+// Else the one on PATH. A schedule pins the path FindCLI gives, so the link
+// in ~/.local/bin, which outlives an update that replaces the bundle, comes
+// first.
 func FindCLI() (string, error) {
 	var candidates []string
 	switch goos {
@@ -73,6 +77,11 @@ func FindCLI() (string, error) {
 	case "darwin":
 		if p := cliinstall.Path(getenv); p != "" {
 			candidates = append(candidates, p)
+		}
+		if exe, err := executable(); err == nil {
+			if p := cliinstall.Carried(exe); p != "" {
+				candidates = append(candidates, p)
+			}
 		}
 	case "linux":
 		if p := cliinstall.Path(getenv); p != "" {

@@ -256,6 +256,18 @@ func TestFindCLI(t *testing.T) {
 	if p, err := FindCLI(); err != nil || p != "/opt/homebrew/bin/agentry" {
 		t.Fatalf("darwin on PATH %q %v", p, err)
 	}
+	// The CLI the bundle carries comes before PATH, and the command in
+	// ~/.local/bin, which outlives an update of the bundle, before both.
+	executable = func() (string, error) { return "/Applications/Agentry Desktop.app/Contents/MacOS/agentry-desktop", nil }
+	carried := "/Applications/Agentry Desktop.app/Contents/Resources/bin/agentry"
+	have[carried] = true
+	if p, err := FindCLI(); err != nil || p != carried {
+		t.Fatalf("darwin with the bundle's CLI %q %v", p, err)
+	}
+	delete(env, "XDG_BIN_HOME")
+	if p, err := FindCLI(); err != nil || p != script {
+		t.Fatalf("darwin with the command and the bundle's CLI %q %v", p, err)
+	}
 }
 
 // storeWith makes a runner home holding a daily schedule, made a week

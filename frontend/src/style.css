@@ -1363,3 +1363,6 @@ details.advanced[open] > summary { margin-bottom: 6px; }
 .run-when { margin: 10px 0; }
 .when-fields { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
 .when-days { flex-wrap: wrap; }
+
+/* The agentry command on the first-run wizard's last step. */
+.agentry-command { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }

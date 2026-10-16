@@ -12,6 +12,7 @@ import { app } from "../../wailsjs/go/models";
 import { Button, ErrorBox, Input, Mark, Notice } from "../ui";
 import { rewrapLine } from "../knowledge";
 import { RuntimeSetup } from "./RuntimeSetup";
+import { AgentryCommandCard } from "./AgentryCommand";
 import { AIReviewKeyCard, type ReviewKeyState } from "./AIReviewKey";
 import { HarnessChooser, harnessLabel, type HarnessState } from "./CodingAgents";
 import { keyRow, missingForNotice, nothingSetUp, providerRow, type RecapRow } from "../wizardRecap";
@@ -578,6 +579,7 @@ function DoneStep({
         <p className="page-sub">Here's where things stand. Anything deferred happens on your first run, or from Settings.</p>
         <Recap rows={rows} />
         {!activeRegistry && <Notice tone="info">No active registry yet — pick one from Settings to browse.</Notice>}
+        <AgentryCommandCard compact />
       </div>
       <div className="wizard-foot">
         <Button variant="ghost" onClick={onBack}>Back</Button>
