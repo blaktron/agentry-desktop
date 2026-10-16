@@ -8,6 +8,8 @@ export function Add(arg1:schedules.Request,arg2:Record<string, run.HostSignIn>):
 
 export function Availability():Promise<app.ScheduleAvailabilityView>;
 
+export function CLICommand():Promise<app.CLICommandView>;
+
 export function Calendar(arg1:string,arg2:string):Promise<Array<schedules.Fire>>;
 
 export function Check(arg1:schedules.Request):Promise<schedules.Check>;

@@ -11,13 +11,11 @@ import (
 )
 
 // scriptCLI is where the site's install.sh puts the CLI by default:
-// ${XDG_BIN_HOME:-$HOME/.local/bin}/agentry (agentry-web
-// scripts/install/install.sh). "" on macOS, where the app carries no CLI to
-// refresh it with, and when there is no home.
+// ${XDG_BIN_HOME:-$HOME/.local/bin}/agentry. "" when there is no home. On
+// macOS the app's own command is a link there to the CLI the bundle carries,
+// which Refresh leaves alone; a copy the script put there is refreshed as on
+// Linux.
 func scriptCLI(getenv func(string) string) string {
-	if runtime.GOOS == "darwin" {
-		return ""
-	}
 	if dir := strings.TrimSpace(getenv("XDG_BIN_HOME")); dir != "" && filepath.IsAbs(dir) {
 		return filepath.Join(dir, cliName)
 	}
@@ -31,12 +29,22 @@ func scriptCLI(getenv func(string) string) string {
 // packagedDir is where the .deb and .rpm put the app and the CLI.
 const packagedDir = "/usr/bin"
 
-// bundledBeside is the packages' /usr/bin/agentry, and only for the app the
-// packages installed: a tarball or a build run from a home directory has no
+// bundledBeside is the CLI carried beside the app's executable in dir: on
+// Linux the packages' /usr/bin/agentry, and only for the app the packages
+// installed (a tarball or a build run from a home directory has no
 // pipeline-carried CLI beside it, and whatever file sits there is not copied
-// onto the PATH. "" on macOS.
+// onto the PATH); on macOS the bundle's Contents/Resources/bin/agentry, for
+// an executable in <bundle>.app/Contents/MacOS.
 func bundledBeside(dir string) string {
-	if runtime.GOOS == "darwin" || filepath.Clean(dir) != packagedDir {
+	dir = filepath.Clean(dir)
+	if runtime.GOOS == "darwin" {
+		contents := filepath.Dir(dir)
+		if filepath.Base(dir) != "MacOS" || filepath.Base(contents) != "Contents" || !strings.HasSuffix(filepath.Dir(contents), ".app") {
+			return ""
+		}
+		return filepath.Join(contents, "Resources", "bin", cliName)
+	}
+	if dir != packagedDir {
 		return ""
 	}
 	return filepath.Join(packagedDir, cliName)

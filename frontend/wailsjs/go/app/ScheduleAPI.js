@@ -10,6 +10,10 @@ export function Availability() {
   return window['go']['app']['ScheduleAPI']['Availability']();
 }
 
+export function CLICommand() {
+  return window['go']['app']['ScheduleAPI']['CLICommand']();
+}
+
 export function Calendar(arg1, arg2) {
   return window['go']['app']['ScheduleAPI']['Calendar'](arg1, arg2);
 }

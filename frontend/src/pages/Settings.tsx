@@ -20,6 +20,7 @@ import type { RunWhere } from "../runSetup";
 import { ProfileSettings } from "./SettingsProfile";
 import { ReportDesignSettings } from "./SettingsReportDesign";
 import { DockerImagesCard } from "./DockerImages";
+import { AgentryCommandCard } from "./AgentryCommand";
 import { VoiceSwitch } from "./Voice";
 import { followPart } from "../followPart";
 import { HomeSettings } from "./SettingsHome";
@@ -72,7 +73,7 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "updates", title: "Update settings",
-    sentence: "Whether this app looks for a newer Agentry Desktop, and how QuickAgents installed here are updated.",
+    sentence: "Whether this app looks for a newer Agentry Desktop, the agentry command it carries on a Mac, and how QuickAgents installed here are updated.",
     parts: [{ id: "desktop", label: "Agentry Desktop" }, { id: "quickagents", label: "QuickAgents" }],
   },
   {
@@ -196,7 +197,7 @@ export default function Settings({
       )}
       {section === "updates" && (
         <>
-          <PartSection id="desktop" title="Agentry Desktop"><SelfUpdateCard /></PartSection>
+          <PartSection id="desktop" title="Agentry Desktop"><SelfUpdateCard /><AgentryCommandCard /></PartSection>
           <PartSection id="quickagents" title="QuickAgents">
             <Card>
               <label className="row gap">

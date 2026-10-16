@@ -188,6 +188,42 @@ export namespace app {
 	        this.message = source["message"];
 	    }
 	}
+	export class CLICommandView {
+	    offered: boolean;
+	    label?: string;
+	    version?: string;
+	    status: cliinstall.LinkStatus;
+	
+	    static createFrom(source: any = {}) {
+	        return new CLICommandView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.offered = source["offered"];
+	        this.label = source["label"];
+	        this.version = source["version"];
+	        this.status = this.convertValues(source["status"], cliinstall.LinkStatus);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CLIInstallView {
 	    path: string;
 	    version?: string;
@@ -5104,6 +5140,35 @@ export namespace build {
 	
 	
 	
+
+}
+
+export namespace cliinstall {
+	
+	export class LinkStatus {
+	    carried: string;
+	    path: string;
+	    linked: boolean;
+	    other: boolean;
+	    installable: boolean;
+	    resolves?: string;
+	    resolvesTo?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LinkStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.carried = source["carried"];
+	        this.path = source["path"];
+	        this.linked = source["linked"];
+	        this.other = source["other"];
+	        this.installable = source["installable"];
+	        this.resolves = source["resolves"];
+	        this.resolvesTo = source["resolvesTo"];
+	    }
+	}
 
 }
 
