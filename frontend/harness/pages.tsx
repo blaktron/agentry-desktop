@@ -476,6 +476,7 @@ const homeScheduled = homeHash.startsWith("#home-scheduled") || homeHash === "#h
 // beside the two traps (#docker-trap).
 function engineFound(state: string) {
   if (state === "podman") return { found: true, kind: "podman", cli: "podman", version: "5.8.4", endpoint: "unix:///run/user/1000/podman/podman.sock", rootless: true, how: "podman on this computer", summary: "podman 5.8.4, rootless, at unix:///run/user/1000/podman/podman.sock, found as podman on this computer", err: "", tried: [], warnings: [] as string[] };
+  if (state === "managed") return { found: true, managed: true, kind: "docker", cli: "docker", version: "29.5.2", endpoint: "unix:///Users/me/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock", rootless: false, how: "Agentry's engine (Colima)", summary: "docker 29.5.2, rootful, at unix:///Users/me/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock, found as Agentry's engine (Colima)", err: "", tried: [], warnings: [] as string[] };
   if (state === "trap") return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///Users/me/.docker/run/docker.sock", rootless: false, how: "the socket of Docker Desktop", summary: "docker 29.7.2, rootful, at unix:///Users/me/.docker/run/docker.sock, found as the socket of Docker Desktop", err: "", tried: [], warnings: ["Rancher Desktop left a socket at /Users/me/.rd/docker.sock with nothing answering behind it (connection refused): start it, or remove the file", "/Users/me/.docker/config.json names the credential helper \"desktop\" in credsStore, and docker-credential-desktop is not on PATH: every image pull fails until the entry is removed or the helper installed (a leftover of Docker Desktop, when it is \"desktop\")"] };
   return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] as string[] };
 }
@@ -1000,15 +1001,29 @@ g.go = { app: {
     // windows | trap (a credential helper off PATH, and a socket file with
     // nothing behind it, beside an engine found) | emptysocket (the same
     // socket trap with no engine). #docker-podman is Run defaults with
-    // podman found: the engine line and Re-detect.
+    // podman found: the engine line and Re-detect. #docker-managedOffer is
+    // a Mac with no engine where the app can install its own;
+    // #docker-managedStopped the app's engine installed and silent;
+    // #docker-managed the app's engine found, with Remove;
+    // #docker-managedStarting the app starting it; #docker-managedLongHome a
+    // home whose socket path macOS cannot bind.
     PrereqStatus: async () => {
       const state = (window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "installable";
       const noEngine = { found: false, rootless: false, err: "", tried: ["the docker CLI is not installed", "podman: podman not found"], warnings: [] as string[] };
-      const base = { os: "linux", distro: "fedora", downloadUrl: "https://docs.docker.com/engine/install/", command: "dnf install -y podman", installs: "podman", note: "Afterwards the app turns podman's API socket on for your account (systemctl --user enable --now podman.socket): no group to join and no restart.", groupCommand: "usermod -aG docker me", dockerErr: "no container engine answers on this computer: neither the docker CLI nor podman is installed", engine: noEngine, warnings: [] as string[] };
+      const base = { managed: { supported: false, installed: false, current: false, running: false }, os: "linux", distro: "fedora", downloadUrl: "https://docs.docker.com/engine/install/", command: "dnf install -y podman", installs: "podman", note: "Afterwards the app turns podman's API socket on for your account (systemctl --user enable --now podman.socket): no group to join and no restart.", groupCommand: "usermod -aG docker me", dockerErr: "no container engine answers on this computer: neither the docker CLI nor podman is installed", engine: noEngine, warnings: [] as string[] };
       const docker = { ...base, distro: "ubuntu", command: "apt-get update && apt-get install -y docker.io && systemctl enable --now docker && usermod -aG docker me", installs: "docker", note: "After installation, log out and back in (or reboot) so your user joins the docker group.", dockerErr: "permission denied while trying to connect to the docker daemon socket", engine: { ...noEngine, tried: ["the docker CLI's current context: permission denied while trying to connect to the docker daemon socket", "podman: podman not found"] } };
       const socketTrap = "Rancher Desktop left a socket at /Users/me/.rd/docker.sock with nothing answering behind it (connection refused): start it, or remove the file";
       const helperTrap = "/Users/me/.docker/config.json names the credential helper \"desktop\" in credsStore, and docker-credential-desktop is not on PATH: every image pull fails until the entry is removed or the helper installed (a leftover of Docker Desktop, when it is \"desktop\")";
+      const managedNone = { supported: false, installed: false, current: false, running: false };
+      const managedMac = { supported: true, installed: false, current: false, running: false, dir: "/Users/me/Library/Application Support/agentry-desktop/engine", socket: "/Users/me/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock", versions: "Colima 0.10.3, Lima 2.2.1 and the docker command 29.9.1", licences: "Colima (MIT), Lima (Apache-2.0) and the docker command (Apache-2.0)", downloadMb: 75 };
+      const mac = { ...base, os: "darwin", distro: "", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", managed: managedNone };
       switch (state) {
+        case "managedOffer": return { ...mac, state, managed: managedMac, dockerErr: "no container engine answers on this computer", engine: { ...noEngine, tried: ["the docker CLI: not installed", "the socket of Docker Desktop: not there"] } };
+        case "managedStopped": return { ...mac, state, engineInstalled: true, managed: { ...managedMac, installed: true, current: true }, dockerErr: "no container engine answers on this computer", engine: { ...noEngine, tried: ["Agentry's engine (Colima): installed under /Users/me/Library/Application Support/agentry-desktop/engine and not running (connection refused)", "the docker CLI: not installed"] } };
+        case "managedStarting": return { ...mac, state: "managedStopped", engineInstalled: true, managed: { ...managedMac, installed: true, current: true, starting: true }, dockerErr: "no container engine answers on this computer", engine: { ...noEngine, tried: ["Agentry's engine (Colima): installed under /Users/me/Library/Application Support/agentry-desktop/engine and not running (connection refused)"] } };
+        case "managedLongHome": return { ...mac, state: "managedOffer", managed: { ...managedMac, socketPathError: "the engine's socket path /Users/a-very-long-account-name-that-goes-on-and-on-and-on/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock is 131 bytes, over the 104 macOS allows; the app cannot run an engine under this home directory" }, dockerErr: "no container engine answers on this computer", engine: { ...noEngine, tried: ["the docker CLI: not installed"] } };
+        case "managedStale": return { ...mac, state: "managedStopped", engineInstalled: true, managed: { ...managedMac, installed: true, current: false }, dockerErr: "no container engine answers on this computer", engine: { ...noEngine, tried: ["Agentry's engine (Colima): installed under /Users/me/Library/Application Support/agentry-desktop/engine and not running (connection refused)"] } };
+        case "managed": return { ...mac, state: "ready", engineInstalled: true, dockerOk: true, dockerErr: "", managed: { ...managedMac, installed: true, current: true, running: true }, engine: engineFound("managed"), warnings: [] };
         case "ubuntu": return { ...docker, state: "installable", canInstall: true, engineInstalled: false, inDockerGroup: false, dockerOk: false };
         case "groupMissing": return { ...docker, state, canInstall: true, engineInstalled: true, inDockerGroup: false, dockerOk: false };
         case "pendingRestart": return { ...docker, state, canInstall: true, engineInstalled: true, inDockerGroup: true, dockerOk: false };
@@ -1023,12 +1038,15 @@ g.go = { app: {
       }
     },
     AddToDockerGroup: async () => ({ state: "pendingRestart" }),
+    InstallManagedEngine: async () => ({ state: "ready", dockerOk: true, engine: engineFound("managed"), warnings: [], managed: { supported: true, installed: true, current: true, running: true } }),
+    StartManagedEngine: async () => ({ state: "ready", dockerOk: true, engine: engineFound("managed"), warnings: [], managed: { supported: true, installed: true, current: true, running: true } }),
+    RemoveManagedEngine: async () => ({ state: "managedOffer", dockerOk: false, engine: { found: false, rootless: false, err: "", tried: [], warnings: [] }, warnings: [], managed: { supported: true, installed: false, current: false, running: false } }),
     EnablePodmanSocket: async () => ({ state: "ready", dockerOk: true, engine: engineFound("podman"), warnings: [] }),
     RedetectEngine: async () => engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"),
     RestartNow: async () => undefined,
     SetupStatus: async () => (window.location.hash === "#setup-custom-http"
       ? { dockerOk: true, engine: engineFound("docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
-      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap)$/.test(window.location.hash), engine: engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap|managed)$/.test(window.location.hash), engine: engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     // The CLI's sentence (setup.PlainHTTPWarning) for plain http off this
     // machine; "" for https and loopback.
     EndpointWarning: async (u: string) => {
