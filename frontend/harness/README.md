@@ -93,16 +93,23 @@ or a link.
 
 ## `docker-recheck.mjs`
 
-Exercises Docker detection's explicit re-check through the real Provider
-settings and prerequisite components. With the harness running on port 5199:
+Drives the container engine's explicit re-check through the real Provider
+settings, the prerequisites card and the wizard, against the mocks. It is
+run by hand, not by `make check`: it needs a Playwright installation this
+app does not depend on. With the harness running on port 5199:
 
 ```
 PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node harness/docker-recheck.mjs
 ```
 
-It holds the re-check pending to assert "Checking", then confirms recovery
-without replacing unsaved provider, endpoint or key fields, and verifies that
-a successful prerequisite re-check clears its failure card. `HARNESS_URL`
+It picks the custom endpoint's provider tile and types an endpoint URL and
+a key, holds the re-check pending to assert "Checking the container
+engine…", then confirms the engine badge without the tile or the two
+fields losing what was typed; on Run defaults it clicks the prerequisites
+card's Re-detect and asserts the card gives way to the engine found; and
+on the wizard's engine step it asserts a waking engine is found and
+preparing the images is offered. It exits 0 when every step holds and
+prints one line; a failed step raises Playwright's error. `HARNESS_URL`
 overrides the harness address and `SCHEME` (`light` or `dark`) picks the
 colour scheme.
