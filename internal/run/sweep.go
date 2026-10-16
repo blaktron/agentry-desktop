@@ -123,8 +123,9 @@ func runNetworks(ctx context.Context, d dockerx.Client, runID, label string) ([]
 // copy, the staged inputs, the copies of the attached knowledge packs and
 // the rendered configuration with secrets.env; the podman API service a
 // run under a policy runtime started on podman, which the directory's
-// record names and which outlives a killed run (stopLeftPodmanService,
-// before the record goes with the directory); and the sockets of its
+// record names and which outlives a killed run (the CLI's own sweep of it,
+// engine.StopLeftPodmanService, before the record goes with the
+// directory); and the sockets of its
 // docker filter and of that service, <runner home>/s/<run id>.sock and
 // <run id>-podman.sock. The app also calls it when a run's engine has
 // returned, for what the engine's own teardown could not delete.
@@ -141,7 +142,7 @@ func SweepFiles(home, runID string) error {
 	}
 	var errs []error
 	for _, dir := range scratchDirs(home, runID) {
-		stopLeftPodmanService(dir, home, runID)
+		engine.StopLeftPodmanService(dir, home, runID)
 		if err := removeTree(dir); err != nil {
 			errs = append(errs, fmt.Errorf("remove the run's scratch directory: %w", err))
 		}
