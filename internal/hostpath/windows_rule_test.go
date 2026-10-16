@@ -58,6 +58,9 @@ func TestDockerDesktopsKnownDirectoriesFollowTheRegistry(t *testing.T) {
 		`C:\Users\p\AppData\Local\Programs\DockerDesktop\resources\bin`,
 		`C:\Program Files\Rancher Desktop\resources\resources\win32\bin`,
 		`C:\Users\p\AppData\Local\Programs\Rancher Desktop\resources\resources\win32\bin`,
+		`C:\Program Files\RedHat\Podman`,
+		`C:\Program Files\Podman`,
+		`C:\Users\p\AppData\Local\Programs\Podman`,
 	}
 	if strings.Join(dirs, "|") != strings.Join(want, "|") {
 		t.Fatalf("got  %q\nwant %q", dirs, want)
@@ -71,8 +74,8 @@ func TestAKnownDirectoryWhoseVariableIsUnsetIsSkipped(t *testing.T) {
 			t.Fatalf("got %q, want only LOCALAPPDATA's", dirs)
 		}
 	}
-	if len(dirs) != 2 {
-		t.Fatalf("got %q, want the two per-user directories", dirs)
+	if len(dirs) != 3 {
+		t.Fatalf("got %q, want the three per-user directories", dirs)
 	}
 }
 

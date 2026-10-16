@@ -55,10 +55,10 @@ func TestAPathFromATerminalKeepsItsOrderAndGainsNoDuplicate(t *testing.T) {
 
 func TestEveryKnownLocationInItsOrder(t *testing.T) {
 	all := exists("/Users/p/.docker/bin", "/usr/local/bin", "/opt/homebrew/bin",
-		"/Applications/Docker.app/Contents/Resources/bin", "/Users/p/.orbstack/bin", "/Users/p/.rd/bin")
+		"/Applications/Docker.app/Contents/Resources/bin", "/Users/p/.orbstack/bin", "/Users/p/.rd/bin", "/opt/podman/bin")
 	got, _ := darwin("/Users/p", "/usr/bin", all)
 	want := "/usr/bin:/Users/p/.docker/bin:/usr/local/bin:/opt/homebrew/bin:" +
-		"/Applications/Docker.app/Contents/Resources/bin:/Users/p/.orbstack/bin:/Users/p/.rd/bin"
+		"/Applications/Docker.app/Contents/Resources/bin:/Users/p/.orbstack/bin:/Users/p/.rd/bin:/opt/podman/bin"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -66,7 +66,7 @@ func TestEveryKnownLocationInItsOrder(t *testing.T) {
 
 func TestNoHomeSkipsTheHomeRelativeLocations(t *testing.T) {
 	got, _ := darwin("", launchdPath, func(string) bool { return true })
-	want := launchdPath + ":/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin"
+	want := launchdPath + ":/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:/opt/podman/bin"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}

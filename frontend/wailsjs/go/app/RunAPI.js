@@ -102,6 +102,10 @@ export function DownloadHostedOutput(arg1, arg2) {
   return window['go']['app']['RunAPI']['DownloadHostedOutput'](arg1, arg2);
 }
 
+export function EnablePodmanSocket() {
+  return window['go']['app']['RunAPI']['EnablePodmanSocket']();
+}
+
 export function EndHostedSession(arg1) {
   return window['go']['app']['RunAPI']['EndHostedSession'](arg1);
 }
@@ -174,8 +178,8 @@ export function InFlight() {
   return window['go']['app']['RunAPI']['InFlight']();
 }
 
-export function InstallDocker() {
-  return window['go']['app']['RunAPI']['InstallDocker']();
+export function InstallEngine() {
+  return window['go']['app']['RunAPI']['InstallEngine']();
 }
 
 export function JevKeyStatus() {
@@ -232,6 +236,10 @@ export function RecordedReview(arg1) {
 
 export function RecordedRun(arg1) {
   return window['go']['app']['RunAPI']['RecordedRun'](arg1);
+}
+
+export function RedetectEngine() {
+  return window['go']['app']['RunAPI']['RedetectEngine']();
 }
 
 export function ReleaseConnections(arg1, arg2) {

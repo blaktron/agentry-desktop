@@ -842,6 +842,38 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class EngineView {
+	    found: boolean;
+	    kind?: string;
+	    cli?: string;
+	    version?: string;
+	    endpoint?: string;
+	    rootless: boolean;
+	    how?: string;
+	    summary?: string;
+	    err?: string;
+	    tried: string[];
+	    warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EngineView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.found = source["found"];
+	        this.kind = source["kind"];
+	        this.cli = source["cli"];
+	        this.version = source["version"];
+	        this.endpoint = source["endpoint"];
+	        this.rootless = source["rootless"];
+	        this.how = source["how"];
+	        this.summary = source["summary"];
+	        this.err = source["err"];
+	        this.tried = source["tried"];
+	        this.warnings = source["warnings"];
+	    }
+	}
 	export class ExportView {
 	    dir: string;
 	
@@ -2321,6 +2353,7 @@ export namespace app {
 	export class PrereqView {
 	    dockerOk: boolean;
 	    dockerErr?: string;
+	    engine: EngineView;
 	    os: string;
 	    distro?: string;
 	    canInstall: boolean;
@@ -2331,6 +2364,9 @@ export namespace app {
 	    engineInstalled: boolean;
 	    inDockerGroup: boolean;
 	    groupCommand?: string;
+	    installs?: string;
+	    socketCommand?: string;
+	    warnings: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new PrereqView(source);
@@ -2340,6 +2376,7 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dockerOk = source["dockerOk"];
 	        this.dockerErr = source["dockerErr"];
+	        this.engine = this.convertValues(source["engine"], EngineView);
 	        this.os = source["os"];
 	        this.distro = source["distro"];
 	        this.canInstall = source["canInstall"];
@@ -2350,7 +2387,28 @@ export namespace app {
 	        this.engineInstalled = source["engineInstalled"];
 	        this.inDockerGroup = source["inDockerGroup"];
 	        this.groupCommand = source["groupCommand"];
+	        this.installs = source["installs"];
+	        this.socketCommand = source["socketCommand"];
+	        this.warnings = source["warnings"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ProfileStatusView {
 	    ref: string;
@@ -4112,6 +4170,7 @@ export namespace app {
 	export class SetupStatusView {
 	    dockerOk: boolean;
 	    dockerErr?: string;
+	    engine: EngineView;
 	    policyPath: string;
 	    policyExists: boolean;
 	    providerSetUp: boolean;
@@ -4137,6 +4196,7 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.dockerOk = source["dockerOk"];
 	        this.dockerErr = source["dockerErr"];
+	        this.engine = this.convertValues(source["engine"], EngineView);
 	        this.policyPath = source["policyPath"];
 	        this.policyExists = source["policyExists"];
 	        this.providerSetUp = source["providerSetUp"];
@@ -4154,6 +4214,24 @@ export namespace app {
 	        this.maxTurns = source["maxTurns"];
 	        this.keepProfilesByDefault = source["keepProfilesByDefault"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SignInResult {
 	    user: UserView;

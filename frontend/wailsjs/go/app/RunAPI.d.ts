@@ -54,6 +54,8 @@ export function Disconnect(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function DownloadHostedOutput(arg1:string,arg2:string):Promise<app.HostedRecordView>;
 
+export function EnablePodmanSocket():Promise<app.PrereqView>;
+
 export function EndHostedSession(arg1:boolean):Promise<void>;
 
 export function EndSession(arg1:boolean):Promise<app.RunResultView>;
@@ -90,7 +92,7 @@ export function HybridKeyStatus():Promise<app.HybridKeyView>;
 
 export function InFlight():Promise<app.InFlightView>;
 
-export function InstallDocker():Promise<app.PrereqView>;
+export function InstallEngine():Promise<app.PrereqView>;
 
 export function JevKeyStatus():Promise<app.JevKeyView>;
 
@@ -119,6 +121,8 @@ export function RecentRuns(arg1:string,arg2:number):Promise<app.RecentRunsView>;
 export function RecordedReview(arg1:string):Promise<app.ReviewView>;
 
 export function RecordedRun(arg1:string):Promise<app.RecordedRunView>;
+
+export function RedetectEngine():Promise<app.EngineView>;
 
 export function ReleaseConnections(arg1:string,arg2:string):Promise<run.ReleaseConnections>;
 

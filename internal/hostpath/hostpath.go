@@ -33,8 +33,10 @@ import (
 // darwinDirs are where a Mac's container engines put their CLIs, in the
 // order they are tried: Docker Desktop's user-level and admin installs,
 // Homebrew on Apple silicon (the CLI that Colima drives), Docker Desktop's
-// own bundle (present even when it installed no links), OrbStack, and
-// Rancher Desktop. Relative entries are under the home directory.
+// own bundle (present even when it installed no links), OrbStack, Rancher
+// Desktop, and Podman's installer (its podman CLI, which the podman
+// machine's socket is read from). Relative entries are under the home
+// directory.
 var darwinDirs = []string{
 	".docker/bin",
 	"/usr/local/bin",
@@ -42,17 +44,23 @@ var darwinDirs = []string{
 	"/Applications/Docker.app/Contents/Resources/bin",
 	".orbstack/bin",
 	".rd/bin",
+	"/opt/podman/bin",
 }
 
 // windowsDirs are where a Windows machine's container engines put their
 // CLIs, each under the environment variable it names: Docker Desktop's
-// machine-wide and per-user installs, then Rancher Desktop's two. They
-// follow the registry's PATH, which normally holds the one installed.
+// machine-wide and per-user installs, Rancher Desktop's two, then Podman's
+// installer's machine-wide directory (under its vendor's name) and the
+// per-user spellings. They follow the registry's PATH, which normally holds
+// the one installed.
 var windowsDirs = []struct{ env, rel string }{
 	{"ProgramFiles", `Docker\Docker\resources\bin`},
 	{"LOCALAPPDATA", `Programs\DockerDesktop\resources\bin`},
 	{"ProgramFiles", `Rancher Desktop\resources\resources\win32\bin`},
 	{"LOCALAPPDATA", `Programs\Rancher Desktop\resources\resources\win32\bin`},
+	{"ProgramFiles", `RedHat\Podman`},
+	{"ProgramFiles", `Podman`},
+	{"LOCALAPPDATA", `Programs\Podman`},
 }
 
 // ForGUI extends this process's PATH with the directories a terminal opened
