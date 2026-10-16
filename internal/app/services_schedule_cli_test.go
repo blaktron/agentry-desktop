@@ -118,6 +118,8 @@ func TestInstallCLILinksTheCarriedCommand(t *testing.T) {
 	s := newScheduleAPI(t, f, true)
 	s.findCLI = func(context.Context) (*schedules.CLI, error) { return nil, schedules.ErrNoCLI }
 	s.carriedCLI = func() string { return carried }
+	// CI runs as root, where the app offers no install.
+	s.installOffered = func() bool { return true }
 	link := filepath.Join(home, ".local", "bin", "agentry")
 	s.shellLookup = func() string {
 		if _, err := os.Lstat(link); err == nil {
@@ -148,7 +150,9 @@ func TestInstallCLILinksTheCarriedCommand(t *testing.T) {
 		t.Fatalf(".zshrc: %q %v", b, err)
 	}
 	after, err := s.CLICommand()
-	if err != nil || after.Label != reinstallCLILabel || !after.Status.Linked || after.Status.Resolves != link || after.Status.ResolvesTo != carried {
+	// On macOS the temporary folder is itself behind a link (/var).
+	real, _ := filepath.EvalSymlinks(carried)
+	if err != nil || after.Label != reinstallCLILabel || !after.Status.Linked || after.Status.Resolves != link || after.Status.ResolvesTo != real {
 		t.Fatalf("after: %+v %v", after, err)
 	}
 	if v, _ := s.Availability(); v.InstallCLI != reinstallCLILabel {
