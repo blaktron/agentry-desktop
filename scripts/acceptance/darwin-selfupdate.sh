@@ -48,6 +48,18 @@ printf 'dev.example.net pin\n' > "$AGENTRY_CONFIG_DIR/keys/dev.example.net.pub"
 printf 'defaultAdapter: docker-agent\n' > "$AGENTRY_RUNNER_HOME/policy.yaml"
 snapshot() { (cd "$work" && find config runner -type f -exec shasum -a 256 {} + | sort); }
 before=$(snapshot)
+# The agentry command, when the bundle carries one: a link to it, as Install
+# the agentry command makes in ~/.local/bin, which the update must keep
+# working.
+carried="$installed/Contents/Resources/bin/agentry"
+command_link=""
+if [ -e "$carried" ]; then
+  mkdir -p "$work/bin"
+  command_link="$work/bin/agentry"
+  ln -s "$carried" "$command_link"
+  "$command_link" --version >/dev/null 2>&1 || fail "the agentry command does not run before the update"
+  echo "   the agentry command links to the CLI the bundle carries"
+fi
 
 echo "== 3. the swap, by the code that ships"
 # go test, not a re-implementation. An earlier version of this script did its
@@ -94,6 +106,15 @@ for f in "$AGENTRY_CONFIG_DIR/desktop.yaml" "$AGENTRY_CONFIG_DIR/installed.yaml"
   [ -f "$f" ] || fail "$f did not survive"
 done
 
+if [ -n "$command_link" ]; then
+  echo "== 5b. the agentry command runs the CLI the new bundle carries"
+  [ -e "$installed/Contents/Resources/bin/agentry" ] || fail "the new bundle carries no agentry CLI"
+  v=$("$command_link" --version 2>&1) || fail "the agentry command does not run after the update: $v"
+  want=$("$installed/Contents/Resources/bin/agentry" --version 2>&1)
+  [ "$v" = "$want" ] || fail "the agentry command says '$v', the new bundle's CLI '$want'"
+  echo "   ${v%%$'\n'*}"
+fi
+
 echo "== 6. nothing is left beside the application"
 outside=$(cd "$apps" && find . -name '*.app' -prune -o -print | grep -v '^\.$' || true)
 [ -z "$outside" ] || { printf '%s\n' "$outside" >&2; fail "the swap left something beside the bundle"; }
@@ -105,5 +126,5 @@ outside=$(cd "$apps" && find . -name '*.app' -prune -o -print | grep -v '^\.$' |
 # was wrong.
 
 echo
-echo "darwin-selfupdate: ok — internal/selfupdate's darwin tests passed against the REAL applier (swap, replace not merge, nothing left behind, unwritable parent refused, two-bundle archive refused, no relaunch when not asked), and a swap in a real Applications folder left the settings, the installed agents, the pinned key and the runner policy byte-identical."
+echo "darwin-selfupdate: ok — internal/selfupdate's darwin tests passed against the REAL applier (swap, replace not merge, nothing left behind, unwritable parent refused, two-bundle archive refused, no relaunch when not asked), and a swap in a real Applications folder left the settings, the installed agents, the pinned key and the runner policy byte-identical$( [ -n "$command_link" ] && printf ', and the agentry command, a link into the bundle, runs the new bundle'"'"'s CLI' )."
 echo "NOT proven here: the relaunch. Applying ends with 'open -n' on the new bundle, which needs a console session; a CI runner has none. The Go test observes the exec that WOULD have run, not the window that would have opened."
