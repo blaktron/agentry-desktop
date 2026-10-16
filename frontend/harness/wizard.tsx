@@ -58,7 +58,7 @@ const prepared = suffix === "prepared";
 const prepareRefused = location.hash.endsWith("-prepare-refused");
 const keyOnly = suffix === "keyonly";
 const harnessesMissing = suffix === "missing" || nothing || keyOnly;
-const dockerState = ["installable", "socketOff", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
+const dockerState = ["installable", "socketOff", "groupMissing", "pendingRestart", "manual", "managedOffer"].includes(suffix) ? suffix : "";
 const engineFound = { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] };
 const engineMissing = { found: false, rootless: false, err: "", tried: ["the docker CLI is not installed", "podman: podman not found"], warnings: [] };
 // Model sign-ins: #3-chatgpt OpenAI with nothing
@@ -158,7 +158,9 @@ g.go = { app: {
     TestJevKey: async () => ({ ok: true, message: "The key works: TypeSafe answered one question with it.", from: "the keychain" }),
     SetupStatus: async () => suffix === "waking"
       ? { ...setup, dockerOk: ++dockerChecks > 1, dockerErr: "engine is waking" }
-      : setup,
+      : suffix === "managedOffer"
+        ? { ...setup, dockerOk: false, dockerErr: "no container engine answers on this computer", imagesReady: false }
+        : setup,
     ApplySetup: async () => {
       if (refused) throw new Error("the base URL must be an absolute http(s) URL: \"llm.example.net/v1\"");
       if (preparing) await new Promise(() => {});
@@ -167,7 +169,10 @@ g.go = { app: {
       return { ...setup, apiKeySource: "keyring", keysStored: ["anthropic"] };
     },
     PrereqStatus: async () => ({
-      dockerOk: dockerState === "", state: dockerState || "ready", os: "linux", distro: dockerState === "installable" || dockerState === "socketOff" ? "fedora" : "ubuntu",
+      dockerOk: dockerState === "", state: dockerState || "ready", os: dockerState === "managedOffer" ? "darwin" : "linux", distro: dockerState === "managedOffer" ? "" : dockerState === "installable" || dockerState === "socketOff" ? "fedora" : "ubuntu",
+      managed: dockerState === "managedOffer"
+        ? { supported: true, installed: false, current: false, running: false, dir: "/Users/me/Library/Application Support/agentry-desktop/engine", socket: "/Users/me/Library/Application Support/agentry-desktop/engine/colima/default/docker.sock", versions: "Colima 0.10.3, Lima 2.2.1 and the docker command 29.9.1", licences: "Colima (MIT), Lima (Apache-2.0) and the docker command (Apache-2.0)", downloadMb: 75 }
+        : { supported: false, installed: false, current: false, running: false },
       engine: dockerState === "" ? engineFound : engineMissing, warnings: [],
       canInstall: dockerState !== "manual", engineInstalled: dockerState !== "installable" && dockerState !== "",
       inDockerGroup: dockerState === "pendingRestart" || dockerState === "manual",

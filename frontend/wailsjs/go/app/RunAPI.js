@@ -182,6 +182,10 @@ export function InstallEngine() {
   return window['go']['app']['RunAPI']['InstallEngine']();
 }
 
+export function InstallManagedEngine() {
+  return window['go']['app']['RunAPI']['InstallManagedEngine']();
+}
+
 export function JevKeyStatus() {
   return window['go']['app']['RunAPI']['JevKeyStatus']();
 }
@@ -248,6 +252,10 @@ export function ReleaseConnections(arg1, arg2) {
 
 export function RemoveAgentryImages() {
   return window['go']['app']['RunAPI']['RemoveAgentryImages']();
+}
+
+export function RemoveManagedEngine() {
+  return window['go']['app']['RunAPI']['RemoveManagedEngine']();
 }
 
 export function RemoveModelSignIn(arg1) {
@@ -356,6 +364,10 @@ export function StartHostedRun(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, a
 
 export function StartHostedSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10) {
   return window['go']['app']['RunAPI']['StartHostedSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
+}
+
+export function StartManagedEngine() {
+  return window['go']['app']['RunAPI']['StartManagedEngine']();
 }
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15) {

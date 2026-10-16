@@ -52,6 +52,10 @@ func New() *Services {
 // Startup is the window's OnStartup.
 func (s *Services) Startup(ctx context.Context) {
 	s.app.startup(ctx)
+	// The engine the app manages itself, where one is installed, is
+	// started; in its own goroutine, since a VM boot takes a while and
+	// the card says what detection finds meanwhile.
+	go s.run.startManagedEngine(ctx)
 	// A run an earlier session was killed in the middle of is swept
 	// by its record; in its own goroutine, since Docker may be slow
 	// or not yet running.
@@ -83,8 +87,9 @@ func (s *Services) BeforeClose(ctx context.Context) (prevent bool) {
 // release is waiting and the person turned it on. OnShutdown rather than
 // OnBeforeClose: by here the window is going anyway, so replacing the
 // application cannot interrupt anything the person is still doing.
-func (s *Services) Shutdown(context.Context) {
+func (s *Services) Shutdown(ctx context.Context) {
 	s.run.shutdown()
+	s.run.stopManagedEngine(ctx)
 	s.selfUpdate.applyOnQuit()
 }
 

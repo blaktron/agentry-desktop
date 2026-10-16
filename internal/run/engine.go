@@ -205,6 +205,24 @@ func detectInOrder(ctx context.Context) Engine {
 		said("the engine named in the app's environment", err.Error()+"; nothing else is tried")
 		return out
 	}
+	// The engine the app manages itself, where it is installed: the app
+	// put it there, so it is asked first, by a ping of its socket like
+	// every other; one that does not answer is said, and the card offers
+	// to start it.
+	if m := managedEngine(); m != nil && m.Installed() {
+		if err := pingSocket(ctx, m.Socket()); err == nil {
+			adoptManaged(m)
+			e, err := describeEngine(ctx, newDockerClient())
+			if err == nil {
+				e.How = managedHow
+				return e
+			}
+			clearAdoption()
+			said(managedHow, fmt.Sprintf("answers at %s, and its docker command cannot drive it: %v", m.Socket(), err))
+		} else {
+			said(managedHow, fmt.Sprintf("installed under %s and not running (%v)", m.Dir, err))
+		}
+	}
 	// The docker CLI as its own configuration has it: DOCKER_HOST,
 	// DOCKER_CONTEXT or `docker context use`, else its default endpoint. A
 	// docker CLI that is not installed is said once and not retried.

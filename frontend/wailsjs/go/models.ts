@@ -854,6 +854,7 @@ export namespace app {
 	    err?: string;
 	    tried: string[];
 	    warnings: string[];
+	    managed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new EngineView(source);
@@ -872,6 +873,7 @@ export namespace app {
 	        this.err = source["err"];
 	        this.tried = source["tried"];
 	        this.warnings = source["warnings"];
+	        this.managed = source["managed"];
 	    }
 	}
 	export class ExportView {
@@ -2367,6 +2369,7 @@ export namespace app {
 	    installs?: string;
 	    socketCommand?: string;
 	    warnings: string[];
+	    managed: run.Managed;
 	
 	    static createFrom(source: any = {}) {
 	        return new PrereqView(source);
@@ -2390,6 +2393,7 @@ export namespace app {
 	        this.installs = source["installs"];
 	        this.socketCommand = source["socketCommand"];
 	        this.warnings = source["warnings"];
+	        this.managed = this.convertValues(source["managed"], run.Managed);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -6594,6 +6598,38 @@ export namespace run {
 	        this.lastUsedAt = source["lastUsedAt"];
 	        this.keptIn = source["keptIn"];
 	        this.sharesGrantWith = source["sharesGrantWith"];
+	    }
+	}
+	export class Managed {
+	    supported: boolean;
+	    installed: boolean;
+	    current: boolean;
+	    running: boolean;
+	    starting: boolean;
+	    socketPathError?: string;
+	    dir?: string;
+	    socket?: string;
+	    versions?: string;
+	    licences?: string;
+	    downloadMb?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Managed(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.supported = source["supported"];
+	        this.installed = source["installed"];
+	        this.current = source["current"];
+	        this.running = source["running"];
+	        this.starting = source["starting"];
+	        this.socketPathError = source["socketPathError"];
+	        this.dir = source["dir"];
+	        this.socket = source["socket"];
+	        this.versions = source["versions"];
+	        this.licences = source["licences"];
+	        this.downloadMb = source["downloadMb"];
 	    }
 	}
 	export class ModelSignIn {

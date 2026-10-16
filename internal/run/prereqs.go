@@ -89,7 +89,8 @@ const (
 	StateInstallable = "installable"
 	// StateManual: no engine and no automatic install, or an engine that is
 	// installed and refuses for a reason group membership does not explain
-	// (DockerErr says what).
+	// (DockerErr says what). The engine the app manages itself adds two
+	// more (managed.go): StateManagedOffer and StateManagedStopped.
 	StateManual = "manual"
 )
 
@@ -130,6 +131,8 @@ type Prereqs struct {
 	InDockerGroup bool `json:"inDockerGroup"`
 	// GroupCommand is exactly what AddToDockerGroup would run.
 	GroupCommand string `json:"groupCommand,omitempty"`
+	// Managed is the engine the app manages itself, where this build can.
+	Managed Managed `json:"managed"`
 }
 
 // engineInstall is a distribution's own engine and the command that
@@ -173,10 +176,9 @@ func DetectPrereqs(ctx context.Context) *Prereqs {
 		}
 	}
 	if runtime.GOOS != "linux" {
-		p.State = StateManual
-		if p.DockerOK {
-			p.State = StateReady
-		}
+		p.Managed = managedStory(ctx)
+		p.EngineInstalled = p.Managed.Installed
+		p.State = managedState(p.DockerOK, p.Managed)
 		return p
 	}
 

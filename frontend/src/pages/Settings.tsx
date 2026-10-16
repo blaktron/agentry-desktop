@@ -712,6 +712,21 @@ function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChange
       setBusy(false);
     }
   }
+  // Remove Agentry's engine: the app's own engine stopped and deleted with
+  // its data; the card then shows what detection finds, if anything.
+  async function removeManaged() {
+    setBusy(true);
+    setErr(null);
+    setFound(null);
+    try {
+      await RunAPI.RemoveManagedEngine();
+      await onChanged();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Card>
       <p className="small" style={{ margin: 0 }} data-engine-line>{runStatus(setup)}</p>
@@ -720,6 +735,9 @@ function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChange
       {found && found.found && <p className="small" role="status">Re-detect found {found.summary}.</p>}
       <ErrorBox error={err} />
       <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+        {!busy && setup.engine?.managed && (
+          <Button variant="danger" onClick={() => void removeManaged()} title="Stops the virtual machine and deletes it with its data and the three binaries; runs then need another engine" data-testid="remove-managed-engine">Remove Agentry&apos;s engine</Button>
+        )}
         {busy ? <Spinner label={CHECKING_ENGINE} /> : <Button onClick={() => void redetect()} title="Runs the whole detection again, from nothing, and adopts what it finds">Re-detect</Button>}
       </div>
     </Card>
