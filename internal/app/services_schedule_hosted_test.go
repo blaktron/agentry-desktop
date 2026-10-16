@@ -27,8 +27,9 @@ type scheduleRoutes struct {
 	items       []hostedrun.Schedule
 	occurrences []hostedrun.Occurrence
 	sent        []string
-	// refuse, when set, answers a create.
+	// refuse, when set, answers a create; runNow, when set, a Run now.
 	refuse func(w http.ResponseWriter)
+	runNow func(w http.ResponseWriter)
 }
 
 func (sr *scheduleRoutes) add(mux *http.ServeMux) {
@@ -119,6 +120,10 @@ func (sr *scheduleRoutes) add(mux *http.ServeMux) {
 			return
 		}
 		rec(r)
+		if sr.runNow != nil {
+			sr.runNow(w)
+			return
+		}
 		hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/run-active", "title": "A run is active", "detail": "Wait for it to end."})
 	})
 }
@@ -526,5 +531,38 @@ func TestHostedAddTakesTheScheduleBackWhenItsKeyIsNotSaved(t *testing.T) {
 	calls := sr.calls()
 	if len(calls) != 2 || !strings.HasPrefix(calls[0], "POST /api/v1/x/schedules/") || calls[1] != "DELETE /api/v1/x/schedules/"+hostedScheduleID {
 		t.Fatalf("calls %v", calls)
+	}
+}
+
+// A schedule In Agentry keeps no answer to a secret question: its intake is
+// replayed by every fire, and the registry refuses one.
+func TestHostedAddSendsNoSecretAnswer(t *testing.T) {
+	sr := &scheduleRoutes{}
+	s, reg, _ := hostedScheduleAPI(t, sr, func(f *hostedFake) {
+		f.intake = "intake:\n  - id: topic\n    prompt: \"Topic\"\n  - id: api_token\n    prompt: \"Your token\"\n    type: secret\n"
+	})
+	const secret = "s3cr3t-schedule-answer-5e07"
+	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"topic": "llamas", "api_token": secret},
+		When: schedules.When{Kind: "daily", Time: "07:00", Zone: "UTC"}})
+	if err != nil || made.ID == "" {
+		t.Fatalf("HostedAdd = %+v, %v", made, err)
+	}
+	calls := sr.calls()
+	if len(calls) != 1 || strings.Contains(calls[0], secret) || !strings.Contains(calls[0], `"intake":{"topic":"llamas"}`) {
+		t.Fatalf("create %v", calls)
+	}
+}
+
+// A Run now the registry refuses for a kept answer to a secret question
+// names the question, so the page can say what it is.
+func TestHostedRunNowNamesARefusedSecretQuestion(t *testing.T) {
+	sr := &scheduleRoutes{runNow: func(w http.ResponseWriter) {
+		hostedJSON(w, http.StatusUnprocessableEntity, map[string]any{"type": "https://agentry.dev/problems/validation", "title": "Validation failed",
+			"detail": "The answer to api_token is a secret.", "question": "api_token"})
+	}}
+	s, reg, _ := hostedScheduleAPI(t, sr, nil)
+	now, err := s.HostedRunNow(reg, hostedScheduleID)
+	if err != nil || now.Refusal != "validation" || now.Question != "api_token" || now.RunID != "" {
+		t.Fatalf("HostedRunNow = %+v, %v", now, err)
 	}
 }
