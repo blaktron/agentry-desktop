@@ -68,9 +68,11 @@ func withEngines(t *testing.T, f engineFixture) {
 	if f.podman == nil {
 		f.podman = &dockerx.Fake{AvailableErr: errors.New("podman not found")}
 	}
-	oldClient, oldEngine, oldSockets, oldPing, oldNamed, oldLook, oldInterval, oldCfg :=
-		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile
+	oldClient, oldEngine, oldSockets, oldPing, oldNamed, oldLook, oldInterval, oldCfg, oldUID :=
+		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile, effectiveUID
 	dockerRetryInterval = 0
+	// A person's account, wherever the test runs (CI runs as root).
+	effectiveUID = func() int { return 1000 }
 	newEngineClient = func(kind string) dockerx.Client {
 		if kind == dockerx.KindPodman {
 			return f.podman
@@ -106,8 +108,8 @@ func withEngines(t *testing.T, f engineFixture) {
 		adoptMu.Lock()
 		clearAdoption()
 		adoptMu.Unlock()
-		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile =
-			oldClient, oldEngine, oldSockets, oldPing, oldNamed, oldLook, oldInterval, oldCfg
+		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile, effectiveUID =
+			oldClient, oldEngine, oldSockets, oldPing, oldNamed, oldLook, oldInterval, oldCfg, oldUID
 	})
 }
 

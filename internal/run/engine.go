@@ -313,11 +313,15 @@ func engineBin(kind string) string {
 	return "docker"
 }
 
+// effectiveUID is the account the app runs as; a var so a test is a
+// person's account wherever it runs.
+var effectiveUID = os.Geteuid
+
 // podmanSocketCommand turns podman's API socket on for the account the app
 // runs as: a user unit for a person, the system's for root. No elevation,
 // no group, no restart.
 func podmanSocketCommand() string {
-	if os.Geteuid() == 0 {
+	if effectiveUID() == 0 {
 		return "systemctl enable --now podman.socket"
 	}
 	return "systemctl --user enable --now podman.socket"
