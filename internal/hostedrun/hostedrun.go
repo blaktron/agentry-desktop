@@ -597,6 +597,9 @@ type Refusal struct {
 	// Optional are the release's optional secrets a secrets refusal names
 	// (`optional`): those of Missing a run can start without.
 	Optional []string
+	// Question is the intake question a 422 validation names (`question`):
+	// an answer the registry refuses, such as one to a secret question.
+	Question string
 }
 
 // Sentence is the refusal as one line of prose, with no JSON in it.
@@ -632,6 +635,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 		Missing  []string `json:"missing"`
 		Names    []string `json:"names"`
 		Optional []string `json:"optional"`
+		Question string   `json:"question"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil {
 		r.Detail = strings.TrimSpace(string(body))
@@ -644,7 +648,7 @@ func refusalFrom(op string, status int, body []byte) *Refusal {
 	if i := strings.LastIndex(r.Slug, "/"); i >= 0 {
 		r.Slug = r.Slug[i+1:]
 	}
-	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing, r.Optional = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing, p.Optional
+	r.Title, r.Detail, r.ResetsAt, r.Tier, r.Missing, r.Optional, r.Question = p.Title, p.Detail, p.ResetsAt, p.Tier, p.Missing, p.Optional, p.Question
 	if len(r.Missing) == 0 {
 		r.Missing = p.Names
 	}

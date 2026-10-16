@@ -1400,3 +1400,49 @@ func TestAHostedRunSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 		t.Fatalf("the token was sent: %v", rec.sent)
 	}
 }
+
+// A run In Agentry never sends an answer to a secret question, whatever the
+// page gives it: the registry would keep it with the run, so it refuses one.
+// Every other answer goes. A refusal naming a question comes back as the
+// view's question, never as an error.
+func TestARunInAgentrySendsNoSecretAnswer(t *testing.T) {
+	f := &hostedFake{enabled: true, modes: []string{"autonomous"},
+		intake: "intake:\n  - id: topic\n    prompt: \"Topic\"\n  - id: api_token\n    prompt: \"Your token\"\n    type: secret\n"}
+	reg := f.start(t)
+	signIn(t, reg)
+	r, _ := newRunAPI(t)
+	out := t.TempDir()
+	r.app.markPicked(out)
+	const secret = "s3cr3t-answer-never-sent-91c2"
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"topic": "llamas", "api_token": secret}, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	creates := slices.Clone(f.creates)
+	f.mu.Unlock()
+	if len(creates) != 1 {
+		t.Fatalf("creates %d", len(creates))
+	}
+	var body struct {
+		Intake map[string]string `json:"intake"`
+	}
+	if err := json.Unmarshal([]byte(creates[0]), &body); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(creates[0], secret) || body.Intake["topic"] != "llamas" {
+		t.Fatalf("create: %s", creates[0])
+	}
+
+	f.mu.Lock()
+	f.refuse = func(w http.ResponseWriter) {
+		hostedJSON(w, http.StatusUnprocessableEntity, map[string]any{"type": "https://agentry.dev/problems/validation", "title": "Validation failed",
+			"detail": "The answer to api_token is a secret.", "question": "api_token"})
+	}
+	f.mu.Unlock()
+	r, _ = newRunAPI(t)
+	r.app.markPicked(out)
+	start, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"topic": "llamas"}, nil, false, false, nil)
+	if err != nil || start == nil || start.Refusal != "validation" || start.Question != "api_token" {
+		t.Fatalf("the refusal: %+v %v", start, err)
+	}
+}

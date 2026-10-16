@@ -388,6 +388,8 @@ type HostedScheduleMadeView struct {
 	// Optional are the release's optional secrets a secret-missing names:
 	// those of Missing the ask may leave empty.
 	Optional []string `json:"optional,omitempty"`
+	// Question is the intake question a validation refusal names.
+	Question string `json:"question,omitempty"`
 }
 
 // HostedAdd makes the schedule req describes In Agentry. The registry's
@@ -436,6 +438,9 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		if len(keys) > 0 && !req.SaveSourceKeys {
 			return nil, fmt.Errorf("a schedule In Agentry fetches its input sources with the keys Agentry keeps for their hosts: tick \u201cSave in Agentry\u201d to keep the token there for %s, or schedule it on this computer", strings.Join(sortedKeys(keys), ", "))
 		}
+		// A schedule's intake is replayed by every fire, so a secret
+		// question's answer is never part of it.
+		req.Intake = run.HostedIntake(sig.Manifest, req.Intake)
 	} else if len(req.SourceTokens) > 0 {
 		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not saved: %w", req.Ref, err)
 	}
@@ -454,7 +459,7 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 	ids, err := c.UploadInputs(ctx, files)
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
-			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional}, nil
+			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional, Question: r.Question}, nil
 		}
 		return nil, err
 	}
@@ -465,7 +470,7 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 	})
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
-			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional}, nil
+			return &HostedScheduleMadeView{Refusal: r.Slug, Detail: r.Sentence(), Missing: r.Missing, Optional: r.Optional, Question: r.Question}, nil
 		}
 		return nil, err
 	}
@@ -579,6 +584,9 @@ type HostedRunNowView struct {
 	RunID   string `json:"runId,omitempty"`
 	Refusal string `json:"refusal,omitempty"`
 	Detail  string `json:"detail,omitempty"`
+	// Question is the intake question a validation refusal names: a
+	// schedule whose kept intake answers a secret question.
+	Question string `json:"question,omitempty"`
 }
 
 // HostedRunNow starts an ordinary run of the schedule's setup now, which
@@ -596,7 +604,7 @@ func (s *ScheduleAPI) HostedRunNow(reg, id string) (*HostedRunNowView, error) {
 	runID, err := c.RunScheduleNow(ctx, id)
 	if err != nil {
 		if r := hostedrun.RefusalOf(err); r != nil {
-			return &HostedRunNowView{Refusal: r.Slug, Detail: r.Sentence()}, nil
+			return &HostedRunNowView{Refusal: r.Slug, Detail: r.Sentence(), Question: r.Question}, nil
 		}
 		return nil, err
 	}

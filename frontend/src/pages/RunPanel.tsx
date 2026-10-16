@@ -24,6 +24,7 @@ import { knowledge, app, run, schedules, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
+import { askedHere, intakeToSend, secretAnswerRefusal, secretQuestionLine } from "../secretIntake";
 import { HostedConnectAsk, HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedSignIns, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice";
@@ -328,7 +329,6 @@ export default function RunPanel({
   const requiredNames = profile ? requiredOf(profile) : [];
   const optionalNames = profile?.optionalSecrets ?? [];
   const needsProfile = !!profile && requiredNames.length > 0 && !profile.exists;
-  const intakeMissing = (profile?.intake ?? []).filter((q) => q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   // A url question the browser names is its site, not a source: asked as an
   // address, never fetched.
   const sourceQs = (profile?.intake ?? []).filter((q) => isSourceType(q.type) && !isSiteQuestion(q));
@@ -401,6 +401,9 @@ export default function RunPanel({
   // hosted session of the release's interactive mode, and In Agentry too.
   const sessionInAgentry = mode === "hosted-session";
   const inAgentry = mode === "hosted" || sessionInAgentry;
+  // In Agentry a secret question is not asked: the run takes its value from
+  // the account's secrets there, never as an answer.
+  const intakeMissing = (profile?.intake ?? []).filter((q) => askedHere(q, inAgentry) && q.required && !(intakeValues[q.id] ?? "").trim()).map((q) => q.id);
   // A declared server the gate rates high: Unsafe Mode's consent here,
   // nothing In Agentry. Go reads the switch itself and asks again.
   const vuln = vulnerableServerStep({ refused, inAgentry, unsafeOn: !!unsafeNotice?.on, consented: allowVulnerableMCP });
@@ -681,9 +684,7 @@ export default function RunPanel({
   }
 
   function intakeAnswers(): Record<string, string> {
-    const answers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(intakeValues)) if (v.trim() !== "") answers[k] = v;
-    return answers;
+    return intakeToSend(intakeValues, profile?.intake ?? [], inAgentry);
   }
 
   // The answers as the run's own calls take them.
@@ -977,6 +978,7 @@ export default function RunPanel({
     : running ? "Starting…" : mode === "interactive" ? "Start session" : "Run";
   const modeWord = sessionInAgentry ? "an interactive session In Agentry" : inAgentry ? "In Agentry" : mode === "interactive" ? "an interactive session on this machine" : "on this machine, autonomously";
   const answered = (profile?.intake ?? []).filter((q) => q.type !== "secret");
+  const secretRefused = hostedRefusal ? secretAnswerRefusal(hostedRefusal, profile?.intake) : null;
 
   return (
     <div className="modal-backdrop" onClick={() => !running && onClose()}>
@@ -1414,7 +1416,9 @@ export default function RunPanel({
                   <Card>
                     <p className="muted small" style={{ marginTop: 0 }}>
                       Answered before the run starts and staged read-only at <span className="mono">/inputs/intake.json</span>;
-                      a secret answer is injected like a declared key and never shown to the agent.
+                      {inAgentry
+                        ? " a secret question is not answered here: In Agentry its value is one of your account's secrets, never an answer."
+                        : " a secret answer is injected like a declared key and never shown to the agent."}
                       {sourceQs.length > 0 && (
                         <> A repository or a file at an address is fetched before the run into <span className="mono">/inputs/&lt;question&gt;/</span>,
                         read-only, and <span className="mono">intake.json</span> names the address and what was fetched; the access token is not written there.</>
@@ -1423,7 +1427,9 @@ export default function RunPanel({
                         <> The site to test is not fetched: its address goes to <span className="mono">intake.json</span>, and the run&apos;s browser opens it.</>
                       )}
                     </p>
-                    {profile.intake.map((q) => isHostType(q.type) ? (
+                    {profile.intake.map((q) => !askedHere(q, inAgentry) ? (
+                      <p className="muted small" key={q.id} data-secret-question={q.id}>{secretQuestionLine(q, profile.declaredSecrets)}</p>
+                    ) : isHostType(q.type) ? (
                       <HostQuestion
                         key={q.id}
                         q={q}
@@ -1629,7 +1635,7 @@ export default function RunPanel({
                 onUpgrade={inAgentry && !sessionInAgentry && hosted?.schedule?.upgrade ? () => SettingsAPI.OpenUpgrade(registry).catch((e) => setRunErr(String(e))) : undefined} />
               {schedulingThere && scheduleGap?.refusal && (
                 <ScheduleGap
-                  gap={scheduleGap} registry={registry} agentRef={agentRef} busy={running}
+                  gap={scheduleGap} registry={registry} agentRef={agentRef} busy={running} intake={profile?.intake}
                   onAgain={(askOptional) => void scheduleInAgentry(askOptional)}
                   onCancel={() => setScheduleGap(null)}
                   onError={(e) => setRunErr(e)}
@@ -1833,7 +1839,12 @@ export default function RunPanel({
                   }}
                 />
               )}
-              {hostedRefusal?.refusal && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && hostedRefusal.refusal !== "connection-missing" && (
+              {hostedRefusal && secretRefused && (
+                <Notice tone="warn">
+                  <strong>{secretRefused.heading}</strong> <span className="selectable">{secretRefused.detail}</span>
+                </Notice>
+              )}
+              {hostedRefusal?.refusal && !secretRefused && !(hostedRefusal.refusal === "secret-missing" && (hostedRefusal.missing?.length ?? 0) > 0) && hostedRefusal.refusal !== "connection-missing" && (
                 <Notice tone="warn">
                   <strong>
                     {hostedRefusal.refusal === "credits-exhausted"
@@ -1900,8 +1911,10 @@ function gapAsksSecrets(gap: app.HostedScheduleMadeView): boolean {
  *  secrets to keep, asked for here; the connections, made in the browser
  *  on Connect tools; the plan, through the upgrade page; anything else in
  *  the registry's own words. */
-function ScheduleGap({ gap, registry, agentRef, busy, onAgain, onCancel, onError }: {
+function ScheduleGap({ gap, registry, agentRef, busy, intake, onAgain, onCancel, onError }: {
   gap: app.HostedScheduleMadeView;
+  /** The release's questions, to name one a refusal names. */
+  intake?: { id: string; type: string; prompt?: string }[];
   registry: string;
   agentRef: string;
   busy: boolean;
@@ -1914,10 +1927,11 @@ function ScheduleGap({ gap, registry, agentRef, busy, onAgain, onCancel, onError
   if (gapAsksSecrets(gap)) {
     return <HostedSecretsAsk registry={registry} names={gap.missing ?? []} optional={gap.optional} forSchedule onSaved={() => onAgain(false)} onCancel={onCancel} />;
   }
+  const secret = secretAnswerRefusal(gap, intake);
   return (
     <Notice tone="warn">
       <div data-schedule-gap={gap.refusal}>
-        <strong>{hostedGapHeading(gap.refusal ?? "")}</strong> <span className="selectable">{gap.detail}</span>
+        <strong>{secret ? secret.heading : hostedGapHeading(gap.refusal ?? "")}</strong> <span className="selectable">{secret ? secret.detail : gap.detail}</span>
         {gap.refusal === "connection-missing" && (
           <p className="small">
             Connect tools is open in your browser, signed in as the account this app uses: connect{" "}

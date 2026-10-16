@@ -528,3 +528,22 @@ func TestHostedAddTakesTheScheduleBackWhenItsKeyIsNotSaved(t *testing.T) {
 		t.Fatalf("calls %v", calls)
 	}
 }
+
+// A schedule In Agentry keeps no answer to a secret question: its intake is
+// replayed by every fire, and the registry refuses one.
+func TestHostedAddSendsNoSecretAnswer(t *testing.T) {
+	sr := &scheduleRoutes{}
+	s, reg, _ := hostedScheduleAPI(t, sr, func(f *hostedFake) {
+		f.intake = "intake:\n  - id: topic\n    prompt: \"Topic\"\n  - id: api_token\n    prompt: \"Your token\"\n    type: secret\n"
+	})
+	const secret = "s3cr3t-schedule-answer-5e07"
+	made, err := s.HostedAdd(HostedScheduleRequest{Registry: reg, Ref: "acme/reporter@1.0.0", Intake: map[string]string{"topic": "llamas", "api_token": secret},
+		When: schedules.When{Kind: "daily", Time: "07:00", Zone: "UTC"}})
+	if err != nil || made.ID == "" {
+		t.Fatalf("HostedAdd = %+v, %v", made, err)
+	}
+	calls := sr.calls()
+	if len(calls) != 1 || strings.Contains(calls[0], secret) || !strings.Contains(calls[0], `"intake":{"topic":"llamas"}`) {
+		t.Fatalf("create %v", calls)
+	}
+}
