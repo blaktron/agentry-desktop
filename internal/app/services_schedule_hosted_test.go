@@ -27,8 +27,9 @@ type scheduleRoutes struct {
 	items       []hostedrun.Schedule
 	occurrences []hostedrun.Occurrence
 	sent        []string
-	// refuse, when set, answers a create.
+	// refuse, when set, answers a create; runNow, when set, a Run now.
 	refuse func(w http.ResponseWriter)
+	runNow func(w http.ResponseWriter)
 }
 
 func (sr *scheduleRoutes) add(mux *http.ServeMux) {
@@ -119,6 +120,10 @@ func (sr *scheduleRoutes) add(mux *http.ServeMux) {
 			return
 		}
 		rec(r)
+		if sr.runNow != nil {
+			sr.runNow(w)
+			return
+		}
 		hostedJSON(w, http.StatusConflict, map[string]any{"type": "https://agentry.dev/problems/run-active", "title": "A run is active", "detail": "Wait for it to end."})
 	})
 }
@@ -545,5 +550,19 @@ func TestHostedAddSendsNoSecretAnswer(t *testing.T) {
 	calls := sr.calls()
 	if len(calls) != 1 || strings.Contains(calls[0], secret) || !strings.Contains(calls[0], `"intake":{"topic":"llamas"}`) {
 		t.Fatalf("create %v", calls)
+	}
+}
+
+// A Run now the registry refuses for a kept answer to a secret question
+// names the question, so the page can say what it is.
+func TestHostedRunNowNamesARefusedSecretQuestion(t *testing.T) {
+	sr := &scheduleRoutes{runNow: func(w http.ResponseWriter) {
+		hostedJSON(w, http.StatusUnprocessableEntity, map[string]any{"type": "https://agentry.dev/problems/validation", "title": "Validation failed",
+			"detail": "The answer to api_token is a secret.", "question": "api_token"})
+	}}
+	s, reg, _ := hostedScheduleAPI(t, sr, nil)
+	now, err := s.HostedRunNow(reg, hostedScheduleID)
+	if err != nil || now.Refusal != "validation" || now.Question != "api_token" || now.RunID != "" {
+		t.Fatalf("HostedRunNow = %+v, %v", now, err)
 	}
 }

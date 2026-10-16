@@ -443,6 +443,10 @@ func (s *ScheduleAPI) HostedAdd(req HostedScheduleRequest) (*HostedScheduleMadeV
 		req.Intake = run.HostedIntake(sig.Manifest, req.Intake)
 	} else if len(req.SourceTokens) > 0 {
 		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not saved: %w", req.Ref, err)
+	} else if len(req.Intake) > 0 {
+		// Without the release its secret questions are not known, so no
+		// answer is kept: one of them could be a secret's value.
+		return nil, fmt.Errorf("the release %s could not be read, so its answers were not sent: %w", req.Ref, err)
 	}
 	var packs []string
 	if s.run != nil {

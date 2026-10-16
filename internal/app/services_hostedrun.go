@@ -478,6 +478,10 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		intakeAnswers = run.HostedIntake(sig.Manifest, intakeAnswers)
 	} else if len(typedTokens) > 0 {
 		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not sent: %w", ref, err)
+	} else if len(intakeAnswers) > 0 {
+		// Without the release its secret questions are not known, so no
+		// answer goes: one of them could be a secret's value.
+		return nil, fmt.Errorf("the release %s could not be read, so its answers were not sent: %w", ref, err)
 	}
 	attach, err := r.packsInAgentry(reg, packs)
 	if err != nil {

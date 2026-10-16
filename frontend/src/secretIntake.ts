@@ -23,7 +23,7 @@ export function askedHere(q: IntakeQuestion, inAgentry: boolean): boolean {
 /** The answers a run sends: every non-empty one, less a secret question's
  *  In Agentry. */
 export function intakeToSend(values: Record<string, string>, intake: IntakeQuestion[], inAgentry: boolean): Record<string, string> {
-  const secret = new Set(inAgentry ? intake.filter((q) => q.type === "secret").map((q) => q.id) : []);
+  const secret = new Set(intake.filter((q) => !askedHere(q, inAgentry)).map((q) => q.id));
   const answers: Record<string, string> = {};
   for (const [k, v] of Object.entries(values)) if (v.trim() !== "" && !secret.has(k)) answers[k] = v;
   return answers;

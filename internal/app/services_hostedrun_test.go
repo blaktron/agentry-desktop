@@ -186,9 +186,13 @@ func (f *hostedFake) start(t *testing.T) string {
 				"expiresAt": "2027-01-01T00:00:00Z", "createdAt": "2026-01-01T00:00:00Z"},
 		})
 	})
-	mux.HandleFunc("GET /api/v1/resolve", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/v1/resolve", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		if strings.Contains(r.URL.RawQuery, "missing") {
+			hostedJSON(w, http.StatusNotFound, map[string]any{"type": "https://agentry.dev/problems/not-found", "title": "Not found"})
+			return
+		}
 		hostedJSON(w, http.StatusOK, map[string]any{
 			"archiveUrl": "/archive.tar.zst", "attestationUrl": "/att", "digest": "sha256:" + strings.Repeat("ab", 32),
 			"manifest": hostedManifestDoc(t, f.modes, f.secrets, f.targetHosts, f.browser, f.intake), "namespace": "acme", "name": "reporter",
@@ -1406,31 +1410,60 @@ func TestAHostedRunSendsNoTokenOverPlainHTTPToARealHost(t *testing.T) {
 // Every other answer goes. A refusal naming a question comes back as the
 // view's question, never as an error.
 func TestARunInAgentrySendsNoSecretAnswer(t *testing.T) {
-	f := &hostedFake{enabled: true, modes: []string{"autonomous"},
+	yes := true
+	f := &hostedFake{enabled: true, modes: []string{"autonomous", "interactive"}, sessions: sessionTerms, sessionAllowed: &yes,
 		intake: "intake:\n  - id: topic\n    prompt: \"Topic\"\n  - id: api_token\n    prompt: \"Your token\"\n    type: secret\n"}
 	reg := f.start(t)
 	signIn(t, reg)
-	r, _ := newRunAPI(t)
+	fastPoll(t)
+	fastSessionRetry(t)
 	out := t.TempDir()
-	r.app.markPicked(out)
 	const secret = "s3cr3t-answer-never-sent-91c2"
-	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, map[string]string{"topic": "llamas", "api_token": secret}, nil, false, false, nil); err != nil {
+	answers := map[string]string{"topic": "llamas", "api_token": secret}
+	// Each start is its own app's: a start waits for none in progress.
+	r, _ := newRunAPI(t)
+	r.app.markPicked(out)
+	if _, err := r.StartHostedRun(reg, "acme/reporter@1.0.0", "go", nil, out, answers, nil, false, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	r, _ = newRunAPI(t)
+	r.app.markPicked(out)
+	if _, err := r.StartHostedSession(reg, "acme/reporter@1.0.0", "go", nil, out, answers, nil, false, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.mu.Lock()
 	creates := slices.Clone(f.creates)
 	f.mu.Unlock()
-	if len(creates) != 1 {
+	if len(creates) != 2 {
 		t.Fatalf("creates %d", len(creates))
 	}
-	var body struct {
-		Intake map[string]string `json:"intake"`
+	for i, c := range creates {
+		var body struct {
+			Intake map[string]string `json:"intake"`
+		}
+		if err := json.Unmarshal([]byte(c), &body); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(c, secret) || body.Intake["topic"] != "llamas" {
+			t.Fatalf("create %d: %s", i, c)
+		}
 	}
-	if err := json.Unmarshal([]byte(creates[0]), &body); err != nil {
-		t.Fatal(err)
+	if answers["api_token"] != secret {
+		t.Fatal("the caller's answers were changed")
 	}
-	if strings.Contains(creates[0], secret) || body.Intake["topic"] != "llamas" {
-		t.Fatalf("create: %s", creates[0])
+
+	// A release that cannot be read sends no answers at all: its secret
+	// questions are not known.
+	r, _ = newRunAPI(t)
+	r.app.markPicked(out)
+	if _, err := r.StartHostedRun(reg, "acme/missing@1.0.0", "go", nil, out, answers, nil, false, false, nil); err == nil || !strings.Contains(err.Error(), "answers were not sent") || strings.Contains(err.Error(), secret) {
+		t.Fatalf("an unreadable release: %v", err)
+	}
+	f.mu.Lock()
+	n := len(f.creates)
+	f.mu.Unlock()
+	if n != 2 {
+		t.Fatalf("an unreadable release's answers were sent: %d creates", n)
 	}
 
 	f.mu.Lock()

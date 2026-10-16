@@ -24,7 +24,7 @@ import { knowledge, app, run, schedules, trust } from "../../wailsjs/go/models";
 import { Button, Card, DeclaredServersTable, ErrorBox, Notice, SignedBadge, Textarea, fmtBytes, shortDigest } from "../ui";
 import { STEP_LABEL, inAgentryByDefault, needList, setupSteps, vulnerableServerStep, whereFallback, type RunForm, type StepKey, requiredOf, goesWithoutSentence, offerSetKeys } from "../runSetup";
 import { followHostedChat, followHostedRunFound, startHostedRun, startLocalChat, startLocalRun, useChat, useHostedRun } from "../runs";
-import { askedHere, intakeToSend, secretAnswerRefusal, secretQuestionLine } from "../secretIntake";
+import { askedHere, intakeToSend, secretAnswerRefusal, secretQuestionLine, type IntakeQuestion } from "../secretIntake";
 import { HostedConnectAsk, HostedCredits, HostedSecretsAsk, HostedSecretsNote, HostedSignIns, HostedUnavailable, PublisherEarnsLine, SessionCredits, SessionUnavailable } from "./HostedRun";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { WRITE_IN_MY_VOICE, WRITE_IN_MY_VOICE_HINT, voiceChoice } from "../voice";
@@ -1428,7 +1428,7 @@ export default function RunPanel({
                       )}
                     </p>
                     {profile.intake.map((q) => !askedHere(q, inAgentry) ? (
-                      <p className="muted small" key={q.id} data-secret-question={q.id}>{secretQuestionLine(q, profile.declaredSecrets)}</p>
+                      <p className="muted small" key={q.id} data-secret-question={q.id}>{secretQuestionLine(q, hosted?.declaredSecrets ?? profile.declaredSecrets)}</p>
                     ) : isHostType(q.type) ? (
                       <HostQuestion
                         key={q.id}
@@ -1914,7 +1914,7 @@ function gapAsksSecrets(gap: app.HostedScheduleMadeView): boolean {
 function ScheduleGap({ gap, registry, agentRef, busy, intake, onAgain, onCancel, onError }: {
   gap: app.HostedScheduleMadeView;
   /** The release's questions, to name one a refusal names. */
-  intake?: { id: string; type: string; prompt?: string }[];
+  intake?: IntakeQuestion[];
   registry: string;
   agentRef: string;
   busy: boolean;

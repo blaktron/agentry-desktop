@@ -1,6 +1,8 @@
 package run
 
 import (
+	"maps"
+
 	"github.com/blaktron/agentry/pkg/manifest"
 )
 
@@ -17,10 +19,7 @@ func HostedIntake(m *manifest.Manifest, answers map[string]string) map[string]st
 	if m == nil || answers == nil {
 		return answers
 	}
-	out := make(map[string]string, len(answers))
-	for id, v := range answers {
-		out[id] = v
-	}
+	out := maps.Clone(answers)
 	for _, q := range m.Intake {
 		if q.Type == manifest.IntakeSecret {
 			delete(out, q.ID)
