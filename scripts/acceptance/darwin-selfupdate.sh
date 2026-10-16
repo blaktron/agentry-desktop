@@ -34,12 +34,33 @@ export AGENTRY_RUNNER_HOME="$work/runner"
 mkdir -p "$apps" "$AGENTRY_CONFIG_DIR/keys" "$AGENTRY_RUNNER_HOME/profiles"
 trap 'rm -rf "$work"' EXIT INT TERM
 
+# bounded runs a command for at most 20 seconds. Gatekeeper evaluates a
+# Developer ID bundle when anything inside it is executed, and where the
+# evaluation needs a person (a prompt in the console session this runner has
+# none of) the exec waits for ever; a bound turns that into a failure that
+# says so.
+bounded() { perl -e 'alarm 20; exec @ARGV' -- "$@"; }
+
 echo "== 1. a copy installed where the person can replace it"
 ditto "$old_app" "$apps/$(basename "$old_app")"
 installed="$apps/$(basename "$old_app")"
+echo "   $(basename "$installed") is in the Applications folder"
+# The agentry command, when the bundle carries one: a link to it, as Install
+# the agentry command makes in ~/.local/bin, which the update must keep
+# working. It is run now, while the bundle's seal is intact: the marker
+# written next breaks the seal, and a Developer ID bundle whose seal is broken
+# makes Gatekeeper ask a person before anything inside it runs.
+carried="$installed/Contents/Resources/bin/agentry"
+command_link=""
+if [ -e "$carried" ]; then
+  mkdir -p "$work/bin"
+  command_link="$work/bin/agentry"
+  ln -s "$carried" "$command_link"
+  bounded "$command_link" --version >/dev/null 2>&1 || fail "the agentry command does not run before the update (or did not answer within 20 s)"
+  echo "   the agentry command links to the CLI the bundle carries"
+fi
 # A file only this release has, so the swap can be told from a merge.
 printf 'only in the release being replaced\n' > "$installed/Contents/Resources/only-in-the-old-one.txt"
-echo "   $(basename "$installed") is in the Applications folder"
 
 echo "== 2. the person's configuration, as it would be after using it"
 printf 'defaultRegistry: https://dev.example.net\nonboarded: true\n' > "$AGENTRY_CONFIG_DIR/desktop.yaml"
@@ -48,18 +69,6 @@ printf 'dev.example.net pin\n' > "$AGENTRY_CONFIG_DIR/keys/dev.example.net.pub"
 printf 'defaultAdapter: docker-agent\n' > "$AGENTRY_RUNNER_HOME/policy.yaml"
 snapshot() { (cd "$work" && find config runner -type f -exec shasum -a 256 {} + | sort); }
 before=$(snapshot)
-# The agentry command, when the bundle carries one: a link to it, as Install
-# the agentry command makes in ~/.local/bin, which the update must keep
-# working.
-carried="$installed/Contents/Resources/bin/agentry"
-command_link=""
-if [ -e "$carried" ]; then
-  mkdir -p "$work/bin"
-  command_link="$work/bin/agentry"
-  ln -s "$carried" "$command_link"
-  "$command_link" --version >/dev/null 2>&1 || fail "the agentry command does not run before the update"
-  echo "   the agentry command links to the CLI the bundle carries"
-fi
 
 echo "== 3. the swap, by the code that ships"
 # go test, not a re-implementation. An earlier version of this script did its
@@ -109,7 +118,7 @@ done
 if [ -n "$command_link" ]; then
   echo "== 5b. the agentry command runs the CLI the new bundle carries"
   [ -e "$installed/Contents/Resources/bin/agentry" ] || fail "the new bundle carries no agentry CLI"
-  v=$("$command_link" --version 2>&1) || fail "the agentry command does not run after the update: $v"
+  v=$(bounded "$command_link" --version 2>&1) || fail "the agentry command does not run after the update (or did not answer within 20 s): $v"
   want=$("$installed/Contents/Resources/bin/agentry" --version 2>&1)
   [ "$v" = "$want" ] || fail "the agentry command says '$v', the new bundle's CLI '$want'"
   echo "   ${v%%$'\n'*}"
