@@ -17,7 +17,7 @@ import (
 )
 
 // sumsFor writes a SHA256SUMS body over the given files, in the shape the
-// release workflow's `sha256sum *` produces.
+// release's `sha256sum *` produces.
 func sumsFor(files map[string][]byte) string {
 	var b strings.Builder
 	for name, body := range files {

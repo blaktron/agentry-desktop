@@ -219,7 +219,7 @@ function SignInStep({
             <label className="field">
               <span className="field-label">Registry</span>
               <Input
-                type="text" className="mono" placeholder="https://secureagentry.net"
+                type="text" className="mono" placeholder="https://agentry.example.com"
                 value={regURL} onChange={(e) => setRegURL(e.target.value)} disabled={busy}
               />
               {line && <span className="muted small field-hint">{line}</span>}

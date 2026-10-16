@@ -35,7 +35,7 @@ const maxArtifact = 512 << 20
 // ArtifactFor picks the file this platform would install from a release's
 // signed sums.
 //
-// It matches on the exact name the release workflow's matrix produces, so a
+// It matches on the exact name a release's matrix produces, so a
 // channel cannot offer a different file by inventing a name: the name is
 // looked up, never taken.
 //

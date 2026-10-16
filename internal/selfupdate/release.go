@@ -21,8 +21,8 @@ import (
 // the claim is one the signing key made.
 //
 // The comment names its product first. The same key signs more than this
-// application's releases — the CLI's release workflow runs this module's
-// signrelease — and a signed statement must say what it covers:
+// application's releases — the CLI's are signed with it too — and a signed
+// statement must say what it covers:
 // `agentry-cli 0.1.0 (commit …)` for a CLI bundle, `agentry-desktop 0.2.0
 // (commit …)` for ours. The update check reads ONLY this product's
 // (ParseTrustedComment); a CLI release's signature therefore never reads as

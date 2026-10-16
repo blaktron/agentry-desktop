@@ -20,7 +20,7 @@
 #                     (default 0.0.0-dev; the Makefile passes git describe).
 #   EXTRA_LDFLAGS     appended to the linker flags, as for the Makefile's
 #                     other targets; nothing is stripped unless it says -w -s
-#                     (the release workflow does).
+#                     (a release does).
 #
 # Output: build/linux/agentry-desktop-<version>-linux-amd64 and a launch
 # smoke under a virtual display.

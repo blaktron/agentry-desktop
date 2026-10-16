@@ -118,9 +118,9 @@ func TestADevBuildSignsInToDevOnly(t *testing.T) {
 	}
 }
 
-// A build whose default registry is not a SecureAgentry address keeps no
-// SecureAgentry sign-in at all, and its own default can be the self-hosted
-// one.
+// A build whose default registry is not a SecureAgentry address, as a build
+// from source is, keeps no SecureAgentry sign-in at all, and its own default
+// is the self-hosted one.
 func TestABuildForNoSecureAgentryRegistrySignsInToNone(t *testing.T) {
 	isolate(t)
 	buildFor(t, "http://localhost:8080")
@@ -138,6 +138,15 @@ func TestABuildForNoSecureAgentryRegistrySignsInToNone(t *testing.T) {
 	s, _ := Load()
 	if err := s.Admit("https://secureagentry.net"); err == nil || !strings.Contains(err.Error(), "no SecureAgentry registry") {
 		t.Errorf("Admit(secureagentry.net) = %v, want the build-for-none refusal", err)
+	}
+	// The default is the one self-hosted registry, so another waits until it
+	// is removed.
+	if err := s.Admit("https://registry.example"); err == nil || !strings.Contains(err.Error(), "remove it in Settings first") {
+		t.Errorf("Admit(registry.example) beside the default = %v, want the one-self-hosted refusal", err)
+	}
+	s.Remove("http://localhost:8080")
+	if err := s.Admit("https://registry.example"); err != nil {
+		t.Errorf("Admit(registry.example) once the default is removed = %v, want it admitted", err)
 	}
 }
 
