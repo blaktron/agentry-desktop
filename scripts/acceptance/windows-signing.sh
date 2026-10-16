@@ -20,6 +20,8 @@ exe="${1:?usage: $0 <agentry-desktop.exe>}"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fail() { echo "windows-signing acceptance: $*" >&2; exit 1; }
 [ -f "$exe" ] || fail "$exe does not exist"
+# makensis runs from the installer directory, so the exe goes by its full path.
+exe="$(cd "$(dirname "$exe")" && pwd)/$(basename "$exe")"
 for t in makensis 7z; do command -v "$t" >/dev/null 2>&1 || fail "$t is needed"; done
 
 T=$(mktemp -d)
