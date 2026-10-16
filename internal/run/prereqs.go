@@ -132,16 +132,18 @@ type Prereqs struct {
 	GroupCommand string `json:"groupCommand,omitempty"`
 }
 
-// distroInstall maps an os-release ID (or ID_LIKE token) to the
-// distribution's own engine and its install command: podman where the
-// distribution ships and maintains it as its engine (Fedora and the RHEL
-// family), Docker Engine elsewhere. Distribution packages only — no piping
-// remote scripts into a root shell.
+// engineInstall is a distribution's own engine and the command that
+// installs it.
 type engineInstall struct {
 	engine  string
 	command string
 }
 
+// distroInstall maps an os-release ID (or ID_LIKE token) to the
+// distribution's own engine and its install command: podman where the
+// distribution ships and maintains it as its engine (Fedora and the RHEL
+// family), Docker Engine elsewhere. Distribution packages only — no piping
+// remote scripts into a root shell.
 var distroInstall = map[string]engineInstall{
 	"fedora": {dockerx.KindPodman, "dnf install -y podman"},
 	"rhel":   {dockerx.KindPodman, "dnf install -y podman"},
@@ -242,29 +244,25 @@ func InstallTarget() string {
 }
 
 // classify turns the facts into the one state the page renders. The
-// docker group states apply to Docker Engine alone: podman answers as the
-// person, so its one missing piece is its socket.
+// docker group states apply to Docker Engine alone and come first where
+// it is installed, since the group is what keeps it from answering;
+// podman answers as the person, so its one missing piece is its socket.
 func classify(p *Prereqs, dockerInstalled bool, dockerGID int) string {
 	switch {
 	case p.DockerOK:
 		return StateReady
+	case dockerInstalled && !p.InDockerGroup:
+		return StateGroupMissing
+	case dockerInstalled && !hasGroup(processGroups(), dockerGID):
+		return StatePendingRestart
 	case p.Engine.PodmanSocketOff:
 		return StateSocketOff
 	case !p.EngineInstalled && p.CanInstall:
 		return StateInstallable
-	case !p.EngineInstalled:
-		return StateManual
-	case !dockerInstalled:
-		// podman is installed, its socket answers, and still nothing was
-		// found: Engine.Err carries podman's own words.
-		return StateManual
-	case !p.InDockerGroup:
-		return StateGroupMissing
-	case !hasGroup(processGroups(), dockerGID):
-		return StatePendingRestart
 	default:
-		// Installed, in the group here and now, and still refused: not a
-		// group problem; DockerErr carries the engine's own words.
+		// Nothing installed and no install here; or an engine installed, in
+		// the group here and now where that applies, and still refused:
+		// DockerErr carries the engine's own words.
 		return StateManual
 	}
 }
@@ -396,8 +394,11 @@ func InstallEngine(ctx context.Context, logw io.Writer) error {
 // installed and its socket is off; elsewhere it names the state.
 func EnablePodmanSocket(ctx context.Context, logw io.Writer) error {
 	p := DetectPrereqs(ctx)
-	if p.State != StateSocketOff {
-		return fmt.Errorf("the podman socket step does not apply: this machine's state is %s", p.State)
+	switch {
+	case p.DockerOK:
+		return errors.New("a container engine already answers; there is no socket to turn on")
+	case p.State != StateSocketOff:
+		return errors.New("podman is not installed with its socket off, so there is no socket to turn on")
 	}
 	return enablePodmanSocket(ctx, logw)
 }

@@ -123,7 +123,7 @@ export default function ReviseDialog({
           </p>
         )}
         {setup && !ways.dockerOk && (
-          <Notice tone="warn">The Drafter runs in containers, and docker is not ready on this computer{setup.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Run defaults sets it up.</Notice>
+          <Notice tone="warn">The Drafter runs in containers, and the container engine is not ready on this computer{setup.dockerErr ? `: ${setup.dockerErr}` : ""}. Settings → Run defaults sets it up.</Notice>
         )}
       </Card>
 

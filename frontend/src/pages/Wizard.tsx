@@ -523,7 +523,7 @@ function DoneStep({
     // The engine row names the state: a pending restart
     // is a step done, waiting on the session, not a missing engine.
     status?.dockerOk
-      ? { ok: true, text: `A container engine is available${status.engine?.kind ? ` (${status.engine.kind} ${status.engine.version ?? ""})`.replace(/ \)$/, ")") : ""}` }
+      ? { ok: true, text: `A container engine is available${status.engine?.kind ? ` (${[status.engine.kind, status.engine.version].filter(Boolean).join(" ")})` : ""}` }
       : prereq?.state === "pendingRestart"
         ? { ok: false, text: "Docker Engine is installed — restart your session before the first run" }
         : prereq?.state === "groupMissing"

@@ -648,12 +648,16 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
     return () => { live = false; };
   }, []);
 
+  // Re-detect: the whole order again from nothing (an engine adopted earlier
+  // that stopped answering is let go), then the card's state. A run in
+  // flight refuses it, in Go's words.
   async function checkAgain() {
     if (checkPending.current) return;
     checkPending.current = true;
     setBusy(CHECKING_ENGINE);
     setError(null);
     try {
+      await RunAPI.RedetectEngine();
       const p = await RunAPI.PrereqStatus();
       setPrereq(p);
       if (p.dockerOk) await onDone();
@@ -868,11 +872,11 @@ const ENGINE_CHOICES: Record<string, { name: string; url: string; blurb: string 
   ],
 };
 
-export const DOCKER_LICENCE_SENTENCE = "Docker Desktop is free for personal use and small companies and licensed per seat for others; see Docker's terms.";
+const DOCKER_LICENCE_SENTENCE = "Docker Desktop is free for personal use and small companies and licensed per seat for others; ";
 const DOCKER_TERMS_URL = "https://www.docker.com/legal/docker-subscription-service-agreement/";
 
 function EngineChoices({ os, err }: { os: string; err?: string }) {
-  const choices = ENGINE_CHOICES[os] ?? ENGINE_CHOICES.darwin;
+  const choices = os === "windows" ? ENGINE_CHOICES.windows : ENGINE_CHOICES.darwin;
   return (
     <>
       <p className="small">
@@ -887,7 +891,7 @@ function EngineChoices({ os, err }: { os: string; err?: string }) {
         ))}
       </ul>
       <p className="muted small">
-        {DOCKER_LICENCE_SENTENCE.replace("see Docker's terms.", "")}
+        {DOCKER_LICENCE_SENTENCE}
         <Button variant="link" onClick={() => OpenExternal(DOCKER_TERMS_URL)}>see Docker&apos;s terms</Button>.
       </p>
       {os === "windows" && (

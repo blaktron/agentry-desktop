@@ -42,8 +42,8 @@ type Engine struct {
 	// of a named engine, or podman on this computer.
 	How string
 	// Err is why nothing answered, in the words of the engine that is
-	// installed (the docker CLI's when it is, else podman's); Tried lists
-	// each place asked and what it said.
+	// installed (the docker CLI's when it is, else podman's), and Tried
+	// lists each place asked and what it said.
 	Err   string
 	Tried []string
 	// PodmanInstalled says podman's CLI answers on this computer;
@@ -54,8 +54,10 @@ type Engine struct {
 	SocketCommand   string
 	// Warnings are the traps seen on the way: a credential helper the docker
 	// configuration names and PATH lacks, a socket file with nothing behind
-	// it.
-	Warnings []string
+	// it. socketWarnings are the latter alone, kept with the adoption so a
+	// later read still says them.
+	Warnings       []string
+	socketWarnings []string
 }
 
 // Summary is the one line a page shows for the engine found.
@@ -91,18 +93,7 @@ var (
 // which case nothing but that engine is tried.
 var (
 	newEngineClient = func(kind string) dockerx.Client {
-		if kind == dockerx.KindPodman {
-			bin := os.Getenv(dockerx.EnvPodman)
-			if bin == "" {
-				bin = "podman"
-			}
-			return &dockerx.CLI{Bin: bin, Podman: true}
-		}
-		bin := os.Getenv(dockerx.EnvDocker)
-		if bin == "" {
-			bin = "docker"
-		}
-		return &dockerx.CLI{Bin: bin}
+		return &dockerx.CLI{Bin: engineBin(kind), Podman: kind == dockerx.KindPodman}
 	}
 	pingSocket   = dockerx.PingSocket
 	knownSockets = knownHostSockets
@@ -138,23 +129,30 @@ func isAdoptedVar(name string) bool {
 }
 
 // DetectEngine finds the engine this computer offers and adopts it. With
-// fresh false, an engine adopted earlier that still answers is kept, so a
-// page's read never switches the engine a run may be using; with fresh
-// true (Re-detect), the adoption is cleared and the whole order runs again.
-// Nothing found leaves nothing adopted, and Err says what each place said.
+// fresh false, a page's read, an engine adopted earlier is kept whether or
+// not it answers now: a read never switches the engine a run may be
+// using, and one that stopped answering is reported as such, with
+// Re-detect the way to another. With fresh true (Re-detect), the adoption
+// is cleared and the whole order runs again. Nothing found leaves nothing
+// adopted, and Err says what the installed engine said.
 func DetectEngine(ctx context.Context, fresh bool) Engine {
 	adoptMu.Lock()
 	defer adoptMu.Unlock()
 	if !fresh && adopted != nil {
-		if e, err := describeEngine(ctx, newDockerClient()); err == nil {
-			e.How = adopted.How
-			e.Warnings = credentialHelperTrap(e)
-			adopted = &e
-			return e
+		e, err := describeEngine(ctx, newDockerClient())
+		if err != nil {
+			return Engine{How: adopted.How, Err: err.Error(),
+				Tried: []string{adopted.How + ", adopted earlier: " + err.Error() + " (Re-detect looks for another engine)"}}
 		}
+		e.How = adopted.How
+		e.socketWarnings = adopted.socketWarnings
+		e.Warnings = append(append([]string{}, e.socketWarnings...), credentialHelperTrap(e)...)
+		adopted = &e
+		return e
 	}
 	clearAdoption()
 	e := detectInOrder(ctx)
+	e.socketWarnings = append([]string{}, e.Warnings...)
 	e.Warnings = append(e.Warnings, credentialHelperTrap(e)...)
 	if e.Found {
 		adopted = &e
@@ -188,27 +186,41 @@ func adoptVar(name, value string) {
 	}
 }
 
-// detectInOrder is the order itself; adoptMu is held.
+// detectInOrder is the order itself; adoptMu is held. Each place asked
+// goes into Tried with what it said; Err is the installed engine's own
+// words (the docker CLI's when it is installed, else podman's), else that
+// neither is installed.
 func detectInOrder(ctx context.Context) Engine {
 	var out Engine
-	var errs []string
+	said := func(place, what string) { out.Tried = append(out.Tried, place+": "+what) }
+	// The app started with the engine named in its environment: that one
+	// is driven as named, and nothing else is tried.
+	if launchNamed() {
+		e, err := describeEngine(ctx, newDockerClient())
+		if err == nil {
+			e.How = "the engine named in the app's environment"
+			return e
+		}
+		out.Err = err.Error()
+		said("the engine named in the app's environment", err.Error()+"; nothing else is tried")
+		return out
+	}
 	// The docker CLI as its own configuration has it: DOCKER_HOST,
 	// DOCKER_CONTEXT or `docker context use`, else its default endpoint. A
 	// docker CLI that is not installed is said once and not retried.
-	if _, err := lookPath(dockerBinName()); err == nil {
-		if e, err := describeEngine(ctx, newEngineClient(dockerx.KindDocker)); err == nil {
+	dockerInstalled := false
+	var dockerWords string
+	if _, err := lookPath(engineBin(dockerx.KindDocker)); err == nil {
+		dockerInstalled = true
+		e, err := describeEngine(ctx, newEngineClient(dockerx.KindDocker))
+		if err == nil {
 			e.How = "the docker CLI's current context"
 			return e
-		} else {
-			errs = append(errs, "the docker CLI's current context: "+err.Error())
 		}
+		dockerWords = err.Error()
+		said("the docker CLI's current context", dockerWords)
 	} else {
-		errs = append(errs, "the docker CLI is not installed")
-	}
-	if launchNamed() {
-		out.Tried = append(errs, "the app was started with the engine named in its environment, so nothing else is tried")
-		out.Err = headline(out)
-		return out
+		said("the docker CLI", "not installed")
 	}
 	// The known host sockets, each by a ping of the Docker API: a socket
 	// file a stopped engine left behind answers nothing and is said so.
@@ -231,60 +243,46 @@ func detectInOrder(ctx context.Context) Engine {
 			return e
 		}
 		clearAdoption()
-		errs = append(errs, fmt.Sprintf("%s answers at %s but the docker CLI cannot drive it: %v", s.name, s.path, err))
+		said("the socket of "+s.name, fmt.Sprintf("answers at %s, and the docker CLI cannot drive it: %v", s.path, err))
 	}
 	// podman on this computer, driven natively: its own CLI answers for the
 	// engine, and its API socket must answer too.
+	var podmanWords string
 	if runtime.GOOS == "linux" {
 		p := newEngineClient(dockerx.KindPodman)
 		if err := p.Available(ctx); err == nil {
 			out.PodmanInstalled = true
 			adoptVar(dockerx.EnvEngine, dockerx.KindPodman)
-			if e, err := describeEngine(ctx, p); err == nil {
+			e, err := describeEngine(ctx, p)
+			if err == nil {
 				e.How = "podman on this computer"
 				e.PodmanInstalled = true
 				e.Warnings = out.Warnings
 				return e
-			} else {
-				clearAdoption()
-				errs = append(errs, "podman: "+err.Error())
+			}
+			clearAdoption()
+			podmanWords = err.Error()
+			said("podman on this computer", podmanWords)
+			// The engine's own words name the socket when that is what is
+			// missing; a service on another machine, or any other refusal,
+			// is not cured by turning the socket on.
+			if strings.Contains(podmanWords, "API socket") {
 				out.PodmanSocketOff = true
 				out.SocketCommand = podmanSocketCommand()
 			}
 		} else {
-			errs = append(errs, "podman: "+err.Error())
-		}
-	}
-	out.Tried = errs
-	out.Err = headline(out)
-	return out
-}
-
-// headline is the error a page shows when nothing answered: the docker
-// CLI's own words when it is installed, else podman's, else that neither
-// is installed. Tried carries the rest.
-func headline(e Engine) string {
-	var dockerWords, podmanWords string
-	dockerInstalled := true
-	for _, t := range e.Tried {
-		switch {
-		case t == "the docker CLI is not installed":
-			dockerInstalled = false
-		case strings.HasPrefix(t, "the docker CLI's current context: ") && dockerWords == "":
-			dockerWords = strings.TrimPrefix(t, "the docker CLI's current context: ")
-		case strings.HasPrefix(t, "podman: ") && e.PodmanInstalled && podmanWords == "":
-			podmanWords = strings.TrimPrefix(t, "podman: ")
+			said("podman", err.Error())
 		}
 	}
 	switch {
-	case dockerInstalled && dockerWords != "":
-		return dockerWords
-	case podmanWords != "":
-		return podmanWords
-	case !dockerInstalled && !e.PodmanInstalled:
-		return errNoEngine.Error() + ": neither the docker CLI nor podman is installed"
+	case dockerInstalled:
+		out.Err = dockerWords
+	case out.PodmanInstalled:
+		out.Err = podmanWords
+	default:
+		out.Err = errNoEngine.Error() + ": neither the docker CLI nor podman is installed"
 	}
-	return errNoEngine.Error()
+	return out
 }
 
 // describeEngine asks the client for its engine, waiting for one that is
@@ -300,7 +298,15 @@ func describeEngine(ctx context.Context, d dockerx.Client) (Engine, error) {
 	return Engine{Found: true, Kind: de.Kind, CLI: de.CLI, Version: de.Version, Endpoint: de.Endpoint, Rootless: de.Rootless}, nil
 }
 
-func dockerBinName() string {
+// engineBin is the client binary for a CLI family: the one its variable
+// names, else the family's own name on PATH.
+func engineBin(kind string) string {
+	if kind == dockerx.KindPodman {
+		if b := os.Getenv(dockerx.EnvPodman); b != "" {
+			return b
+		}
+		return "podman"
+	}
 	if b := os.Getenv(dockerx.EnvDocker); b != "" {
 		return b
 	}
@@ -399,10 +405,7 @@ func globSockets(name, dir, rel string) []knownSocket {
 // podmanMachineSocket is the host socket of the default podman machine, as
 // `podman machine inspect` reports it; "" without podman or a machine.
 func podmanMachineSocket(ctx context.Context) string {
-	bin := os.Getenv(dockerx.EnvPodman)
-	if bin == "" {
-		bin = "podman"
-	}
+	bin := engineBin(dockerx.KindPodman)
 	if _, err := lookPath(bin); err != nil {
 		return ""
 	}

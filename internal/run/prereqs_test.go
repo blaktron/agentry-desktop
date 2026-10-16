@@ -201,6 +201,10 @@ func TestDetectStates(t *testing.T) {
 		{"podman answers", fixtureMachine{dockerErr: refused, podman: true, noDockerCLI: true, pkexec: true}, StateReady},
 		{"podman installed, its socket off", fixtureMachine{podman: true, noDockerCLI: true, podmanSocketErr: "podman's API socket does not answer", pkexec: true}, StateSocketOff},
 		{"podman installed, its socket off, no pkexec", fixtureMachine{podman: true, noDockerCLI: true, podmanSocketErr: "podman's API socket does not answer"}, StateSocketOff},
+		// Both installed: Docker Engine's group is what stands in the way, and
+		// its step comes before podman's socket.
+		{"docker not in the group, podman's socket off", fixtureMachine{dockerErr: refused, unitActive: true, groupLine: "docker:x:986:", podman: true, podmanSocketErr: "podman's API socket does not answer", pkexec: true}, StateGroupMissing},
+		{"docker refused for another reason, podman's socket off", fixtureMachine{dockerErr: errors.New("daemon not running"), unitActive: true, groupLine: "docker:x:986:other," + me, processGIDs: []int{1000, 986}, podman: true, podmanSocketErr: "podman's API socket does not answer", pkexec: true}, StateSocketOff},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

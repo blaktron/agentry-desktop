@@ -6,6 +6,8 @@
 package app
 
 import (
+	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+
 	"github.com/blaktron/agentry-desktop/internal/run"
 )
 
@@ -143,7 +145,7 @@ func (r *RunAPI) RestartNow() error {
 // with ApplySetup(pullImages=true) to stand up the gateway plane.
 func (r *RunAPI) InstallEngine() (*PrereqView, error) {
 	title, body := "Install Docker Engine?", "The engine is installed through the OS package manager; an elevation prompt follows. Continue?"
-	if run.InstallTarget() == "podman" {
+	if run.InstallTarget() == dockerx.KindPodman {
 		title, body = "Install podman?", "podman is installed through the OS package manager; an elevation prompt follows. Its API socket is then turned on for your account, with no elevation. Continue?"
 	}
 	if err := r.app.askConsent(title, body); err != nil {

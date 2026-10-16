@@ -165,6 +165,10 @@ func TestDetectionAsksEachKnownSocketAndBelievesOnlyAnAnswer(t *testing.T) {
 	if a := AdoptedEngine(); a == nil || a.How != e.How {
 		t.Fatalf("adopted = %+v", a)
 	}
+	// A later read says the socket trap again.
+	if again := DetectEngine(t.Context(), false); len(again.Warnings) != 1 || again.Warnings[0] != e.Warnings[0] {
+		t.Fatalf("a read lost the warning: %v", again.Warnings)
+	}
 }
 
 func TestDetectionFindsPodmanOnThisComputerLast(t *testing.T) {
@@ -193,6 +197,8 @@ func TestPodmanWithItsSocketOffIsSaidWithTheCommandThatTurnsItOn(t *testing.T) {
 	}
 	withEngines(t, engineFixture{
 		podman: &dockerx.Fake{EngineErr: errors.New("podman's API socket unix:///run/user/1000/podman/podman.sock does not answer (connection refused): start it with `systemctl --user enable --now podman.socket`")},
+		// (the engine's own words name the socket; a service on another
+		// machine would not, and gets no socket click: below)
 		onPath: []string{"podman"},
 	})
 	e := DetectEngine(t.Context(), false)
@@ -205,8 +211,13 @@ func TestPodmanWithItsSocketOffIsSaidWithTheCommandThatTurnsItOn(t *testing.T) {
 	if !strings.HasPrefix(e.Err, "podman's API socket unix:///run/user/1000/podman/podman.sock does not answer") {
 		t.Fatalf("err = %q", e.Err)
 	}
-	if len(e.Tried) != 2 || e.Tried[0] != "the docker CLI is not installed" || !strings.HasPrefix(e.Tried[1], "podman: podman's API socket") {
+	if len(e.Tried) != 2 || e.Tried[0] != "the docker CLI: not installed" || !strings.HasPrefix(e.Tried[1], "podman on this computer: podman's API socket") {
 		t.Fatalf("tried = %q", e.Tried)
+	}
+	remote := &dockerx.Fake{EngineErr: errors.New("podman drives a service on another machine (CONTAINER_HOST, a connection, or a podman machine), and the runner drives podman only on this machine")}
+	newEngineClient = func(string) dockerx.Client { return remote }
+	if r := DetectEngine(t.Context(), true); r.Found || r.PodmanSocketOff || r.SocketCommand != "" {
+		t.Fatalf("a remote podman got the socket click: %+v", r)
 	}
 	if os.Getenv(dockerx.EnvEngine) != "" {
 		t.Fatal("nothing found, yet an engine was adopted")
@@ -234,6 +245,18 @@ func TestAnAdoptedEngineThatStillAnswersIsKeptUntilRedetect(t *testing.T) {
 	if e := DetectEngine(t.Context(), false); e.How != "the socket of Colima" || orders != 1 {
 		t.Fatalf("second: %+v, orders = %d", e, orders)
 	}
+	// Colima stops answering: a read says so and keeps the adoption (a run
+	// may be using it), with Re-detect named as the way to another engine.
+	docker := newEngineClient(dockerx.KindDocker).(*contextDocker)
+	docker.answersAt = "never"
+	gone := DetectEngine(t.Context(), false)
+	if gone.Found || gone.How != "the socket of Colima" || os.Getenv("DOCKER_HOST") != "unix://"+live || orders != 1 {
+		t.Fatalf("a read switched or dropped the adopted engine: %+v, DOCKER_HOST=%q, orders=%d", gone, os.Getenv("DOCKER_HOST"), orders)
+	}
+	if len(gone.Tried) != 1 || !strings.Contains(gone.Tried[0], "adopted earlier") || !strings.Contains(gone.Tried[0], "Re-detect") {
+		t.Fatalf("tried = %q", gone.Tried)
+	}
+	docker.answersAt = "unix://" + live
 	// Re-detect clears the adoption and runs the order from nothing; the
 	// same engine is found again, by the same route.
 	if e := DetectEngine(t.Context(), true); e.How != "the socket of Colima" || orders != 2 {
@@ -291,8 +314,15 @@ func TestAnEngineNamedInTheEnvironmentEndsTheSearch(t *testing.T) {
 	if e.Err != "Cannot connect to the Docker daemon. Is the docker daemon running?" || os.Getenv("DOCKER_HOST") != "" {
 		t.Fatalf("err = %q, DOCKER_HOST = %q", e.Err, os.Getenv("DOCKER_HOST"))
 	}
-	if last := e.Tried[len(e.Tried)-1]; !strings.Contains(last, "started with the engine named in its environment") {
+	if len(e.Tried) != 1 || !strings.HasPrefix(e.Tried[0], "the engine named in the app's environment: ") || !strings.HasSuffix(e.Tried[0], "nothing else is tried") {
 		t.Fatalf("tried = %q", e.Tried)
+	}
+	// The named engine is driven as named: with AGENTRY_ENGINE=podman the
+	// client newDockerClient builds is podman's, and it is what is found.
+	t.Setenv(dockerx.EnvEngine, dockerx.KindPodman)
+	named := DetectEngine(t.Context(), true)
+	if !named.Found || named.Kind != dockerx.KindPodman || named.How != "the engine named in the app's environment" {
+		t.Fatalf("named podman: %+v", named)
 	}
 }
 

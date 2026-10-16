@@ -2,7 +2,9 @@ package run
 
 import (
 	"os"
+	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
@@ -49,6 +51,29 @@ func TestLiveDetectionOnThisComputer(t *testing.T) {
 		// A page's read keeps podman while it answers.
 		if kept := DetectEngine(t.Context(), false); kept.Kind != dockerx.KindPodman {
 			t.Fatalf("a read switched away from podman: %+v", kept)
+		}
+	}
+
+	// podman's own socket stopped (AGENTRY_LIVE_ENGINE_SOCKET=1 only, since it
+	// stops this account's podman.socket for a few seconds): the order says
+	// so with the command, and turning it on as the person finds podman.
+	if os.Getenv("AGENTRY_LIVE_ENGINE_SOCKET") == "1" && second.Kind == dockerx.KindPodman {
+		if out, err := exec.Command("systemctl", "--user", "stop", "podman.socket", "podman.service").CombinedOutput(); err != nil {
+			t.Fatalf("stop podman.socket: %v: %s", err, out)
+		}
+		off := DetectEngine(t.Context(), true)
+		t.Logf("podman.socket stopped: found=%v installed=%v socketOff=%v command=%q err=%q", off.Found, off.PodmanInstalled, off.PodmanSocketOff, off.SocketCommand, off.Err)
+		if off.Found || !off.PodmanSocketOff || off.SocketCommand != "systemctl --user enable --now podman.socket" {
+			t.Fatalf("the stopped socket was not said: %+v", off)
+		}
+		var log strings.Builder
+		if err := enablePodmanSocket(t.Context(), &log); err != nil {
+			t.Fatalf("turn the socket on: %v\n%s", err, log.String())
+		}
+		on := DetectEngine(t.Context(), true)
+		t.Logf("socket turned on: found=%v %s\n%s", on.Found, on.Summary(), log.String())
+		if !on.Found || on.Kind != dockerx.KindPodman {
+			t.Fatalf("podman not found after its socket was turned on: %+v", on)
 		}
 	}
 

@@ -141,7 +141,7 @@ func SweepFiles(home, runID string) error {
 	}
 	var errs []error
 	for _, dir := range scratchDirs(home, runID) {
-		stopLeftPodmanService(dir)
+		stopLeftPodmanService(dir, home, runID)
 		if err := removeTree(dir); err != nil {
 			errs = append(errs, fmt.Errorf("remove the run's scratch directory: %w", err))
 		}
