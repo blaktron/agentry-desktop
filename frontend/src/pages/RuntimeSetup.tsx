@@ -621,7 +621,11 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
  * use it until it restarts: Restart now / Restart later; manual → on Linux
  * the hand-off to the official installer, with the engine's own words when
  * one is installed and still refuses; on macOS and Windows the engines to
- * choose from, Docker Desktop first. The traps detection saw (a credential
+ * choose from, Docker Desktop first, and on a Mac that can run it the one
+ * click first: Agentry's engine, which the app installs and runs itself
+ * (managedOffer), or, installed and silent, Start and Remove
+ * (managedStopped; while the app starts it, a spinner). The traps
+ * detection saw (a credential
  * helper off PATH, a socket file with nothing behind it) are said beside
  * the state. Output streams into the Agent-runs log (runner:setup-progress).
  * Elevation only through pkexec; a reboot is asked of the session manager,
@@ -809,7 +813,25 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
         </p>
       )}
 
-      {prereq.state === "manual" && prereq.os !== "linux" && <EngineChoices os={prereq.os} err={prereq.dockerErr} />}
+      {prereq.state === "managedOffer" && (
+        <ManagedOffer
+          managed={prereq.managed}
+          busy={!!busy}
+          onInstall={() => act("Installing Agentry's engine…", RunAPI.InstallManagedEngine)}
+        />
+      )}
+      {prereq.state === "managedStopped" && (
+        <ManagedStopped
+          managed={prereq.managed}
+          err={prereq.dockerErr}
+          busy={!!busy}
+          onStart={() => act("Starting Agentry's engine…", RunAPI.StartManagedEngine)}
+          onRemove={() => act("Removing Agentry's engine…", RunAPI.RemoveManagedEngine)}
+        />
+      )}
+      {(prereq.state === "manual" || prereq.state === "managedOffer") && prereq.os !== "linux" && (
+        <EngineChoices os={prereq.os} err={prereq.state === "manual" ? prereq.dockerErr : undefined} intro={prereq.state === "managedOffer" ? "Or install one of these yourself; the app finds whichever answers:" : undefined} />
+      )}
 
       {prereq.dockerErr && !prereq.engineInstalled && prereq.os === "linux" && <p className="small mono">{prereq.dockerErr}</p>}
       <EngineTried tried={prereq.engine?.tried} />
@@ -875,13 +897,17 @@ const ENGINE_CHOICES: Record<string, { name: string; url: string; blurb: string 
 const DOCKER_LICENCE_SENTENCE = "Docker Desktop is free for personal use and small companies and licensed per seat for others; ";
 const DOCKER_TERMS_URL = "https://www.docker.com/legal/docker-subscription-service-agreement/";
 
-function EngineChoices({ os, err }: { os: string; err?: string }) {
+function EngineChoices({ os, err, intro }: { os: string; err?: string; intro?: string }) {
   const choices = os === "windows" ? ENGINE_CHOICES.windows : ENGINE_CHOICES.darwin;
   return (
     <>
       <p className="small">
-        No container engine answered on this computer. If one is installed, start it and re-detect.
-        Otherwise, install one of these; the app finds whichever answers:
+        {intro ?? (
+          <>
+            No container engine answered on this computer. If one is installed, start it and re-detect.
+            Otherwise, install one of these; the app finds whichever answers:
+          </>
+        )}
       </p>
       <ul className="small">
         {choices.map((c) => (
@@ -901,6 +927,70 @@ function EngineChoices({ os, err }: { os: string; err?: string }) {
       )}
       {err && <p className="small mono">{err}</p>}
     </>
+  );
+}
+
+/** The one click on a Mac with no engine: the app installs an engine it
+ * runs itself (Colima's Docker Engine in a Lima virtual machine, driven by
+ * the docker command), three pinned release binaries checked against their
+ * sums under the app's own directory, started with the app and stopped
+ * with it; no Homebrew, no administrator password, the person's docker
+ * context untouched. */
+function ManagedOffer({ managed, busy, onInstall }: { managed: app.PrereqView["managed"]; busy: boolean; onInstall: () => void }) {
+  if (managed.socketPathError) {
+    return (
+      <div className="managed-engine">
+        <p className="small">
+          The app cannot run an engine of its own on this computer: <span className="mono">{managed.socketPathError}</span>
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="managed-engine">
+      <p className="small">
+        No container engine answered on this computer. The app can install one it runs itself:{" "}
+        <strong>Agentry&apos;s engine</strong>, a Docker Engine in a Linux virtual machine on this Mac
+        (Colima and Lima), with the docker command that drives it.
+      </p>
+      <ul className="muted small">
+        <li>{managed.versions} ({managed.licences}), about {managed.downloadMb ?? 75} MB, each file checked against the sum this app pins.</li>
+        <li>Installed under <span className="mono">{managed.dir}</span>; the app starts it when it opens and stops it when it quits. Remove it from here any time.</li>
+        <li>No Homebrew, no administrator password, and your own docker context is left as it is.</li>
+      </ul>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button variant="primary" disabled={busy} onClick={onInstall} data-testid="install-managed-engine">Install Agentry&apos;s engine</Button>
+      </div>
+    </div>
+  );
+}
+
+/** The app's engine installed and not answering: start it, or remove it
+ * with its virtual machine and data. */
+function ManagedStopped({ managed, err, busy, onStart, onRemove }: {
+  managed: app.PrereqView["managed"]; err?: string; busy: boolean; onStart: () => void; onRemove: () => void;
+}) {
+  if (managed.starting) {
+    return (
+      <div className="managed-engine">
+        <p className="small"><strong>Agentry&apos;s engine</strong> is starting; its virtual machine takes a moment to boot.</p>
+        <Spinner label="Starting Agentry's engine…" />
+      </div>
+    );
+  }
+  return (
+    <div className="managed-engine">
+      <p className="small">
+        <strong>Agentry&apos;s engine</strong> ({managed.versions}) is installed under{" "}
+        <span className="mono">{managed.dir}</span> and is not running
+        {managed.current ? "" : "; this app carries newer versions and updates it at its next start"}.
+        {err && <> <span className="mono">{err}</span></>}
+      </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button variant="danger" disabled={busy} onClick={onRemove} data-testid="remove-managed-engine">Remove</Button>
+        <Button variant="primary" disabled={busy} onClick={onStart} data-testid="start-managed-engine">Start</Button>
+      </div>
+    </div>
   );
 }
 

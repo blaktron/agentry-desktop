@@ -1,11 +1,15 @@
 // Prerequisite bindings (Settings → Run defaults, the container engine
 // card): detection of the engine this computer offers and, on Linux with
-// polkit, a guided install of the distribution's own. The
+// polkit, a guided install of the distribution's own; on macOS the engine
+// the app installs and runs itself. The
 // gateway/harness/runner images stay ApplySetup's job once an engine
 // answers; this surface only gets the engine there.
 package app
 
 import (
+	"context"
+	"strconv"
+
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
@@ -28,12 +32,16 @@ type EngineView struct {
 	Err      string   `json:"err,omitempty"`
 	Tried    []string `json:"tried"`
 	Warnings []string `json:"warnings"`
+	// Managed says the engine found is the app's own, which the engine
+	// card offers to remove.
+	Managed bool `json:"managed"`
 }
 
 func engineView(e run.Engine) EngineView {
 	return EngineView{
 		Found: e.Found, Kind: e.Kind, CLI: e.CLI, Version: e.Version, Endpoint: e.Endpoint, Rootless: e.Rootless,
 		How: e.How, Summary: e.Summary(), Err: e.Err, Tried: emptyNotNil(e.Tried), Warnings: emptyNotNil(e.Warnings),
+		Managed: e.IsManaged(),
 	}
 }
 
@@ -58,6 +66,8 @@ type PrereqView struct {
 	Installs      string   `json:"installs,omitempty"`
 	SocketCommand string   `json:"socketCommand,omitempty"`
 	Warnings      []string `json:"warnings"`
+	// Managed is the engine the app manages itself (run.Managed).
+	Managed run.Managed `json:"managed"`
 }
 
 func prereqView(p *run.Prereqs) *PrereqView {
@@ -68,7 +78,61 @@ func prereqView(p *run.Prereqs) *PrereqView {
 		DownloadURL: p.DownloadURL, Note: p.Note,
 		State: p.State, EngineInstalled: p.EngineInstalled, InDockerGroup: p.InDockerGroup, GroupCommand: p.GroupCommand,
 		Installs: p.Installs, SocketCommand: p.SocketCommand, Warnings: emptyNotNil(p.Warnings),
+		Managed: p.Managed,
 	}
+}
+
+// InstallManagedEngine installs the engine the app runs itself (Colima's,
+// Lima's and the docker command's pinned release binaries under the app's
+// own directory, no Homebrew, no administrator password), starts it and
+// adopts it. Output streams as `runner:setup-progress` events.
+func (r *RunAPI) InstallManagedEngine() (*PrereqView, error) {
+	if err := r.app.askConsent("Install Agentry's engine?", "The app downloads "+run.ManagedVersions()+" ("+run.ManagedLicences()+", about "+strconv.Itoa(run.ManagedDownloadMB())+" MB) into its own directory, checks each file against the sum it pins, and starts a Linux virtual machine on this Mac that runs when the app runs. Nothing asks for your password. Continue?"); err != nil {
+		return nil, err
+	}
+	if err := r.acquire(jobSetup, "the install of Agentry's engine"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.InstallManagedEngine(r.app.ctx, logw); err != nil {
+		return nil, err
+	}
+	return r.PrereqStatus()
+}
+
+// StartManagedEngine starts the app's installed engine, for the card when
+// it is stopped.
+func (r *RunAPI) StartManagedEngine() (*PrereqView, error) {
+	if err := r.acquire(jobSetup, "the start of Agentry's engine"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.StartManagedEngine(r.app.ctx, logw); err != nil {
+		return nil, err
+	}
+	return r.PrereqStatus()
+}
+
+// RemoveManagedEngine stops and deletes the app's engine with its data,
+// leaving nothing of it but the app; detection then looks for another.
+func (r *RunAPI) RemoveManagedEngine() (*PrereqView, error) {
+	if err := r.app.askConsent("Remove Agentry's engine?", "The virtual machine, its images and the three binaries are deleted; runs on this computer need another engine afterwards. Continue?"); err != nil {
+		return nil, err
+	}
+	if err := r.acquire(jobSetup, "the removal of Agentry's engine"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.RemoveManagedEngine(r.app.ctx, logw); err != nil {
+		return nil, err
+	}
+	return r.PrereqStatus()
 }
 
 // PrereqStatus reports what the engine card should show and what a click
@@ -161,4 +225,26 @@ func (r *RunAPI) InstallEngine() (*PrereqView, error) {
 		return nil, err
 	}
 	return r.PrereqStatus()
+}
+
+// startManagedEngine is the app's own start of the engine it manages, when
+// it opens: nothing where none is installed. It holds the setup lock while
+// the VM boots, so a click that would drive the engine waits for it; what
+// it does streams as `runner:setup-progress` events.
+func (r *RunAPI) startManagedEngine(ctx context.Context) {
+	if err := r.acquire(jobSetup, "the start of Agentry's engine"); err != nil {
+		return
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	run.StartManagedEngineAtLaunch(ctx, logw)
+}
+
+// stopManagedEngine stops the engine the app manages when the app quits;
+// by here the run in flight, if any, was ended (beforeClose).
+func (r *RunAPI) stopManagedEngine(ctx context.Context) {
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	run.StopManagedEngine(ctx, logw)
 }
