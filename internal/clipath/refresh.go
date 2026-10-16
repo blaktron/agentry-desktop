@@ -242,8 +242,8 @@ func fileSHA256(p string) ([]byte, error) {
 
 // bundledCLI is the CLI this build carries, beside the running executable:
 // <dir>\bin\agentry.exe on Windows (the installer's $INSTDIR\bin), <dir>/agentry
-// on Linux (/usr/bin/agentry beside /usr/bin/agentry-desktop). "" on macOS,
-// which carries none yet.
+// on Linux (/usr/bin/agentry beside /usr/bin/agentry-desktop), and the
+// bundle's Contents/Resources/bin/agentry on macOS.
 func bundledCLI() string {
 	exe, err := os.Executable()
 	if err != nil {

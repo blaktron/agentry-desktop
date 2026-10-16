@@ -109,14 +109,33 @@ check: frontend lint test copy
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
 package-darwin: build-darwin wrap-darwin
 
+#
+# The agentry CLI: when build/cli holds agentry-darwin (a universal binary,
+# which a release puts there), build-darwin carries it as
+# Contents/Resources/bin/agentry, re-signs it and then the bundle ad hoc
+# (wails seals the bundle, and a file added after that seal fails
+# verification), and wrap-darwin reads it back with --cli. The CLI keeps its
+# own signing identifier, net.secureagentry.cli, so a release that signs the
+# bundle signs it under the same identity as the CLI's own release, and the
+# keychain treats the two copies as one program. Without it (a PR build) the
+# bundle carries no CLI.
+DARWIN_APP := build/bin/agentry-desktop.app
+
 build-darwin:
 	wails build $(WAILS_FLAGS) -skipbindings -platform darwin/universal -ldflags '$(LDFLAGS)'
+ifneq ($(wildcard build/cli/agentry-darwin),)
+	install -d $(DARWIN_APP)/Contents/Resources/bin
+	install -m 0755 build/cli/agentry-darwin $(DARWIN_APP)/Contents/Resources/bin/agentry
+	codesign --force --sign - --identifier net.secureagentry.cli $(DARWIN_APP)/Contents/Resources/bin/agentry
+	codesign --force --sign - $(DARWIN_APP)
+	codesign --verify --deep --strict $(DARWIN_APP)
+endif
 
 wrap-darwin:
 	rm -f build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
 	cd build/bin && ditto -c -k --keepParent agentry-desktop.app agentry-desktop-$(VERSION)-darwin-universal.zip
-	scripts/package-darwin-dmg.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
-	scripts/check-darwin-dmg.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg build/bin/agentry-desktop.app
+	scripts/package-darwin-dmg.sh $(DARWIN_APP) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
+	scripts/check-darwin-dmg.sh $(if $(wildcard build/cli/agentry-darwin),--cli build/cli/agentry-darwin,) build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg $(DARWIN_APP)
 
 # Drags the dmg's bundle onto a temporary Applications folder over a copy
 # that is already there and proves the person's configuration and sign-in

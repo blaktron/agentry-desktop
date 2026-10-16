@@ -2,7 +2,7 @@
 # Reads the built disk image back and checks it holds the bundle and an
 # Applications shortcut and nothing else. Runs on macOS only: it mounts the image.
 #
-#   scripts/check-darwin-dmg.sh <out.dmg> <agentry-desktop.app>
+#   scripts/check-darwin-dmg.sh [--cli <agentry>] <out.dmg> <agentry-desktop.app>
 #
 # What it proves:
 #   1. the file name is one the download manifest admits (.dmg is the "dmg"
@@ -24,7 +24,13 @@
 #      not extended attributes. The bundle's signature (ad-hoc or Developer
 #      ID) covers the parts of those that matter, and check 5 verifies it on
 #      the mounted copy. A stapled ticket is a file in the bundle
-#      (Contents/CodeResources), so it is compared too.
+#      (Contents/CodeResources), so it is compared too;
+#   7. with --cli, the bundle on the image carries that agentry CLI as
+#      Contents/Resources/bin/agentry: executable, universal, answering
+#      --version as <agentry> does, signed by the same authority as the
+#      bundle under the CLI's own identifier, and sealed by the bundle's
+#      signature (listed in its CodeResources), so a notarized bundle's
+#      ticket covers it. Without --cli the bundle must carry no CLI.
 #
 # The image is detached whatever happens — on the way out, and on an
 # interrupt or a cancelled CI job — because a leaked mount on a persistent
@@ -33,10 +39,16 @@
 # reason.
 set -euo pipefail
 
-dmg="${1:?usage: $0 <out.dmg> <agentry-desktop.app>}"
-app="${2:?usage: $0 <out.dmg> <agentry-desktop.app>}"
-
 fail() { echo "check-darwin-dmg: $*" >&2; exit 1; }
+
+cli=
+if [ "${1:-}" = --cli ]; then
+  cli="${2:?usage: $0 [--cli <agentry>] <out.dmg> <agentry-desktop.app>}"
+  shift 2
+  [ -f "$cli" ] || fail "$cli does not exist"
+fi
+dmg="${1:?usage: $0 [--cli <agentry>] <out.dmg> <agentry-desktop.app>}"
+app="${2:?usage: $0 [--cli <agentry>] <out.dmg> <agentry-desktop.app>}"
 
 [ -f "$dmg" ] || fail "$dmg does not exist"
 [ -d "$app" ] || fail "$app does not exist"
@@ -122,4 +134,31 @@ if [ "$on_image" != "$on_disk" ]; then
   fail "the $appname on the image differs from $app: the dmg is not the build the zip carries"
 fi
 
-echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app")"
+# 7. The agentry CLI the bundle carries, or that it carries none.
+carried="$mnt/$appname/Contents/Resources/bin/agentry"
+clinote="no agentry CLI"
+if [ -z "$cli" ]; then
+  [ ! -e "$carried" ] || fail "the bundle on the image carries Contents/Resources/bin/agentry, and no --cli says which"
+else
+  [ -f "$carried" ] && [ -x "$carried" ] || fail "the bundle on the image has no executable Contents/Resources/bin/agentry"
+  cli_arches=$(lipo -archs "$carried")
+  for want in arm64 x86_64; do
+    tr ' ' '\n' <<<"$cli_arches" | grep -x "$want" >/dev/null || fail "the carried agentry is not universal: lipo says '$cli_arches'"
+  done
+  want_v=$("$cli" --version 2>&1) || fail "$cli --version failed"
+  got_v=$("$carried" --version 2>&1) || fail "the carried agentry's --version failed"
+  want_v=${want_v%%$'\n'*} got_v=${got_v%%$'\n'*}
+  [ "$got_v" = "$want_v" ] || fail "the carried agentry says '$got_v', $cli says '$want_v'"
+  cli_sig=$(codesign -dvv "$carried" 2>&1) || fail "the carried agentry is not signed"
+  grep -qx 'Identifier=net.secureagentry.cli' <<<"$cli_sig" || fail "the carried agentry is not signed as net.secureagentry.cli"
+  app_sig=$(codesign -dvv "$mnt/$appname" 2>&1) || fail "codesign could not describe the bundle on the image"
+  app_auth=$(grep -E '^(Authority|Signature)=' <<<"$app_sig" | head -1 || true)
+  cli_auth=$(grep -E '^(Authority|Signature)=' <<<"$cli_sig" | head -1 || true)
+  [ -n "$app_auth" ] || fail "the bundle on the image names no signing authority"
+  [ "$cli_auth" = "$app_auth" ] || fail "the carried agentry is signed '$cli_auth', the bundle '$app_auth'"
+  grep -q '<key>Resources/bin/agentry</key>' "$mnt/$appname/Contents/_CodeSignature/CodeResources" ||
+    fail "the bundle's signature does not seal Contents/Resources/bin/agentry"
+  clinote="carries ${got_v%% default registry*} ($cli_auth)"
+fi
+
+echo "check-darwin-dmg: $name ok — mounts, holds $appname + Applications -> /Applications, universal ($arches), ${authority% }, identical to $(basename "$app"), $clinote"
