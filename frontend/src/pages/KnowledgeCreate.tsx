@@ -264,7 +264,7 @@ export default function KnowledgeCreate({
     else if (avail && !avail.available) blockers.push(avail.reason + (avail.remedy ? ` ${avail.remedy}` : ""));
     if (pastAgentry) blockers.push(`A build In Agentry takes at most ${fmtCap(size!.agentryMaxBytes)} of documents; these come to ${fmtBytes(size!.bytes)}. Build it on this computer.`);
     if (agentryNoBrief) blockers.push(AGENTRY_NO_BRIEF);
-  } else if (setup && !setup.dockerOk) blockers.push(`Docker is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
+  } else if (setup && !setup.dockerOk) blockers.push(`The container engine is not ready: ${setup.dockerErr || "it did not answer"}. Settings → Run defaults says how to set it up.`);
   if (!inAgentry && model === "none configured") blockers.push("No model is set up for runs on this computer: choose one in Settings → Provider settings.");
 
   async function startHosted() {

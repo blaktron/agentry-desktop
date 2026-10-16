@@ -8,7 +8,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
 )
 
-// Run defaults → Docker images: the Docker images Agentry put on this
+// Run defaults → Container images: the container images Agentry put on this
 // machine, and a button that removes them on every platform. The Windows
 // uninstaller removes them unless "Keep my Docker images" is ticked; the
 // deb, rpm and dmg have no uninstaller that can ask, so this is where those
@@ -63,7 +63,7 @@ func (r *RunAPI) AgentryImages() (*ImagesView, error) {
 // refuses while a run, an image setup or a knowledge build holds the
 // docker lock, and removes nothing a running container still uses.
 func (r *RunAPI) RemoveAgentryImages() (*dockerimages.Report, error) {
-	if err := r.acquire(jobSetup, "the removal of Agentry's Docker images"); err != nil {
+	if err := r.acquire(jobSetup, "the removal of Agentry's container images"); err != nil {
 		return nil, err
 	}
 	defer r.release()
@@ -83,9 +83,9 @@ func (r *RunAPI) RemoveAgentryImages() (*dockerimages.Report, error) {
 	if len(imgs) == 1 {
 		s = ""
 	}
-	msg := fmt.Sprintf("Remove %d Docker image%s Agentry put on this computer? The agentry CLI uses the same images. The next run downloads or builds what it needs again.\n\n%s",
+	msg := fmt.Sprintf("Remove %d container image%s Agentry put on this computer? The agentry CLI uses the same images. The next run downloads or builds what it needs again.\n\n%s",
 		len(imgs), s, strings.Join(names, "\n"))
-	if err := r.app.askConsent("Remove Agentry's Docker images?", msg); err != nil {
+	if err := r.app.askConsent("Remove Agentry's container images?", msg); err != nil {
 		return nil, err
 	}
 	// Exactly the images the dialog named, not a fresh listing.

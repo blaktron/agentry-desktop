@@ -237,7 +237,7 @@ func TestTheBusyRefusalNamesWhatIsRunning(t *testing.T) {
 		{jobDraft, "a draft by the Drafter", "A draft by the Drafter is under way on this computer, and one job runs here at a time: wait for it to finish, or stop it."},
 		{jobBuild, "a knowledge build by the Knowledge Creator", "A knowledge build by the Knowledge Creator is under way on this computer, and one job runs here at a time: wait for it to finish, or stop it."},
 		{jobChat, "a chat with acme/agent@1.0.0", "A chat with acme/agent@1.0.0 is under way on this computer, and one job runs here at a time: wait for it to finish, or end it."},
-		{jobSetup, "the Docker Engine install", "The Docker Engine install is under way on this computer, and one job runs here at a time: wait for it to finish."},
+		{jobSetup, "the container engine install", "The container engine install is under way on this computer, and one job runs here at a time: wait for it to finish."},
 	} {
 		if err := r.acquire(j.kind, j.what); err != nil {
 			t.Fatal(err)

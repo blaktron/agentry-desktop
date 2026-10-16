@@ -42,9 +42,9 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   // watching the log. The shorter calls (Get models, the policy write)
   // orphan nothing and are not reported.
   onBusy?: (busy: boolean) => void;
-  // Settings keeps the Docker engine's prerequisites in Run defaults: given
-  // this, a missing engine is a pointer there rather than the prerequisites
-  // card itself, which the welcome still shows.
+  // Settings keeps the container engine's prerequisites in Run defaults:
+  // given this, a missing engine is a pointer there rather than the
+  // prerequisites card itself, which the welcome still shows.
   onOpenPrereqs?: () => void;
 } = {}) {
   const [status, setStatus] = useState<app.SetupStatusView | null>(null);
@@ -374,7 +374,7 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
 
       {status && !status.dockerOk && !checkingDocker && onOpenPrereqs && (
         <Notice tone="warn">
-          Docker is not ready on this computer, so runs cannot start and the images cannot be prepared.{" "}
+          The container engine is not ready on this computer, so runs cannot start and the images cannot be prepared.{" "}
           <Button variant="link" onClick={onOpenPrereqs}>Run defaults</Button> sets it up.
         </Notice>
       )}
@@ -386,15 +386,15 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
         />
       )}
 
-      {checkingDocker && <Spinner label="Checking Docker…" />}
+      {checkingDocker && <Spinner label={CHECKING_ENGINE} />}
       {(!status || (!status.dockerOk && onOpenPrereqs)) && !checkingDocker && (
         <Button onClick={checkDockerAgain} disabled={!!busy}>Check again</Button>
       )}
       {status && (
         <div className="row" style={{ marginBottom: 10 }}>
-          {checkingDocker ? <span className="badge">checking Docker</span> : status.dockerOk
-            ? <span className="badge ok">docker available</span>
-            : <span className="badge bad" title={status.dockerErr}>docker unavailable</span>}
+          {checkingDocker ? <span className="badge">checking the engine</span> : status.dockerOk
+            ? <span className="badge ok" title={status.engine?.summary}>{status.engine?.kind ? `${status.engine.kind} ${status.engine.version ?? ""}`.trim() : "engine"} available</span>
+            : <span className="badge bad" title={status.dockerErr}>no engine</span>}
           {status.dockerOk && (status.imagesReady
             ? <span className="badge ok">images ready</span>
             : <span className="badge warn">images not prepared</span>)}
@@ -610,16 +610,22 @@ export function RuntimeSetup({ heading, intro, advanced = false, onBusy, onOpenP
   );
 }
 
-/** Prerequisites: QuickAgent runs need a docker
- * engine. The card renders the machine's STATE, not an error string:
- * installable → the install through pkexec (the exact command shown before
- * consent); groupMissing → only the group step, through pkexec;
- * pendingRestart → the engine is in and the group is granted, but this
- * session cannot use it until it restarts: Restart now / Restart later;
- * manual → the hand-off to the official installer, with the engine's own
- * words when one is installed and still refuses. Output streams into the
- * Agent-runs log (runner:setup-progress). Elevation only through pkexec; a
- * reboot is asked of the session manager, never run as root. */
+/** Prerequisites: QuickAgent runs need a container engine. The card
+ * renders the machine's STATE, not an error string, with the engine found
+ * named by kind and version: installable → the distribution's own engine
+ * through pkexec (podman on Fedora and the RHEL family, Docker Engine
+ * elsewhere; the exact command shown before consent); socketOff → podman is
+ * in and its API socket is not, one click turns it on as you; groupMissing
+ * → only the group step, through pkexec (Docker Engine); pendingRestart →
+ * Docker Engine is in and the group is granted, but this session cannot
+ * use it until it restarts: Restart now / Restart later; manual → on Linux
+ * the hand-off to the official installer, with the engine's own words when
+ * one is installed and still refuses; on macOS and Windows the engines to
+ * choose from, Docker Desktop first. The traps detection saw (a credential
+ * helper off PATH, a socket file with nothing behind it) are said beside
+ * the state. Output streams into the Agent-runs log (runner:setup-progress).
+ * Elevation only through pkexec; a reboot is asked of the session manager,
+ * never run as root. */
 export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
   const [prereq, setPrereq] = useState<app.PrereqView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -630,7 +636,7 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
   const checkPending = useRef(false);
   useEffect(() => {
     let live = true;
-    setBusy("Checking Docker…");
+    setBusy(CHECKING_ENGINE);
     RunAPI.PrereqStatus()
       .then(async (p) => {
         if (!live) return;
@@ -645,7 +651,7 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
   async function checkAgain() {
     if (checkPending.current) return;
     checkPending.current = true;
-    setBusy("Checking Docker…");
+    setBusy(CHECKING_ENGINE);
     setError(null);
     try {
       const p = await RunAPI.PrereqStatus();
@@ -691,20 +697,22 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
   }
 
   if (!prereq) return <Card>
-    <strong>Docker engine</strong>
+    <strong>Container engine</strong>
     <ErrorBox error={error} />
-    {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Check again</Button>}
+    {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Re-detect</Button>}
   </Card>;
   if (prereq.state === "ready") return null;
+  const podman = prereq.installs === "podman";
   return (
     <Card>
-      <strong>Docker engine</strong>
+      <strong>Container engine</strong>
       <ErrorBox error={error} />
+      <EngineWarnings warnings={prereq.warnings} />
 
       {prereq.state === "pendingRestart" && (
         <>
           <p className="small">
-            Docker is installed and your user is in the <span className="mono">docker</span> group.
+            Docker Engine is installed and your user is in the <span className="mono">docker</span> group.
             Your session has to restart before it can use it.
           </p>
           {deferred ? (
@@ -721,7 +729,7 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
       {prereq.state === "groupMissing" && (
         <>
           <p className="small">
-            Docker is installed, but your user is not in the <span className="mono">docker</span> group,
+            Docker Engine is installed, but your user is not in the <span className="mono">docker</span> group,
             so runs cannot reach it.
           </p>
           {prereq.groupCommand ? (
@@ -741,35 +749,54 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
         </>
       )}
 
+      {prereq.state === "socketOff" && (
+        <>
+          <p className="small">
+            podman is installed, but its API socket is off, and runs reach podman through it.
+            Turning it on runs as you, with no elevation, no group to join and no restart:
+          </p>
+          <pre className="run-log selectable">{prereq.socketCommand}</pre>
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <Button variant="primary" disabled={!!busy} onClick={() => act("Turning podman's API socket on…", RunAPI.EnablePodmanSocket)}>
+              Turn the socket on
+            </Button>
+          </div>
+        </>
+      )}
+
       {prereq.state === "installable" && (
         <>
           <p className="muted small">
-            QuickAgent runs need a docker engine; the MCP gateway and harness images follow
+            QuickAgent runs need a container engine; the MCP gateway and harness images follow
             automatically once it answers (&quot;Prepare images now&quot; below).
+            {podman
+              ? " This distribution's own engine is podman: one package, no group to join and no restart."
+              : " This distribution's own engine is Docker Engine: the package, its service and the docker group."}
           </p>
           <Elevated
             command={prereq.command ?? ""}
             note={prereq.note}
-            label="Install the docker engine"
+            label={podman ? "Install podman" : "Install Docker Engine"}
             busy={!!busy}
-            onClick={() => act("Installing…", RunAPI.InstallDocker)}
+            onClick={() => act("Installing…", RunAPI.InstallEngine)}
           />
         </>
       )}
 
-      {prereq.state === "manual" && (
+      {prereq.state === "manual" && prereq.os === "linux" && (
         <p className="small">
           {prereq.engineInstalled ? (
             <>
-              Docker is installed and your user is in its group, but the engine still refuses:{" "}
-              <span className="mono">{prereq.dockerErr}</span>. Check that the service is running
-              (<span className="mono">systemctl status docker</span>), then come back.
+              A container engine is installed, and it still refuses:{" "}
+              <span className="mono">{prereq.dockerErr}</span>. Check that its service is running
+              (<span className="mono">systemctl status docker</span>, or for podman{" "}
+              <span className="mono">systemctl --user status podman.socket</span>), then re-detect.
             </>
           ) : (
             <>
-              Docker did not answer on this system ({prereq.os}
-              {prereq.distro ? `/${prereq.distro}` : ""}). If it is installed, open it and check again. Otherwise, follow the official
-              installation instructions:{" "}
+              No container engine answered on this system ({prereq.os}
+              {prereq.distro ? `/${prereq.distro}` : ""}). If one is installed, start it and re-detect. Otherwise, install
+              podman or Docker Engine with your distribution&apos;s packages, or follow Docker&apos;s instructions:{" "}
               <Button variant="link" onClick={() => OpenExternal(prereq.downloadUrl)}>
                 {prereq.downloadUrl}
               </Button>
@@ -778,8 +805,11 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
         </p>
       )}
 
-      {prereq.dockerErr && !prereq.engineInstalled && <p className="small mono">{prereq.dockerErr}</p>}
-      {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Check again</Button>}
+      {prereq.state === "manual" && prereq.os !== "linux" && <EngineChoices os={prereq.os} err={prereq.dockerErr} />}
+
+      {prereq.dockerErr && !prereq.engineInstalled && prereq.os === "linux" && <p className="small mono">{prereq.dockerErr}</p>}
+      <EngineTried tried={prereq.engine?.tried} />
+      {busy ? <Spinner label={busy} /> : <Button onClick={checkAgain}>Re-detect</Button>}
 
       {confirmRestart && (
         <Modal title="Restart this machine now?" onClose={() => setConfirmRestart(false)}>
@@ -799,9 +829,77 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
   );
 }
 
-/** One elevated command, shown in full before consent, with the button that
- * runs it through pkexec (the OS's own dialog; this process never sees a
- * password). */
+/** The spinner's label while the engine is asked. */
+export const CHECKING_ENGINE = "Checking the container engine…";
+
+/** The traps detection saw, each a warning of its own: a credential helper
+ * the docker configuration names and PATH lacks, a socket file with nothing
+ * behind it. */
+export function EngineWarnings({ warnings }: { warnings?: string[] }) {
+  if (!warnings || warnings.length === 0) return null;
+  return <>{warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}</>;
+}
+
+/** Each place detection asked and what it said, under the state. */
+function EngineTried({ tried }: { tried?: string[] }) {
+  if (!tried || tried.length === 0) return null;
+  return (
+    <details className="small">
+      <summary>Where the app looked</summary>
+      <ul className="muted small">{tried.map((t) => <li key={t}>{t}</li>)}</ul>
+    </details>
+  );
+}
+
+/** The engines a Mac or a Windows machine can run QuickAgents on, each
+ * one sentence and a link, Docker Desktop first; the licence sentence is
+ * neutral and links Docker's terms. On Windows the CLI runs inside WSL 2
+ * against a Docker Engine there as well. */
+const ENGINE_CHOICES: Record<string, { name: string; url: string; blurb: string }[]> = {
+  darwin: [
+    { name: "Docker Desktop", url: "https://www.docker.com/products/docker-desktop/", blurb: "Docker's own application; the engine most people have." },
+    { name: "Colima", url: "https://github.com/abiosoft/colima", blurb: "A Docker Engine in a Lima VM, started from a terminal, with the docker CLI from Homebrew." },
+    { name: "Rancher Desktop", url: "https://rancherdesktop.io/", blurb: "SUSE's application; choose its dockerd (moby) engine." },
+    { name: "Podman Desktop", url: "https://podman-desktop.io/", blurb: "Red Hat's application, running a podman machine." },
+  ],
+  windows: [
+    { name: "Docker Desktop", url: "https://www.docker.com/products/docker-desktop/", blurb: "Docker's own application; the engine most people have." },
+    { name: "Rancher Desktop", url: "https://rancherdesktop.io/", blurb: "SUSE's application; choose its dockerd (moby) engine." },
+  ],
+};
+
+export const DOCKER_LICENCE_SENTENCE = "Docker Desktop is free for personal use and small companies and licensed per seat for others; see Docker's terms.";
+const DOCKER_TERMS_URL = "https://www.docker.com/legal/docker-subscription-service-agreement/";
+
+function EngineChoices({ os, err }: { os: string; err?: string }) {
+  const choices = ENGINE_CHOICES[os] ?? ENGINE_CHOICES.darwin;
+  return (
+    <>
+      <p className="small">
+        No container engine answered on this computer. If one is installed, start it and re-detect.
+        Otherwise, install one of these; the app finds whichever answers:
+      </p>
+      <ul className="small">
+        {choices.map((c) => (
+          <li key={c.name}>
+            <Button variant="link" onClick={() => OpenExternal(c.url)}>{c.name}</Button> — {c.blurb}
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">
+        {DOCKER_LICENCE_SENTENCE.replace("see Docker's terms.", "")}
+        <Button variant="link" onClick={() => OpenExternal(DOCKER_TERMS_URL)}>see Docker&apos;s terms</Button>.
+      </p>
+      {os === "windows" && (
+        <p className="muted small">
+          The agentry CLI also runs inside WSL 2 against a Docker Engine installed there.
+        </p>
+      )}
+      {err && <p className="small mono">{err}</p>}
+    </>
+  );
+}
+
 function Elevated({ command, note, label, busy, onClick }: {
   command: string; note?: string; label: string; busy: boolean; onClick: () => void;
 }) {

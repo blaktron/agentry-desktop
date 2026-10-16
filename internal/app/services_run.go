@@ -332,10 +332,12 @@ func (r *RunAPI) EndSession(finish bool) (*RunResultView, error) {
 
 // SetupStatusView is the machine's run-readiness.
 type SetupStatusView struct {
-	DockerOK     bool   `json:"dockerOk"`
-	DockerErr    string `json:"dockerErr,omitempty"`
-	PolicyPath   string `json:"policyPath"`
-	PolicyExists bool   `json:"policyExists"`
+	DockerOK  bool   `json:"dockerOk"`
+	DockerErr string `json:"dockerErr,omitempty"`
+	// Engine is the container engine detection found, and what it saw.
+	Engine       EngineView `json:"engine"`
+	PolicyPath   string     `json:"policyPath"`
+	PolicyExists bool       `json:"policyExists"`
 	// ProviderSetUp: the policy's model block is not the default's, so
 	// somebody chose a provider, a model, a key source or an endpoint; a
 	// policy another step wrote from defaults is not that.
@@ -369,6 +371,7 @@ func setupStatusView(s *run.Status) *SetupStatusView {
 	return &SetupStatusView{
 		DockerOK:              s.DockerOK,
 		DockerErr:             s.DockerErr,
+		Engine:                engineView(s.Engine),
 		PolicyPath:            s.PolicyPath,
 		PolicyExists:          s.PolicyExists,
 		ProviderSetUp:         s.ProviderSetUp,

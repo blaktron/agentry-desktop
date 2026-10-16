@@ -296,7 +296,7 @@ function WhereStep({ signedIn, onChoose, onBack }: { signedIn: boolean; onChoose
         <div className="wizard-choices">
           <ChoiceCard
             title="Local"
-            blurb="Run QuickAgents on this computer, in containers, with the AI provider you choose. Next you set up Docker and your provider, and if you like an AI Review key and a coding agent."
+            blurb="Run QuickAgents on this computer, in containers, with the AI provider you choose. Next you set up a container engine and your provider, and if you like an AI Review key and a coding agent."
             figure={<LocalFigure />}
             onOpen={() => void local()}
           />
@@ -520,15 +520,17 @@ function DoneStep({
     signedReg
       ? { ok: true, text: `Signed in to ${signedReg.url}` }
       : { ok: false, text: "Browsing anonymously — sign in any time from Settings" },
-    // The docker row names the state: a pending restart
+    // The engine row names the state: a pending restart
     // is a step done, waiting on the session, not a missing engine.
     status?.dockerOk
-      ? { ok: true, text: "Docker is available" }
+      ? { ok: true, text: `A container engine is available${status.engine?.kind ? ` (${status.engine.kind} ${status.engine.version ?? ""})`.replace(/ \)$/, ")") : ""}` }
       : prereq?.state === "pendingRestart"
-        ? { ok: false, text: "Docker is installed — restart your session before the first run" }
+        ? { ok: false, text: "Docker Engine is installed — restart your session before the first run" }
         : prereq?.state === "groupMissing"
-          ? { ok: false, text: "Docker is installed — add yourself to the docker group from Settings, then restart your session" }
-          : { ok: false, text: "Docker not detected — install it from Settings before a run" },
+          ? { ok: false, text: "Docker Engine is installed — add yourself to the docker group from Settings, then restart your session" }
+          : prereq?.state === "socketOff"
+            ? { ok: false, text: "podman is installed — turn its API socket on from Settings before the first run" }
+            : { ok: false, text: "No container engine detected — install one from Settings before a run" },
     // By whether a provider was set up, not by whether the policy exists:
     // the AI Review key's save writes the policy from defaults.
     providerRow(status),

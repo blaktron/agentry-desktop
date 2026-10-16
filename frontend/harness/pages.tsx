@@ -471,6 +471,15 @@ const allHidden = homeHash === "#home-all-hidden";
 // #home-scheduled-nocli where the agentry command is not found;
 // #home-strict-scheduled is #home-strict with the card.
 const homeScheduled = homeHash.startsWith("#home-scheduled") || homeHash === "#home-strict-scheduled";
+// engineFound is the engine detection found for a Run defaults state:
+// Docker Engine on this computer, podman found natively, or Docker Desktop
+// beside the two traps (#docker-trap).
+function engineFound(state: string) {
+  if (state === "podman") return { found: true, kind: "podman", cli: "podman", version: "5.8.4", endpoint: "unix:///run/user/1000/podman/podman.sock", rootless: true, how: "podman on this computer", summary: "podman 5.8.4, rootless, at unix:///run/user/1000/podman/podman.sock, found as podman on this computer", err: "", tried: [], warnings: [] as string[] };
+  if (state === "trap") return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///Users/me/.docker/run/docker.sock", rootless: false, how: "the socket of Docker Desktop", summary: "docker 29.7.2, rootful, at unix:///Users/me/.docker/run/docker.sock, found as the socket of Docker Desktop", err: "", tried: [], warnings: ["Rancher Desktop left a socket at /Users/me/.rd/docker.sock with nothing answering behind it (connection refused): start it, or remove the file", "/Users/me/.docker/config.json names the credential helper \"desktop\" in credsStore, and docker-credential-desktop is not on PATH: every image pull fails until the entry is removed or the helper installed (a leftover of Docker Desktop, when it is \"desktop\")"] };
+  return { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] as string[] };
+}
+
 let homeCards: any[] = [{ kind: "recent-runs", hidden: allHidden }, { kind: "installed", hidden: allHidden || homeHash === "#home-hidden" }, { kind: "profile", hidden: allHidden }, { kind: "run-defaults", hidden: allHidden },
   ...(pinSets[homeHash] ?? []).map((pins) => ({ kind: "pinned", size: "large", pins })),
   ...(homeScheduled ? [{ kind: "scheduled", size: "large" }] : [])];
@@ -636,6 +645,8 @@ const rdCheck = (d: { name: string; accent: string; basedOn: string; titleBlock:
 
 g.go = { app: {
   ScheduleAPI: {
+    // The agentry command's card in Settings: not offered off macOS.
+    CLICommand: async () => ({ offered: false, status: { path: "", linked: false, other: false, installable: false } }),
     Availability: async () => (schedNoCLIHash && !schedCLIInstalled
       ? { available: false, reason: "scheduling a run on this computer needs the agentry command, which was not found", zone: "Europe/London", lingerOn: false,
         signedOut: { available: false, reason: "scheduling a run on this computer needs the agentry command, which was not found" }, installCLI: "Install the agentry command" }
@@ -983,23 +994,41 @@ g.go = { app: {
         vulnerabilities: [], dataAccess: [], secretNames: ["GITHUB_TOKEN"], embeddedTools: [], refusal: "", vulnerabilityLine: "",
       }
       : { toolRows: [], servers: [], declaredServers: [], vulnerabilities: [], dataAccess: [], secretNames: [], embeddedTools: [], refusal: "", vulnerabilityLine: "" }),
-    // pages.html#docker-<state> previews the docker card in that state:
-    // installable | groupMissing | pendingRestart | manual.
+    // pages.html#docker-<state> previews the container engine card in that
+    // state: installable (podman on Fedora) | ubuntu (Docker Engine on
+    // Ubuntu) | socketOff | groupMissing | pendingRestart | manual | macos |
+    // windows | trap (a credential helper off PATH, and a socket file with
+    // nothing behind it, beside an engine found) | emptysocket (the same
+    // socket trap with no engine). #docker-podman is Run defaults with
+    // podman found: the engine line and Re-detect.
     PrereqStatus: async () => {
       const state = (window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "installable";
-      const base = { os: "linux", distro: "fedora", downloadUrl: "https://docs.docker.com/engine/install/", command: "dnf install -y moby-engine && systemctl enable --now docker && usermod -aG docker me", note: "After installation, log out and back in (or reboot) so your user joins the docker group.", groupCommand: "usermod -aG docker me", dockerErr: "permission denied while trying to connect to the docker daemon socket" };
+      const noEngine = { found: false, rootless: false, err: "", tried: ["the docker CLI is not installed", "podman: podman not found"], warnings: [] as string[] };
+      const base = { os: "linux", distro: "fedora", downloadUrl: "https://docs.docker.com/engine/install/", command: "dnf install -y podman", installs: "podman", note: "Afterwards the app turns podman's API socket on for your account (systemctl --user enable --now podman.socket): no group to join and no restart.", groupCommand: "usermod -aG docker me", dockerErr: "no container engine answers on this computer: neither the docker CLI nor podman is installed", engine: noEngine, warnings: [] as string[] };
+      const docker = { ...base, distro: "ubuntu", command: "apt-get update && apt-get install -y docker.io && systemctl enable --now docker && usermod -aG docker me", installs: "docker", note: "After installation, log out and back in (or reboot) so your user joins the docker group.", dockerErr: "permission denied while trying to connect to the docker daemon socket", engine: { ...noEngine, tried: ["the docker CLI's current context: permission denied while trying to connect to the docker daemon socket", "podman: podman not found"] } };
+      const socketTrap = "Rancher Desktop left a socket at /Users/me/.rd/docker.sock with nothing answering behind it (connection refused): start it, or remove the file";
+      const helperTrap = "/Users/me/.docker/config.json names the credential helper \"desktop\" in credsStore, and docker-credential-desktop is not on PATH: every image pull fails until the entry is removed or the helper installed (a leftover of Docker Desktop, when it is \"desktop\")";
       switch (state) {
-        case "groupMissing": return { ...base, state, canInstall: true, engineInstalled: true, inDockerGroup: false, dockerOk: false };
-        case "pendingRestart": return { ...base, state, canInstall: true, engineInstalled: true, inDockerGroup: true, dockerOk: false };
-        case "manual": return { ...base, state, canInstall: false, engineInstalled: true, inDockerGroup: true, dockerOk: false, dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" };
+        case "ubuntu": return { ...docker, state: "installable", canInstall: true, engineInstalled: false, inDockerGroup: false, dockerOk: false };
+        case "groupMissing": return { ...docker, state, canInstall: true, engineInstalled: true, inDockerGroup: false, dockerOk: false };
+        case "pendingRestart": return { ...docker, state, canInstall: true, engineInstalled: true, inDockerGroup: true, dockerOk: false };
+        case "socketOff": return { ...base, state, canInstall: true, engineInstalled: true, inDockerGroup: false, dockerOk: false, socketCommand: "systemctl --user enable --now podman.socket", dockerErr: "podman's API socket unix:///run/user/1000/podman/podman.sock does not answer (connection refused): the run's docker filter and the gateway need it — start it with `systemctl --user enable --now podman.socket`", engine: { ...noEngine, tried: ["the docker CLI is not installed", "podman: podman's API socket unix:///run/user/1000/podman/podman.sock does not answer (connection refused)"] } };
+        case "manual": return { ...docker, state, canInstall: false, engineInstalled: true, inDockerGroup: true, dockerOk: false, dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" };
+        case "macos": return { ...base, os: "darwin", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", engine: { ...noEngine, tried: ["the docker CLI's current context: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"] } };
+        case "windows": return { ...base, os: "windows", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "error during connect: open //./pipe/docker_engine: The system cannot find the file specified.", engine: { ...noEngine, tried: ["the docker CLI's current context: error during connect: open //./pipe/docker_engine: The system cannot find the file specified."] } };
+        case "emptysocket": return { ...base, os: "darwin", distro: "", state: "manual", canInstall: false, engineInstalled: false, inDockerGroup: false, dockerOk: false, command: "", installs: "", note: "", downloadUrl: "https://www.docker.com/products/docker-desktop/", dockerErr: "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?", warnings: [socketTrap], engine: { ...noEngine, warnings: [socketTrap], tried: ["the docker CLI's current context: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"] } };
+        case "trap":
+        case "podman": return { ...base, state: "ready", canInstall: false, engineInstalled: true, inDockerGroup: false, dockerOk: true, dockerErr: "", engine: engineFound(state), warnings: engineFound(state).warnings };
         default: return { ...base, state: "installable", canInstall: true, engineInstalled: false, inDockerGroup: false, dockerOk: false };
       }
     },
     AddToDockerGroup: async () => ({ state: "pendingRestart" }),
+    EnablePodmanSocket: async () => ({ state: "ready", dockerOk: true, engine: engineFound("podman"), warnings: [] }),
+    RedetectEngine: async () => engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"),
     RestartNow: async () => undefined,
     SetupStatus: async () => (window.location.hash === "#setup-custom-http"
-      ? { dockerOk: true, imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
-      : { dockerOk: !window.location.hash.startsWith("#docker-"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
+      ? { dockerOk: true, engine: engineFound("docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "custom", model: "qwen3.8-flash", apiKeyEnv: "OPENAI_API_KEY", apiKeySource: "keyring", keysStored: ["custom"], baseUrl: "http://gpu-box.lan:8000/v1", timeoutSeconds: 900, maxTurns: 60 }
+      : { dockerOk: !window.location.hash.startsWith("#docker-") || /^#docker-(podman|trap)$/.test(window.location.hash), engine: engineFound((window.location.hash.match(/^#docker-(\w+)/) || [])[1] || "docker"), imagesReady: true, policyExists: true, policyPath: "~/.agentry/runner/policy.yaml", provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeySource: "keyring", keysStored: ["anthropic"], baseUrl: "", timeoutSeconds: 900, maxTurns: 60 }),
     // The CLI's sentence (setup.PlainHTTPWarning) for plain http off this
     // machine; "" for https and loopback.
     EndpointWarning: async (u: string) => {

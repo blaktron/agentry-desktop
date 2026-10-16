@@ -121,9 +121,13 @@ func runNetworks(ctx context.Context, d dockerx.Client, runID, label string) ([]
 // run keeps under the runner home while it is live. That is its scratch
 // directory, <release directory>/runs/<run id>, which holds the workspace
 // copy, the staged inputs, the copies of the attached knowledge packs and
-// the rendered configuration with secrets.env; and the socket of its docker
-// filter, <runner home>/s/<run id>.sock. The app also calls it when a run's
-// engine has returned, for what the engine's own teardown could not delete.
+// the rendered configuration with secrets.env; the podman API service a
+// run under a policy runtime started on podman, which the directory's
+// record names and which outlives a killed run (stopLeftPodmanService,
+// before the record goes with the directory); and the sockets of its
+// docker filter and of that service, <runner home>/s/<run id>.sock and
+// <run id>-podman.sock. The app also calls it when a run's engine has
+// returned, for what the engine's own teardown could not delete.
 //
 // The scratch directory is found by the run id under every release
 // directory, not from a path the record carries: the record is written
@@ -137,12 +141,16 @@ func SweepFiles(home, runID string) error {
 	}
 	var errs []error
 	for _, dir := range scratchDirs(home, runID) {
+		stopLeftPodmanService(dir)
 		if err := removeTree(dir); err != nil {
 			errs = append(errs, fmt.Errorf("remove the run's scratch directory: %w", err))
 		}
 	}
 	if err := removal.Remove(filepath.Join(home, "s", runID+".sock"), false); err != nil {
 		errs = append(errs, fmt.Errorf("remove the run's docker filter socket: %w", err))
+	}
+	if err := removal.Remove(filepath.Join(home, "s", runID+"-podman.sock"), false); err != nil {
+		errs = append(errs, fmt.Errorf("remove the run's podman service socket: %w", err))
 	}
 	return errors.Join(errs...)
 }
