@@ -37,8 +37,10 @@ var (
 // Status is the setup state of this machine: can it run QuickAgents, and
 // with which LLM provider.
 type Status struct {
-	DockerOK     bool
-	DockerErr    string
+	DockerOK  bool
+	DockerErr string
+	// Engine is the container engine detection found, and the traps it saw.
+	Engine       Engine
 	PolicyPath   string
 	PolicyExists bool
 	// ProviderSetUp: somebody set the provider up, as opposed to the policy merely
@@ -136,13 +138,17 @@ func GetStatus(ctx context.Context) (*Status, error) {
 	st.MaxTurns = pol.Budgets.MaxTurns
 	st.KeepProfilesByDefault = pol.KeepProfilesByDefault()
 
-	docker := newDockerClient()
-	if err := dockerAvailable(ctx, docker); err != nil {
-		st.DockerErr = err.Error()
+	// The engine: the one adopted, when it still answers, else found anew.
+	st.Engine = DetectEngine(ctx, false)
+	if !st.Engine.Found {
+		st.DockerErr = st.Engine.Err
+		if st.DockerErr == "" {
+			st.DockerErr = errNoEngine.Error()
+		}
 		return st, nil
 	}
 	st.DockerOK = true
-	st.ImagesReady = imagesReady(ctx, docker, pol)
+	st.ImagesReady = imagesReady(ctx, newDockerClient(), pol)
 	return st, nil
 }
 

@@ -24,9 +24,9 @@ try {
     };
   });
   await provider.getByRole("button", { name: "Check again", exact: true }).click();
-  await provider.getByText("Checking Docker…", { exact: true }).waitFor();
+  await provider.getByText("Checking the container engine…", { exact: true }).waitFor();
   await page.evaluate(() => window.finishDockerCheck());
-  await provider.getByText("docker available", { exact: true }).waitFor();
+  await provider.getByText("docker 29.7.2 available", { exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.dockerChecks), 1);
   assert.equal(await field("Provider", "select").inputValue(), "custom");
   assert.equal(await field("Endpoint URL", "input").inputValue(), "https://unsaved.example/v1");
@@ -38,18 +38,18 @@ try {
   await page.evaluate(() => {
     window.go.app.RunAPI.PrereqStatus = async () => {
       await new Promise((resolve) => { window.finishDockerCheck = resolve; });
-      return { state: "ready", dockerOk: true };
+      return { state: "ready", dockerOk: true, engine: { found: true, kind: "docker", version: "29.7.2", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", tried: [], warnings: [] }, warnings: [] };
     };
   });
   await defaults.getByRole("button", { name: "Check again", exact: true }).click();
-  await defaults.getByText("Checking Docker…", { exact: true }).waitFor();
+  await defaults.getByText("Checking the container engine…", { exact: true }).waitFor();
   await page.evaluate(() => window.finishDockerCheck());
   await defaults.getByRole("button", { name: "Check again", exact: true }).waitFor({ state: "hidden" });
   await page.goto(`${base}/wizard.html#3-waking`);
-  await page.getByText("docker available", { exact: true }).waitFor();
+  await page.getByText("docker 29.7.2 available", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Prepare images now", exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Prepare images now", exact: true }).isEnabled(), true);
-  console.log("Docker re-check clears stale failure and preserves provider edits; prerequisites recover.");
+  console.log("The engine re-check clears a stale failure and preserves provider edits; prerequisites recover.");
 } finally {
   await browser.close();
 }

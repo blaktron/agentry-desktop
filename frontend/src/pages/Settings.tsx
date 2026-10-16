@@ -8,7 +8,7 @@ import { EventsOn } from "../../wailsjs/runtime/runtime";
 import { Button, Card, ErrorBox, Input, Modal, Notice, PageHeader, Spinner, Toolbar } from "../ui";
 import { fmtDuration } from "../usage";
 import { rewrapLine } from "../knowledge";
-import { RuntimeSetup, PrereqCard, providerLabel } from "./RuntimeSetup";
+import { RuntimeSetup, PrereqCard, EngineWarnings, CHECKING_ENGINE, providerLabel } from "./RuntimeSetup";
 import { paidBy } from "../modelSetup";
 import { CodingAgentsCard, codingAgentName, exportLabel } from "./CodingAgents";
 import { SecretsCard } from "./HostedRun";
@@ -83,11 +83,11 @@ export const SECTIONS: { id: SettingsSection; title: string; sentence: string; p
   },
   {
     id: "run-defaults", title: "Run defaults",
-    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, which runs are remembered, and the Docker engine runs on this computer use, with Agentry's images on it.",
+    sentence: "How long a run may take, when a chat ends, where runs go and where their files land, which runs are remembered, and the container engine runs on this computer use, with Agentry's images on it.",
     parts: [
       { id: "budgets", label: "Timeout and turns" }, { id: "chats", label: "Chat idle timeout" }, { id: "where", label: "Where to run" },
       { id: "output", label: "Output folder" }, { id: "history", label: "Recent runs" }, { id: "unsafe", label: "Unsafe Mode" },
-      { id: "docker", label: "Docker engine" }, { id: "images", label: "Docker images" }, { id: "voice", label: "Writing Voice" },
+      { id: "docker", label: "Container engine" }, { id: "images", label: "Container images" }, { id: "voice", label: "Writing Voice" },
     ],
   },
   {
@@ -368,7 +368,7 @@ export function runDefaultsStatus(d: app.RunDefaultsView, s: app.SetupStatusView
   const where = d.where === "agentry" ? "In Agentry where it is offered" : "on this computer";
   const builtins = d.builtinNoLimit ? " The built-in agents have no time or turn limit here." : "";
   const line = `Runs stop after ${fmtDuration(d.timeoutSeconds)}, ${where}.${builtins} ${chatLimitLine(d.chatIdleTimeoutSeconds)}${d.unsafeMode ? " Unsafe Mode is on." : ""}`;
-  return s && !s.dockerOk && d.where !== "agentry" ? `${line} Docker is not ready yet.` : line;
+  return s && !s.dockerOk && d.where !== "agentry" ? `${line} The container engine is not ready yet.` : line;
 }
 
 // historyLine says what the run history holds.
@@ -396,9 +396,10 @@ const MAX_CHAT_IDLE_MINUTES = 7 * 24 * 60;
 const idleField = (seconds: number) => (seconds > 0 && seconds % 60 === 0 ? String(seconds / 60) : "");
 
 export function runStatus(s: app.SetupStatusView): string {
-  if (!s.dockerOk) return "Docker is not ready, so QuickAgents cannot run on this computer yet.";
-  if (!s.imagesReady) return "Docker answers. The run images are fetched on the first run.";
-  return "Docker answers and the run images are ready.";
+  if (!s.dockerOk) return "No container engine answers, so QuickAgents cannot run on this computer yet.";
+  const engine = s.engine?.summary ? `${s.engine.summary}.` : "The container engine answers.";
+  if (!s.imagesReady) return `${engine} The run images are fetched on the first run.`;
+  return `${engine} The run images are ready.`;
 }
 
 // The key's line says where it comes from and never what it is:
@@ -415,7 +416,7 @@ export function providerStatus(s: app.SetupStatusView | null, k: app.JevKeyView 
 
 // RunDefaultsSettings is Settings → Run defaults: the timeout and max turns the
 // runner policy holds, which the CLI runs with too; where the run setup starts;
-// the output folder it fills in; and the Docker engine's prerequisites. None of
+// the output folder it fills in; and the container engine's prerequisites. None of
 // them is a consent: every run still asks what it asks. Unsafe Mode's switch is
 // here too: the page asks Go to turn it on, and Go asks the person in a native
 // dialog and pulls the image before it reads on. The built-in agents' switch
@@ -681,13 +682,47 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
           </PartSection>
         </>
       )}
-      <PartSection id="docker" title="Docker engine">
+      <PartSection id="docker" title="Container engine">
         {setup && (setup.dockerOk
-          ? <Card><p className="small" style={{ margin: 0 }}>{runStatus(setup)}</p></Card>
+          ? <EngineCard setup={setup} onChanged={read} />
           : <PrereqCard onDone={async () => { await read(); }} />)}
       </PartSection>
-      <PartSection id="images" title="Docker images"><DockerImagesCard /></PartSection>
+      <PartSection id="images" title="Container images"><DockerImagesCard /></PartSection>
     </>
+  );
+}
+
+// EngineCard is the container engine found, with Re-detect: the whole
+// detection run again from nothing, for a person who changed engines, and
+// what it found adopted. The traps detection saw stand beside the line.
+function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChanged: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [found, setFound] = useState<app.EngineView | null>(null);
+  async function redetect() {
+    setBusy(true);
+    setErr(null);
+    setFound(null);
+    try {
+      setFound(await RunAPI.RedetectEngine());
+      await onChanged();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card>
+      <p className="small" style={{ margin: 0 }} data-engine-line>{runStatus(setup)}</p>
+      <EngineWarnings warnings={setup.engine?.warnings} />
+      {found && !found.found && <Notice tone="warn">Re-detect found no engine: {found.err}</Notice>}
+      {found && found.found && <p className="small" role="status">Re-detect found {found.summary}.</p>}
+      <ErrorBox error={err} />
+      <div className="row" style={{ justifyContent: "flex-end", marginTop: 8 }}>
+        {busy ? <Spinner label={CHECKING_ENGINE} /> : <Button onClick={() => void redetect()} title="Runs the whole detection again, from nothing, and adopts what it finds">Re-detect</Button>}
+      </div>
+    </Card>
   );
 }
 

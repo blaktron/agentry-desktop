@@ -3,7 +3,7 @@ import * as RunAPI from "../../wailsjs/go/app/RunAPI";
 import { app, dockerimages } from "../../wailsjs/go/models";
 import { Button, Card, ErrorBox, Notice } from "../ui";
 
-// Run defaults → Docker images: the images Agentry
+// Run defaults → Container images: the images Agentry
 // put on this computer, chosen by name, and a button that removes them
 // after a native confirmation. The Windows uninstaller removes them unless
 // "Keep my Docker images" is ticked; the Linux packages and the macOS app
@@ -30,19 +30,19 @@ export function DockerImagesCard() {
     }
   };
 
-  if (!view) return <Card>{error ? <ErrorBox error={error} /> : <p className="muted small">Reading Docker's images…</p>}</Card>;
+  if (!view) return <Card>{error ? <ErrorBox error={error} /> : <p className="muted small">Reading the engine's images…</p>}</Card>;
   const n = view.images.length;
   return (
     <Card>
       <ErrorBox error={error} />
       {view.unavailable ? (
-        <p className="muted small">Docker's images could not be listed: {view.unavailable}</p>
+        <p className="muted small">The engine's images could not be listed: {view.unavailable}</p>
       ) : n === 0 ? (
-        <p className="small">No Docker images of Agentry's are on this computer.</p>
+        <p className="small">No container images of Agentry's are on this computer.</p>
       ) : (
         <>
           <p className="small">
-            {n} Docker image{n === 1 ? "" : "s"} Agentry put on this computer. The agentry CLI uses the same images, and the
+            {n} container image{n === 1 ? "" : "s"} Agentry put on this computer. The agentry CLI uses the same images, and the
             next run downloads or builds what it needs again.
           </p>
           <ul className="small mono selectable">
@@ -50,7 +50,7 @@ export function DockerImagesCard() {
               <li key={i.ref}>{i.ref}{i.size ? ` (${i.size})` : ""}</li>
             ))}
           </ul>
-          <Button disabled={busy} onClick={() => void remove()}>{busy ? "Removing…" : "Remove Agentry's Docker images"}</Button>
+          <Button disabled={busy} onClick={() => void remove()}>{busy ? "Removing…" : "Remove Agentry's container images"}</Button>
         </>
       )}
       {report && (

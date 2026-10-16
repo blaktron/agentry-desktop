@@ -250,11 +250,9 @@ func isolateRunEnv(t *testing.T) string {
 // a client that fails as a stopped daemon does) for one test.
 func withFakeDocker(t *testing.T, d dockerx.Client) {
 	t.Helper()
-	old := newDockerClient
-	oldInterval := dockerRetryInterval
-	dockerRetryInterval = 0
-	newDockerClient = func() dockerx.Client { return d }
-	t.Cleanup(func() { newDockerClient = old; dockerRetryInterval = oldInterval })
+	// Detection's seams too, so the stand-in is the docker CLI's current
+	// context and nothing else on this computer is asked.
+	withEngines(t, engineFixture{docker: d, onPath: []string{"docker", "pkexec"}})
 }
 
 // cataloguedPolicy is the default policy plus the one line the fixture

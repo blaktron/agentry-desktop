@@ -126,7 +126,7 @@ function Gallery() {
       <Section title="Messages">
         <Notice tone="info">A neutral status line — waiting for your browser to authorize this app.</Notice>
         <Notice tone="ok">Signed in as @dupres — token stored in the OS keychain.</Notice>
-        <Notice tone="warn">Docker is not available. Install it to run QuickAgents.</Notice>
+        <Notice tone="warn">No container engine answers. Install one to run QuickAgents.</Notice>
         <ErrorBox error="verify failed: digest mismatch (exit 10)" />
       </Section>
 

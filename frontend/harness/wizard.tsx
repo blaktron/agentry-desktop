@@ -22,8 +22,9 @@ import { createRoot } from "react-dom/client";
 import "../src/style.css";
 
 // wizard.html#3-pendingRestart (or #6-pendingRestart) previews the runtime
-// step's docker card, and the done recap, in that docker state:
-// installable | groupMissing | pendingRestart | manual.
+// step's container engine card, and the done recap, in that engine state:
+// installable (podman on Fedora) | socketOff | groupMissing | pendingRestart
+// | manual.
 // #3-models previews the runtime step after Get models filled the list;
 // #3-nomodels the failed listing (the model stays typeable); #3-subscription
 // a stored Anthropic subscription token and its sentence;
@@ -57,7 +58,9 @@ const prepared = suffix === "prepared";
 const prepareRefused = location.hash.endsWith("-prepare-refused");
 const keyOnly = suffix === "keyonly";
 const harnessesMissing = suffix === "missing" || nothing || keyOnly;
-const dockerState = ["installable", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
+const dockerState = ["installable", "socketOff", "groupMissing", "pendingRestart", "manual"].includes(suffix) ? suffix : "";
+const engineFound = { found: true, kind: "docker", cli: "docker", version: "29.7.2", endpoint: "unix:///var/run/docker.sock", rootless: false, how: "the docker CLI's current context", summary: "docker 29.7.2, rootful, at unix:///var/run/docker.sock, found as the docker CLI's current context", err: "", tried: [], warnings: [] };
+const engineMissing = { found: false, rootless: false, err: "", tried: ["the docker CLI is not installed", "podman: podman not found"], warnings: [] };
 // Model sign-ins: #3-chatgpt OpenAI with nothing
 // kept (Sign in with ChatGPT leads, the key second); #3-claudekept the
 // Claude subscription chosen and signed in; #3-waiting a ChatGPT sign-in
@@ -84,7 +87,7 @@ const unlisted = suffix === "unlisted";
 // The runtime's events, so a binding can answer through them as Go does.
 const handlers: Record<string, ((...a: any[]) => void)[]> = {};
 const setup = {
-  dockerOk: dockerState === "", imagesReady: !nothing && !keyOnly, policyExists: !nothing,
+  dockerOk: dockerState === "", engine: dockerState === "" ? engineFound : engineMissing, imagesReady: !nothing && !keyOnly, policyExists: !nothing,
   providerSetUp: !nothing && !keyOnly,
   policyPath: "~/.agentry/runner/policy.yaml",
   provider: "anthropic", model: "claude-sonnet-4-5", apiKeyEnv: "ANTHROPIC_API_KEY",
@@ -142,6 +145,8 @@ let dockerChecks = 0;
 const g = window as any;
 g.go = { app: {
   App: { OpenExternal: async (url: string) => { (g.__opened ??= []).push(url); } },
+  // The agentry command's card on the done step: not offered off macOS.
+  ScheduleAPI: { CLICommand: async () => ({ offered: false, status: { path: "", linked: false, other: false, installable: false } }) },
   RunAPI: {
     JevKeyStatus: async () => (keySaved ? savedKey : noKey),
     StoreJevKey: async () => {
@@ -162,16 +167,20 @@ g.go = { app: {
       return { ...setup, apiKeySource: "keyring", keysStored: ["anthropic"] };
     },
     PrereqStatus: async () => ({
-      dockerOk: dockerState === "", state: dockerState || "ready", os: "linux", distro: "fedora",
+      dockerOk: dockerState === "", state: dockerState || "ready", os: "linux", distro: dockerState === "installable" || dockerState === "socketOff" ? "fedora" : "ubuntu",
+      engine: dockerState === "" ? engineFound : engineMissing, warnings: [],
       canInstall: dockerState !== "manual", engineInstalled: dockerState !== "installable" && dockerState !== "",
       inDockerGroup: dockerState === "pendingRestart" || dockerState === "manual",
       downloadUrl: "https://docs.docker.com/engine/install/",
-      command: "dnf install -y moby-engine && systemctl enable --now docker && usermod -aG docker me",
+      installs: dockerState === "installable" || dockerState === "socketOff" ? "podman" : "docker",
+      command: dockerState === "installable" ? "dnf install -y podman" : "apt-get update && apt-get install -y docker.io && systemctl enable --now docker && usermod -aG docker me",
       groupCommand: "usermod -aG docker me",
-      note: "After installation, log out and back in (or reboot) so your user joins the docker group.",
-      dockerErr: "permission denied while trying to connect to the docker daemon socket",
+      socketCommand: "systemctl --user enable --now podman.socket",
+      note: dockerState === "installable" ? "Afterwards the app turns podman's API socket on for your account (systemctl --user enable --now podman.socket): no group to join and no restart." : "After installation, log out and back in (or reboot) so your user joins the docker group.",
+      dockerErr: dockerState === "socketOff" ? "podman's API socket does not answer" : "permission denied while trying to connect to the docker daemon socket",
     }),
     AddToDockerGroup: async () => ({ state: "pendingRestart" }),
+    EnablePodmanSocket: async () => ({ state: "ready", dockerOk: true, engine: engineFound, warnings: [] }),
     RestartNow: async () => undefined,
     HarnessStatus: async () => harnesses,
     ChosenHarnesses: async () => harnesses.filter((h) => h.chosen),

@@ -472,7 +472,7 @@ export default function RunPanel({
   } else if (!setup) {
     blockers.push("Checking this machine's setup.");
   } else if (!setup.dockerOk) {
-    blockers.push("Docker is not ready — set it up in Settings → Run defaults" + (hosted?.offered ? ", or run this release In Agentry." : "."));
+    blockers.push("The container engine is not ready — set it up in Settings → Run defaults" + (hosted?.offered ? ", or run this release In Agentry." : "."));
   }
   // The release's own profile is this machine's: a run In Agentry takes its
   // keys from the account's secrets there instead.
@@ -1078,7 +1078,7 @@ export default function RunPanel({
                       <p className="muted small" style={{ marginBottom: 2 }}>
                         The task, your answers, the input files and each message go to {registry}, which runs this release
                         under the same contract, relays the conversation to this window and sends back the outputs and the
-                        receipt, with the transcript, when the session ends. This machine needs no docker engine and no
+                        receipt, with the transcript, when the session ends. This machine needs no container engine and no
                         operator policy for it.
                       </p>
                       <SessionCredits hosted={hosted} />
@@ -1091,7 +1091,7 @@ export default function RunPanel({
                       <p className="muted small" style={{ marginBottom: 2 }}>
                         The task, your answers and the input files go to {registry}, which runs this release under the same
                         contract and sends back the outputs and the receipt; it keeps no log of the run. This machine needs no
-                        docker engine and no operator policy for it.
+                        container engine and no operator policy for it.
                       </p>
                       <HostedCredits hosted={hosted} />
                       <PublisherEarnsLine hosted={hosted} />
@@ -1111,8 +1111,8 @@ export default function RunPanel({
               {setupErr && !inAgentry && <ErrorBox error={setupErr} />}
               {setup && !setup.dockerOk && !inAgentry && (
                 <div className="error-box selectable">
-                  Docker is not available — a QuickAgent run on this machine needs a docker engine.
-                  {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Configure it, then reopen this panel
+                  No container engine answers — a QuickAgent run on this machine needs one.
+                  {setup.dockerErr ? ` (${setup.dockerErr})` : ""} Set it up in Settings → Run defaults, then reopen this panel
                   {hosted?.offered ? ", or run this release In Agentry" : ""}.
                 </div>
               )}

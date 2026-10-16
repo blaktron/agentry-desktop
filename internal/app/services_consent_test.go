@@ -36,7 +36,7 @@ func TestConsentIsANativeDialogNotAPageFlag(t *testing.T) {
 	t.Setenv(configdir.EnvVar, t.TempDir())
 	for name, call := range map[string]func() error{
 		"RestartNow":       func() error { return r.RestartNow() },
-		"InstallDocker":    func() error { _, err := r.InstallDocker(); return err },
+		"InstallEngine":    func() error { _, err := r.InstallEngine(); return err },
 		"AddToDockerGroup": func() error { _, err := r.AddToDockerGroup(); return err },
 		"RunAgent unsigned": func() error {
 			_, err := r.RunAgent("https://r.example", "acme/x@1.0.0", "go", nil, "", nil, 0, 0, true, nil, false, false, nil, false, nil, nil)
