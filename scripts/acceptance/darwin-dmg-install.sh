@@ -11,7 +11,7 @@
 # by an upgrade to the same version, which is what a reinstall is; step 1
 # plants a file in the first copy that the second does not have, so the
 # difference a real previous release would make is modelled rather than
-# skipped, and the release workflow runs it this way. With two, the first is the release already
+# skipped, and a release runs it this way. With two, the first is the release already
 # installed and the second the upgrade; pass a previous release's image when
 # one exists to have the real thing.
 #

@@ -35,8 +35,7 @@ jobs:
           cache: false
       # The blaktron modules are private. The rewrite that carries the token
       # goes into a job-scoped git config file, removed at the end, so nothing
-      # persists in the runner's home between jobs (the release workflow does
-      # the same).
+      # persists in the runner's home between jobs.
       - name: Authenticate for the private blaktron modules (job-scoped)
         env:
           AGENTRY_BUILD_TOKEN: ${{ secrets.AGENTRY_BUILD_TOKEN }}

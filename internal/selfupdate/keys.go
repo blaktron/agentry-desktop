@@ -74,10 +74,10 @@ type KeySet struct{ keys []Key }
 
 var (
 	// ErrNoKeys means this build carries no signing key at all, so it can
-	// verify nothing. That is the correct state for a build of the open core,
+	// verify nothing. That is the correct state for a build from source,
 	// which anyone can make and which has no update channel; it is a broken
-	// state for a release build, which is why the release workflow refuses a
-	// tag it cannot sign.
+	// state for a release build, which carries the key set of whoever
+	// publishes it.
 	ErrNoKeys = errors.New("this build carries no update-signing key, so it can verify no release")
 	// ErrUnknownKey means the signature was made by a key this build does not
 	// carry. Distinct from ErrBadSignature so the message can tell a person
@@ -91,9 +91,8 @@ var (
 	ErrBadSignature = errors.New("the signature does not match the bytes it covers")
 )
 
-// KeyEntry is one key as keys.json carries it. It is the ONE definition of that
-// file's shape: internal/cmd/keyset reads and writes through this type too, so
-// a field cannot be added in one place and forgotten in the other.
+// KeyEntry is one key as keys.json carries it: the one definition of that
+// file's shape in this module.
 type KeyEntry struct {
 	Name      string `json:"name"`
 	PublicKey string `json:"publicKey"`

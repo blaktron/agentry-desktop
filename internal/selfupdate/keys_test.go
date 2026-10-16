@@ -30,11 +30,11 @@ func TestCommittedKeySetIsValid(t *testing.T) {
 			t.Errorf("key %s has a malformed id", k.Name)
 		}
 	}
-	// Not an error: the key set is empty until the first key is loaded. The
-	// test says so out loud rather than letting an empty set look like a
-	// passing check of something.
+	// Not an error: a build from source carries no keys, and a release writes
+	// its own set over this file. The test says so out loud rather than
+	// letting an empty set look like a passing check of something.
 	if len(set.Keys()) == 0 {
-		t.Log("the committed key set is empty: this build trusts no release, which is correct until scripts/operator/update-signing-key.sh has been run")
+		t.Log("the committed key set is empty: this build trusts no release")
 	}
 }
 

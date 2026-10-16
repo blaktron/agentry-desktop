@@ -18,8 +18,7 @@
 #   the Mac        ~/runner-artifacts of the runner's user, beside
 #                  ~/runner-cache.
 # The host and the path go to the log and to the job summary. A green build
-# keeps nothing: a build to try comes from a release dry run
-# (workflow_dispatch of release.yaml).
+# keeps nothing.
 set -euo pipefail
 
 status=${1:?usage: $0 <job-status> <file>...}

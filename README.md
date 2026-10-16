@@ -62,8 +62,16 @@ that resolves them against sibling checkouts.
 `make check` must pass before a change is pushed. The frontend's tests run
 with node's own test runner (`npm test` in `frontend/`).
 
-`build/README.md` describes the platform build files, and
-`build/windows/signing/README.md` the pinned Windows signing root.
+`build/README.md` describes the platform build files.
+
+A build from source talks to `http://localhost:8080` until another registry
+is set, has no update channel, so it never looks for a newer version, and
+trusts no update-signing key (`internal/selfupdate/keys.json` is empty). It
+carries no OAuth client metadata document, so a sign-in to an MCP server
+registers a client with the vendor or asks for your own. `make
+package-windows` builds an unsigned installer; `SIGN_CMD` names a command
+that signs each Windows file in place, and the macOS bundle is ad-hoc
+signed.
 
 ## Layout
 
@@ -74,9 +82,9 @@ with node's own test runner (`npm test` in `frontend/`).
 | `internal/` | the engines behind the services: registry client, install, validate, settings, run, build, knowledge, schedules, self-update, version and others |
 | `internal/selfupdate/keys.json` | the update-signing keys a build trusts |
 | `frontend/` | the React, TypeScript and Vite frontend (`src/`, `tests/`), the generated Wails bindings (`wailsjs/`, never edited by hand) and `harness/`, a design preview for development |
-| `build/` | platform files: icons, macOS plists, the Windows installer script and manifest, the Linux package definition, `release.env` |
-| `scripts/` | build, packaging, signing and acceptance scripts; `scripts/operator/` holds maintainer setup scripts |
-| `.github/workflows/` | CI (`ci.yaml`), the daily pin check (`pins.yaml`), the release (`release.yaml`) and a signing credential probe |
+| `build/` | platform files: icons, macOS plists, the Windows installer script and manifest, the Linux package definition |
+| `scripts/` | build, packaging and acceptance scripts |
+| `.github/workflows/` | CI (`ci.yaml`) and the daily pin check (`pins.yaml`) |
 
 Credentials go in the OS keychain under the same service and account names
 as the CLI, so signing in with either client signs in both. Install records
@@ -85,20 +93,11 @@ and pinned signing keys are shared files under `~/.config/agentry/`
 
 ## Releases
 
-A release is a pushed tag: `vX.Y.Z` on a commit on `main`'s first-parent
-line (a production release) or `vX.Y.Z-dev.N` on one on `dev`'s (a dev
-prerelease). The tag must name the `productVersion` in `wails.json`
-(`make version-check`). `.github/workflows/release.yaml` builds every
-platform artifact, writes `SHA256SUMS` and `BUILD-INFO`, signs the sums with
-the project's update-signing key (`SHA256SUMS.minisig`) and publishes a
-GitHub Release. Check a download against the sums with:
-
-```bash
-sha256sum -c --ignore-missing SHA256SUMS
-```
-
-`go run ./internal/cmd/keyset list` shows the update-signing keys a build
-trusts.
+Signed builds of each release are published as this repository's GitHub
+Releases, with `SHA256SUMS`, its signature `SHA256SUMS.minisig` and
+`BUILD-INFO`. A tag is `vX.Y.Z` or `vX.Y.Z-dev.N` and names the
+`productVersion` in `wails.json` (`make version-check`). How to install and
+check a download: <https://docs.secureagentry.net/agentry/downloads/>.
 
 ## Conventions
 

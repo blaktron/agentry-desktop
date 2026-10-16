@@ -1,12 +1,15 @@
 {
   "_comment": [
     "The signing keys this build of Agentry Desktop trusts for 'a newer Agentry",
-    "Desktop'. The release",
-    "workflow signs SHA256SUMS with the private half of one of these; the app",
-    "and the site's downloads importer verify against the public halves here.",
-    "This is OUR key, not the operating system's: it is independent of Developer",
-    "ID signing and Authenticode, which secure a",
-    "different thing.",
+    "Desktop'. A release's SHA256SUMS is signed with the private half of one of",
+    "these, and the app verifies that signature against the public halves here",
+    "before it installs anything. This is the release's own key, not the",
+    "operating system's: it is independent of Developer ID signing and",
+    "Authenticode, which secure a different thing.",
+    "",
+    "A build from source carries no keys, so it trusts nothing and refuses every",
+    "update. A signed release of Agentry Desktop is built with the key set of",
+    "whoever publishes it written over this file.",
     "",
     "Fields, per key:",
     "  name       what this key is called in the record and in error messages",
@@ -22,24 +25,7 @@
     "             VERIFIES — that is the point of keeping it, so an old release",
     "             stays checkable — but callers refuse to install from one.",
     "  addedAt    the day it was added, ISO date. For the record only.",
-    "  note       where the private half lives and what it is for: every",
-    "             repository that holds it, since the CLI and the MCP server",
-    "             sign with the same key.",
-    "",
-    "A build with no keys here trusts nothing and refuses every update; that is",
-    "the correct state for the open core, which anyone can build.",
-    "Keys are added by scripts/operator/update-signing-key.sh, never by hand:",
-    "the wizard is what keeps the committed public half and the Actions secret",
-    "the two halves of one pair."
+    "  note       what the key is for."
   ],
-  "keys": [
-    {
-      "name": "dev",
-      "publicKey": "RWTLvF/i/YZI/zxXA03MOH7dx7sf/xwr0ihs8bkvz/geDhwAN8YIwiLM",
-      "keyID": "FF4886FDE25FBCCB",
-      "retired": false,
-      "addedAt": "2026-09-20",
-      "note": "private half: the AGENTRY_UPDATE_SIGNING_KEY secret of blaktron/agentry-desktop. The CLI (a repository secret) and the MCP server (a secret of its release environment) sign with the same key under the same name; a rotation moves all three, with the DESKTOP_SIGNRELEASE_REF pins in their release workflows."
-    }
-  ]
+  "keys": []
 }

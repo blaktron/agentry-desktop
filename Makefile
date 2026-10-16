@@ -7,30 +7,30 @@ export PATH := $(HOME)/go/bin:/opt/homebrew/bin:$(PATH)
 GO ?= go
 # The version is git describe without the tag's leading v: a tagged commit
 # gives 0.6.0, or 0.6.1-dev.2 for a dev prerelease, whose X.Y.Z is what
-# wails.json's productVersion must equal (the release workflow refuses a tag
-# that does not), so the bundle metadata, the binary and the artifact names
+# wails.json's productVersion must equal (version-check refuses a tag that
+# does not), so the bundle metadata, the binary and the artifact names
 # agree; between tags it is 0.6.0-3-g<sha>[-dirty], and a checkout with no
-# tag at all is the bare sha. The release workflow passes a tag's own version
-# as VERSION=, since describe picks one of several tags on one commit.
+# tag at all is the bare sha. A release passes its tag's own version as
+# VERSION=, since describe picks one of several tags on one commit.
 VERSION := $(shell (git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev) | sed 's/^v//')
 # EXTRA_LDFLAGS lets a caller add to the linker flags (a baked-in default
 # registry, -w -s) without taking the version stamp away from this file.
 EXTRA_LDFLAGS ?=
 LDFLAGS := -X github.com/blaktron/agentry-desktop/internal/version.Version=$(VERSION) $(EXTRA_LDFLAGS)
-# Extra flags for `wails build` in package-darwin. scripts/build-darwin.sh
-# passes `-m` (skip `go mod tidy`): a tree shipped with vendor/ and no GitHub
-# credential builds in vendor mode on its own, but tidy walks the whole module
-# graph past vendor/ and asks GitHub for the private modules. -skipbindings is
+# Extra flags for `wails build`, such as `-m` (skip `go mod tidy`): a tree
+# shipped with vendor/ and no GitHub credential builds in vendor mode on its
+# own, but tidy walks the whole module graph past vendor/ and asks GitHub for
+# the private modules. -skipbindings is
 # not a caller's choice: every wails target below carries it (see `dev`), so
 # a by-hand `make package-darwin` cannot regenerate the bindings either.
 # Callers that still pass it are harmless.
 WAILS_FLAGS ?=
 # SIGN_CMD: a command that Authenticode-signs the one PE file it is given, in
-# place (the release workflow passes scripts/sign-windows.sh). Empty means an
-# unsigned Windows package, which PR and local builds are.
+# place, which a release passes. Empty means an unsigned Windows package,
+# which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: fetch-cli dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
+.PHONY: dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -54,7 +54,7 @@ build:
 # fails here by name rather than later in tsc. CI regenerates and fails on
 # drift, so this is the only way models.ts changes. Generating compiles
 # the app, whose go:embed needs frontend/dist to hold a file: on a fresh
-# tree (the release preflight, a new clone) an empty index.html stands in
+# tree (a release's preflight, a new clone) an empty index.html stands in
 # and is removed again, so nothing downstream can mistake it for a bundle.
 bindings:
 	@stub=0; if [ ! -f frontend/dist/index.html ]; then mkdir -p frontend/dist && : > frontend/dist/index.html && stub=1 && echo "frontend/dist was missing: an empty index.html stands in for the embed while the bindings generate (go:embed all:frontend/dist must match) and is removed afterwards; make frontend builds the real one"; fi; \
@@ -102,13 +102,10 @@ check: frontend lint test copy
 # hdiutil builds the image (scripts/package-darwin-dmg.sh — create-dmg is not
 # on the Mac and would only add a window picture that needs a Finder session)
 # and scripts/check-darwin-dmg.sh reads it back, as the Windows target does
-# with its installer. This target is ad-hoc signed only: the
-# production release splits it in two and signs between the halves —
-# build-darwin, then scripts/sign-darwin.sh app (Developer ID, notarized,
-# stapled), then wrap-darwin, so the zip and the dmg both carry the stapled
-# bundle, then scripts/sign-darwin.sh dmg (release.yaml's macos
-# job). The secrets reach only those two signing steps, never wails or
-# npm.
+# with its installer. This target is ad-hoc signed only. A release that signs
+# runs the halves apart and signs between them: build-darwin, then the
+# bundle signed, notarized and stapled, then wrap-darwin, so the zip and the
+# dmg both carry the stapled bundle, then the dmg signed in turn.
 # Output: build/bin/agentry-desktop-$(VERSION)-darwin-universal{.zip,.dmg}
 package-darwin: build-darwin wrap-darwin
 
@@ -124,13 +121,13 @@ wrap-darwin:
 # Drags the dmg's bundle onto a temporary Applications folder over a copy
 # that is already there and proves the person's configuration and sign-in
 # survive it. macOS only; installs nothing on
-# the machine. The release workflow runs it after package-darwin.
+# the machine. A release runs it after package-darwin.
 smoke-darwin-dmg:
 	scripts/acceptance/darwin-dmg-install.sh build/bin/agentry-desktop-$(VERSION)-darwin-universal.dmg
 
 # Applying a newer Agentry Desktop on macOS: the bundle swap, what survives
 # it, and the refusal when the copy is somewhere the person cannot replace
-# macOS only; installs nothing on the machine and launches nothing. The release workflow runs it after
+# macOS only; installs nothing on the machine and launches nothing. A release runs it after
 # package-darwin.
 smoke-darwin-selfupdate:
 	scripts/acceptance/darwin-selfupdate.sh build/bin/agentry-desktop.app build/bin/agentry-desktop-$(VERSION)-darwin-universal.zip
@@ -148,36 +145,27 @@ smoke-darwin-selfupdate:
 # wails.json, for the same reason the exe's does. scripts/check-windows-installer.sh reads the result back
 # (needs 7z: p7zip-full / p7zip-plugins).
 #
-# Authenticode is three targets so the release can hand
-# the signing token to the one that signs and to nothing else: build-windows
-# (wails: the exe, and an unsigned installer as a side effect of -nsis, which
-# also writes the WebView2 bootstrapper and wails_tools.nsh), sign-windows
-# (SIGN_CMD on the exe BEFORE the installer embeds it, so the check's byte
-# comparison still holds, then makensis again with -DSIGN_CMD, under which
-# project.nsi's !finalize hooks sign the uninstaller and the installer and
-# overwrite the unsigned one), finish-windows (the zip and the setup name,
-# then the check — --signed with a report when SIGN_CMD is set). package-windows
-# runs all three; without SIGN_CMD sign-windows is a no-op and the check
-# reports the package unsigned, as PR builds are. With SIGN_CMD also
-# build/bin/windows-signing.txt, the checker's report (cn=, timestamp=,
-# root=) that the release writes into BUILD-INFO. The seam's acceptance,
-# with a throwaway CA in place of the real key:
-# scripts/acceptance/windows-signing.sh build/bin/agentry-desktop.exe.
+# Authenticode is three targets so a release can hand the signing token to
+# the one that signs and to nothing else: build-windows (wails: the exe, and
+# an unsigned installer as a side effect of -nsis, which also writes the
+# WebView2 bootstrapper and wails_tools.nsh), sign-windows (SIGN_CMD on the
+# exe BEFORE the installer embeds it, so the check's byte comparison still
+# holds, then makensis again with -DSIGN_CMD, under which project.nsi's
+# !finalize hooks sign the uninstaller and the installer and overwrite the
+# unsigned one), finish-windows (the zip and the setup name, then the check).
+# package-windows runs all three; without SIGN_CMD sign-windows is a no-op,
+# as in PR builds. The check says nothing about signatures: a release that
+# signs reads them back itself. The seam's acceptance, with a stand-in for the
+# signer: scripts/acceptance/windows-signing.sh build/bin/agentry-desktop.exe.
 # Output: build/bin/agentry-desktop-$(VERSION)-windows-amd64.exe, its zip,
 # and build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe.
 #
-# The agentry CLI: when build/cli holds it (`make fetch-cli`, which the
-# release runs with the registry it bakes and a token that reads
-# agentry-cli), the installer carries build/cli/agentry.exe into
+# The agentry CLI: when build/cli holds it (agentry.exe and agentry, which a
+# release puts there), the installer carries build/cli/agentry.exe into
 # $INSTDIR\bin and puts it on the user Path, the check reads it back with
 # --cli, and the Linux packages carry build/cli/agentry as
 # /usr/bin/agentry. Without it (a PR build) neither carries a CLI.
 package-windows: build-windows sign-windows finish-windows
-
-# The CLI release go.mod pins, on the channel AGENTRY_DEFAULT_REGISTRY names,
-# checked against its sums and BUILD-INFO (scripts/fetch-cli.sh).
-fetch-cli:
-	scripts/fetch-cli.sh build/cli
 
 build-windows:
 	wails build $(WAILS_FLAGS) -skipbindings -platform windows/amd64 -nsis -ldflags '$(LDFLAGS)'
@@ -191,7 +179,7 @@ endif
 finish-windows:
 	cd build/bin && cp agentry-desktop.exe agentry-desktop-$(VERSION)-windows-amd64.exe && rm -f agentry-desktop-$(VERSION)-windows-amd64.zip && zip -q agentry-desktop-$(VERSION)-windows-amd64.zip agentry-desktop.exe
 	cd build/bin && mv agentry-desktop-amd64-installer.exe agentry-desktop-$(VERSION)-windows-amd64-setup.exe
-	scripts/check-windows-installer.sh $(if $(strip $(SIGN_CMD)),--signed --report build/bin/windows-signing.txt,) $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
+	scripts/check-windows-installer.sh $(if $(wildcard build/cli/agentry.exe),--cli build/cli/agentry.exe,) build/bin/agentry-desktop-$(VERSION)-windows-amd64-setup.exe build/bin/agentry-desktop.exe
 
 # Linux: built inside a Debian container that carries the GTK 3 and WebKit2GTK
 # 4.1 headers, from the vendored tree, so the host needs Docker and nothing
@@ -208,7 +196,7 @@ package-linux:
 # and proves: clean install, same binary as the bare artifact,
 # declared dependencies exactly the owners of the linked libraries, a launch
 # under Xvfb, and a populated home untouched by reinstall and removal. Needs
-# Docker; a few minutes. The release workflow runs it after package-linux.
+# Docker; a few minutes. A release runs it after package-linux.
 smoke-linux-packages:
 	scripts/acceptance/linux-packages.sh build/linux/agentry-desktop-$(VERSION)-linux-amd64.deb build/linux/agentry-desktop-$(VERSION)-linux-amd64.rpm build/linux/agentry-desktop-$(VERSION)-linux-amd64 build/linux/smoke/agentry-desktop-previous.deb build/linux/smoke/agentry-desktop-previous.rpm
 
@@ -235,7 +223,7 @@ package: package-darwin package-windows package-linux
 # A release is a tag v<productVersion>: the tag names the version wails.json
 # carries into the macOS bundle and the Windows version-info block, and the
 # Makefile stamps the same string into the binary. RELEASE_TAG is the tag
-# being cut (the release workflow passes github.ref_name).
+# being cut.
 # A tag names productVersion: vX.Y.Z, or a dev prerelease of it,
 # vX.Y.Z-dev.N. productVersion itself stays X.Y.Z: the
 # Windows version resource and the macOS bundle version take numbers only.
@@ -250,6 +238,6 @@ version-check:
 clean:
 	rm -rf build/bin build/linux build/.icons frontend/dist
 
-# The version the Makefile stamps (the release workflow names the bundle by it).
+# The version the Makefile stamps.
 version:
 	@echo $(VERSION)
