@@ -145,13 +145,16 @@ else
   for want in arm64 x86_64; do
     tr ' ' '\n' <<<"$cli_arches" | grep -x "$want" >/dev/null || fail "the carried agentry is not universal: lipo says '$cli_arches'"
   done
-  want_v=$("$cli" --version 2>&1 | head -1) || fail "$cli --version failed"
-  got_v=$("$carried" --version 2>&1 | head -1) || fail "the carried agentry's --version failed"
+  want_v=$("$cli" --version 2>&1) || fail "$cli --version failed"
+  got_v=$("$carried" --version 2>&1) || fail "the carried agentry's --version failed"
+  want_v=${want_v%%$'\n'*} got_v=${got_v%%$'\n'*}
   [ "$got_v" = "$want_v" ] || fail "the carried agentry says '$got_v', $cli says '$want_v'"
   cli_sig=$(codesign -dvv "$carried" 2>&1) || fail "the carried agentry is not signed"
   grep -qx 'Identifier=net.secureagentry.cli' <<<"$cli_sig" || fail "the carried agentry is not signed as net.secureagentry.cli"
-  app_auth=$(codesign -dvv "$mnt/$appname" 2>&1 | grep -E '^(Authority|Signature)=' | head -1)
-  cli_auth=$(grep -E '^(Authority|Signature)=' <<<"$cli_sig" | head -1)
+  app_sig=$(codesign -dvv "$mnt/$appname" 2>&1) || fail "codesign could not describe the bundle on the image"
+  app_auth=$(grep -E '^(Authority|Signature)=' <<<"$app_sig" | head -1 || true)
+  cli_auth=$(grep -E '^(Authority|Signature)=' <<<"$cli_sig" | head -1 || true)
+  [ -n "$app_auth" ] || fail "the bundle on the image names no signing authority"
   [ "$cli_auth" = "$app_auth" ] || fail "the carried agentry is signed '$cli_auth', the bundle '$app_auth'"
   grep -q '<key>Resources/bin/agentry</key>' "$mnt/$appname/Contents/_CodeSignature/CodeResources" ||
     fail "the bundle's signature does not seal Contents/Resources/bin/agentry"

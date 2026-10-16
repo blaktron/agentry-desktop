@@ -50,7 +50,7 @@ export function AgentryCommandCard({ compact = false }: { compact?: boolean }) {
         </Notice>
       )}
       <ErrorBox error={error} />
-      {view.status.installable && !view.status.other && view.label && (
+      {view.label && (
         <div className="row gap">
           <Button onClick={install} busy={busy} busyLabel="Installing…">{view.label}</Button>
         </div>

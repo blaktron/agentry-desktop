@@ -78,16 +78,15 @@ func (s *ScheduleAPI) cliInstallOffered() bool {
 
 // installCLILabelFor is the Options menu's entry, "" where it offers none.
 // Where the bundle carries the command it says Install until the link is
-// made, whatever else is on the computer.
+// made and Reinstall after, and offers nothing while an agentry the app did
+// not put there holds the place: that one is the command, and the app keeps
+// a copy the install script put there up to date.
 func (s *ScheduleAPI) installCLILabelFor() string {
 	if !s.cliInstallOffered() {
 		return ""
 	}
 	if c := s.carried(); c != "" {
-		if cliinstall.Status(c, os.Getenv, nil).Linked {
-			return reinstallCLILabel
-		}
-		return installCLILabel
+		return linkLabel(cliinstall.Status(c, os.Getenv, nil))
 	}
 	locate := schedules.FindCLI
 	if s.locateCLI != nil {
@@ -192,6 +191,17 @@ func (s *ScheduleAPI) InstallCLI() (*CLIInstallView, error) {
 	return v, nil
 }
 
+// linkLabel is the entry for a carried command in state st.
+func linkLabel(st cliinstall.LinkStatus) string {
+	switch {
+	case st.Other || !st.Installable:
+		return ""
+	case st.Linked:
+		return reinstallCLILabel
+	}
+	return installCLILabel
+}
+
 // CLICommandView is the agentry command as Settings and the first-run
 // wizard show it on macOS.
 type CLICommandView struct {
@@ -219,7 +229,8 @@ func (s *ScheduleAPI) CLICommand() (*CLICommandView, error) {
 	if lookup == nil {
 		lookup = func() string { return cliinstall.ShellLookup(ctx, os.Getenv("SHELL")) }
 	}
-	v := &CLICommandView{Offered: true, Label: s.installCLILabelFor(), Status: cliinstall.Status(c, os.Getenv, lookup)}
+	st := cliinstall.Status(c, os.Getenv, lookup)
+	v := &CLICommandView{Offered: true, Label: linkLabel(st), Status: st}
 	if line, err := schedules.New(c).Version(ctx); err == nil {
 		if m := cliVersion.FindStringSubmatch(line); m != nil {
 			v.Version = m[1]

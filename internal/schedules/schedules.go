@@ -79,7 +79,7 @@ func FindCLI() (string, error) {
 			candidates = append(candidates, p)
 		}
 		if exe, err := executable(); err == nil {
-			if p := cliinstall.Carried(exe); p != "" {
+			if p := cliinstall.Carried(exe); p != "" && cliinstall.Installed(p) {
 				candidates = append(candidates, p)
 			}
 		}

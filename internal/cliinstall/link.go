@@ -44,7 +44,10 @@ func Carried(exe string) string {
 	return filepath.Join(contents, "Resources", "bin", Name)
 }
 
-// isCarried says whether p is the path of a CLI some bundle carries.
+// isCarried says whether p is the path of a CLI some application bundle
+// carries, which the app takes for one of its own copies: an Agentry Desktop
+// moved, renamed or replaced keeps the shape, and a link to it is only ever
+// moved to this bundle's, never written through.
 func isCarried(p string) bool {
 	if !filepath.IsAbs(p) {
 		return false
@@ -56,8 +59,13 @@ func isCarried(p string) bool {
 		filepath.Base(contents) == "Contents" && strings.HasSuffix(filepath.Dir(contents), ".app")
 }
 
-// installedPath says whether carried is somewhere a link to it outlives the
-// app: not on a mounted disk image, not in a translocated copy.
+// Installed says whether carried is somewhere a link to it, or a schedule
+// that names it, outlives the app: not on a mounted disk image, not in a
+// translocated copy.
+func Installed(carried string) bool {
+	return installedPath(carried)
+}
+
 func installedPath(carried string) bool {
 	return !strings.HasPrefix(carried, "/Volumes/") && !strings.Contains(carried, "/AppTranslocation/")
 }
@@ -123,6 +131,10 @@ func Link(carried string, getenv func(string) string, shellPath string) (Result,
 	dir := Dir(getenv)
 	if dir == "" {
 		return r, errors.New("there is no home folder to put the agentry command in")
+	}
+	// The folder is written into a shell line between double quotes.
+	if strings.ContainsAny(dir, "\"$`\\\n") {
+		return r, fmt.Errorf("the folder %q cannot be put on PATH in a shell's startup file as it is named", dir)
 	}
 	target := filepath.Join(dir, Name)
 	r.Path = target
@@ -288,6 +300,9 @@ func ShellLine(ctx context.Context, shell, script string) string {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, shell, "-i", "-l", "-c", `printf '\n`+sentinel+`%s\n' "$(`+script+`)"`)
 	cmd.Stdin = nil
+	// A startup file that leaves a process holding the output open does not
+	// keep the app waiting past the deadline.
+	cmd.WaitDelay = 2 * time.Second
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {
 		return ""

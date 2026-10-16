@@ -162,8 +162,11 @@ func TestInstallCLILinksTheCarriedCommand(t *testing.T) {
 	if err := os.WriteFile(link, []byte("the script's copy"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if v, _ := s.CLICommand(); !v.Status.Other || v.Label != installCLILabel {
+	if v, _ := s.CLICommand(); !v.Status.Other || v.Label != "" {
 		t.Fatalf("with the script's copy: %+v", v)
+	}
+	if v, _ := s.Availability(); v.InstallCLI != "" {
+		t.Fatalf("the Scheduled page offers an install over the script's copy: %+v", v)
 	}
 	if _, err := s.InstallCLI(); !errors.Is(err, cliinstall.ErrNotOurs) || !strings.Contains(err.Error(), "remove "+link) {
 		t.Fatalf("over the script's copy: %v", err)

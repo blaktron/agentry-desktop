@@ -260,3 +260,39 @@ func TestLinkRefusesAnAppNotInstalled(t *testing.T) {
 		t.Fatalf("a refused link changed %v", got)
 	}
 }
+
+// A startup file that is a link (a dotfiles checkout) is appended through,
+// as the install script's >> does, and the link stays a link.
+func TestLinkAppendsThroughALinkedStartupFile(t *testing.T) {
+	home := t.TempDir()
+	dotfiles := filepath.Join(t.TempDir(), "zshrc")
+	if err := os.WriteFile(dotfiles, []byte("# mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(dotfiles, filepath.Join(home, ".zshrc")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Link(bundle(t, t.TempDir(), "A"), envOf(map[string]string{"HOME": home, "SHELL": "/bin/zsh"}), ""); err != nil {
+		t.Fatal(err)
+	}
+	if dest, err := os.Readlink(filepath.Join(home, ".zshrc")); err != nil || dest != dotfiles {
+		t.Fatalf(".zshrc is no longer the link: %q %v", dest, err)
+	}
+	if b, _ := os.ReadFile(dotfiles); !strings.HasPrefix(string(b), "# mine\n\n# Added by the agentry CLI installer: ") {
+		t.Fatalf("the linked file: %q", b)
+	}
+}
+
+// A folder whose name would break the shell line is refused before
+// anything is written.
+func TestLinkRefusesAFolderTheShellLineCannotHold(t *testing.T) {
+	home := t.TempDir()
+	odd := filepath.Join(home, `bin"$(x)`)
+	_, err := Link(bundle(t, t.TempDir(), "A"), envOf(map[string]string{"HOME": home, "SHELL": "/bin/zsh", "AGENTRY_INSTALL_DIR": odd}), "")
+	if err == nil || !strings.Contains(err.Error(), "cannot be put on PATH") {
+		t.Fatalf("err = %v", err)
+	}
+	if got := tree(t, home); len(got) != 1 {
+		t.Fatalf("a refused folder changed %v", got)
+	}
+}
