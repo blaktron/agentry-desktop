@@ -1066,9 +1066,16 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 	defer logw.Flush()
 	usage, stopUsage := usageOf(meter)
 	defer stopUsage()
+	// The agent's tool calls, their results and its messages join the run
+	// log as they happen, through a writer of their own: the engine writes
+	// its progress to logw from another goroutine. Every line it is given
+	// is whole, so it holds nothing to flush.
+	agentw := r.runLineWriter(live.id)
+	agentLog := newRunEventLog(func(line string) { _, _ = agentw.Write([]byte(line + "\n")) })
 	res, err := r.runEngine(ctx, run.Request{
 		OnBudgets:          budgetsOf(meter),
 		OnUsage:            usage,
+		OnEvent:            agentLog.Receive,
 		RunID:              live.id,
 		InFlightDir:        r.inFlightDir(),
 		Registry:           reg,
@@ -1095,6 +1102,8 @@ func (r *RunAPI) RunAgent(reg, ref, task string, inputPaths []string, outDir str
 		Unsafe:             unsafe,
 		PlanCompiled:       func(u bool) { r.setUnsafeLive(live, u) },
 	}, logw)
+	// The run has returned: what it said reaches the log before its result.
+	agentLog.Close()
 	recordLocal(ctx, runhistory.KindRun, live, ref, res)
 	// A sign-in the run saved reaches the schedules that run while the
 	// person is signed out, as every other key change does.
