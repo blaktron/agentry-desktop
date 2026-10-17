@@ -206,6 +206,10 @@ export function KeepsSecrets(arg1) {
   return window['go']['app']['RunAPI']['KeepsSecrets'](arg1);
 }
 
+export function ListEngines() {
+  return window['go']['app']['RunAPI']['ListEngines']();
+}
+
 export function ListModels(arg1, arg2, arg3) {
   return window['go']['app']['RunAPI']['ListModels'](arg1, arg2, arg3);
 }
@@ -324,6 +328,10 @@ export function SendHostedTurn(arg1) {
 
 export function SendTurn(arg1) {
   return window['go']['app']['RunAPI']['SendTurn'](arg1);
+}
+
+export function SetEngineChoice(arg1) {
+  return window['go']['app']['RunAPI']['SetEngineChoice'](arg1);
 }
 
 export function SetHostedSecret(arg1, arg2, arg3, arg4) {

@@ -51,7 +51,15 @@ type engineFixture struct {
 	answering map[string]bool
 	onPath    []string
 	named     bool
+	// choice is the engine remembered in Settings ("" for automatic), and
+	// contexts the docker CLI's contexts by name.
+	choice   string
+	contexts []string
 }
+
+// remembered is the choice the fixture's settings hold, as the picker
+// saved it.
+var remembered string
 
 func withEngines(t *testing.T, f engineFixture) {
 	t.Helper()
@@ -68,8 +76,15 @@ func withEngines(t *testing.T, f engineFixture) {
 	if f.podman == nil {
 		f.podman = &dockerx.Fake{AvailableErr: errors.New("podman not found")}
 	}
+	t.Setenv("DOCKER_CONTEXT", "")
+	_ = os.Unsetenv("DOCKER_CONTEXT")
 	oldClient, oldEngine, oldSockets, oldPing, oldNamed, oldLook, oldInterval, oldCfg, oldUID :=
 		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile, effectiveUID
+	oldLoad, oldSave, oldContexts := loadEngineChoice, saveEngineChoice, dockerContexts
+	remembered = f.choice
+	loadEngineChoice = func() string { return remembered }
+	saveEngineChoice = func(c string) error { remembered = c; return nil }
+	dockerContexts = func(context.Context) ([]string, error) { return f.contexts, nil }
 	dockerRetryInterval = 0
 	// A person's account, wherever the test runs (CI runs as root).
 	effectiveUID = func() int { return 1000 }
@@ -110,6 +125,7 @@ func withEngines(t *testing.T, f engineFixture) {
 		adoptMu.Unlock()
 		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile, effectiveUID =
 			oldClient, oldEngine, oldSockets, oldPing, oldNamed, oldLook, oldInterval, oldCfg, oldUID
+		loadEngineChoice, saveEngineChoice, dockerContexts = oldLoad, oldSave, oldContexts
 	})
 }
 

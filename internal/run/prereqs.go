@@ -100,6 +100,12 @@ const (
 	// (DockerErr says what). The engine the app manages itself adds two
 	// more (managed.go): StateManagedOffer and StateManagedStopped.
 	StateManual = "manual"
+	// StateChosenSilent: an engine is chosen under Settings → Run defaults
+	// → Container engine and does not answer; nothing else is offered in
+	// its place but the way back to automatic detection (DockerErr says
+	// what the chosen place said). Agentry's engine, chosen and stopped,
+	// is StateManagedStopped instead, which offers its Start.
+	StateChosenSilent = "chosenSilent"
 )
 
 // Prereqs is the machine's container-engine story, as the settings page
@@ -184,6 +190,10 @@ func DetectPrereqs(ctx context.Context) *Prereqs {
 		if p.DockerErr == "" {
 			p.DockerErr = errNoEngine.Error()
 		}
+	}
+	if p.Engine.Chosen && !p.Engine.Found && p.Engine.Choice != ChoiceManaged {
+		p.State = StateChosenSilent
+		return p
 	}
 	if runtime.GOOS == "windows" {
 		p.Windows = windowsStory(ctx)

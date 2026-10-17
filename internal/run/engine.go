@@ -58,6 +58,11 @@ type Engine struct {
 	// later read still says them.
 	Warnings       []string
 	socketWarnings []string
+	// Chosen says detection asked the engine remembered under Settings →
+	// Run defaults → Container engine, Choice names it (enginechoice.go);
+	// a chosen engine that does not answer is not replaced by another.
+	Chosen bool
+	Choice string
 }
 
 // Summary is the one line a page shows for the engine found.
@@ -73,7 +78,11 @@ func (e Engine) Summary() string {
 	if e.Rootless {
 		root = "rootless"
 	}
-	return fmt.Sprintf("%s %s, %s, at %s, found as %s", who, e.Version, root, e.Endpoint, e.How)
+	s := fmt.Sprintf("%s %s, %s, at %s, found as %s", who, e.Version, root, e.Endpoint, e.How)
+	if e.Chosen {
+		s += ", your choice"
+	}
+	return s
 }
 
 // The adopted engine, and what detection changed in the environment to
@@ -133,7 +142,8 @@ func isAdoptedVar(name string) bool {
 // not it answers now: a read never switches the engine a run may be
 // using, and one that stopped answering is reported as such, with
 // Re-detect the way to another. With fresh true (Re-detect), the adoption
-// is cleared and the whole order runs again. Nothing found leaves nothing
+// is cleared and the whole order runs again, or, with an engine chosen in
+// Settings, that engine alone is asked. Nothing found leaves nothing
 // adopted, and Err says what the installed engine said.
 func DetectEngine(ctx context.Context, fresh bool) Engine {
 	adoptMu.Lock()
@@ -145,19 +155,37 @@ func DetectEngine(ctx context.Context, fresh bool) Engine {
 				Tried: []string{adopted.How + ", adopted earlier: " + err.Error() + " (Re-detect looks for another engine)"}}
 		}
 		e.How = adopted.How
+		e.Chosen, e.Choice = adopted.Chosen, adopted.Choice
 		e.socketWarnings = adopted.socketWarnings
 		e.Warnings = append(append([]string{}, e.socketWarnings...), credentialHelperTrap(e)...)
 		adopted = &e
 		return e
 	}
+	return detectFresh(ctx)
+}
+
+// detectFresh clears the adoption and detects again: the chosen engine
+// alone where one is remembered, else the whole order; adoptMu is held.
+func detectFresh(ctx context.Context) Engine {
 	clearAdoption()
-	e := detectInOrder(ctx)
-	e.socketWarnings = append([]string{}, e.Warnings...)
-	e.Warnings = append(e.Warnings, credentialHelperTrap(e)...)
+	var e Engine
+	if c := loadEngineChoice(); c != "" && !launchNamed() {
+		e = detectChosen(ctx, c)
+	} else {
+		e = detectInOrder(ctx)
+	}
+	finishDetection(&e)
 	if e.Found {
 		adopted = &e
 	}
 	return e
+}
+
+// finishDetection keeps the socket warnings detection saw with the engine
+// and adds the credential helper trap.
+func finishDetection(e *Engine) {
+	e.socketWarnings = append([]string{}, e.Warnings...)
+	e.Warnings = append(e.Warnings, credentialHelperTrap(*e)...)
 }
 
 // AdoptedEngine is the engine detection last adopted, if any.

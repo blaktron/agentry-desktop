@@ -196,8 +196,8 @@ func startManaged(ctx context.Context, e *managedengine.Engine, logw io.Writer) 
 
 // StartManagedEngineAtLaunch is the app's own start when it opens: nothing
 // where the engine is not installed, where the app was started with an
-// engine named in its environment, or where another engine already
-// answers (a Docker Desktop installed since; the person removes the app's
+// engine named in its environment or with another engine chosen in
+// Settings, or where another engine already answers (a Docker Desktop installed since; the person removes the app's
 // engine from the card when it is no longer wanted); a re-install first
 // where the app's pins moved, bounded, and a failed one leaves the
 // installed engine to start; errors go to logw and nowhere else, since the
@@ -209,6 +209,10 @@ func StartManagedEngineAtLaunch(ctx context.Context, logw io.Writer) {
 	}
 	if launchNamed() {
 		_, _ = fmt.Fprintln(logw, "Agentry's engine is installed and left stopped: the app was started with an engine named in its environment")
+		return
+	}
+	if c := loadEngineChoice(); c != "" && c != ChoiceManaged {
+		_, _ = fmt.Fprintf(logw, "Agentry's engine is installed and left stopped: the engine chosen in Settings is %s\n", ChoiceLabel(c))
 		return
 	}
 	if found := DetectEngine(ctx, true); found.Found && found.How != managedHow {

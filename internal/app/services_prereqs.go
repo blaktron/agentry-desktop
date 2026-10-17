@@ -37,14 +37,44 @@ type EngineView struct {
 	// Managed says the engine found is the app's own, which the engine
 	// card offers to remove.
 	Managed bool `json:"managed"`
+	// Chosen says the engine was the one chosen under Settings → Run
+	// defaults → Container engine; Choice names it, ChoiceLabel for the page.
+	Chosen      bool   `json:"chosen"`
+	Choice      string `json:"choice,omitempty"`
+	ChoiceLabel string `json:"choiceLabel,omitempty"`
+}
+
+// EngineCandidateView is one engine the picker lists: the choice that
+// names it, the place for the page, what answers there, and whether it is
+// the engine adopted now.
+type EngineCandidateView struct {
+	Choice  string     `json:"choice"`
+	Label   string     `json:"label"`
+	Engine  EngineView `json:"engine"`
+	Current bool       `json:"current"`
+}
+
+// EngineChoicesView is the picker: the remembered choice ("" for
+// automatic), every engine that answers, each place asked that did not,
+// and why the choice cannot be changed, if it cannot.
+type EngineChoicesView struct {
+	Choice      string                `json:"choice"`
+	ChoiceLabel string                `json:"choiceLabel"`
+	Candidates  []EngineCandidateView `json:"candidates"`
+	Tried       []string              `json:"tried"`
+	Locked      string                `json:"locked,omitempty"`
 }
 
 func engineView(e run.Engine) EngineView {
-	return EngineView{
+	v := EngineView{
 		Found: e.Found, Kind: e.Kind, CLI: e.CLI, Version: e.Version, Endpoint: e.Endpoint, Rootless: e.Rootless,
 		How: e.How, Summary: e.Summary(), Err: e.Err, Tried: emptyNotNil(e.Tried), Warnings: emptyNotNil(e.Warnings),
-		Managed: e.IsManaged(),
+		Managed: e.IsManaged(), Chosen: e.Chosen, Choice: e.Choice,
 	}
+	if e.Chosen {
+		v.ChoiceLabel = run.ChoiceLabel(e.Choice)
+	}
+	return v
 }
 
 // PrereqView mirrors run.Prereqs for the frontend.
@@ -191,6 +221,38 @@ func (r *RunAPI) RedetectEngine() (*EngineView, error) {
 	defer r.release()
 	e := engineView(run.DetectEngine(r.app.ctx, true))
 	return &e, nil
+}
+
+// ListEngines lists every container engine that answers on this computer,
+// for the picker. It adopts each in turn to describe it and leaves the
+// adoption it found, so it takes the run lock.
+func (r *RunAPI) ListEngines() (*EngineChoicesView, error) {
+	if err := r.acquire(jobSetup, "the listing of the container engines"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	c := run.ListEngines(r.app.ctx)
+	v := EngineChoicesView{Choice: c.Choice, ChoiceLabel: c.ChoiceLabel, Candidates: []EngineCandidateView{}, Tried: emptyNotNil(c.Tried), Locked: c.Locked}
+	for _, k := range c.Candidates {
+		v.Candidates = append(v.Candidates, EngineCandidateView{Choice: k.Choice, Label: k.Label, Engine: engineView(k.Engine), Current: k.Current})
+	}
+	return &v, nil
+}
+
+// SetEngineChoice remembers the engine every later run drives and adopts
+// it; "" is automatic. A choice that does not answer now is refused, and
+// the engine adopted before stays. It takes the run lock.
+func (r *RunAPI) SetEngineChoice(choice string) (*EngineView, error) {
+	if err := r.acquire(jobSetup, "the change of container engine"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	e, err := run.SetEngineChoice(r.app.ctx, choice)
+	if err != nil {
+		return nil, err
+	}
+	v := engineView(e)
+	return &v, nil
 }
 
 // AddToDockerGroup runs only the usermod half of the install through pkexec,
