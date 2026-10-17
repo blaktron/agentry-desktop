@@ -944,10 +944,9 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 	installDir := installdir.ReleaseDir(home, sig.Namespace, sig.Name, sig.Version, sig.Digest)
 	// The installed tree is held to its integrity record before anything
 	// trusts it: a release that changed after it was laid down is refused
-	// here, before anything is fetched, and Repair is the way back; one no
-	// record of this home vouches for (laid down before records existed, or
-	// under another key) is fetched and verified again below, keeping the
-	// export it had.
+	// here, before anything is fetched, and Repair is the way back; one that
+	// no record of this runner home vouches for is fetched and verified again
+	// below as a first fetch is, keeping the export it had.
 	meta, ierr := installdir.Inspect(installDir, sig.Digest)
 	var changed *installdir.ChangedError
 	reExport := ""
@@ -955,7 +954,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 	case errors.As(ierr, &changed):
 		return nil, "", engine.Classify(engine.ExitVerify, asChanged(sig, ierr))
 	case errors.Is(ierr, installdir.ErrNoRecord):
-		_, _ = fmt.Fprintf(logw, "installed %s has no integrity record from this runner home (laid down by an older client, or under another key) — fetching it again and checking it as a first fetch is\n", sig.Ref)
+		_, _ = fmt.Fprintf(logw, "installed %s has no integrity record this runner home vouches for — fetching it again and checking it as a first fetch is\n", sig.Ref)
 		reExport = meta.Export
 	case ierr != nil && !errors.Is(ierr, installdir.ErrNotInstalled):
 		return nil, "", engine.Classify(engine.ExitCLI, ierr)
@@ -1012,8 +1011,8 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 	cached := *meta
 	cached.Attestation.Consent = ""
 	if reExport != "" {
-		// An install laid down before records existed keeps the export it
-		// had when it is laid down again.
+		// An install with no record keeps the export it had when it is laid
+		// down again.
 		m, err := manifestFromWorkspace(staging)
 		if err != nil {
 			return nil, "", err

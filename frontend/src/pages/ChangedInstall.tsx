@@ -25,7 +25,7 @@ export function ChangedInstallNotice({ registry, changed, onRepaired }: {
       onRepaired();
     } catch (e) {
       const msg = String(e);
-      if (!/not confirmed/.test(msg)) setErr(msg);
+      if (!/not confirmed/i.test(msg)) setErr(msg);
     } finally {
       setBusy(false);
     }

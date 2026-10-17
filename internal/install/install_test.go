@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1195,5 +1196,27 @@ func TestAChangedRunnerInstallIsRepairedOnlyThroughItsPlan(t *testing.T) {
 	}
 	if _, err := installdir.Inspect(releaseDir, plan.Digest); err != nil {
 		t.Fatalf("the repaired install is not sealed: %v", err)
+	}
+}
+
+// A changed install's text bounds each list and escapes a path that could
+// rearrange the text around it.
+func TestChangedInstallTextIsBoundedAndEscaped(t *testing.T) {
+	var many []string
+	for i := range 12 {
+		many = append(many, fmt.Sprintf("f%02d.md", i))
+	}
+	c := &ChangedInstall{Changed: many, Added: []string{"a\nb.md", "x\u202eb.md"}, Record: string(installdir.InstallJSONChanged)}
+	got := c.Text(MaxNamedPaths)
+	for _, w := range []string{"install.json changed; ", "f09.md and 2 more", `added "a\nb.md", "x\u202eb.md"`} {
+		if !strings.Contains(got, w) {
+			t.Fatalf("Text lacks %q: %s", w, got)
+		}
+	}
+	if strings.Contains(got, "f10.md") || strings.ContainsAny(got, "\n\u202e") {
+		t.Fatalf("Text is unbounded or unescaped: %q", got)
+	}
+	if all := c.Text(0); !strings.Contains(all, "f11.md") {
+		t.Fatalf("Text(0) bounds: %s", all)
 	}
 }

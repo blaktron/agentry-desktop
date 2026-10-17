@@ -158,7 +158,7 @@ func TestARunsCopyChangedAfterTheCheckIsRefused(t *testing.T) {
 func TestAnInstallWithNoRecordIsFetchedAgainKeepingItsExport(t *testing.T) {
 	fr, sig, home, installDir := installedFixture(t)
 	// Lay it down as the install path does, with an export, then take the
-	// record away, as an older client left it.
+	// record away.
 	m, err := manifestFromWorkspace(filepath.Join(installDir, "workspace"))
 	if err != nil {
 		t.Fatal(err)

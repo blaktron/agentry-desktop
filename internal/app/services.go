@@ -1207,8 +1207,8 @@ func (i *InstallAPI) consentForInstall(plan, export *install.Plan) error {
 // again: what changed, and what the repair does and does not keep.
 func repairConsentText(plan *install.Plan) string {
 	ref := plan.Namespace + "/" + plan.Name + "@" + plan.Version
-	return "The installed copy of " + ref + " changed after it was installed (" + changedPathsText(plan.Changed) + ").\n\n" +
-		"Lay it down again from the download just verified? The changed files are replaced and nothing of them is kept."
+	return "The installed copy of " + ref + " changed after it was installed (" + plan.Changed.Text(install.MaxNamedPaths) + ").\n\n" +
+		"Lay it down again from the download just checked, as any install is? The changed files are replaced and nothing of them is kept."
 }
 
 // consentForRunner is consentForInstall with no export.

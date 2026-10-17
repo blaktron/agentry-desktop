@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/engine"
 	"github.com/blaktron/agentry-cli/pkg/runner/installdir"
+
+	"github.com/blaktron/agentry-desktop/internal/install"
 )
 
 // ChangedInstallError is a registry release installed on this computer whose
@@ -27,40 +28,7 @@ func (e *ChangedInstallError) Error() string {
 		what = fmt.Sprintf("%s (%s)", e.Ref, e.Dir)
 	}
 	return fmt.Sprintf("installed release %s changed after it was installed: %s — refused; Repair, in the run setup, lays it down again from a fresh download, checked as any install is",
-		what, changedParts(e.ChangedError))
-}
-
-// maxNamedPaths bounds how many paths of each kind a message spells out; the
-// error's fields carry them all.
-const maxNamedPaths = 10
-
-// changedParts names what failed: the record itself, then the changed, added
-// and removed files.
-func changedParts(c *installdir.ChangedError) string {
-	var parts []string
-	switch c.Record {
-	case installdir.InstallJSONChanged:
-		parts = append(parts, "install.json changed")
-	case installdir.RecordInvalid:
-		parts = append(parts, "its integrity record ("+installdir.RecordFile+") does not verify under this runner home's key")
-	}
-	for _, k := range []struct {
-		label string
-		paths []string
-	}{{"changed", c.Changed}, {"added", c.Added}, {"removed", c.Removed}} {
-		if len(k.paths) == 0 {
-			continue
-		}
-		named, more := k.paths, ""
-		if len(named) > maxNamedPaths {
-			named, more = named[:maxNamedPaths], fmt.Sprintf(" and %d more", len(named)-maxNamedPaths)
-		}
-		parts = append(parts, k.label+" "+strings.Join(named, ", ")+more)
-	}
-	if len(parts) == 0 {
-		return "its record no longer matches"
-	}
-	return strings.Join(parts, "; ")
+		what, install.ChangedInstallOf(e.ChangedError).Text(install.MaxNamedPaths))
 }
 
 // asChanged names a changed install for the release the run resolved (not

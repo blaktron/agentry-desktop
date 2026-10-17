@@ -16,12 +16,21 @@ const RECORD_TEXT: Record<string, string> = {
   "record-invalid": "Its integrity record does not verify under this computer's key.",
 };
 
+/** A path as shown: quoted, with its control and bidirectional characters
+ *  escaped, when it holds any, so a name cannot rearrange the text around
+ *  it. */
+export function shownPath(p: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (!/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/.test(p)) return p;
+  return JSON.stringify(p).replace(/[\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 /** One line per kind of change, each naming every path. */
 export function changedLines(c: ChangedInstall): string[] {
   const lines: string[] = [];
   if (c.record && RECORD_TEXT[c.record]) lines.push(RECORD_TEXT[c.record]);
   for (const [label, paths] of [["Changed", c.changed], ["Added", c.added], ["Removed", c.removed]] as const) {
-    if (paths && paths.length > 0) lines.push(`${label}: ${paths.join(", ")}`);
+    if (paths && paths.length > 0) lines.push(`${label}: ${paths.map(shownPath).join(", ")}`);
   }
   if (lines.length === 0) lines.push("Its record no longer matches its files.");
   return lines;
@@ -29,7 +38,7 @@ export function changedLines(c: ChangedInstall): string[] {
 
 /** What the record shows, and what it cannot. */
 export const RECORD_PROVES =
-  "This computer sealed the release's files when it installed them, after the signature was checked. The files no longer match that seal, so the run is refused. The seal cannot say who changed them, or whether the change is harmful.";
+  "This computer sealed the release's files when it installed them, once the download had passed the install's checks. The files no longer match that seal, so the run is refused. The seal cannot say who changed them, or whether the change is harmful.";
 
 /** The way back: Repair for a registry release, the folder for a local one. */
 export function repairLine(c: ChangedInstall): string {

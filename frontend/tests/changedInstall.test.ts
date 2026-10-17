@@ -1,7 +1,7 @@
 // A changed install is shown with every path and the way back.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { changedLines, repairLine } from "../src/changedInstall.ts";
+import { changedLines, repairLine, shownPath } from "../src/changedInstall.ts";
 
 test("each kind of change is a line naming every path", () => {
   assert.deepEqual(
@@ -24,4 +24,10 @@ test("a registry release offers Repair, a local one its folder", () => {
     repairLine({ ref: "a/b@1.0.0", local: true, repair: "Build → Open folder… → Install" }),
     "It was installed from a folder, so it is laid down again from there: Build → Open folder… → Install.",
   );
+});
+
+test("a path holding a line break or a bidirectional control is shown escaped", () => {
+  assert.equal(shownPath("notes.md"), "notes.md");
+  assert.equal(shownPath("a\nb.md"), '"a\\nb.md"');
+  assert.equal(shownPath("x\u202eb.md"), '"x\\u202eb.md"');
 });
