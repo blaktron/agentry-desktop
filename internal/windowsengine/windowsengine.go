@@ -332,6 +332,75 @@ func FirstStartArgs() []string {
 	return []string{"start", "--container-engine.name=moby", "--kubernetes.enabled=false", "--application.start-in-background", "--no-modal-dialogs"}
 }
 
+// HealthcheckFix is a provisioning script for Rancher Desktop's WSL
+// distribution, which runs it under sh on every start. Rancher Desktop
+// 1.23 and 1.24 check dockerd once a minute with curl against
+// http://./_ping; the distribution's curl rejects "." as a hostname, so
+// every check fails, and the first failure stops the proxy that carries
+// the Windows pipe to dockerd. The proxy keeps running with its listener
+// closed, nothing restarts it, and from then on every docker command on
+// Windows times out dialing the Hyper-V socket. The script points the
+// check at localhost, as later Rancher Desktop does; where the check is
+// already right the substitution matches nothing.
+const HealthcheckFix = "#!/bin/sh\n" +
+	"# Written by Agentry Desktop: dockerd's healthcheck asks curl for\n" +
+	"# http://./_ping, which this distribution's curl rejects, and the failed\n" +
+	"# check stops the docker proxy Windows reaches dockerd through.\n" +
+	"sed -i 's|http://\\./_ping|http://localhost/_ping|g' /etc/init.d/docker\n"
+
+// ProvisionName is the script's file name in Rancher Desktop's
+// provisioning directory.
+const ProvisionName = "agentry-docker-healthcheck.start"
+
+// ProvisionPath is where Rancher Desktop reads the script from: its
+// provisioning directory under this user's local application data.
+func (i *Installer) ProvisionPath() string {
+	return filepath.Join(i.LocalAppData, "rancher-desktop", "provisioning", ProvisionName)
+}
+
+// Provision writes HealthcheckFix where Rancher Desktop runs it at its
+// next start, with Unix line endings, and reports whether it wrote it: a
+// copy already there with the same bytes is left alone.
+func (i *Installer) Provision() (bool, error) {
+	if i.LocalAppData == "" {
+		return false, errors.New("no local application data directory to give Rancher Desktop its provisioning script")
+	}
+	p := i.ProvisionPath()
+	if b, err := os.ReadFile(p); err == nil && string(b) == HealthcheckFix { //nolint:gosec // a fixed name under Rancher Desktop's directory
+		return false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(p, []byte(HealthcheckFix), 0o600); err != nil {
+		return false, err
+	}
+	i.logf("Gave Rancher Desktop a provisioning script that keeps its docker proxy up (%s)", p)
+	return true, nil
+}
+
+// Running says whether a Rancher Desktop answers rdctl, running whether
+// or not its engine answers.
+func (i *Installer) Running(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return exited(i.cmd(ctx, i.Rdctl(), "api", "/v1/backend_state").Run()) == nil
+}
+
+// Shutdown quits Rancher Desktop and waits until it has, its WSL
+// distributions included.
+func (i *Installer) Shutdown(ctx context.Context) error {
+	i.logf("Quitting Rancher Desktop")
+	out, err := i.cmd(ctx, i.Rdctl(), "shutdown").CombinedOutput()
+	if s := strings.TrimSpace(decodeText(out)); s != "" {
+		i.logf("%s", s)
+	}
+	if err := exited(err); err != nil {
+		return fmt.Errorf("quit Rancher Desktop: %w", err)
+	}
+	return nil
+}
+
 // StartArgs start it again with the settings it saved.
 func StartArgs() []string {
 	return []string{"start", "--application.start-in-background", "--no-modal-dialogs"}
