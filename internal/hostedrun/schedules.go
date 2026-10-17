@@ -1,7 +1,7 @@
 package hostedrun
 
-// Schedules In Agentry: the client for the enterprise schedules extension
-// (agentry-enterprise schemas/x-schedules.yaml). A schedule runs a
+// Schedules In Agentry: the client for the enterprise schedules extension.
+// A schedule runs a
 // QuickAgent In Agentry once later or on a repeat; every occurrence fires
 // once, through the runs extension's own create, as its owner. The routes
 // take the account's token: run:read to read, run:write to change, the

@@ -444,6 +444,11 @@ type Request struct {
 	// block it.
 	OnBudgets func(timeoutSeconds, maxTurns int)
 	OnUsage   func(receipt.Usage)
+	// OnEvent, when set, is handed each of the run's harness events as it
+	// happens (the engine's own hook): the tool calls, the tools' results, the
+	// agent's messages, masked by the engine with the run's secret values. It
+	// is called on the run's own path and must not block it.
+	OnEvent func(adapter.Event)
 	// Unsafe is Unsafe Mode for this run: the caller read the switch from
 	// desktop.yaml, which only Go writes after a native confirmation, and no bound
 	// method takes it from the page. The run is compiled without this machine's
@@ -865,6 +870,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			RunID:            runID,
 			Stderr:           logw,
 			OnUsage:          req.OnUsage,
+			OnEvent:          req.OnEvent,
 		},
 	}, nil
 }

@@ -96,8 +96,7 @@ func Read(run *Run) Verdict {
 	}
 }
 
-// State is where a run stands in the words the site uses (agentry-web
-// lib/runs.ts stateWord): queued, running — a runner holding the run
+// State is where a run stands in the words the site uses: queued, running — a runner holding the run
 // before its agent starts included — done with pass or fail, or
 // cancelled. A pass is the one outcome that ran to the end; every other
 // finish is a fail, and the verdict's line says which.

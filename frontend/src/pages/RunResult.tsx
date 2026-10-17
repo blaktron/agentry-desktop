@@ -274,7 +274,7 @@ export function LocalRunDetails({ result, log }: { result: app.RunResultView; lo
       {log.length > 0 && (
         <>
           <h4>Run log</h4>
-          <pre className="run-log selectable">{log.join("\n")}</pre>
+          <pre className="run-log selectable"><RevealText text={log.join("\n")} /></pre>
         </>
       )}
     </>

@@ -10,7 +10,7 @@ import (
 // the QuickAgent's own namespace and name, the version given (the next minor), and without a
 // word what the site's Builder cannot hold. The licence is the release's,
 // unless the person's own words name the one the draft declares, as the
-// site's revision import keeps it (agentry-web lib/draft-import.ts).
+// site's revision import keeps it.
 func FromRevision(manifestJSON []byte, instructions, namespace, name, version, releaseLicense, words string) (*Model, error) {
 	m, err := FromRelease(manifestJSON, instructions, namespace, name, version)
 	if err != nil {
@@ -48,8 +48,7 @@ const diffContext = 3
 // release removed and the whole revision added, as the site's is.
 const maxDiffCells = 4_000_000
 
-// LineDiff is a line diff of a against b, the site's (agentry-web
-// lib/revision.ts lineDiff and fold): the common head and tail trimmed, a
+// LineDiff is a line diff of a against b, as the site's is: the common head and tail trimmed, a
 // longest-common-subsequence diff of what is left, and unchanged runs
 // folded to diffContext lines either side of a change.
 func LineDiff(path, a, b string) DiffFile {

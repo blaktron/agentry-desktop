@@ -21,7 +21,10 @@ export type LocalRun = {
   /** Known once Go reports that the run has begun. */
   runId: string | null;
   progress: RunProgress | null;
+  /** The log's newest MAX_RUN_LOG_LINES lines; logDropped counts the
+   *  earlier ones let go (shownLog puts the note of them first). */
   log: string[];
+  logDropped?: number;
   result: app.RunResultView | null;
   /** Why it ended with no result, in Go's words. */
   error: string | null;
@@ -42,10 +45,28 @@ export function withProgress(r: LocalRun, p: RunProgress): LocalRun {
   return { ...r, runId: p.runId, progress: p };
 }
 
-/** A line of this run's log. */
+/** How many lines of a run's log the app keeps: a run whose agent calls
+ *  tools for an hour writes more than a page should hold. */
+export const MAX_RUN_LOG_LINES = 5000;
+
+/** The note that stands first in a log that has let earlier lines go. */
+export function droppedNote(n: number): string {
+  return `(${n} earlier ${n === 1 ? "line is" : "lines are"} not shown here.)`;
+}
+
+/** A line of this run's log; past MAX_RUN_LOG_LINES the oldest go. */
 export function withLine(r: LocalRun, l: RunLine): LocalRun {
   if (r.over || r.runId === null || l.runId !== r.runId) return r;
-  return { ...r, log: [...r.log, l.line] };
+  const log = [...r.log, l.line];
+  if (log.length <= MAX_RUN_LOG_LINES) return { ...r, log };
+  const over = log.length - MAX_RUN_LOG_LINES;
+  return { ...r, log: log.slice(over), logDropped: (r.logDropped ?? 0) + over };
+}
+
+/** The log as the page shows it: the note of the lines let go, then the
+ *  lines kept. */
+export function shownLog(r: LocalRun): string[] {
+  return r.logDropped ? [droppedNote(r.logDropped), ...r.log] : r.log;
 }
 
 /** The run's result: it is over. */

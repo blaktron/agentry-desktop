@@ -5,8 +5,7 @@
 // does not keep; the execution plane is the registry's, so nothing here
 // starts a container, reads the operator policy or holds a model key.
 //
-// The routes are the closed build's (agentry-enterprise
-// schemas/x-runs.yaml), so they are called by hand rather than through the
+// The routes are the closed build's runs extension, so they are called by hand rather than through the
 // core's generated client, the way services_account.go reads the billing
 // account. A registry without the extension answers 404 and the caller
 // treats the mode as absent.

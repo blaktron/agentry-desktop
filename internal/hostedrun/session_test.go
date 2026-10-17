@@ -14,7 +14,7 @@ import (
 )
 
 // fakeSession is the registry's four session routes for one run, as
-// agentry-enterprise internal/runs/session_routes.go answers them: each
+// the registry answers them: each
 // stream request is answered by the next scripted body, and every post is
 // recorded whole.
 type fakeSession struct {

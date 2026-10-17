@@ -14,7 +14,7 @@
 // started meanwhile is refused with what is running. Every string the
 // run wrote (the log, the error, the result) is drawn as text.
 import { useEffect, useRef, useState } from "react";
-import { type LocalRun, headlineOf, outcome } from "../localRun";
+import { type LocalRun, headlineOf, outcome, shownLog } from "../localRun";
 import { CornerCard, FoldedLog, LogPane, ProgressView, RunningView, StopButton } from "../progress";
 import { type RunSetup, backToSetup, dismissLocalRun, showLocalRun, stopLocalRun, useLocalRun } from "../runs";
 import { Button, ErrorBox, Modal } from "../ui";
@@ -87,7 +87,7 @@ export default function RunFlow({ onBackToSetup, initialMinimized }: {
           </>}
         >
           <RunProgressView r={r} />
-          <FoldedLog label="Run log" lines={r.log} />
+          <FoldedLog label="Run log" lines={shownLog(r)} reveal />
         </RunningView>
       </Modal>
     );
@@ -113,13 +113,13 @@ export default function RunFlow({ onBackToSetup, initialMinimized }: {
           decode={res.decode}
           unsafeExec={res.unsafeExec}
         >
-          <LocalRunDetails result={res} log={r.log} />
+          <LocalRunDetails result={res} log={shownLog(r)} />
         </RunResultView>
       ) : (
         <>
           <h3 className={`run-outcome run-outcome-${tone || "bad"}`}>{line}</h3>
           <ErrorBox error={r.error} />
-          {r.log.length > 0 && <LogPane label="Run log" lines={r.log} />}
+          {r.log.length > 0 && <LogPane label="Run log" lines={shownLog(r)} reveal />}
         </>
       )}
       <div className="row" style={{ marginTop: 12, justifyContent: "flex-end" }}>

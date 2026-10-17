@@ -10,7 +10,7 @@ import (
 // The trusted comment a release's signature carries, and the only place its
 // format is written down. The signer formats it with TrustedComment and the
 // update check reads it with ParseTrustedComment, so the two cannot drift;
-// agentry-web's importer also looks for the version inside it.
+// the site's importer also looks for the version inside it.
 //
 // Why it matters more than a label: the downloads manifest is written by the
 // site and is NOT signed, so nothing in it can be believed on its own. The
