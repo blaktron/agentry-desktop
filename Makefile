@@ -30,7 +30,7 @@ WAILS_FLAGS ?=
 # which PR and local builds are.
 SIGN_CMD ?=
 
-.PHONY: dev build check lint test copy frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
+.PHONY: dev build check lint test copy script-tests frontend package package-darwin build-darwin wrap-darwin package-windows build-windows sign-windows finish-windows package-linux smoke-linux-packages smoke-darwin-dmg smoke-darwin-selfupdate app-icons version-check version clean bindings
 
 # Live-reload development shell (wails dev). -skipbindings on every build:
 # the checked-in bindings are the ones `make bindings` produced (see there),
@@ -79,6 +79,11 @@ test:
 copy:
 	./scripts/copy-check.sh
 
+# The packaging scripts' own behaviour, against stand-ins for the tools they
+# call, so it runs on any host.
+script-tests:
+	./scripts/acceptance/darwin-dmg-busy.sh
+
 # Frontend type-check plus the dist bundle main.go embeds. `go build ./...`,
 # `go vet ./...` and `go test ./...` all fail on a fresh tree without
 # frontend/dist, so `check` runs this target first; wails builds its own
@@ -86,7 +91,7 @@ copy:
 frontend:
 	cd frontend && npm install --no-audit --no-fund && npx tsc --noEmit && npx tsc --noEmit -p tsconfig.harness.json && npx vite build && npm test
 
-check: frontend lint test copy
+check: frontend lint test copy script-tests
 	$(GO) build ./...
 
 # --- packaging -------------------------------------------------------------
