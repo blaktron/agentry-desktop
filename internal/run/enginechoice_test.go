@@ -180,8 +180,41 @@ func TestASilentChoiceIsSaidAndNotReplaced(t *testing.T) {
 	if AdoptedEngine() != nil || os.Getenv("DOCKER_CONTEXT") != "" {
 		t.Errorf("an adoption was left: %+v DOCKER_CONTEXT=%q", AdoptedEngine(), os.Getenv("DOCKER_CONTEXT"))
 	}
-	if p := DetectPrereqs(t.Context()); p.State != StateChosenSilent || p.DockerOK || !strings.Contains(p.DockerErr, "your chosen engine") {
+	// The card says it in the chosen engine's words; which state it shows
+	// depends on this machine's own facts (settleChosen, below).
+	if p := DetectPrereqs(t.Context()); p.DockerOK || !strings.Contains(p.DockerErr, "your chosen engine") ||
+		p.State == StateInstallable || p.State == StateManual || p.State == StateManagedOffer || p.State == StateWindowsOffer {
 		t.Errorf("card: state %s ok %v err %q", p.State, p.DockerOK, p.DockerErr)
+	}
+}
+
+// With a chosen engine silent, a state that would offer another engine
+// becomes chosenSilent; a state that starts or repairs the chosen one
+// stays; Agentry's engine chosen and since removed may be installed again.
+func TestASilentChoiceSettlesTheCardsState(t *testing.T) {
+	silent := Engine{Chosen: true, Choice: choiceContext + "colima"}
+	managed := Engine{Chosen: true, Choice: choiceManaged}
+	for _, tc := range []struct {
+		state string
+		e     Engine
+		want  string
+	}{
+		{StateInstallable, silent, StateChosenSilent},
+		{StateManual, silent, StateChosenSilent},
+		{StateWindowsOffer, silent, StateChosenSilent},
+		{StateManagedOffer, silent, StateChosenSilent},
+		{StateManagedOffer, managed, StateManagedOffer},
+		{StateManagedStopped, managed, StateManagedStopped},
+		{StateSocketOff, Engine{Chosen: true, Choice: choicePodman}, StateSocketOff},
+		{StateGroupMissing, silent, StateGroupMissing},
+		{StatePendingRestart, silent, StatePendingRestart},
+		{StateWindowsStopped, silent, StateWindowsStopped},
+		{StateInstallable, Engine{}, StateInstallable},
+		{StateReady, Engine{Found: true, Chosen: true}, StateReady},
+	} {
+		if got := settleChosen(tc.state, tc.e); got != tc.want {
+			t.Errorf("settleChosen(%s, %+v) = %s, want %s", tc.state, tc.e, got, tc.want)
+		}
 	}
 }
 

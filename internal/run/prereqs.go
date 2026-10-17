@@ -183,20 +183,28 @@ var distroInstall = map[string]engineInstall{
 // (podman's socket, the docker group, Start) stays.
 func DetectPrereqs(ctx context.Context) *Prereqs {
 	p := detectPrereqs(ctx)
-	if !p.Engine.Chosen || p.Engine.Found {
-		return p
+	p.State = settleChosen(p.State, p.Engine)
+	return p
+}
+
+// settleChosen is the card's state with an engine chosen that does not
+// answer: a state that would offer another engine becomes
+// StateChosenSilent, any other stays.
+func settleChosen(state string, e Engine) string {
+	if !e.Chosen || e.Found {
+		return state
 	}
-	switch p.State {
+	switch state {
 	case StateManual, StateInstallable, StateWindowsOffer:
-		p.State = StateChosenSilent
+		return StateChosenSilent
 	case StateManagedOffer:
 		// Agentry's engine chosen and since removed: installing it again
 		// answers the choice.
-		if p.Engine.Choice != choiceManaged {
-			p.State = StateChosenSilent
+		if e.Choice != choiceManaged {
+			return StateChosenSilent
 		}
 	}
-	return p
+	return state
 }
 
 func detectPrereqs(ctx context.Context) *Prereqs {
