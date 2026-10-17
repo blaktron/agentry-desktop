@@ -1097,8 +1097,17 @@ func TestTheConsentNamesWhatTheCLIAsksAbout(t *testing.T) {
 		"server egress":         {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv("api.osv.dev")}}, []string{"network egress for MCP server npm:@acme/osv-mcp@1.2.3"}},
 		"server any host":       {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv("*")}}, []string{"UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3"}},
 		"server without egress": {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv()}}, nil},
+		"in the CLI's order": {manifest.Capabilities{
+			Network:     manifest.Network{Egress: manifest.Egress{Hosts: []string{"api.example.com"}}},
+			Exec:        manifest.ExecCapability{Commands: []string{"git"}},
+			MCPServers:  []manifest.MCPServer{osv("*"), {URL: "https://mcp.deepwiki.com/mcp", Auth: "none"}, osv("api.osv.dev")},
+			TargetHosts: []string{"server"},
+			Browser:     &manifest.Browser{Sites: []string{"site"}},
+		}, []string{"network egress", "exec", "a remote MCP server",
+			"UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3", "network egress for MCP server npm:@acme/osv-mcp@1.2.3",
+			"a target host", "a web browser"}},
 	} {
-		if got := ConfirmedCapabilities(tc.caps); !slices.Equal(got, tc.want) {
+		if got := confirmedCapabilities(tc.caps); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: names %q, want %q", name, got, tc.want)
 		}
 		if needs := needsCapabilityConfirm(tc.caps); needs != (len(tc.want) > 0) {

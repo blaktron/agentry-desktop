@@ -402,3 +402,35 @@ func TestFirstInstallGatesAServersReach(t *testing.T) {
 		})
 	}
 }
+
+// A first coding-agent export of a release whose only network reach is a
+// package server's egress owes the capability consent too, since the coding
+// agent enforces nothing.
+func TestFirstExportGatesAServersReach(t *testing.T) {
+	isolate(t)
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	f := &fakeRegistry{
+		manifestDoc: map[string]any{
+			"schemaVersion": "1", "name": "demo", "namespace": "acme",
+			"kind": "skill", "version": "1.0.0", "summary": "Test agent",
+			"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md"}},
+			"capabilities": map[string]any{"mcpServers": []any{map[string]any{"npm": "@acme/osv-mcp", "version": "1.2.3", "egress": []string{"api.osv.dev"}}}},
+		},
+	}
+	reg := startRegistry(t, f)
+	e := NewEngine()
+	runner, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	export, err := e.PrepareExport(runner.ID, "claude-skill", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !export.NeedsCapabilityConfirm || len(export.Confirms) != 1 || export.Confirms[0] != "network egress for MCP server npm:@acme/osv-mcp@1.2.3" {
+		t.Fatalf("export plan: needs %v, confirms %q", export.NeedsCapabilityConfirm, export.Confirms)
+	}
+	if _, err := e.Confirm(export.ID, false, false, false); err == nil || !strings.Contains(err.Error(), "capability") {
+		t.Fatalf("err = %v, want the capability gate", err)
+	}
+}

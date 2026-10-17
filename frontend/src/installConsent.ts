@@ -1,5 +1,5 @@
-// What a first install's capability consent accepts, in the CLI's
-// install-gate words, which the plan carries (install.Plan.confirms).
+// What a first install's capability consent accepts, named in the same
+// words the CLI's install gate uses.
 
 /** The consent's list as one phrase: "network egress, exec and a remote
  *  MCP server". */
