@@ -7,8 +7,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/hostedrun"
 )
 
-// Describe again, as the site writes it (agentry-web lib/draft-import.ts
-// describeAgain): a new draft starts from what the person first asked,
+// Describe again, as the site writes it: a new draft starts from what the person first asked,
 // what they want changed now, and the draft as it stands in the form (its
 // agent.yaml, then its AGENT.md), within the registry's 24 KiB for a
 // description.

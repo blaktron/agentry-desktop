@@ -1333,7 +1333,7 @@ func Load(dir string) (*Model, error) {
 // mixing a remote server's fields with a package's, or a key or scopes its
 // auth does not use, would be narrowed by the next save without a word.
 // The core refuses each of these too; the site's importer refuses them
-// alike (agentry-web lib/draft-import.ts).
+// alike.
 func heldWhole(i int, npm, pypi, address, auth, version string, scopes, secrets, egress []string, env, oauth bool) error {
 	where := fmt.Sprintf("capabilities.mcpServers[%d]", i)
 	named := 0
@@ -1904,8 +1904,7 @@ func PublishRevision(ctx context.Context, regURL, token, dir string, privateTold
 }
 
 // licenseFile is the LICENSE a first save writes for the manifest's
-// license field, with the site's words (agentry-web lib/quickagent.ts
-// licenseFile): the MIT text with the namespace as the
+// license field, with the site's words: the MIT text with the namespace as the
 // holder when the field says MIT or nothing, and for any other id a file
 // that names it and points at its SPDX page, since the form carries no
 // other licence text.

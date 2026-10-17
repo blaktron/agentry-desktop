@@ -13,8 +13,7 @@ import (
 )
 
 // scriptCLI is where the site's install.ps1 puts the CLI by default:
-// %LOCALAPPDATA%\Programs\agentry\bin\agentry.exe (agentry-web
-// scripts/install/install.ps1). "" when LOCALAPPDATA is unset.
+// %LOCALAPPDATA%\Programs\agentry\bin\agentry.exe. "" when LOCALAPPDATA is unset.
 func scriptCLI(getenv func(string) string) string {
 	base := strings.TrimSpace(getenv("LOCALAPPDATA"))
 	if base == "" {

@@ -13,7 +13,7 @@ import (
 )
 
 // Review marks every host the person's words do not name, as the site's
-// import does (agentry-web lib/draft-import.ts unmentionedHosts).
+// import does.
 func TestUnmentionedHostsAreTheOnesThePersonNeverNamed(t *testing.T) {
 	m := build.Default("chris")
 	m.EgressMode, m.EgressHosts = "hosts", []string{"api.github.com", "Slack.com", "evil.example"}

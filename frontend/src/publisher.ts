@@ -61,8 +61,7 @@ export function forkOfLabel(a: PublisherRow): string | null {
   return `Fork of ${f.namespace}/${f.name}@${f.version}${state}`;
 }
 
-/** Why a fork offers no Make public, in the site's words
- * (lib/fork.ts). */
+/** Why a fork offers no Make public, in the site's words. */
 export const FORK_STAYS_PRIVATE = "A fork stays private for good, so it cannot be made public.";
 
 /** The owner actions a row offers. A retired QuickAgent offers Restore

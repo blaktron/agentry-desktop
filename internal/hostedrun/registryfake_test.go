@@ -1,7 +1,7 @@
 package hostedrun
 
 // A fake runs extension for this package's tests: the routes of
-// agentry-enterprise/schemas/x-runs.yaml an account calls, with the same
+// the runs extension an account calls, with the same
 // shapes and the same problem documents. Kept in this package's own style
 // rather than shared with internal/run's fake, which serves releases and
 // archives and nothing hosted.

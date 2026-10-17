@@ -87,7 +87,7 @@ func UniqueName(name string, taken []string) string {
 // namesLicence says whether the person's words name an SPDX id as a word
 // of its own, case folded, with a space allowed where the id has a hyphen:
 // "under the Apache-2.0 licence" and "Apache 2.0" both name Apache-2.0.
-// The site's lib/draft-import.ts namesLicence, the same rule.
+// The site applies the same rule.
 func namesLicence(words, id string) bool {
 	pattern := strings.ReplaceAll(regexp.QuoteMeta(strings.ToLower(id)), "-", "[- ]")
 	re, err := regexp.Compile(`(^|[^a-z0-9.+-])` + pattern + `($|[^a-z0-9+-])`)

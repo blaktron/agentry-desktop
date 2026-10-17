@@ -19,8 +19,8 @@ import (
 // command or data grant the model declares is here, and nothing it does not
 // declare. The run modes and the intake questions stay in the form: neither
 // widens what a run may touch (a secret question is carried by a declared
-// key, which is listed). It mirrors the site's lib/builder-summary.ts
-// summarize, the knowledge lines included: the packs it ships and the one it
+// key, which is listed). It mirrors the site's summary,
+// the knowledge lines included: the packs it ships and the one it
 // asks a person for, one line each, only those declared.
 type Summary struct {
 	Name    string `json:"name"`
@@ -76,8 +76,7 @@ type SummaryServer struct {
 	// Remote is a server run at its vendor, declared by its
 	// address.
 	Remote bool `json:"remote"`
-	// SignIn says how it signs in, in the site's sentences
-	// (agentry-web lib/builder-summary.ts signInLines): a remote server's
+	// SignIn says how it signs in, in the site's sentences: a remote server's
 	// auth and scopes; a package's issuer, scopes, each token file with its
 	// template, and its token settings. Empty for none.
 	SignIn []string `json:"signIn"`
@@ -220,7 +219,7 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	if data := compact(m.DataAccess); len(data) > 0 {
 		s.Grants = append(s.Grants, "Touches these kinds of data: "+strings.Join(data, ", ")+".")
 	}
-	// The site's words (lib/builder-summary.ts) for a target host, and the
+	// The site's words for a target host, and the
 	// install review's for where a browser may go.
 	if ids := compact(m.TargetHosts); len(ids) > 0 {
 		which := "a server (" + ids[0] + ")"
@@ -232,7 +231,7 @@ func (m *Model) Summarize(unmentioned []string) *Summary {
 	if b := m.Browser; b != nil {
 		s.Grants = append(s.Grants, "Opens these in a headless browser it drives: "+mcpview.BrowserReach(b.manifest())+".")
 	}
-	// The site's words (lib/builder-summary.ts).
+	// The site's words.
 	if ships := compact(m.KnowledgeShips); len(ships) > 0 {
 		word, them := "packs", "them"
 		if len(ships) == 1 {

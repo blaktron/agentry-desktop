@@ -15,8 +15,7 @@ type Line struct {
 }
 
 // CheckLine is AI Review's check of the finished draft (aiReview.check)
-// as the summary gives it, in the site's words (lib/builder-summary.ts
-// checkLine), with no count: AI Review's counts stay out of sight. The
+// as the summary gives it, in the site's words, with no count: AI Review's counts stay out of sight. The
 // details are in the form view's folded "How it was drafted". A pass is
 // "flagged nothing", never a word about the draft itself. Every line says the
 // check read the draft as the Drafter finished it, and that the pipeline

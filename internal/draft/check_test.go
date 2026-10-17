@@ -7,8 +7,8 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/drafter"
 )
 
-// The summary gives AI Review's check one line in the site's words
-// (lib/builder-summary.ts checkLine): no count, never
+// The summary gives AI Review's check one line in the site's words:
+// no count, never
 // "safe", and every line says the pipeline decides at submit.
 func TestCheckLineIsTheSitesOneLine(t *testing.T) {
 	pass := func() *drafter.Check {
