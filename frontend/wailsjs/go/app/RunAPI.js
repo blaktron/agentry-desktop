@@ -186,6 +186,10 @@ export function InstallManagedEngine() {
   return window['go']['app']['RunAPI']['InstallManagedEngine']();
 }
 
+export function InstallWindowsEngine() {
+  return window['go']['app']['RunAPI']['InstallWindowsEngine']();
+}
+
 export function JevKeyStatus() {
   return window['go']['app']['RunAPI']['JevKeyStatus']();
 }
@@ -372,6 +376,10 @@ export function StartManagedEngine() {
 
 export function StartSession(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15) {
   return window['go']['app']['RunAPI']['StartSession'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15);
+}
+
+export function StartWindowsEngine() {
+  return window['go']['app']['RunAPI']['StartWindowsEngine']();
 }
 
 export function StopAwaitingConnections() {

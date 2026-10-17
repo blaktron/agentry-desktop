@@ -8,11 +8,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
 
 	"github.com/blaktron/agentry-desktop/internal/run"
+	"github.com/blaktron/agentry-desktop/internal/windowsengine"
 )
 
 // EngineView is the container engine detection found, for the pages: what
@@ -68,6 +70,8 @@ type PrereqView struct {
 	Warnings      []string `json:"warnings"`
 	// Managed is the engine the app manages itself (run.Managed).
 	Managed run.Managed `json:"managed"`
+	// Windows is the engine the app installs on Windows (run.WindowsEngine).
+	Windows run.WindowsEngine `json:"windows"`
 }
 
 func prereqView(p *run.Prereqs) *PrereqView {
@@ -78,7 +82,7 @@ func prereqView(p *run.Prereqs) *PrereqView {
 		DownloadURL: p.DownloadURL, Note: p.Note,
 		State: p.State, EngineInstalled: p.EngineInstalled, InDockerGroup: p.InDockerGroup, GroupCommand: p.GroupCommand,
 		Installs: p.Installs, SocketCommand: p.SocketCommand, Warnings: emptyNotNil(p.Warnings),
-		Managed: p.Managed,
+		Managed: p.Managed, Windows: p.Windows,
 	}
 }
 
@@ -97,6 +101,42 @@ func (r *RunAPI) InstallManagedEngine() (*PrereqView, error) {
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	if err := run.InstallManagedEngine(r.app.ctx, logw); err != nil {
+		return nil, err
+	}
+	return r.PrereqStatus()
+}
+
+// InstallWindowsEngine installs Rancher Desktop for this user and starts it
+// with its dockerd engine; where Windows Subsystem for Linux is missing it
+// first asks Windows to install WSL (administrator consent), after which
+// Windows must restart and the card offers the rest. Output streams as
+// `runner:setup-progress` events.
+func (r *RunAPI) InstallWindowsEngine() (*PrereqView, error) {
+	if err := r.app.askConsent("Install Rancher Desktop?", "The app downloads Rancher Desktop "+windowsengine.RancherVersion+" (SUSE, "+windowsengine.Licence+", about "+strconv.Itoa(windowsengine.DownloadMB)+" MB) from its GitHub release, checks it against the SHA-512 the release publishes, and installs it for your account with its dockerd engine and Kubernetes off. If Windows Subsystem for Linux is not on yet, Windows first asks for administrator consent to install it and then needs a restart; after the restart, install again to finish. Rancher Desktop stays your own application, listed in Windows' installed apps. Continue?"); err != nil {
+		return nil, err
+	}
+	if err := r.acquire(jobSetup, "the install of Rancher Desktop"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.InstallWindowsEngine(r.app.ctx, logw); err != nil && !errors.Is(err, run.ErrWindowsRestartNeeded) {
+		return nil, err
+	}
+	return r.PrereqStatus()
+}
+
+// StartWindowsEngine starts an installed Rancher Desktop, for the card when
+// its engine does not answer.
+func (r *RunAPI) StartWindowsEngine() (*PrereqView, error) {
+	if err := r.acquire(jobSetup, "the start of Rancher Desktop"); err != nil {
+		return nil, err
+	}
+	defer r.release()
+	logw := r.eventWriter(eventSetupProgress)
+	defer logw.Flush()
+	if err := run.StartWindowsEngine(r.app.ctx, logw); err != nil {
 		return nil, err
 	}
 	return r.PrereqStatus()
@@ -239,6 +279,7 @@ func (r *RunAPI) startManagedEngine(ctx context.Context) {
 	logw := r.eventWriter(eventSetupProgress)
 	defer logw.Flush()
 	run.StartManagedEngineAtLaunch(ctx, logw)
+	run.StartWindowsEngineAtLaunch(ctx, logw)
 }
 
 // stopManagedEngine stops the engine the app manages when the app quits;
