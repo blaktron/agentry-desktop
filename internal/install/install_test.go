@@ -1072,3 +1072,65 @@ func TestABrowserNeedsTheCapabilityConsent(t *testing.T) {
 		}
 	}
 }
+
+// A first install asks for the capability consent about exactly what the
+// CLI's install gate asks about, in its words: a remote MCP server is
+// network reach to its vendor, and a package server's own egress is
+// network reach from its container, whatever the release's own egress
+// says. A package server with no egress asks nothing.
+func TestTheConsentNamesWhatTheCLIAsksAbout(t *testing.T) {
+	osv := func(egress ...string) manifest.MCPServer {
+		return manifest.MCPServer{NPM: "@acme/osv-mcp", Version: "1.2.3", Egress: egress}
+	}
+	for name, tc := range map[string]struct {
+		caps manifest.Capabilities
+		want []string
+	}{
+		"none":        {manifest.Capabilities{}, nil},
+		"egress":      {manifest.Capabilities{Network: manifest.Network{Egress: manifest.Egress{Hosts: []string{"api.example.com"}}}}, []string{"network egress"}},
+		"exec":        {manifest.Capabilities{Exec: manifest.ExecCapability{Commands: []string{"git"}}}, []string{"exec"}},
+		"target host": {manifest.Capabilities{TargetHosts: []string{"server"}}, []string{"a target host"}},
+		"two hosts":   {manifest.Capabilities{TargetHosts: []string{"web", "db"}}, []string{"target hosts"}},
+		"browser":     {manifest.Capabilities{Browser: &manifest.Browser{Sites: []string{"site"}}}, []string{"a web browser"}},
+		"remote": {manifest.Capabilities{MCPServers: []manifest.MCPServer{{URL: "https://mcp.deepwiki.com/mcp", Auth: "none"}}},
+			[]string{"a remote MCP server"}},
+		"server egress":         {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv("api.osv.dev")}}, []string{"network egress for MCP server npm:@acme/osv-mcp@1.2.3"}},
+		"server any host":       {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv("*")}}, []string{"UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3"}},
+		"server without egress": {manifest.Capabilities{MCPServers: []manifest.MCPServer{osv()}}, nil},
+		"in the CLI's order": {manifest.Capabilities{
+			Network:     manifest.Network{Egress: manifest.Egress{Hosts: []string{"api.example.com"}}},
+			Exec:        manifest.ExecCapability{Commands: []string{"git"}},
+			MCPServers:  []manifest.MCPServer{osv("*"), {URL: "https://mcp.deepwiki.com/mcp", Auth: "none"}, osv("api.osv.dev")},
+			TargetHosts: []string{"server"},
+			Browser:     &manifest.Browser{Sites: []string{"site"}},
+		}, []string{"network egress", "exec", "a remote MCP server",
+			"UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3", "network egress for MCP server npm:@acme/osv-mcp@1.2.3",
+			"a target host", "a web browser"}},
+	} {
+		if got := confirmedCapabilities(tc.caps); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: names %q, want %q", name, got, tc.want)
+		}
+		if needs := needsCapabilityConfirm(tc.caps); needs != (len(tc.want) > 0) {
+			t.Errorf("%s: needs confirmation = %v", name, needs)
+		}
+	}
+}
+
+// The consent dialog's lines for the servers' reach: a remote server by
+// its address, a package server's egress by its hosts, any host called out.
+func TestServerReachLines(t *testing.T) {
+	c := manifest.Capabilities{MCPServers: []manifest.MCPServer{
+		{URL: "https://mcp.deepwiki.com/mcp", Auth: "none"},
+		{NPM: "@acme/osv-mcp", Version: "1.2.3", Egress: []string{"api.osv.dev", "osv.dev"}},
+		{PyPI: "fetch-mcp", Version: "0.4.0", Egress: []string{"*"}},
+		{NPM: "@acme/quiet", Version: "2.0.0"},
+	}}
+	want := []string{
+		"a remote MCP server: https://mcp.deepwiki.com/mcp",
+		"network egress for MCP server npm:@acme/osv-mcp@1.2.3 to api.osv.dev, osv.dev",
+		"UNRESTRICTED network egress for MCP server pypi:fetch-mcp@0.4.0 (any host, policy-gated)",
+	}
+	if got := ServerReach(c); !slices.Equal(got, want) {
+		t.Fatalf("ServerReach = %q\nwant %q", got, want)
+	}
+}

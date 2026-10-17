@@ -5538,6 +5538,8 @@ export namespace install {
 	    shippedKnowledge: ShippedPack[];
 	    mcpServers: mcpview.Server[];
 	    needsCapabilityConfirm: boolean;
+	    confirms: string[];
+	    serverReach: string[];
 	    prevVersion?: string;
 	    diff?: manifest.CapabilityDiff;
 	    requiresWidenedConfirm: boolean;
@@ -5573,6 +5575,8 @@ export namespace install {
 	        this.shippedKnowledge = this.convertValues(source["shippedKnowledge"], ShippedPack);
 	        this.mcpServers = this.convertValues(source["mcpServers"], mcpview.Server);
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
+	        this.confirms = source["confirms"];
+	        this.serverReach = source["serverReach"];
 	        this.prevVersion = source["prevVersion"];
 	        this.diff = this.convertValues(source["diff"], manifest.CapabilityDiff);
 	        this.requiresWidenedConfirm = source["requiresWidenedConfirm"];

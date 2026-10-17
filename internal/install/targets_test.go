@@ -356,3 +356,81 @@ func TestListPresentAndManageable(t *testing.T) {
 		t.Fatal("forgetting a missing record must be an error")
 	}
 }
+
+// A first install of a release whose only network reach is an MCP server
+// asks for the capability consent: a package server with egress, or a
+// remote server. A package server with no egress asks nothing, and the
+// plan names what is asked about and each server's reach.
+func TestFirstInstallGatesAServersReach(t *testing.T) {
+	for name, tc := range map[string]struct {
+		server map[string]any
+		gates  bool
+		reach  string
+		schema string
+	}{
+		"package egress": {map[string]any{"npm": "@acme/osv-mcp", "version": "1.2.3", "egress": []string{"*"}}, true,
+			"UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3 (any host, policy-gated)", "1"},
+		"remote":    {map[string]any{"url": "https://mcp.deepwiki.com/mcp", "auth": "none"}, true, "a remote MCP server: https://mcp.deepwiki.com/mcp", "2"},
+		"no egress": {map[string]any{"npm": "@acme/osv-mcp", "version": "1.2.3"}, false, "", "1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			isolate(t)
+			doc := map[string]any{
+				"schemaVersion": tc.schema, "name": "demo", "namespace": "acme",
+				"kind": "skill", "version": "1.0.0", "summary": "Test agent",
+				"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md"}},
+				"capabilities": map[string]any{"mcpServers": []any{tc.server}},
+			}
+			// A remote server is a v2 field.
+			if tc.schema == "2" {
+				delete(doc, "kind")
+				doc["modes"] = []string{"autonomous"}
+				doc["entrypoints"] = map[string]any{"instruction": "SKILL.md"}
+			}
+			f := &fakeRegistry{manifestDoc: doc}
+			reg := startRegistry(t, f)
+			plan, err := NewEngine().Prepare(context.Background(), reg, "acme/demo", "claude-skill", t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.NeedsCapabilityConfirm != tc.gates {
+				t.Fatalf("NeedsCapabilityConfirm = %v, want %v (confirms %q)", plan.NeedsCapabilityConfirm, tc.gates, plan.Confirms)
+			}
+			if got := strings.Join(plan.ServerReach, "\n"); got != tc.reach {
+				t.Fatalf("ServerReach = %q, want %q", got, tc.reach)
+			}
+		})
+	}
+}
+
+// A first coding-agent export of a release whose only network reach is a
+// package server's egress owes the capability consent too, since the coding
+// agent enforces nothing.
+func TestFirstExportGatesAServersReach(t *testing.T) {
+	isolate(t)
+	t.Setenv("AGENTRY_RUNNER_HOME", t.TempDir())
+	f := &fakeRegistry{
+		manifestDoc: map[string]any{
+			"schemaVersion": "1", "name": "demo", "namespace": "acme",
+			"kind": "skill", "version": "1.0.0", "summary": "Test agent",
+			"entrypoints": map[string]any{"skill": "SKILL.md"}, "publish": map[string]any{"include": []string{"SKILL.md"}},
+			"capabilities": map[string]any{"mcpServers": []any{map[string]any{"npm": "@acme/osv-mcp", "version": "1.2.3", "egress": []string{"api.osv.dev"}}}},
+		},
+	}
+	reg := startRegistry(t, f)
+	e := NewEngine()
+	runner, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	export, err := e.PrepareExport(runner.ID, "claude-skill", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !export.NeedsCapabilityConfirm || len(export.Confirms) != 1 || export.Confirms[0] != "network egress for MCP server npm:@acme/osv-mcp@1.2.3" {
+		t.Fatalf("export plan: needs %v, confirms %q", export.NeedsCapabilityConfirm, export.Confirms)
+	}
+	if _, err := e.Confirm(export.ID, false, false, false); err == nil || !strings.Contains(err.Error(), "capability") {
+		t.Fatalf("err = %v, want the capability gate", err)
+	}
+}

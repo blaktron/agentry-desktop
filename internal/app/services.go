@@ -1247,6 +1247,11 @@ func contractConsentText(plan, export *install.Plan) string {
 		if c.Browser != nil {
 			lines = append(lines, "  • browser: "+mcpview.BrowserLine(c.Browser))
 		}
+		// Each MCP server's own reach, which asks for this consent by itself
+		// whatever the release's own egress says.
+		for _, r := range plan.ServerReach {
+			lines = append(lines, "  • "+r)
+		}
 		if len(c.Knowledge) > 0 {
 			lines = append(lines, "  • knowledge: ships "+shippedKnowledgeText(plan))
 		}
