@@ -1083,6 +1083,9 @@ function WindowsStopped({ windows, err, busy, onStart }: {
         {err && <> <span className="mono">{err}</span></>}
       </p>
       <p className="muted small">
+        Start quits Rancher Desktop first if it is running, then starts it again.
+      </p>
+      <p className="muted small">
         If it runs its containerd engine, choose dockerd (moby) under Rancher Desktop&apos;s Preferences, Container Engine:
         containerd serves no Docker API.
       </p>
