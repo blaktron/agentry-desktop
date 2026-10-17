@@ -98,6 +98,8 @@ export function InstallManagedEngine():Promise<app.PrereqView>;
 
 export function InstallWindowsEngine():Promise<app.PrereqView>;
 
+export function InstalledChanges(arg1:string,arg2:string):Promise<app.ChangedInstallView>;
+
 export function JevKeyStatus():Promise<app.JevKeyView>;
 
 export function KeepOwnClient(arg1:string,arg2:string,arg3:string):Promise<void>;

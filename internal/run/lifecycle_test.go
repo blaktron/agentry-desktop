@@ -677,6 +677,40 @@ func TestRunRefusesAnEditedPlan(t *testing.T) {
 	}
 }
 
+// TestRunRefusesACopyOfAnInstallChangedAfterItsChecks drives the copy check
+// through Run: the install is edited after the plan compiled (the last moment
+// the setup can see), so the run's own copy of its files is what differs, and
+// the run is refused in the verify class before the agent starts.
+func TestRunRefusesACopyOfAnInstallChangedAfterItsChecks(t *testing.T) {
+	fr, regURL, fd, home := runFixture(t)
+	t.Setenv("RUN_TEST_TOKEN", "env-secret")
+	req := request(regURL, filepath.Join(t.TempDir(), "out"))
+	skill := filepath.Join(home, "agents", "acme", "reporter", "1.0.0-"+installdir.DigestSuffix(fr.digest), "workspace", "SKILL.md")
+	req.PlanCompiled = func(bool) {
+		if err := os.WriteFile(skill, []byte("edited after the checks\n"), 0o600); err != nil {
+			t.Error(err)
+		}
+	}
+	var agentStarted bool
+	fd.OnForeground = func(s dockerx.RunSpec) {
+		if strings.HasSuffix(s.Name, "-agent") {
+			agentStarted = true
+		}
+	}
+	var log strings.Builder
+	res, err := Run(context.Background(), req, &log)
+	if err != nil {
+		t.Fatalf("Run: %v\nlog:\n%s", err, log.String())
+	}
+	// The engine's refusal is the run's verdict, with the desktop's way back.
+	if res.ExitCode != engine.ExitVerify || !strings.Contains(res.Error, "changed after it was installed: changed SKILL.md") || !strings.Contains(res.Error, "Repair, in the run setup") {
+		t.Fatalf("a run of a copy changed after its checks: %+v", res)
+	}
+	if agentStarted {
+		t.Fatal("the agent started on a changed copy")
+	}
+}
+
 // TestRunSecretFromProfile pins profile consumption: the profile's stored
 // value satisfies a declared secret the host environment does not have,
 // and keep=true retains the profile with lastUsedAt stamped.

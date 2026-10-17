@@ -1178,6 +1178,13 @@ func exportLabel(target string) string {
 // coding agent enforces nothing of the contract. A plan with no gate
 // raises nothing.
 func (i *InstallAPI) consentForInstall(plan, export *install.Plan) error {
+	if plan.Changed != nil {
+		// Replacing a changed copy is the person's word, never a side effect
+		// of an install: the dialog names what changed.
+		if err := i.app.askConsent("Replace the changed copy?", repairConsentText(plan)); err != nil {
+			return err
+		}
+	}
 	if err := i.askProvenanceConsent(plan.Unsigned, plan.Unscanned); err != nil {
 		return err
 	}
@@ -1194,6 +1201,14 @@ func (i *InstallAPI) consentForInstall(plan, export *install.Plan) error {
 		}
 	}
 	return nil
+}
+
+// repairConsentText is the dialog that asks to lay a changed install down
+// again: what changed, and what the repair does and does not keep.
+func repairConsentText(plan *install.Plan) string {
+	ref := plan.Namespace + "/" + plan.Name + "@" + plan.Version
+	return "The installed copy of " + ref + " changed after it was installed (" + plan.Changed.Text(install.MaxNamedPaths) + ").\n\n" +
+		"Lay it down again from the download just checked, as any install is? The changed files are replaced and nothing of them is kept."
 }
 
 // consentForRunner is consentForInstall with no export.

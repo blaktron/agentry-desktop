@@ -26,6 +26,7 @@ import (
 	"github.com/blaktron/agentry-cli/pkg/runner/session"
 
 	"github.com/blaktron/agentry-desktop/internal/dockerimages"
+	"github.com/blaktron/agentry-desktop/internal/install"
 	"github.com/blaktron/agentry-desktop/internal/knowledge"
 	"github.com/blaktron/agentry-desktop/internal/mcpview"
 	"github.com/blaktron/agentry-desktop/internal/mcpvuln"
@@ -1177,6 +1178,37 @@ func (r *RunAPI) GatewayRequirements(reg, ns, name string) (*MCPView, error) {
 		return nil, err
 	}
 	return mcpViewOf(info), nil
+}
+
+// ChangedInstallView is an installed release that changed after it was laid
+// down, as the run setup shows it beside Repair: the release, what changed,
+// and whether Repair can lay it down again (a registry release) or the way
+// back is its folder (a QuickAgent installed from one).
+type ChangedInstallView struct {
+	Ref     string   `json:"ref"`
+	Changed []string `json:"changed"`
+	Added   []string `json:"added"`
+	Removed []string `json:"removed"`
+	// Record says the integrity record or install.json itself failed:
+	// "install-json-changed" or "record-invalid", else empty.
+	Record string `json:"record,omitempty"`
+	// Local: installed from a folder, laid down again from there (Repair),
+	// never from a registry.
+	Local  bool   `json:"local"`
+	Repair string `json:"repair,omitempty"`
+}
+
+// InstalledChanges reads whether the release a run of ref would run is
+// installed on this computer and changed after it was laid down: nil when it
+// is whole or not installed yet. The run setup asks before Run and again
+// after a run is refused, and offers Repair.
+func (r *RunAPI) InstalledChanges(reg, ref string) (*ChangedInstallView, error) {
+	c, err := run.InstalledChanges(r.app.ctx, reg, ref)
+	if err != nil || c == nil {
+		return nil, err
+	}
+	v := install.ChangedInstallOf(c)
+	return &ChangedInstallView{Ref: c.Ref, Changed: v.Changed, Added: v.Added, Removed: v.Removed, Record: v.Record, Local: c.Repair != "", Repair: c.Repair}, nil
 }
 
 // RunRequirements is the tool surface of the release a run of ref would run:

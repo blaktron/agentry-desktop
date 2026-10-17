@@ -320,6 +320,30 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class ChangedInstallView {
+	    ref: string;
+	    changed: string[];
+	    added: string[];
+	    removed: string[];
+	    record?: string;
+	    local: boolean;
+	    repair?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangedInstallView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.changed = source["changed"];
+	        this.added = source["added"];
+	        this.removed = source["removed"];
+	        this.record = source["record"];
+	        this.local = source["local"];
+	        this.repair = source["repair"];
+	    }
+	}
 	export class HarnessView {
 	    name: string;
 	    displayName: string;
@@ -5410,6 +5434,24 @@ export namespace drafter {
 
 export namespace install {
 	
+	export class ChangedInstall {
+	    changed: string[];
+	    added: string[];
+	    removed: string[];
+	    record?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangedInstall(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.changed = source["changed"];
+	        this.added = source["added"];
+	        this.removed = source["removed"];
+	        this.record = source["record"];
+	    }
+	}
 	export class CodingAgentExport {
 	    target: string;
 	    dir: string;
@@ -5542,6 +5584,7 @@ export namespace install {
 	    needsCapabilityConfirm: boolean;
 	    confirms: string[];
 	    serverReach: string[];
+	    changed?: ChangedInstall;
 	    prevVersion?: string;
 	    diff?: manifest.CapabilityDiff;
 	    requiresWidenedConfirm: boolean;
@@ -5579,6 +5622,7 @@ export namespace install {
 	        this.needsCapabilityConfirm = source["needsCapabilityConfirm"];
 	        this.confirms = source["confirms"];
 	        this.serverReach = source["serverReach"];
+	        this.changed = this.convertValues(source["changed"], ChangedInstall);
 	        this.prevVersion = source["prevVersion"];
 	        this.diff = this.convertValues(source["diff"], manifest.CapabilityDiff);
 	        this.requiresWidenedConfirm = source["requiresWidenedConfirm"];

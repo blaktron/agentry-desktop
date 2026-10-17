@@ -41,6 +41,8 @@ import { SiteQuestion } from "./SiteQuestion";
 import { isSiteQuestion, siteBlockers } from "../browser";
 import { formFor, hostBlockers, hostRecap, isHostType, signInsForRun, type HostForm, type TargetHost } from "../hosts";
 import { HostQuestion } from "./HostQuestion";
+import { ChangedInstallNotice } from "./ChangedInstall";
+import type { ChangedInstall } from "../changedInstall";
 
 /** Announced when the setup made a schedule: App opens the Scheduled
  *  page on it. */
@@ -200,6 +202,14 @@ export default function RunPanel({
   // consent comes first), when this setup closes.
   const [running, setRunning] = useState(false);
   const [runErr, setRunErr] = useState<string | null>(null);
+  // The installed copy of this release, when its files changed after it was
+  // laid down: read when the setup opens and again after a refused start.
+  const [changedInstall, setChangedInstall] = useState<ChangedInstall | null>(null);
+  const readChanged = () =>
+    void Promise.resolve().then(() => RunAPI.InstalledChanges(registry, agentRef))
+      .then((c) => { if (shown.current === agentRef) setChangedInstall(c ?? null); })
+      .catch(() => undefined);
+  useEffect(readChanged, [registry, agentRef]);
 
   // When the run happens: Now, or Later or Repeat, which make this run a
   // schedule on this computer. Whether this computer can schedule at all is
@@ -816,6 +826,7 @@ export default function RunPanel({
       onClose();
     } catch (e) {
       setRunErr(String(e));
+      readChanged();
     }
   }
 
@@ -964,6 +975,7 @@ export default function RunPanel({
       onClose();
     } catch (e) {
       setRunErr(String(e));
+      readChanged();
     } finally {
       setRunning(false);
     }
@@ -1874,6 +1886,10 @@ export default function RunPanel({
           )}
 
           {(step === "tools" || step === "start") && <ErrorBox error={profileErr} />}
+          {!inAgentry && changedInstall && (
+            <ChangedInstallNotice registry={registry} changed={changedInstall}
+              onRepaired={() => { setChangedInstall(null); setRunErr(null); readChanged(); }} />
+          )}
           <ErrorBox error={runErr} />
           {stepProblem && (
             <p className="run-step-problem" role="alert">{stepProblem}</p>
