@@ -1,21 +1,19 @@
 // Package designtokens reads the desktop's design token table out of
 // frontend/src/style.css and holds it to the site's.
 //
-// The desktop's stylesheet copies the site's token table (agentry-web
-// app/globals.css) by design: one product, one palette. A copy drifts unless
+// The desktop's stylesheet copies the site's token table by design: one product, one palette. A copy drifts unless
 // something compares it, so the tests in this package do two things `go test
 // ./...` runs in CI:
 //
 //   - parity: every token name the desktop's table shares with a pasted copy
 //     of the site's (testdata/site-globals.css) carries the site's value, in
 //     the light palette and in the dark one;
-//   - contrast: the site's contrast audit (agentry-web
-//     lib/__tests__/contrast.test.ts, which this file ports) passes over the
+//   - contrast: the site's contrast audit (which this file ports) passes over the
 //     desktop's own table, so a value that is equal but used somewhere the
 //     site does not use it is still measured.
 //
-// The parser and the WCAG maths are a port of agentry-web lib/tokens.ts, so
-// both repositories read a stylesheet the same way.
+// The parser and the WCAG maths are a port of the site's, so the desktop
+// and the site read a stylesheet the same way.
 package designtokens
 
 import (

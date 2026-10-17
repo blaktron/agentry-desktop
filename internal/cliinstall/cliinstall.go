@@ -1,8 +1,7 @@
 // Package cliinstall installs the agentry command on macOS and Linux when the
 // person asks for it, from the Scheduled page's Options menu.
 //
-// It runs the site's own install script, /install.sh (agentry-web
-// scripts/install/install.sh), rather than a copy of it: the script is the one
+// It runs the site's own install script, /install.sh, rather than a copy of it: the script is the one
 // place that knows which CLI the site serves, holds the download to the SHA-256
 // the site lists, puts it in ${XDG_BIN_HOME:-~/.local/bin} and adds the marked
 // PATH line to the shell's rc file once. A copy of it would drift, so the app

@@ -11,8 +11,7 @@ import (
 	"github.com/blaktron/agentry-desktop/internal/build"
 )
 
-// What Review says beside a draft, as the site's import says it
-// (agentry-web lib/draft-import.ts).
+// What Review says beside a draft, as the site's import says it.
 
 // MaxProblems is how many of the rules a draft still fails Review lists;
 // the rest are counted.

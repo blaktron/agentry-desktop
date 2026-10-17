@@ -11,7 +11,7 @@ import (
 )
 
 // FromRelease reads a QuickAgent's published release into the form for
-// Edit, as the site's Edit does (agentry-web lib/release-edit.ts):
+// Edit, as the site's Edit does:
 //   - The namespace and name are the QuickAgent's, never the manifest's, so
 //     Submit adds a version to it. The version is the one given, the next
 //     minor (NextMinor), which the person can change.
@@ -63,7 +63,7 @@ func FromRelease(manifestJSON []byte, instructions, namespace, name, version str
 
 // ReleaseInstructionPath is the file a release's instructions are in: its
 // instruction entrypoint, a v1 manifest's skill entrypoint, or AGENT.md, as
-// the site reads it (lib/release-edit.ts instructionPath).
+// the site reads it.
 func ReleaseInstructionPath(manifestJSON []byte) string {
 	var doc struct {
 		Entrypoints struct {

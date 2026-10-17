@@ -13,13 +13,12 @@ import (
 // publish to it with their own keys.
 
 // MaxRevisionTextBytes bounds each of the person's two texts, as the
-// registry (agentry-enterprise hostapi.MaxRevisionTextBytes) and the CLI
-// (drafter.MaxRevisionTextBytes) hold them.
+// registry and the CLI (drafter.MaxRevisionTextBytes) hold them.
 const MaxRevisionTextBytes = 4000
 
 // CheckRevision holds the person's two texts, Additional instructions and
 // Problems with this draft, to the registry's rule before anything is sent
-// (agentry-enterprise internal/runs revisionTexts, and the site's): line
+// (the site's holds the same rule): line
 // breaks made LF, each trimmed, at least one given, text, no control
 // character but a line break or a tab, and at most MaxRevisionTextBytes
 // each. It returns them as they are sent; the same rule holds them on this

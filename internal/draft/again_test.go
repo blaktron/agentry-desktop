@@ -1,7 +1,6 @@
 package draft
 
-// Describe again writes the site's description byte for byte (agentry-web
-// lib/draft-import.ts describeAgain), so a draft started from either client
+// Describe again writes the site's description byte for byte, so a draft started from either client
 // reads back the same way in both.
 
 import (

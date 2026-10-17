@@ -61,7 +61,7 @@ type Session struct {
 }
 
 // FrameEvent is one display event of a session, as the registry writes it
-// on the stream's `frame` events (agentry-enterprise hostapi.FrameEvent):
+// on the stream's `frame` events:
 // the CLI's session event filtered to what a chat shows. An input_added
 // names the file by its basename, and an error by a fixed class, never by
 // text the harness wrote. A frame's token counts are not decoded: a

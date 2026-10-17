@@ -58,9 +58,8 @@ type Facts struct {
 	// QuickAgent In Agentry later or on a repeat. ScheduleAllowed is whether the
 	// signed-in caller's payer may schedule one, read from the status route's
 	// `caller.session.allowed`: both are billing.AboveStandard of the payer's
-	// tier, Promo Pro counted (agentry-enterprise internal/runs sessionAllowed and
-	// internal/schedules ledgerEntitlement, which also asks that the account
-	// admits a charge). The status route has no line of the schedules' own. Nil
+	// tier, Promo Pro counted (the registry's schedule check also asks that the
+	// account admits a charge). The status route has no line of the schedules' own. Nil
 	// where the registry did not say; the create answers schedule-tier either way.
 	Schedules       bool
 	ScheduleAllowed *bool

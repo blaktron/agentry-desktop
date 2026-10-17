@@ -1,4 +1,4 @@
-// The Publisher section's rows, held to the site's lib/publisher.ts.
+// The Publisher section's rows, held to the site's own rows.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
