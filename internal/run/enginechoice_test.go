@@ -25,6 +25,9 @@ type contextsDocker struct {
 }
 
 func (d *contextsDocker) endpoint() (string, bool) {
+	if ep, ok := d.endpoints[os.Getenv("DOCKER_CONTEXT")]; ok && os.Getenv("DOCKER_HOST") == "" {
+		return ep, true
+	}
 	if h := os.Getenv("DOCKER_HOST"); h != "" {
 		return h, d.sockets[strings.TrimPrefix(h, "unix://")]
 	}
@@ -129,11 +132,11 @@ func TestAChoiceIsAdoptedRememberedAndAskedAlone(t *testing.T) {
 	}
 	twoEngines(t, "")
 	DetectEngine(t.Context(), true)
-	e, err := SetEngineChoice(t.Context(), ChoicePodman)
+	e, err := SetEngineChoice(t.Context(), choicePodman)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !e.Found || e.Kind != dockerx.KindPodman || !e.Chosen || remembered != ChoicePodman {
+	if !e.Found || e.Kind != dockerx.KindPodman || !e.Chosen || remembered != choicePodman {
 		t.Fatalf("chose %+v, remembered %q", e, remembered)
 	}
 	if os.Getenv(dockerx.EnvEngine) != dockerx.KindPodman {
@@ -152,11 +155,11 @@ func TestAChoiceIsAdoptedRememberedAndAskedAlone(t *testing.T) {
 		t.Fatalf("at launch: %+v", again)
 	}
 	// A page's read keeps it, still marked as the choice.
-	if read := DetectEngine(t.Context(), false); !read.Chosen || read.Choice != ChoicePodman {
+	if read := DetectEngine(t.Context(), false); !read.Chosen || read.Choice != choicePodman {
 		t.Errorf("a read: %+v", read)
 	}
 	// A second docker context, chosen by name, through DOCKER_CONTEXT.
-	if e, err = SetEngineChoice(t.Context(), ChoiceForContext("colima")); err != nil || !strings.Contains(e.Endpoint, ".colima") || os.Getenv("DOCKER_CONTEXT") != "colima" || os.Getenv(dockerx.EnvEngine) != "" {
+	if e, err = SetEngineChoice(t.Context(), choiceContext+"colima"); err != nil || !strings.Contains(e.Endpoint, ".colima") || os.Getenv("DOCKER_CONTEXT") != "colima" || os.Getenv(dockerx.EnvEngine) != "" {
 		t.Fatalf("colima: %+v %v DOCKER_CONTEXT=%q AGENTRY_ENGINE=%q", e, err, os.Getenv("DOCKER_CONTEXT"), os.Getenv(dockerx.EnvEngine))
 	}
 }
@@ -165,7 +168,7 @@ func TestAChoiceIsAdoptedRememberedAndAskedAlone(t *testing.T) {
 // adopted in its place, though one answers; the card says so and offers
 // the way back.
 func TestASilentChoiceIsSaidAndNotReplaced(t *testing.T) {
-	f, _ := twoEngines(t, ChoiceForContext("colima"))
+	f, _ := twoEngines(t, choiceContext+"colima")
 	f.docker.(*contextsDocker).endpoints = map[string]string{"default": f.docker.(*contextsDocker).endpoints["default"]}
 	got := DetectEngine(t.Context(), true)
 	if got.Found {
@@ -187,7 +190,7 @@ func TestAutomaticForgetsTheChoice(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("podman is driven natively on Linux")
 	}
-	twoEngines(t, ChoicePodman)
+	twoEngines(t, choicePodman)
 	if e := DetectEngine(t.Context(), true); e.Kind != dockerx.KindPodman {
 		t.Fatalf("the choice was not asked: %+v", e)
 	}
@@ -205,8 +208,8 @@ func TestAutomaticForgetsTheChoice(t *testing.T) {
 func TestAChoiceThatDoesNotAnswerIsRefused(t *testing.T) {
 	_, sock := twoEngines(t, "")
 	before := DetectEngine(t.Context(), true)
-	_, err := SetEngineChoice(t.Context(), ChoiceForContext("orbstack"))
-	if err == nil || !strings.HasPrefix(err.Error(), "the docker CLI's context orbstack does not answer: ") {
+	_, err := SetEngineChoice(t.Context(), choiceContext+"orbstack")
+	if err == nil || !strings.HasPrefix(err.Error(), "the docker CLI's context orbstack cannot be chosen: ") {
 		t.Fatalf("err = %v", err)
 	}
 	if remembered != "" {
@@ -236,13 +239,13 @@ func TestAChoiceNamingNoPlaceIsRefused(t *testing.T) {
 // engine as named: the picker lists nothing and says why, a choice is
 // refused, and a remembered one is not asked.
 func TestAnEngineNamedAtLaunchLocksThePicker(t *testing.T) {
-	f, _ := twoEngines(t, ChoicePodman)
+	f, _ := twoEngines(t, choicePodman)
 	f.named = true
 	withEngines(t, f)
 	if got := ListEngines(t.Context()); len(got.Candidates) != 0 || !strings.Contains(got.Locked, "named in its environment") {
 		t.Errorf("listing: %+v", got)
 	}
-	if _, err := SetEngineChoice(t.Context(), ChoiceForContext("colima")); !errors.Is(err, errLaunchNamed) {
+	if _, err := SetEngineChoice(t.Context(), choiceContext+"colima"); !errors.Is(err, errLaunchNamed) {
 		t.Errorf("err = %v", err)
 	}
 	if e := DetectEngine(t.Context(), true); e.Chosen || e.How != "the engine named in the app's environment" {
@@ -254,7 +257,7 @@ func TestAnEngineNamedAtLaunchLocksThePicker(t *testing.T) {
 // and with another engine chosen it is left stopped at launch.
 func TestAnotherChoiceLeavesTheManagedEngineStoppedAtLaunch(t *testing.T) {
 	e := installedManagedEngine(t)
-	twoEngines(t, ChoiceForContext("colima"))
+	twoEngines(t, choiceContext+"colima")
 	t.Setenv(dockerx.EnvDocker, "")
 	t.Setenv("DOCKER_CONFIG", "")
 	saved := managedEngine
@@ -262,18 +265,134 @@ func TestAnotherChoiceLeavesTheManagedEngineStoppedAtLaunch(t *testing.T) {
 	t.Cleanup(func() { managedEngine = saved })
 	var log strings.Builder
 	StartManagedEngineAtLaunch(t.Context(), &log)
-	if !strings.Contains(log.String(), "left stopped: the engine chosen in Settings is the docker CLI's context colima") {
+	if !strings.Contains(log.String(), "left stopped: another engine is chosen in Settings (the docker CLI's context colima)") {
 		t.Errorf("log %q", log.String())
 	}
 	// Installed and stopped, it is listed under the places asked, not as a
 	// candidate.
 	got := ListEngines(t.Context())
 	for _, c := range got.Candidates {
-		if c.Choice == ChoiceManaged {
+		if c.Choice == choiceManaged {
 			t.Errorf("a stopped managed engine was listed: %+v", c)
 		}
 	}
 	if len(got.Tried) == 0 || !strings.HasPrefix(got.Tried[0], managedHow+": it is installed under ") {
 		t.Errorf("tried %q", got.Tried)
+	}
+}
+
+// A context whose engine is on another machine is not offered: a run
+// refuses it (its docker filter cannot be put in front of a remote engine),
+// so the listing says why and a choice of it is refused.
+func TestARemoteContextIsNotOffered(t *testing.T) {
+	f, _ := twoEngines(t, "")
+	f.docker.(*contextsDocker).endpoints["build-box"] = "tcp://10.0.0.5:2376"
+	f.contexts = append(f.contexts, "build-box")
+	withEngines(t, f)
+	got := ListEngines(t.Context())
+	for _, c := range got.Candidates {
+		if c.Choice == choiceContext+"build-box" {
+			t.Fatalf("the remote context was offered: %+v", c)
+		}
+	}
+	var said bool
+	for _, tr := range got.Tried {
+		said = said || strings.HasPrefix(tr, "the docker CLI's context build-box: it serves at tcp://10.0.0.5:2376, and runs refuse an engine on another machine")
+	}
+	if !said {
+		t.Errorf("tried %q", got.Tried)
+	}
+	if _, err := SetEngineChoice(t.Context(), choiceContext+"build-box"); err == nil || remembered != "" {
+		t.Errorf("chose the remote context: %v, remembered %q", err, remembered)
+	}
+	// Remembered from elsewhere, it is said and not driven.
+	remembered = choiceContext + "build-box"
+	if e := DetectEngine(t.Context(), true); e.Found || !strings.Contains(e.Err, "runs refuse an engine on another machine") || os.Getenv("DOCKER_CONTEXT") != "" {
+		t.Errorf("detected %+v DOCKER_CONTEXT=%q", e, os.Getenv("DOCKER_CONTEXT"))
+	}
+}
+
+// A chosen engine adopted earlier that stops answering is said as the
+// choice on the next read, with the way back, not as an engine Re-detect
+// would replace.
+func TestAChosenEngineThatStopsAnsweringIsSaidOnARead(t *testing.T) {
+	f, _ := twoEngines(t, "")
+	if _, err := SetEngineChoice(t.Context(), choiceContext+"colima"); err != nil {
+		t.Fatal(err)
+	}
+	delete(f.docker.(*contextsDocker).endpoints, "colima")
+	got := DetectEngine(t.Context(), false)
+	if got.Found || !got.Chosen || got.Choice != choiceContext+"colima" || !strings.HasPrefix(got.Err, "your chosen engine, the docker CLI's context colima, is not answering") {
+		t.Fatalf("read: %+v", got)
+	}
+	for _, tr := range got.Tried {
+		if strings.Contains(tr, "Re-detect looks for another engine") {
+			t.Errorf("tried %q", got.Tried)
+		}
+	}
+}
+
+// A choice that cannot be read leaves no engine adopted in its place, and
+// says so.
+func TestAnUnreadableChoiceAdoptsNothing(t *testing.T) {
+	twoEngines(t, "")
+	was := loadEngineChoice
+	loadEngineChoice = func() (string, error) { return "", errors.New("open desktop.yaml: permission denied") }
+	t.Cleanup(func() { loadEngineChoice = was })
+	e := DetectEngine(t.Context(), true)
+	if e.Found || !e.Chosen || !strings.Contains(e.Err, "the container engine chosen in Settings could not be read: open desktop.yaml: permission denied") {
+		t.Fatalf("detected %+v", e)
+	}
+	if AdoptedEngine() != nil {
+		t.Errorf("adopted %+v", AdoptedEngine())
+	}
+}
+
+// podman chosen with its API socket off is said as the order says it, so
+// the card offers to turn the socket on rather than another engine.
+func TestAChosenPodmanWithItsSocketOffOffersTheSocket(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("podman is driven natively on Linux")
+	}
+	f, _ := twoEngines(t, choicePodman)
+	f.podman = &dockerx.Fake{EngineErr: errors.New("podman's API socket unix:///run/user/1000/podman/podman.sock does not answer (connection refused)")}
+	withEngines(t, f)
+	e := DetectEngine(t.Context(), true)
+	if e.Found || !e.Chosen || !e.PodmanInstalled || !e.PodmanSocketOff || e.SocketCommand != "systemctl --user enable --now podman.socket" {
+		t.Fatalf("detected %+v", e)
+	}
+}
+
+// With Agentry's engine adopted, a listing names the contexts from the
+// person's own docker configuration and puts every variable of the
+// adoption back afterwards.
+func TestAListingPutsTheManagedAdoptionBack(t *testing.T) {
+	m := installedManagedEngine(t)
+	f, _ := twoEngines(t, "")
+	f.answering[m.Socket()] = true
+	withEngines(t, f)
+	t.Setenv(dockerx.EnvDocker, "")
+	t.Setenv("DOCKER_CONFIG", "/home/me/.docker")
+	saved := managedEngine
+	managedEngine = func() *managedengine.Engine { return m }
+	t.Cleanup(func() { managedEngine = saved })
+	f.docker.(*contextsDocker).sockets[strings.TrimPrefix(m.Endpoint(), "unix://")] = true
+	if e := DetectEngine(t.Context(), true); !e.IsManaged() {
+		t.Fatalf("detected %+v", e)
+	}
+	var configWhileListing string
+	dockerContexts = func(context.Context) ([]string, error) {
+		configWhileListing = os.Getenv("DOCKER_CONFIG")
+		return f.contexts, nil
+	}
+	got := ListEngines(t.Context())
+	if configWhileListing != "/home/me/.docker" {
+		t.Errorf("contexts listed under DOCKER_CONFIG=%q", configWhileListing)
+	}
+	if len(got.Candidates) == 0 || got.Candidates[0].Choice != choiceManaged || !got.Candidates[0].Current {
+		t.Errorf("candidates %+v", got.Candidates)
+	}
+	if os.Getenv("DOCKER_HOST") != m.Endpoint() || os.Getenv(dockerx.EnvDocker) != m.Docker() || os.Getenv("DOCKER_CONFIG") != m.DockerConfigDir() {
+		t.Errorf("after the listing DOCKER_HOST=%q AGENTRY_DOCKER=%q DOCKER_CONFIG=%q", os.Getenv("DOCKER_HOST"), os.Getenv(dockerx.EnvDocker), os.Getenv("DOCKER_CONFIG"))
 	}
 }

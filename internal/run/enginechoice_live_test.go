@@ -46,7 +46,7 @@ func TestLivePickerOnThisComputer(t *testing.T) {
 	t.Logf("tried: %q", list.Tried)
 	var podman bool
 	for _, c := range list.Candidates {
-		podman = podman || c.Choice == ChoicePodman
+		podman = podman || c.Choice == choicePodman
 	}
 	if len(list.Candidates) < 2 || !podman {
 		t.Fatalf("want Docker Engine and podman listed, got %+v", list.Candidates)
@@ -55,12 +55,12 @@ func TestLivePickerOnThisComputer(t *testing.T) {
 		t.Fatalf("the listing changed the adoption: %+v", a)
 	}
 
-	chosen, err := SetEngineChoice(t.Context(), ChoicePodman)
+	chosen, err := SetEngineChoice(t.Context(), choicePodman)
 	if err != nil {
 		t.Fatal(err)
 	}
 	st, err := settings.Load()
-	if err != nil || st.EngineChoice != ChoicePodman {
+	if err != nil || st.EngineChoice != choicePodman {
 		t.Fatalf("desktop.yaml holds %q (%v)", st.EngineChoice, err)
 	}
 	t.Logf("chosen: %s", chosen.Summary())

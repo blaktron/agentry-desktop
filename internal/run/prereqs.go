@@ -104,7 +104,8 @@ const (
 	// → Container engine and does not answer; nothing else is offered in
 	// its place but the way back to automatic detection (DockerErr says
 	// what the chosen place said). Agentry's engine, chosen and stopped,
-	// is StateManagedStopped instead, which offers its Start.
+	// is StateManagedStopped instead, which offers its Start, and so is any
+	// state that starts or repairs the chosen engine (DetectPrereqs).
 	StateChosenSilent = "chosenSilent"
 )
 
@@ -175,8 +176,30 @@ var distroInstall = map[string]engineInstall{
 
 // DetectPrereqs reports what the page should show and what a click would
 // do. It runs the engine detection (an engine adopted earlier that still
-// answers is kept), then, on Linux, reads what is installed.
+// answers is kept), then, on Linux, reads what is installed. With an engine
+// chosen in Settings that does not answer, a state that would offer
+// another engine (an install, the hand-off to the engines to choose from)
+// becomes StateChosenSilent; a state that starts or repairs the chosen one
+// (podman's socket, the docker group, Start) stays.
 func DetectPrereqs(ctx context.Context) *Prereqs {
+	p := detectPrereqs(ctx)
+	if !p.Engine.Chosen || p.Engine.Found {
+		return p
+	}
+	switch p.State {
+	case StateManual, StateInstallable, StateWindowsOffer:
+		p.State = StateChosenSilent
+	case StateManagedOffer:
+		// Agentry's engine chosen and since removed: installing it again
+		// answers the choice.
+		if p.Engine.Choice != choiceManaged {
+			p.State = StateChosenSilent
+		}
+	}
+	return p
+}
+
+func detectPrereqs(ctx context.Context) *Prereqs {
 	p := &Prereqs{OS: runtime.GOOS, DownloadURL: "https://docs.docker.com/engine/install/"}
 	if runtime.GOOS != "linux" {
 		p.DownloadURL = "https://www.docker.com/products/docker-desktop/"
@@ -190,10 +213,6 @@ func DetectPrereqs(ctx context.Context) *Prereqs {
 		if p.DockerErr == "" {
 			p.DockerErr = errNoEngine.Error()
 		}
-	}
-	if p.Engine.Chosen && !p.Engine.Found && p.Engine.Choice != ChoiceManaged {
-		p.State = StateChosenSilent
-		return p
 	}
 	if runtime.GOOS == "windows" {
 		p.Windows = windowsStory(ctx)

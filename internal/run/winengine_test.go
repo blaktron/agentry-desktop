@@ -207,4 +207,14 @@ func TestTheAppStartsRancherDesktopAtLaunchOnlyWhereItInstalledIt(t *testing.T) 
 	if c := calls(); len(c) != 1 || c[0] != "rdctl.exe "+strings.Join(windowsengine.StartArgs(), " ") {
 		t.Fatalf("ran %q", c)
 	}
+	// With an engine chosen in Settings, nothing is started on its own.
+	remembered = "context:desktop-linux"
+	var log strings.Builder
+	StartWindowsEngineAtLaunch(context.Background(), &log)
+	if c := calls(); len(c) != 1 {
+		t.Fatalf("started with an engine chosen: %q", c)
+	}
+	if !strings.Contains(log.String(), "an engine is chosen in Settings (the docker CLI's context desktop-linux)") {
+		t.Errorf("log %q", log.String())
+	}
 }

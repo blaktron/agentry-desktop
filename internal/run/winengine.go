@@ -202,12 +202,19 @@ func startWindows(ctx context.Context, i *windowsengine.Installer, first bool, l
 }
 
 // StartWindowsEngineAtLaunch starts Rancher Desktop when the app opens, in
-// the background, where the app installed it, no engine answers, and the
-// app was not started with an engine named in its environment. Errors go
-// to logw; the card says what detection then finds.
+// the background, where the app installed it, no engine answers, no engine
+// is chosen in Settings, and the app was not started with an engine named
+// in its environment. Errors go to logw; the card says what detection then
+// finds.
 func StartWindowsEngineAtLaunch(ctx context.Context, logw io.Writer) {
 	i := windowsInstaller()
 	if i == nil || !i.InstalledByApp() || launchNamed() {
+		return
+	}
+	// With an engine chosen in Settings, the app starts nothing on its own:
+	// the card offers Start when the chosen engine is Rancher Desktop.
+	if c, err := loadEngineChoice(); err != nil || c != "" {
+		_, _ = fmt.Fprintf(logw, "Rancher Desktop is left as it is: an engine is chosen in Settings (%s)\n", ChoiceLabel(c))
 		return
 	}
 	if found := DetectEngine(ctx, true); found.Found {

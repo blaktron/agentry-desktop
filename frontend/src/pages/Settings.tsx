@@ -692,9 +692,9 @@ function RunDefaultsSettings({ onChanged }: { onChanged: () => Promise<unknown> 
   );
 }
 
-// EngineCard is the container engine found, with Re-detect: the whole
-// detection run again from nothing, for a person who changed engines, and
-// what it found adopted. The traps detection saw stand beside the line.
+// EngineCard is the container engine found, with Re-detect: the detection
+// run again from nothing, for a person who changed engines, and what it
+// found adopted (with an engine chosen, that engine asked again). The traps detection saw stand beside the line.
 // Choose an engine lists every engine that answers, for a computer with
 // more than one, and the one chosen is the engine runs drive from then on.
 function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChanged: () => Promise<unknown> }) {
@@ -724,6 +724,14 @@ function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChange
     setChose(null);
     try {
       setChose(await RunAPI.SetEngineChoice(choice));
+    } catch (e) {
+      setErr(String(e));
+      setBusy(false);
+      return;
+    }
+    // The choice is made; a listing or a status read that fails afterwards
+    // is said as itself.
+    try {
       setChoices(await RunAPI.ListEngines());
       await onChanged();
     } catch (e) {
@@ -777,7 +785,7 @@ function EngineCard({ setup, onChanged }: { setup: app.SetupStatusView; onChange
         {!busy && !choices && (
           <Button onClick={() => void listEngines()} title="Lists every container engine that answers on this computer, to choose the one runs drive" data-testid="choose-engine">Choose an engine…</Button>
         )}
-        {busy ? <Spinner label={CHECKING_ENGINE} /> : <Button onClick={() => void redetect()} title="Runs the whole detection again, from nothing, and adopts what it finds">Re-detect</Button>}
+        {busy ? <Spinner label={CHECKING_ENGINE} /> : <Button onClick={() => void redetect()} title={setup.engine?.chosen ? "Asks the engine you chose again, and adopts it if it answers" : "Runs the whole detection again, from nothing, and adopts what it finds"}>Re-detect</Button>}
       </div>
     </Card>
   );

@@ -82,7 +82,7 @@ func withEngines(t *testing.T, f engineFixture) {
 		newDockerClient, newEngineClient, knownSockets, pingSocket, launchNamed, lookPath, dockerRetryInterval, dockerConfigFile, effectiveUID
 	oldLoad, oldSave, oldContexts := loadEngineChoice, saveEngineChoice, dockerContexts
 	remembered = f.choice
-	loadEngineChoice = func() string { return remembered }
+	loadEngineChoice = func() (string, error) { return remembered, nil }
 	saveEngineChoice = func(c string) error { remembered = c; return nil }
 	dockerContexts = func(context.Context) ([]string, error) { return f.contexts, nil }
 	dockerRetryInterval = 0

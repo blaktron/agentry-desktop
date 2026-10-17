@@ -189,6 +189,9 @@ func startManaged(ctx context.Context, e *managedengine.Engine, logw io.Writer) 
 		return fmt.Errorf("the engine started but the docker command cannot drive it: %w", err)
 	}
 	d.How = managedHow
+	if c, err := loadEngineChoice(); err == nil && c == choiceManaged {
+		d.Chosen, d.Choice = true, c
+	}
 	adopted = &d
 	_, _ = fmt.Fprintf(logw, "%s\n", d.Summary())
 	return nil
@@ -197,8 +200,9 @@ func startManaged(ctx context.Context, e *managedengine.Engine, logw io.Writer) 
 // StartManagedEngineAtLaunch is the app's own start when it opens: nothing
 // where the engine is not installed, where the app was started with an
 // engine named in its environment or with another engine chosen in
-// Settings, or where another engine already answers (a Docker Desktop installed since; the person removes the app's
-// engine from the card when it is no longer wanted); a re-install first
+// Settings, or where another engine already answers (a Docker Desktop
+// installed since; the person removes the app's engine from the card when
+// it is no longer wanted); a re-install first
 // where the app's pins moved, bounded, and a failed one leaves the
 // installed engine to start; errors go to logw and nowhere else, since the
 // card says what detection then finds.
@@ -211,8 +215,8 @@ func StartManagedEngineAtLaunch(ctx context.Context, logw io.Writer) {
 		_, _ = fmt.Fprintln(logw, "Agentry's engine is installed and left stopped: the app was started with an engine named in its environment")
 		return
 	}
-	if c := loadEngineChoice(); c != "" && c != ChoiceManaged {
-		_, _ = fmt.Fprintf(logw, "Agentry's engine is installed and left stopped: the engine chosen in Settings is %s\n", ChoiceLabel(c))
+	if c, err := loadEngineChoice(); err != nil || (c != "" && c != choiceManaged) {
+		_, _ = fmt.Fprintf(logw, "Agentry's engine is installed and left stopped: another engine is chosen in Settings (%s)\n", ChoiceLabel(c))
 		return
 	}
 	if found := DetectEngine(ctx, true); found.Found && found.How != managedHow {
