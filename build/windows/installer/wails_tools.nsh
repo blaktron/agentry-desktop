@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "Agentry Desktop"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "0.6.131"
+    !define INFO_PRODUCTVERSION "0.6.132"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "Copyright © 2026 SecureAgentry"
