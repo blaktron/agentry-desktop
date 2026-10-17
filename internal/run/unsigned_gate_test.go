@@ -90,14 +90,18 @@ func TestUnscannedIsItsOwnConsent(t *testing.T) {
 		t.Fatalf("a cached unscanned run with the consent: %v, %+v, log %q", err, again.Attestation, log.String())
 	}
 
-	// A cache written before the state existed: unsigned in the file, and
-	// the registry says skipped now — unscanned, whatever the file says.
+	// A cache written before the state existed, so before integrity records
+	// too: unsigned in the file, no record, and the registry says skipped
+	// now — fetched again and unscanned, whatever the file says.
 	stale := &installdir.Meta{Ref: sig.Ref, Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version, Digest: sig.Digest, Source: "registry", Attestation: receipt.Attestation{State: "unsigned"}}
 	raw, err := json.MarshalIndent(stale, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(installDir, "install.json"), raw, 0o644); err != nil { //nolint:gosec // test fixture
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(installDir, installdir.RecordFile)); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := materialize(context.Background(), sig, home, true, false, &log); err == nil || !strings.Contains(err.Error(), "unscanned") {

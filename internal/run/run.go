@@ -626,6 +626,12 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 	if err != nil {
 		return nil, err
 	}
+	// Held to its record once more before it is compiled: the consents and
+	// the images above take time, and a plan compiled from files edited
+	// meanwhile would be kept and reused.
+	if err := recheckInstall(sig, installDir); err != nil {
+		return nil, err
+	}
 	plan, planDir, err := ensurePlan(logw, home, m, meta, installDir, workspaceDir, pol, polSHA, adapterName, serverSpecs, mode, unsafe)
 	if err != nil {
 		return nil, err
@@ -834,6 +840,7 @@ func prepare(ctx context.Context, req Request, logw io.Writer, mode manifest.Mod
 			Plan:             plan,
 			PlanDir:          planDir,
 			WorkspaceSrc:     workspaceDir,
+			CheckWorkspace:   copyCheck(sig, installDir),
 			RunRoot:          installDir,
 			RunnerHome:       home,
 			OutDir:           outDir,
@@ -935,7 +942,25 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 		return &meta, sig.local, nil
 	}
 	installDir := installdir.ReleaseDir(home, sig.Namespace, sig.Name, sig.Version, sig.Digest)
-	if meta, ok := installdir.Load(installDir, sig.Digest); ok {
+	// The installed tree is held to its integrity record before anything
+	// trusts it: a release that changed after it was laid down is refused
+	// here, before anything is fetched, and Repair is the way back; one no
+	// record of this home vouches for (laid down before records existed, or
+	// under another key) is fetched and verified again below, keeping the
+	// export it had.
+	meta, ierr := installdir.Inspect(installDir, sig.Digest)
+	var changed *installdir.ChangedError
+	reExport := ""
+	switch {
+	case errors.As(ierr, &changed):
+		return nil, "", engine.Classify(engine.ExitVerify, asChanged(sig, ierr))
+	case errors.Is(ierr, installdir.ErrNoRecord):
+		_, _ = fmt.Fprintf(logw, "installed %s has no integrity record from this runner home (laid down by an older client, or under another key) — fetching it again and checking it as a first fetch is\n", sig.Ref)
+		reExport = meta.Export
+	case ierr != nil && !errors.Is(ierr, installdir.ErrNotInstalled):
+		return nil, "", engine.Classify(engine.ExitCLI, ierr)
+	}
+	if ierr == nil {
 		// The registry's word outranks the cache's memory: an install cached with
 		// another state, against a registry that says the version was admitted
 		// without a scan, is unscanned.
@@ -977,7 +1002,7 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 		return nil, "", fmt.Errorf("extract archive: %w", err)
 	}
 
-	meta := &installdir.Meta{
+	meta = &installdir.Meta{
 		Ref:       sig.Ref,
 		Namespace: sig.Namespace, Name: sig.Name, Version: sig.Version,
 		Digest: sig.Digest, Source: "registry", Attestation: att,
@@ -986,6 +1011,18 @@ func materialize(ctx context.Context, sig *Signature, home string, acceptUnsigne
 	// run's alone.
 	cached := *meta
 	cached.Attestation.Consent = ""
+	if reExport != "" {
+		// An install laid down before records existed keeps the export it
+		// had when it is laid down again.
+		m, err := manifestFromWorkspace(staging)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := installdir.Install(installDir, staging, m, &cached, reExport); err != nil {
+			return nil, "", err
+		}
+		return meta, installDir, nil
+	}
 	if err := installdir.Write(installDir, staging, &cached); err != nil {
 		return nil, "", err
 	}

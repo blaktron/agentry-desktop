@@ -127,7 +127,19 @@ func localInstallConsentText(s *localinstall.Staged, prev *installed.Record, dir
 
 // changedText names what changed in an installed copy, briefly.
 func changedText(c *installdir.ChangedError) string {
+	return changedPathsText(install.ChangedInstallOf(c))
+}
+
+// changedPathsText names what changed, briefly: the record itself, then the
+// changed, added and removed files.
+func changedPathsText(c *install.ChangedInstall) string {
 	var parts []string
+	switch installdir.RecordFailure(c.Record) {
+	case installdir.InstallJSONChanged:
+		parts = append(parts, "install.json changed")
+	case installdir.RecordInvalid:
+		parts = append(parts, "its integrity record does not verify")
+	}
 	for _, k := range []struct {
 		label string
 		paths []string

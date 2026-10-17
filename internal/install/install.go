@@ -140,6 +140,28 @@ func claudeSkillsRoot() (string, error) {
 	return filepath.Join(home, ".claude", "skills"), nil
 }
 
+// ChangedInstall is what changed in an installed release since it was laid
+// down: paths relative to its files, sorted, and Record when the integrity
+// record or install.json itself failed.
+type ChangedInstall struct {
+	Changed []string `json:"changed"`
+	Added   []string `json:"added"`
+	Removed []string `json:"removed"`
+	Record  string   `json:"record,omitempty"`
+}
+
+// ChangedInstallOf is the runner's refusal of a changed install as a plan
+// and the run setup show it.
+func ChangedInstallOf(c *installdir.ChangedError) *ChangedInstall {
+	orEmpty := func(p []string) []string {
+		if p == nil {
+			return []string{}
+		}
+		return p
+	}
+	return &ChangedInstall{Changed: orEmpty(c.Changed), Added: orEmpty(c.Added), Removed: orEmpty(c.Removed), Record: string(c.Record)}
+}
+
 // Plan is everything a human needs to see before an install writes anything.
 type Plan struct {
 	ID        string   `json:"id"`
@@ -193,6 +215,12 @@ type Plan struct {
 	// consent states it: a remote server by its address, a package server's
 	// egress by its hosts.
 	ServerReach []string `json:"serverReach"`
+	// Changed, on a runner plan, is this very release's installed copy when
+	// it changed after it was laid down: confirming the plan lays the
+	// release down again in its place from this download, sealed afresh
+	// (installdir.Repair). Nil when nothing installed changed; an install
+	// that changes after the plan was made is still refused at Confirm.
+	Changed *ChangedInstall `json:"changed,omitempty"`
 	// PrevVersion is the version currently at this key ("" on first install).
 	PrevVersion string `json:"prevVersion,omitempty"`
 	// Diff vs the installed contract (nil on first install).
@@ -381,6 +409,12 @@ func (e *Engine) Prepare(ctx context.Context, regURL, ref, target, dir string) (
 	plan.Vulnerabilities, plan.VulnerabilityLine, plan.VulnerabilityRefusal = vr.Statuses, vr.Line, vr.Refusal
 
 	readRecord(&plan, m)
+	if target == installdir.Target {
+		var changed *installdir.ChangedError
+		if _, ierr := installdir.Inspect(paths.ReleaseDir, computed); errors.As(ierr, &changed) {
+			plan.Changed = ChangedInstallOf(changed)
+		}
+	}
 
 	e.pending[plan.ID] = &pending{plan: plan, archive: archive, manifest: m}
 	return &plan, nil
@@ -695,7 +729,13 @@ func installRunner(staging string, p Paths, m *manifest.Manifest, plan Plan) (st
 		},
 	}
 	style, warning = installdir.StyleForHome(home)
-	if err := installdir.Install(p.ReleaseDir, staging, m, meta, style); err != nil {
+	lay := installdir.Install
+	if plan.Changed != nil {
+		// The person confirmed a plan that names the changed copy: it is
+		// replaced, whatever is there now.
+		lay = installdir.Repair
+	}
+	if err := lay(p.ReleaseDir, staging, m, meta, style); err != nil {
 		return "", "", err
 	}
 	return style, warning, nil

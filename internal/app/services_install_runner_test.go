@@ -83,3 +83,30 @@ func TestInstallRunnerGatesAreNativeDialogs(t *testing.T) {
 		t.Fatal("a declined runner plan was left pending")
 	}
 }
+
+// Replacing a changed copy is asked first, naming what changed; a No stops
+// before any other gate.
+func TestARepairIsAskedNamingWhatChanged(t *testing.T) {
+	var asked []string
+	answer := false
+	app := &App{ctx: context.Background(), confirm: func(_ context.Context, title, message string) (bool, error) {
+		asked = append(asked, title+"|"+message)
+		return answer, nil
+	}}
+	i := &InstallAPI{app: app, engine: install.NewEngine()}
+	plan := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.0.0", Unsigned: true,
+		Changed: &install.ChangedInstall{Changed: []string{"SKILL.md"}, Added: []string{"extra.md"}, Removed: []string{}}}
+	err := i.consentForRunner(plan)
+	if err == nil || !strings.Contains(err.Error(), "not confirmed") || len(asked) != 1 {
+		t.Fatalf("declined: err %v asked %v", err, asked)
+	}
+	for _, w := range []string{"Replace the changed copy?|", "acme/demo@1.0.0", "changed SKILL.md", "added extra.md", "replaced"} {
+		if !strings.Contains(asked[0], w) {
+			t.Fatalf("the repair dialog lacks %q: %s", w, asked[0])
+		}
+	}
+	asked, answer = nil, true
+	if err := i.consentForRunner(plan); err != nil || len(asked) != 2 || !strings.HasPrefix(asked[1], "Install anyway?") {
+		t.Fatalf("a Yes goes on to the other gates: err %v asked %v", err, asked)
+	}
+}

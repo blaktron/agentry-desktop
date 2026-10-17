@@ -18,6 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1132,5 +1133,67 @@ func TestServerReachLines(t *testing.T) {
 	}
 	if got := ServerReach(c); !slices.Equal(got, want) {
 		t.Fatalf("ServerReach = %q\nwant %q", got, want)
+	}
+}
+
+// A changed runner install is named on the plan, and the person's Yes to it
+// lays the release down again, sealed afresh; a copy that changes after the
+// plan was made is still refused, never replaced without that Yes.
+func TestAChangedRunnerInstallIsRepairedOnlyThroughItsPlan(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	t.Setenv("AGENTRY_RUNNER_HOME", home)
+	reg := startRegistry(t, &fakeRegistry{})
+	e := NewEngine()
+
+	plan, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Changed != nil {
+		t.Fatalf("a first install names a changed copy: %+v", plan.Changed)
+	}
+	if _, err := e.Confirm(plan.ID, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	releaseDir := installdir.ReleaseDir(home, "acme", "demo", "1.0.0", plan.Digest)
+	skill := filepath.Join(releaseDir, "workspace", "SKILL.md")
+	want, err := os.ReadFile(skill)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Changed after the plan was made: Confirm refuses and replaces nothing.
+	stale, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skill, []byte("edited\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var changed *installdir.ChangedError
+	if _, err := e.Confirm(stale.ID, false, false, false); !errors.As(err, &changed) {
+		t.Fatalf("a plan made before the edit replaced the changed copy: %v", err)
+	}
+	if b, _ := os.ReadFile(skill); string(b) != "edited\n" {
+		t.Fatalf("the refused confirm touched the file: %q", b)
+	}
+
+	// The plan made now names it, and confirming it repairs.
+	repair, err := e.Prepare(context.Background(), reg, "acme/demo", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repair.Changed == nil || len(repair.Changed.Changed) != 1 || repair.Changed.Changed[0] != "SKILL.md" {
+		t.Fatalf("the plan's changed copy = %+v, want SKILL.md changed", repair.Changed)
+	}
+	if _, err := e.Confirm(repair.ID, false, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(skill); string(b) != string(want) {
+		t.Fatalf("the repair left %q", b)
+	}
+	if _, err := installdir.Inspect(releaseDir, plan.Digest); err != nil {
+		t.Fatalf("the repaired install is not sealed: %v", err)
 	}
 }
