@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -231,6 +232,17 @@ func registryPage(ctx context.Context, registryURL, token, what string, pick fun
 	return page, nil
 }
 
+// withoutURL is a request's error without the address it was made to: an
+// HTTP client's error names the whole request URL, userinfo included,
+// which a message on screen must not show.
+func withoutURL(err error) error {
+	var ue *neturl.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
+}
+
 // originOf is a URL with any userinfo dropped, for a message a person
 // reads.
 func originOf(raw string) string {
@@ -275,7 +287,7 @@ func readSubscription(ctx context.Context, url, token string, strict bool) (*Sub
 	if strict {
 		switch {
 		case err != nil:
-			return nil, fmt.Errorf("reach %s: %w", url, err)
+			return nil, fmt.Errorf("reach %s: %w", originOf(url), withoutURL(err))
 		case meta.JSON200 == nil:
 			return nil, registry.Problem("read the registry's extensions", meta.StatusCode(), nil, meta.Body)
 		}
@@ -300,7 +312,7 @@ func readSubscription(ctx context.Context, url, token string, strict bool) (*Sub
 	req.Header.Set("Accept", "application/json")
 	res, err := registry.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("reach %s: %w", url, err)
+		return nil, fmt.Errorf("reach %s: %w", originOf(url), withoutURL(err))
 	}
 	defer func() { _ = res.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<16))
