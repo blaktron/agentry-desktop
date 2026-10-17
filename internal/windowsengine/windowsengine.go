@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"github.com/blaktron/agentry-cli/pkg/runner/procx"
 )
 
 // The pinned release. A bump changes these four and nothing else.
@@ -205,9 +207,10 @@ func (i *Installer) WSLState(ctx context.Context) WSL {
 }
 
 // InstallWSLScript is the PowerShell the app runs to install WSL: Windows'
-// own elevation prompt asks for administrator consent, and the exit code
+// own elevation prompt asks for administrator consent, wsl runs with its
+// console window hidden (the app shows the progress), and the exit code
 // is wsl's.
-const InstallWSLScript = `$p = Start-Process -FilePath 'wsl.exe' -ArgumentList '--install','--no-distribution' -Verb RunAs -Wait -PassThru; exit $p.ExitCode`
+const InstallWSLScript = `$p = Start-Process -FilePath 'wsl.exe' -ArgumentList '--install','--no-distribution' -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode`
 
 // InstallWSL asks Windows to install WSL with no Linux distribution of the
 // person's (Rancher Desktop brings its own) and records that a restart is
@@ -217,7 +220,7 @@ func (i *Installer) InstallWSL(ctx context.Context) error {
 	cmd := i.cmd(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", InstallWSLScript)
 	out, err := cmd.CombinedOutput()
 	i.logf("%s", strings.TrimSpace(decodeText(out)))
-	if err != nil {
+	if err := exited(err); err != nil {
 		return fmt.Errorf("no Windows Subsystem for Linux was installed (the consent was declined, or wsl --install failed): %w", err)
 	}
 	if err := os.MkdirAll(i.StateDir, 0o700); err != nil {
@@ -346,17 +349,42 @@ func (i *Installer) Start(ctx context.Context, first bool) error {
 	if s := strings.TrimSpace(decodeText(out)); s != "" {
 		i.logf("%s", s)
 	}
-	if err != nil {
+	if err := exited(err); err != nil {
 		return fmt.Errorf("start Rancher Desktop: %w", err)
 	}
 	return nil
 }
 
+// outputWait bounds how long a command's output is read after the command
+// itself has exited. rdctl start hands its own stdout and stderr to the
+// Rancher Desktop it launches, so the output pipe stays open for as long
+// as Rancher Desktop runs; without the bound, reading it would wait for
+// Rancher Desktop to quit. A var so a test can shorten it.
+var outputWait = 3 * time.Second
+
+// cmd builds a command the installer runs. Each one is a console program
+// started by a windowed application, so it is created with no console
+// window, which would otherwise flash on the person's screen.
 func (i *Installer) cmd(ctx context.Context, name string, args ...string) *exec.Cmd {
+	var cmd *exec.Cmd
 	if i.Command != nil {
-		return i.Command(ctx, name, args...)
+		cmd = i.Command(ctx, name, args...)
+	} else {
+		cmd = exec.CommandContext(ctx, name, args...) //nolint:gosec // fixed programs, arguments built here
 	}
-	return exec.CommandContext(ctx, name, args...) //nolint:gosec // fixed programs, arguments built here
+	procx.NoWindow(cmd)
+	cmd.WaitDelay = outputWait
+	return cmd
+}
+
+// exited is a command's result once its output wait is over: a command
+// that exited successfully while a process it started still held its
+// output open has succeeded.
+func exited(err error) error {
+	if errors.Is(err, exec.ErrWaitDelay) {
+		return nil
+	}
+	return err
 }
 
 func (i *Installer) client() *http.Client {

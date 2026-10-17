@@ -193,6 +193,10 @@ func adoptVar(name, value string) {
 func detectInOrder(ctx context.Context) Engine {
 	var out Engine
 	said := func(place, what string) { out.Tried = append(out.Tried, place+": "+what) }
+	// The PATH a terminal opened now would have, before any program is
+	// looked up: an engine installed while the app is open puts its CLI
+	// in a directory this process has not seen yet.
+	refreshPath()
 	// The app started with the engine named in its environment: that one
 	// is driven as named, and nothing else is tried.
 	if launchNamed() {

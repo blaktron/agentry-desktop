@@ -144,6 +144,27 @@ func TestDetectionTakesTheDockerCLIsOwnContextFirst(t *testing.T) {
 	}
 }
 
+// An engine installed while the app is open puts its CLI in a directory
+// this process's PATH lacks until it is read again: detection reads it
+// before it looks the docker CLI up.
+func TestDetectionFindsADockerCLIInstalledSinceTheAppStarted(t *testing.T) {
+	withEngines(t, engineFixture{docker: &contextDocker{Fake: &dockerx.Fake{}}})
+	look := lookPath
+	refreshed := false
+	lookPath = func(file string) (string, error) {
+		if refreshed && file == "docker" {
+			return "/usr/bin/docker", nil
+		}
+		return look(file)
+	}
+	was := refreshPath
+	refreshPath = func() { refreshed = true }
+	t.Cleanup(func() { refreshPath = was })
+	if e := DetectEngine(t.Context(), true); !e.Found || e.How != "the docker CLI's current context" {
+		t.Fatalf("found = %+v", e)
+	}
+}
+
 func TestDetectionAsksEachKnownSocketAndBelievesOnlyAnAnswer(t *testing.T) {
 	dead := socketFile(t, "rancher.sock")
 	live := socketFile(t, "colima.sock")
