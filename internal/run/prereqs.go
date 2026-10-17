@@ -50,6 +50,10 @@ var (
 	}
 	// restartCommand is what Restart runs; a var so tests never reboot.
 	restartCommand = func(ctx context.Context, elevated bool) *exec.Cmd {
+		if runtime.GOOS == "windows" {
+			// The signed-in user may restart Windows; no elevation.
+			return exec.CommandContext(ctx, "shutdown.exe", "/r", "/t", "0")
+		}
 		if elevated {
 			return exec.CommandContext(ctx, "pkexec", "systemctl", "reboot")
 		}
@@ -133,6 +137,8 @@ type Prereqs struct {
 	GroupCommand string `json:"groupCommand,omitempty"`
 	// Managed is the engine the app manages itself, where this build can.
 	Managed Managed `json:"managed"`
+	// Windows is the engine the app installs for the person on Windows.
+	Windows WindowsEngine `json:"windows"`
 }
 
 // engineInstall is a distribution's own engine and the command that
@@ -174,6 +180,12 @@ func DetectPrereqs(ctx context.Context) *Prereqs {
 		if p.DockerErr == "" {
 			p.DockerErr = errNoEngine.Error()
 		}
+	}
+	if runtime.GOOS == "windows" {
+		p.Windows = windowsStory(ctx)
+		p.EngineInstalled = p.Windows.RancherInstalled || p.Windows.DockerDesktopInstalled
+		p.State = windowsState(p.DockerOK, p.Windows)
+		return p
 	}
 	if runtime.GOOS != "linux" {
 		p.Managed = managedStory(ctx)
