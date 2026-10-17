@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { app } from "../wailsjs/go/models";
-import { failed, finished, outcome, starting, stopAsked, withLine, withProgress, type RunProgress } from "../src/localRun.ts";
+import { MAX_RUN_LOG_LINES, droppedNote, failed, shownLog, finished, outcome, starting, stopAsked, withLine, withProgress, type RunProgress } from "../src/localRun.ts";
 
 const report = (runId: string, ref: string, turns = 0): RunProgress => ({
   runId, ref, startedAt: 1, timeoutSeconds: 900, maxTurns: 60, turns, inputTokens: 0, outputTokens: 0, prepared: true,
@@ -33,6 +33,20 @@ test("only this run's lines join its log, and none before it has begun", () => {
   r = withLine(r, { runId: "r2", line: "a line of another run" });
   r = withLine(r, { runId: "r1", line: "two" });
   assert.deepEqual(r.log, ["one", "two"]);
+});
+
+test("a long log keeps its newest lines, shown after a note of how many went", () => {
+  let r = withProgress(starting("acme/a@1.0.0"), report("r1", "acme/a@1.0.0"));
+  for (let i = 1; i <= MAX_RUN_LOG_LINES; i++) r = withLine(r, { runId: "r1", line: `line ${i}` });
+  assert.equal(r.log.length, MAX_RUN_LOG_LINES);
+  assert.equal(r.log[0], "line 1", "a log at its limit lost a line");
+  assert.equal(shownLog(r), r.log, "a log that lost nothing carries a note");
+  r = withLine(r, { runId: "r1", line: "one more" });
+  assert.equal(r.log.length, MAX_RUN_LOG_LINES);
+  assert.deepEqual(shownLog(r).slice(0, 2), [droppedNote(1), "line 2"]);
+  r = withLine(r, { runId: "r1", line: "and another" });
+  assert.deepEqual(shownLog(r).slice(0, 2), [droppedNote(2), "line 3"]);
+  assert.equal(r.log[r.log.length - 1], "and another");
 });
 
 test("once over, nothing more is taken", () => {
