@@ -127,17 +127,5 @@ func localInstallConsentText(s *localinstall.Staged, prev *installed.Record, dir
 
 // changedText names what changed in an installed copy, briefly.
 func changedText(c *installdir.ChangedError) string {
-	var parts []string
-	for _, k := range []struct {
-		label string
-		paths []string
-	}{{"changed", c.Changed}, {"added", c.Added}, {"removed", c.Removed}} {
-		if len(k.paths) > 0 {
-			parts = append(parts, k.label+" "+strings.Join(k.paths, ", "))
-		}
-	}
-	if len(parts) == 0 {
-		return "its record no longer matches"
-	}
-	return strings.Join(parts, "; ")
+	return install.ChangedInstallOf(c).Text(install.MaxNamedPaths)
 }

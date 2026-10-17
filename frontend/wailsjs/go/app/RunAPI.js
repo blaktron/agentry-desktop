@@ -190,6 +190,10 @@ export function InstallWindowsEngine() {
   return window['go']['app']['RunAPI']['InstallWindowsEngine']();
 }
 
+export function InstalledChanges(arg1, arg2) {
+  return window['go']['app']['RunAPI']['InstalledChanges'](arg1, arg2);
+}
+
 export function JevKeyStatus() {
   return window['go']['app']['RunAPI']['JevKeyStatus']();
 }

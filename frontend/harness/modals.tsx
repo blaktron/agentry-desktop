@@ -509,6 +509,7 @@ const runOutputs = {
 // Which step each state opens on: the blockers and Run are on the review,
 // the key form on Connect tools, the rest where the view says.
 const STEP_OF: Record<string, StepKey> = {
+  "runpanel-changed-install": "review",
   "runpanel-keys": "review",
   "runpanel-keys-saved": "tools",
   "runpanel-keys-optional": "tools",
@@ -616,6 +617,11 @@ g.go = { app: {
     SaveSourceKey: async (_t: string, answer: string) => ({ host: new URL(answer.split("#")[0]).hostname, shown: answer, saved: true, keychainOff: false }),
     ForgetSourceKey: async (_t: string, answer: string) => ({ host: new URL(answer.split("#")[0]).hostname, shown: answer, saved: false, keychainOff: false }),
     SetupStatus: async () => setup, GatewayRequirements: async () => mcp, RunRequirements: async () => mcp,
+    // #runpanel-changed-install: the installed copy changed after it was
+    // laid down; the setup shows every path and Repair.
+    InstalledChanges: async () => (view === "runpanel-changed-install"
+      ? { ref: profile.ref, changed: ["SKILL.md", "agent.yaml"], added: ["notes/extra.md", "x\u202eb.md"], removed: [], local: false }
+      : null),
     ProfileStatus: async () => profile,
     // Saving the keys makes the profile exist: the line above Run goes and
     // Run enables (#runpanel-keys-saved).
@@ -669,6 +675,7 @@ g.go = { app: {
     Disconnect: async () => "revoked",
   },
   InstallAPI: {
+    InstallRunner: async () => ({ dest: "", message: "repaired" }),
     // #install-unscanned: the plan the wizard shows for a release the
     // registry admitted without a scan.
     Prepare: async () => ({

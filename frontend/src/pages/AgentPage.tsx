@@ -11,6 +11,8 @@ import {
 import InstallWizard from "./InstallWizard";
 import { codingAgentName } from "./CodingAgents";
 import RunPanel from "./RunPanel";
+import { ChangedInstallNotice } from "./ChangedInstall";
+import type { ChangedInstall } from "../changedInstall";
 import { advisoryWords } from "../advisory";
 import ToolsPanel from "./ToolsPanel";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
@@ -158,6 +160,19 @@ export default function AgentPage({
       .then((u) => { setRunnerUpdate(u); setRunnerUpdateErr(u?.error ?? null); })
       .catch((e) => setRunnerUpdateErr(String(e)));
   }, [ns, name, installedVersion]);
+
+  // The installed copy, when its files changed after it was laid down: a
+  // run of it is refused, and Repair lays it down again.
+  const runnerOrigin = runnerInstall?.origin ?? registry;
+  const [changedInstall, setChangedInstall] = useState<ChangedInstall | null>(null);
+  const readChanged = useCallback(() => {
+    setChangedInstall(null);
+    if (!installedVersion) return;
+    RunAPI.InstalledChanges(runnerOrigin, `${ns}/${name}@${installedVersion}`)
+      .then((c) => setChangedInstall(c ?? null))
+      .catch(() => setChangedInstall(null));
+  }, [runnerOrigin, ns, name, installedVersion]);
+  useEffect(readChanged, [readChanged]);
 
   // One click: resolve, verify, lay down in the runner home. The
   // gates — an unsigned or unscanned release, a contract to accept — are
@@ -314,6 +329,9 @@ export default function AgentPage({
       {runnerInstall && runnerUpdateErr && !installBusy && <p className="muted small">Installed {runnerInstall.version}; could not check for a newer version: {runnerUpdateErr}</p>}
       <ErrorBox error={installError} />
       {installWarning && <Notice tone="warn">{installWarning}</Notice>}
+      {changedInstall && !installBusy && (
+        <ChangedInstallNotice registry={runnerOrigin} changed={changedInstall} onRepaired={() => { refreshInstalls(); readChanged(); }} />
+      )}
 
       {removeMsg && <Notice tone="info">{removeMsg}</Notice>}
       {detail.dependencyAlerts.length > 0 && (
