@@ -317,3 +317,25 @@ func TestContractDialogNamesATargetHostAndABrowser(t *testing.T) {
 		}
 	}
 }
+
+// The consent dialog names each MCP server's own reach: a remote server by
+// its address and a package server's egress by its hosts, any host called
+// out, since either asks for the consent alone.
+func TestContractDialogNamesTheServersReach(t *testing.T) {
+	c := manifest.Capabilities{MCPServers: []manifest.MCPServer{
+		{URL: "https://mcp.deepwiki.com/mcp", Auth: "none"},
+		{NPM: "@acme/osv-mcp", Version: "1.2.3", Egress: []string{"*"}},
+	}}
+	plan := &install.Plan{Namespace: "acme", Name: "demo", Version: "1.0.0", NeedsCapabilityConfirm: true,
+		Capabilities: installed.Snapshot(c), ServerReach: install.ServerReach(c)}
+	got := contractConsentText(plan, nil)
+	for _, want := range []string{
+		"Version 1.0.0 declares:",
+		"• a remote MCP server: https://mcp.deepwiki.com/mcp",
+		"• UNRESTRICTED network egress for MCP server npm:@acme/osv-mcp@1.2.3 (any host, policy-gated)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("dialog:\n%s\nwant %q", got, want)
+		}
+	}
+}

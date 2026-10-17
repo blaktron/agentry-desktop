@@ -181,9 +181,17 @@ type Plan struct {
 	// MCPServers is each declared MCP server's pin, tool allowlist and
 	// plain env, for the review; never a secret.
 	MCPServers []mcpview.Server `json:"mcpServers"`
-	// NeedsCapabilityConfirm: first install declaring egress, exec, a target
-	// host or a browser.
+	// NeedsCapabilityConfirm: a first install of a release that declares
+	// anything Confirms names.
 	NeedsCapabilityConfirm bool `json:"needsCapabilityConfirm"`
+	// Confirms names what the release declares that a first install asks
+	// about, in the CLI's install-gate words ("network egress", "a remote
+	// MCP server", …); empty when it asks about nothing.
+	Confirms []string `json:"confirms"`
+	// ServerReach is each declared MCP server's own network reach as the
+	// consent states it: a remote server by its address, a package server's
+	// egress by its hosts.
+	ServerReach []string `json:"serverReach"`
 	// PrevVersion is the version currently at this key ("" on first install).
 	PrevVersion string `json:"prevVersion,omitempty"`
 	// Diff vs the installed contract (nil on first install).
@@ -394,15 +402,73 @@ func readRecord(plan *Plan, m *manifest.Manifest) {
 	} else {
 		plan.NeedsCapabilityConfirm = needsCapabilityConfirm(m.Capabilities)
 	}
+	plan.Confirms = ConfirmedCapabilities(m.Capabilities)
+	plan.ServerReach = ServerReach(m.Capabilities)
 }
 
 // needsCapabilityConfirm reports whether a first install of c asks for
-// the capability consent: declared network egress or exec, a target host,
-// a machine the person names and the agent works as the account they sign
-// in with (the CLI's install gate), or a browser, which
-// opens the sites the person names.
+// the capability consent: whether it declares anything
+// ConfirmedCapabilities names.
 func needsCapabilityConfirm(c manifest.Capabilities) bool {
-	return len(c.Network.Egress.Hosts) > 0 || len(c.Exec.Commands) > 0 || len(c.TargetHosts) > 0 || c.Browser != nil
+	return len(ConfirmedCapabilities(c)) > 0
+}
+
+// ConfirmedCapabilities names what c declares that a first install asks
+// about, in the words of the CLI's install gate, so the desktop and the
+// CLI ask about the same things: the release's own network egress and
+// exec, a remote MCP server, a package MCP server's own egress, a target
+// host and a browser. A remote server is network reach to its vendor, and
+// a package server's egress network reach from its container, whatever
+// the release's own egress says.
+func ConfirmedCapabilities(c manifest.Capabilities) []string {
+	var what []string
+	if len(c.Network.Egress.Hosts) > 0 {
+		what = append(what, "network egress")
+	}
+	if len(c.Exec.Commands) > 0 {
+		what = append(what, "exec")
+	}
+	if slices.ContainsFunc(c.MCPServers, manifest.MCPServer.IsRemote) {
+		what = append(what, "a remote MCP server")
+	}
+	for _, srv := range c.MCPServers {
+		switch {
+		case srv.IsRemote() || len(srv.Egress) == 0:
+		case slices.Contains(srv.Egress, "*"):
+			what = append(what, "UNRESTRICTED network egress for MCP server "+srv.SourceID()+"@"+srv.Version)
+		default:
+			what = append(what, "network egress for MCP server "+srv.SourceID()+"@"+srv.Version)
+		}
+	}
+	switch n := len(c.TargetHosts); {
+	case n == 1:
+		what = append(what, "a target host")
+	case n > 1:
+		what = append(what, "target hosts")
+	}
+	if c.Browser != nil {
+		what = append(what, "a web browser")
+	}
+	return what
+}
+
+// ServerReach is each declared MCP server's own network reach, one line
+// per server that has any, for the consent to list beside the release's
+// own capabilities.
+func ServerReach(c manifest.Capabilities) []string {
+	var lines []string
+	for _, srv := range c.MCPServers {
+		switch {
+		case srv.IsRemote():
+			lines = append(lines, "a remote MCP server: "+srv.URL)
+		case len(srv.Egress) == 0:
+		case slices.Contains(srv.Egress, "*"):
+			lines = append(lines, "UNRESTRICTED network egress for MCP server "+srv.SourceID()+"@"+srv.Version+" (any host, policy-gated)")
+		default:
+			lines = append(lines, "network egress for MCP server "+srv.SourceID()+"@"+srv.Version+" to "+strings.Join(srv.Egress, ", "))
+		}
+	}
+	return lines
 }
 
 // PrepareExport derives a coding-agent export from a pending runner plan:
