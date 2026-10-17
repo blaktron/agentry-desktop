@@ -277,6 +277,9 @@ type HostedStartView struct {
 	// Optional are the release's optional secrets, as a secrets refusal
 	// names them: those of Missing the ask may leave empty.
 	Optional []string `json:"optional,omitempty"`
+	// Question is the intake question a validation refusal names: a secret
+	// question answered In Agentry, which the registry never takes.
+	Question string `json:"question,omitempty"`
 }
 
 // HostedAvailability answers the panel's first question about a release:
@@ -469,8 +472,16 @@ func (r *RunAPI) startHosted(reg, ref, task string, inputPaths []string, outDir 
 		if sourceTokens, err = run.HostedSourceTokens(sig.Manifest, intakeAnswers, typedTokens, nil); err != nil {
 			return nil, err
 		}
+		// A secret question is never answered In Agentry: the run takes its
+		// value from the account's secrets, and the registry refuses an
+		// answer to one.
+		intakeAnswers = run.HostedIntake(sig.Manifest, intakeAnswers)
 	} else if len(typedTokens) > 0 {
 		return nil, fmt.Errorf("the release %s could not be read, so its input sources' tokens were not sent: %w", ref, err)
+	} else if len(intakeAnswers) > 0 {
+		// Without the release its secret questions are not known, so no
+		// answer goes: one of them could be a secret's value.
+		return nil, fmt.Errorf("the release %s could not be read, so its answers were not sent: %w", ref, err)
 	}
 	attach, err := r.packsInAgentry(reg, packs)
 	if err != nil {
@@ -849,7 +860,7 @@ func (r *RunAPI) refusalView(refusal *hostedrun.Refusal) *HostedStartView {
 	v := &HostedStartView{
 		Refusal: refusal.Slug, Detail: refusal.Sentence(),
 		Balance: refusal.Balance, Hold: refusal.Hold, ResetsAt: refusal.ResetsAt,
-		Missing: refusal.Missing, Optional: refusal.Optional,
+		Missing: refusal.Missing, Optional: refusal.Optional, Question: refusal.Question,
 	}
 	// No destination here: the panel asks SettingsAPI.OpenUpgrade for it at
 	// the moment a person clicks, so the registry's answer is checked

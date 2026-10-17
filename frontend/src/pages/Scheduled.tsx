@@ -28,6 +28,7 @@ import {
 } from "../scheduled";
 
 import { RepeatFields, SignedOutBox, type Availability } from "./WhenStep";
+import { secretAnswerRefusal } from "../secretIntake";
 
 /** A row of the page's list: a schedule on this computer, or one In
  *  Agentry (hosted). */
@@ -365,7 +366,12 @@ export default function Scheduled({ registry, onOpenRun, onScheduleAgent, onSign
                   <Button onClick={() => act(s.id, "run", async () => {
                     const r = await ScheduleAPI.HostedRunNow(registry, s.id);
                     if (r.runId) onOpenRun(r.runId, true);
-                    else throw new Error(r.detail || "Agentry did not start the run.");
+                    else {
+                      // A schedule whose kept intake answers a secret question
+                      // is refused at every run: it has to be made again.
+                      const secret = secretAnswerRefusal(r);
+                      throw new Error(secret ? `${secret.heading} ${secret.detail} Delete this schedule and make it again.` : r.detail || "Agentry did not start the run.");
+                    }
                   })} disabled={!!busy}>Run now</Button>
                   <Button variant="danger" onClick={() => act(s.id, "remove", () => ScheduleAPI.HostedRemove(registry, s.id, s.name))} disabled={!!busy}>Delete</Button>
                 </div>

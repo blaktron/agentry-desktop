@@ -1483,6 +1483,7 @@ export namespace app {
 	    runId?: string;
 	    refusal?: string;
 	    detail?: string;
+	    question?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedRunNowView(source);
@@ -1493,6 +1494,7 @@ export namespace app {
 	        this.runId = source["runId"];
 	        this.refusal = source["refusal"];
 	        this.detail = source["detail"];
+	        this.question = source["question"];
 	    }
 	}
 	
@@ -1593,6 +1595,7 @@ export namespace app {
 	    detail?: string;
 	    missing?: string[];
 	    optional?: string[];
+	    question?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedScheduleMadeView(source);
@@ -1606,6 +1609,7 @@ export namespace app {
 	        this.detail = source["detail"];
 	        this.missing = source["missing"];
 	        this.optional = source["optional"];
+	        this.question = source["question"];
 	    }
 	}
 	
@@ -1710,6 +1714,7 @@ export namespace app {
 	    resetsAt?: string;
 	    missing?: string[];
 	    optional?: string[];
+	    question?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new HostedStartView(source);
@@ -1725,6 +1730,7 @@ export namespace app {
 	        this.resetsAt = source["resetsAt"];
 	        this.missing = source["missing"];
 	        this.optional = source["optional"];
+	        this.question = source["question"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
