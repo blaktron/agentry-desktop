@@ -379,7 +379,6 @@ func TestTheKnownSocketsAreTriedInAFixedOrder(t *testing.T) {
 		"Rancher Desktop " + filepath.Join(home, ".rd/docker.sock"),
 		"Lima " + filepath.Join(home, ".lima/docker/sock/docker.sock"),
 		"the podman machine /tmp/podman/podman-machine-default-api.sock",
-		"Podman Desktop " + filepath.Join(home, ".local/share/containers/podman/machine/podman.sock"),
 	}
 	var names []string
 	for _, s := range got {
