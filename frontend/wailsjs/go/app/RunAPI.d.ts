@@ -96,6 +96,8 @@ export function InstallEngine():Promise<app.PrereqView>;
 
 export function InstallManagedEngine():Promise<app.PrereqView>;
 
+export function InstallWindowsEngine():Promise<app.PrereqView>;
+
 export function JevKeyStatus():Promise<app.JevKeyView>;
 
 export function KeepOwnClient(arg1:string,arg2:string,arg3:string):Promise<void>;
@@ -189,6 +191,8 @@ export function StartHostedSession(arg1:string,arg2:string,arg3:string,arg4:Arra
 export function StartManagedEngine():Promise<app.PrereqView>;
 
 export function StartSession(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string,arg6:any,arg7:number,arg8:boolean,arg9:Record<string, string>,arg10:boolean,arg11:boolean,arg12:Array<string>,arg13:boolean,arg14:Record<string, string>,arg15:Record<string, run.HostSignIn>):Promise<app.SessionView>;
+
+export function StartWindowsEngine():Promise<app.PrereqView>;
 
 export function StopAwaitingConnections():Promise<void>;
 

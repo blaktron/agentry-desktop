@@ -829,8 +829,39 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
           onRemove={() => act("Removing Agentry's engine…", RunAPI.RemoveManagedEngine)}
         />
       )}
-      {(prereq.state === "manual" || prereq.state === "managedOffer") && prereq.os !== "linux" && (
-        <EngineChoices os={prereq.os} err={prereq.state === "manual" ? prereq.dockerErr : undefined} intro={prereq.state === "managedOffer" ? "Or install one of these yourself; the app finds whichever answers:" : undefined} />
+      {prereq.state === "windowsOffer" && (
+        <WindowsOffer
+          windows={prereq.windows}
+          busy={!!busy}
+          onInstall={() => act(prereq.windows.wsl === "missing" ? "Installing Windows Subsystem for Linux…" : "Installing Rancher Desktop…", RunAPI.InstallWindowsEngine)}
+        />
+      )}
+      {prereq.state === "windowsRestart" && (
+        <>
+          <p className="small">
+            Windows Subsystem for Linux is installed. Windows has to restart before Rancher Desktop can use it;
+            after the restart, open this card and click <strong>Install Rancher Desktop</strong> again to finish.
+          </p>
+          {deferred ? (
+            <p className="muted small">Restart when you are ready; this card stays until the engine answers.</p>
+          ) : (
+            <div className="row" style={{ justifyContent: "flex-end" }}>
+              <Button onClick={restartLater} disabled={!!busy}>Restart later</Button>
+              <Button variant="primary" onClick={() => setConfirmRestart(true)} disabled={!!busy}>Restart now</Button>
+            </div>
+          )}
+        </>
+      )}
+      {prereq.state === "windowsStopped" && (
+        <WindowsStopped
+          windows={prereq.windows}
+          err={prereq.dockerErr}
+          busy={!!busy}
+          onStart={() => act("Starting Rancher Desktop…", RunAPI.StartWindowsEngine)}
+        />
+      )}
+      {(prereq.state === "manual" || prereq.state === "managedOffer" || prereq.state === "windowsOffer") && prereq.os !== "linux" && (
+        <EngineChoices os={prereq.os} err={prereq.state === "manual" ? prereq.dockerErr : undefined} intro={prereq.state === "managedOffer" || prereq.state === "windowsOffer" ? "Or install one of these yourself; the app finds whichever answers:" : undefined} />
       )}
 
       {prereq.dockerErr && !prereq.engineInstalled && prereq.os === "linux" && <p className="small mono">{prereq.dockerErr}</p>}
@@ -839,12 +870,19 @@ export function PrereqCard({ onDone }: { onDone: () => Promise<void> }) {
 
       {confirmRestart && (
         <Modal title="Restart this machine now?" onClose={() => setConfirmRestart(false)}>
-          <p>
-            This asks the system to reboot: every open application closes, and unsaved work in
-            them is lost. The app does not run as root — the request goes to the session
-            manager (<span className="mono">systemctl reboot</span>), and if it refuses, the
-            system&apos;s own elevation prompt appears.
-          </p>
+          {prereq.os === "windows" ? (
+            <p>
+              This restarts Windows (<span className="mono">shutdown /r /t 0</span>): every open
+              application closes, and unsaved work in them is lost.
+            </p>
+          ) : (
+            <p>
+              This asks the system to reboot: every open application closes, and unsaved work in
+              them is lost. The app does not run as root — the request goes to the session
+              manager (<span className="mono">systemctl reboot</span>), and if it refuses, the
+              system&apos;s own elevation prompt appears.
+            </p>
+          )}
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <Button onClick={() => setConfirmRestart(false)}>Cancel</Button>
             <Button variant="danger" onClick={restartNow}>Restart now</Button>
@@ -989,6 +1027,67 @@ function ManagedStopped({ managed, err, busy, onStart, onRemove }: {
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <Button variant="danger" disabled={busy} onClick={onRemove} data-testid="remove-managed-engine">Remove</Button>
         <Button variant="primary" disabled={busy} onClick={onStart} data-testid="start-managed-engine">Start</Button>
+      </div>
+    </div>
+  );
+}
+
+/** The one click on Windows with no engine: Rancher Desktop with its
+ * dockerd engine, from SUSE's installer checked against the SHA-512 its
+ * release publishes, installed for this user alone. Where Windows Subsystem
+ * for Linux is not on, the click installs it first (Windows asks for
+ * administrator consent), and Windows restarts before the second click. */
+function WindowsOffer({ windows, busy, onInstall }: { windows: app.PrereqView["windows"]; busy: boolean; onInstall: () => void }) {
+  const wslMissing = windows.wsl === "missing";
+  return (
+    <div className="managed-engine">
+      <p className="small">
+        No container engine answered on this computer. The app can install <strong>Rancher Desktop</strong> for
+        you, with its dockerd engine, which serves the Docker API runs need.
+      </p>
+      <ul className="muted small">
+        <li>Rancher Desktop {windows.version} (SUSE, {windows.licence}), about {windows.downloadMb ?? 640} MB from its GitHub release, checked against the SHA-512 the release publishes.</li>
+        <li>Installed for your account alone, with no administrator password; Kubernetes stays off. It is your own application afterwards, listed in Windows&apos; installed apps, and the app starts it when it opens.</li>
+        {wslMissing && (
+          <li>
+            It needs Windows Subsystem for Linux, which is not on yet: the click first asks Windows to install it,
+            which needs administrator consent once and then a restart. After the restart, click again to finish.
+          </li>
+        )}
+      </ul>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button variant="primary" disabled={busy} onClick={onInstall} data-testid="install-windows-engine">
+          {wslMissing ? "Install WSL, then Rancher Desktop" : "Install Rancher Desktop"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Rancher Desktop installed and its engine silent: start it. */
+function WindowsStopped({ windows, err, busy, onStart }: {
+  windows: app.PrereqView["windows"]; err?: string; busy: boolean; onStart: () => void;
+}) {
+  if (windows.starting) {
+    return (
+      <div className="managed-engine">
+        <p className="small"><strong>Rancher Desktop</strong> is starting; its first start sets up its WSL distributions and takes a few minutes.</p>
+        <Spinner label="Starting Rancher Desktop…" />
+      </div>
+    );
+  }
+  return (
+    <div className="managed-engine">
+      <p className="small">
+        <strong>Rancher Desktop</strong> is installed and its engine is not answering.
+        {err && <> <span className="mono">{err}</span></>}
+      </p>
+      <p className="muted small">
+        If it runs its containerd engine, choose dockerd (moby) under Rancher Desktop&apos;s Preferences, Container Engine:
+        containerd serves no Docker API.
+      </p>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <Button variant="primary" disabled={busy} onClick={onStart} data-testid="start-windows-engine">Start Rancher Desktop</Button>
       </div>
     </div>
   );

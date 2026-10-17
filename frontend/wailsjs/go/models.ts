@@ -2376,6 +2376,7 @@ export namespace app {
 	    socketCommand?: string;
 	    warnings: string[];
 	    managed: run.Managed;
+	    windows: run.WindowsEngine;
 	
 	    static createFrom(source: any = {}) {
 	        return new PrereqView(source);
@@ -2400,6 +2401,7 @@ export namespace app {
 	        this.socketCommand = source["socketCommand"];
 	        this.warnings = source["warnings"];
 	        this.managed = this.convertValues(source["managed"], run.Managed);
+	        this.windows = this.convertValues(source["windows"], run.WindowsEngine);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -6777,6 +6779,34 @@ export namespace run {
 	        this.vendor = source["vendor"];
 	        this.account = source["account"];
 	        this.models = source["models"];
+	    }
+	}
+	export class WindowsEngine {
+	    supported: boolean;
+	    rancherInstalled: boolean;
+	    installedByApp: boolean;
+	    dockerDesktopInstalled: boolean;
+	    wsl: string;
+	    starting: boolean;
+	    version?: string;
+	    licence?: string;
+	    downloadMb?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WindowsEngine(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.supported = source["supported"];
+	        this.rancherInstalled = source["rancherInstalled"];
+	        this.installedByApp = source["installedByApp"];
+	        this.dockerDesktopInstalled = source["dockerDesktopInstalled"];
+	        this.wsl = source["wsl"];
+	        this.starting = source["starting"];
+	        this.version = source["version"];
+	        this.licence = source["licence"];
+	        this.downloadMb = source["downloadMb"];
 	    }
 	}
 
