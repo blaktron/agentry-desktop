@@ -250,7 +250,8 @@ func detectInOrder(ctx context.Context) Engine {
 			continue
 		}
 		if err := pingSocket(ctx, s.path); err != nil {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("%s left a socket at %s with nothing answering behind it (%v): start it, or remove the file", s.name, s.path, err))
+			left := dockerx.LeftSocket{HostSocket: dockerx.HostSocket{Name: s.name, Path: s.path}, Err: err}
+			out.Warnings = append(out.Warnings, left.Message())
 			continue
 		}
 		adoptVar("DOCKER_HOST", dockerx.SchemeUnix+"://"+s.path)
@@ -393,7 +394,6 @@ func hostSocketsFor(goos, home, machine string) []knownSocket {
 		if machine != "" {
 			out = append(out, knownSocket{"the podman machine", machine})
 		}
-		out = append(out, knownSocket{"Podman Desktop", under(".local/share/containers/podman/machine/podman.sock")})
 		return out
 	case "linux":
 		return []knownSocket{
