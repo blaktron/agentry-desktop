@@ -280,6 +280,61 @@ func TestRancherDesktopIsFoundWhereverItIsInstalledAndStartedThroughRdctl(t *tes
 	}
 }
 
+// The provisioning script is exactly the substitution that keeps Rancher
+// Desktop's docker proxy up, with Unix line endings (sh runs it in the
+// distribution), written where Rancher Desktop reads it and only when it
+// is missing or differs.
+func TestTheHealthcheckFixIsWrittenOnceWhereRancherDesktopRunsIt(t *testing.T) {
+	i, calls := rig(t, map[string]int{})
+	if strings.Contains(HealthcheckFix, "\r") || !strings.HasPrefix(HealthcheckFix, "#!/bin/sh\n") {
+		t.Fatalf("not a Unix shell script: %q", HealthcheckFix)
+	}
+	if !strings.Contains(HealthcheckFix, `sed -i 's|http://\./_ping|http://localhost/_ping|g' /etc/init.d/docker`) {
+		t.Fatalf("the substitution changed: %q", HealthcheckFix)
+	}
+	want := filepath.Join(i.LocalAppData, "rancher-desktop", "provisioning", "agentry-docker-healthcheck.start")
+	if i.ProvisionPath() != want {
+		t.Fatalf("path %q, want %q", i.ProvisionPath(), want)
+	}
+	if added, err := i.Provision(); err != nil || !added {
+		t.Fatalf("first write: added %v, %v", added, err)
+	}
+	if b, _ := os.ReadFile(want); string(b) != HealthcheckFix { //nolint:gosec // the test's own file
+		t.Fatalf("wrote %q", b)
+	}
+	if added, err := i.Provision(); err != nil || added {
+		t.Fatalf("second write: added %v, %v", added, err)
+	}
+	if err := os.WriteFile(want, []byte("#!/bin/sh\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if added, _ := i.Provision(); !added {
+		t.Fatal("a changed copy was kept")
+	}
+	if c := calls(); len(c) != 1 || c[0] != "" {
+		t.Fatalf("writing the script ran %q", c)
+	}
+}
+
+// Whether Rancher Desktop runs is rdctl's API answering; quitting it is
+// rdctl shutdown.
+func TestRancherDesktopIsAskedWhetherItRunsAndQuitThroughRdctl(t *testing.T) {
+	i, calls := rig(t, map[string]int{"rdctl.exeapi": 1})
+	if i.Running(context.Background()) {
+		t.Fatal("running though rdctl's API did not answer")
+	}
+	if err := i.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := calls(); len(got) != 2 || got[0] != "rdctl.exe api /v1/backend_state" || got[1] != "rdctl.exe shutdown" {
+		t.Fatalf("ran %q", got)
+	}
+	j, _ := rig(t, map[string]int{})
+	if !j.Running(context.Background()) {
+		t.Fatal("not running though rdctl's API answered")
+	}
+}
+
 // rdctl start hands its stdout and stderr to the Rancher Desktop it
 // launches, which keeps running: the start returns once rdctl has exited,
 // with what rdctl said, rather than when Rancher Desktop quits.

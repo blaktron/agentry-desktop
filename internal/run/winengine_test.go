@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+
 	"github.com/blaktron/agentry-desktop/internal/windowsengine"
 )
 
@@ -173,7 +175,7 @@ func TestAWindowsInstallerWithAnotherSumIsNotRun(t *testing.T) {
 // engine answers and none is named in its environment.
 func TestTheAppStartsRancherDesktopAtLaunchOnlyWhereItInstalledIt(t *testing.T) {
 	withEngines(t, engineFixture{})
-	i, calls := windowsRig(t, map[string]int{})
+	i, calls := windowsRig(t, map[string]int{"rdctl.exe api": 1})
 	savedWait, savedDetect := windowsReadyWait, windowsDetect
 	windowsReadyWait = 10 * time.Millisecond
 	windowsDetect = func(context.Context) Engine { return Engine{} }
@@ -195,8 +197,8 @@ func TestTheAppStartsRancherDesktopAtLaunchOnlyWhereItInstalledIt(t *testing.T) 
 	if c := calls(); len(c) != 1 || c[0] != "" {
 		t.Fatalf("started the person's own install: %q", c)
 	}
-	// Installed by the app: started in the background with its saved
-	// settings.
+	// Installed by the app and not running: given its provisioning script,
+	// then started in the background with its saved settings.
 	if err := os.MkdirAll(i.StateDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -204,17 +206,102 @@ func TestTheAppStartsRancherDesktopAtLaunchOnlyWhereItInstalledIt(t *testing.T) 
 		t.Fatal(err)
 	}
 	StartWindowsEngineAtLaunch(context.Background(), io.Discard)
-	if c := calls(); len(c) != 1 || c[0] != "rdctl.exe "+strings.Join(windowsengine.StartArgs(), " ") {
+	if c := calls(); len(c) != 2 || c[0] != "rdctl.exe api /v1/backend_state" || c[1] != "rdctl.exe "+strings.Join(windowsengine.StartArgs(), " ") {
 		t.Fatalf("ran %q", c)
 	}
-	// With an engine chosen in Settings, nothing is started on its own.
-	remembered = "context:desktop-linux"
+	if b, _ := os.ReadFile(i.ProvisionPath()); string(b) != windowsengine.HealthcheckFix {
+		t.Fatalf("the provisioning script is %q", b)
+	}
+}
+
+// installedByTheApp makes the rig's Rancher Desktop one the app installed.
+func installedByTheApp(t *testing.T, i *windowsengine.Installer) {
+	t.Helper()
+	bin := filepath.Join(i.LocalAppData, "Programs", "Rancher Desktop", "resources", "resources", "win32", "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "rdctl.exe"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(i.StateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(i.StateDir, "installed.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A Rancher Desktop that runs while its engine answers nothing is quit and
+// started again by Start: rdctl start alone would only apply settings to
+// it, and its provisioning script takes effect only at a start.
+func TestStartRestartsARunningRancherDesktopWhoseEngineIsSilent(t *testing.T) {
+	withEngines(t, engineFixture{})
+	i, calls := windowsRig(t, map[string]int{})
+	installedByTheApp(t, i)
+	savedWait, savedDetect := windowsReadyWait, windowsDetect
+	windowsReadyWait = time.Minute
+	windowsDetect = func(context.Context) Engine {
+		for _, c := range calls() {
+			if strings.HasPrefix(c, "rdctl.exe start") {
+				return Engine{Found: true}
+			}
+		}
+		return Engine{}
+	}
+	t.Cleanup(func() { windowsReadyWait, windowsDetect = savedWait, savedDetect })
+
+	if err := StartWindowsEngine(context.Background(), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"rdctl.exe api /v1/backend_state", "rdctl.exe shutdown", "rdctl.exe " + strings.Join(windowsengine.StartArgs(), " ")}
+	if got := calls(); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("ran %q, want %q", got, want)
+	}
+	if b, _ := os.ReadFile(i.ProvisionPath()); string(b) != windowsengine.HealthcheckFix {
+		t.Fatalf("the provisioning script is %q", b)
+	}
+}
+
+// At launch, an engine that answers is left alone once its provisioning
+// script is in place; without the script it is restarted once, since it
+// would stop answering about a minute after its start.
+func TestAtLaunchAnAnsweringRancherDesktopIsRestartedOnlyToAddItsScript(t *testing.T) {
+	withEngines(t, engineFixture{docker: &contextDocker{Fake: &dockerx.Fake{}}, onPath: []string{"docker"}})
+	i, calls := windowsRig(t, map[string]int{})
+	installedByTheApp(t, i)
+	savedWait, savedDetect := windowsReadyWait, windowsDetect
+	windowsReadyWait = time.Minute
+	windowsDetect = func(context.Context) Engine { return Engine{Found: true} }
+	t.Cleanup(func() { windowsReadyWait, windowsDetect = savedWait, savedDetect })
+
+	StartWindowsEngineAtLaunch(context.Background(), io.Discard)
+	want := []string{"rdctl.exe api /v1/backend_state", "rdctl.exe shutdown", "rdctl.exe " + strings.Join(windowsengine.StartArgs(), " ")}
+	if got := calls(); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("without its script: ran %q, want %q", got, want)
+	}
+	StartWindowsEngineAtLaunch(context.Background(), io.Discard)
+	if got := calls(); len(got) != len(want) {
+		t.Fatalf("with its script: ran %q", got[len(want):])
+	}
+}
+
+// With an engine chosen in Settings, Rancher Desktop installed by the app
+// is given its provisioning script at launch and neither started nor
+// restarted.
+func TestWithAnEngineChosenRancherDesktopIsProvisionedAndNotStarted(t *testing.T) {
+	withEngines(t, engineFixture{choice: "context:desktop-linux"})
+	i, calls := windowsRig(t, map[string]int{})
+	installedByTheApp(t, i)
 	var log strings.Builder
 	StartWindowsEngineAtLaunch(context.Background(), &log)
-	if c := calls(); len(c) != 1 {
-		t.Fatalf("started with an engine chosen: %q", c)
+	if c := calls(); len(c) != 1 || c[0] != "" {
+		t.Fatalf("ran %q with an engine chosen", c)
 	}
 	if !strings.Contains(log.String(), "an engine is chosen in Settings (the docker CLI's context desktop-linux)") {
 		t.Errorf("log %q", log.String())
+	}
+	if b, _ := os.ReadFile(i.ProvisionPath()); string(b) != windowsengine.HealthcheckFix {
+		t.Fatalf("the provisioning script is %q", b)
 	}
 }
