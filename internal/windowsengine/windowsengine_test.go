@@ -27,6 +27,10 @@ func TestHelperProcess(t *testing.T) {
 	if os.Getenv("WINDOWSENGINE_HELPER") != "1" {
 		return
 	}
+	if os.Getenv("WINDOWSENGINE_SLEEP") == "1" {
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	}
 	args := os.Args
 	for len(args) > 0 && args[0] != "--" {
 		args = args[1:]
@@ -44,6 +48,18 @@ func TestHelperProcess(t *testing.T) {
 				_ = os.WriteFile(args[k+1], log, 0o600)
 			}
 		}
+	}
+	// As rdctl start does, launch a process that is handed this one's
+	// stdout and stderr and outlives it, and record its pid.
+	if pidFile := os.Getenv("WINDOWSENGINE_LINGER"); pidFile != "" && name == "rdctl.exe" {
+		child := exec.Command(os.Args[0], "-test.run=^TestHelperProcess$") //nolint:gosec // the test binary itself
+		child.Env = append(os.Environ(), "WINDOWSENGINE_SLEEP=1")
+		child.Stdout, child.Stderr = os.Stdout, os.Stderr
+		if err := child.Start(); err != nil {
+			os.Exit(2)
+		}
+		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(child.Process.Pid)), 0o600)
+		fmt.Println("launched")
 	}
 	code, _ := strconv.Atoi(os.Getenv("WINDOWSENGINE_EXIT_" + key))
 	os.Exit(code)
@@ -261,6 +277,44 @@ func TestRancherDesktopIsFoundWhereverItIsInstalledAndStartedThroughRdctl(t *tes
 		if !slices.Contains(FirstStartArgs(), want) {
 			t.Errorf("the first start lacks %s", want)
 		}
+	}
+}
+
+// rdctl start hands its stdout and stderr to the Rancher Desktop it
+// launches, which keeps running: the start returns once rdctl has exited,
+// with what rdctl said, rather than when Rancher Desktop quits.
+func TestTheStartReturnsWhileRancherDesktopHoldsRdctlsOutputOpen(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	i, _ := rig(t, map[string]int{}, "WINDOWSENGINE_LINGER="+pidFile)
+	t.Cleanup(func() {
+		b, err := os.ReadFile(pidFile) //nolint:gosec // the test's own file
+		if err != nil {
+			return
+		}
+		if pid, err := strconv.Atoi(string(b)); err == nil {
+			if p, err := os.FindProcess(pid); err == nil {
+				_ = p.Kill()
+			}
+		}
+	})
+	was := outputWait
+	outputWait = 200 * time.Millisecond
+	t.Cleanup(func() { outputWait = was })
+	var log strings.Builder
+	i.Log = &log
+
+	began := time.Now()
+	if err := i.Start(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(began); took > 10*time.Second {
+		t.Fatalf("the start took %s: it waited for the launched process", took)
+	}
+	if _, err := os.Stat(pidFile); err != nil {
+		t.Fatalf("the stand-in launched nothing: %v", err)
+	}
+	if !strings.Contains(log.String(), "launched") {
+		t.Fatalf("rdctl's own output was not kept: %q", log.String())
 	}
 }
 

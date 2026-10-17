@@ -49,9 +49,11 @@ func profileRegistry(t *testing.T, directory, runs bool) (*httptest.Server, *str
 		displayName = *body.DisplayName
 		_, _ = w.Write([]byte(user()))
 	})
-	mux.HandleFunc("GET /api/v1/user/directory", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/x/directory/settings", func(w http.ResponseWriter, r *http.Request) {
 		if !directory {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"type":"https://docs.secureagentry.net/problems/directory-off","title":"No directory","status":404}`))
 			return
 		}
 		if authed(w, r) {
@@ -114,8 +116,9 @@ func TestProfileReadsTheAccountTheSignUpAndTheRunCaps(t *testing.T) {
 	}
 }
 
-// A directory that does not answer and a registry without hosted runs
-// leave their lines out; the card still renders the account.
+// A registry without the directory extension (its settings answer 404)
+// and one without hosted runs leave their lines out; the card still
+// renders the account.
 func TestProfileWithoutADirectoryOrHostedRuns(t *testing.T) {
 	srv, _ := profileRegistry(t, false, false)
 	p, err := profileFor(&App{ctx: context.Background()}, srv.URL, "agy_test")

@@ -1,7 +1,11 @@
 package app
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"unicode/utf8"
 
@@ -76,28 +80,50 @@ func profileFor(app *App, url, token string) (*ProfileView, error) {
 	} else {
 		out.Subscription = sub
 	}
-	if client, err := registry.New(url, token); err == nil {
-		if dir, err := client.GetUserDirectoryWithResponse(app.ctx); err == nil && dir.JSON200 != nil {
-			out.SignedUpWith = providerName(dir.JSON200)
-		}
-	}
+	out.SignedUpWith = signedUpWith(app.ctx, url, token)
 	if st, err := hostedrun.New(url, token).Status(app.ctx); err == nil && st.Enabled && st.Caller != nil {
 		out.HostedRuns = &HostedRunsTermsView{HoldCredits: st.Caller.HoldCredits, Caps: *hostedCaps(st.Caller.Caps)}
 	}
 	return out, nil
 }
 
-// providerName is the first social provider's display name, its slug when
-// it has none, as the site's signedUpWith reads it.
-func providerName(d *apiclient.UserDirectory) string {
-	p := d.FirstSocialProvider
-	if p == nil {
+// directorySettings is the part of the directory extension's
+// GET /api/v1/x/directory/settings the card reads.
+type directorySettings struct {
+	FirstSocialProvider *struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"firstSocialProvider"`
+}
+
+// signedUpWith is the display name of the social provider the account was
+// first connected to, its slug when it has none, as the site's
+// signedUpWith reads it. It is "" whenever the line cannot be said: a
+// registry without the directory extension (404), a directory that did not
+// answer, or an account with no social provider.
+func signedUpWith(ctx context.Context, url, token string) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(url, "/")+"/api/v1/x/directory/settings", nil)
+	if err != nil {
 		return ""
 	}
-	if n := strings.TrimSpace(p.Name); n != "" {
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+	res, err := registry.HTTPClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		return ""
+	}
+	var d directorySettings
+	if json.NewDecoder(io.LimitReader(res.Body, 1<<16)).Decode(&d) != nil || d.FirstSocialProvider == nil {
+		return ""
+	}
+	if n := strings.TrimSpace(d.FirstSocialProvider.Name); n != "" {
 		return n
 	}
-	return strings.TrimSpace(p.Id)
+	return strings.TrimSpace(d.FirstSocialProvider.ID)
 }
 
 func setDisplayName(app *App, url, token, name string) (*UserView, error) {

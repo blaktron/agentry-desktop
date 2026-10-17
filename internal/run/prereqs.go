@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/blaktron/agentry-cli/pkg/runner/dockerx"
+	"github.com/blaktron/agentry-cli/pkg/runner/procx"
 )
 
 // osReleasePath is a var so tests can point detection at a fixture.
@@ -51,8 +52,11 @@ var (
 	// restartCommand is what Restart runs; a var so tests never reboot.
 	restartCommand = func(ctx context.Context, elevated bool) *exec.Cmd {
 		if runtime.GOOS == "windows" {
-			// The signed-in user may restart Windows; no elevation.
-			return exec.CommandContext(ctx, "shutdown.exe", "/r", "/t", "0")
+			// The signed-in user may restart Windows; no elevation, and
+			// no console window.
+			cmd := exec.CommandContext(ctx, "shutdown.exe", "/r", "/t", "0")
+			procx.NoWindow(cmd)
+			return cmd
 		}
 		if elevated {
 			return exec.CommandContext(ctx, "pkexec", "systemctl", "reboot")
